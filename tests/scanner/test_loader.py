@@ -192,7 +192,13 @@ def test_loader_with_custom_logic():
                 transcripts = [transcripts]
             for t in transcripts:
                 for msg in t.messages:
-                    content = msg.text if hasattr(msg, 'text') else str(msg.content) if msg.content else ""
+                    content = (
+                        msg.text
+                        if hasattr(msg, "text")
+                        else str(msg.content)
+                        if msg.content
+                        else ""
+                    )
                     if len(content) > min_length:
                         yield msg
 
@@ -250,7 +256,9 @@ def test_loader_factory_with_parameters():
                 transcripts = [transcripts]
             for t in transcripts:
                 for msg in t.messages:
-                    if msg.role == "assistant" and isinstance(msg, ChatMessageAssistant):
+                    if msg.role == "assistant" and isinstance(
+                        msg, ChatMessageAssistant
+                    ):
                         if include_model or not hasattr(msg, "model"):
                             yield msg
 

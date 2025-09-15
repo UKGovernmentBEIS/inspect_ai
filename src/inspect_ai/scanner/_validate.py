@@ -40,6 +40,125 @@ from inspect_ai.model._chat_message import (
 from ._filter import EventType, MessageType
 from ._transcript import Transcript
 
+# Reverse mappings for inferring filters from types
+TYPE_TO_MESSAGE_FILTER: dict[type[Any], str] = {
+    ChatMessageSystem: "system",
+    ChatMessageUser: "user",
+    ChatMessageAssistant: "assistant",
+    ChatMessageTool: "tool",
+}
+
+TYPE_TO_EVENT_FILTER: dict[type[Any], str] = {
+    ModelEvent: "model",
+    ToolEvent: "tool",
+    SampleInitEvent: "sample_init",
+    SampleLimitEvent: "sample_limit",
+    SandboxEvent: "sandbox",
+    StateEvent: "state",
+    StoreEvent: "store",
+    ApprovalEvent: "approval",
+    InputEvent: "input",
+    ScoreEvent: "score",
+    ErrorEvent: "error",
+    LoggerEvent: "logger",
+    InfoEvent: "info",
+    SpanBeginEvent: "span_begin",
+    SpanEndEvent: "span_end",
+}
+
+
+def infer_filters_from_type(
+    scanner_fn: Callable[..., Any],
+    factory_globals: dict[str, Any],
+) -> tuple[list[str] | None, list[str] | None]:
+    """
+    Infer message and event filters from scanner function type annotations.
+
+    Args:
+        scanner_fn: The scanner function to analyze
+        factory_globals: Global namespace for type resolution
+
+    Returns:
+        Tuple of (message_filters, event_filters) or (None, None) if can't infer
+    """
+    # Get type hints
+    try:
+        hints = get_type_hints(
+            scanner_fn, globalns=factory_globals, localns=factory_globals
+        )
+    except Exception:
+        return None, None
+
+    # Get the input parameter type
+    param_names = list(inspect.signature(scanner_fn).parameters.keys())
+    if not param_names:
+        return None, None
+
+    input_param = param_names[0]
+    if input_param not in hints:
+        return None, None
+
+    input_type = hints[input_param]
+
+    # First check if it's ChatMessage, Event, or Transcript (even if they're unions)
+    # We don't want to infer for these "base" types
+    if input_type == ChatMessage or input_type == Event or input_type == Transcript:
+        return None, None
+
+    # Extract the actual type (unwrap list if needed)
+    if get_origin(input_type) is list:
+        args = get_args(input_type)
+        if args:
+            input_type = args[0]
+            # Check again for base types after unwrapping
+            if (
+                input_type == ChatMessage
+                or input_type == Event
+                or input_type == Transcript
+            ):
+                return None, None
+        else:
+            return None, None
+
+    # Check if it's a specific message type or union
+    message_filters = []
+    event_filters = []
+
+    # Handle Union types
+    if get_origin(input_type) in (Union, UnionType):
+        for arg in get_args(input_type):
+            if arg in TYPE_TO_MESSAGE_FILTER:
+                message_filters.append(TYPE_TO_MESSAGE_FILTER[arg])
+            elif arg in TYPE_TO_EVENT_FILTER:
+                event_filters.append(TYPE_TO_EVENT_FILTER[arg])
+    # Handle single specific types
+    elif input_type in TYPE_TO_MESSAGE_FILTER:
+        message_filters.append(TYPE_TO_MESSAGE_FILTER[input_type])
+    elif input_type in TYPE_TO_EVENT_FILTER:
+        event_filters.append(TYPE_TO_EVENT_FILTER[input_type])
+    else:
+        # Also check if it's a subclass of Transcript (the only class we can check)
+        try:
+            if inspect.isclass(input_type) and issubclass(input_type, Transcript):
+                # It's Transcript, we don't have a specific filter for it
+                return None, None
+        except TypeError:
+            # Not a class type
+            pass
+        return None, None
+
+    # If we have both message and event filters, can't use inference
+    # (should use Transcript instead)
+    if message_filters and event_filters:
+        return None, None
+
+    # Return inferred filters
+    # Type: ignore because mypy can't understand that the lists contain the right string literals
+    return (
+        message_filters if message_filters else None,  # type: ignore[return-value]
+        event_filters if event_filters else None,  # type: ignore[return-value]
+    )
+
 
 def validate_scanner_signature(
     scanner_fn: Callable[..., Any],
@@ -63,9 +182,7 @@ def validate_scanner_signature(
     try:
         # Also include localns for better resolution
         hints = get_type_hints(
-            scanner_fn,
-            globalns=factory_globals,
-            localns=factory_globals
+            scanner_fn, globalns=factory_globals, localns=factory_globals
         )
     except Exception:
         # If we can't get type hints, we can't validate - let it pass
@@ -98,7 +215,7 @@ def validate_scanner_signature(
 
 
 def _validate_transcript_type(
-    scanner_type: Type[Any],
+    scanner_type: Any,
     messages: list[MessageType] | Literal["all"],
     events: list[EventType] | Literal["all"],
 ) -> None:
@@ -111,7 +228,7 @@ def _validate_transcript_type(
 
 
 def _validate_message_type(
-    scanner_type: Type[Any],
+    scanner_type: Any,
     message_filter: list[MessageType] | Literal["all"],
 ) -> None:
     """
@@ -141,7 +258,7 @@ def _validate_message_type(
         filter_names = ", ".join(sorted(message_filter))
         type_names = ", ".join(t.__name__ for t in required_types)
         # Get actual scanner type name for better error message
-        scanner_type_name = getattr(scanner_type, '__name__', str(scanner_type))
+        scanner_type_name = getattr(scanner_type, "__name__", str(scanner_type))
         raise TypeError(
             f"Scanner with messages=[{filter_names}] must be able to handle all types: {type_names}, "
             f"but scanner accepts {scanner_type_name}"
@@ -149,7 +266,7 @@ def _validate_message_type(
 
 
 def _validate_event_type(
-    scanner_type: Type[Any],
+    scanner_type: Any,
     event_filter: list[EventType] | Literal["all"],
 ) -> None:
     """
@@ -221,7 +338,7 @@ def _get_event_types_from_filter(
     return {type_map[f] for f in event_filter}
 
 
-def _unwrap_list_type(type_hint: Type[Any]) -> tuple[bool, Type[Any]]:
+def _unwrap_list_type(type_hint: Any) -> tuple[bool, Any]:
     """
     Unwrap a list type to get the element type.
 
@@ -239,9 +356,9 @@ def _unwrap_list_type(type_hint: Type[Any]) -> tuple[bool, Type[Any]]:
 
 
 def _can_handle_all_types(
-    scanner_type: Type[Any],
+    scanner_type: Any,
     required_types: set[Type[Any]],
-    base_type: Type[Any],
+    base_type: Any,
 ) -> bool:
     """
     Check if scanner_type can handle all required_types.
@@ -260,7 +377,9 @@ def _can_handle_all_types(
         # Check if all required types are in the union
         # Need to check each member for compatibility
         for req_type in required_types:
-            if not any(_is_compatible_with_type(member, req_type) for member in union_members):
+            if not any(
+                _is_compatible_with_type(member, req_type) for member in union_members
+            ):
                 return False
         return True
 
@@ -275,7 +394,7 @@ def _can_handle_all_types(
     return _is_compatible_with_type(scanner_type, required_type)
 
 
-def _get_union_members(type_hint: Type[Any]) -> set[Type[Any]] | None:
+def _get_union_members(type_hint: Any) -> set[Type[Any]] | None:
     """Get the member types of a Union, or None if not a Union."""
     origin = get_origin(type_hint)
 
@@ -290,7 +409,7 @@ def _get_union_members(type_hint: Type[Any]) -> set[Type[Any]] | None:
     return None
 
 
-def _is_compatible_with_type(scanner_type: Type[Any], target_type: Type[Any]) -> bool:
+def _is_compatible_with_type(scanner_type: Any, target_type: Any) -> bool:
     """
     Check if scanner_type is compatible with target_type.
 
@@ -318,7 +437,7 @@ def _is_compatible_with_type(scanner_type: Type[Any], target_type: Type[Any]) ->
         target_origin = get_origin(target_type)
 
         if scanner_origin and target_origin:
-            return scanner_origin == target_origin
+            return bool(scanner_origin == target_origin)
 
         return False
     except (TypeError, AttributeError):

@@ -194,7 +194,7 @@ def test_mypy_detects_type_errors():
             def scan(message: ChatMessageAssistant) -> Result | None:  # Not async!
                 return Result(value={"bad": True})
             return scan
-        
+
         # This should be an error - loader returns User but scanner expects Assistant
         @loader(messages=["user"])
         def user_msg_loader():  # type: ignore[no-untyped-def]
@@ -208,7 +208,7 @@ def test_mypy_detects_type_errors():
                         if msg.role == "user" and isinstance(msg, ChatMessageUser):
                             yield msg
             return load
-        
+
         @scanner(loader=user_msg_loader())
         def mismatched_scanner() -> Scanner[ChatMessageAssistant]:  # Wrong type!
             async def scan(message: ChatMessageAssistant) -> Result | None:

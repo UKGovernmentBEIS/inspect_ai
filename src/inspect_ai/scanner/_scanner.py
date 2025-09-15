@@ -33,7 +33,7 @@ from ._filter import (
 from ._loader import Loader
 from ._result import Result
 from ._transcript import Transcript
-from ._validate import validate_scanner_signature
+from ._validate import infer_filters_from_type, validate_scanner_signature
 
 # core types
 T = TypeVar("T", contravariant=True)
@@ -174,11 +174,7 @@ def scanner(
     events: list[EventType] | Literal["all"] | None = None,
     name: str | None = None,
 ) -> Callable[[ScannerFactory[P, Any]], ScannerFactory[P, T]]:
-    if loader is None and messages is None and events is None:
-        raise ValueError(
-            "scanner(...) requires at least one of: messages=..., events=..., or loader=..."
-        )
-
+    # Don't raise error here anymore - we'll check after attempting inference
     messages = normalize_messages_filter(messages) if messages is not None else None
     events = normalize_events_filter(events) if events is not None else None
 
@@ -196,21 +192,42 @@ def scanner(
                     f"'{scanner_name}' is not declared as an async callable."
                 )
 
+            # Infer filters from type annotations if not provided
+            # Use explicit filters if provided, otherwise try to infer
+            inferred_messages = messages
+            inferred_events = events
+
+            # Only infer if no loader and no explicit filters
+            if loader is None and messages is None and events is None:
+                temp_messages, temp_events = infer_filters_from_type(
+                    scanner_fn, factory.__globals__
+                )
+                # Cast to proper types (mypy can't infer the string literals)
+                inferred_messages = cast(
+                    list[MessageType] | None, temp_messages
+                ) if temp_messages else None
+                inferred_events = cast(
+                    list[EventType] | None, temp_events
+                ) if temp_events else None
+                # If we couldn't infer anything, raise an error
+                if inferred_messages is None and inferred_events is None:
+                    raise ValueError(
+                        f"scanner '{scanner_name}' requires at least one of: "
+                        "messages=..., events=..., loader=..., or specific type annotations"
+                    )
+
             # Validate scanner signature matches filters
             # Only validate if we have filters (not just a custom loader)
-            if messages is not None or events is not None:
+            if inferred_messages is not None or inferred_events is not None:
                 validate_scanner_signature(
-                    scanner_fn,
-                    messages,
-                    events,
-                    factory.__globals__
+                    scanner_fn, inferred_messages, inferred_events, factory.__globals__
                 )
 
             scanner_config: ScannerConfig = {"name": scanner_name}
-            if messages is not None:
-                scanner_config["messages"] = messages
-            if events is not None:
-                scanner_config["events"] = events
+            if inferred_messages is not None:
+                scanner_config["messages"] = inferred_messages
+            if inferred_events is not None:
+                scanner_config["events"] = inferred_events
             if loader is not None:
                 scanner_config["loader"] = cast(Loader[Any], loader)
             setattr(scanner_fn, "__scanner__", scanner_config)  # type: ignore[attr-defined]

@@ -97,6 +97,8 @@ def test_scanner_requires_at_least_one_filter_or_loader():
 
             return scan
 
+        test_scanner()
+
 
 def test_scanner_factory_with_parameters():
     """Scanner factory can accept parameters."""

@@ -10,7 +10,12 @@ Scanners are a powerful feature in Inspect AI that allow you to analyze agent tr
 
 ### Basic Scanner Declaration
 
-Scanners are declared using the `@scanner` decorator and must specify at least one filter (messages or events) or a custom loader:
+Scanners are declared using the `@scanner` decorator. You can either:
+1. Explicitly specify filters (messages or events)
+2. Let filters be inferred from type annotations (for specific types)
+3. Provide a custom loader
+
+#### Explicit Filters
 
 ``` python
 from inspect_ai.scanner import Scanner, scanner
@@ -37,9 +42,57 @@ def user_input_analyzer() -> Scanner[ChatMessageUser]:
     return scan
 ```
 
+#### Filter Inference from Type Annotations
+
+For specific message and event types, filters can be automatically inferred from type annotations, making the API more concise:
+
+```python
+# No explicit filter needed - inferred from ChatMessageUser type
+@scanner()
+def user_analyzer() -> Scanner[ChatMessageUser]:
+    """Filter inferred as messages=['user'] from type."""
+    
+    async def scan(message: ChatMessageUser) -> Result | None:
+        return Result(value={"text": message.text})
+    
+    return scan
+
+# Works with unions too - infers messages=["system", "user"]
+@scanner()
+def multi_analyzer() -> Scanner[ChatMessageSystem | ChatMessageUser]:
+    """Filters inferred from union type."""
+    
+    async def scan(message: ChatMessageSystem | ChatMessageUser) -> Result | None:
+        return Result(value={"role": message.role})
+    
+    return scan
+
+# Also works with lists
+@scanner()
+def batch_analyzer() -> Scanner[list[ChatMessageAssistant]]:
+    """Filter inferred as messages=['assistant'] from list type."""
+    
+    async def scan(messages: list[ChatMessageAssistant]) -> Result | None:
+        return Result(value={"count": len(messages)})
+    
+    return scan
+
+# Event types work the same way
+@scanner()
+def model_monitor() -> Scanner[ModelEvent]:
+    """Filter inferred as events=['model'] from type."""
+    
+    async def scan(event: ModelEvent) -> Result | None:
+        return Result(value={"model": event.model})
+    
+    return scan
+```
+
+**Note**: Filter inference only works for specific types. Base types like `ChatMessage`, `Event`, or `Transcript` still require explicit filters since they're too general to infer intent.
+
 ### Message Type Filters
 
-Scanners can filter for specific message types or combinations:
+Scanners can filter for specific message types or combinations (either explicitly or through inference):
 
 ``` python
 # Single message type

@@ -162,11 +162,26 @@ def test_event_filter_order_preserved():
     assert result == ["tool", "model", "error"]
 
 
-@pytest.mark.parametrize("filter_type", [
-    "model", "tool", "sample_init", "sample_limit", "sandbox",
-    "state", "store", "approval", "input", "score",
-    "error", "logger", "info", "span_begin", "span_end"
-])
+@pytest.mark.parametrize(
+    "filter_type",
+    [
+        "model",
+        "tool",
+        "sample_init",
+        "sample_limit",
+        "sandbox",
+        "state",
+        "store",
+        "approval",
+        "input",
+        "score",
+        "error",
+        "logger",
+        "info",
+        "span_begin",
+        "span_end",
+    ],
+)
 def test_each_event_type(filter_type: EventType):
     """Each event type should be valid on its own."""
     validate_events_filter([filter_type])
