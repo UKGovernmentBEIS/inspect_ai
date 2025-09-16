@@ -253,7 +253,7 @@ async def score_async(
 
         # override epochs_reducer if specified
         epochs_reducer = create_reducers(epochs_reducer)
-        if epochs_reducer:
+        if epochs_reducer is not None:
             log.eval.config.epochs_reducer = reducer_log_names(epochs_reducer)
         else:
             epochs_reducer = reducers_from_log_header(log)
