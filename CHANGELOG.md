@@ -1,9 +1,11 @@
 ## Unreleased
 
 - Eval logs: Option to resolve attachments for `convert_eval_logs()`.
+- Model grading: `model_graded_qa()`, `model_graded_fact()`) now look for the "grader" model-role by default.
 - Human agent: Enable installation even when default tool user is not root.
 - Hooks: Propagate LimitExceededError so that hooks can raise limit errors.
 - Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
+- Bugfix: Enable passing no reducers to `async_score` in eval score.
 
 
 ## 0.3.132 (12 September 2025)
