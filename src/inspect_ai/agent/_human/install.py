@@ -22,11 +22,19 @@ async def install_human_agent(
     record_session: bool,
 ) -> None:
     # see if we have already installed
-    if not (await sandbox().exec(["mkdir", HUMAN_AGENT_DIR])).success:
+    if not (await sandbox().exec(["mkdir", HUMAN_AGENT_DIR], user="root")).success:
         return
 
+    if not user:
+        user = (await sandbox().exec(["whoami"])).stdout.strip()
+
+    if user != "root":
+        await checked_exec(["chown", user, HUMAN_AGENT_DIR], user="root")
+
     # setup installation directory
-    await checked_exec(["mkdir", "-p", INSTALL_DIR])
+    await checked_exec(["mkdir", "-p", INSTALL_DIR], user="root")
+    if user != "root":
+        await checked_exec(["chown", user, INSTALL_DIR], user="root")
 
     # generate task.py
     task_py = human_agent_commands(commands)
@@ -219,16 +227,19 @@ async def checked_exec(
     cmd: list[str],
     input: str | bytes | None = None,
     cwd: str | None = None,
+    user: str | None = None,
 ) -> str:
-    result = await sandbox().exec(cmd, input=input, cwd=cwd)
+    result = await sandbox().exec(cmd, input=input, cwd=cwd, user=user)
     if not result.success:
         raise RuntimeError(f"Error executing command {' '.join(cmd)}: {result.stderr}")
     return result.stdout
 
 
 async def checked_write_file(
-    file: str, contents: str, executable: bool = False
+    file: str, contents: str, executable: bool = False, user: str | None = None
 ) -> None:
     await checked_exec(["tee", "--", file], input=contents)
+    if user:
+        await checked_exec(["chown", user, file], user="root")
     if executable:
         await checked_exec(["chmod", "+x", file])
