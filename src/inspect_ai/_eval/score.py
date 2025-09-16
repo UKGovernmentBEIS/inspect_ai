@@ -264,6 +264,7 @@ async def score_async(
             list(filter(None, scores)),
             epochs_reducer,
             scorers,
+            log_metrics,
         )
 
     return log
