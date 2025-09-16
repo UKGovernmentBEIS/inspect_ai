@@ -139,7 +139,7 @@ def model_graded_qa(
         grade_pattern,
         include_history,
         partial_credit,
-        model_role,
+        model_role=model_role,
     )
     # if only a single model is passed, return a single scorer
     if model is None or not isinstance(model, list):
