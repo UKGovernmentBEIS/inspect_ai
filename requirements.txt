@@ -20,6 +20,7 @@ numpy
 platformdirs>=2.3.0
 psutil
 pydantic>=2.11.4
+pypika-tortoise>=0.6.0
 python-dotenv>=0.16.0
 pyyaml
 rich>=13.3.3,<14.0.0 # https://github.com/Textualize/rich/issues/3682
