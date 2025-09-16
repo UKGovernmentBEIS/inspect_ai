@@ -198,10 +198,10 @@ class EvalSampleSummary(BaseModel):
     """Sample target value(s)"""
 
     metadata: dict[str, Any] = Field(default_factory=dict)
-    """Sample metadata (scalar types only, strings truncated to 1k)."""
+    """Sample metadata (only fields < 1k; strings truncated to 1k)."""
 
     scores: dict[str, Score] | None = Field(default=None)
-    """Scores for sample (score values only, no answers, explanations, or metadata)."""
+    """Scores for sample (only metadata fields < 1k; strings truncated to 1k)."""
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
