@@ -55,7 +55,6 @@ import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
 import {
   kTranscriptCollapseScope,
-  kTranscriptOutlineCollapseScope,
   kCollapsibleEventTypes,
 } from "./transcript/types";
 
@@ -223,7 +222,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       });
 
       setCollapsedEvents(kTranscriptCollapseScope, allCollapsedIds);
-      setCollapsedEvents(kTranscriptOutlineCollapseScope, allCollapsedIds);
     }
 
     setTranscriptMode(newMode);
