@@ -847,7 +847,12 @@ async def task_run_sample(
                 solver_score_names = [*state.scores]
 
                 # scoring
-                await emit_sample_score()
+                await emit_sample_score(
+                    eval_set_id,
+                    run_id,
+                    task_id,
+                    state.uuid,
+                )
                 try:
                     # timeout during scoring will result in an ordinary sample error
                     with create_time_limit(scoring_time_limit):

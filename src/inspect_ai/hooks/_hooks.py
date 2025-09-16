@@ -147,6 +147,20 @@ class ModelUsageData:
 
 
 @dataclass(frozen=True)
+class SampleScoreData:
+    """Sample score hook event data."""
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+
+
+@dataclass(frozen=True)
 class ApiKeyOverride:
     """Api key override hook event data."""
 
@@ -271,7 +285,7 @@ class Hooks:
         """
         pass
 
-    async def on_sample_score(self) -> None:
+    async def on_sample_score(self, data: SampleScoreData) -> None:
         """Called before the sample is scored.
 
         Can be used by hooks to demarcate the end of solver execution and the start of scoring.
@@ -426,8 +440,17 @@ async def emit_model_usage(
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
 
 
-async def emit_sample_score() -> None:
-    await _emit_to_all(lambda hook: hook.on_sample_score())
+async def emit_sample_score(
+    eval_set_id: str | None, run_id: str, eval_id: str, sample_id: str
+) -> None:
+    data = SampleScoreData(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+    )
+
+    await _emit_to_all(lambda hook: hook.on_sample_score(data))
 
 
 def override_api_key(env_var_name: str, value: str) -> str | None:
