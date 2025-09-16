@@ -65,6 +65,8 @@ export interface AppSlice {
     setSingleFileMode: (singleFile: boolean) => void;
 
     setDisplayMode: (mode: "raw" | "rendered") => void;
+
+    setTranscriptMode: (mode: "collapsed" | "expanded") => void;
   };
 }
 
@@ -350,6 +352,11 @@ export const createAppSlice = (
       setDisplayMode: (mode: "raw" | "rendered") => {
         set((state) => {
           state.app.displayMode = mode;
+        });
+      },
+      setTranscriptMode: (mode: "collapsed" | "expanded") => {
+        set((state) => {
+          state.app.transcriptMode = mode;
         });
       },
     },

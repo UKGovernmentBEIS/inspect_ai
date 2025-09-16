@@ -63,6 +63,7 @@ export interface AppState {
   pagination: Record<string, { page: number; pageSize: number }>;
   singleFileMode?: boolean;
   displayMode?: "rendered" | "raw";
+  transcriptMode?: "collapsed" | "expanded";
 }
 
 export interface LogsState {
