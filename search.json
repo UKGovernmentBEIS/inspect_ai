@@ -2792,14 +2792,14 @@
     "href": "CHANGELOG.html",
     "title": "Inspect",
     "section": "",
-    "text": "Eval logs: Option to resolve attachments for convert_eval_logs().\nBugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools."
+    "text": "Eval logs: Option to resolve attachments for convert_eval_logs().\nHuman agent: Enable installation even when default tool user is not root.\nHooks: Propagate LimitExceededError so that hooks can raise limit errors.\nBugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools."
   },
   {
     "objectID": "CHANGELOG.html#unreleased",
     "href": "CHANGELOG.html#unreleased",
     "title": "Inspect",
     "section": "",
-    "text": "Eval logs: Option to resolve attachments for convert_eval_logs().\nBugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools."
+    "text": "Eval logs: Option to resolve attachments for convert_eval_logs().\nHuman agent: Enable installation even when default tool user is not root.\nHooks: Propagate LimitExceededError so that hooks can raise limit errors.\nBugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools."
   },
   {
     "objectID": "CHANGELOG.html#september-2025",
