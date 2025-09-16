@@ -110,7 +110,9 @@ def test_model_graded_multimodal():
         ),
     ],
 )
-def test_model_role_selects_grader_model(model_graded_fact_kwargs, expected_role):
+def test_model_role_precedence_for_model_graded_scorer(
+    model_graded_fact_kwargs, expected_role
+):
     grader_model = get_model(
         "mockllm/model",
         custom_outputs=[
