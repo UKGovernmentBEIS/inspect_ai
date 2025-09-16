@@ -62,7 +62,15 @@ def model_graded_fact(
          to `False`. Note that this parameter is only used
          with the default `instructions` (as custom instructions
          provide their own prompts for grades).
-      model: Model or Models to use for grading. If multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
+      model: Model or models to use for grading. If a list is provided,
+        each model grades independently and the final grade is computed by
+        majority vote. When this parameter is provided, it takes precedence
+        over `model_role`.
+      model_role: Named model role to use for grading (default: "grader").
+        Ignored if `model` is provided. If specified and a model is bound to
+        this role (e.g. via the `model_roles` argument to `eval()`), that model
+        is used. If no role-bound model is available, the model being
+        evaluated (the default model) is used.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -113,7 +121,15 @@ def model_graded_qa(
         to `False`. Note that this parameter is only used
         with the default `instructions` (as custom instructions
         provide their own prompts for grades).
-      model: Model or Models to use for grading. If     multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
+      model: Model or models to use for grading. If a list is provided,
+        each model grades independently and the final grade is computed by
+        majority vote. When this parameter is provided, it takes precedence
+        over `model_role`.
+      model_role: Named model role to use for grading (default: "grader").
+        Ignored if `model` is provided. If specified and a model is bound to
+        this role (e.g. via the `model_roles` argument to `eval()`), that
+        model is used. If no role-bound model is available, the model being
+        evaluated (the default model) is used.
     """
     # bind variables
     get_scorer = partial(
