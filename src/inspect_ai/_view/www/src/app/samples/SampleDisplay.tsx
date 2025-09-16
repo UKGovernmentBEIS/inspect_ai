@@ -58,6 +58,8 @@ import {
   kCollapsibleEventTypes,
 } from "./transcript/types";
 
+import { hasSpanChildren } from "./transcript/transform/utils";
+
 interface SampleDisplayProps {
   id: string;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -216,7 +218,16 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
     if (sampleEvents) {
       sampleEvents.forEach((event) => {
-        if (event.uuid && kCollapsibleEventTypes.includes(event.event)) {
+        if (
+          event.uuid &&
+          kCollapsibleEventTypes.includes(event.event) &&
+          !hasSpanChildren(
+            sampleEvents.slice(
+              sampleEvents.indexOf(event),
+              sampleEvents.length,
+            ),
+          )
+        ) {
           allCollapsedIds[event.uuid] = isCollapsed(newMode);
         }
       });
@@ -250,7 +261,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     tools.push(
       <ToolButton
         key="sample-collapse-transcript"
-        label={isCollapsed(transcriptMode) ? "Expand All" : "Collapse All"}
+        label={isCollapsed(transcriptMode) ? "Expand" : "Collapse"}
         icon={
           isCollapsed(transcriptMode)
             ? ApplicationIcons.expand.all
