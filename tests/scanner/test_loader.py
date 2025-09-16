@@ -36,7 +36,7 @@ def test_loader_creates_config():
     instance = test_loader()
     assert hasattr(instance, "__loader__")
     config = instance.__loader__
-    assert config["name"] == "test_loader"
+    assert config.name == "test_loader"
 
 
 def test_loader_with_message_filter():
@@ -57,7 +57,7 @@ def test_loader_with_message_filter():
         return load
 
     instance = test_loader()
-    assert instance.__loader__["messages"] == ["user"]
+    assert instance.__loader__.content.messages == ["user"]
 
 
 def test_loader_with_event_filter():
@@ -79,7 +79,7 @@ def test_loader_with_event_filter():
         return load
 
     instance = test_loader()
-    assert instance.__loader__["events"] == ["model", "tool"]
+    assert instance.__loader__.content.events == ["model", "tool"]
 
 
 def test_loader_requires_async():
@@ -113,8 +113,8 @@ def test_loader_with_both_filters():
 
     instance = test_loader()
     config = instance.__loader__
-    assert config["messages"] == ["user"]
-    assert config["events"] == ["model"]
+    assert config.content.messages == ["user"]
+    assert config.content.events == ["model"]
 
 
 # Loader integration tests
@@ -147,7 +147,7 @@ def test_scanner_with_custom_loader():
         return scan
 
     scanner_instance = user_scanner()
-    assert scanner_instance.__scanner__["loader"] == loader_instance
+    assert scanner_instance.__scanner__.loader == loader_instance
 
 
 def test_loader_type_transformation():
@@ -177,7 +177,7 @@ def test_loader_type_transformation():
         return scan
 
     scanner_instance = event_scanner()
-    assert "loader" in scanner_instance.__scanner__
+    assert scanner_instance.__scanner__.loader
 
 
 def test_loader_with_custom_logic():
@@ -215,7 +215,7 @@ def test_loader_with_custom_logic():
         return scan
 
     scanner_instance = long_message_scanner()
-    assert "loader" in scanner_instance.__scanner__
+    assert scanner_instance.__scanner__.loader
 
 
 # Loader registry tests
@@ -241,7 +241,7 @@ def test_loader_added_to_registry():
 
     # The loader instance should have __loader__ config
     assert hasattr(loader_instance, "__loader__")
-    assert loader_instance.__loader__["name"] == "registry_test_loader"
+    assert loader_instance.__loader__.name == "registry_test_loader"
 
 
 def test_loader_factory_with_parameters():
@@ -271,4 +271,4 @@ def test_loader_factory_with_parameters():
     assert hasattr(loader1, "__loader__")
     assert hasattr(loader2, "__loader__")
     # Both should have the same config name
-    assert loader1.__loader__["name"] == loader2.__loader__["name"]
+    assert loader1.__loader__.name == loader2.__loader__.name

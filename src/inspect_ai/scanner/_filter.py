@@ -1,6 +1,5 @@
+from dataclasses import dataclass, field
 from typing import Literal
-
-from pydantic import BaseModel, Field
 
 MessageType = Literal["system", "user", "assistant", "tool"]
 EventType = Literal[
@@ -22,9 +21,10 @@ EventType = Literal[
 ]
 
 
-class TranscriptContent(BaseModel):
-    messages: Literal["all"] | list[MessageType] | None = Field(default=None)
-    events: Literal["all"] | list[EventType] | None = Field(default=None)
+@dataclass
+class TranscriptContent:
+    messages: Literal["all"] | list[MessageType] | None = field(default=None)
+    events: Literal["all"] | list[EventType] | None = field(default=None)
 
 
 def normalize_messages_filter(

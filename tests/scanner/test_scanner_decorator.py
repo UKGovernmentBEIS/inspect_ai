@@ -22,8 +22,8 @@ def test_scanner_creates_config():
     instance = test_scanner()
     assert hasattr(instance, "__scanner__")
     config = instance.__scanner__
-    assert config["name"] == "test_scanner"
-    assert config["messages"] == ["system"]
+    assert config.name == "test_scanner"
+    assert config.content.messages == ["system"]
 
 
 def test_scanner_with_custom_name():
@@ -37,7 +37,7 @@ def test_scanner_with_custom_name():
         return scan
 
     instance = test_scanner()
-    assert instance.__scanner__["name"] == "custom_scanner"
+    assert instance.__scanner__.name == "custom_scanner"
 
 
 def test_scanner_with_events():
@@ -52,7 +52,7 @@ def test_scanner_with_events():
         return scan
 
     instance = test_scanner()
-    assert instance.__scanner__["events"] == ["model", "tool"]
+    assert instance.__scanner__.content.events == ["model", "tool"]
 
 
 def test_scanner_with_both_filters():
@@ -68,8 +68,8 @@ def test_scanner_with_both_filters():
 
     instance = test_scanner()
     config = instance.__scanner__
-    assert config["messages"] == ["user"]
-    assert config["events"] == ["model"]
+    assert config.content.messages == ["user"]
+    assert config.content.events == ["model"]
 
 
 def test_scanner_requires_async():
@@ -119,7 +119,7 @@ def test_scanner_factory_with_parameters():
     assert hasattr(scanner1, "__scanner__")
     assert hasattr(scanner2, "__scanner__")
     # Both should have the same config
-    assert scanner1.__scanner__["name"] == scanner2.__scanner__["name"]
+    assert scanner1.__scanner__.name == scanner2.__scanner__.name
 
 
 def test_scanner_with_loader():
@@ -145,8 +145,8 @@ def test_scanner_with_loader():
         return scan
 
     instance = test_scanner()
-    assert "loader" in instance.__scanner__
-    assert instance.__scanner__["loader"] == loader_instance
+    assert instance.__scanner__.loader
+    assert instance.__scanner__.loader == loader_instance
 
 
 def test_scanner_preserves_function_metadata():
@@ -184,7 +184,7 @@ def test_scanner_added_to_registry():
 
     # The scanner instance should have __scanner__ config
     assert hasattr(scanner_instance, "__scanner__")
-    assert scanner_instance.__scanner__["name"] == "registry_test_scanner"
+    assert scanner_instance.__scanner__.name == "registry_test_scanner"
 
 
 def test_multiple_scanners_different_names():
@@ -207,5 +207,5 @@ def test_multiple_scanners_different_names():
     instance1 = scanner1()
     instance2 = scanner2()
 
-    assert instance1.__scanner__["name"] == "scanner_one"
-    assert instance2.__scanner__["name"] == "scanner_two"
+    assert instance1.__scanner__.name == "scanner_one"
+    assert instance2.__scanner__.name == "scanner_two"

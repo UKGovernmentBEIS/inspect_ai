@@ -30,7 +30,7 @@ def test_base_type_with_filter():
     # Should not raise
     scanner_instance = test_scanner()
     assert hasattr(scanner_instance, "__scanner__")
-    assert scanner_instance.__scanner__["messages"] == ["system", "user"]
+    assert scanner_instance.__scanner__.content.messages == ["system", "user"]
 
 
 def test_exact_union_match():
@@ -116,7 +116,7 @@ def test_messages_all_with_base_type():
         return scan
 
     scanner_instance = test_scanner()
-    assert scanner_instance.__scanner__["messages"] == "all"
+    assert scanner_instance.__scanner__.content.messages == "all"
 
 
 def test_events_all_with_base_type():
@@ -130,7 +130,7 @@ def test_events_all_with_base_type():
         return scan
 
     scanner_instance = test_scanner()
-    assert scanner_instance.__scanner__["events"] == "all"
+    assert scanner_instance.__scanner__.content.events == "all"
 
 
 def test_event_union_types():
@@ -340,7 +340,7 @@ def test_scanner_without_filters_but_with_loader():
 
     scanner_instance = test_scanner()
     assert hasattr(scanner_instance, "__scanner__")
-    assert "loader" in scanner_instance.__scanner__
+    assert scanner_instance.__scanner__.loader
 
 
 def test_non_async_scanner():
@@ -352,7 +352,7 @@ def test_non_async_scanner():
             def scan(message: ChatMessage) -> Result | None:  # Not async!
                 return Result(value={"bad": True})
 
-            return scan
+            return scan  # type: ignore[return-value]
 
         test_scanner()
 
@@ -368,7 +368,7 @@ def test_multiple_event_types():
         return scan
 
     scanner_instance = test_scanner()
-    assert len(scanner_instance.__scanner__["events"]) == 4
+    assert len(scanner_instance.__scanner__.content.events) == 4
 
 
 def test_all_supported_event_types():
@@ -399,7 +399,7 @@ def test_all_supported_event_types():
         return scan
 
     scanner_instance = test_scanner()
-    assert len(scanner_instance.__scanner__["events"]) == len(all_events)
+    assert len(scanner_instance.__scanner__.content.events) == len(all_events)
 
 
 # Parametrized tests
@@ -426,8 +426,8 @@ def test_message_validation_matrix(filter_types, scanner_type, should_pass):
     if should_pass:
 
         @scanner(messages=filter_types)
-        def test_scanner() -> Scanner[scanner_type]:
-            async def scan(message: scanner_type) -> Result | None:
+        def test_scanner() -> Scanner[scanner_type]:  # pyright: ignore[reportInvalidTypeForm]
+            async def scan(message: scanner_type) -> Result | None:  # type: ignore
                 return Result(value={"ok": True})
 
             return scan
@@ -438,8 +438,8 @@ def test_message_validation_matrix(filter_types, scanner_type, should_pass):
         with pytest.raises(TypeError):
 
             @scanner(messages=filter_types)
-            def test_scanner() -> Scanner[scanner_type]:
-                async def scan(message: scanner_type) -> Result | None:
+            def test_scanner() -> Scanner[scanner_type]:  # pyright: ignore[reportInvalidTypeForm]
+                async def scan(message: scanner_type) -> Result | None:  # type: ignore
                     return Result(value={"bad": True})
 
                 return scan

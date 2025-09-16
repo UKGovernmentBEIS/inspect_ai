@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import (
     AsyncGenerator,
@@ -5,9 +6,7 @@ from typing import (
     Literal,
     ParamSpec,
     Protocol,
-    Required,
     Sequence,
-    TypedDict,
     TypeVar,
     cast,
 )
@@ -23,6 +22,7 @@ from inspect_ai._util.registry import (
 from ._filter import (
     EventType,
     MessageType,
+    TranscriptContent,
     normalize_events_filter,
     normalize_messages_filter,
 )
@@ -42,10 +42,10 @@ class Loader(Protocol[T]):
     __loader__: "LoaderConfig"
 
 
-class LoaderConfig(TypedDict, total=False):
-    name: Required[str]
-    messages: list[MessageType] | Literal["all"]
-    events: list[EventType] | Literal["all"]
+@dataclass
+class LoaderConfig:
+    name: str
+    content: TranscriptContent = field(default_factory=TranscriptContent)
 
 
 LoaderFactory = Callable[P, Loader[T]]
@@ -74,11 +74,11 @@ def loader(
                     f"'{loader_name}' is not declared as an async callable."
                 )
 
-            loader_config: LoaderConfig = {"name": loader_name}
+            loader_config = LoaderConfig(name=loader_name)
             if messages is not None:
-                loader_config["messages"] = messages
+                loader_config.content.messages = messages
             if events is not None:
-                loader_config["events"] = events
+                loader_config.content.events = events
             setattr(loader_fn, "__loader__", loader_config)  # type: ignore[attr-defined]
 
             registry_tag(

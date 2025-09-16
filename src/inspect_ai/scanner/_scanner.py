@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import (
     Any,
@@ -6,8 +7,6 @@ from typing import (
     Literal,
     ParamSpec,
     Protocol,
-    Required,
-    TypedDict,
     TypeVar,
     cast,
 )
@@ -27,6 +26,7 @@ from inspect_ai.model._chat_message import ChatMessage
 from ._filter import (
     EventType,
     MessageType,
+    TranscriptContent,
     normalize_events_filter,
     normalize_messages_filter,
 )
@@ -48,11 +48,11 @@ class Scanner(Protocol[T]):
     def __call__(self, input: T, /) -> Awaitable[Result | None]: ...
 
 
-class ScannerConfig(TypedDict, total=False):
-    name: Required[str]
-    messages: list[MessageType] | Literal["all"]
-    events: list[EventType] | Literal["all"]
-    loader: Loader[Any]
+@dataclass
+class ScannerConfig:
+    name: str
+    content: TranscriptContent = field(default_factory=TranscriptContent)
+    loader: Loader[Any] | None = field(default=None)
 
 
 ScannerFactory = Callable[P, Scanner[T]]
@@ -227,13 +227,13 @@ def scanner(
                     factory_fn.__globals__,
                 )
 
-            scanner_config: ScannerConfig = {"name": scanner_name}
+            scanner_config = ScannerConfig(name=scanner_name)
             if inferred_messages is not None:
-                scanner_config["messages"] = inferred_messages
+                scanner_config.content.messages = inferred_messages
             if inferred_events is not None:
-                scanner_config["events"] = inferred_events
+                scanner_config.content.events = inferred_events
             if loader is not None:
-                scanner_config["loader"] = cast(Loader[Any], loader)
+                scanner_config.loader = cast(Loader[Any], loader)
             setattr(scanner_fn, "__scanner__", scanner_config)  # type: ignore[attr-defined]
 
             registry_tag(
