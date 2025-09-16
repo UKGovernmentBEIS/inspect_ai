@@ -210,6 +210,12 @@ def _model_graded_qa_single(
                 value=INCORRECT,
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
+                metadata=dict(
+                    grading=[
+                        scoring_prompt,
+                        result.message,
+                    ]
+                ),
             )
 
     return score
