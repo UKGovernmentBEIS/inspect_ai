@@ -6,7 +6,7 @@
 - Hooks: Propagate LimitExceededError so that hooks can raise limit errors.
 - Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
 - Bugfix: Enable passing no reducers to `async_score` in eval score.
-
+- Scoring: Allow scorers to return `None` to indicate that they did not score the sample. Such samples are excluded from reductions and metrics.
 
 ## 0.3.132 (12 September 2025)
 
