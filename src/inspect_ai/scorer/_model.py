@@ -33,6 +33,7 @@ def model_graded_fact(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
+    model_role: str | None = "grader",
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
 
@@ -70,6 +71,7 @@ def model_graded_fact(
         include_history=include_history,
         partial_credit=partial_credit,
         model=model,
+        model_role=model_role,
     )
 
 
@@ -81,6 +83,7 @@ def model_graded_qa(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
+    model_role: str | None = "grader",
 ) -> Scorer:
     """Score a question/answer task using a model.
 
@@ -120,6 +123,7 @@ def model_graded_qa(
         grade_pattern,
         include_history,
         partial_credit,
+        model_role,
     )
     # if only a single model is passed, return a single scorer
     if model is None or not isinstance(model, list):
@@ -139,6 +143,7 @@ def _model_graded_qa_single(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: str | Model | None = None,
+    model_role: str | None = "grader",
 ) -> Scorer:
     # returns a scorer that does model graded qa for a single model
 
@@ -152,7 +157,13 @@ def _model_graded_qa_single(
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
         nonlocal model
-        model = model if isinstance(model, Model) else get_model(model)
+        # Order of precedence: `model` > `model_role` > default model
+        if model is not None:
+            model = model if isinstance(model, Model) else get_model(model)
+        elif model_role is not None:
+            model = get_model(role=model_role)
+        else:
+            model = get_model()
 
         # metadata without grading template variables
         metadata = omit(
