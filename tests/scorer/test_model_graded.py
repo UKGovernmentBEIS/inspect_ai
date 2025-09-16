@@ -1,6 +1,8 @@
 import os
 from typing import Callable
 
+import pytest
+
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
@@ -84,3 +86,56 @@ def test_model_graded_multimodal():
     assert isinstance(content[0], ContentText)
     assert "attached" in content[0].text
     assert isinstance(content[1], ContentImage)
+
+
+@pytest.mark.parametrize(
+    ["model_graded_fact_kwargs", "expected_role"],
+    [
+        pytest.param({}, "grader", id="defaults_uses_grader_model"),
+        pytest.param(
+            {"model_role": "grader"},
+            "grader",
+            id="model_role_specified_uses_grader_model",
+        ),
+        pytest.param(
+            {"model": "mockllm/model"}, None, id="model_specified_uses_specified_model"
+        ),
+        pytest.param(
+            {"model_role": "grader", "model": "mockllm/model"},
+            None,
+            id="both_specified_uses_specified_model",
+        ),
+        pytest.param(
+            {"model_role": None}, None, id="model_role_none_uses_default_model"
+        ),
+    ],
+)
+def test_model_role_selects_grader_model(model_graded_fact_kwargs, expected_role):
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    task = Task(
+        scorer=model_graded_fact(**model_graded_fact_kwargs),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={"grader": grader_model},
+    )[0]
+
+    # Locate the exact model event that performed grading by matching the prompt ID
+    score = log.samples[0].scores["model_graded_fact"]
+    grading_prompt_dict = score.metadata["grading"][0]  # ChatMessageUser dict
+    sample = resolve_sample_attachments(log.samples[0])
+
+    grading_event = next(
+        e
+        for e in reversed(sample.events)
+        if e.event == "model" and e.input and e.input[0].id == grading_prompt_dict["id"]
+    )
+
+    assert grading_event.role == expected_role
