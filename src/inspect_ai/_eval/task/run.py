@@ -557,7 +557,7 @@ async def task_run_sample(
 ) -> dict[str, SampleScore] | None:
     from inspect_ai.hooks._hooks import (
         emit_sample_end,
-        emit_sample_score,
+        emit_sample_scoring,
         emit_sample_start,
     )
 
@@ -847,7 +847,7 @@ async def task_run_sample(
                 solver_score_names = [*state.scores]
 
                 # scoring
-                await emit_sample_score(
+                await emit_sample_scoring(
                     eval_set_id,
                     run_id,
                     task_id,

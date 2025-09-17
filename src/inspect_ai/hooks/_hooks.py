@@ -440,7 +440,7 @@ async def emit_model_usage(
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
 
 
-async def emit_sample_score(
+async def emit_sample_scoring(
     eval_set_id: str | None, run_id: str, eval_id: str, sample_id: str
 ) -> None:
     data = SampleScoring(
