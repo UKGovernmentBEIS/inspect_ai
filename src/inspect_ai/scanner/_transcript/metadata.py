@@ -113,7 +113,9 @@ class Condition:
 
     def to_sql(
         self,
-        dialect: Union[SQLDialect, Literal["sqlite", "duckdb", "postgres"]] = SQLDialect.SQLITE,
+        dialect: Union[
+            SQLDialect, Literal["sqlite", "duckdb", "postgres"]
+        ] = SQLDialect.SQLITE,
     ) -> tuple[str, list[Any]]:
         """Generate SQL WHERE clause and parameters.
 
@@ -129,7 +131,9 @@ class Condition:
         sql, params = self._build_sql(dialect)
         return sql, params
 
-    def _build_sql(self, dialect: SQLDialect, param_offset: int = 0) -> tuple[str, list[Any]]:
+    def _build_sql(
+        self, dialect: SQLDialect, param_offset: int = 0
+    ) -> tuple[str, list[Any]]:
         """Recursively build SQL string and collect parameters.
 
         Args:
@@ -166,10 +170,14 @@ class Condition:
             elif self.operator == Operator.IS_NOT_NULL:
                 return f"{column} IS NOT NULL", []
             elif self.operator == Operator.IN:
-                placeholders = self._get_placeholders(len(self.params), dialect, param_offset)
+                placeholders = self._get_placeholders(
+                    len(self.params), dialect, param_offset
+                )
                 return f"{column} IN ({placeholders})", self.params
             elif self.operator == Operator.NOT_IN:
-                placeholders = self._get_placeholders(len(self.params), dialect, param_offset)
+                placeholders = self._get_placeholders(
+                    len(self.params), dialect, param_offset
+                )
                 return f"{column} NOT IN ({placeholders})", self.params
             elif self.operator == Operator.BETWEEN:
                 p1 = self._get_placeholder(param_offset + 1, dialect)
@@ -222,7 +230,9 @@ class Condition:
         else:  # SQLite and DuckDB use ?
             return "?"
 
-    def _get_placeholders(self, count: int, dialect: SQLDialect, offset: int = 0) -> str:
+    def _get_placeholders(
+        self, count: int, dialect: SQLDialect, offset: int = 0
+    ) -> str:
         """Get multiple parameter placeholders for the dialect."""
         if dialect == SQLDialect.POSTGRES:
             # PostgreSQL uses $1, $2, $3, etc.

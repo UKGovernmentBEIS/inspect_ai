@@ -1,8 +1,6 @@
 """Comprehensive tests for the _transcript module."""
 
-import asyncio
 import uuid
-from typing import Any
 
 import pandas as pd
 import pytest
@@ -17,21 +15,23 @@ def create_test_dataframe(num_samples: int = 10) -> pd.DataFrame:
     """Create a test DataFrame with sample data for testing."""
     data = []
     for i in range(num_samples):
-        data.append({
-            "sample_id": f"sample_{i:03d}_{uuid.uuid4().hex[:8]}",
-            "log": f"/path/to/log_{i:03d}.json",
-            "model": ["gpt-4", "gpt-3.5-turbo", "claude"][i % 3],
-            "score": 0.5 + (i % 10) * 0.05,  # 0.5 to 0.95
-            "status": ["success", "error", "timeout"][i % 3],
-            "retries": i % 4,
-            "temperature": 0.7 + (i % 5) * 0.1,
-            "max_tokens": 1000 + (i % 5) * 500,
-            "dataset": ["train", "test", "validation"][i % 3],
-            "run_date": f"2024-01-{(i % 28) + 1:02d}",
-            "duration_seconds": 10 + i * 5,
-            "token_count": 500 + i * 100,
-            "error_message": "timeout error" if i % 3 == 2 else None,
-        })
+        data.append(
+            {
+                "sample_id": f"sample_{i:03d}_{uuid.uuid4().hex[:8]}",
+                "log": f"/path/to/log_{i:03d}.json",
+                "model": ["gpt-4", "gpt-3.5-turbo", "claude"][i % 3],
+                "score": 0.5 + (i % 10) * 0.05,  # 0.5 to 0.95
+                "status": ["success", "error", "timeout"][i % 3],
+                "retries": i % 4,
+                "temperature": 0.7 + (i % 5) * 0.1,
+                "max_tokens": 1000 + (i % 5) * 500,
+                "dataset": ["train", "test", "validation"][i % 3],
+                "run_date": f"2024-01-{(i % 28) + 1:02d}",
+                "duration_seconds": 10 + i * 5,
+                "token_count": 500 + i * 100,
+                "error_message": "timeout error" if i % 3 == 2 else None,
+            }
+        )
     return pd.DataFrame(data)
 
 
@@ -155,8 +155,8 @@ def test_logical_operators():
 def test_complex_nested_conditions():
     """Test complex nested conditions."""
     condition = (
-        ((m.model == "gpt-4") & (m.score > 0.8)) |
-        ((m.model == "claude") & (m.score > 0.7))
+        ((m.model == "gpt-4") & (m.score > 0.8))
+        | ((m.model == "claude") & (m.score > 0.7))
     ) & ~(m.error_message.is_not_null())
 
     sql, params = condition.to_sql("sqlite")
@@ -225,10 +225,7 @@ async def test_query_with_filter(db):
 @pytest.mark.asyncio
 async def test_query_with_multiple_conditions(db):
     """Test querying with multiple conditions."""
-    conditions = [
-        m.model == "gpt-4",
-        m.score > 0.6
-    ]
+    conditions = [m.model == "gpt-4", m.score > 0.6]
     results = list(await db.query(where=conditions))
 
     for result in results:
@@ -243,10 +240,7 @@ async def test_query_with_limit(db):
     assert len(results) == 5
 
     # With filter and limit
-    results = list(await db.query(
-        where=[m.model == "gpt-4"],
-        limit=2
-    ))
+    results = list(await db.query(where=[m.model == "gpt-4"], limit=2))
     assert len(results) <= 2
 
 
@@ -307,7 +301,7 @@ async def test_complex_queries(db):
     # Complex condition
     conditions = [
         (m.model.in_(["gpt-4", "claude"])) & (m.score > 0.6),
-        m.error_message.is_null()
+        m.error_message.is_null(),
     ]
 
     results = list(await db.query(where=conditions))
@@ -345,7 +339,10 @@ async def test_null_value_handling(db):
 
     for result in results:
         # NULL values should not appear in metadata dict
-        assert "error_message" not in result.metadata or result.metadata["error_message"] is None
+        assert (
+            "error_message" not in result.metadata
+            or result.metadata["error_message"] is None
+        )
 
     # Query for non-null error_message
     results = list(await db.query(where=[m.error_message.is_not_null()]))
@@ -378,10 +375,7 @@ async def test_transcripts_query_integration():
     await t._db.connect()
 
     # Test query
-    results = list(await t._db.query(
-        where=[m.score > 0.7],
-        limit=5
-    ))
+    results = list(await t._db.query(where=[m.score > 0.7], limit=5))
 
     assert len(results) <= 5
     for result in results:
@@ -415,11 +409,13 @@ async def test_empty_dataframe():
 async def test_missing_required_columns():
     """Test error handling when required columns are missing."""
     # DataFrame with all required columns but one has None
-    df = pd.DataFrame({
-        "sample_id": [None],  # Missing sample_id value
-        "log": ["/path/to/log.json"],
-        "model": ["gpt-4"]
-    })
+    df = pd.DataFrame(
+        {
+            "sample_id": [None],  # Missing sample_id value
+            "log": ["/path/to/log.json"],
+            "model": ["gpt-4"],
+        }
+    )
 
     db = EvalLogTranscriptsDB(df)
     await db.connect()
