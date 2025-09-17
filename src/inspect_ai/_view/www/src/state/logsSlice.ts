@@ -260,7 +260,6 @@ export const createLogsSlice = (
         }
 
         const info = await api.get_eval_set_info(logPath);
-        console.log({ logPath, info });
         return info;
       },
       setEvalSetInfo: (info: EvalSetInfo | undefined) => {

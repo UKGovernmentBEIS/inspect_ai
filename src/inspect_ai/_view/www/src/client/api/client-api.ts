@@ -44,6 +44,7 @@ export class SampleSizeLimitedExceededError extends Error {
     Object.setPrototypeOf(this, SampleSizeLimitedExceededError.prototype);
   }
 }
+
 interface LoadedLogFile {
   file?: string;
   remoteLog?: RemoteLogFile;
