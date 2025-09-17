@@ -1,8 +1,7 @@
 from ._loader import Loader, loader
 from ._scan import scan, scan_async
 from ._scanner import Scanner, scanner
-from ._transcript.reader import transcripts
-from ._transcript.transcripts import Transcripts
+from ._transcript.transcripts import Transcripts, transcripts
 from ._transcript.types import (
     EventType,
     MessageType,

@@ -8,8 +8,7 @@ from inspect_ai.scanner._filter import (
     validate_events_filter,
     validate_messages_filter,
 )
-from inspect_ai.scanner._transcript.types import EventType
-from inspect_ai.scanner._transcript.types import MessageType
+from inspect_ai.scanner._transcript.types import EventType, MessageType
 
 # Message filter tests
 

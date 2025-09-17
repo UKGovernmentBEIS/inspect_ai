@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Iterator, Literal, Protocol
 
 from pydantic import BaseModel, Field, JsonValue
 
@@ -53,3 +53,17 @@ class Transcript(TranscriptInfo):
 
     events: list[Event] = Field(default_factory=list)
     """Events from transcript."""
+
+
+class TranscriptDB(Protocol):
+    async def connect(self) -> None: ...
+    async def query(
+        self,
+        where: list[str],
+        limit: int | None = None,
+        shuffle: bool | int = False,
+    ) -> Iterator[TranscriptInfo]: ...
+    async def read(
+        self, t: TranscriptInfo, content: TranscriptContent
+    ) -> Transcript: ...
+    async def disconnect(self) -> None: ...

@@ -1,37 +1,41 @@
-from copy import deepcopy
-from typing import AsyncGenerator, Callable, Iterator, Protocol
+from __future__ import annotations
 
-from inspect_ai.scanner._transcript.types import (
-    Transcript,
-    TranscriptContent,
-    TranscriptInfo,
+from copy import deepcopy
+from typing import (
+    TYPE_CHECKING,
+    AsyncGenerator,
 )
+
+from .database import EvalLogTranscriptsDB, LogPaths
+from .types import Transcript, TranscriptContent, TranscriptDB
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class Transcripts:
     """Collection of transcripts for scanning."""
 
-    class Reader(Protocol):
-        def query(
-            self,
-            where: list[str],
-            limit: int | None = None,
-            shuffle: bool | int = False,
-        ) -> Iterator[TranscriptInfo]: ...
-        async def read(
-            self, t: TranscriptInfo, content: TranscriptContent
-        ) -> Transcript: ...
-        async def close(self) -> None: ...
-
-    def __init__(self, reader: Callable[[], Reader]) -> None:
-        self._reader = reader
+    def __init__(self, db: TranscriptDB) -> None:
+        self._db = db
         self._where: list[str] = []
+        self._limit: int | None = None
+        self._shuffle: bool | int = False
         self._content = TranscriptContent()
 
-    # TODO: pypika queries
     def where(self, where: str) -> "Transcripts":
         transcripts = deepcopy(self)
         transcripts._where.append(where)
+        return transcripts
+
+    def limit(self, n: int) -> "Transcripts":
+        transcripts = deepcopy(self)
+        transcripts._limit = n
+        return transcripts
+
+    def shuffle(self, seed: int | None = None) -> "Transcripts":
+        transcripts = deepcopy(self)
+        transcripts._shuffle = seed if seed is not None else True
         return transcripts
 
     def content(self, content: TranscriptContent) -> "Transcripts":
@@ -40,16 +44,17 @@ class Transcripts:
         return transcripts
 
     async def collect(self) -> AsyncGenerator[Transcript, None]:
-        # create reader
-        reader = self._reader()
-
+        await self._db.connect()
         try:
             # apply filters
-            index = reader.query(self._where)
+            index = await self._db.query(self._where, self._limit, self._shuffle)
 
-            # load transcripts
+            # yield transcripts
             for t in index:
-                yield await reader.read(t, self._content)
+                yield await self._db.read(t, self._content)
         finally:
-            # close the reader
-            await reader.close()
+            await self._db.disconnect()
+
+
+def transcripts(logs: LogPaths | "pd.DataFrame") -> Transcripts:
+    return Transcripts(EvalLogTranscriptsDB(logs))
