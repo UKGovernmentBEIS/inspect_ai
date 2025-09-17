@@ -123,7 +123,11 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         ? currentDir.slice(0, -1)
         : currentDir;
 
-      if (isInDirectory(logFile.name, cleanDir)) {
+      const dirWithSlash = !currentDir.endsWith("/")
+        ? currentDir + "/"
+        : currentDir;
+
+      if (isInDirectory(name, cleanDir)) {
         // This is a file within the current directory
         const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
         const relativePath = directoryRelativeUrl(name, currentDir);
@@ -142,7 +146,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           logFile: logFile,
           logOverview: logHeaders[logFile.name],
         });
-      } else if (name.startsWith(currentDir)) {
+      } else if (name.startsWith(dirWithSlash)) {
         // This is file that is next level (or deeper) child
         // of the current directory, extract the top level folder name
 
