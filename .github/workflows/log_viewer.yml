@@ -77,6 +77,23 @@ jobs:
       - name: Run tests
         run: yarn test
 
+  build-library:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/inspect_ai/_view/www
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Build library package
+        run: yarn build:lib
+
   check-schema-and-types:
     runs-on: ubuntu-latest
     steps:
