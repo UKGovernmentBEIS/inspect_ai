@@ -13,6 +13,7 @@ import { TranscriptVirtualList } from "./TranscriptVirtualList";
 import { useEventNodes } from "./transform/hooks";
 import { flatTree } from "./transform/treeify";
 import { kTranscriptCollapseScope } from "./types";
+import { hasSpans } from "./transform/utils";
 
 interface TranscriptPanelProps {
   id: string;
@@ -68,12 +69,44 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
 
   // Update the collapsed events when the default collapsed IDs change
   // This effect only depends on defaultCollapsedIds, not eventNodes
+
+  const collapsedMode = useStore((state) => state.sample.collapsedMode);
+
   useEffect(() => {
-    // Only initialize collapsedEvents if it's empty
+    if (events.length <= 0 || collapsedMode !== null) {
+      return;
+    }
+
     if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
       setCollapsedEvents(kTranscriptCollapseScope, defaultCollapsedIds);
     }
   }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
+
+  const allNodesList = useMemo(() => {
+    return flatTree(eventNodes, null);
+  }, [eventNodes]);
+
+  useEffect(() => {
+    if (events.length <= 0 || collapsedMode === null) {
+      return;
+    }
+
+    const collapseIds: Record<string, boolean> = {};
+    const collapsed = collapsedMode === "collapsed";
+
+    allNodesList.forEach((node) => {
+
+      if (
+        node.event.uuid &&
+        ((collapsed && !hasSpans(node.children.map((child) => child.event))) ||
+          !collapsed)
+      ) {
+        collapseIds[node.event.uuid] = collapsedMode === "collapsed";
+      }
+    });
+
+    setCollapsedEvents(kTranscriptCollapseScope, collapseIds);
+  }, [collapsedMode]);
 
   const { logPath } = useLogRouteParams();
   const [collapsed, setCollapsed] = useCollapsedState(

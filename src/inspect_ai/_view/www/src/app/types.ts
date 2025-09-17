@@ -63,7 +63,6 @@ export interface AppState {
   pagination: Record<string, { page: number; pageSize: number }>;
   singleFileMode?: boolean;
   displayMode?: "rendered" | "raw";
-  transcriptMode?: "collapsed" | "expanded";
 }
 
 export interface LogsState {
@@ -128,6 +127,7 @@ export interface SampleState {
   runningEvents: Event[];
   collapsedEvents: Record<string, Record<string, boolean>> | null;
   collapsedIdBuckets: Record<string, Record<string, boolean>>;
+  collapsedMode: "collapsed" | "expanded" | null;
   eventFilter: EventFilter;
 
   selectedOutlineId?: string;
