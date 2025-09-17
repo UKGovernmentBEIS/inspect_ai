@@ -68,6 +68,10 @@ export class EventNode<T extends EventType = EventType> {
     this.event = event;
     this.depth = depth;
   }
+
+  hasSpanChildren?(): boolean {
+    return this.children.some((child) => child.event.event === SPAN_BEGIN);
+  }
 }
 
 export interface TranscriptEventState {

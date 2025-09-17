@@ -23,24 +23,3 @@ export const TYPE_SCORER = "scorer";
 export const hasSpans = (events: Events): boolean => {
   return events.some((event) => event.event === SPAN_BEGIN);
 };
-
-export const hasSpanChildren = (stream: Events): boolean => {
-  //guard against invalid calls
-  if (stream.length <= 1 || !kCollapsibleEventTypes.includes(stream[0].event)) {
-    return false;
-  }
-
-  // is there a span_begin before the next span end?
-  for (let i = 1; i < stream.length; i++) {
-    const event = stream[i];
-    if (event.event === SPAN_BEGIN) {
-      return true;
-    }
-
-    if (event.event === SPAN_END) {
-      break;
-    }
-  }
-
-  return false;
-};

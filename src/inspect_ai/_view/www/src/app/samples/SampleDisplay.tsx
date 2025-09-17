@@ -53,12 +53,6 @@ import { SampleScoresView } from "./scores/SampleScoresView";
 import { useTranscriptFilter } from "./transcript/hooks";
 import { TranscriptFilterPopover } from "./transcript/TranscriptFilter";
 import { TranscriptPanel } from "./transcript/TranscriptPanel";
-import {
-  kTranscriptCollapseScope,
-  kCollapsibleEventTypes,
-} from "./transcript/types";
-
-import { hasSpanChildren } from "./transcript/transform/utils";
 
 interface SampleDisplayProps {
   id: string;
@@ -198,45 +192,18 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     setDisplayMode(displayMode === "rendered" ? "raw" : "rendered");
   }, [displayMode, setDisplayMode]);
 
-  const setCollapsedEvents = useStore(
-    (state) => state.sampleActions.setCollapsedEvents,
+  const collapsedMode = useStore((state) => state.sample.collapsedMode);
+  const setCollapsedMode = useStore(
+    (state) => state.sampleActions.setCollapsedMode,
   );
 
-  const transcriptMode = useStore((state) => state.app.transcriptMode);
-  const setTranscriptMode = useStore(
-    (state) => state.appActions.setTranscriptMode,
-  );
-
-  const isCollapsed = (mode: "collapsed" | "expanded" | undefined) => {
-    return mode === "collapsed"; //undefined is expanded
+  const isCollapsed = (mode: "collapsed" | "expanded" | null) => {
+    return mode === "collapsed"; //null is expanded
   };
 
-  const toggleTranscript = useCallback(() => {
-    const newMode = isCollapsed(transcriptMode) ? "expanded" : "collapsed";
-
-    const allCollapsedIds: Record<string, boolean> = {};
-
-    if (sampleEvents) {
-      sampleEvents.forEach((event) => {
-        if (
-          event.uuid &&
-          kCollapsibleEventTypes.includes(event.event) &&
-          !hasSpanChildren(
-            sampleEvents.slice(
-              sampleEvents.indexOf(event),
-              sampleEvents.length,
-            ),
-          )
-        ) {
-          allCollapsedIds[event.uuid] = isCollapsed(newMode);
-        }
-      });
-
-      setCollapsedEvents(kTranscriptCollapseScope, allCollapsedIds);
-    }
-
-    setTranscriptMode(newMode);
-  }, [transcriptMode, setTranscriptMode, sampleEvents, setCollapsedEvents]);
+  const toggleCollapsedMode = useCallback(() => {
+    setCollapsedMode(isCollapsed(collapsedMode) ? "expanded" : "collapsed");
+  }, [collapsedMode, setCollapsedMode]);
 
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
@@ -261,13 +228,13 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     tools.push(
       <ToolButton
         key="sample-collapse-transcript"
-        label={isCollapsed(transcriptMode) ? "Expand" : "Collapse"}
+        label={isCollapsed(collapsedMode) ? "Expand" : "Collapse"}
         icon={
-          isCollapsed(transcriptMode)
+          isCollapsed(collapsedMode)
             ? ApplicationIcons.expand.all
             : ApplicationIcons.collapse.all
         }
-        onClick={toggleTranscript}
+        onClick={toggleCollapsedMode}
       />,
     );
   }
