@@ -18,15 +18,15 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
+from ._transcript.types import EventType, MessageType, TranscriptContent
 
 from ._filter import (
-    EventType,
-    MessageType,
-    TranscriptContent,
     normalize_events_filter,
     normalize_messages_filter,
 )
-from ._transcript import Transcript
+from ._transcript.types import (
+    Transcript,
+)
 
 T = TypeVar("T", covariant=True)
 P = ParamSpec("P")

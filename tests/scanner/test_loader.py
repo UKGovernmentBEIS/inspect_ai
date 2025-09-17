@@ -12,7 +12,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.scanner._loader import loader
 from inspect_ai.scanner._result import Result
 from inspect_ai.scanner._scanner import Scanner, scanner
-from inspect_ai.scanner._transcript import Transcript
+from inspect_ai.scanner._transcript.types import Transcript
 
 # Loader decorator tests
 

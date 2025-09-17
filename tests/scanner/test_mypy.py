@@ -21,7 +21,7 @@ def test_mypy_scanner_and_loader_types():
         from inspect_ai.scanner._result import Result
         from inspect_ai.scanner._scanner import Scanner, scanner
         from inspect_ai.scanner._loader import Loader, loader
-        from inspect_ai.scanner._transcript import Transcript
+        from inspect_ai.scanner._transcript.types import Transcript
 
         # Valid scanner patterns
 

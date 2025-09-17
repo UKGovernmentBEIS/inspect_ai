@@ -57,7 +57,7 @@ def test_scanner_with_events():
 
 def test_scanner_with_both_filters():
     """Scanner decorator should handle both message and event filters."""
-    from inspect_ai.scanner._transcript import Transcript
+    from inspect_ai.scanner._transcript.types import Transcript
 
     @scanner(messages=["user"], events=["model"])
     def test_scanner() -> Scanner[Transcript]:
@@ -125,7 +125,7 @@ def test_scanner_factory_with_parameters():
 def test_scanner_with_loader():
     """Scanner can use a custom loader."""
     from inspect_ai.scanner._loader import loader
-    from inspect_ai.scanner._transcript import Transcript
+    from inspect_ai.scanner._transcript.types import Transcript
 
     @loader(name="test_loader")
     def test_loader():

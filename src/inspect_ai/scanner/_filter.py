@@ -1,30 +1,6 @@
-from dataclasses import dataclass, field
 from typing import Literal
 
-MessageType = Literal["system", "user", "assistant", "tool"]
-EventType = Literal[
-    "sample_init",
-    "sample_limit",
-    "sandbox",
-    "state",
-    "store",
-    "model",
-    "tool",
-    "approval",
-    "input",
-    "score",
-    "error",
-    "logger",
-    "info",
-    "span_begin",
-    "span_end",
-]
-
-
-@dataclass
-class TranscriptContent:
-    messages: Literal["all"] | list[MessageType] | None = field(default=None)
-    events: Literal["all"] | list[EventType] | None = field(default=None)
+from inspect_ai.scanner._transcript.types import EventType, MessageType
 
 
 def normalize_messages_filter(

@@ -36,9 +36,10 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from ._transcript.types import MessageType
 
-from ._filter import EventType, MessageType
-from ._transcript import Transcript
+from ._transcript.types import EventType
+from ._transcript.types import Transcript
 
 # Reverse mappings for inferring filters from types
 TYPE_TO_MESSAGE_FILTER: dict[type[Any], str] = {

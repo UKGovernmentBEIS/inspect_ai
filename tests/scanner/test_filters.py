@@ -3,13 +3,13 @@
 import pytest
 
 from inspect_ai.scanner._filter import (
-    EventType,
-    MessageType,
     normalize_events_filter,
     normalize_messages_filter,
     validate_events_filter,
     validate_messages_filter,
 )
+from inspect_ai.scanner._transcript.types import EventType
+from inspect_ai.scanner._transcript.types import MessageType
 
 # Message filter tests
 
