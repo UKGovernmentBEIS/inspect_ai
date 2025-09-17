@@ -865,21 +865,24 @@ async def task_run_sample(
                                             raise RuntimeError(
                                                 f"Scorer {scorer_name} has modified state.scores"
                                             )
-                                        state.scores[scorer_name] = score_result
+                                        if score_result is not None:
+                                            state.scores[scorer_name] = score_result
 
-                                        transcript()._event(
-                                            ScoreEvent(
-                                                score=score_result,
-                                                target=sample.target,
+                                            transcript()._event(
+                                                ScoreEvent(
+                                                    score=score_result,
+                                                    target=sample.target,
+                                                )
                                             )
-                                        )
 
-                                        results[scorer_name] = SampleScore(
-                                            score=score_result,
-                                            sample_id=sample.id,
-                                            sample_metadata=sample.metadata,
-                                            scorer=registry_unqualified_name(scorer),
-                                        )
+                                            results[scorer_name] = SampleScore(
+                                                score=score_result,
+                                                sample_id=sample.id,
+                                                sample_metadata=sample.metadata,
+                                                scorer=registry_unqualified_name(
+                                                    scorer
+                                                ),
+                                            )
 
                                 for name in solver_score_names:
                                     score = state.scores[name]
