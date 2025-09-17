@@ -7,6 +7,7 @@ from typing import (
 )
 
 from .database import EvalLogTranscriptsDB, LogPaths
+from .metadata import Condition
 from .types import Transcript, TranscriptContent, TranscriptDB
 
 if TYPE_CHECKING:
@@ -18,14 +19,14 @@ class Transcripts:
 
     def __init__(self, db: TranscriptDB) -> None:
         self._db = db
-        self._where: list[str] = []
+        self._where: list[Condition] = []
         self._limit: int | None = None
         self._shuffle: bool | int = False
         self._content = TranscriptContent()
 
-    def where(self, where: str) -> "Transcripts":
+    def where(self, condition: Condition) -> "Transcripts":
         transcripts = deepcopy(self)
-        transcripts._where.append(where)
+        transcripts._where.append(condition)
         return transcripts
 
     def limit(self, n: int) -> "Transcripts":
@@ -42,6 +43,13 @@ class Transcripts:
         transcripts = deepcopy(self)
         transcripts._content = content
         return transcripts
+
+    async def count(self) -> int:
+        await self._db.connect()
+        try:
+            return await self._db.count(self._where, self._limit)
+        finally:
+            await self._db.disconnect()
 
     async def collect(self) -> AsyncGenerator[Transcript, None]:
         await self._db.connect()

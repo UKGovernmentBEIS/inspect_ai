@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field, JsonValue
 from inspect_ai.log._transcript import Event
 from inspect_ai.model._chat_message import ChatMessage
 
+from .metadata import Condition
+
 MessageType = Literal["system", "user", "assistant", "tool"]
 EventType = Literal[
     "sample_init",
@@ -59,10 +61,15 @@ class TranscriptDB(Protocol):
     async def connect(self) -> None: ...
     async def query(
         self,
-        where: list[str],
+        where: list[Condition],
         limit: int | None = None,
         shuffle: bool | int = False,
     ) -> Iterator[TranscriptInfo]: ...
+    async def count(
+        self,
+        where: list[Condition],
+        limit: int | None = None,
+    ) -> int: ...
     async def read(
         self, t: TranscriptInfo, content: TranscriptContent
     ) -> Transcript: ...

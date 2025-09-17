@@ -1,6 +1,7 @@
 from ._loader import Loader, loader
 from ._scan import scan, scan_async
 from ._scanner import Scanner, scanner
+from ._transcript.metadata import Column, Condition, Metadata, metadata
 from ._transcript.transcripts import Transcripts, transcripts
 from ._transcript.types import (
     EventType,
@@ -28,4 +29,8 @@ __all__ = [
     "TranscriptContent",
     "EventType",
     "MessageType",
+    "Column",
+    "Condition",
+    "Metadata",
+    "metadata",
 ]
