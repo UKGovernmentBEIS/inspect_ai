@@ -120,7 +120,7 @@ async def _open_executable_for_arch(
     executable_name = _get_executable_name(arch, install_state == "edited")
 
     # Only let one task at a time try to resolve the file.
-    async with concurrency(executable_name, 1):
+    async with concurrency(executable_name, 1, visible=False):
         # Local Executable Check
         try:
             async with _open_executable(executable_name) as f:
@@ -175,12 +175,6 @@ async def _download_from_s3(filename: str, arch: Architecture) -> bool:
     Handles expected failures (404 - not yet promoted) silently.
     Logs unexpected failures but doesn't raise exceptions.
     """
-    _prompt_user_action(
-        f"Executable '{filename}' not found locally. Download from S3?",
-        filename,
-        arch,
-    )
-
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Download the executable
