@@ -1,6 +1,6 @@
 import pytest
 
-from inspect_ai.tool.sandbox_tools_utils._build_config import (
+from inspect_ai.tool._sandbox_tools_utils._build_config import (
     SandboxToolsBuildConfig,
     config_to_filename,
     filename_to_config,

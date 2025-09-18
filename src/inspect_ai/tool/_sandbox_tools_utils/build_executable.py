@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from inspect_ai.tool.sandbox_tools_utils._build_bundled_executable import (
+    from inspect_ai.tool._sandbox_tools_utils._build_bundled_executable import (
         build_bundled_executable,
     )
 else:

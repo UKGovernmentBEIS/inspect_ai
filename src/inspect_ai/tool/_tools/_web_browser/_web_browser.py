@@ -9,11 +9,11 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
-from inspect_ai.tool.sandbox_tools_utils._legacy_helpers import (
+from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
     LEGACY_SANDBOX_CLI,
     legacy_tool_support_sandbox,
 )
-from inspect_ai.tool.sandbox_tools_utils._runtime_helpers import (
+from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
     SandboxJSONRPCTransport,
     SandboxToolsServerErrorMapper,
 )

@@ -13,11 +13,11 @@ from inspect_ai.tool._json_rpc_helpers import (
     exec_notification,
     exec_scalar_request,
 )
-from inspect_ai.tool.sandbox_tools_utils._runtime_helpers import (
+from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
     SandboxJSONRPCTransport,
     SandboxToolsServerErrorMapper,
 )
-from inspect_ai.tool.sandbox_tools_utils.sandbox import (
+from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SANDBOX_TOOLS_CLI,
     sandbox_with_injected_tools,
 )

@@ -158,7 +158,7 @@ def run_docker_container(
         "/inspect_ai",
         image_name,
         "python3",
-        "./src/inspect_ai/tool/sandbox_tools_utils/build_executable.py",
+        "./src/inspect_ai/tool/_sandbox_tools_utils/build_executable.py",
         filename,
     ]
 

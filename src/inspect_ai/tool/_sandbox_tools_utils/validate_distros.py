@@ -6,7 +6,7 @@ This script validates that built executables work across different Linux distrib
 by running them in Docker containers with the 'healthcheck' command.
 
 USAGE:
-    python -m inspect_ai.tool.sandbox_tools_utils.validate_distros
+    python -m inspect_ai.tool._sandbox_tools_utils.validate_distros
 
 NOTE: Must be run as a module (with -m flag) to ensure proper package imports.
 Run from the inspect_ai source root or with the package installed.

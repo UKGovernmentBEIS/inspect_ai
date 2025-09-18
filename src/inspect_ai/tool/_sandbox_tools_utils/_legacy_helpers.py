@@ -19,7 +19,7 @@ import semver
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._json_rpc_helpers import exec_scalar_request
-from inspect_ai.tool.sandbox_tools_utils._runtime_helpers import (
+from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
     SandboxJSONRPCTransport,
     SandboxToolsServerErrorMapper,
 )
