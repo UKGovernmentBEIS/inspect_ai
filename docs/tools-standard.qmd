@@ -182,9 +182,7 @@ Note that a separate bash process is created within the sandbox for each instanc
 
 ### Configuration
 
-Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code. In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
-
-{{< include _tools-configuration.md >}}
+Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code.
 
 ### Task Setup
 
@@ -218,9 +216,7 @@ The `text_editor()` tool enables viewing, creating and editing text files. The t
 
 ### Configuration
 
-The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
-
-{{< include _tools-configuration.md >}}
+The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd).
 
 ### Task Setup
 
@@ -260,6 +256,11 @@ The schema for the `text_editor()` tool is based on the standard Anthropic [text
 The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
 ### Configuration
+
+TODO TODO TODO TODO - REVIEW/REPHRASE THIS CONTENT
+WE NEED TO RETAIN THE OLD GUIDANCE IF AND ONLY IF THE WEB BROWSER TOOL
+IS USED
+
 
 Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
 
