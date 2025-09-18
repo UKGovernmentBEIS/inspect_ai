@@ -1,6 +1,7 @@
 from ._loader import Loader, loader
 from ._scan import scan, scan_async
 from ._scanner import Scanner, scanner
+from ._transcript.log import LogMetadata, log_metadata
 from ._transcript.metadata import Column, Condition, Metadata, metadata
 from ._transcript.transcripts import Transcripts, transcripts
 from ._transcript.types import (
@@ -33,4 +34,6 @@ __all__ = [
     "Condition",
     "Metadata",
     "metadata",
+    "LogMetadata",
+    "log_metadata",
 ]
