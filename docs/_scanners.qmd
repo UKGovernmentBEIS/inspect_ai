@@ -1,0 +1,27 @@
+---
+title: "Scanners"
+format: html
+---
+
+```python
+def scan()
+def scan_results_df(scan_id)
+def scan_results_list(scan_id)
+```
+
+- Yield a dict of data frames named according to the scanners (with suffixing as required).
+- Enable the user to specify scanners as dict or maybe as a name,scanner tuple or maybe scanner_with(scanner, name="").
+- Each input atom has row w/ requisite ids:
+    - eval_set_id
+    - eval_id
+    - sample_id
+    - message_id / event_id
+    result_dir="./scans" | None
+    result_file="{scan_timestamp}_{scan_name}_{scan_id}/{scannner_name}.parquet"
+    result_col=["eval_id", "task_name", "model_name", "sample_id", "message_id", "event_id"]
+
+def scan_results(scan_id, "reward_hacking") -> pd.DataFrame:
+   ...
+
+
+   

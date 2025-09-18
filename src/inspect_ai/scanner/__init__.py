@@ -1,5 +1,5 @@
 from ._loader import Loader, loader
-from ._scan import scan, scan_async
+from ._scan import ResultsOptions, scan, scan_async
 from ._scanner import Scanner, scanner
 from ._transcript.log import LogMetadata, log_metadata
 from ._transcript.metadata import Column, Condition, Metadata, metadata
@@ -16,6 +16,7 @@ __all__ = [
     # scan
     "scan",
     "scan_async",
+    "ResultsOptions",
     # loader
     "Loader",
     "loader",
