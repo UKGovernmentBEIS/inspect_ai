@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.
 - Eval logs: Option to resolve attachments for `convert_eval_logs()`.
 - Model grading: `model_graded_qa()`, `model_graded_fact()`) now look for the "grader" model-role by default.
 - Human agent: Enable installation even when default tool user is not root.
