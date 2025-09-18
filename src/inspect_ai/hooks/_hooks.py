@@ -14,6 +14,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.util._limit import LimitExceededError
 
 logger = getLogger(__name__)
 
@@ -62,7 +63,7 @@ class RunEnd:
     """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
-    exception: Exception | None
+    exception: BaseException | None
     """The exception that occurred during the run, if any. If None, the run completed
     successfully."""
     logs: EvalLogs
@@ -143,6 +144,20 @@ class ModelUsageData:
     """The duration of the model call in seconds. If HTTP retries were made, this is the
     time taken for the successful call. This excludes retry waiting (e.g. exponential
     backoff) time."""
+
+
+@dataclass(frozen=True)
+class SampleScoring:
+    """Sample scoring hook event data."""
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
 
 
 @dataclass(frozen=True)
@@ -270,6 +285,13 @@ class Hooks:
         """
         pass
 
+    async def on_sample_scoring(self, data: SampleScoring) -> None:
+        """Called before the sample is scored.
+
+        Can be used by hooks to demarcate the end of solver execution and the start of scoring.
+        """
+        pass
+
     def override_api_key(self, data: ApiKeyOverride) -> str | None:
         """Optionally override an API key.
 
@@ -347,7 +369,7 @@ async def emit_run_end(
     eval_set_id: str | None,
     run_id: str,
     logs: EvalLogs,
-    exception: Exception | None = None,
+    exception: BaseException | None = None,
 ) -> None:
     data = RunEnd(
         eval_set_id=eval_set_id, run_id=run_id, logs=logs, exception=exception
@@ -418,6 +440,19 @@ async def emit_model_usage(
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
 
 
+async def emit_sample_scoring(
+    eval_set_id: str | None, run_id: str, eval_id: str, sample_id: str
+) -> None:
+    data = SampleScoring(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+    )
+
+    await _emit_to_all(lambda hook: hook.on_sample_scoring(data))
+
+
 def override_api_key(env_var_name: str, value: str) -> str | None:
     data = ApiKeyOverride(env_var_name=env_var_name, value=value)
     for hook in get_all_hooks():
@@ -447,5 +482,8 @@ async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:
             continue
         try:
             await callable(hook)
+        # We propagate LimitExceededError so that limits can be enforced via hooks.
+        except LimitExceededError:
+            raise
         except Exception as ex:
             logger.warning(f"Exception calling hook '{hook.__class__.__name__}': {ex}")

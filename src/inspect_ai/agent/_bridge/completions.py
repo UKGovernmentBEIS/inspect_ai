@@ -84,9 +84,8 @@ async def inspect_completions_api_request(
     # if there is a bridge filter give it a shot first
     output = await bridge_generate(bridge, model, input, tools, tool_choice, config)
 
-    # update state
-    bridge.state.messages = input + [output.message]
-    bridge.state.output = output
+    # update state if we have more messages than the last generation
+    bridge._track_state(input, output)
 
     # inspect completion to openai completion
     return ChatCompletion(

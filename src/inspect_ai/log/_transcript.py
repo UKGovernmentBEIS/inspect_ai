@@ -11,6 +11,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    overload,
 )
 
 from pydantic import (
@@ -540,9 +541,15 @@ class Transcript:
 
     _event_logger: Callable[[Event], None] | None
 
-    def __init__(self) -> None:
+    @overload
+    def __init__(self) -> None: ...
+
+    @overload
+    def __init__(self, events: list[Event]) -> None: ...
+
+    def __init__(self, events: list[Event] | None = None) -> None:
         self._event_logger = None
-        self._events: list[Event] = []
+        self._events: list[Event] = events if events is not None else []
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.

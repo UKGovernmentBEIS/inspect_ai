@@ -339,7 +339,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     },
     download_file: (
       download_file: string,
-      file_contents: string | Blob | ArrayBuffer | ArrayBufferView,
+      file_contents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
     ) => {
       return api.download_file(download_file, file_contents);
     },

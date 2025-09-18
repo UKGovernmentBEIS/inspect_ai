@@ -164,7 +164,7 @@ export interface LogViewAPI {
   log_message: (log_file: string, message: string) => Promise<void>;
   download_file: (
     filename: string,
-    filecontents: string | Blob | ArrayBuffer | ArrayBufferView,
+    filecontents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
   ) => Promise<void>;
   open_log_file: (logFile: string, log_dir: string) => Promise<void>;
   eval_pending_samples?: (
@@ -193,7 +193,7 @@ export interface ClientAPI {
   log_message?: (log_file: string, message: string) => Promise<void>;
   download_file: (
     file_name: string,
-    file_contents: string | Blob | ArrayBuffer | ArrayBufferView,
+    file_contents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
   ) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
 

@@ -8,188 +8,13 @@ import {
   SampleDataResponse,
 } from "./types";
 
-/* global __VIEW_SERVER_API_URL__ */
-const API_BASE_URL = __VIEW_SERVER_API_URL__ || "";
-const loaded_time = Date.now();
-let last_eval_time = 0;
+const LOADED_TIME = Date.now();
 
-function buildApiUrl(path: string): string {
-  if (!API_BASE_URL) {
-    return path;
-  }
-  const base = API_BASE_URL.endsWith("/")
-    ? API_BASE_URL.slice(0, -1)
-    : API_BASE_URL;
-  const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  return base + cleanPath;
-}
+let lastEvalTime = 0;
 
-function isApiCrossOrigin(): boolean {
-  try {
-    return Boolean(
-      API_BASE_URL && new URL(API_BASE_URL).origin !== window.location.origin,
-    );
-  } catch (TypeError) {
-    return false;
-  }
-}
+type HeaderProvider = () => Promise<Record<string, string>>;
 
-async function client_events() {
-  const params = new URLSearchParams();
-  params.append("loaded_time", String(loaded_time.valueOf()));
-  params.append("last_eval_time", String(last_eval_time.valueOf()));
-  return (await api("GET", `/events?${params.toString()}`)).parsed;
-}
-
-async function eval_log(
-  file: string,
-  headerOnly?: number,
-  _capabilities?: Capabilities,
-): Promise<LogContents> {
-  return await api(
-    "GET",
-    `/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`,
-  );
-}
-
-async function eval_log_size(file: string): Promise<number> {
-  return (await api("GET", `/log-size/${encodeURIComponent(file)}`)).parsed;
-}
-
-async function eval_log_bytes(file: string, start: number, end: number) {
-  return await api_bytes(
-    "GET",
-    `/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`,
-  );
-}
-
-async function eval_log_headers(files: string[]) {
-  const params = new URLSearchParams();
-  for (const file of files) {
-    params.append("file", file);
-  }
-  return (await api("GET", `/log-headers?${params.toString()}`)).parsed;
-}
-
-async function eval_pending_samples(
-  log_file: string,
-  etag?: string,
-): Promise<PendingSampleResponse> {
-  // Attach the log file
-  const params = new URLSearchParams();
-  params.append("log", log_file);
-
-  // Send the etag along
-  const headers: Record<string, string> = {};
-  if (etag) {
-    headers["If-None-Match"] = etag;
-  }
-
-  // Build up the request
-  const request: Request<PendingSampleResponse> = {
-    headers,
-    parse: async (text: string) => {
-      const pendingSamples = await asyncJsonParse(text);
-      return {
-        status: "OK",
-        pendingSamples,
-      };
-    },
-    handleError: (status: number) => {
-      if (status === 404) {
-        return {
-          status: "NotFound",
-        };
-      } else if (status === 304) {
-        return {
-          status: "NotModified",
-        };
-      }
-    },
-  };
-  // Fetch the result
-  const result = (
-    await apiRequest<PendingSampleResponse>(
-      "GET",
-      `/pending-samples?${params.toString()}`,
-      request,
-    )
-  ).parsed;
-
-  return result;
-}
-
-async function eval_log_sample_data(
-  log_file: string,
-  id: string | number,
-  epoch: number,
-  last_event?: number,
-  last_attachment?: number,
-): Promise<SampleDataResponse | undefined> {
-  const params = new URLSearchParams();
-  params.append("log", log_file);
-  params.append("id", String(id));
-  params.append("epoch", String(epoch));
-  if (last_event !== undefined) {
-    params.append("last-event-id", String(last_event));
-  }
-
-  if (last_attachment !== undefined) {
-    params.append("after-attachment-id", String(last_attachment));
-  }
-
-  // Build up the request
-  const request: Request<SampleDataResponse> = {
-    headers: {},
-    parse: async (text: string) => {
-      const pendingSamples = await asyncJsonParse(text);
-      return {
-        status: "OK",
-        sampleData: pendingSamples,
-      };
-    },
-    handleError: (status: number) => {
-      if (status === 404) {
-        return {
-          status: "NotFound",
-        };
-      } else if (status === 304) {
-        return {
-          status: "NotModified",
-        };
-      }
-    },
-  };
-  // Fetch the result
-  const result = (
-    await apiRequest<SampleDataResponse>(
-      "GET",
-      `/pending-sample-data?${params.toString()}`,
-      request,
-    )
-  ).parsed;
-
-  return result;
-}
-
-async function log_message(log_file: string, message: string) {
-  const params = new URLSearchParams();
-  params.append("log_file", log_file);
-  params.append("message", message);
-
-  const request: Request<void> = {
-    headers: {
-      "Content-Type": "text/plain",
-    },
-    parse: async (text: string) => {
-      if (text !== "") {
-        throw new Error(`Unexpected response from log_message: ${text}`);
-      }
-      return;
-    },
-  };
-  await apiRequest<void>("GET", `/log-message?${params.toString()}`, request);
-}
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 interface Request<T> {
   headers?: Record<string, string>;
@@ -198,164 +23,394 @@ interface Request<T> {
   handleError?: (status: number) => T | undefined;
 }
 
-async function apiRequest<T>(
-  method: "GET" | "POST" | "PUT" | "DELETE",
-  path: string,
-  request: Request<T>,
-): Promise<{ raw: string; parsed: T }> {
-  const url = buildApiUrl(path);
+interface ServerFetchAPI {
+  fetchString: (
+    method: HttpMethod,
+    path: string,
+    headers?: Record<string, string>,
+    body?: string,
+  ) => Promise<{
+    parsed: any;
+    raw: string;
+  }>;
+  fetchBytes: (method: HttpMethod, path: string) => Promise<Uint8Array>;
+  fetchType: <T>(
+    method: HttpMethod,
+    path: string,
+    request: Request<T>,
+  ) => Promise<{ raw: string; parsed: T }>;
+}
 
-  // build headers
-  const responseHeaders: HeadersInit = {
-    Accept: "application/json",
-    Pragma: "no-cache",
-    Expires: "0",
-    ["Cache-Control"]: "no-cache",
-    ...request.headers,
-  };
-  if (request.body) {
-    responseHeaders["Content-Type"] = "application/json";
+function createServerFetchApi(
+  apiBaseUrl?: string,
+  headerProvider?: HeaderProvider,
+): ServerFetchAPI {
+  const apiUrl = apiBaseUrl || "";
+
+  function buildApiUrl(path: string): string {
+    if (!apiUrl) {
+      return path;
+    }
+    const base = apiUrl.endsWith("/") ? apiUrl.slice(0, -1) : apiUrl;
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return base + cleanPath;
   }
 
-  // make request
-  const response = await fetch(url, {
-    method,
-    headers: responseHeaders,
-    body: request.body,
-    credentials: isApiCrossOrigin() ? "include" : "same-origin",
-  });
-  if (response.ok) {
+  function isApiCrossOrigin(): boolean {
+    try {
+      return Boolean(
+        apiUrl && new URL(apiUrl).origin !== window.location.origin,
+      );
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async function apiRequest<T>(
+    method: HttpMethod,
+    path: string,
+    request: Request<T>,
+  ): Promise<{ raw: string; parsed: T }> {
+    const url = buildApiUrl(path);
+
+    const responseHeaders: HeadersInit = {
+      Accept: "application/json",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Cache-Control": "no-cache",
+      ...request.headers,
+    };
+
+    if (headerProvider) {
+      const globalHeaders = await headerProvider();
+      Object.assign(responseHeaders, globalHeaders);
+    }
+
+    if (request.body) {
+      responseHeaders["Content-Type"] = "application/json";
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: responseHeaders,
+      body: request.body,
+      credentials: isApiCrossOrigin() ? "include" : "same-origin",
+    });
+
+    if (!response.ok) {
+      const errorResponse = request.handleError?.(response.status);
+      if (errorResponse) {
+        return {
+          raw: response.statusText,
+          parsed: errorResponse,
+        };
+      }
+
+      const message = (await response.text()) || response.statusText;
+      throw new Error(`API Error ${response.status}: ${message}`);
+    }
+
     const text = await response.text();
     const parse = request.parse || asyncJsonParse;
     return {
       parsed: (await parse(text)) as T,
       raw: text,
     };
-  } else if (response.status !== 200) {
-    // See if the request handler wants to handle this
-    const errorResponse = request.handleError
-      ? request.handleError(response.status)
-      : undefined;
-    if (errorResponse) {
+  }
+
+  async function api(
+    method: HttpMethod,
+    path: string,
+    headers?: Record<string, string>,
+    body?: string,
+  ): Promise<{ parsed: any; raw: string }> {
+    const url = buildApiUrl(path);
+
+    const requestHeaders: HeadersInit = {
+      Accept: "application/json",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Cache-Control": "no-cache",
+      ...headers,
+    };
+
+    if (headerProvider) {
+      const globalHeaders = await headerProvider();
+      Object.assign(requestHeaders, globalHeaders);
+    }
+
+    if (body) {
+      requestHeaders["Content-Type"] = "application/json";
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: requestHeaders,
+      body,
+      credentials: isApiCrossOrigin() ? "include" : "same-origin",
+    });
+
+    if (response.ok) {
+      const text = await response.text();
       return {
-        raw: response.statusText,
-        parsed: errorResponse,
+        parsed: await asyncJsonParse(text),
+        raw: text,
       };
     }
 
     const message = (await response.text()) || response.statusText;
-    const error = new Error(`Error: ${response.status}: ${message})`);
-    throw error;
-  } else {
-    throw new Error(`${response.status} - ${response.statusText} `);
-  }
-}
-
-async function api(
-  method: "GET" | "POST" | "PUT" | "DELETE",
-  path: string,
-  headers?: Record<string, string>,
-  body?: string,
-) {
-  const url = buildApiUrl(path);
-
-  // build headers
-  const responseHeaders: HeadersInit = {
-    Accept: "application/json",
-    Pragma: "no-cache",
-    Expires: "0",
-    ["Cache-Control"]: "no-cache",
-    ...headers,
-  };
-  if (body) {
-    responseHeaders["Content-Type"] = "application/json";
+    throw new Error(`HTTP ${response.status}: ${message}`);
   }
 
-  // make request
-  const response = await fetch(url, {
-    method,
-    headers: responseHeaders,
-    body,
-    credentials: isApiCrossOrigin() ? "include" : "same-origin",
-  });
-  if (response.ok) {
-    const text = await response.text();
-    return {
-      parsed: await asyncJsonParse(text),
-      raw: text,
+  async function apiBytes(
+    method: HttpMethod,
+    path: string,
+  ): Promise<Uint8Array> {
+    const url = buildApiUrl(path);
+
+    const headers: HeadersInit = {
+      Accept: "application/octet-stream",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Cache-Control": "no-cache",
     };
-  } else if (response.status !== 200) {
-    const message = (await response.text()) || response.statusText;
-    const error = new Error(`${message}`);
-    throw error;
-  } else {
-    throw new Error(`${response.status} - ${response.statusText} `);
-  }
-}
 
-async function api_bytes(
-  method: "GET" | "POST" | "PUT" | "DELETE",
-  path: string,
-) {
-  const url = buildApiUrl(path);
+    const response = await fetch(url, {
+      method,
+      headers,
+      credentials: isApiCrossOrigin() ? "include" : "same-origin",
+    });
 
-  // build headers
-  const headers: HeadersInit = {
-    Accept: "application/octet-stream",
-    Pragma: "no-cache",
-    Expires: "0",
-    ["Cache-Control"]: "no-cache",
-  };
+    if (!response.ok) {
+      const message = (await response.text()) || response.statusText;
+      throw new Error(`HTTP ${response.status}: ${message}`);
+    }
 
-  // make request
-  const response = await fetch(url, {
-    method,
-    headers,
-    credentials: isApiCrossOrigin() ? "include" : "same-origin",
-  });
-  if (response.ok) {
     const buffer = await response.arrayBuffer();
     return new Uint8Array(buffer);
-  } else if (response.status !== 200) {
-    const message = (await response.text()) || response.statusText;
-    const error = new Error(`Error: ${response.status}: ${message})`);
-    throw error;
-  } else {
-    throw new Error(`${response.status} - ${response.statusText} `);
   }
+
+  return {
+    fetchString: api,
+    fetchBytes: apiBytes,
+    fetchType: apiRequest,
+  };
 }
 
-async function open_log_file() {
-  // No op
-}
+async function open_log_file(): Promise<void> {}
+
+const clientEvents = (fetchApi: ServerFetchAPI) => async () => {
+  const params = new URLSearchParams();
+  params.append("loaded_time", String(LOADED_TIME.valueOf()));
+  params.append("last_eval_time", String(lastEvalTime.valueOf()));
+  const result = await fetchApi.fetchString(
+    "GET",
+    `/events?${params.toString()}`,
+  );
+  return result.parsed;
+};
+
+const evalLogs = (fetchApi: ServerFetchAPI, logDir?: string) => async () => {
+  const path = logDir ? `/logs?log_dir=${encodeURIComponent(logDir)}` : "/logs";
+  const logs = await fetchApi.fetchString("GET", path);
+  lastEvalTime = Date.now();
+  return logs.parsed;
+};
+
+const evalLog =
+  (fetchApi: ServerFetchAPI) =>
+  async (
+    file: string,
+    headerOnly?: number,
+    _capabilities?: Capabilities,
+  ): Promise<LogContents> => {
+    const result = await fetchApi.fetchString(
+      "GET",
+      `/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`,
+    );
+    return result;
+  };
+
+const evalLogSize =
+  (fetchApi: ServerFetchAPI) =>
+  async (file: string): Promise<number> => {
+    const result = await fetchApi.fetchString(
+      "GET",
+      `/log-size/${encodeURIComponent(file)}`,
+    );
+    return result.parsed;
+  };
+
+const evalLogBytes =
+  (fetchApi: ServerFetchAPI) =>
+  async (file: string, start: number, end: number): Promise<Uint8Array> =>
+    fetchApi.fetchBytes(
+      "GET",
+      `/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`,
+    );
+
+const evalLogOverviews =
+  (fetchApi: ServerFetchAPI) => async (files: string[]) => {
+    const params = new URLSearchParams();
+    for (const file of files) {
+      params.append("file", file);
+    }
+    const result = await fetchApi.fetchString(
+      "GET",
+      `/log-headers?${params.toString()}`,
+    );
+    return result.parsed;
+  };
+
+const logMessage =
+  (fetchApi: ServerFetchAPI) =>
+  async (log_file: string, message: string): Promise<void> => {
+    const params = new URLSearchParams();
+    params.append("log_file", log_file);
+    params.append("message", message);
+
+    const request: Request<void> = {
+      headers: {
+        "Content-Type": "text/plain",
+      },
+      parse: async (text: string) => {
+        if (text !== "") {
+          throw new Error(`Unexpected response from log_message: ${text}`);
+        }
+        return;
+      },
+    };
+    await fetchApi.fetchType<void>(
+      "GET",
+      `/log-message?${params.toString()}`,
+      request,
+    );
+  };
+
+const evalPendingSamples =
+  (fetchApi: ServerFetchAPI) =>
+  async (log_file: string, etag?: string): Promise<PendingSampleResponse> => {
+    const params = new URLSearchParams();
+    params.append("log", log_file);
+
+    const headers: Record<string, string> = {};
+    if (etag) {
+      headers["If-None-Match"] = etag;
+    }
+
+    const request: Request<PendingSampleResponse> = {
+      headers,
+      parse: async (text: string) => {
+        const pendingSamples = await asyncJsonParse(text);
+        return {
+          status: "OK",
+          pendingSamples,
+        };
+      },
+      handleError: (status: number) => {
+        if (status === 404) {
+          return {
+            status: "NotFound",
+          };
+        } else if (status === 304) {
+          return {
+            status: "NotModified",
+          };
+        }
+      },
+    };
+
+    const result = await fetchApi.fetchType<PendingSampleResponse>(
+      "GET",
+      `/pending-samples?${params.toString()}`,
+      request,
+    );
+
+    return result.parsed;
+  };
+
+const evalLogSampleData =
+  (fetchApi: ServerFetchAPI) =>
+  async (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+    last_event?: number,
+    last_attachment?: number,
+  ): Promise<SampleDataResponse | undefined> => {
+    const params = new URLSearchParams();
+    params.append("log", log_file);
+    params.append("id", String(id));
+    params.append("epoch", String(epoch));
+    if (last_event !== undefined) {
+      params.append("last-event-id", String(last_event));
+    }
+
+    if (last_attachment !== undefined) {
+      params.append("after-attachment-id", String(last_attachment));
+    }
+
+    const request: Request<SampleDataResponse> = {
+      headers: {},
+      parse: async (text: string) => {
+        const sampleData = await asyncJsonParse(text);
+        return {
+          status: "OK",
+          sampleData,
+        };
+      },
+      handleError: (status: number) => {
+        if (status === 404) {
+          return {
+            status: "NotFound",
+          };
+        } else if (status === 304) {
+          return {
+            status: "NotModified",
+          };
+        }
+      },
+    };
+
+    const result = await fetchApi.fetchType<SampleDataResponse>(
+      "GET",
+      `/pending-sample-data?${params.toString()}`,
+      request,
+    );
+
+    return result.parsed;
+  };
 
 /**
  * Create a view server API with optional server-side log listing
  */
 export function createViewServerApi(
-  options: { log_dir?: string } = {},
+  options: {
+    logDir?: string;
+    apiBaseUrl?: string;
+    headerProvider?: HeaderProvider;
+  } = {},
 ): LogViewAPI {
-  const { log_dir } = options;
+  const { headerProvider } = options;
+
+  const logDir = options.logDir;
+
+  const fetchApi = createServerFetchApi(
+    options.apiBaseUrl || __VIEW_SERVER_API_URL__,
+    headerProvider,
+  );
 
   return {
-    client_events,
-    eval_logs: async () => {
-      const path = log_dir
-        ? `/logs?log_dir=${encodeURIComponent(log_dir)}`
-        : "/logs";
-      const logs = await api("GET", path);
-      last_eval_time = Date.now();
-      return logs.parsed;
-    },
-    eval_log,
-    eval_log_size,
-    eval_log_bytes,
-    eval_log_overviews: eval_log_headers,
-    log_message,
+    client_events: clientEvents(fetchApi),
+    eval_logs: evalLogs(fetchApi, logDir),
+    eval_log: evalLog(fetchApi),
+    eval_log_size: evalLogSize(fetchApi),
+    eval_log_bytes: evalLogBytes(fetchApi),
+    eval_log_overviews: evalLogOverviews(fetchApi),
+    log_message: logMessage(fetchApi),
     download_file,
-
     open_log_file,
-    eval_pending_samples,
-    eval_log_sample_data,
+    eval_pending_samples: evalPendingSamples(fetchApi),
+    eval_log_sample_data: evalLogSampleData(fetchApi),
   };
 }

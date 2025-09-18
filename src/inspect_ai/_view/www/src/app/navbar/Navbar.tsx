@@ -52,7 +52,7 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
 
   return (
     <nav
-      className={clsx("text-size-smaller", styles.header)}
+      className={clsx("text-size-smaller", "header-nav", styles.header)}
       aria-label="breadcrumb"
       data-unsearchable={true}
     >

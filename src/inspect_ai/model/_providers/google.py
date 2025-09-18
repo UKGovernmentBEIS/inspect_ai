@@ -62,6 +62,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai.model import (
     ChatCompletionChoice,
@@ -273,8 +274,14 @@ class GoogleGenAIAPI(ModelAPI):
 
         # Create google-genai types.
         gemini_contents = await as_chat_messages(client, input)
-        gemini_tools = self.chat_tools(tools) if len(tools) > 0 else None
-        gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
+        has_native_search, gemini_tools = (
+            self.chat_tools(tools) if len(tools) > 0 else (False, None)
+        )
+        gemini_tool_config = (
+            chat_tool_config(tool_choice)
+            if not has_native_search and len(tools) > 0
+            else None
+        )
         parameters = GenerateContentConfig(
             http_options=HttpOptions(headers={HttpHooks.REQUEST_ID_HEADER: request_id}),
             temperature=config.temperature,
@@ -353,6 +360,12 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_2_0(self) -> bool:
         return "gemini-2.0" in self.service_model_name()
 
+    def is_gemini_2_5(self) -> bool:
+        return "gemini-2.5" in self.service_model_name()
+
+    def is_gemini_thinking_only(self) -> bool:
+        return self.is_gemini_2_5() and "-pro" in self.service_model_name()
+
     @override
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIError) and ex.code is not None:
@@ -389,14 +402,23 @@ class GoogleGenAIAPI(ModelAPI):
         )
         if has_thinking_config:
             if config.reasoning_tokens == 0:
-                # When reasoning_tokens is set to zero, we disable reasoning and return None.
-                # We cannot return a ThinkingConfig with reasoning_tokens set to 0,
-                # as this will cause the Gemini API to return a 400 INVALID_ARGUMENT error.
-                return None
-
-            return ThinkingConfig(
-                include_thoughts=True, thinking_budget=config.reasoning_tokens
-            )
+                if self.is_gemini_thinking_only():
+                    # When reasoning_tokens is set to 0 and it's a thinking only model we don't
+                    # bother trying to shut down thining as this is not possible:
+                    #   https://ai.google.dev/gemini-api/docs/thinking#set-budget
+                    # warn and return include_thoughts=True so the user sees what is happening
+                    warn_once(
+                        logger,
+                        f"Thinking cannot be disabled for model {self.service_model_name()}.",
+                    )
+                    return ThinkingConfig(include_thoughts=True)
+                else:
+                    # otherwise do the disable
+                    return ThinkingConfig(include_thoughts=False, thinking_budget=0)
+            else:
+                return ThinkingConfig(
+                    include_thoughts=True, thinking_budget=config.reasoning_tokens
+                )
         else:
             return None
 
@@ -437,7 +459,7 @@ class GoogleGenAIAPI(ModelAPI):
             )
         )
 
-    def chat_tools(self, tools: list[ToolInfo]) -> ToolListUnion:
+    def chat_tools(self, tools: list[ToolInfo]) -> tuple[bool, ToolListUnion]:
         has_native_search, function_declarations = functools.reduce(
             self._categorize_tool, tools, (False, list[FunctionDeclaration]())
         )
@@ -450,9 +472,9 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
         return (
-            [Tool(google_search=GoogleSearch())]
+            (True, [Tool(google_search=GoogleSearch())])
             if has_native_search
-            else [Tool(function_declarations=function_declarations)]
+            else (False, [Tool(function_declarations=function_declarations)])
         )
 
     def _resolve_batcher(self, config: GenerateConfig, client: Client) -> None:
