@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 from typing import List
 
-from ._build_config import SANDBOX_TOOLS_BASE_NAME
+from inspect_ai.tool._sandbox_tools_utils._build_config import SANDBOX_TOOLS_BASE_NAME
 
 
 class Colors:
