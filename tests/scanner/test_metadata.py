@@ -484,3 +484,65 @@ def test_duckdb_json_type_casting():
     # Should cast to DOUBLE for numeric comparison
     assert "::DOUBLE" in sql
     assert params == [0.5]
+
+
+def test_bracket_notation_array_access():
+    """Test bracket notation for array access."""
+    filter = m["items[0].name"] == "first"
+    sql, params = filter.to_sql("sqlite")
+    # items is the column, [0].name is the path within it
+    assert "$[0].name" in sql
+    assert params == ["first"]
+
+
+def test_multiple_brackets():
+    """Test multiple bracket indices."""
+    filter = m["data[0][2].value"] == 42
+    sql, params = filter.to_sql("sqlite")
+    assert "[0][2]" in sql
+    assert params == [42]
+
+
+def test_base_only_bracket():
+    """Test bracket notation without dots."""
+    filter = m["array[1]"] == "test"
+    sql, params = filter.to_sql("sqlite")
+    # array is the column, [1] is the path
+    assert "$[1]" in sql
+    assert params == ["test"]
+
+
+def test_sqlite_key_with_hyphen():
+    """Test SQLite JSONPath with hyphenated keys."""
+    filter = m["data.user-name"] == "alice"
+    sql, params = filter.to_sql("sqlite")
+    # Hyphenated keys should be quoted
+    assert '"user-name"' in sql
+    assert params == ["alice"]
+
+
+def test_sqlite_key_with_space():
+    """Test SQLite JSONPath with spaces in keys."""
+    filter = m['data."user name"'] == "bob"
+    sql, params = filter.to_sql("sqlite")
+    assert '"user name"' in sql
+    assert params == ["bob"]
+
+
+def test_duckdb_like_with_json_path():
+    """Test DuckDB casts JSON to VARCHAR for LIKE operations."""
+    filter = m["config.message"].like("%error%")
+    sql, params = filter.to_sql("duckdb")
+    # Should cast to VARCHAR for text comparison
+    assert "CAST(" in sql and "AS VARCHAR)" in sql
+    assert params == ["%error%"]
+
+
+def test_duckdb_ilike_with_json_path():
+    """Test DuckDB casts JSON to VARCHAR for ILIKE operations."""
+    filter = m["config.message"].ilike("%ERROR%")
+    sql, params = filter.to_sql("duckdb")
+    # Should cast to VARCHAR and use LOWER
+    assert "CAST(" in sql and "AS VARCHAR)" in sql
+    assert "LOWER" in sql
+    assert params == ["%ERROR%"]

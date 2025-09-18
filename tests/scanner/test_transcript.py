@@ -134,30 +134,30 @@ def test_null_operators():
 def test_none_comparison():
     """Test that == None and != None map to IS NULL and IS NOT NULL."""
     # == None should map to IS NULL
-    condition = m.error_message is None
+    condition = m.error_message == None  # noqa: E711
     sql, params = condition.to_sql("sqlite")
     assert sql == '"error_message" IS NULL'
     assert params == []
 
     # != None should map to IS NOT NULL
-    condition = m.error_message is not None
+    condition = m.error_message != None  # noqa: E711
     sql, params = condition.to_sql("sqlite")
     assert sql == '"error_message" IS NOT NULL'
     assert params == []
 
     # Test with other dialects
-    condition = m.status is None
+    condition = m.status == None  # noqa: E711
     sql, params = condition.to_sql("postgres")
     assert sql == '"status" IS NULL'
     assert params == []
 
-    condition = m.status is not None
+    condition = m.status != None  # noqa: E711
     sql, params = condition.to_sql("duckdb")
     assert sql == '"status" IS NOT NULL'
     assert params == []
 
     # Combined with other conditions
-    condition = (m.model == "gpt-4") & (m.error is None)
+    condition = (m.model == "gpt-4") & (m.error == None)  # noqa: E711
     sql, params = condition.to_sql("sqlite")
     assert sql == '("model" = ? AND "error" IS NULL)'
     assert params == ["gpt-4"]
@@ -223,10 +223,13 @@ def test_ilike_operator():
     assert sql == """LOWER(json_extract("metadata", '$.message')) LIKE LOWER(?)"""
     assert params == ["%Error%"]
 
-    # DuckDB with JSON path
+    # DuckDB with JSON path - now uses json_extract with VARCHAR cast
     condition = m["metadata.message"].ilike("%Error%")
     sql, params = condition.to_sql("duckdb")
-    assert sql == """LOWER("metadata"->>'message') LIKE LOWER(?)"""
+    assert (
+        sql
+        == """LOWER(CAST(json_extract("metadata", '$.message') AS VARCHAR)) LIKE LOWER(?)"""
+    )
     assert params == ["%Error%"]
 
 
@@ -327,9 +330,9 @@ def test_nested_json_paths():
     assert sql == "json_extract(\"metadata\", '$.config.temperature') > ?"
     assert params == [0.7]
 
-    # DuckDB - should use ->> for last element
+    # DuckDB - now uses json_extract with type casting
     sql, params = condition.to_sql("duckdb")
-    assert sql == "\"metadata\"->'config'->>'temperature' > ?"
+    assert sql == "(json_extract(\"metadata\", '$.config.temperature'))::DOUBLE > ?"
     assert params == [0.7]
 
     # PostgreSQL - should use ->> for last element AND cast from text for numeric comparison
@@ -348,15 +351,15 @@ def test_column_name_escaping():
     assert sql == '"col""umn" = ?'
     assert params == ["value"]
 
-    # JSON path with single quotes
+    # JSON path with single quotes - now gets quoted in SQLite due to special chars
     condition = m["metadata.key'with'quotes"] == "value"
     sql, params = condition.to_sql("sqlite")
-    assert sql == "json_extract(\"metadata\", '$.key''with''quotes') = ?"
+    assert sql == """json_extract("metadata", '$."key''with''quotes"') = ?"""
     assert params == ["value"]
 
-    # DuckDB with quotes in path
+    # DuckDB - uses json_extract
     sql, params = condition.to_sql("duckdb")
-    assert sql == "\"metadata\"->>'key''with''quotes' = ?"
+    assert sql == """json_extract("metadata", '$.key''with''quotes') = ?"""
     assert params == ["value"]
 
 
@@ -375,12 +378,12 @@ def test_postgres_json_type_casting():
     assert params == [0.75]
 
     # Boolean comparison - should cast from text to boolean
-    condition = m["metadata.enabled"] is True
+    condition = m["metadata.enabled"] == True  # noqa: E712
     sql, params = condition.to_sql("postgres")
     assert sql == """("metadata"->>'enabled')::text::boolean = $1"""
     assert params == [True]
 
-    condition = m["metadata.flag"] is not False
+    condition = m["metadata.flag"] != False  # noqa: E712
     sql, params = condition.to_sql("postgres")
     assert sql == """("metadata"->>'flag')::text::boolean != $1"""
     assert params == [False]
@@ -425,7 +428,7 @@ def test_postgres_json_type_casting():
 def test_postgres_casting_with_none():
     """Test PostgreSQL casting handles None values correctly."""
     # Comparison with None should not crash the casting logic
-    condition = m["metadata.field"] is None
+    condition = m["metadata.field"] == None  # noqa: E711
     sql, params = condition.to_sql("postgres")
     assert sql == """"metadata"->>'field' IS NULL"""
     assert params == []
@@ -439,8 +442,8 @@ def test_postgres_double_cast_correctness():
     test_cases = [
         (m["config.retry_count"] > 5, int, "bigint", 5),
         (m["settings.threshold"] < 0.95, float, "double precision", 0.95),
-        (m["flags.enabled"] is True, bool, "boolean", True),
-        (m["options.active"] is not False, bool, "boolean", False),
+        (m["flags.enabled"] == True, bool, "boolean", True),  # noqa: E712
+        (m["options.active"] != False, bool, "boolean", False),  # noqa: E712
     ]
 
     for condition, val_type, pg_type, expected_val in test_cases:
@@ -481,9 +484,12 @@ def test_deep_nested_paths():
     assert sql == "json_extract(\"metadata\", '$.level1.level2.level3.value') > ?"
     assert params == [10]
 
-    # DuckDB - multiple -> operators, ->> for last
+    # DuckDB - uses json_extract with type casting
     sql, params = condition.to_sql("duckdb")
-    assert sql == "\"metadata\"->'level1'->'level2'->'level3'->>'value' > ?"
+    assert (
+        sql
+        == "(json_extract(\"metadata\", '$.level1.level2.level3.value'))::BIGINT > ?"
+    )
     assert params == [10]
 
     # PostgreSQL - should cast from text to integer for numeric comparison

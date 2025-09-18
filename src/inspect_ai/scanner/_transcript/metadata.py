@@ -1,7 +1,7 @@
 """Metadata filtering DSL for transcript queries.
 
-This module provides a pythonic, type-safe DSL for building WHERE clauses
-to filter metadata in SQLite and DuckDB databases.
+This module provides a pythonic DSL for building WHERE clauses
+to filter metadata in SQLite, DuckDB, and PostgreSQL databases.
 
 Usage:
     from inspect_ai.scanner import metadata as m
@@ -15,7 +15,7 @@ Usage:
     filter = (m.status == "error") | (m.retries > 3)
 
     # Generate SQL
-    sql, params = filter.to_sql("sqlite")
+    sql, params = filter.to_sql("sqlite")  # or "duckdb" or "postgres"
 """
 
 from __future__ import annotations
@@ -243,6 +243,21 @@ class Condition:
                         hint = self.params[0] if self.params else None
                     column = _duck_cast(column, hint)
 
+            # Ensure DuckDB text operators receive VARCHAR for LIKE operations
+            if (
+                dialect == SQLDialect.DUCKDB
+                and self.operator
+                in {
+                    Operator.LIKE,
+                    Operator.NOT_LIKE,
+                    Operator.ILIKE,
+                    Operator.NOT_ILIKE,
+                }
+                and isinstance(self.left, str)
+                and "." in self.left  # Only for JSON paths
+            ):
+                column = f"CAST({column} AS VARCHAR)"
+
             if self.operator == Operator.IS_NULL:
                 return f"{column} IS NULL", []
             elif self.operator == Operator.IS_NOT_NULL:
@@ -324,57 +339,101 @@ class Condition:
     def _esc_single(self, s: str) -> str:
         return s.replace("'", "''")
 
+    def _needs_sqlite_jsonpath_quotes(self, key: str) -> bool:
+        """Check if a key needs quotes in SQLite JSONPath."""
+        # Keys need quotes if they contain anything besides alphanumeric and underscore
+        return not key.replace("_", "").isalnum()
+
+    def _escape_for_sqlite_jsonpath(self, key: str) -> str:
+        """Escape a key for use in SQLite JSONPath."""
+        # JSONPath is inside a single-quoted SQL string; the " chars need JSONPath escaping
+        return key.replace('"', '\\"')
+
     def _parse_json_path(self, path: str) -> tuple[str, list[tuple[str, bool]]]:
         """Parse a JSON path supporting array indices and quoted keys.
 
         Returns:
             Tuple of (base_column, list of (segment, is_array_index))
         """
-        # First check if this is a simple column (no dots)
         if "." not in path and "[" not in path:
             return path, []
 
-        # Split on dots but preserve quoted sections
-        # Handle: base."quoted.key".normal.0."another.quoted"
-        parts = []
-        current = ""
-        in_quotes = False
-
-        for char in path:
-            if char == '"':
+        # Identify base: everything before the first unquoted '.' or '['
+        i, n, in_quotes = 0, len(path), False
+        while i < n:
+            ch = path[i]
+            if ch == '"':
                 in_quotes = not in_quotes
-                current += char
-            elif char == "." and not in_quotes:
-                if current:
-                    parts.append(current)
-                    current = ""
+            elif not in_quotes and ch in ".[":
+                break
+            i += 1
+
+        base = path[:i] if i > 0 else path
+        rest = path[i:]
+        parts: list[tuple[str, bool]] = []
+
+        j = 0
+        while j < len(rest):
+            ch = rest[j]
+            if ch == ".":
+                # dotted key (quoted or unquoted)
+                j += 1
+                if j < len(rest) and rest[j] == '"':
+                    # quoted key
+                    j += 1
+                    key_chars = []
+                    while j < len(rest) and rest[j] != '"':
+                        # allow \" sequences
+                        if rest[j] == "\\" and j + 1 < len(rest):
+                            j += 1
+                        key_chars.append(rest[j])
+                        j += 1
+                    if j < len(rest) and rest[j] == '"':
+                        j += 1  # consume closing quote
+                    parts.append(("".join(key_chars), False))
+                else:
+                    # unquoted key
+                    k = j
+                    while k < len(rest) and rest[k] not in ".[":
+                        k += 1
+                    key = rest[j:k]
+                    if key.isdigit():
+                        parts.append((key, True))
+                    elif key:
+                        parts.append((key, False))
+                    j = k
+            elif ch == "[":
+                # bracket index: [digits]
+                k = j + 1
+                while k < len(rest) and rest[k] != "]":
+                    k += 1
+                idx = rest[j + 1 : k]
+                if idx.isdigit():
+                    parts.append((idx, True))
+                j = k + 1 if k < len(rest) else k  # past ']'
             else:
-                current += char
-        if current:
-            parts.append(current)
+                j += 1
 
-        if not parts:
-            return path, []
+        # Handle base with bracket(s) but no dot, e.g. array[0][2]
+        if "[" in base:
+            bname = base.split("[", 1)[0]
+            btail = base[len(bname) + 1 :]  # everything after first '['
+            base = bname if bname else base
+            # parse all bracket indices from the base tail
+            temp_parts = []
+            k = 0
+            while k < len(btail):
+                if btail[k].isdigit():
+                    start = k
+                    while k < len(btail) and btail[k].isdigit():
+                        k += 1
+                    temp_parts.append((btail[start:k], True))
+                else:
+                    k += 1
+            # Insert at beginning to maintain order
+            parts = temp_parts + parts
 
-        base = parts[0]
-        path_parts = []
-
-        for part in parts[1:]:
-            # Handle bracket notation [0]
-            if part.startswith("[") and part.endswith("]"):
-                index = part[1:-1]
-                if index.isdigit():
-                    path_parts.append((index, True))
-            # Handle quoted segments "user.name"
-            elif part.startswith('"') and part.endswith('"'):
-                path_parts.append((part[1:-1], False))
-            # Handle regular segments or numeric strings
-            elif part.isdigit():
-                path_parts.append((part, True))
-            else:
-                path_parts.append((part, False))
-
-        return base, path_parts
+        return base, parts
 
     def _format_column(self, column_name: str, dialect: SQLDialect) -> str:
         # If dotted, treat as: <base_column>.<json.path.inside.it>
@@ -392,9 +451,10 @@ class Condition:
                 for segment, is_index in path_parts:
                     if is_index:
                         json_path_parts.append(f"[{segment}]")
-                    elif "." in segment or segment.startswith('"'):
+                    elif self._needs_sqlite_jsonpath_quotes(segment):
                         # Keys with special chars need quoting in JSONPath
-                        json_path_parts.append(f'."{segment}"')
+                        escaped = self._escape_for_sqlite_jsonpath(segment)
+                        json_path_parts.append(f'."{escaped}"')
                     else:
                         json_path_parts.append(f".{segment}")
                 json_path = "$" + "".join(json_path_parts)

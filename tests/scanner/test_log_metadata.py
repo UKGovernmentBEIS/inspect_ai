@@ -29,34 +29,50 @@ def create_log_dataframe(num_samples: int = 10) -> pd.DataFrame:
                 "log": f"/path/to/log_{i:03d}.json",
                 # Eval info
                 "created": f"2024-01-{(i % 28) + 1:02d}T10:00:00",
-                "tags": json.dumps(["prod", "test", "dev"][i % 3]),  # Serialize list to JSON
+                "tags": json.dumps(
+                    ["prod", "test", "dev"][i % 3]
+                ),  # Serialize list to JSON
                 "git_origin": "https://github.com/example/repo.git",
                 "git_commit": f"commit_{uuid.uuid4().hex[:8]}",
-                "packages": json.dumps({"inspect": "1.0.0", "numpy": "1.24.0"}),  # Serialize dict to JSON
-                "metadata": json.dumps({"experiment": f"exp_{i}", "version": "1.0"}),  # Serialize dict to JSON
+                "packages": json.dumps(
+                    {"inspect": "1.0.0", "numpy": "1.24.0"}
+                ),  # Serialize dict to JSON
+                "metadata": json.dumps(
+                    {"experiment": f"exp_{i}", "version": "1.0"}
+                ),  # Serialize dict to JSON
                 # Task configuration
                 "task_name": ["math_problem", "code_gen", "reasoning"][i % 3],
                 "task_display_name": ["Math", "Code", "Reasoning"][i % 3],
                 "task_version": f"{i % 3}.0.0",
                 "task_file": f"tasks/{['math', 'code', 'reason'][i % 3]}.py",
-                "task_attribs": json.dumps({"difficulty": ["easy", "medium", "hard"][i % 3]}),  # Serialize dict
+                "task_attribs": json.dumps(
+                    {"difficulty": ["easy", "medium", "hard"][i % 3]}
+                ),  # Serialize dict
                 "task_arg_temperature": 0.7 + (i % 3) * 0.1,  # Dynamic task_arg_*
                 "task_arg_max_tokens": 1000 + (i % 5) * 500,
                 "solver": ["cot", "react", "basic"][i % 3],
                 "solver_args": json.dumps({"steps": i % 5 + 1}),  # Serialize dict
                 "sandbox_type": ["docker", "local", None][i % 3],
-                "sandbox_config": json.dumps({"memory": "2G"}) if i % 3 != 2 else None,  # Serialize dict
+                "sandbox_config": json.dumps({"memory": "2G"})
+                if i % 3 != 2
+                else None,  # Serialize dict
                 # Model configuration
                 "model": ["gpt-4", "claude-3", "gemini-pro"][i % 3],
                 "model_base_url": "https://api.example.com",
                 "model_args": json.dumps({"api_key": "secret"}),  # Serialize dict
-                "model_generate_config": json.dumps({"temperature": 0.7}),  # Serialize dict
-                "model_roles": json.dumps({"assistant": {"model": "gpt-3.5"}}),  # Serialize dict
+                "model_generate_config": json.dumps(
+                    {"temperature": 0.7}
+                ),  # Serialize dict
+                "model_roles": json.dumps(
+                    {"assistant": {"model": "gpt-3.5"}}
+                ),  # Serialize dict
                 # Dataset
                 "dataset_name": ["train", "test", "validation"][i % 3],
                 "dataset_location": f"/data/{['train', 'test', 'val'][i % 3]}.jsonl",
                 "dataset_samples": 100 + i * 10,
-                "dataset_sample_ids": json.dumps(list(range(i * 10, (i + 1) * 10))),  # Serialize list
+                "dataset_sample_ids": json.dumps(
+                    list(range(i * 10, (i + 1) * 10))
+                ),  # Serialize list
                 "dataset_shuffled": i % 2 == 0,
                 # Eval configuration
                 "epochs": (i % 3) + 1,
@@ -84,7 +100,9 @@ def create_log_dataframe(num_samples: int = 10) -> pd.DataFrame:
                 "epoch": (i % 2) + 1,
                 "input": f"Question {i}: What is 2 + 2?",
                 "target": "4",
-                "model_usage": json.dumps({"prompt_tokens": 100 + i * 10, "completion_tokens": 50 + i * 5}),  # Serialize dict
+                "model_usage": json.dumps(
+                    {"prompt_tokens": 100 + i * 10, "completion_tokens": 50 + i * 5}
+                ),  # Serialize dict
                 "total_time": 10.5 + i * 0.5,
                 "working_time": 8.2 + i * 0.4,
                 "error": "connection timeout" if i % 5 == 4 else None,
@@ -199,9 +217,13 @@ def test_typed_properties_have_docstrings():
     assert "Globally unique id for eval" in LogMetadata.eval_id.fget.__doc__
     assert "Model used for eval" in LogMetadata.model.fget.__doc__
     assert "Task name" in LogMetadata.task_name.fget.__doc__
-    assert "Number of samples in the dataset" in LogMetadata.dataset_samples.fget.__doc__
+    assert (
+        "Number of samples in the dataset" in LogMetadata.dataset_samples.fget.__doc__
+    )
     assert "Number of epochs to run samples over" in LogMetadata.epochs.fget.__doc__
-    assert "Total time that the sample was running" in LogMetadata.total_time.fget.__doc__
+    assert (
+        "Total time that the sample was running" in LogMetadata.total_time.fget.__doc__
+    )
 
 
 # ============================================================================
@@ -423,9 +445,9 @@ def test_nested_json_fields():
     assert sql == "json_extract(\"config\", '$.nested.value') > ?"
     assert params == [10]
 
-    # DuckDB - uses -> and ->>
+    # DuckDB - uses json_extract with type casting
     sql, params = condition.to_sql("duckdb")
-    assert sql == '"config"->' "'nested'->>'value' > ?"
+    assert sql == "(json_extract(\"config\", '$.nested.value'))::BIGINT > ?"
     assert params == [10]
 
 
@@ -530,9 +552,7 @@ async def test_count_with_typed_properties(db):
     assert count == len(results)
 
     # Count with complex condition
-    count = await db.count(
-        where=[(lm.model == "gpt-4") & (lm.dataset_samples > 100)]
-    )
+    count = await db.count(where=[(lm.model == "gpt-4") & (lm.dataset_samples > 100)])
     assert count >= 0
 
 
@@ -554,9 +574,7 @@ async def test_transcripts_with_log_metadata():
 
     # Chain multiple filters
     filtered = (
-        t.where(lm.model == "gpt-4")
-        .where(lm.epochs > 1)
-        .where(lm.status == "success")
+        t.where(lm.model == "gpt-4").where(lm.epochs > 1).where(lm.status == "success")
     )
 
     # Collect and verify results
@@ -580,7 +598,7 @@ async def test_transcripts_complex_filtering():
         conditions = [
             ((lm.model == "gpt-4") & (lm.dataset_samples > 100))
             | ((lm.model == "claude-3") & (lm.dataset_samples > 50)),
-            lm.error_message.is_null()
+            lm.error_message.is_null(),
         ]
 
         # Verify count
