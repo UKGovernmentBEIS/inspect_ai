@@ -350,26 +350,6 @@ async def _run_score_task(
     sample.events = _get_updated_events(sample, new_events, action=action)
 
 
-def _collect_metric(
-    metric_item: EvalMetricDefinition | dict[str, list[EvalMetricDefinition]],
-    all_metrics: list[Metric],
-) -> None:
-    """Collect a single EvalMetricDefinition to the metrics list if not duplicate."""
-    if isinstance(metric_item, EvalMetricDefinition):
-        metric = metric_from_log(metric_item)
-        if metric not in all_metrics:
-            all_metrics.append(metric)
-
-
-def _collect_metrics_from_dict(
-    metrics_dict: dict[str, list[EvalMetricDefinition]], all_metrics: list[Metric]
-) -> None:
-    """Collect EvalMetricDefinition items from dict to existing metrics list."""
-    for metrics_list in metrics_dict.values():
-        for metric_item in metrics_list:
-            _collect_metric(metric_item, all_metrics)
-
-
 def metrics_from_log_header(
     log: EvalLog,
 ) -> list[Metric] | dict[str, list[Metric]] | None:
@@ -382,21 +362,6 @@ def metrics_from_log_header(
                 key: [metric_from_log(metric) for metric in metrics]
                 for key, metrics in log.eval.metrics.items()
             }
-
-    # If no metrics directly in eval, check scorers for metrics
-    if log.eval.scorers:
-        all_metrics: list[Metric] = []
-        for scorer in log.eval.scorers:
-            if scorer.metrics:
-                if isinstance(scorer.metrics, list):
-                    for metric_item in scorer.metrics:
-                        if isinstance(metric_item, dict):
-                            _collect_metrics_from_dict(metric_item, all_metrics)
-                        else:
-                            _collect_metric(metric_item, all_metrics)
-                else:
-                    _collect_metrics_from_dict(scorer.metrics, all_metrics)
-        return all_metrics if all_metrics else None
 
     return None
 
