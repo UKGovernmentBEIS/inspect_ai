@@ -1,16 +1,31 @@
 {
-  "name": "inspect_ai_log_viewer",
-  "version": "0.0.1",
-  "description": "Log viewer for the inspect_ai package",
+  "name": "@meridianlabs/log-viewer",
+  "version": "0.0.11",
+  "description": "Log viewer for inspect_ai logs.",
   "license": "MIT",
-  "private": true,
   "type": "module",
+  "main": "./lib/index.js",
+  "module": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "files": [
+    "lib",
+    "lib/styles",
+    "lib/assets"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UKGovernmentBEIS/inspect_ai",
+    "directory": "src/inspect_ai/_view/www"
+  },
   "scripts": {
     "build": "vite build",
+    "build:lib": "vite build --mode library",
+    "build:app": "vite build --mode development",
     "watch": "vite build --watch",
     "dev-watch": "NODE_ENV=development vite build --mode development --watch",
     "dev-watch-log": "cross-env DEV_LOGGING=true NODE_ENV=development vite build --mode development --watch",
     "dev": "vite",
+    "prepublishOnly": "yarn build:lib",
     "prettier:check": "prettier --check src",
     "prettier:write": "prettier --write src",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config=jest.config.mjs",
@@ -22,7 +37,11 @@
     "check-all": "yarn tsc && yarn lint:fix && yarn prettier:write && yarn test && yarn build"
   },
   "exports": {
-    ".": "./src/App.mjs"
+    ".": {
+      "import": "./lib/index.js",
+      "types": "./lib/index.d.ts"
+    },
+    "./styles/index.css": "./lib/styles/index.css"
   },
   "devDependencies": {
     "@babel/core": "^7.26.10",
@@ -54,7 +73,8 @@
     "ts-jest": "^29.3.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.25.0",
-    "vite": "^7.1.4"
+    "vite": "^7.1.4",
+    "vite-plugin-dts": "^4.3.0"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",

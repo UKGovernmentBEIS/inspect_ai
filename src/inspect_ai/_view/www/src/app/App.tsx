@@ -1,5 +1,5 @@
-import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.css";
+import "bootstrap-icons/font/bootstrap-icons.css";
 import JSON5 from "json5";
 
 import "prismjs";
@@ -9,7 +9,6 @@ import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
 import "prismjs/themes/prism.css";
-
 import "./App.css";
 
 import ClipboardJS from "clipboard";

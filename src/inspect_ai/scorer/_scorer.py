@@ -35,7 +35,7 @@ class Scorer(Protocol):
         self,
         state: TaskState,
         target: Target,
-    ) -> Score:
+    ) -> Score | None:
         r"""Score model outputs.
 
         Evaluate the passed outputs and targets and return a

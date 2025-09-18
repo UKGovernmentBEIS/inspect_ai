@@ -238,7 +238,7 @@ async def test_get_updated_events(test_case: UpdatedEventsTestCase):
         id="1", events=existing_events, epoch=1, input="input", target="target"
     )
 
-    updated_events = _get_updated_events(sample, transcript, action=test_case.action)
+    updated_events = _get_updated_events(sample, new_events, action=test_case.action)
 
     assert len(updated_events) == len(expected_events)
     assert updated_events[: len(base_events)] == base_events
@@ -388,7 +388,7 @@ async def test_score(
                 target: Target,
                 scorer_name: str = scorer_unresolved[0],
                 scorer_fn: Scorer = scorer_fn,
-            ) -> Score:
+            ) -> Score | None:
                 seen_scores[state.sample_id, scorer_name] = (state.scores or {}).copy()
                 return await scorer_fn(state, target)
 
