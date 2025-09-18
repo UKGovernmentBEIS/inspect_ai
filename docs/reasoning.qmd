@@ -22,12 +22,12 @@ In addition, some models make available `reasoning_tokens` which will be added t
 
 The following reasoning options are available from the CLI and within `GenerateConfig`:
 
-| Option              | Description                                                                                                                                            | Default  | Models          |
+| Option | Description | Default | Models |
 |------------------|-------------------|------------------|------------------|
-| `reasoning_effort`  | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`)                                                                       | `medium` | OpenAI o-series, Grok 3+ |
-| `reasoning_tokens`  | Maximum number of tokens to use for reasoning.                                                                                                         | (none)   | Claude 3.7+ and Gemini 2.5+   |
-| `reasoning_summary` | Provide summary of reasoning steps (`concise`, `detailed`, `auto`). Use "auto" to access the most detailed summarizer available for the current model. | (none)   | OpenAI o-series |
-| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`)                                                                  | `auto`   | All models      |
+| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`) | `medium` | OpenAI o-series, Grok 3+ |
+| `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7+ and Gemini 2.5+ |
+| `reasoning_summary` | Provide summary of reasoning steps (`concise`, `detailed`, `auto`). Use "auto" to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
+| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
 
 : {tbl-colwidths=\[25,40,15,20\]}
 
@@ -66,7 +66,6 @@ inspect eval math.py --model openai/o3 --reasoning-summary auto
 ```
 
 ::: {.callout-warning appearance="minimal"}
-
 Before using summarizers with the latest OpenAI reasoning models, you may need to complete [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification).
 :::
 
@@ -108,17 +107,19 @@ When using tools, you should read Anthropic's documentation on [extended thinkin
 
 Google currently makes available several Gemini reasoning models, the most recent of which are:
 
-- [Gemini 2.5 Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash): `google/gemini-2.5-flash`
+-   [Gemini 2.5 Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash): `google/gemini-2.5-flash`
 
-- [Gemini 2.5 Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro):  `google/gemini-2.5-pro`
+-   [Gemini 2.5 Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro): `google/gemini-2.5-pro`
 
 You can use the `--reasoning-tokens` option to control the amount of reasoning used by these models. For example:
 
-```bash
+``` bash
 inspect eval math.py \
-  --model google/gemini-2.5-flash-preview-04-17 \
+  --model google/gemini-2.5-flash \
   --reasoning-tokens 4096
 ```
+
+Note that for Flash models you can disable reasoning with `--reasoning-tokens=0` (Gemini 2.5 Pro [does not support](https://ai.google.dev/gemini-api/docs/thinking#set-budget) disabling reasoning).
 
 The most recent Gemini models also include support for including a reasoning summary in model output.
 
@@ -126,11 +127,11 @@ The most recent Gemini models also include support for including a reasoning sum
 
 Grok currently makes available two reasoning models:
 
-- `grok/grok-4`
-- `grok/grok-3-mini`
-- `grok/grok-3-mini-fast`
+-   `grok/grok-4`
+-   `grok/grok-3-mini`
+-   `grok/grok-3-mini-fast`
 
-You can condition the amount of reasoning done by Grok using the [`reasoning_effort`]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `low` or `high`.
+You can condition the amount of reasoning done by Grok using the \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `low` or `high`.
 
 ``` bash
 inspect eval math.py --model grok/grok-3-mini --reasoning-effort high
@@ -138,18 +139,17 @@ inspect eval math.py --model grok/grok-3-mini --reasoning-effort high
 
 Note that Grok 4 does not yet support the `--reasoning-effort` parameter but is expected to soon.
 
-
 ## DeepSeek-R1
 
 [DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1) is an open-weights reasoning model from DeepSeek. It is generally available either in its original form or as a distillation of R1 based on another open weights model (e.g. Qwen or Llama-based models).
 
 DeepSeek models can be accessed directly using their [OpenAI interface](https://api-docs.deepseek.com/). Further, a number of model hosting providers supported by Inspect make DeepSeek available, for example:
 
-| Provider                                 | Model                                                                                   |
-|-------------------------|----------------------------------------------|
+| Provider | Model |
+|--------------------------|----------------------------------------------|
 | [Together AI](providers.qmd#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
-| [Groq](providers.qmd#groq)               | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning))  |
-| [Ollama](providers.qmd#ollama)           | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1))             |
+| [Groq](providers.qmd#groq) | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning)) |
+| [Ollama](providers.qmd#ollama) | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1)) |
 
 There isn't currently a way to customise the `reasoning_effort` of DeepSeek models, although they have indicated that this will be [available soon](https://api-docs.deepseek.com/guides/reasoning_model).
 
@@ -160,5 +160,3 @@ Reasoning content from DeepSeek models is captured using either the `reasoning_c
 vLLM and SGLang both support reasoning outputs; however, the usage is often model dependant and requires additional configuration. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html) documentation for details.
 
 If the model already outputs its reasoning between `<think></think>` tags such as with the R1 models or through prompt engineering, then Inspect will capture it automatically without any additional configuration of vLLM or SGLang.
-
-
