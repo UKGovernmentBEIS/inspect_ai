@@ -198,12 +198,14 @@ def value_to_float(
 
     return to_float
 
+
 def is_number(s):
     try:
         float(s)
         return True
     except ValueError:
         return False
+
 
 @runtime_checkable
 class MetricDeprecated(Protocol):
