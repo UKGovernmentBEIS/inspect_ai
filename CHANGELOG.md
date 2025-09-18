@@ -2,6 +2,7 @@
 
 - Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.
 - Eval logs: Option to resolve attachments for `convert_eval_logs()`.
+- Google: Support disabling thinking for Gemini 2.5 Flash (warn if thinking is disabled for 2.5-Pro which doesn't support disabling thinking).
 - Model grading: `model_graded_qa()`, `model_graded_fact()`) now look for the "grader" model-role by default.
 - Human agent: Enable installation even when default tool user is not root.
 - Hooks: Propagate LimitExceededError so that hooks can raise limit errors.
