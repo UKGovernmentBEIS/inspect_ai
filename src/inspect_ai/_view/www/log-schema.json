@@ -6929,8 +6929,12 @@
     },
     "EvalSetInfo": {
       "$defs": {
-        "EvalSet": {
+        "EvalSetTask": {
           "properties": {
+            "task_id": {
+              "title": "Task Id",
+              "type": "string"
+            },
             "task_file": {
               "anyOf": [
                 {
@@ -6977,6 +6981,7 @@
             }
           },
           "required": [
+            "task_id",
             "task_file",
             "task_args",
             "model",
@@ -6984,7 +6989,7 @@
             "model_roles",
             "sequence"
           ],
-          "title": "EvalSet",
+          "title": "EvalSetTask",
           "type": "object",
           "additionalProperties": false
         }
@@ -6996,7 +7001,7 @@
         },
         "tasks": {
           "items": {
-            "$ref": "#/$defs/EvalSet"
+            "$ref": "#/$defs/EvalSetTask"
           },
           "title": "Tasks",
           "type": "array"
@@ -7006,12 +7011,16 @@
         "eval_set_id",
         "tasks"
       ],
-      "title": "EvalSetInfo",
+      "title": "EvalSet",
       "type": "object",
       "additionalProperties": false
     },
-    "EvalSet": {
+    "EvalSetTask": {
       "properties": {
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
         "task_file": {
           "anyOf": [
             {
@@ -7058,6 +7067,7 @@
         }
       },
       "required": [
+        "task_id",
         "task_file",
         "task_args",
         "model",
@@ -7065,7 +7075,7 @@
         "model_roles",
         "sequence"
       ],
-      "title": "EvalSet",
+      "title": "EvalSetTask",
       "type": "object",
       "additionalProperties": false
     }

@@ -758,7 +758,8 @@ def status_msg(msg: str) -> str:
     return f"[{STATUS_FMT}]{msg}[/{STATUS_FMT}]"
 
 
-class EvalSet(BaseModel):
+class EvalSetTask(BaseModel):
+    task_id: str
     task_file: str | None
     task_args: dict[str, Any]
     model: str
@@ -767,12 +768,12 @@ class EvalSet(BaseModel):
     sequence: int
 
 
-class EvalSetInfo(BaseModel):
+class EvalSet(BaseModel):
     eval_set_id: str
-    tasks: list[EvalSet]
+    tasks: list[EvalSetTask]
 
 
-def to_eval_set(task: ResolvedTask) -> EvalSet:
+def to_eval_set(task: ResolvedTask) -> EvalSetTask:
     # resolve core model info
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
@@ -782,7 +783,8 @@ def to_eval_set(task: ResolvedTask) -> EvalSet:
         {k: v.name for k, v in task.model_roles.items()} if task.model_roles else None
     )
 
-    return EvalSet(
+    return EvalSetTask(
+        task_id=task_identifier(task),
         task_file=task.task_file,
         task_args=task.task_args,
         model=model_name,
@@ -792,8 +794,8 @@ def to_eval_set(task: ResolvedTask) -> EvalSet:
     )
 
 
-def to_eval_set_info(id: str, tasks: list[ResolvedTask]) -> EvalSetInfo:
-    return EvalSetInfo(eval_set_id=id, tasks=[to_eval_set(task) for task in tasks])
+def to_eval_set_info(id: str, tasks: list[ResolvedTask]) -> EvalSet:
+    return EvalSet(eval_set_id=id, tasks=[to_eval_set(task) for task in tasks])
 
 
 def write_eval_set_info(
@@ -816,9 +818,7 @@ def write_eval_set_info(
         f.write(eval_set_json)
 
 
-def read_eval_set_info(
-    log_dir: str, fs_options: dict[str, Any] = {}
-) -> EvalSetInfo | None:
+def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet | None:
     # resolve log dir to full path
     fs = filesystem(log_dir)
     log_dir = fs.info(log_dir).name
@@ -832,4 +832,4 @@ def read_eval_set_info(
         eval_set_json = f.read()
 
     # parse and return
-    return EvalSetInfo.model_validate_json(eval_set_json)
+    return EvalSet.model_validate_json(eval_set_json)

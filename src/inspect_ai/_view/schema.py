@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from inspect_ai._eval.evalset import EvalSetInfo
+from inspect_ai._eval.evalset import EvalSet
 from inspect_ai.log import EvalLog
 
 WWW_DIR = os.path.abspath((Path(__file__).parent / "www").as_posix())
@@ -31,7 +31,7 @@ def sync_view_schema() -> None:
 
     with open(schema_path, "w", encoding="utf-8") as f:
         # make everything required
-        eval_set = EvalSetInfo.model_json_schema()
+        eval_set = EvalSet.model_json_schema()
         schema = EvalLog.model_json_schema()
         defs: dict[str, Any] = schema["$defs"]
 

@@ -15,7 +15,7 @@ from pydantic_core import to_jsonable_python
 from s3fs import S3FileSystem  # type: ignore
 
 from inspect_ai._display import display
-from inspect_ai._eval.evalset import EvalSetInfo, read_eval_set_info
+from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import (
     default_fs_options,
@@ -306,7 +306,7 @@ def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
     return web.json_response(response)
 
 
-def eval_set_response(eval_set: EvalSetInfo | None) -> web.Response:
+def eval_set_response(eval_set: EvalSet | None) -> web.Response:
     if eval_set is None:
         return web.Response(status=404, reason="Eval set not found")
     else:
@@ -314,6 +314,7 @@ def eval_set_response(eval_set: EvalSetInfo | None) -> web.Response:
             eval_set_id=eval_set.eval_set_id,
             tasks=[
                 dict(
+                    task_id=task.task_id,
                     task_file=task.task_file,
                     task_args=task.task_args,
                     model=task.model,
