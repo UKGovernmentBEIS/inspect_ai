@@ -12,6 +12,7 @@ from rich.prompt import Prompt
 import inspect_ai
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.trace import trace_message
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._sandbox.context import (
@@ -30,8 +31,10 @@ from ._build_config import (
 
 _BUCKET_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 
-logger = getLogger("sandbox_tools")
+logger = getLogger(__file__)
 
+
+TRACE_SANDBOX_TOOLS = "Sandbox Tools"
 
 InstallState = Literal["pypi", "main", "edited"]
 """Represents the state of the inspect-ai installation.
@@ -119,12 +122,14 @@ async def _open_executable_for_arch(
 
     executable_name = _get_executable_name(arch, install_state == "edited")
 
+    trace_message(logger, TRACE_SANDBOX_TOOLS, f"looking for {executable_name}")
+
     # Only let one task at a time try to resolve the file.
     async with concurrency(executable_name, 1, visible=False):
         # Local Executable Check
         try:
             async with _open_executable(executable_name) as f:
-                print(f"found {executable_name}")
+                trace_message(logger, TRACE_SANDBOX_TOOLS, f"found {executable_name}")
                 yield executable_name, f
                 return
         except (FileNotFoundError, ModuleNotFoundError):
@@ -138,7 +143,11 @@ async def _open_executable_for_arch(
         if install_state == "main":
             if await _download_from_s3(executable_name, arch):
                 async with _open_executable(executable_name) as f:
-                    print(f"downloaded {executable_name} from s3")
+                    trace_message(
+                        logger,
+                        TRACE_SANDBOX_TOOLS,
+                        f"downloaded {executable_name} from s3",
+                    )
                     yield executable_name, f
                     return
             # TODO: One could argue that we should not fall through here. If they
