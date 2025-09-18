@@ -45,6 +45,8 @@ class Operator(Enum):
     NOT_IN = "NOT IN"
     LIKE = "LIKE"
     NOT_LIKE = "NOT LIKE"
+    ILIKE = "ILIKE"  # PostgreSQL case-insensitive LIKE
+    NOT_ILIKE = "NOT ILIKE"  # PostgreSQL case-insensitive NOT LIKE
     IS_NULL = "IS NULL"
     IS_NOT_NULL = "IS NOT NULL"
     BETWEEN = "BETWEEN"
@@ -172,19 +174,22 @@ class Condition:
             ):
 
                 def _pg_cast(col: str, val: Any) -> str:
+                    # PostgreSQL's ->> returns text, so we need to cast from text
                     # bool must be checked before int (bool is a subclass of int)
                     if isinstance(val, bool):
-                        return f"({col})::boolean"
+                        return f"({col})::text::boolean"
                     if isinstance(val, int) and not isinstance(val, bool):
-                        return f"({col})::bigint"
+                        return f"({col})::text::bigint"
                     if isinstance(val, float):
-                        return f"({col})::double precision"
+                        return f"({col})::text::double precision"
                     return col
 
                 # Skip casts for operators that don't compare numerically/textually
                 skip_ops = {
                     Operator.LIKE,
                     Operator.NOT_LIKE,
+                    Operator.ILIKE,
+                    Operator.NOT_ILIKE,
                     Operator.IS_NULL,
                     Operator.IS_NOT_NULL,
                     Operator.IN,
@@ -218,16 +223,30 @@ class Condition:
                 placeholders = self._get_placeholders(n, dialect, param_offset)
                 return f"{column} NOT IN ({placeholders})", self.params
             elif self.operator == Operator.BETWEEN:
-                p1 = self._get_placeholder(param_offset + 1, dialect)
-                p2 = self._get_placeholder(param_offset + 2, dialect)
+                p1 = self._get_placeholder(param_offset, dialect)
+                p2 = self._get_placeholder(param_offset + 1, dialect)
                 return f"{column} BETWEEN {p1} AND {p2}", self.params
             elif self.operator == Operator.NOT_BETWEEN:
-                p1 = self._get_placeholder(param_offset + 1, dialect)
-                p2 = self._get_placeholder(param_offset + 2, dialect)
+                p1 = self._get_placeholder(param_offset, dialect)
+                p2 = self._get_placeholder(param_offset + 1, dialect)
                 return f"{column} NOT BETWEEN {p1} AND {p2}", self.params
+            elif self.operator == Operator.ILIKE:
+                placeholder = self._get_placeholder(param_offset, dialect)
+                if dialect == SQLDialect.POSTGRES:
+                    return f"{column} ILIKE {placeholder}", self.params
+                else:
+                    # For SQLite and DuckDB, use LOWER() for case-insensitive comparison
+                    return f"LOWER({column}) LIKE LOWER({placeholder})", self.params
+            elif self.operator == Operator.NOT_ILIKE:
+                placeholder = self._get_placeholder(param_offset, dialect)
+                if dialect == SQLDialect.POSTGRES:
+                    return f"{column} NOT ILIKE {placeholder}", self.params
+                else:
+                    # For SQLite and DuckDB, use LOWER() for case-insensitive comparison
+                    return f"LOWER({column}) NOT LIKE LOWER({placeholder})", self.params
             else:
                 assert self.operator is not None
-                placeholder = self._get_placeholder(param_offset + 1, dialect)
+                placeholder = self._get_placeholder(param_offset, dialect)
                 return f"{column} {self.operator.value} {placeholder}", self.params
 
     def _esc_double(self, s: str) -> str:
@@ -260,18 +279,29 @@ class Condition:
         return f'"{self._esc_double(column_name)}"'
 
     def _get_placeholder(self, position: int, dialect: SQLDialect) -> str:
-        """Get parameter placeholder for the dialect."""
+        """Get parameter placeholder for the dialect.
+
+        Args:
+            position: Zero-based position in the parameter array.
+            dialect: SQL dialect to use.
+        """
         if dialect == SQLDialect.POSTGRES:
-            return f"${position}"
+            return f"${position + 1}"  # PostgreSQL uses 1-based indexing
         else:  # SQLite and DuckDB use ?
             return "?"
 
     def _get_placeholders(
         self, count: int, dialect: SQLDialect, offset: int = 0
     ) -> str:
-        """Get multiple parameter placeholders for the dialect."""
+        """Get multiple parameter placeholders for the dialect.
+
+        Args:
+            count: Number of placeholders to generate.
+            dialect: SQL dialect to use.
+            offset: Zero-based starting position in the parameter array.
+        """
         if dialect == SQLDialect.POSTGRES:
-            # PostgreSQL uses $1, $2, $3, etc.
+            # PostgreSQL uses 1-based $1, $2, $3, etc.
             return ", ".join([f"${offset + i + 1}" for i in range(count)])
         else:  # SQLite and DuckDB use ?
             return ", ".join(["?" for _ in range(count)])
@@ -322,12 +352,26 @@ class Column:
         return Condition(self.name, Operator.NOT_IN, values)
 
     def like(self, pattern: str) -> Condition:
-        """SQL LIKE pattern matching."""
+        """SQL LIKE pattern matching (case-sensitive)."""
         return Condition(self.name, Operator.LIKE, pattern)
 
     def not_like(self, pattern: str) -> Condition:
-        """SQL NOT LIKE pattern matching."""
+        """SQL NOT LIKE pattern matching (case-sensitive)."""
         return Condition(self.name, Operator.NOT_LIKE, pattern)
+
+    def ilike(self, pattern: str) -> Condition:
+        """PostgreSQL ILIKE pattern matching (case-insensitive).
+
+        Note: For SQLite and DuckDB, this will use LIKE with LOWER() for case-insensitivity.
+        """
+        return Condition(self.name, Operator.ILIKE, pattern)
+
+    def not_ilike(self, pattern: str) -> Condition:
+        """PostgreSQL NOT ILIKE pattern matching (case-insensitive).
+
+        Note: For SQLite and DuckDB, this will use NOT LIKE with LOWER() for case-insensitivity.
+        """
+        return Condition(self.name, Operator.NOT_ILIKE, pattern)
 
     def is_null(self) -> Condition:
         """Check if value is NULL."""
@@ -338,11 +382,31 @@ class Column:
         return Condition(self.name, Operator.IS_NOT_NULL, None)
 
     def between(self, low: Any, high: Any) -> Condition:
-        """Check if value is between two values."""
+        """Check if value is between two values.
+
+        Args:
+            low: Lower bound (inclusive). If None, raises ValueError.
+            high: Upper bound (inclusive). If None, raises ValueError.
+
+        Raises:
+            ValueError: If either bound is None.
+        """
+        if low is None or high is None:
+            raise ValueError("BETWEEN operator requires non-None bounds")
         return Condition(self.name, Operator.BETWEEN, (low, high))
 
     def not_between(self, low: Any, high: Any) -> Condition:
-        """Check if value is not between two values."""
+        """Check if value is not between two values.
+
+        Args:
+            low: Lower bound (inclusive). If None, raises ValueError.
+            high: Upper bound (inclusive). If None, raises ValueError.
+
+        Raises:
+            ValueError: If either bound is None.
+        """
+        if low is None or high is None:
+            raise ValueError("NOT BETWEEN operator requires non-None bounds")
         return Condition(self.name, Operator.NOT_BETWEEN, (low, high))
 
 

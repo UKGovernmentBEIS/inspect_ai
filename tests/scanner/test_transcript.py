@@ -176,6 +176,60 @@ def test_like_operator():
     assert params == ["/tmp/%"]
 
 
+def test_ilike_operator():
+    """Test ILIKE and NOT ILIKE operators for case-insensitive matching."""
+    # PostgreSQL - native ILIKE support
+    condition = m.error_message.ilike("%TIMEOUT%")
+    sql, params = condition.to_sql("postgres")
+    assert sql == '"error_message" ILIKE $1'
+    assert params == ["%TIMEOUT%"]
+
+    condition = m.log.not_ilike("/TMP/%")
+    sql, params = condition.to_sql("postgres")
+    assert sql == '"log" NOT ILIKE $1'
+    assert params == ["/TMP/%"]
+
+    # SQLite - should use LOWER() for case-insensitivity
+    condition = m.error_message.ilike("%TIMEOUT%")
+    sql, params = condition.to_sql("sqlite")
+    assert sql == 'LOWER("error_message") LIKE LOWER(?)'
+    assert params == ["%TIMEOUT%"]
+
+    condition = m.log.not_ilike("/TMP/%")
+    sql, params = condition.to_sql("sqlite")
+    assert sql == 'LOWER("log") NOT LIKE LOWER(?)'
+    assert params == ["/TMP/%"]
+
+    # DuckDB - should also use LOWER() for case-insensitivity
+    condition = m.status.ilike("SUCCESS%")
+    sql, params = condition.to_sql("duckdb")
+    assert sql == 'LOWER("status") LIKE LOWER(?)'
+    assert params == ["SUCCESS%"]
+
+    condition = m.model.not_ilike("%GPT%")
+    sql, params = condition.to_sql("duckdb")
+    assert sql == 'LOWER("model") NOT LIKE LOWER(?)'
+    assert params == ["%GPT%"]
+
+    # Test with JSON paths too
+    condition = m["metadata.message"].ilike("%Error%")
+    sql, params = condition.to_sql("postgres")
+    assert sql == """"metadata"->>'message' ILIKE $1"""
+    assert params == ["%Error%"]
+
+    # SQLite with JSON path
+    condition = m["metadata.message"].ilike("%Error%")
+    sql, params = condition.to_sql("sqlite")
+    assert sql == """LOWER(json_extract("metadata", '$.message')) LIKE LOWER(?)"""
+    assert params == ["%Error%"]
+
+    # DuckDB with JSON path
+    condition = m["metadata.message"].ilike("%Error%")
+    sql, params = condition.to_sql("duckdb")
+    assert sql == """LOWER("metadata"->>'message') LIKE LOWER(?)"""
+    assert params == ["%Error%"]
+
+
 def test_between_operator():
     """Test BETWEEN and NOT BETWEEN operators."""
     condition = m.score.between(0.5, 0.9)
@@ -187,6 +241,31 @@ def test_between_operator():
     sql, params = condition.to_sql("sqlite")
     assert sql == '"retries" NOT BETWEEN ? AND ?'
     assert params == [1, 3]
+
+
+def test_between_with_null_bounds():
+    """Test that BETWEEN properly handles NULL bounds."""
+    # NULL in lower bound should raise ValueError
+    with pytest.raises(ValueError, match="BETWEEN operator requires non-None bounds"):
+        m.score.between(None, 0.9)
+
+    # NULL in upper bound should raise ValueError
+    with pytest.raises(ValueError, match="BETWEEN operator requires non-None bounds"):
+        m.score.between(0.5, None)
+
+    # NULL in both bounds should raise ValueError
+    with pytest.raises(ValueError, match="BETWEEN operator requires non-None bounds"):
+        m.score.between(None, None)
+
+    # Same for NOT BETWEEN
+    with pytest.raises(ValueError, match="NOT BETWEEN operator requires non-None bounds"):
+        m.retries.not_between(None, 3)
+
+    with pytest.raises(ValueError, match="NOT BETWEEN operator requires non-None bounds"):
+        m.retries.not_between(1, None)
+
+    with pytest.raises(ValueError, match="NOT BETWEEN operator requires non-None bounds"):
+        m.retries.not_between(None, None)
 
 
 def test_logical_operators():
@@ -247,9 +326,9 @@ def test_nested_json_paths():
     assert sql == '"metadata"->\'config\'->>\'temperature\' > ?'
     assert params == [0.7]
 
-    # PostgreSQL - should use ->> for last element AND cast for numeric comparison
+    # PostgreSQL - should use ->> for last element AND cast from text for numeric comparison
     sql, params = condition.to_sql("postgres")
-    assert sql == '''("metadata"->'config'->>'temperature')::double precision > $1'''
+    assert sql == '''("metadata"->'config'->>'temperature')::text::double precision > $1'''
     assert params == [0.7]
 
 
@@ -275,33 +354,33 @@ def test_column_name_escaping():
 
 def test_postgres_json_type_casting():
     """Test that PostgreSQL properly casts JSON values for comparisons."""
-    # Integer comparison - should cast to bigint
+    # Integer comparison - should cast from text to bigint
     condition = m["metadata.retries"] > 3
     sql, params = condition.to_sql("postgres")
-    assert sql == """("metadata"->>'retries')::bigint > $1"""
+    assert sql == """("metadata"->>'retries')::text::bigint > $1"""
     assert params == [3]
 
-    # Float comparison - should cast to double precision
+    # Float comparison - should cast from text to double precision
     condition = m["metadata.score"] >= 0.75
     sql, params = condition.to_sql("postgres")
-    assert sql == """("metadata"->>'score')::double precision >= $1"""
+    assert sql == """("metadata"->>'score')::text::double precision >= $1"""
     assert params == [0.75]
 
-    # Boolean comparison - should cast to boolean
+    # Boolean comparison - should cast from text to boolean
     condition = m["metadata.enabled"] == True
     sql, params = condition.to_sql("postgres")
-    assert sql == """("metadata"->>'enabled')::boolean = $1"""
+    assert sql == """("metadata"->>'enabled')::text::boolean = $1"""
     assert params == [True]
 
     condition = m["metadata.flag"] != False
     sql, params = condition.to_sql("postgres")
-    assert sql == """("metadata"->>'flag')::boolean != $1"""
+    assert sql == """("metadata"->>'flag')::text::boolean != $1"""
     assert params == [False]
 
-    # BETWEEN with numeric values - should cast
+    # BETWEEN with numeric values - should cast from text
     condition = m["metadata.score"].between(0.5, 0.9)
     sql, params = condition.to_sql("postgres")
-    assert sql == """("metadata"->>'score')::double precision BETWEEN $1 AND $2"""
+    assert sql == """("metadata"->>'score')::text::double precision BETWEEN $1 AND $2"""
     assert params == [0.5, 0.9]
 
     # String comparison - no cast needed
@@ -331,7 +410,7 @@ def test_postgres_json_type_casting():
     # Deep nested paths with casting
     condition = m["metadata.config.max_retries"] < 10
     sql, params = condition.to_sql("postgres")
-    assert sql == """("metadata"->'config'->>'max_retries')::bigint < $1"""
+    assert sql == """("metadata"->'config'->>'max_retries')::text::bigint < $1"""
     assert params == [10]
 
 
@@ -342,6 +421,32 @@ def test_postgres_casting_with_none():
     sql, params = condition.to_sql("postgres")
     assert sql == """"metadata"->>'field' IS NULL"""
     assert params == []
+
+
+def test_postgres_double_cast_correctness():
+    """Test that the double cast (::text::type) works correctly for PostgreSQL JSON extraction."""
+    # The ->> operator returns text, so we need ::text::type casting
+
+    # Test with various types to ensure the double cast is correct
+    test_cases = [
+        (m["config.retry_count"] > 5, int, "bigint", 5),
+        (m["settings.threshold"] < 0.95, float, "double precision", 0.95),
+        (m["flags.enabled"] == True, bool, "boolean", True),
+        (m["options.active"] != False, bool, "boolean", False),
+    ]
+
+    for condition, val_type, pg_type, expected_val in test_cases:
+        sql, params = condition.to_sql("postgres")
+        # Should have ::text:: in the middle for the double cast
+        assert "::text::" in sql, f"Missing ::text:: in SQL for {val_type}: {sql}"
+        assert f"::text::{pg_type}" in sql, f"Expected ::text::{pg_type} in SQL: {sql}"
+        assert params == [expected_val]
+
+    # Verify text comparison doesn't get double cast
+    condition = m["metadata.name"] == "test"
+    sql, params = condition.to_sql("postgres")
+    assert "::text::" not in sql  # String comparison shouldn't have type casting
+    assert params == ["test"]
 
 
 def test_no_casting_for_non_json_columns():
@@ -373,10 +478,61 @@ def test_deep_nested_paths():
     assert sql == '"metadata"->\'level1\'->\'level2\'->\'level3\'->>\'value\' > ?'
     assert params == [10]
 
-    # PostgreSQL - should cast integer for numeric comparison
+    # PostgreSQL - should cast from text to integer for numeric comparison
     sql, params = condition.to_sql("postgres")
-    assert sql == '''("metadata"->'level1'->'level2'->'level3'->>'value')::bigint > $1'''
+    assert sql == '''("metadata"->'level1'->'level2'->'level3'->>'value')::text::bigint > $1'''
     assert params == [10]
+
+
+def test_postgres_parameter_numbering():
+    """Test that PostgreSQL parameter numbering is correct (1-based)."""
+    # Single parameter - should be $1
+    condition = m.score > 0.5
+    sql, params = condition.to_sql("postgres")
+    assert sql == '"score" > $1'
+    assert params == [0.5]
+
+    # BETWEEN - should be $1 and $2
+    condition = m.score.between(0.3, 0.7)
+    sql, params = condition.to_sql("postgres")
+    assert sql == '"score" BETWEEN $1 AND $2'
+    assert params == [0.3, 0.7]
+
+    # IN with multiple values - should be $1, $2, $3
+    condition = m.model.in_(["gpt-4", "claude", "gemini"])
+    sql, params = condition.to_sql("postgres")
+    assert sql == '"model" IN ($1, $2, $3)'
+    assert params == ["gpt-4", "claude", "gemini"]
+
+    # Combined conditions - parameters should be numbered sequentially
+    condition = (m.score > 0.5) & (m.retries < 3)
+    sql, params = condition.to_sql("postgres")
+    assert sql == '("score" > $1 AND "retries" < $2)'
+    assert params == [0.5, 3]
+
+    # Complex with BETWEEN in combination
+    condition = (m.model == "gpt-4") & (m.score.between(0.3, 0.7))
+    sql, params = condition.to_sql("postgres")
+    assert sql == '("model" = $1 AND "score" BETWEEN $2 AND $3)'
+    assert params == ["gpt-4", 0.3, 0.7]
+
+    # Multiple IN clauses
+    condition = (m.model.in_(["gpt-4", "claude"])) & (m.status.in_(["success", "pending"]))
+    sql, params = condition.to_sql("postgres")
+    assert sql == '("model" IN ($1, $2) AND "status" IN ($3, $4))'
+    assert params == ["gpt-4", "claude", "success", "pending"]
+
+    # Complex nested with all types
+    condition = (
+        ((m.model == "gpt-4") & (m.score.between(0.3, 0.7))) |
+        ((m.status.in_(["error", "timeout"])) & (m.retries > 2))
+    )
+    sql, params = condition.to_sql("postgres")
+    # Should have parameters $1, $2, $3, $4, $5, $6
+    assert "$1" in sql and "$2" in sql and "$3" in sql
+    assert "$4" in sql and "$5" in sql and "$6" in sql
+    assert len(params) == 6
+    assert params == ["gpt-4", 0.3, 0.7, "error", "timeout", 2]
 
 
 # ============================================================================
