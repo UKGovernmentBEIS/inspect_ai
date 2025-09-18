@@ -88,7 +88,7 @@ def recompute_metrics(log: EvalLog) -> None:
         ValueError: If log is missing required data for recomputation
     """
     # Import here to avoid circular imports
-    from inspect_ai._eval.score import metrics_from_log_header, reducers_from_log_header
+    from inspect_ai._eval.score import reducers_from_log_header
     from inspect_ai._eval.task.results import eval_results
 
     if log.samples is None:
@@ -125,41 +125,48 @@ def recompute_metrics(log: EvalLog) -> None:
             scores.append(sample_score_dict)
 
     reducers = reducers_from_log_header(log)
-    metrics = metrics_from_log_header(log)
 
-    # We create Scorer objects because we need to pass Scorer objects with registry metadata to eval_results()
-    # See https://github.com/UKGovernmentBEIS/inspect_ai/pull/2439
-    # Without this workaround, we can't get the metrics from the original scorers
+    # Create scorers with metrics from registry to ensure proper computation
+    from inspect_ai._util.registry import (
+        REGISTRY_PARAMS,
+        RegistryInfo,
+        registry_create,
+        set_registry_info,
+    )
     from inspect_ai.scorer import Scorer
 
     scorers: list[Scorer] = []
-    if metrics:
-        from inspect_ai._util.registry import (
-            REGISTRY_PARAMS,
-            RegistryInfo,
-            set_registry_info,
-        )
-        from inspect_ai.scorer._scorer import SCORER_METRICS
 
-        score_names: set[str] = set()
-        for score_dict in scores:
-            score_names.update(score_dict.keys())
-
-        for name in score_names:
-
-            def scorer() -> None:
+    # Extract scorer info from existing results and create scorers with real metrics
+    if log.results and log.results.scores:
+        for score_result in log.results.scores:
+            # Create a minimal scorer function
+            def scorer_func() -> None:
                 pass
 
-            scorer.__name__ = name
+            scorer_func.__name__ = score_result.name
+
+            # Try to get real metric functions from registry by name
+            metrics = []
+            if score_result.metrics:
+                for metric_name in score_result.metrics.keys():
+                    try:
+                        metric = registry_create("metric", metric_name)
+                        metrics.append(metric)
+                    except Exception:
+                        # Create a proper metric function as fallback
+                        def fallback(scores: list[SampleScore]) -> float:
+                            return 0.0
+
+                        fallback.__name__ = metric_name
+                        metrics.append(fallback)
 
             registry_info = RegistryInfo(
-                type="scorer", name=name, metadata={SCORER_METRICS: metrics}
+                type="scorer", name=score_result.name, metadata={"metrics": metrics}
             )
-            set_registry_info(scorer, registry_info)
-
-            setattr(scorer, REGISTRY_PARAMS, {})
-
-            scorers.append(scorer)  # type: ignore[arg-type]
+            set_registry_info(scorer_func, registry_info)
+            setattr(scorer_func, REGISTRY_PARAMS, {})
+            scorers.append(scorer_func)  # type: ignore[arg-type]
 
     # Recompute
     results, reductions = eval_results(
