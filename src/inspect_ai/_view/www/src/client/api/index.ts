@@ -42,7 +42,7 @@ const resolveApi = (): ClientAPI => {
 
     if (forceViewServerApi) {
       return clientApi(
-        createViewServerApi({ log_dir: resolved_log_dir }),
+        createViewServerApi({ logDir: resolved_log_dir }),
         resolved_log_file,
       );
     }

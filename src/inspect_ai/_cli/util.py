@@ -2,8 +2,10 @@ from typing import Any, Callable
 
 import click
 import yaml
+from pydantic import ValidationError
 
 from inspect_ai._util.config import resolve_args
+from inspect_ai.model import GenerateConfig, Model, get_model
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -137,6 +139,43 @@ def parse_cli_args(
                     value = value if len(value) > 1 else value[0]
                 params[key] = str(value) if force_str else value
     return params
+
+
+def parse_model_role_cli_args(
+    model_roles: tuple[str, ...] | None,
+) -> dict[str, str | Model]:
+    """Parse model roles from CLI args. Supports key-value, YAML, and JSON formats.
+
+    Args:
+        model_roles: Tuple of strings to parse as model roles.
+
+    Returns:
+        Dictionary of role names to model names or model instances.
+
+    Examples:
+        ("grader=mockllm/model",) -> {'grader': 'mockllm/model'}
+        ("grader={model: mockllm/model, temperature: 0.5}",) -> {'grader': <Model>}
+        ('grader={"model": "mockllm/model", "temperature": 0.5}',) -> {'grader': <Model>}
+    """
+    try:
+        parsed_args = parse_cli_args(model_roles, force_str=False)
+    except Exception as e:
+        raise ValueError(
+            "Could not parse model role arguments. Should be key-value pairs or valid YAML/JSON."
+        ) from e
+    for role_name, params in parsed_args.items():
+        # if value is a dict, create a model instance
+        if isinstance(params, dict):
+            model_name = params.pop("model", None)
+            try:
+                config = GenerateConfig(**params)
+            except ValidationError as e:
+                raise ValueError(
+                    f"Invalid config for model role '{role_name}': {e}"
+                ) from e
+            parsed_args[role_name] = get_model(model_name, config=config)
+        # else assume it is just a model name and leave it as a string
+    return parsed_args
 
 
 def parse_sandbox(sandbox: str | None) -> SandboxEnvironmentSpec | None:

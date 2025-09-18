@@ -82,7 +82,23 @@ def eval_results(
     for sample_scores in scores:
         for name, sample_score in sample_scores.items():
             if sample_score.scorer is None and name not in scorer_names:
-                scorers_info.append(ScorerInfo.from_name(name))
+                # the scorer info for this score
+                scorer_info = ScorerInfo.from_name(name)
+
+                # resolve the task scores
+                if metrics is not None:
+                    scorer_info.metrics = cast(
+                        list[
+                            MetricProtocol
+                            | MetricDeprecated
+                            | dict[str, list[MetricProtocol | MetricDeprecated]]
+                        ]
+                        | dict[str, list[MetricProtocol | MetricDeprecated]],
+                        metrics,
+                    )
+
+                # capture the scorer information
+                scorers_info.append(scorer_info)
                 scorer_names.add(name)
 
     # record scorer
@@ -105,11 +121,9 @@ def eval_results(
             if len(reducers) == 0:
                 # Compute metrics without reduction since no reducers were
                 # explicitly specified
-                targets = metrics if metrics is not None else scorer_info.metrics
-
                 eval_scores = compute_eval_scores(
                     resolved_scores,
-                    targets,
+                    scorer_info.metrics,
                     scorer_name,
                     scorer_info,
                     None,
@@ -135,11 +149,9 @@ def eval_results(
                     sample_reductions.append(reduced_samples)
 
                     # Compute metrics for this scorer
-                    targets = metrics if metrics is not None else scorer_info.metrics
-
                     eval_scores = compute_eval_scores(
                         reduced_scores,
-                        targets,
+                        scorer_info.metrics,
                         scorer_name,
                         scorer_info,
                         reducer_display_nm,

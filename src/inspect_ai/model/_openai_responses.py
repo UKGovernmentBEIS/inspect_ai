@@ -240,6 +240,7 @@ def responses_extra_body_fields() -> list[str]:
         "prompt_cache_key",
         "safety_identifier",
         "truncation",
+        "store",
     ]
 
 
@@ -498,7 +499,7 @@ def reasoning_from_responses_reasoning(
     item: ResponseReasoningItem | ResponseReasoningItemParam,
 ) -> ContentReasoning:
     if not isinstance(item, ResponseReasoningItem):
-        item = ResponseReasoningItem.model_validate(item)
+        item = read_reasoning_item_param(item)
 
     if item.encrypted_content is not None:
         reasoning = item.encrypted_content
@@ -512,11 +513,25 @@ def reasoning_from_responses_reasoning(
     return ContentReasoning(reasoning=reasoning, signature=item.id, redacted=redacted)
 
 
+# two issues addressed here:
+#   - ResponseReasoningItem requires an 'id' but OpenAI doesn't return an 'id' when store=False
+#   - Some clients (e.g. codex cli) do not provide the id even when it has been passed back to them (this is likely b/c they know they are passing store=False)
+def read_reasoning_item_param(
+    param: ResponseReasoningItemParam,
+) -> ResponseReasoningItem:
+    no_id = "id" not in param
+    if no_id:
+        param = param.copy()
+        param["id"] = "dummy-id"
+    item = ResponseReasoningItem.model_validate(param)
+    if no_id:
+        item.id = None  # type: ignore[assignment]
+    return item
+
+
 def responses_reasoning_from_reasoning(
     content: ContentReasoning,
 ) -> ResponseReasoningItemParam:
-    assert content.signature is not None, "reasoning_id must be saved in signature"
-
     summary: list[SummaryParam] = []
     if content.redacted:
         encrypted_content: str | None = content.reasoning
@@ -527,7 +542,8 @@ def responses_reasoning_from_reasoning(
 
     return ResponseReasoningItemParam(
         type="reasoning",
-        id=content.signature,
+        # OpenAI returns 'None' when store=False even though the schema requires the id
+        id=content.signature,  # type: ignore[typeddict-item]
         summary=summary,
         encrypted_content=encrypted_content,
     )
@@ -658,7 +674,7 @@ def _openai_input_items_from_chat_message_assistant(
                     # Is it okay to dynamically generate this here? We need this in
                     # order to read this back into the equivalent BaseModel for the bridge
                     id=pending_response_output_id,  # type: ignore[typeddict-item]
-                    content=pending_response_output,
+                    content=pending_response_output.copy(),
                     status="completed",
                 )
             )
@@ -703,7 +719,7 @@ def _openai_input_items_from_chat_message_assistant(
                 else:
                     message_id = None
 
-                # see if we need to flush
+                # see if we need to flush d
                 if message_id is not pending_response_output_id:
                     flush_pending_context_text()
 

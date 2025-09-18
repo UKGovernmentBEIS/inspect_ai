@@ -36,6 +36,13 @@ export interface AppSlice {
     setListPosition: (name: string, state: StateSnapshot) => void;
     clearListPosition: (name: string) => void;
 
+    getVisibleRange: (name: string) => { startIndex: number; endIndex: number };
+    setVisibleRange: (
+      name: string,
+      value: { startIndex: number; endIndex: number },
+    ) => void;
+    clearVisibleRange: (name: string) => void;
+
     getCollapsed: (name: string, defaultValue?: boolean) => boolean;
     setCollapsed: (name: string, value: boolean) => void;
 
@@ -78,6 +85,7 @@ const initialState: AppState = {
   },
   scrollPositions: {},
   listPositions: {},
+  visibleRanges: {},
   collapsed: {},
   messages: {},
   propertyBags: {},
@@ -231,6 +239,36 @@ export const createAppSlice = (
             app: {
               ...state.app,
               listPositions: newListPositions,
+            },
+          };
+        });
+      },
+      getVisibleRange: (name: string) => {
+        const state = get();
+        if (Object.keys(state.app.visibleRanges).includes(name)) {
+          return state.app.visibleRanges[name];
+        } else {
+          return { startIndex: 0, endIndex: 0 };
+        }
+      },
+      setVisibleRange: (
+        name: string,
+        value: { startIndex: number; endIndex: number },
+      ) => {
+        set((state) => {
+          state.app.visibleRanges[name] = value;
+        });
+      },
+      clearVisibleRange: (name: string) => {
+        set((state) => {
+          // Remove the key
+          const newVisibleRanges = { ...state.app.visibleRanges };
+          delete newVisibleRanges[name];
+
+          return {
+            app: {
+              ...state.app,
+              visibleRanges: newVisibleRanges,
             },
           };
         });

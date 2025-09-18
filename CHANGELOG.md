@@ -1,14 +1,39 @@
 ## Unreleased
 
+- Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.
+- Eval logs: Option to resolve attachments for `convert_eval_logs()`.
+- Google: Support disabling thinking for Gemini 2.5 Flash (warn if thinking is disabled for 2.5-Pro which doesn't support disabling thinking).
+- Model grading: `model_graded_qa()`, `model_graded_fact()`) now look for the "grader" model-role by default.
+- Human agent: Enable installation even when default tool user is not root.
+- Hooks: Propagate LimitExceededError so that hooks can raise limit errors.
+- Hooks: Added `on_sample_scoring()` hook to indicate when scoring begins for a sample.
+- Scoring: Allow scorers to return `None` to indicate that they did not score the sample. Such samples are excluded from reductions and metrics.
+- Scoring: Resolve task metrics on to scores returned by solvers.
+- Scoring: Properly make sample events available in the transcript during re-scoring an eval log.
+- Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
+- Bugfix: Enable passing no reducers to `async_score` in eval score.
+- Bugfix: Handle non-contiguous task sequences in task batching.
+
+## 0.3.132 (12 September 2025)
+
 - Anthropic: Support for images with mime type image/bmp.
 - Sandbox Service: Specify instance externally so a single script can service multiple instances.
 - Agent Bridge: Capture message history in agent state for all bridge generations.
 - Agent Bridge: Embed sandbox service client in sandbox bridge proxy (for ease of bundling).
+- Agent Bridge: Respect `store=False` from bridge client and don't insist on `id` being included with reasoning (as it is not returned in `store=False` mode).
+- Sandboxes: Add Sandbox Injection API for Dynamic Environment Setup.
+- Scoring: Resolve task or eval level metrics onto scorers immediately rather than waiting until scoring.
+- Logging: Flush log more frequently for very small numbers of samples.
+- Model Roles: Support specifying model roles on the CLI with config and model args (via YAML or JSON).
 - Inspect View: Add support for cmd + arrow up/down to navigate the samples list.
 - Inspect View: Improve scroll keyboard handling in sample transcript view.
 - Inspect View: Improve scroll keyboard handling in sample messages view.
+- Inspect View: Improve find support within sample list, transcript, and messages.
+- Inspect View: Fix issue that would result in `attachments:/` appearing in content when viewing running samples.
 - Bugfix: Fix file info on filesystem without mtime.
 - Bugfix: Correct rendering of tool call errors in running samples transcript.
+- Bugfix: Use AzureAI token provider even when no API key is available.
+- Bugfix: Ensure that assistant content without reasoning is always passed to responses API.
   
 ## 0.3.131 (08 September 2025)
 

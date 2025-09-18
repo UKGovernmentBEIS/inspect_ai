@@ -20,7 +20,10 @@ from anthropic.types import (
     WebSearchTool20250305Param,
 )
 from anthropic.types import StopReason as AnthropicStopReason
-from anthropic.types.beta import BetaRequestMCPServerURLDefinitionParam
+from anthropic.types.beta import (
+    BetaRequestMCPServerToolConfigurationParam,
+    BetaRequestMCPServerURLDefinitionParam,
+)
 from shortuuid import uuid
 
 from inspect_ai._util.content import Content, ContentDocument, ContentImage, ContentText
@@ -117,9 +120,8 @@ async def inspect_anthropic_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state
-    bridge.state.messages = messages + [output.message]
-    bridge.state.output = output
+    # update state if we have more messages than the last generation
+    bridge._track_state(messages, output)
 
     # return message
     message = Message(
@@ -208,7 +210,12 @@ def tools_from_anthropic_tools(
 
     for mcp_server in anthropic_mcp_servers or []:
         # allowed tools (default is 'all')
-        tool_configuration = mcp_server.get("tool_configuration", {}) or {}
+        tool_configuration: BetaRequestMCPServerToolConfigurationParam = (
+            mcp_server.get(
+                "tool_configuration", BetaRequestMCPServerToolConfigurationParam()
+            )
+            or BetaRequestMCPServerToolConfigurationParam()
+        )
         if tool_configuration.get("enabled", False) is True:
             allowed_tools = cast(
                 list[str] | Literal["all"],

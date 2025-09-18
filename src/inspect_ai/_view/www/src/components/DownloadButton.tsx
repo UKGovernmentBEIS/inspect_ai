@@ -5,7 +5,7 @@ import "./DownloadButton.css";
 interface DownloadButtonProps {
   label: string;
   fileName: string;
-  fileContents: string | Blob | ArrayBuffer | ArrayBufferView;
+  fileContents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>;
 }
 
 export const DownloadButton: FC<DownloadButtonProps> = ({

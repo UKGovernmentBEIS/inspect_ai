@@ -113,7 +113,7 @@ class AzureAIAPI(ModelAPI):
         # resolve api_key or managed identity (for Azure)
         self.token_provider = None
         self.api_key = os.environ.get(
-            AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
+            AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, None)
         )
         if not self.api_key:
             # try managed identity (Microsoft Entra ID)
@@ -192,10 +192,17 @@ class AzureAIAPI(ModelAPI):
         # create client (note the client needs to be created and closed
         # with each call so it can be cleaned up and not end up on another
         # event loop in a subsequent pass of eval)
-        assert self.api_key
+        if self.api_key is not None:
+            credential = AzureKeyCredential(self.api_key)
+        elif self.token_provider is not None:
+            credential = AzureKeyCredential(self.token_provider())
+        else:
+            raise PrerequisiteError(
+                "Azure AI must have either an API key or token provider."
+            )
         client = ChatCompletionsClient(
             endpoint=self.endpoint_url,
-            credential=AzureKeyCredential(self.api_key),
+            credential=credential,
             model=self.model_name,
             model_extras=self.model_args,
         )
