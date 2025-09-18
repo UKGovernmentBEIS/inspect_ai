@@ -74,6 +74,32 @@ const add_tools: ChangeType = {
   },
 };
 
+const messages: ChangeType = {
+  type: "messages",
+  match: (changes: JsonChange[]) => {
+    const allMessages = changes.every((change) => {
+      if (change.op === "add" && change.path.match(/\/messages\/\d+/)) {
+        return (
+          typeof change.value["role"] === "string" &&
+          ["user", "assistant", "system", "tool"].includes(change.value["role"])
+        );
+      }
+      return false;
+    });
+    return allMessages;
+  },
+  render: (changes) => {
+    const messages = changes.map((c) => c.value);
+    return (
+      <ChatView
+        key="system_msg_event_preview"
+        id="system_msg_event_preview"
+        messages={messages as unknown as Messages}
+      />
+    );
+  },
+};
+
 const humanAgentKey = (key: string) => {
   return `HumanAgentState:${key}`;
 };
@@ -250,6 +276,7 @@ export const RenderableChangeTypes: ChangeType[] = [
   createMessageRenderer("user_msg", "user"),
   use_tools,
   add_tools,
+  messages,
 ];
 
 export const StoreSpecificRenderableTypes: ChangeType[] = [
