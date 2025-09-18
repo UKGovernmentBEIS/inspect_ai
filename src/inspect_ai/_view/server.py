@@ -314,6 +314,7 @@ def eval_set_response(eval_set: EvalSet | None) -> web.Response:
             eval_set_id=eval_set.eval_set_id,
             tasks=[
                 dict(
+                    name=task.name,
                     task_id=task.task_id,
                     task_file=task.task_file,
                     task_args=task.task_args,

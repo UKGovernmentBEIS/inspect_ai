@@ -759,6 +759,7 @@ def status_msg(msg: str) -> str:
 
 
 class EvalSetTask(BaseModel):
+    name: str | None
     task_id: str
     task_file: str | None
     task_args: dict[str, Any]
@@ -773,7 +774,7 @@ class EvalSet(BaseModel):
     tasks: list[EvalSetTask]
 
 
-def to_eval_set(task: ResolvedTask) -> EvalSetTask:
+def to_eval_set_task(task: ResolvedTask) -> EvalSetTask:
     # resolve core model info
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
@@ -784,6 +785,7 @@ def to_eval_set(task: ResolvedTask) -> EvalSetTask:
     )
 
     return EvalSetTask(
+        name=task.task.name,
         task_id=task_identifier(task),
         task_file=task.task_file,
         task_args=task.task_args,
@@ -794,8 +796,8 @@ def to_eval_set(task: ResolvedTask) -> EvalSetTask:
     )
 
 
-def to_eval_set_info(id: str, tasks: list[ResolvedTask]) -> EvalSet:
-    return EvalSet(eval_set_id=id, tasks=[to_eval_set(task) for task in tasks])
+def to_eval_set(id: str, tasks: list[ResolvedTask]) -> EvalSet:
+    return EvalSet(eval_set_id=id, tasks=[to_eval_set_task(task) for task in tasks])
 
 
 def write_eval_set_info(
@@ -809,7 +811,7 @@ def write_eval_set_info(
     log_dir = fs.info(log_dir).name
 
     # get info
-    eval_set_info = to_eval_set_info(eval_set_id, tasks)
+    eval_set_info = to_eval_set(eval_set_id, tasks)
 
     # form target path and write
     manifest = f"{log_dir}{fs.sep}eval-set.json"

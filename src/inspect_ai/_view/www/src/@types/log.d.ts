@@ -768,6 +768,7 @@ export type Samples2 = EvalSampleScore[];
 export type Location1 = string;
 export type Etag = string | null;
 export type EvalSetId1 = string;
+export type Name15 = string | null;
 export type TaskId1 = string;
 export type TaskFile1 = string | null;
 export type Model5 = string;
@@ -1852,6 +1853,7 @@ export interface EvalSet {
   tasks: Tasks;
 }
 export interface EvalSetTask {
+  name: Name15;
   task_id: TaskId1;
   task_file: TaskFile1;
   task_args: TaskArgs1;

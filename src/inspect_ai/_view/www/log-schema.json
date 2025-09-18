@@ -6931,6 +6931,17 @@
       "$defs": {
         "EvalSetTask": {
           "properties": {
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Name"
+            },
             "task_id": {
               "title": "Task Id",
               "type": "string"
@@ -6981,6 +6992,7 @@
             }
           },
           "required": [
+            "name",
             "task_id",
             "task_file",
             "task_args",
@@ -7017,6 +7029,17 @@
     },
     "EvalSetTask": {
       "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
         "task_id": {
           "title": "Task Id",
           "type": "string"
@@ -7067,6 +7090,7 @@
         }
       },
       "required": [
+        "name",
         "task_id",
         "task_file",
         "task_args",
