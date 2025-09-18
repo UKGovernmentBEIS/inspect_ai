@@ -59,17 +59,17 @@ class Transcript(TranscriptInfo):
 
 class TranscriptDB(Protocol):
     async def connect(self) -> None: ...
+    async def count(
+        self,
+        where: list[Condition],
+        limit: int | None = None,
+    ) -> int: ...
     async def query(
         self,
         where: list[Condition],
         limit: int | None = None,
         shuffle: bool | int = False,
     ) -> Iterator[TranscriptInfo]: ...
-    async def count(
-        self,
-        where: list[Condition],
-        limit: int | None = None,
-    ) -> int: ...
     async def read(
         self, t: TranscriptInfo, content: TranscriptContent
     ) -> Transcript: ...
