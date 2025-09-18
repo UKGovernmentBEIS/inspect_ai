@@ -207,7 +207,7 @@ async def eval_run(
                     task_file=resolved_task.task_file,
                     task_registry_name=resolved_task.task.registry_name,
                     task_display_name=resolved_task.task.display_name,
-                    task_id=resolved_task.id if resolved_task.id else uuid(),
+                    task_id=resolved_task.id,
                     eval_set_id=eval_set_id,
                     run_id=run_id,
                     solver=eval_solver_spec,

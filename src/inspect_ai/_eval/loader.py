@@ -66,7 +66,7 @@ def resolve_tasks(
 
         return [
             ResolvedTask(
-                id=task.id if hasattr(task, "id") else uuid(),
+                id=uuid(),
                 task=task,
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
