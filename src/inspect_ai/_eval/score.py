@@ -265,6 +265,7 @@ async def score_async(
             list(filter(None, scores)),
             epochs_reducer,
             scorers,
+            log_metrics,
         )
 
     return log
@@ -325,21 +326,22 @@ async def _run_score_task(
                     raise RuntimeError(
                         f"Scorer {scorer_name} has modified state.scores"
                     )
-                state.scores[scorer_name] = score_result
+                if score_result is not None:
+                    state.scores[scorer_name] = score_result
 
-                transcript()._event(
-                    ScoreEvent(
-                        score=score_result,
-                        target=target.target,
+                    transcript()._event(
+                        ScoreEvent(
+                            score=score_result,
+                            target=target.target,
+                        )
                     )
-                )
 
-                results[scorer_name] = SampleScore(
-                    score=score_result,
-                    sample_id=state.sample_id,
-                    sample_metadata=state.metadata,
-                    scorer=registry_unqualified_name(scorer),
-                )
+                    results[scorer_name] = SampleScore(
+                        score=score_result,
+                        sample_id=state.sample_id,
+                        sample_metadata=state.metadata,
+                        scorer=registry_unqualified_name(scorer),
+                    )
 
     # slice off only the newly added events
     new_events = transcript().events[len(sample.events) :]

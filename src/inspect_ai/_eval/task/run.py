@@ -77,7 +77,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
 from inspect_ai.scorer import Scorer, Target
-from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
@@ -311,6 +311,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         progress_results,
                         scorers,
                         task.epochs_reducer,
+                        task.metrics,
                     )
 
                 # initial progress
@@ -322,6 +323,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     progress_results,
                     scorers,
                     task.epochs_reducer,
+                    task.metrics,
                 )
 
                 async def run_sample(
@@ -381,6 +383,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     scores=completed_scores,
                     reducers=task.epochs_reducer,
                     scorers=scorers,
+                    metrics=task.metrics,
                 )
 
             # collect eval data
@@ -474,6 +477,7 @@ def update_metrics_display_fn(
         list[dict[str, SampleScore]],
         list[Scorer] | None,
         ScoreReducer | list[ScoreReducer] | None,
+        list[Metric] | dict[str, list[Metric]] | None,
     ],
     None,
 ]:
@@ -484,6 +488,7 @@ def update_metrics_display_fn(
         sample_scores: list[dict[str, SampleScore]],
         scorers: list[Scorer] | None,
         reducers: ScoreReducer | list[ScoreReducer] | None,
+        metrics: list[Metric] | dict[str, list[Metric]] | None,
     ) -> None:
         # Don't compute metrics if they are not being displayed
         if not display_metrics:
@@ -498,6 +503,7 @@ def update_metrics_display_fn(
                 scores=sample_scores,
                 reducers=reducers,
                 scorers=scorers,
+                metrics=metrics,
             )
 
             # Name, reducer, value
@@ -859,21 +865,24 @@ async def task_run_sample(
                                             raise RuntimeError(
                                                 f"Scorer {scorer_name} has modified state.scores"
                                             )
-                                        state.scores[scorer_name] = score_result
+                                        if score_result is not None:
+                                            state.scores[scorer_name] = score_result
 
-                                        transcript()._event(
-                                            ScoreEvent(
-                                                score=score_result,
-                                                target=sample.target,
+                                            transcript()._event(
+                                                ScoreEvent(
+                                                    score=score_result,
+                                                    target=sample.target,
+                                                )
                                             )
-                                        )
 
-                                        results[scorer_name] = SampleScore(
-                                            score=score_result,
-                                            sample_id=sample.id,
-                                            sample_metadata=sample.metadata,
-                                            scorer=registry_unqualified_name(scorer),
-                                        )
+                                            results[scorer_name] = SampleScore(
+                                                score=score_result,
+                                                sample_id=sample.id,
+                                                sample_metadata=sample.metadata,
+                                                scorer=registry_unqualified_name(
+                                                    scorer
+                                                ),
+                                            )
 
                                 for name in solver_score_names:
                                     score = state.scores[name]
