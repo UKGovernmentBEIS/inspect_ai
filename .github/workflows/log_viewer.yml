@@ -84,6 +84,8 @@ jobs:
         working-directory: src/inspect_ai/_view/www
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -93,6 +95,11 @@ jobs:
 
       - name: Build library package
         run: yarn build:lib
+
+      - name: Test NPM publish (dry-run)
+        run: npm publish --dry-run --ignore-scripts
+        env:
+          NPM_TOKEN: "dummy-token-for-dry-run"
 
   check-schema-and-types:
     runs-on: ubuntu-latest
