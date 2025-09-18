@@ -145,7 +145,10 @@ class TaskRunOptions:
 
 
 async def task_run(options: TaskRunOptions) -> EvalLog:
-    from inspect_ai.hooks._hooks import emit_task_end, emit_task_start
+    from inspect_ai.hooks._hooks import (
+        emit_task_end,
+        emit_task_start,
+    )
     from inspect_ai.hooks._legacy import send_telemetry_legacy
 
     # destructure options
@@ -558,7 +561,11 @@ async def task_run_sample(
     run_id: str,
     task_id: str,
 ) -> dict[str, SampleScore] | None:
-    from inspect_ai.hooks._hooks import emit_sample_end, emit_sample_start
+    from inspect_ai.hooks._hooks import (
+        emit_sample_end,
+        emit_sample_scoring,
+        emit_sample_start,
+    )
 
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
@@ -846,6 +853,12 @@ async def task_run_sample(
                 solver_score_names = [*state.scores]
 
                 # scoring
+                await emit_sample_scoring(
+                    eval_set_id,
+                    run_id,
+                    task_id,
+                    state.uuid,
+                )
                 try:
                     # timeout during scoring will result in an ordinary sample error
                     with create_time_limit(scoring_time_limit):
