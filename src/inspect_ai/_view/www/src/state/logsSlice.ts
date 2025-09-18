@@ -264,12 +264,12 @@ export const createLogsSlice = (
       },
       setEvalSetInfo: (info: EvalSet | undefined) => {
         set((state) => {
-          state.logs.evalSetInfo = info;
+          state.logs.evalSet = info;
         });
       },
       clearEvalSetInfo: () => {
         set((state) => {
-          state.logs.evalSetInfo = undefined;
+          state.logs.evalSet = undefined;
         });
       },
       // Select a specific log file

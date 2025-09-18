@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FileLogItem, FolderLogItem, PendingFileLogItem } from "../../LogItem";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 import { EmptyCell } from "./EmptyCell";
 
@@ -46,11 +46,11 @@ export const statusColumn = () => {
       const itemA = rowA.original as
         | FileLogItem
         | FolderLogItem
-        | PendingFileLogItem;
+        | PendingTaskItem;
       const itemB = rowB.original as
         | FileLogItem
         | FolderLogItem
-        | PendingFileLogItem;
+        | PendingTaskItem;
 
       const statusA = itemStatus(itemA) || "";
       const statusB = itemStatus(itemB) || "";
@@ -75,7 +75,7 @@ export const statusColumn = () => {
   });
 };
 
-const itemStatus = (item: FileLogItem | FolderLogItem | PendingFileLogItem) => {
+const itemStatus = (item: FileLogItem | FolderLogItem | PendingTaskItem) => {
   if (item.type !== "file") {
     return undefined;
   }
@@ -84,7 +84,7 @@ const itemStatus = (item: FileLogItem | FolderLogItem | PendingFileLogItem) => {
 };
 
 const itemStatusLabel = (
-  item: FileLogItem | FolderLogItem | PendingFileLogItem,
+  item: FileLogItem | FolderLogItem | PendingTaskItem,
 ) => {
   const status = itemStatus(item);
   if (!status) return "";

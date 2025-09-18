@@ -1,4 +1,4 @@
-import { EvalSetInfo } from "../../../@types/log";
+import { EvalSet } from "../../../@types/log";
 import { fetchRange, fetchSize } from "../../remote/remoteZipFile";
 import { download_file } from "../shared/api-shared";
 import { Capabilities, LogFiles, LogOverview, LogViewAPI } from "../types";
@@ -80,7 +80,7 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
       return undefined;
     },
     eval_set: async () => {
-      return fetchJsonFile<EvalSetInfo>(log_dir + "/eval-set.json");
+      return fetchJsonFile<EvalSet>(log_dir + "/eval-set.json");
     },
     log_message: async (log_file: string, message: string) => {
       console.log(`[CLIENT MESSAGE] (${log_file}): ${message}`);

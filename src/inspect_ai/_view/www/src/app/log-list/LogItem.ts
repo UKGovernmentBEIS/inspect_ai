@@ -17,7 +17,7 @@ export interface FileLogItem extends LogItem {
   logOverview?: LogOverview;
 }
 
-export interface PendingFileLogItem extends LogItem {
-  type: "pending-file";
+export interface PendingTaskItem extends LogItem {
+  type: "pending-task";
   model: string;
 }

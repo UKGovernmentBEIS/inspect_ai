@@ -14,7 +14,7 @@ export const iconColumn = () => {
           className={clsx(
             info.getValue() === "file"
               ? ApplicationIcons.inspectFile
-              : info.getValue() === "pending-file"
+              : info.getValue() === "pending-task"
                 ? ApplicationIcons.pendingTask
                 : ApplicationIcons.folder,
           )}

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FileLogItem, FolderLogItem, PendingFileLogItem } from "../../LogItem";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 
 import { basename } from "../../../../utils/path";
@@ -14,8 +14,8 @@ export const fileNameColumn = () => {
       const item = info.row.original as
         | FileLogItem
         | FolderLogItem
-        | PendingFileLogItem;
-      if (item.type === "folder" || item.type === "pending-file") {
+        | PendingTaskItem;
+      if (item.type === "folder" || item.type === "pending-task") {
         return <EmptyCell />;
       }
       let value = basename(item.name);
@@ -40,11 +40,11 @@ export const fileNameColumn = () => {
       const itemA = rowA.original as
         | FileLogItem
         | FolderLogItem
-        | PendingFileLogItem;
+        | PendingTaskItem;
       const itemB = rowB.original as
         | FileLogItem
         | FolderLogItem
-        | PendingFileLogItem;
+        | PendingTaskItem;
 
       // Sort folders first, then files
       if (itemA.type !== itemB.type) {

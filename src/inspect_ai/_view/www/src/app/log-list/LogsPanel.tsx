@@ -13,7 +13,7 @@ import { ApplicationIcons } from "../appearance/icons";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid } from "./grid/LogListGrid";
-import { FileLogItem, FolderLogItem, PendingFileLogItem } from "./LogItem";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import { LogsFilterInput } from "./LogsFilterInput";
 import styles from "./LogsPanel.module.css";
@@ -39,7 +39,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const { loadLogs } = useLogs();
   const logs = useStore((state) => state.logs.logs);
-  const evalSetInfo = useStore((state) => state.logs.evalSetInfo);
+  const evalSet = useStore((state) => state.logs.evalSet);
   const logHeaders = useStore((state) => state.logs.logOverviews);
   const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
@@ -107,16 +107,21 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   // All the items visible in the current directory (might span
   // multiple pages)
-  const logItems: Array<FileLogItem | FolderLogItem | PendingFileLogItem> =
+  const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
     useMemo(() => {
       // Build the list of files / folders that for the current directory
-      const logItems: Array<FileLogItem | FolderLogItem | PendingFileLogItem> =
-        [];
+      const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> = [];
 
       // Track process folders to avoid duplicates
       const processedFolders = new Set<string>();
+      const runningOrFinishedTasks = new Set<string>();
 
       for (const logFile of logs.files) {
+        // Note that this task is running or complete
+        if (logFile.task_id) {
+          runningOrFinishedTasks.add(logFile.task_id);
+        }
+
         // The file name
         const name = logFile.name;
 
@@ -175,17 +180,19 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         }
       }
 
-      for (const task of evalSetInfo?.tasks || []) {
-        logItems.push({
-          id: task.id,
-          name: task.name,
-          model: task.model,
-          type: "pending-file",
-        });
+      for (const task of evalSet?.tasks || []) {
+        if (!runningOrFinishedTasks.has(task.task_id)) {
+          logItems.push({
+            id: task.task_id,
+            name: task.name || "<unknown>",
+            model: task.model,
+            type: "pending-task",
+          });
+        }
       }
 
       return logItems;
-    }, [logPath, logs.files, logHeaders, evalSetInfo]);
+    }, [logPath, logs.files, logHeaders, evalSet]);
 
   useEffect(() => {
     const exec = async () => {
@@ -221,7 +228,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     >
       <Navbar>
         <LogsFilterInput ref={filterRef} />
-        {evalSetInfo ? (
+        {evalSet ? (
           <div title={"This directory is an evaluation set"}>
             <i className={clsx(ApplicationIcons["eval-set"])} />
           </div>

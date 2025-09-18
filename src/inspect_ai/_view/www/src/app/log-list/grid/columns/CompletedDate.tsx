@@ -1,4 +1,4 @@
-import { FileLogItem, FolderLogItem, PendingFileLogItem } from "../../LogItem";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 
 import styles from "./CompletedDate.module.css";
@@ -40,11 +40,11 @@ export const completedDateColumn = () => {
         const itemA = rowA.original as
           | FileLogItem
           | FolderLogItem
-          | PendingFileLogItem;
+          | PendingTaskItem;
         const itemB = rowB.original as
           | FileLogItem
           | FolderLogItem
-          | PendingFileLogItem;
+          | PendingTaskItem;
 
         const completedA = itemCompletedAt(itemA);
         const completedB = itemCompletedAt(itemB);
@@ -65,7 +65,7 @@ export const completedDateColumn = () => {
 };
 
 const itemCompletedAt = (
-  item: FileLogItem | FolderLogItem | PendingFileLogItem,
+  item: FileLogItem | FolderLogItem | PendingTaskItem,
 ) => {
   if (item.type !== "file") return undefined;
   return item.logOverview?.completed_at;

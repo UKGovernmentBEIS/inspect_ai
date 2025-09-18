@@ -18,7 +18,7 @@ export const modelColumn = () => {
           return (
             <div className={styles.modelCell}>{item.logOverview.model}</div>
           );
-        } else if (item.type === "pending-file" && item.model) {
+        } else if (item.type === "pending-task" && item.model) {
           return <div className={styles.modelCell}>{item.model}</div>;
         }
         return <EmptyCell />;
