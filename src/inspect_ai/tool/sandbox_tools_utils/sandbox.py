@@ -2,6 +2,7 @@ import subprocess
 import sys
 from contextlib import asynccontextmanager
 from importlib import resources
+from logging import getLogger
 from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Literal
 
@@ -10,6 +11,7 @@ from rich.prompt import Prompt
 
 import inspect_ai
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.logger import warn_once
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._sandbox.context import (
@@ -27,6 +29,8 @@ from ._build_config import (
 )
 
 _BUCKET_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
+
+logger = getLogger("sandbox_tools")
 
 
 InstallState = Literal["pypi", "main", "edited"]
@@ -115,22 +119,22 @@ async def _open_executable_for_arch(
 
     executable_name = _get_executable_name(arch, install_state == "edited")
 
-    # 3.1. Local Executable Check
-    try:
-        async with _open_executable(executable_name) as f:
-            print(f"found {executable_name}")
-            yield executable_name, f
-            return
-    except (FileNotFoundError, ModuleNotFoundError):
-        if install_state == "pypi":
-            raise PrerequisiteError(
-                f"Tool support executable {executable_name} is missing from the PyPI package installation. "
-                "This indicates a problem with the package. Please reinstall inspect_ai."
-            )
-
     # Only let one task at a time try to resolve the file.
     async with concurrency(executable_name, 1):
-        # 3.2. S3 Download Attempt
+        # Local Executable Check
+        try:
+            async with _open_executable(executable_name) as f:
+                print(f"found {executable_name}")
+                yield executable_name, f
+                return
+        except (FileNotFoundError, ModuleNotFoundError):
+            if install_state == "pypi":
+                msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
+                # TODO: once we get the github CI/CD actions robust, this should be fatal
+                # raise PrerequisiteError(msg)
+                warn_once(logger, msg)
+
+        # S3 Download Attempt
         if install_state == "main":
             if await _download_from_s3(executable_name, arch):
                 async with _open_executable(executable_name) as f:
@@ -141,7 +145,7 @@ async def _open_executable_for_arch(
             # haven't made any edits to sandbox_tools, they 100% should be able to
             # download from S3. This scenario is similar to the pypi error just above.
 
-        # 3.4. Build it locally
+        # Build it locally
         await _build_it(arch, executable_name)
 
         async with _open_executable(executable_name) as f:
