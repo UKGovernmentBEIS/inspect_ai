@@ -3,7 +3,7 @@
  */
 export async function download_file(
   filename: string,
-  filecontents: string | Blob | ArrayBuffer | ArrayBufferView,
+  filecontents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
 ): Promise<void> {
   let blob: Blob;
 

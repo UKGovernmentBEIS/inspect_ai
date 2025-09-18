@@ -253,7 +253,7 @@ async def score_async(
 
         # override epochs_reducer if specified
         epochs_reducer = create_reducers(epochs_reducer)
-        if epochs_reducer:
+        if epochs_reducer is not None:
             log.eval.config.epochs_reducer = reducer_log_names(epochs_reducer)
         else:
             epochs_reducer = reducers_from_log_header(log)
@@ -323,21 +323,22 @@ async def _run_score_task(
                     raise RuntimeError(
                         f"Scorer {scorer_name} has modified state.scores"
                     )
-                state.scores[scorer_name] = score_result
+                if score_result is not None:
+                    state.scores[scorer_name] = score_result
 
-                transcript()._event(
-                    ScoreEvent(
-                        score=score_result,
-                        target=target.target,
+                    transcript()._event(
+                        ScoreEvent(
+                            score=score_result,
+                            target=target.target,
+                        )
                     )
-                )
 
-                results[scorer_name] = SampleScore(
-                    score=score_result,
-                    sample_id=state.sample_id,
-                    sample_metadata=state.metadata,
-                    scorer=registry_unqualified_name(scorer),
-                )
+                    results[scorer_name] = SampleScore(
+                        score=score_result,
+                        sample_id=state.sample_id,
+                        sample_metadata=state.metadata,
+                        scorer=registry_unqualified_name(scorer),
+                    )
 
     sample.scores = _get_updated_scores(sample, results, action=action)
     sample.events = _get_updated_events(sample, transcript(), action=action)
