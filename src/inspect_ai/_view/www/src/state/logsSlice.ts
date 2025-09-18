@@ -3,7 +3,7 @@ import {
   ColumnResizeMode,
   SortingState,
 } from "@tanstack/react-table";
-import { EvalSetInfo } from "../@types/log";
+import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
 import {
   EvalLogHeader,
@@ -39,8 +39,8 @@ export interface LogsSlice {
     loadLogs: () => Promise<LogFiles>;
 
     // Try to fetch an eval-set
-    loadEvalSetInfo: (logPath?: string) => Promise<EvalSetInfo | undefined>;
-    setEvalSetInfo: (info: EvalSetInfo | undefined) => void;
+    loadEvalSetInfo: (logPath?: string) => Promise<EvalSet | undefined>;
+    setEvalSetInfo: (info: EvalSet | undefined) => void;
     clearEvalSetInfo: () => void;
 
     setSorting: (sorting: SortingState) => void;
@@ -262,7 +262,7 @@ export const createLogsSlice = (
         const info = await api.get_eval_set_info(logPath);
         return info;
       },
-      setEvalSetInfo: (info: EvalSetInfo | undefined) => {
+      setEvalSetInfo: (info: EvalSet | undefined) => {
         set((state) => {
           state.logs.evalSetInfo = info;
         });

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FileLogItem, FolderLogItem } from "../../LogItem";
+import { FileLogItem, FolderLogItem, PendingFileLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 import { EmptyCell } from "./EmptyCell";
 
@@ -43,8 +43,14 @@ export const statusColumn = () => {
       );
     },
     sortingFn: (rowA, rowB) => {
-      const itemA = rowA.original as FileLogItem | FolderLogItem;
-      const itemB = rowB.original as FileLogItem | FolderLogItem;
+      const itemA = rowA.original as
+        | FileLogItem
+        | FolderLogItem
+        | PendingFileLogItem;
+      const itemB = rowB.original as
+        | FileLogItem
+        | FolderLogItem
+        | PendingFileLogItem;
 
       const statusA = itemStatus(itemA) || "";
       const statusB = itemStatus(itemB) || "";
@@ -69,7 +75,7 @@ export const statusColumn = () => {
   });
 };
 
-const itemStatus = (item: FileLogItem | FolderLogItem) => {
+const itemStatus = (item: FileLogItem | FolderLogItem | PendingFileLogItem) => {
   if (item.type !== "file") {
     return undefined;
   }
@@ -77,7 +83,9 @@ const itemStatus = (item: FileLogItem | FolderLogItem) => {
   return header?.status;
 };
 
-const itemStatusLabel = (item: FileLogItem | FolderLogItem) => {
+const itemStatusLabel = (
+  item: FileLogItem | FolderLogItem | PendingFileLogItem,
+) => {
   const status = itemStatus(item);
   if (!status) return "";
 

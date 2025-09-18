@@ -14,12 +14,14 @@ export const modelColumn = () => {
       header: "Model",
       cell: (info) => {
         const item = info.row.original;
-        if (item.type !== "file" || item.logOverview?.model === undefined) {
-          return <EmptyCell />;
+        if (item.type === "file" && item.logOverview?.model !== undefined) {
+          return (
+            <div className={styles.modelCell}>{item.logOverview.model}</div>
+          );
+        } else if (item.type === "pending-file" && item.model) {
+          return <div className={styles.modelCell}>{item.model}</div>;
         }
-        return (
-          <div className={styles.modelCell}>{item.logOverview.model || ""}</div>
-        );
+        return <EmptyCell />;
       },
       enableSorting: true,
       enableGlobalFilter: true,

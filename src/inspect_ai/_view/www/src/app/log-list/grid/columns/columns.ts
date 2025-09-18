@@ -1,5 +1,5 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { FileLogItem, FolderLogItem } from "../../LogItem";
+import { FileLogItem, FolderLogItem, PendingFileLogItem } from "../../LogItem";
 import { completedDateColumn } from "./CompletedDate";
 import { fileNameColumn } from "./FileName";
 import { iconColumn } from "./Icon";
@@ -8,7 +8,9 @@ import { scoreColumn } from "./Score";
 import { statusColumn } from "./Status";
 import { taskColumn } from "./Task";
 
-export const columnHelper = createColumnHelper<FileLogItem | FolderLogItem>();
+export const columnHelper = createColumnHelper<
+  FileLogItem | FolderLogItem | PendingFileLogItem
+>();
 
 export const getColumns = (columnIds?: string[]) => {
   const allColumns = [

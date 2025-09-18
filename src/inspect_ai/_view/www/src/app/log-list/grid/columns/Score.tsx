@@ -1,5 +1,5 @@
 import { formatPrettyDecimal } from "../../../../utils/format";
-import { FileLogItem, FolderLogItem } from "../../LogItem";
+import { FileLogItem, FolderLogItem, PendingFileLogItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 import { EmptyCell } from "./EmptyCell";
 
@@ -50,7 +50,7 @@ export const scoreColumn = () => {
   );
 };
 
-const itemMetric = (item: FileLogItem | FolderLogItem) => {
+const itemMetric = (item: FileLogItem | FolderLogItem | PendingFileLogItem) => {
   if (item.type !== "file") {
     return undefined;
   }
