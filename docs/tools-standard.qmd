@@ -3,10 +3,9 @@ title: Standard Tools
 tbl-colwidths: [40,60]
 ---
 
-## Overview 
+## Overview
 
 {{< include _tools-standard.md >}}
-
 
 ## Web Search {#sec-web-search}
 
@@ -133,13 +132,12 @@ To use the "google" provider you will need to set up your own Google Programmabl
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
 
-
-Google supports the following options: 
+Google supports the following options:
 
 | Option | Description |
 |------------------------------------|------------------------------------|
-| `num_results` | The number of relevant webpages whose contents are returned  |
-| `max_provider_calls` | Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3)  |
+| `num_results` | The number of relevant webpages whose contents are returned |
+| `max_provider_calls` | Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3) |
 | `max_connections` | Maximum number of concurrent connections (defaults to 10) |
 | `model` | Model to use to determine if search results are relevant (defaults to the model being evaluated) |
 
@@ -257,11 +255,6 @@ The web browser tools provides models with the ability to browse the web using a
 
 ### Configuration
 
-TODO TODO TODO TODO - REVIEW/REPHRASE THIS CONTENT
-WE NEED TO RETAIN THE OLD GUIDANCE IF AND ONLY IF THE WEB BROWSER TOOL
-IS USED
-
-
 Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
 
 Note that Playwright (used for the `web_browser()` tool) does not support some versions of Linux (e.g. Kali Linux).
@@ -269,9 +262,26 @@ Note that Playwright (used for the `web_browser()` tool) does not support some v
 ::: {.callout-note appearance="simple" collapse="true"}
 ### Sandbox Dependencies
 
-{{< include _sandbox-dockerfile.md >}}
+You should add the following to your sandbox `Dockerfile` in order to use the web browser tool:
 
-{{< include _sandbox-image.md >}}
+``` dockerfile
+RUN apt-get update && apt-get install -y pipx && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+ENV PATH="$PATH:/opt/inspect/bin"
+RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
+    pipx install inspect-tool-support && \
+    chmod -R 755 /opt/inspect && \
+    inspect-tool-support post-install
+```
+
+If you don't have a custom Dockerfile, you can alternatively use the pre-built `aisiuk/inspect-tool-support` image:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: aisiuk/inspect-tool-support
+    init: true
+```
 :::
 
 ### Task Setup
@@ -400,7 +410,7 @@ inspect eval computer.py --model openai/computer-use-preview
 The computer tool supports the following options:
 
 | Option | Description |
-|---------------------|---------------------------------------------------|
+|----------------------|--------------------------------------------------|
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
 | `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
 
@@ -500,7 +510,6 @@ If you want to experiment with bypassing the native computer tool types and just
 ``` bash
 inspect eval computer.py --no-internal-tools
 ```
-
 
 ## Think {#sec-think}
 
