@@ -134,30 +134,30 @@ def test_null_operators():
 def test_none_comparison():
     """Test that == None and != None map to IS NULL and IS NOT NULL."""
     # == None should map to IS NULL
-    condition = m.error_message == None
+    condition = m.error_message is None
     sql, params = condition.to_sql("sqlite")
     assert sql == '"error_message" IS NULL'
     assert params == []
 
     # != None should map to IS NOT NULL
-    condition = m.error_message != None
+    condition = m.error_message is not None
     sql, params = condition.to_sql("sqlite")
     assert sql == '"error_message" IS NOT NULL'
     assert params == []
 
     # Test with other dialects
-    condition = m.status == None
+    condition = m.status is None
     sql, params = condition.to_sql("postgres")
     assert sql == '"status" IS NULL'
     assert params == []
 
-    condition = m.status != None
+    condition = m.status is not None
     sql, params = condition.to_sql("duckdb")
     assert sql == '"status" IS NOT NULL'
     assert params == []
 
     # Combined with other conditions
-    condition = (m.model == "gpt-4") & (m.error == None)
+    condition = (m.model == "gpt-4") & (m.error is None)
     sql, params = condition.to_sql("sqlite")
     assert sql == '("model" = ? AND "error" IS NULL)'
     assert params == ["gpt-4"]
@@ -258,13 +258,19 @@ def test_between_with_null_bounds():
         m.score.between(None, None)
 
     # Same for NOT BETWEEN
-    with pytest.raises(ValueError, match="NOT BETWEEN operator requires non-None bounds"):
+    with pytest.raises(
+        ValueError, match="NOT BETWEEN operator requires non-None bounds"
+    ):
         m.retries.not_between(None, 3)
 
-    with pytest.raises(ValueError, match="NOT BETWEEN operator requires non-None bounds"):
+    with pytest.raises(
+        ValueError, match="NOT BETWEEN operator requires non-None bounds"
+    ):
         m.retries.not_between(1, None)
 
-    with pytest.raises(ValueError, match="NOT BETWEEN operator requires non-None bounds"):
+    with pytest.raises(
+        ValueError, match="NOT BETWEEN operator requires non-None bounds"
+    ):
         m.retries.not_between(None, None)
 
 
@@ -318,17 +324,19 @@ def test_nested_json_paths():
 
     # SQLite
     sql, params = condition.to_sql("sqlite")
-    assert sql == 'json_extract("metadata", \'$.config.temperature\') > ?'
+    assert sql == "json_extract(\"metadata\", '$.config.temperature') > ?"
     assert params == [0.7]
 
     # DuckDB - should use ->> for last element
     sql, params = condition.to_sql("duckdb")
-    assert sql == '"metadata"->\'config\'->>\'temperature\' > ?'
+    assert sql == "\"metadata\"->'config'->>'temperature' > ?"
     assert params == [0.7]
 
     # PostgreSQL - should use ->> for last element AND cast from text for numeric comparison
     sql, params = condition.to_sql("postgres")
-    assert sql == '''("metadata"->'config'->>'temperature')::text::double precision > $1'''
+    assert (
+        sql == """("metadata"->'config'->>'temperature')::text::double precision > $1"""
+    )
     assert params == [0.7]
 
 
@@ -343,12 +351,12 @@ def test_column_name_escaping():
     # JSON path with single quotes
     condition = m["metadata.key'with'quotes"] == "value"
     sql, params = condition.to_sql("sqlite")
-    assert sql == 'json_extract("metadata", \'$.key\'\'with\'\'quotes\') = ?'
+    assert sql == "json_extract(\"metadata\", '$.key''with''quotes') = ?"
     assert params == ["value"]
 
     # DuckDB with quotes in path
     sql, params = condition.to_sql("duckdb")
-    assert sql == '"metadata"->>\'key\'\'with\'\'quotes\' = ?'
+    assert sql == "\"metadata\"->>'key''with''quotes' = ?"
     assert params == ["value"]
 
 
@@ -367,12 +375,12 @@ def test_postgres_json_type_casting():
     assert params == [0.75]
 
     # Boolean comparison - should cast from text to boolean
-    condition = m["metadata.enabled"] == True
+    condition = m["metadata.enabled"] is True
     sql, params = condition.to_sql("postgres")
     assert sql == """("metadata"->>'enabled')::text::boolean = $1"""
     assert params == [True]
 
-    condition = m["metadata.flag"] != False
+    condition = m["metadata.flag"] is not False
     sql, params = condition.to_sql("postgres")
     assert sql == """("metadata"->>'flag')::text::boolean != $1"""
     assert params == [False]
@@ -417,7 +425,7 @@ def test_postgres_json_type_casting():
 def test_postgres_casting_with_none():
     """Test PostgreSQL casting handles None values correctly."""
     # Comparison with None should not crash the casting logic
-    condition = m["metadata.field"] == None
+    condition = m["metadata.field"] is None
     sql, params = condition.to_sql("postgres")
     assert sql == """"metadata"->>'field' IS NULL"""
     assert params == []
@@ -431,8 +439,8 @@ def test_postgres_double_cast_correctness():
     test_cases = [
         (m["config.retry_count"] > 5, int, "bigint", 5),
         (m["settings.threshold"] < 0.95, float, "double precision", 0.95),
-        (m["flags.enabled"] == True, bool, "boolean", True),
-        (m["options.active"] != False, bool, "boolean", False),
+        (m["flags.enabled"] is True, bool, "boolean", True),
+        (m["options.active"] is not False, bool, "boolean", False),
     ]
 
     for condition, val_type, pg_type, expected_val in test_cases:
@@ -470,17 +478,20 @@ def test_deep_nested_paths():
 
     # SQLite
     sql, params = condition.to_sql("sqlite")
-    assert sql == 'json_extract("metadata", \'$.level1.level2.level3.value\') > ?'
+    assert sql == "json_extract(\"metadata\", '$.level1.level2.level3.value') > ?"
     assert params == [10]
 
     # DuckDB - multiple -> operators, ->> for last
     sql, params = condition.to_sql("duckdb")
-    assert sql == '"metadata"->\'level1\'->\'level2\'->\'level3\'->>\'value\' > ?'
+    assert sql == "\"metadata\"->'level1'->'level2'->'level3'->>'value' > ?"
     assert params == [10]
 
     # PostgreSQL - should cast from text to integer for numeric comparison
     sql, params = condition.to_sql("postgres")
-    assert sql == '''("metadata"->'level1'->'level2'->'level3'->>'value')::text::bigint > $1'''
+    assert (
+        sql
+        == """("metadata"->'level1'->'level2'->'level3'->>'value')::text::bigint > $1"""
+    )
     assert params == [10]
 
 
@@ -517,15 +528,16 @@ def test_postgres_parameter_numbering():
     assert params == ["gpt-4", 0.3, 0.7]
 
     # Multiple IN clauses
-    condition = (m.model.in_(["gpt-4", "claude"])) & (m.status.in_(["success", "pending"]))
+    condition = (m.model.in_(["gpt-4", "claude"])) & (
+        m.status.in_(["success", "pending"])
+    )
     sql, params = condition.to_sql("postgres")
     assert sql == '("model" IN ($1, $2) AND "status" IN ($3, $4))'
     assert params == ["gpt-4", "claude", "success", "pending"]
 
     # Complex nested with all types
-    condition = (
-        ((m.model == "gpt-4") & (m.score.between(0.3, 0.7))) |
-        ((m.status.in_(["error", "timeout"])) & (m.retries > 2))
+    condition = ((m.model == "gpt-4") & (m.score.between(0.3, 0.7))) | (
+        (m.status.in_(["error", "timeout"])) & (m.retries > 2)
     )
     sql, params = condition.to_sql("postgres")
     # Should have parameters $1, $2, $3, $4, $5, $6
@@ -817,10 +829,14 @@ async def test_empty_in_clause_in_db(db):
     assert len(results) == 20  # Always true, all results
 
     # Combined with other conditions
-    results = list(await db.query(where=[
-        m.score > 0.5,
-        m.status.not_in([])  # This is always true, shouldn't affect results
-    ]))
+    results = list(
+        await db.query(
+            where=[
+                m.score > 0.5,
+                m.status.not_in([]),  # This is always true, shouldn't affect results
+            ]
+        )
+    )
     # Should be same as just m.score > 0.5
     results_without = list(await db.query(where=[m.score > 0.5]))
     assert len(results) == len(results_without)
