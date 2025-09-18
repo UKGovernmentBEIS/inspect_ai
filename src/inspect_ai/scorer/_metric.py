@@ -189,7 +189,7 @@ def value_to_float(
                 return 1.0
             elif value in ["no", "false"]:
                 return 0.0
-            elif value.replace(".", "").isnumeric():
+            elif is_number(value):
                 return float(value)
 
         # couldn't extract a value
@@ -198,6 +198,12 @@ def value_to_float(
 
     return to_float
 
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
 
 @runtime_checkable
 class MetricDeprecated(Protocol):
