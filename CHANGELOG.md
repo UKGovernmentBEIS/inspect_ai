@@ -12,6 +12,7 @@
 - Scoring: Properly make sample events available in the transcript during re-scoring an eval log.
 - Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
 - Bugfix: Enable passing no reducers to `async_score` in eval score.
+- Bugfix: Handle non-contiguous task sequences in task batching.
 
 ## 0.3.132 (12 September 2025)
 
