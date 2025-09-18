@@ -199,7 +199,7 @@ def value_to_float(
     return to_float
 
 
-def is_number(s):
+def is_number(s: str) -> bool:
     try:
         float(s)
         return True
