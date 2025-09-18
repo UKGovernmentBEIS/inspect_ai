@@ -356,6 +356,7 @@ def metrics_from_log_header(
                 key: [metric_from_log(metric) for metric in metrics]
                 for key, metrics in log.eval.metrics.items()
             }
+
     return None
 
 

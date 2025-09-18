@@ -3,6 +3,7 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 from ._bundle import bundle_log_dir
 from ._condense import condense_sample, resolve_sample_attachments
 from ._convert import convert_eval_logs
+from ._edit import edit_score, recompute_metrics
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
@@ -47,6 +48,7 @@ from ._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     SandboxEvent,
+    ScoreEditEvent,
     ScoreEvent,
     SpanBeginEvent,
     SpanEndEvent,
@@ -95,6 +97,7 @@ __all__ = [
     "SampleInitEvent",
     "SampleLimitEvent",
     "SandboxEvent",
+    "ScoreEditEvent",
     "ScoreEvent",
     "SpanBeginEvent",
     "SpanEndEvent",
@@ -122,4 +125,6 @@ __all__ = [
     "EventTree",
     "EventNode",
     "SpanNode",
+    "edit_score",
+    "recompute_metrics",
 ]

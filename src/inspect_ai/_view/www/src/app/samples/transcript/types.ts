@@ -10,6 +10,7 @@ import {
   SampleLimitEvent,
   SandboxEvent,
   ScoreEvent,
+  ScoreEditEvent,
   SpanBeginEvent,
   SpanEndEvent,
   StateEvent,
@@ -39,6 +40,7 @@ export type EventType =
   | StepEvent
   | SubtaskEvent
   | ScoreEvent
+  | ScoreEditEvent
   | ToolEvent
   | InputEvent
   | ErrorEvent

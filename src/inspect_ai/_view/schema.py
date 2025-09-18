@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from inspect_ai.log import EvalLog
+from inspect_ai.scorer._metric import Score
 
 WWW_DIR = os.path.abspath((Path(__file__).parent / "www").as_posix())
 
@@ -32,6 +33,11 @@ def sync_view_schema() -> None:
         # make everything required
         schema = EvalLog.model_json_schema()
         defs: dict[str, Any] = schema["$defs"]
+
+        # Replace Score schema with our custom one that includes computed fields
+        if "Score" in defs:
+            defs["Score"] = Score.model_json_schema()
+
         for key in defs.keys():
             defs[key] = schema_to_strict(defs[key])
         f.write(json.dumps(schema, indent=2))
