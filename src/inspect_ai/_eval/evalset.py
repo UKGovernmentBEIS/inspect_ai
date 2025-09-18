@@ -786,7 +786,7 @@ def to_eval_set_task(task: ResolvedTask) -> EvalSetTask:
 
     return EvalSetTask(
         name=task.task.name,
-        task_id=task_identifier(task),
+        task_id=task.id or task_identifier(task),
         task_file=task.task_file,
         task_args=task.task_args,
         model=model_name,

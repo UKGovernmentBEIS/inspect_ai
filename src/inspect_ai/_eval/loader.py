@@ -9,6 +9,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Tuple, cast
 
+from shortuuid import uuid
 from typing_extensions import overload
 
 from inspect_ai._eval.task.resolved import ResolvedTask
@@ -65,6 +66,7 @@ def resolve_tasks(
 
         return [
             ResolvedTask(
+                id=task.id if hasattr(task, "id") else uuid(),
                 task=task,
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
