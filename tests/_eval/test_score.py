@@ -238,7 +238,7 @@ async def test_get_updated_events(test_case: UpdatedEventsTestCase):
         id="1", events=existing_events, epoch=1, input="input", target="target"
     )
 
-    updated_events = _get_updated_events(sample, transcript, action=test_case.action)
+    updated_events = _get_updated_events(sample, new_events, action=test_case.action)
 
     assert len(updated_events) == len(expected_events)
     assert updated_events[: len(base_events)] == base_events
