@@ -165,19 +165,57 @@ class Condition:
             assert isinstance(self.left, str)
             column = self._format_column(self.left, dialect)
 
+            if (
+                dialect == SQLDialect.POSTGRES
+                and isinstance(self.left, str)
+                and "." in self.left
+            ):
+
+                def _pg_cast(col: str, val: Any) -> str:
+                    # bool must be checked before int (bool is a subclass of int)
+                    if isinstance(val, bool):
+                        return f"({col})::boolean"
+                    if isinstance(val, int) and not isinstance(val, bool):
+                        return f"({col})::bigint"
+                    if isinstance(val, float):
+                        return f"({col})::double precision"
+                    return col
+
+                # Skip casts for operators that don't compare numerically/textually
+                skip_ops = {
+                    Operator.LIKE,
+                    Operator.NOT_LIKE,
+                    Operator.IS_NULL,
+                    Operator.IS_NOT_NULL,
+                    Operator.IN,
+                    Operator.NOT_IN,
+                }
+
+                if self.operator not in skip_ops:
+                    hint = None
+                    if self.operator in (Operator.BETWEEN, Operator.NOT_BETWEEN):
+                        # use first non-None bound as hint
+                        hint = next((x for x in self.params if x is not None), None)
+                    else:
+                        hint = self.params[0] if self.params else None
+                    column = _pg_cast(column, hint)
+
             if self.operator == Operator.IS_NULL:
                 return f"{column} IS NULL", []
             elif self.operator == Operator.IS_NOT_NULL:
                 return f"{column} IS NOT NULL", []
             elif self.operator == Operator.IN:
-                placeholders = self._get_placeholders(
-                    len(self.params), dialect, param_offset
-                )
+                n = len(self.params)
+                if n == 0:
+                    return "1 = 0", []  # empty IN = always false
+                placeholders = self._get_placeholders(n, dialect, param_offset)
                 return f"{column} IN ({placeholders})", self.params
+
             elif self.operator == Operator.NOT_IN:
-                placeholders = self._get_placeholders(
-                    len(self.params), dialect, param_offset
-                )
+                n = len(self.params)
+                if n == 0:
+                    return "1 = 1", []  # empty NOT IN = always true
+                placeholders = self._get_placeholders(n, dialect, param_offset)
                 return f"{column} NOT IN ({placeholders})", self.params
             elif self.operator == Operator.BETWEEN:
                 p1 = self._get_placeholder(param_offset + 1, dialect)
@@ -192,36 +230,34 @@ class Condition:
                 placeholder = self._get_placeholder(param_offset + 1, dialect)
                 return f"{column} {self.operator.value} {placeholder}", self.params
 
+    def _esc_double(self, s: str) -> str:
+        return s.replace('"', '""')
+
+    def _esc_single(self, s: str) -> str:
+        return s.replace("'", "''")
+
     def _format_column(self, column_name: str, dialect: SQLDialect) -> str:
-        """Format column name for the target dialect."""
-        # Handle nested JSON paths
+        # If dotted, treat as: <base_column>.<json.path.inside.it>
         if "." in column_name:
             parts = column_name.split(".")
+            base = parts[0]
+            keys = parts[1:]
+            if not keys:
+                return f'"{self._esc_double(base)}"'
+
             if dialect == SQLDialect.SQLITE:
-                # SQLite JSON extraction: json_extract(metadata, '$.field.subfield')
-                json_path = "$." + ".".join(parts[1:])
-                return f"json_extract(metadata, '{json_path}')"
-            elif dialect == SQLDialect.DUCKDB:
-                # DuckDB JSON extraction: metadata->'field'->'subfield'
-                result = "metadata"
-                for part in parts[1:]:
-                    result = f"{result}->'{part}'"
+                json_path = "$." + ".".join(keys)
+                return f"json_extract(\"{self._esc_double(base)}\", '{self._esc_single(json_path)}')"
+
+            elif dialect in (SQLDialect.DUCKDB, SQLDialect.POSTGRES):
+                result = f'"{self._esc_double(base)}"'
+                for i, key in enumerate(keys):
+                    op = "->>" if i == len(keys) - 1 else "->"
+                    result = f"{result}{op}'{self._esc_single(key)}'"
                 return result
-            else:  # PostgreSQL
-                # PostgreSQL JSON extraction: metadata->'field'->'subfield' or metadata->'field'->>'subfield' for text
-                # Using ->> for the last element to get text, -> for intermediate
-                result = "metadata"
-                for i, part in enumerate(parts[1:]):
-                    if i == len(parts[1:]) - 1:
-                        # Last element: use ->> to get as text
-                        result = f"{result}->>'{part}'"
-                    else:
-                        # Intermediate elements: use -> to get JSON
-                        result = f"{result}->'{part}'"
-                return result
-        else:
-            # Simple column name - quote it for safety
-            return f'"{column_name}"'
+
+        # Simple (non-JSON) column
+        return f'"{self._esc_double(column_name)}"'
 
     def _get_placeholder(self, position: int, dialect: SQLDialect) -> str:
         """Get parameter placeholder for the dialect."""
@@ -248,12 +284,18 @@ class Column:
         self.name = name
 
     def __eq__(self, other: Any) -> Condition:  # type: ignore[override]
-        """Equal to."""
-        return Condition(self.name, Operator.EQ, other)
+        return Condition(
+            self.name,
+            Operator.IS_NULL if other is None else Operator.EQ,
+            None if other is None else other,
+        )
 
     def __ne__(self, other: Any) -> Condition:  # type: ignore[override]
-        """Not equal to."""
-        return Condition(self.name, Operator.NE, other)
+        return Condition(
+            self.name,
+            Operator.IS_NOT_NULL if other is None else Operator.NE,
+            None if other is None else other,
+        )
 
     def __lt__(self, other: Any) -> Condition:
         """Less than."""

@@ -92,6 +92,32 @@ def test_in_operator():
     assert params == ["error", "timeout"]
 
 
+def test_empty_in_operator():
+    """Test empty IN and NOT IN operators."""
+    # Empty IN should always be false (nothing can be in an empty set)
+    condition = m.model.in_([])
+    sql, params = condition.to_sql("sqlite")
+    assert sql == "1 = 0"  # Always false
+    assert params == []
+
+    # Empty NOT IN should always be true (everything is not in an empty set)
+    condition = m.status.not_in([])
+    sql, params = condition.to_sql("sqlite")
+    assert sql == "1 = 1"  # Always true
+    assert params == []
+
+    # Test with other dialects too
+    condition = m.model.in_([])
+    sql, params = condition.to_sql("postgres")
+    assert sql == "1 = 0"
+    assert params == []
+
+    condition = m.status.not_in([])
+    sql, params = condition.to_sql("duckdb")
+    assert sql == "1 = 1"
+    assert params == []
+
+
 def test_null_operators():
     """Test NULL and NOT NULL operators."""
     condition = m.error_message.is_null()
@@ -103,6 +129,38 @@ def test_null_operators():
     sql, params = condition.to_sql("sqlite")
     assert sql == '"error_message" IS NOT NULL'
     assert params == []
+
+
+def test_none_comparison():
+    """Test that == None and != None map to IS NULL and IS NOT NULL."""
+    # == None should map to IS NULL
+    condition = m.error_message == None
+    sql, params = condition.to_sql("sqlite")
+    assert sql == '"error_message" IS NULL'
+    assert params == []
+
+    # != None should map to IS NOT NULL
+    condition = m.error_message != None
+    sql, params = condition.to_sql("sqlite")
+    assert sql == '"error_message" IS NOT NULL'
+    assert params == []
+
+    # Test with other dialects
+    condition = m.status == None
+    sql, params = condition.to_sql("postgres")
+    assert sql == '"status" IS NULL'
+    assert params == []
+
+    condition = m.status != None
+    sql, params = condition.to_sql("duckdb")
+    assert sql == '"status" IS NOT NULL'
+    assert params == []
+
+    # Combined with other conditions
+    condition = (m.model == "gpt-4") & (m.error == None)
+    sql, params = condition.to_sql("sqlite")
+    assert sql == '("model" = ? AND "error" IS NULL)'
+    assert params == ["gpt-4"]
 
 
 def test_like_operator():
@@ -172,6 +230,153 @@ def test_bracket_notation():
     sql, params = condition.to_sql("sqlite")
     assert sql == '"custom_field" > ?'
     assert params == [100]
+
+
+def test_nested_json_paths():
+    """Test nested JSON path extraction with proper escaping."""
+    # Simple nested path
+    condition = m["metadata.config.temperature"] > 0.7
+
+    # SQLite
+    sql, params = condition.to_sql("sqlite")
+    assert sql == 'json_extract("metadata", \'$.config.temperature\') > ?'
+    assert params == [0.7]
+
+    # DuckDB - should use ->> for last element
+    sql, params = condition.to_sql("duckdb")
+    assert sql == '"metadata"->\'config\'->>\'temperature\' > ?'
+    assert params == [0.7]
+
+    # PostgreSQL - should use ->> for last element AND cast for numeric comparison
+    sql, params = condition.to_sql("postgres")
+    assert sql == '''("metadata"->'config'->>'temperature')::double precision > $1'''
+    assert params == [0.7]
+
+
+def test_column_name_escaping():
+    """Test that column names with special characters are properly escaped."""
+    # Column name with double quotes
+    condition = m['col"umn'] == "value"
+    sql, params = condition.to_sql("sqlite")
+    assert sql == '"col""umn" = ?'
+    assert params == ["value"]
+
+    # JSON path with single quotes
+    condition = m["metadata.key'with'quotes"] == "value"
+    sql, params = condition.to_sql("sqlite")
+    assert sql == 'json_extract("metadata", \'$.key\'\'with\'\'quotes\') = ?'
+    assert params == ["value"]
+
+    # DuckDB with quotes in path
+    sql, params = condition.to_sql("duckdb")
+    assert sql == '"metadata"->>\'key\'\'with\'\'quotes\' = ?'
+    assert params == ["value"]
+
+
+def test_postgres_json_type_casting():
+    """Test that PostgreSQL properly casts JSON values for comparisons."""
+    # Integer comparison - should cast to bigint
+    condition = m["metadata.retries"] > 3
+    sql, params = condition.to_sql("postgres")
+    assert sql == """("metadata"->>'retries')::bigint > $1"""
+    assert params == [3]
+
+    # Float comparison - should cast to double precision
+    condition = m["metadata.score"] >= 0.75
+    sql, params = condition.to_sql("postgres")
+    assert sql == """("metadata"->>'score')::double precision >= $1"""
+    assert params == [0.75]
+
+    # Boolean comparison - should cast to boolean
+    condition = m["metadata.enabled"] == True
+    sql, params = condition.to_sql("postgres")
+    assert sql == """("metadata"->>'enabled')::boolean = $1"""
+    assert params == [True]
+
+    condition = m["metadata.flag"] != False
+    sql, params = condition.to_sql("postgres")
+    assert sql == """("metadata"->>'flag')::boolean != $1"""
+    assert params == [False]
+
+    # BETWEEN with numeric values - should cast
+    condition = m["metadata.score"].between(0.5, 0.9)
+    sql, params = condition.to_sql("postgres")
+    assert sql == """("metadata"->>'score')::double precision BETWEEN $1 AND $2"""
+    assert params == [0.5, 0.9]
+
+    # String comparison - no cast needed
+    condition = m["metadata.status"] == "active"
+    sql, params = condition.to_sql("postgres")
+    assert sql == """"metadata"->>'status' = $1"""
+    assert params == ["active"]
+
+    # LIKE operator - should NOT cast (string operation)
+    condition = m["metadata.message"].like("%error%")
+    sql, params = condition.to_sql("postgres")
+    assert sql == """"metadata"->>'message' LIKE $1"""
+    assert params == ["%error%"]
+
+    # IN operator - should NOT cast
+    condition = m["metadata.status"].in_(["active", "pending"])
+    sql, params = condition.to_sql("postgres")
+    assert sql == """"metadata"->>'status' IN ($1, $2)"""
+    assert params == ["active", "pending"]
+
+    # IS NULL - should NOT cast
+    condition = m["metadata.optional"].is_null()
+    sql, params = condition.to_sql("postgres")
+    assert sql == """"metadata"->>'optional' IS NULL"""
+    assert params == []
+
+    # Deep nested paths with casting
+    condition = m["metadata.config.max_retries"] < 10
+    sql, params = condition.to_sql("postgres")
+    assert sql == """("metadata"->'config'->>'max_retries')::bigint < $1"""
+    assert params == [10]
+
+
+def test_postgres_casting_with_none():
+    """Test PostgreSQL casting handles None values correctly."""
+    # Comparison with None should not crash the casting logic
+    condition = m["metadata.field"] == None
+    sql, params = condition.to_sql("postgres")
+    assert sql == """"metadata"->>'field' IS NULL"""
+    assert params == []
+
+
+def test_no_casting_for_non_json_columns():
+    """Test that regular columns don't get cast in PostgreSQL."""
+    # Regular column with integer - no casting
+    condition = m.retries > 3
+    sql, params = condition.to_sql("postgres")
+    assert sql == '"retries" > $1'
+    assert params == [3]
+
+    # Regular column with float - no casting
+    condition = m.score >= 0.75
+    sql, params = condition.to_sql("postgres")
+    assert sql == '"score" >= $1'
+    assert params == [0.75]
+
+
+def test_deep_nested_paths():
+    """Test deeply nested JSON paths."""
+    condition = m["metadata.level1.level2.level3.value"] > 10
+
+    # SQLite
+    sql, params = condition.to_sql("sqlite")
+    assert sql == 'json_extract("metadata", \'$.level1.level2.level3.value\') > ?'
+    assert params == [10]
+
+    # DuckDB - multiple -> operators, ->> for last
+    sql, params = condition.to_sql("duckdb")
+    assert sql == '"metadata"->\'level1\'->\'level2\'->\'level3\'->>\'value\' > ?'
+    assert params == [10]
+
+    # PostgreSQL - should cast integer for numeric comparison
+    sql, params = condition.to_sql("postgres")
+    assert sql == '''("metadata"->'level1'->'level2'->'level3'->>'value')::bigint > $1'''
+    assert params == [10]
 
 
 # ============================================================================
@@ -332,6 +537,23 @@ async def test_metadata_extraction(db):
 
 
 @pytest.mark.asyncio
+async def test_none_comparison_in_db(db):
+    """Test that == None and != None work correctly in database queries."""
+    # Using == None (should behave same as is_null())
+    results_eq_none = list(await db.query(where=[m.error_message == None]))  # noqa: E711
+    results_is_null = list(await db.query(where=[m.error_message.is_null()]))
+    assert len(results_eq_none) == len(results_is_null)
+
+    # Using != None (should behave same as is_not_null())
+    results_ne_none = list(await db.query(where=[m.error_message != None]))  # noqa: E711
+    results_is_not_null = list(await db.query(where=[m.error_message.is_not_null()]))
+    assert len(results_ne_none) == len(results_is_not_null)
+
+    # Verify they partition all records
+    assert len(results_eq_none) + len(results_ne_none) == 20
+
+
+@pytest.mark.asyncio
 async def test_null_value_handling(db):
     """Test handling of NULL values in metadata."""
     # Query for null error_message
@@ -425,6 +647,27 @@ async def test_missing_required_columns():
         list(await db.query(where=[]))
 
     await db.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_empty_in_clause_in_db(db):
+    """Test that empty IN/NOT IN work correctly in actual queries."""
+    # Empty IN should return no results
+    results = list(await db.query(where=[m.model.in_([])]))
+    assert len(results) == 0  # Always false, no results
+
+    # Empty NOT IN should return all results
+    results = list(await db.query(where=[m.model.not_in([])]))
+    assert len(results) == 20  # Always true, all results
+
+    # Combined with other conditions
+    results = list(await db.query(where=[
+        m.score > 0.5,
+        m.status.not_in([])  # This is always true, shouldn't affect results
+    ]))
+    # Should be same as just m.score > 0.5
+    results_without = list(await db.query(where=[m.score > 0.5]))
+    assert len(results) == len(results_without)
 
 
 @pytest.mark.asyncio
