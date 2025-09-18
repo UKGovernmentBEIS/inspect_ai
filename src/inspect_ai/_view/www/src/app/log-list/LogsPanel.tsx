@@ -180,9 +180,10 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         }
       }
 
+      const pendingTasks = new Array<PendingTaskItem>();
       for (const task of evalSet?.tasks || []) {
         if (!runningOrFinishedTasks.has(task.task_id)) {
-          logItems.push({
+          pendingTasks.push({
             id: task.task_id,
             name: task.name || "<unknown>",
             model: task.model,
@@ -190,6 +191,12 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           });
         }
       }
+
+      // Sort pending tasks by name
+      pendingTasks.sort((a, b) => a.name.localeCompare(b.name));
+
+      // Add pending tasks to the end of the list
+      logItems.push(...pendingTasks);
 
       return logItems;
     }, [logPath, logs.files, logHeaders, evalSet]);

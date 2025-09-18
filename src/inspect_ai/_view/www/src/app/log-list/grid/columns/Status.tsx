@@ -14,20 +14,23 @@ export const statusColumn = () => {
       const item = info.row.original;
       const status = itemStatus(item);
 
-      if (!status) {
+      if (!status && item.type !== "pending-task") {
         return <EmptyCell />;
       }
 
       const icon =
-        status === "error"
-          ? ApplicationIcons.error
-          : status === "started"
-            ? ApplicationIcons.running
-            : status === "cancelled"
-              ? ApplicationIcons.cancelled
-              : ApplicationIcons.success;
-
+        item.type === "pending-task"
+          ? ApplicationIcons.pendingTask
+          : status === "error"
+            ? ApplicationIcons.error
+            : status === "started"
+              ? ApplicationIcons.running
+              : status === "cancelled"
+                ? ApplicationIcons.cancelled
+                : ApplicationIcons.success;
+                
       const clz =
+      item.type === "pending-task" ? styles.started :
         status === "error"
           ? styles.error
           : status === "started"

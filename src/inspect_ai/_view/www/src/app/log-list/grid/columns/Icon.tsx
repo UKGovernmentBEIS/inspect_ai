@@ -12,10 +12,8 @@ export const iconColumn = () => {
       <div className={styles.iconCell}>
         <i
           className={clsx(
-            info.getValue() === "file"
+            info.getValue() === "file" || info.getValue() === "pending-task"
               ? ApplicationIcons.inspectFile
-              : info.getValue() === "pending-task"
-                ? ApplicationIcons.pendingTask
                 : ApplicationIcons.folder,
           )}
         />
