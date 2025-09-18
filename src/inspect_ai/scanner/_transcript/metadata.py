@@ -192,8 +192,6 @@ class Condition:
                     Operator.NOT_ILIKE,
                     Operator.IS_NULL,
                     Operator.IS_NOT_NULL,
-                    Operator.IN,
-                    Operator.NOT_IN,
                 }
 
                 if self.operator not in skip_ops:
@@ -201,27 +199,98 @@ class Condition:
                     if self.operator in (Operator.BETWEEN, Operator.NOT_BETWEEN):
                         # use first non-None bound as hint
                         hint = next((x for x in self.params if x is not None), None)
+                    elif self.operator in (Operator.IN, Operator.NOT_IN):
+                        # use first non-None value as hint for IN/NOT IN
+                        hint = next((x for x in self.params if x is not None), None)
                     else:
                         hint = self.params[0] if self.params else None
                     column = _pg_cast(column, hint)
+
+            # Add DuckDB type casting for JSON paths
+            if (
+                dialect == SQLDialect.DUCKDB
+                and isinstance(self.left, str)
+                and "." in self.left
+            ):
+
+                def _duck_cast(col: str, val: Any) -> str:
+                    # DuckDB casting for type-safe comparisons
+                    if isinstance(val, bool):
+                        return f"({col})::BOOLEAN"
+                    if isinstance(val, int) and not isinstance(val, bool):
+                        return f"({col})::BIGINT"
+                    if isinstance(val, float):
+                        return f"({col})::DOUBLE"
+                    return col
+
+                # Apply casting for non-text operators
+                skip_ops_duck = {
+                    Operator.LIKE,
+                    Operator.NOT_LIKE,
+                    Operator.ILIKE,
+                    Operator.NOT_ILIKE,
+                    Operator.IS_NULL,
+                    Operator.IS_NOT_NULL,
+                }
+
+                if self.operator not in skip_ops_duck:
+                    hint = None
+                    if self.operator in (Operator.BETWEEN, Operator.NOT_BETWEEN):
+                        hint = next((x for x in self.params if x is not None), None)
+                    elif self.operator in (Operator.IN, Operator.NOT_IN):
+                        hint = next((x for x in self.params if x is not None), None)
+                    else:
+                        hint = self.params[0] if self.params else None
+                    column = _duck_cast(column, hint)
 
             if self.operator == Operator.IS_NULL:
                 return f"{column} IS NULL", []
             elif self.operator == Operator.IS_NOT_NULL:
                 return f"{column} IS NOT NULL", []
             elif self.operator == Operator.IN:
-                n = len(self.params)
-                if n == 0:
+                # Handle NULL values in IN list
+                vals = [v for v in self.params if v is not None]
+                has_null = any(v is None for v in self.params)
+                n = len(vals)
+
+                if n == 0 and not has_null:
                     return "1 = 0", []  # empty IN = always false
-                placeholders = self._get_placeholders(n, dialect, param_offset)
-                return f"{column} IN ({placeholders})", self.params
+
+                sql_parts = []
+                if n > 0:
+                    placeholders = self._get_placeholders(n, dialect, param_offset)
+                    sql_parts.append(f"{column} IN ({placeholders})")
+                if has_null:
+                    sql_parts.append(f"{column} IS NULL")
+
+                sql = " OR ".join(sql_parts) if sql_parts else "1 = 0"
+                if len(sql_parts) > 1:
+                    sql = f"({sql})"
+                return sql, vals
 
             elif self.operator == Operator.NOT_IN:
-                n = len(self.params)
-                if n == 0:
+                # Handle NULL values in NOT IN list
+                vals = [v for v in self.params if v is not None]
+                has_null = any(v is None for v in self.params)
+                n = len(vals)
+
+                if n == 0 and not has_null:
                     return "1 = 1", []  # empty NOT IN = always true
-                placeholders = self._get_placeholders(n, dialect, param_offset)
-                return f"{column} NOT IN ({placeholders})", self.params
+
+                sql_parts = []
+                if n > 0:
+                    placeholders = self._get_placeholders(n, dialect, param_offset)
+                    sql_parts.append(f"{column} NOT IN ({placeholders})")
+                if has_null:
+                    sql_parts.append(f"{column} IS NOT NULL")
+
+                if not sql_parts:
+                    sql = "1 = 1"
+                elif len(sql_parts) == 1:
+                    sql = sql_parts[0]
+                else:
+                    sql = f"({sql_parts[0]} AND {sql_parts[1]})"
+                return sql, vals
             elif self.operator == Operator.BETWEEN:
                 p1 = self._get_placeholder(param_offset, dialect)
                 p2 = self._get_placeholder(param_offset + 1, dialect)
@@ -255,24 +324,106 @@ class Condition:
     def _esc_single(self, s: str) -> str:
         return s.replace("'", "''")
 
+    def _parse_json_path(self, path: str) -> tuple[str, list[tuple[str, bool]]]:
+        """Parse a JSON path supporting array indices and quoted keys.
+
+        Returns:
+            Tuple of (base_column, list of (segment, is_array_index))
+        """
+        # First check if this is a simple column (no dots)
+        if "." not in path and "[" not in path:
+            return path, []
+
+        # Split on dots but preserve quoted sections
+        # Handle: base."quoted.key".normal.0."another.quoted"
+        parts = []
+        current = ""
+        in_quotes = False
+
+        for char in path:
+            if char == '"':
+                in_quotes = not in_quotes
+                current += char
+            elif char == "." and not in_quotes:
+                if current:
+                    parts.append(current)
+                    current = ""
+            else:
+                current += char
+        if current:
+            parts.append(current)
+
+        if not parts:
+            return path, []
+
+        base = parts[0]
+        path_parts = []
+
+        for part in parts[1:]:
+            # Handle bracket notation [0]
+            if part.startswith("[") and part.endswith("]"):
+                index = part[1:-1]
+                if index.isdigit():
+                    path_parts.append((index, True))
+            # Handle quoted segments "user.name"
+            elif part.startswith('"') and part.endswith('"'):
+                path_parts.append((part[1:-1], False))
+            # Handle regular segments or numeric strings
+            elif part.isdigit():
+                path_parts.append((part, True))
+            else:
+                path_parts.append((part, False))
+
+        return base, path_parts
+
     def _format_column(self, column_name: str, dialect: SQLDialect) -> str:
         # If dotted, treat as: <base_column>.<json.path.inside.it>
-        if "." in column_name:
-            parts = column_name.split(".")
-            base = parts[0]
-            keys = parts[1:]
-            if not keys:
-                return f'"{self._esc_double(base)}"'
+        if "." in column_name or "[" in column_name:
+            base, path_parts = self._parse_json_path(column_name)
+
+            if not path_parts:
+                # No JSON path, just a column name that might contain a dot
+                # in table.column format (not supported in current implementation)
+                return f'"{self._esc_double(column_name)}"'
 
             if dialect == SQLDialect.SQLITE:
-                json_path = "$." + ".".join(keys)
+                # Build JSONPath like $.key[0]."user.name"
+                json_path_parts = []
+                for segment, is_index in path_parts:
+                    if is_index:
+                        json_path_parts.append(f"[{segment}]")
+                    elif "." in segment or segment.startswith('"'):
+                        # Keys with special chars need quoting in JSONPath
+                        json_path_parts.append(f'."{segment}"')
+                    else:
+                        json_path_parts.append(f".{segment}")
+                json_path = "$" + "".join(json_path_parts)
                 return f"json_extract(\"{self._esc_double(base)}\", '{self._esc_single(json_path)}')"
 
-            elif dialect in (SQLDialect.DUCKDB, SQLDialect.POSTGRES):
+            elif dialect == SQLDialect.DUCKDB:
+                # Use json_extract for better compatibility with VARCHAR columns
+                json_path_parts = []
+                for segment, is_index in path_parts:
+                    if is_index:
+                        json_path_parts.append(f"[{segment}]")
+                    elif "." in segment:
+                        # Keys with dots need quoting
+                        json_path_parts.append(f'."{segment}"')
+                    else:
+                        json_path_parts.append(f".{segment}")
+                json_path = "$" + "".join(json_path_parts)
+                return f"json_extract(\"{self._esc_double(base)}\", '{self._esc_single(json_path)}')"
+
+            elif dialect == SQLDialect.POSTGRES:
                 result = f'"{self._esc_double(base)}"'
-                for i, key in enumerate(keys):
-                    op = "->>" if i == len(keys) - 1 else "->"
-                    result = f"{result}{op}'{self._esc_single(key)}'"
+                for i, (segment, is_index) in enumerate(path_parts):
+                    op = "->>" if i == len(path_parts) - 1 else "->"
+                    if is_index:
+                        # Array index: use unquoted integer
+                        result = f"{result}{op}{segment}"
+                    else:
+                        # Object key: use quoted string
+                        result = f"{result}{op}'{self._esc_single(segment)}'"
                 return result
 
         # Simple (non-JSON) column
