@@ -68,7 +68,9 @@ class EvalLogTranscriptsDB(TranscriptDB):
 
     @override
     async def connect(self) -> None:
-        assert self._conn is None
+        # Skip if already connected
+        if self._conn is not None:
+            return
         self._conn = sqlite3.connect(":memory:")
         self._transcripts_df.to_sql(
             TRANSCRIPTS, self._conn, index=False, if_exists="replace"
@@ -175,8 +177,9 @@ class EvalLogTranscriptsDB(TranscriptDB):
 
     @override
     async def disconnect(self) -> None:
-        assert self._conn is not None
-        self._conn.close()
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
     def _build_where_clause(self, where: list[Condition]) -> tuple[str, list[Any]]:
         """Build WHERE clause and parameters from conditions.
