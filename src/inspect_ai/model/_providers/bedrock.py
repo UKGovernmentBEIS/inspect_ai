@@ -7,7 +7,12 @@ from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
@@ -107,6 +112,14 @@ class ConverseGuardContent(BaseModel):
     text: ConverseGuardContentText
 
 
+class ConverseReasoningText(BaseModel):
+    text: str
+
+
+class ConverseReasoningContent(BaseModel):
+    reasoningText: ConverseReasoningText
+
+
 class ConverseMessageContent(BaseModel):
     text: str | None = None
     image: ConverseImage | None = None
@@ -114,6 +127,7 @@ class ConverseMessageContent(BaseModel):
     toolUse: ConverseToolUse | None = None
     toolResult: ConverseToolResult | None = None
     guardContent: ConverseGuardContent | None = None
+    reasoningContent: ConverseReasoningContent | None = None
 
 
 class ConverseMessage(BaseModel):
@@ -453,6 +467,10 @@ def model_output_from_response(
                     arguments=cast(dict[str, Any], c.toolUse.input or {}),
                 )
             )
+        elif c.reasoningContent is not None:
+            # Handle reasoning content
+            reasoning_text = c.reasoningContent.reasoningText.text
+            content.append(ContentReasoning(reasoning=reasoning_text))
         else:
             raise ValueError("Unexpected message response in Bedrock provider")
 
