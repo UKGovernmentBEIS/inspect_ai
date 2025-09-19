@@ -15,7 +15,9 @@ class ResultsTracker(Protocol):
 def results_tracker(
     scan_id: str, scan_name: str, options: ResultsOptions
 ) -> ResultsTracker:
-    # create the sqlite database for this
+    # create the results directory
+
+    # create the metadata file for the scan (transcript query + scanners w/ args to reconstruct them)
 
     async def track(transcript: TranscriptInfo, scanner: str, result: Result) -> None:
         pass

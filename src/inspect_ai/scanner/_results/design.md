@@ -2,7 +2,7 @@
 
 # scans/
     {timestamp}-{scanname}-{scanid}/
-        scan.json
+        scan.metadata
         1.parquet
         2.parquet
         3.parquet
