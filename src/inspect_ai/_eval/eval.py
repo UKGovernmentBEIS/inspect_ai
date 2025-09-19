@@ -664,7 +664,7 @@ async def _eval_async_inner(
         # single task definition (could be multi-model) or max_tasks capped to 1
         if parallel == 1:
             results: list[EvalLog] = []
-            for sequence in range(0, task_definitions):
+            for sequence in sorted(set(t.sequence for t in resolved_tasks)):
                 task_batch = list(
                     filter(lambda t: t.sequence == sequence, resolved_tasks)
                 )
@@ -725,7 +725,7 @@ async def _eval_async_inner(
             await emit_run_end(eval_set_id, run_id, EvalLogs([]))
         _eval_async_running = False
 
-    except Exception as e:
+    except BaseException as e:
         await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         _eval_async_running = False
         raise e
