@@ -10,6 +10,7 @@ from typing import Literal
 from jsonrpcserver import async_dispatch
 from pydantic import BaseModel
 
+from inspect_sandbox_tools._agent_bridge.proxy import run_model_proxy_server
 from inspect_sandbox_tools._cli.server import main as server_main
 from inspect_sandbox_tools._util.common_types import JSONRPCResponseJSON
 from inspect_sandbox_tools._util.constants import SOCKET_PATH
@@ -40,6 +41,8 @@ def main() -> None:
             asyncio.run(_exec(args.request))
         case "server":
             server_main()
+        case "model_proxy":
+            asyncio.run(run_model_proxy_server())
 
 
 def healthcheck():
@@ -129,6 +132,7 @@ def _parse_args() -> argparse.Namespace:
     exec_parser.add_argument(dest="request", type=str, nargs="?")
     subparsers.add_parser("server")
     subparsers.add_parser("healthcheck")
+    subparsers.add_parser("model_proxy")
 
     return parser.parse_args()
 

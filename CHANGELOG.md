@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Sandbox tools: bash_session, text_editor, and sandbox MCP servers no longer require a separate pipx install (they are now automatically injected into sandbox as a static binary with no Python dependencies).
+- Agent bridge: Python is no longer required within containers using the sandbox agent bridge.
 - Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.
 - Agent bridge: Add `retry_refusals` option for automatically retrying refusals a set number of times.
 - Eval logs: Option to resolve attachments for `convert_eval_logs()`.
