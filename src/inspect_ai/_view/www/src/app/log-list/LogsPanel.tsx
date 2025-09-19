@@ -235,11 +235,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     >
       <Navbar>
         <LogsFilterInput ref={filterRef} />
-        {evalSet ? (
-          <div title={"This directory is an evaluation set"}>
-            <i className={clsx(ApplicationIcons["eval-set"])} />
-          </div>
-        ) : undefined}
       </Navbar>
 
       <ProgressBar animating={loading || headersLoading} />
