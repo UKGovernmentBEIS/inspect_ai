@@ -79,8 +79,8 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
 
       return undefined;
     },
-    eval_set: async () => {
-      return fetchJsonFile<EvalSet>(log_dir + "/eval-set.json");
+    eval_set: async (dir?: string) => {
+      return await fetchJsonFile<EvalSet>(joinURI(log_dir || "", dir || "", "eval-set.json"));
     },
     log_message: async (log_file: string, message: string) => {
       console.log(`[CLIENT MESSAGE] (${log_file}): ${message}`);
