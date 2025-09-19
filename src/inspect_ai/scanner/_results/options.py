@@ -6,8 +6,6 @@ DEFAULT_RESULTS_COLS = [
     "sample_id",
     "message_id",
     "event_id",
-    "task_name",
-    "model_name",
     "value",
     "answer",
     "explanation",
