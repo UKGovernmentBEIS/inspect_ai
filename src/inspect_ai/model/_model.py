@@ -516,7 +516,7 @@ class Model:
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
     ) -> tuple[ModelOutput, BaseModel]:
-        from inspect_ai.hooks._hooks import emit_model_usage
+        from inspect_ai.hooks._hooks import emit_cache_usage, emit_model_usage
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._samples import track_active_model_event
         from inspect_ai.log._transcript import ModelEvent
@@ -636,6 +636,7 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    emit_cache_usage(model_name=str(self), usage=existing.usage)
                     return existing, event
             else:
                 cache_entry = None

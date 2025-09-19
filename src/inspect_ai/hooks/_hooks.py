@@ -147,6 +147,19 @@ class ModelUsageData:
 
 
 @dataclass(frozen=True)
+class CacheUsageData:
+    """Cache usage hook event data.
+
+    Like ModelUsageData, but without the call_duration field, since no external call is made when the cache is hit.
+    """
+
+    model_name: str
+    """The name of the model that was used."""
+    usage: ModelUsage
+    """The model usage metrics."""
+
+
+@dataclass(frozen=True)
 class SampleScoring:
     """Sample scoring hook event data."""
 
@@ -274,7 +287,7 @@ class Hooks:
         pass
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
-        """Called when a call to a model's generate() method completes successfully.
+        """Called when a call to a model's generate() method completes successfully without hitting Inspect's local cache.
 
         Note that this is not called when Inspect's local cache is used and is a cache
         hit (i.e. if no external API call was made). Provider-side caching will result
@@ -282,6 +295,14 @@ class Hooks:
 
         Args:
            data: Model usage data.
+        """
+        pass
+
+    async def on_cache_usage(self, data: CacheUsageData) -> None:
+        """Called when a call to a model's generate() method completes successfully by hitting Inspect's local cache.
+
+        Args:
+           data: Cached model usage data.
         """
         pass
 
@@ -438,6 +459,11 @@ async def emit_model_usage(
         model_name=model_name, usage=usage, call_duration=call_duration
     )
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
+
+
+async def emit_cache_usage(model_name: str, usage: ModelUsage) -> None:
+    data = CacheUsageData(model_name=model_name, usage=usage)
+    await _emit_to_all(lambda hook: hook.on_cache_usage(data))
 
 
 async def emit_sample_scoring(
