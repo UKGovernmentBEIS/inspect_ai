@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from inspect_ai._util._async import run_coroutine
-from inspect_ai.scanner._scanner import Scanner
+from inspect_ai.scanner._scanner.scanner import Scanner
 
 from ._transcript.transcripts import Transcripts
 

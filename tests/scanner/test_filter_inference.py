@@ -9,8 +9,8 @@ from inspect_ai.model._chat_message import (
     ChatMessageSystem,
     ChatMessageUser,
 )
-from inspect_ai.scanner._result import Result
-from inspect_ai.scanner._scanner import Scanner, scanner
+from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanner.scanner import Scanner, scanner
 from inspect_ai.scanner._transcript.types import Transcript
 
 
@@ -175,7 +175,7 @@ def test_inference_with_factory_pattern():
 
 def test_no_inference_with_loader():
     """No filter inference when loader is provided."""
-    from inspect_ai.scanner._loader import loader
+    from inspect_ai.scanner._scanner.loader import loader
 
     @loader(name="test_loader")
     def test_loader():

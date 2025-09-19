@@ -18,9 +18,9 @@ def test_mypy_scanner_and_loader_types():
             ChatMessageSystem,
             ChatMessageUser,
         )
-        from inspect_ai.scanner._result import Result
-        from inspect_ai.scanner._scanner import Scanner, scanner
-        from inspect_ai.scanner._loader import Loader, loader
+        from inspect_ai.scanner._scanner.result import Result
+        from inspect_ai.scanner._scanner.scanner import Scanner, scanner
+        from inspect_ai.scanner._scanner.loader import Loader, loader
         from inspect_ai.scanner._transcript.types import Transcript
 
         # Valid scanner patterns

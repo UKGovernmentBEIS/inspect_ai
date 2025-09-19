@@ -1,6 +1,6 @@
-from ._loader import Loader, loader
 from ._scan import ResultsOptions, scan, scan_async
-from ._scanner import Scanner, scanner
+from ._scanner.loader import Loader, loader
+from ._scanner.scanner import Scanner, scanner
 from ._transcript.log import LogMetadata, log_metadata
 from ._transcript.metadata import Column, Condition, Metadata, metadata
 from ._transcript.transcripts import Transcripts, transcripts

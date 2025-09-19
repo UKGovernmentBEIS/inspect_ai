@@ -28,8 +28,8 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.hooks._hooks import Hooks
     from inspect_ai.model import ModelAPI
-    from inspect_ai.scanner._loader import Loader
-    from inspect_ai.scanner._scanner import Scanner
+    from inspect_ai.scanner._scanner.loader import Loader
+    from inspect_ai.scanner._scanner.scanner import Scanner
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer
     from inspect_ai.solver import Plan, Solver
     from inspect_ai.tool import Tool

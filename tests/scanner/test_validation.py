@@ -10,8 +10,8 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.scanner._result import Result
-from inspect_ai.scanner._scanner import Scanner, scanner
+from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanner.scanner import Scanner, scanner
 from inspect_ai.scanner._transcript.types import Transcript
 
 # Valid scanner tests
@@ -321,7 +321,7 @@ def test_no_type_hints():
 
 def test_scanner_without_filters_but_with_loader():
     """Scanner with only a custom loader should work."""
-    from inspect_ai.scanner._loader import loader
+    from inspect_ai.scanner._scanner.loader import loader
 
     @loader(name="test_loader")
     def test_loader():

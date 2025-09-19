@@ -23,19 +23,19 @@ from inspect_ai._util.registry import (
 from inspect_ai.log._transcript import Event
 from inspect_ai.model._chat_message import ChatMessage
 
-from ._filter import (
-    normalize_events_filter,
-    normalize_messages_filter,
-)
-from ._loader import Loader
-from ._result import Result
-from ._transcript.types import (
+from .result import Result
+from .._transcript.types import (
     EventType,
     MessageType,
     Transcript,
     TranscriptContent,
 )
-from ._validate import infer_filters_from_type, validate_scanner_signature
+from .filter import (
+    normalize_events_filter,
+    normalize_messages_filter,
+)
+from .loader import Loader
+from .validate import infer_filters_from_type, validate_scanner_signature
 
 # core types
 T = TypeVar("T", contravariant=True)

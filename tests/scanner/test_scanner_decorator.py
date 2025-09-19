@@ -3,8 +3,8 @@
 import pytest
 
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.scanner._result import Result
-from inspect_ai.scanner._scanner import Scanner, scanner
+from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanner.scanner import Scanner, scanner
 
 # Scanner decorator tests
 
@@ -124,7 +124,7 @@ def test_scanner_factory_with_parameters():
 
 def test_scanner_with_loader():
     """Scanner can use a custom loader."""
-    from inspect_ai.scanner._loader import loader
+    from inspect_ai.scanner._scanner.loader import loader
     from inspect_ai.scanner._transcript.types import Transcript
 
     @loader(name="test_loader")

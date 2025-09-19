@@ -2,7 +2,7 @@
 
 import pytest
 
-from inspect_ai.scanner._filter import (
+from inspect_ai.scanner._scanner.filter import (
     normalize_events_filter,
     normalize_messages_filter,
     validate_events_filter,

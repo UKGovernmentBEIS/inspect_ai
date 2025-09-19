@@ -19,15 +19,15 @@ from inspect_ai._util.registry import (
     registry_tag,
 )
 
-from ._filter import (
-    normalize_events_filter,
-    normalize_messages_filter,
-)
-from ._transcript.types import (
+from .._transcript.types import (
     EventType,
     MessageType,
     Transcript,
     TranscriptContent,
+)
+from .filter import (
+    normalize_events_filter,
+    normalize_messages_filter,
 )
 
 T = TypeVar("T", covariant=True)
