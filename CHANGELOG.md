@@ -14,6 +14,10 @@
 - Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
 - Bugfix: Enable passing no reducers to `async_score` in eval score.
 - Bugfix: Handle non-contiguous task sequences in task batching.
+- Inspect View: Display pending tasks in eval sets (tasks that have not yet started running)
+- Inspect View: Fine tune status appearance to improve legibility
+- Inspect View: Fix issue displaying folders with with overlapping path prefixes.
+
 
 ## 0.3.132 (12 September 2025)
 
