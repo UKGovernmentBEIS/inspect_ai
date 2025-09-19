@@ -3,11 +3,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 DEFAULT_RESULTS_COLS = [
     "eval_id",
     "log",
-    "task_name",
-    "model_name",
     "sample_id",
     "message_id",
     "event_id",
+    "task_name",
+    "model_name",
     "value",
     "answer",
     "explanation",
