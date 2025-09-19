@@ -20938,9 +20938,9 @@ thead th {
 ._value_1sckj_30 {
   font-weight: 600;
 }
-._statusPanel_66f9o_1 {
+._statusPanel_1o5l7_1 {
   padding: 1em;
-  margin-top: 0.5em;
+  margin-top: 0em;
   text-transform: uppercase;
   font-size: var(--inspect-font-size-smaller);
   display: grid;
@@ -20948,7 +20948,7 @@ thead th {
   justify-content: end;
 }
 
-._statusIcon_66f9o_11 {
+._statusIcon_1o5l7_11 {
   font-size: var(--inspect-font-size-large);
   margin-right: 0.3em;
   margin-top: -0.1em;

@@ -12,7 +12,7 @@ export const iconColumn = () => {
       <div className={styles.iconCell}>
         <i
           className={clsx(
-            info.getValue() === "file"
+            info.getValue() === "file" || info.getValue() === "pending-task"
               ? ApplicationIcons.inspectFile
               : ApplicationIcons.folder,
           )}
@@ -29,7 +29,17 @@ export const iconColumn = () => {
       const typeA = rowA.original.type;
       const typeB = rowB.original.type;
 
-      return typeA.localeCompare(typeB);
+      // Sort folders first; treat files and pending-files together
+      const rank = (t: string) => (t === "folder" ? 0 : 1);
+
+      const rA = rank(typeA);
+      const rB = rank(typeB);
+      if (rA !== rB) {
+        return rA - rB;
+      }
+
+      // Within the same rank, do not separate file vs pending-file
+      return 0;
     },
   });
 };

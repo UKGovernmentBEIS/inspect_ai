@@ -44,6 +44,7 @@ export class SampleSizeLimitedExceededError extends Error {
     Object.setPrototypeOf(this, SampleSizeLimitedExceededError.prototype);
   }
 }
+
 interface LoadedLogFile {
   file?: string;
   remoteLog?: RemoteLogFile;
@@ -331,6 +332,9 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     },
     get_log_overviews: (log_files) => {
       return get_log_headers(log_files);
+    },
+    get_eval_set_info: (dir?: string) => {
+      return api.eval_set(dir);
     },
     get_log_summary,
     get_log_sample,

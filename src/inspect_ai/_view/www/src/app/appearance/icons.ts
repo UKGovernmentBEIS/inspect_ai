@@ -64,8 +64,9 @@ export const ApplicationIcons = {
   epoch: (epoch: string) => {
     return `bi bi-${epoch}-circle`;
   },
-  error: "bi bi-exclamation-circle",
+  error: "bi bi-exclamation-circle-fill",
   eval: "bi bi-info-circle-fill",
+  "eval-set": "bi bi-list-task",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
   file: "bi bi-file-code",
@@ -106,6 +107,7 @@ export const ApplicationIcons = {
   next: "bi bi-chevron-right",
   noSamples: "bi bi-ban",
   options: "bi bi-gear",
+  pendingTask: "bi bi-clock",
   play: "bi bi-play-fill",
   previous: "bi bi-chevron-left",
   refresh: "bi bi-arrow-clockwise",
@@ -134,7 +136,7 @@ export const ApplicationIcons = {
   },
   step: "bi bi-fast-forward-btn",
   subtask: "bi bi-subtract",
-  success: "bi bi-check-circle",
+  success: "bi bi-check-circle-fill",
   transcript: "bi bi-list-columns-reverse",
   tree: {
     open: "bi bi-caret-down-fill",
