@@ -192,6 +192,19 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     setDisplayMode(displayMode === "rendered" ? "raw" : "rendered");
   }, [displayMode, setDisplayMode]);
 
+  const collapsedMode = useStore((state) => state.sample.collapsedMode);
+  const setCollapsedMode = useStore(
+    (state) => state.sampleActions.setCollapsedMode,
+  );
+
+  const isCollapsed = (mode: "collapsed" | "expanded" | null) => {
+    return mode === "collapsed"; //null is expanded
+  };
+
+  const toggleCollapsedMode = useCallback(() => {
+    setCollapsedMode(isCollapsed(collapsedMode) ? "expanded" : "collapsed");
+  }, [collapsedMode, setCollapsedMode]);
+
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
   const tools = [];
@@ -209,6 +222,19 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         icon={ApplicationIcons.filter}
         onClick={toggleFilter}
         ref={filterRef}
+      />,
+    );
+
+    tools.push(
+      <ToolButton
+        key="sample-collapse-transcript"
+        label={isCollapsed(collapsedMode) ? "Expand" : "Collapse"}
+        icon={
+          isCollapsed(collapsedMode)
+            ? ApplicationIcons.expand.all
+            : ApplicationIcons.collapse.all
+        }
+        onClick={toggleCollapsedMode}
       />,
     );
   }

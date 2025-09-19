@@ -66,8 +66,10 @@ export const ApplicationIcons = {
   },
   error: "bi bi-exclamation-circle",
   eval: "bi bi-info-circle-fill",
-  "expand-all": "bi bi-arrows-expand",
-  "expand-down": "bi bi-chevron-down",
+  expand: {
+    all: "bi bi-arrows-expand",
+    down: "bi bi-chevron-down",
+  },
   file: "bi bi-file-code",
   filter: "bi bi-funnel",
   folder: "bi bi-folder",

@@ -1,4 +1,5 @@
 import { Events } from "../../../../@types/log";
+import { kCollapsibleEventTypes } from "../types";
 
 export const STEP = "step";
 export const ACTION_BEGIN = "begin";

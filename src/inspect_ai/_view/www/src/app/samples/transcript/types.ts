@@ -19,6 +19,8 @@ import {
   ToolEvent,
 } from "../../../@types/log";
 
+import { STEP, SPAN_BEGIN, TYPE_TOOL, TYPE_SUBTASK } from "./transform/utils";
+
 export interface StateManager {
   scope: string;
   getState(): object;
@@ -27,6 +29,14 @@ export interface StateManager {
 }
 
 export const kTranscriptCollapseScope = "transcript-collapse";
+export const kTranscriptOutlineCollapseScope = "transcript-outline";
+
+export const kCollapsibleEventTypes = [
+  STEP,
+  SPAN_BEGIN,
+  TYPE_TOOL,
+  TYPE_SUBTASK,
+];
 
 export type EventType =
   | SampleInitEvent
@@ -57,6 +67,10 @@ export class EventNode<T extends EventType = EventType> {
     this.id = id;
     this.event = event;
     this.depth = depth;
+  }
+
+  hasSpanChildren?(): boolean {
+    return this.children.some((child) => child.event.event === SPAN_BEGIN);
   }
 }
 

@@ -6,7 +6,7 @@ import {
   SubtaskEvent,
   ToolEvent,
 } from "../../../../@types/log";
-import { EventNode, EventType } from "../types";
+import { EventNode, EventType, kCollapsibleEventTypes } from "../types";
 import { fixupEventStream, kSandboxSignalName } from "./fixups";
 import { treeifyEvents } from "./treeify";
 
@@ -43,10 +43,7 @@ export const useEventNodes = (events: Events, running: boolean) => {
     const findCollapsibleEvents = (nodes: EventNode[]) => {
       for (const node of nodes) {
         if (
-          (node.event.event === "step" ||
-            node.event.event === "span_begin" ||
-            node.event.event === "tool" ||
-            node.event.event === "subtask") &&
+          kCollapsibleEventTypes.includes(node.event.event) &&
           collapseFilters.some((filter) =>
             filter(
               node.event as

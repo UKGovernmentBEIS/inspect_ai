@@ -43,6 +43,7 @@ export interface SampleSlice {
     setCollapsedIds: (key: string, collapsed: Record<string, true>) => void;
     collapseId: (key: string, id: string, collapsed: boolean) => void;
     clearCollapsedIds: (key: string) => void;
+    setCollapsedMode: (mode: "collapsed" | "expanded" | null) => void;
 
     setFilteredEventTypes: (types: string[]) => void;
 
@@ -83,6 +84,7 @@ const initialState: SampleState = {
   // The resolved events
   runningEvents: [],
   collapsedEvents: null,
+  collapsedMode: null,
   eventFilter: {
     filteredTypes: [...kDefaultExcludeEvents],
   },
@@ -171,6 +173,7 @@ export const createSampleSlice = (
           if (state.sample.collapsedEvents !== null) {
             state.sample.collapsedEvents = null;
           }
+          state.sample.collapsedMode = null;
         });
       },
       collapseEvent: (scope: string, id: string, collapsed: boolean) => {
@@ -209,6 +212,11 @@ export const createSampleSlice = (
       clearCollapsedIds: (key: string) => {
         set((state) => {
           delete state.sample.collapsedIdBuckets[key];
+        });
+      },
+      setCollapsedMode: (mode: "collapsed" | "expanded" | null) => {
+        set((state) => {
+          state.sample.collapsedMode = mode;
         });
       },
       setFilteredEventTypes: (types: string[]) => {
