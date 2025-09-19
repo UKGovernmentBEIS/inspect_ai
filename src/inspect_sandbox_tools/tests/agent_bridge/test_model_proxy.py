@@ -8,14 +8,12 @@ import pytest
 from aiohttp import ClientSession
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolParam
+from inspect_ai.agent._bridge.sandbox.proxy import AsyncHTTPServer
 from openai import AsyncOpenAI
 from openai.types.responses import (
     FunctionToolParam,
     ResponseOutputText,
 )
-from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
-
-from inspect_ai.agent._bridge.sandbox.proxy import AsyncHTTPServer
 
 
 @pytest.fixture
@@ -344,7 +342,6 @@ async def test_model_proxy_multiple_methods_same_path(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_openai_sdk_models_list(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -386,7 +383,6 @@ async def test_model_proxy_openai_sdk_models_list(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_openai_sdk_chat_completion(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -447,7 +443,6 @@ async def test_model_proxy_openai_sdk_chat_completion(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_openai_sdk_streaming(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -568,7 +563,6 @@ async def test_model_proxy_openai_sdk_streaming(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_openai_sdk_error_handling(
     http_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -902,7 +896,6 @@ async def proxy_server() -> AsyncGenerator[tuple[AsyncHTTPServer, str], None]:
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_non_streaming(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -931,7 +924,6 @@ async def test_model_proxy_responses_non_streaming(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_streaming(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -975,7 +967,6 @@ async def test_model_proxy_responses_streaming(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_with_tool_calls(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1018,7 +1009,6 @@ async def test_model_proxy_responses_with_tool_calls(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_streaming_with_tool_calls(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1080,7 +1070,6 @@ async def test_model_proxy_responses_streaming_with_tool_calls(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_web_search(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1108,7 +1097,6 @@ async def test_model_proxy_responses_web_search(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_computer_tool(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1142,7 +1130,6 @@ async def test_model_proxy_responses_computer_tool(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_reasoning(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1179,7 +1166,6 @@ async def test_model_proxy_responses_reasoning(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_mcp_call(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1213,7 +1199,6 @@ async def test_model_proxy_responses_mcp_call(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_mcp_list_tools(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1241,7 +1226,6 @@ async def test_model_proxy_responses_mcp_list_tools(
 
 
 @pytest.mark.asyncio
-@skip_if_no_openai
 async def test_model_proxy_responses_streaming_reasoning(
     proxy_server: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1498,7 +1482,6 @@ async def proxy_server_anthropic() -> AsyncGenerator[tuple[AsyncHTTPServer, str]
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_non_streaming(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1525,7 +1508,6 @@ async def test_anthropic_messages_non_streaming(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_streaming(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1570,7 +1552,6 @@ async def test_anthropic_messages_streaming(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_with_tool_use(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1623,7 +1604,6 @@ async def test_anthropic_messages_with_tool_use(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_streaming_with_tool_use(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1693,7 +1673,6 @@ async def test_anthropic_messages_streaming_with_tool_use(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_with_thinking(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1727,7 +1706,6 @@ async def test_anthropic_messages_with_thinking(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_streaming_with_thinking(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1781,7 +1759,6 @@ async def test_anthropic_messages_streaming_with_thinking(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_content_array_format(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1812,7 +1789,6 @@ async def test_anthropic_messages_content_array_format(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_web_search_tool(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1847,7 +1823,6 @@ async def test_anthropic_messages_web_search_tool(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_mcp_tool(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1879,7 +1854,6 @@ async def test_anthropic_messages_mcp_tool(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_streaming_web_search(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
@@ -1927,7 +1901,6 @@ async def test_anthropic_messages_streaming_web_search(
 
 
 @pytest.mark.asyncio
-@skip_if_no_anthropic
 async def test_anthropic_messages_streaming_mcp_tool(
     proxy_server_anthropic: tuple[AsyncHTTPServer, str],
 ) -> None:
