@@ -1,4 +1,5 @@
-from ._scan import ResultsOptions, scan, scan_async
+from ._results.options import ResultsOptions
+from ._scan import scan, scan_async
 from ._scanner.loader import Loader, loader
 from ._scanner.scanner import Scanner, scanner
 from ._transcript.log import LogMetadata, log_metadata
@@ -16,13 +17,6 @@ __all__ = [
     # scan
     "scan",
     "scan_async",
-    "ResultsOptions",
-    # loader
-    "Loader",
-    "loader",
-    # scanner
-    "Scanner",
-    "scanner",
     # transcripts
     "transcripts",
     "Transcripts",
@@ -37,4 +31,12 @@ __all__ = [
     "metadata",
     "LogMetadata",
     "log_metadata",
+    # scanner
+    "Scanner",
+    "scanner",
+    # loader
+    "Loader",
+    "loader",
+    # results
+    "ResultsOptions",
 ]
