@@ -252,13 +252,11 @@ Sandbox servers are stdio servers than run inside a [sandbox](sandboxing.qmd) ra
 
 ### Configuration
 
-To run an MCP server inside a sandbox, you should create a `Dockerfile` that includes both the `inspect-tool-support` pip package as well as any MCP servers you want to run. The easiest way to do this is to derive from the standard `aisiuk/inspect-tool-support` Docker image.
-
-For example, here we create a `Dockerfile` that enables us to use the [Filesystem MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem):
+To run an MCP server inside a sandbox, you should create a `Dockerfile` that includes any MCP servers you want to run. For example, here we create a `Dockerfile` that enables us to use the [Filesystem MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem):
 
 ``` {.Dockerfile filename="Dockerfile"}
 # base image
-FROM aisiuk/inspect-tool-support
+FROM python:3.12-bookworm
 
 # nodejs (required by mcp server)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -269,30 +267,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # filesystem mcp server
-RUN npm install -g @modelcontextprotocol/server-filesystem
+RUN npx --yes @modelcontextprotocol/server-filesystem --version
 ```
 
-Note that we install the `@modelcontextprotocol/server-filesystem` package globally so it is available to sandbox users and can be run even when the container is disconnected from the Internet.
-
-You are not required to inherit from the `aisiuk/inspect-tool-support` base image. If you want to use another base image please see **Custom Base Image** below for details on how to do this.
-
-::: {.callout-note collapse="true"}
-#### Custom Base Image
-
-{{< include _sandbox-dockerfile.md >}}
-:::
+Note that we run the `npx` server during the build of the Dockerfile so that it is cached for use offline (below we’ll run it with the `--offline` option).
 
 ### Running the Server
-
-Installing the package globally means we'll want to invoke it using its global executable name (rather than via `npx`). You can typically find this in the `"bin"` section of a server's `package.json` file. For example, here is where the Filesystem MCP Server [defines its global binary](https://github.com/modelcontextprotocol/servers/blob/368e3b23ca08c629a500c63e9bbe1233012a1f9a/src/filesystem/package.json#L10-L12).
 
 We can now use the `mcp_server_sandbox()` function to run the server as follows:
 
 ``` python
 filesystem_server = mcp_server_sandbox(
     name="Filesystem",
-    command="mcp-server-filesystem", 
-    args=["/"]
+    command="npx", 
+    args=[
+        "--offline",
+        "@modelcontextprotocol/server-filesystem",
+        "/"
+    ]
 )
 ```
 
