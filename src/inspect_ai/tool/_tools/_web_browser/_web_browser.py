@@ -5,10 +5,6 @@ from pydantic import BaseModel, Field
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._json_rpc_helpers import exec_model_request
-from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
-from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
-from inspect_ai.tool._tool_info import parse_tool_info
-from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
     LEGACY_SANDBOX_CLI,
     legacy_tool_support_sandbox,
@@ -17,6 +13,10 @@ from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
     SandboxJSONRPCTransport,
     SandboxToolsServerErrorMapper,
 )
+from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
+from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
+from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._store_model import StoreModel, store_as
 
 from ._back_compat import old_web_browser_cmd

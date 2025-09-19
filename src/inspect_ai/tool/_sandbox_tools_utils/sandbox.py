@@ -31,7 +31,7 @@ from ._build_config import (
 
 _BUCKET_BASE_URL = "https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com"
 
-logger = getLogger(__file__)
+logger = getLogger(__name__)
 
 
 TRACE_SANDBOX_TOOLS = "Sandbox Tools"
@@ -39,9 +39,9 @@ TRACE_SANDBOX_TOOLS = "Sandbox Tools"
 InstallState = Literal["pypi", "main", "edited"]
 """Represents the state of the inspect-ai installation.
 
-pypi: PyPI installation
-main: Non-PyPI install with no changes relative to main
-edited: Non-PyPI install with changes to tool support or version
+- **pypi**: PyPI installation
+- **main**: Non-PyPI install with no sandbox tools changes relative to main
+- **edited**: Non-PyPI install with changes to sandbox tools
 """
 
 
@@ -141,7 +141,7 @@ async def _open_executable_for_arch(
 
         # S3 Download Attempt
         if install_state == "main":
-            if await _download_from_s3(executable_name, arch):
+            if await _download_from_s3(executable_name):
                 async with _open_executable(executable_name) as f:
                     trace_message(
                         logger,
@@ -178,7 +178,7 @@ def _get_executable_name(arch: Architecture, dev: bool) -> str:
     )
 
 
-async def _download_from_s3(filename: str, arch: Architecture) -> bool:
+async def _download_from_s3(filename: str) -> bool:
     """Download executable from S3. Returns True if successful, False otherwise.
 
     Handles expected failures (404 - not yet promoted) silently.
@@ -252,7 +252,7 @@ def _get_install_state() -> InstallState:
                     file_path
                 ):
                     # Not a PyPI install, check for changes
-                    return _check_for_changes()
+                    return _check_main_divergence()
 
         # Check if in site-packages and without source files (indicating PyPI wheel)
         if "site-packages" in str(package_path):
@@ -268,7 +268,7 @@ def _get_install_state() -> InstallState:
                 return "pypi"
 
         # Not a PyPI install, check for changes
-        return _check_for_changes()
+        return _check_main_divergence()
 
     except PackageNotFoundError:
         # Fallback: if in site-packages and no build script, likely PyPI
@@ -284,22 +284,26 @@ def _get_install_state() -> InstallState:
                 return "pypi"
 
         # Not a PyPI install, check for changes
-        return _check_for_changes()
+        return _check_main_divergence()
 
 
-def _check_for_changes() -> Literal["main", "edited"]:
-    """Check if there are changes to tool support files relative to main.
+def _check_main_divergence() -> Literal["main", "edited"]:
+    """Check if there are changes to sandbox tools files relative to main.
 
     Returns:
-        "main": No changes to tool support files relative to main branch,
-            or git is not available/functioning (assumes stable version)
-        "edited": Changes detected to tool support files - either
-            uncommitted changes (staged/unstaged) or committed changes relative
-            to main branch
+        Literal["main", "edited"]: The state of changes to sandbox tools files.
+            - "main": No changes to sandbox tools files relative to main branch,
+              or git is not available/functioning
+            - "edited": Changes detected to tool support files - either
+              uncommitted changes (staged/unstaged) or committed changes relative
+              to main branch
     """
-    possible_git_root = Path(__file__).parent.parent.parent.parent
+    git_root = Path(__file__).parent.parent.parent.parent.parent
 
-    print(f"Checking for changes {possible_git_root=}")
+    trace_message(
+        logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: checking {git_root=}"
+    )
+
     try:
         # Check if we're in a git repo
         result = subprocess.run(
@@ -307,17 +311,21 @@ def _check_for_changes() -> Literal["main", "edited"]:
             capture_output=True,
             text=True,
             check=False,
-            cwd=possible_git_root,
+            cwd=git_root,
         )
         if result.returncode != 0:
-            print(f"git rev-parse failed {result}")
-            # Not a git repo, assume main for safety
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                f"_check_for_changes: git rev-parse failed {result}",
+            )
+            # Not a git repo, assume main (not sure this is even possible)
             return "main"
 
         # Check for staged or unstaged changes to relevant paths
         paths_to_check = [
-            "src/inspect_ai/tool/sandbox_tools",
-            "VERSION.txt",
+            "src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+            "src/inspect_sandbox_tools",
         ]
 
         for path in paths_to_check:
@@ -327,9 +335,14 @@ def _check_for_changes() -> Literal["main", "edited"]:
                 capture_output=True,
                 text=True,
                 check=False,
-                cwd=possible_git_root,
+                cwd=git_root,
             )
             if result.returncode == 0 and result.stdout.strip():
+                trace_message(
+                    logger,
+                    TRACE_SANDBOX_TOOLS,
+                    f"_check_for_changes: uncommitted changes (staged + unstaged) detected for {path}",
+                )
                 return "edited"
 
             # Check for committed changes relative to main
@@ -338,13 +351,24 @@ def _check_for_changes() -> Literal["main", "edited"]:
                 capture_output=True,
                 text=True,
                 check=False,
-                cwd=possible_git_root,
+                cwd=git_root,
             )
             if result.returncode != 0:
+                trace_message(
+                    logger,
+                    TRACE_SANDBOX_TOOLS,
+                    f"_check_for_changes: diff's from main detected for {path}",
+                )
                 return "edited"
 
+        trace_message(
+            logger, TRACE_SANDBOX_TOOLS, "_check_for_changes: do changes detected"
+        )
         return "main"
 
-    except (subprocess.SubprocessError, FileNotFoundError):
+    except (subprocess.SubprocessError, FileNotFoundError) as ex:
         # If git commands fail, assume main for safety
+        trace_message(
+            logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: caught exception {ex}"
+        )
         return "main"
