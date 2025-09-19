@@ -113,7 +113,7 @@ def my_agent() -> AgentState:
 4.  Redirect the OpenAI API to talk to a proxy server that communicates back to the current Inspect model provider. Note that we read the `port` to listen on from the `bridge` yielded by the context manager.
 5.  Return the `state` changes automatically tracked by the `bridge`.
 
-The [Claude Code](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/claude) and [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex) examples provide more in-depth demonstrations of running custom agents in sandboxes.
+The [Claude Code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/claude) and [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex) examples provide more in-depth demonstrations of running custom agents in sandboxes.
 
 ## Models
 

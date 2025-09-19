@@ -19,7 +19,7 @@ from ..._agent import AgentState
 from ..util import internal_web_search_providers
 from .service import MODEL_SERVICE, run_model_service
 
-logger = getLogger(__file__)
+logger = getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
