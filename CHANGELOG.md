@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Sandbox tools: bash_session, text_editor, and sandbox MCP servers no longer require a separate pipx install (they are now automatically injected into sandbox as a static binary with no Python dependencies).
 - Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.
 - Eval logs: Option to resolve attachments for `convert_eval_logs()`.
 - Google: Support disabling thinking for Gemini 2.5 Flash (warn if thinking is disabled for 2.5-Pro which doesn't support disabling thinking).
@@ -134,6 +135,7 @@
 - Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.
 - Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.
 - Inspect View: Increase sample size limit to 100MB (samples larger than that are not browsable in the viewer).
+- Tool Support: Converted to a new runtime reconnaissance and injection architecture for `inspect_tool_support`. 
 - Bugifx: Properly handle surrogates in JSON serialization.
 - Bugfix: Google and Mistral providers now generate unique tool call IDs to prevent collisions when calling the same tool multiple times.
 - Bugfix: Enable use of custom reducers with `eval-retry` by delaying their creation until after task creation.

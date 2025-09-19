@@ -1,11 +1,11 @@
-from inspect_tool_support._in_process_tools._text_editor.text_editor import (
+from inspect_sandbox_tools._in_process_tools._text_editor.text_editor import (
     create,
     insert,
     str_replace,
     undo_edit,
     view,
 )
-from inspect_tool_support._in_process_tools._text_editor.tool_types import (
+from inspect_sandbox_tools._in_process_tools._text_editor.tool_types import (
     CreateParams,
     InsertParams,
     StrReplaceParams,
@@ -13,7 +13,7 @@ from inspect_tool_support._in_process_tools._text_editor.tool_types import (
     UndoEditParams,
     ViewParams,
 )
-from inspect_tool_support._util.json_rpc_helpers import validated_json_rpc_method
+from inspect_sandbox_tools._util.json_rpc_helpers import validated_json_rpc_method
 
 
 @validated_json_rpc_method(TextEditorParams)
