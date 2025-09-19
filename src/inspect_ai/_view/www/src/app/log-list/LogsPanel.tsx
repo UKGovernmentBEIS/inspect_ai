@@ -9,7 +9,6 @@ import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
-import { ApplicationIcons } from "../appearance/icons";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid } from "./grid/LogListGrid";

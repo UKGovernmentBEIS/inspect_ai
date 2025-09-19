@@ -12,7 +12,6 @@ if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 import anyio
-from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display import display

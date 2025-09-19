@@ -28,16 +28,17 @@ export const statusColumn = () => {
               : status === "cancelled"
                 ? ApplicationIcons.cancelled
                 : ApplicationIcons.success;
-                
+
       const clz =
-      item.type === "pending-task" ? styles.started :
-        status === "error"
-          ? styles.error
-          : status === "started"
-            ? styles.started
-            : status === "cancelled"
-              ? styles.cancelled
-              : styles.success;
+        item.type === "pending-task"
+          ? styles.started
+          : status === "error"
+            ? styles.error
+            : status === "started"
+              ? styles.started
+              : status === "cancelled"
+                ? styles.cancelled
+                : styles.success;
 
       return (
         <div className={styles.statusCell}>

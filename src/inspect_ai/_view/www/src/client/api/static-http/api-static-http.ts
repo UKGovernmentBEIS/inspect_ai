@@ -80,7 +80,16 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
       return undefined;
     },
     eval_set: async (dir?: string) => {
-      return await fetchJsonFile<EvalSet>(joinURI(log_dir || "", dir || "", "eval-set.json"));
+      const dirSegments = [];
+      if (log_dir) {
+        dirSegments.push(log_dir);
+      }
+      if (dir) {
+        dirSegments.push(dir);
+      }
+      return await fetchJsonFile<EvalSet>(
+        joinURI(...dirSegments, "eval-set.json"),
+      );
     },
     log_message: async (log_file: string, message: string) => {
       console.log(`[CLIENT MESSAGE] (${log_file}): ${message}`);
