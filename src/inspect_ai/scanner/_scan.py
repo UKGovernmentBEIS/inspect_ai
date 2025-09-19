@@ -96,3 +96,20 @@ async def scan_async(
     if results is None:
         results = ResultsOptions()
     return {}
+
+
+# scans/
+#   in_progress/
+#       timestamp-scanname-scan-id/
+#          scan.json
+#          reward_hacking.parquet
+
+
+# scorer: Scorer | Scanner[Transcript]
+
+# eval(scorer=reward_hacking())
+
+# scan_resume(scan_id="foo")
+
+
+# inspect scan --transcripts="logs" scanner.py
