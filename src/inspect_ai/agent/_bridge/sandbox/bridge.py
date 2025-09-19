@@ -30,6 +30,7 @@ async def sandbox_agent_bridge(
     *,
     model: str | None = None,
     filter: GenerateFilter | None = None,
+    retry_refusals: int | None = None,
     sandbox: str | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
@@ -51,6 +52,7 @@ async def sandbox_agent_bridge(
             the default model for the task or "inspect/openai/gpt-4o" to force
             another specific model).
         filter: Filter for bridge model generation.
+        retry_refusals: Should refusals be retried? (pass number of times to retry)
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
         web_search: Configuration for mapping model internal
@@ -79,7 +81,11 @@ async def sandbox_agent_bridge(
 
             # create the bridge
             bridge = SandboxAgentBridge(
-                state=state, filter=filter, port=port, model=model
+                state=state,
+                filter=filter,
+                retry_refusals=retry_refusals,
+                port=port,
+                model=model,
             )
 
             # sandbox service that receives model requests

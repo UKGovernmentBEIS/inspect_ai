@@ -14,9 +14,15 @@ from inspect_ai.model._model_output import ModelOutput
 class AgentBridge:
     """Agent bridge."""
 
-    def __init__(self, state: AgentState, filter: GenerateFilter | None = None) -> None:
+    def __init__(
+        self,
+        state: AgentState,
+        filter: GenerateFilter | None = None,
+        retry_refusals: int | None = None,
+    ) -> None:
         self.state = state
         self.filter = filter
+        self.retry_refusals = retry_refusals
         self._message_ids = {}
         self._last_message_count = 0
 
