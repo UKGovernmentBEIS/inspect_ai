@@ -147,8 +147,8 @@ class ModelUsageData:
 
 
 @dataclass(frozen=True)
-class CacheUsageData:
-    """Cache usage hook event data.
+class ModelCacheUsageData:
+    """Model cache usage hook event data.
 
     Like ModelUsageData, but without the call_duration field, since no external call is made when the cache is hit.
     """
@@ -298,7 +298,7 @@ class Hooks:
         """
         pass
 
-    async def on_cache_usage(self, data: CacheUsageData) -> None:
+    async def on_model_cache_usage(self, data: ModelCacheUsageData) -> None:
         """Called when a call to a model's generate() method completes successfully by hitting Inspect's local cache.
 
         Args:
@@ -461,9 +461,9 @@ async def emit_model_usage(
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
 
 
-async def emit_cache_usage(model_name: str, usage: ModelUsage) -> None:
-    data = CacheUsageData(model_name=model_name, usage=usage)
-    await _emit_to_all(lambda hook: hook.on_cache_usage(data))
+async def emit_model_cache_usage(model_name: str, usage: ModelUsage) -> None:
+    data = ModelCacheUsageData(model_name=model_name, usage=usage)
+    await _emit_to_all(lambda hook: hook.on_model_cache_usage(data))
 
 
 async def emit_sample_scoring(

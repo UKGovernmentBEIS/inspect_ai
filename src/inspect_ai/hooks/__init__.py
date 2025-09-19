@@ -1,9 +1,9 @@
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
-    CacheUsageData,
     EvalSetEnd,
     EvalSetStart,
     Hooks,
+    ModelCacheUsageData,
     ModelUsageData,
     RunEnd,
     RunStart,
@@ -17,7 +17,7 @@ from inspect_ai.hooks._hooks import (
 
 __all__ = [
     "ApiKeyOverride",
-    "CacheUsageData",
+    "ModelCacheUsageData",
     "Hooks",
     "ModelUsageData",
     "EvalSetStart",
