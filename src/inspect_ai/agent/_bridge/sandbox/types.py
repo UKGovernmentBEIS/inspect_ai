@@ -10,10 +10,11 @@ class SandboxAgentBridge(AgentBridge):
         self,
         state: AgentState,
         filter: GenerateFilter | None,
+        retry_refusals: int | None,
         port: int,
         model: str | None,
     ) -> None:
-        super().__init__(state, filter)
+        super().__init__(state, filter, retry_refusals)
         self.port = port
         self.model = model
 

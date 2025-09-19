@@ -32,12 +32,22 @@ async def bridge_generate(
 
     # if the filter didn't take it then run normal inference
     if output is None:
-        output = await model.generate(
-            input=input,
-            tool_choice=tool_choice,
-            tools=tools,
-            config=config,
-        )
+        refusals = 0
+        while True:
+            output = await model.generate(
+                input=input,
+                tool_choice=tool_choice,
+                tools=tools,
+                config=config,
+            )
+            if (
+                output.stop_reason == "content_filter"
+                and bridge.retry_refusals is not None
+                and refusals < bridge.retry_refusals
+            ):
+                refusals += 1
+            else:
+                break
 
     # return output
     return output

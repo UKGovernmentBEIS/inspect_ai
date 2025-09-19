@@ -298,77 +298,79 @@ def _check_main_divergence() -> Literal["main", "edited"]:
               uncommitted changes (staged/unstaged) or committed changes relative
               to main branch
     """
-    git_root = Path(__file__).parent.parent.parent.parent.parent
+    return "main"
 
-    trace_message(
-        logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: checking {git_root=}"
-    )
+    # git_root = Path(__file__).parent.parent.parent.parent.parent
 
-    try:
-        # Check if we're in a git repo
-        result = subprocess.run(
-            ["git", "rev-parse", "--git-dir"],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=git_root,
-        )
-        if result.returncode != 0:
-            trace_message(
-                logger,
-                TRACE_SANDBOX_TOOLS,
-                f"_check_for_changes: git rev-parse failed {result}",
-            )
-            # Not a git repo, assume main (not sure this is even possible)
-            return "main"
+    # trace_message(
+    #     logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: checking {git_root=}"
+    # )
 
-        # Check for staged or unstaged changes to relevant paths
-        paths_to_check = [
-            "src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
-            "src/inspect_sandbox_tools",
-        ]
+    # try:
+    #     # Check if we're in a git repo
+    #     result = subprocess.run(
+    #         ["git", "rev-parse", "--git-dir"],
+    #         capture_output=True,
+    #         text=True,
+    #         check=False,
+    #         cwd=git_root,
+    #     )
+    #     if result.returncode != 0:
+    #         trace_message(
+    #             logger,
+    #             TRACE_SANDBOX_TOOLS,
+    #             f"_check_for_changes: git rev-parse failed {result}",
+    #         )
+    #         # Not a git repo, assume main (not sure this is even possible)
+    #         return "main"
 
-        for path in paths_to_check:
-            # Check for uncommitted changes (staged + unstaged)
-            result = subprocess.run(
-                ["git", "status", "--porcelain", path],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=git_root,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                trace_message(
-                    logger,
-                    TRACE_SANDBOX_TOOLS,
-                    f"_check_for_changes: uncommitted changes (staged + unstaged) detected for {path}",
-                )
-                return "edited"
+    #     # Check for staged or unstaged changes to relevant paths
+    #     paths_to_check = [
+    #         "src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+    #         "src/inspect_sandbox_tools",
+    #     ]
 
-            # Check for committed changes relative to main
-            result = subprocess.run(
-                ["git", "diff", "main", "--quiet", path],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=git_root,
-            )
-            if result.returncode != 0:
-                trace_message(
-                    logger,
-                    TRACE_SANDBOX_TOOLS,
-                    f"_check_for_changes: diff's from main detected for {path}",
-                )
-                return "edited"
+    #     for path in paths_to_check:
+    #         # Check for uncommitted changes (staged + unstaged)
+    #         result = subprocess.run(
+    #             ["git", "status", "--porcelain", path],
+    #             capture_output=True,
+    #             text=True,
+    #             check=False,
+    #             cwd=git_root,
+    #         )
+    #         if result.returncode == 0 and result.stdout.strip():
+    #             trace_message(
+    #                 logger,
+    #                 TRACE_SANDBOX_TOOLS,
+    #                 f"_check_for_changes: uncommitted changes (staged + unstaged) detected for {path}",
+    #             )
+    #             return "edited"
 
-        trace_message(
-            logger, TRACE_SANDBOX_TOOLS, "_check_for_changes: do changes detected"
-        )
-        return "main"
+    #         # Check for committed changes relative to main
+    #         result = subprocess.run(
+    #             ["git", "diff", "main", "--quiet", path],
+    #             capture_output=True,
+    #             text=True,
+    #             check=False,
+    #             cwd=git_root,
+    #         )
+    #         if result.returncode != 0:
+    #             trace_message(
+    #                 logger,
+    #                 TRACE_SANDBOX_TOOLS,
+    #                 f"_check_for_changes: diff's from main detected for {path}",
+    #             )
+    #             return "edited"
 
-    except (subprocess.SubprocessError, FileNotFoundError) as ex:
-        # If git commands fail, assume main for safety
-        trace_message(
-            logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: caught exception {ex}"
-        )
-        return "main"
+    #     trace_message(
+    #         logger, TRACE_SANDBOX_TOOLS, "_check_for_changes: do changes detected"
+    #     )
+    #     return "main"
+
+    # except (subprocess.SubprocessError, FileNotFoundError) as ex:
+    #     # If git commands fail, assume main for safety
+    #     trace_message(
+    #         logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: caught exception {ex}"
+    #     )
+    #     return "main"
