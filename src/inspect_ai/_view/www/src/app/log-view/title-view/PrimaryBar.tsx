@@ -35,8 +35,6 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
 
   const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
 
-  console.log({ evalSpec });
-
   return (
     <div className={clsx(styles.wrapper)}>
       <div
