@@ -636,7 +636,7 @@ class Model:
                         output=existing,
                         call=None,
                     )
-                    emit_cache_usage(model_name=str(self), usage=existing.usage)
+                    await emit_cache_usage(model_name=str(self), usage=existing.usage)
                     return existing, event
             else:
                 cache_entry = None
