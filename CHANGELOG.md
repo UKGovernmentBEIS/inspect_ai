@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Sandbox tools: bash_session, text_editor, and sandbox MCP servers no longer require a separate pipx install (they are now automatically injected into sandbox as a static binary with no Python dependencies).
+- Agent bridge: Python is no longer required within containers using the sandbox agent bridge.
 - Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.
 - Eval logs: Option to resolve attachments for `convert_eval_logs()`.
 - Google: Support disabling thinking for Gemini 2.5 Flash (warn if thinking is disabled for 2.5-Pro which doesn't support disabling thinking).
