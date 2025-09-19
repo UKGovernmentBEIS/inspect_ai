@@ -134,7 +134,7 @@ from .util import (
     resolve_inspect_model,
 )
 
-logger = getLogger(__file__)
+logger = getLogger(__name__)
 
 
 async def inspect_responses_api_request_impl(
