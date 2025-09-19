@@ -23,7 +23,6 @@ from inspect_ai._util.registry import (
 from inspect_ai.log._transcript import Event
 from inspect_ai.model._chat_message import ChatMessage
 
-from .result import Result
 from .._transcript.types import (
     EventType,
     MessageType,
@@ -35,6 +34,7 @@ from .filter import (
     normalize_messages_filter,
 )
 from .loader import Loader
+from .result import Result
 from .validate import infer_filters_from_type, validate_scanner_signature
 
 # core types
