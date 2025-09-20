@@ -1,24 +1,31 @@
 from __future__ import annotations
 
+import abc
 from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     AsyncGenerator,
 )
 
-from .database import EvalLogTranscriptsDB, LogPaths
+from pydantic import JsonValue
+
+from .database import EvalLogTranscripts, LogPaths
 from .metadata import Condition
-from .types import Transcript, TranscriptContent, TranscriptDB
+from .types import Transcript, TranscriptContent
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-class Transcripts:
+class TranscriptsData:
+    type: str
+    data: JsonValue
+
+
+class Transcripts(abc.ABC):
     """Collection of transcripts for scanning."""
 
-    def __init__(self, db: TranscriptDB) -> None:
-        self._db = db
+    def __init__(self) -> None:
         self._where: list[Condition] = []
         self._limit: int | None = None
         self._shuffle: bool | int = False
@@ -44,25 +51,12 @@ class Transcripts:
         transcripts._content = content
         return transcripts
 
-    async def count(self) -> int:
-        await self._db.connect()
-        try:
-            return await self._db.count(self._where, self._limit)
-        finally:
-            await self._db.disconnect()
+    @abc.abstractmethod
+    async def count(self) -> int: ...
 
-    async def collect(self) -> AsyncGenerator[Transcript, None]:
-        await self._db.connect()
-        try:
-            # apply filters
-            index = await self._db.query(self._where, self._limit, self._shuffle)
-
-            # yield transcripts
-            for t in index:
-                yield await self._db.read(t, self._content)
-        finally:
-            await self._db.disconnect()
+    @abc.abstractmethod
+    async def collect(self) -> AsyncGenerator[Transcript, None]: ...
 
 
 def transcripts(logs: LogPaths | "pd.DataFrame") -> Transcripts:
-    return Transcripts(EvalLogTranscriptsDB(logs))
+    return EvalLogTranscripts(logs)

@@ -7,6 +7,7 @@ from os import PathLike
 from typing import (
     TYPE_CHECKING,
     Any,
+    AsyncGenerator,
     Iterator,
     Sequence,
     TypeAlias,
@@ -25,7 +26,7 @@ from inspect_ai.log._file import (
     EvalLogInfo,
     read_eval_log_sample_async,
 )
-from inspect_ai.scanner._transcript.types import TranscriptDB
+from inspect_ai.scanner._transcript.transcripts import Transcripts
 
 from .metadata import Condition
 from .types import Transcript, TranscriptContent, TranscriptInfo
@@ -40,7 +41,36 @@ LogPaths: TypeAlias = (
 )
 
 
-class EvalLogTranscriptsDB(TranscriptDB):
+class EvalLogTranscripts(Transcripts):
+    """Collection of transcripts for scanning."""
+
+    def __init__(self, logs: LogPaths | "pd.DataFrame") -> None:
+        super().__init__()
+        self._db = EvalLogTranscriptsDB(logs)
+
+    @override
+    async def count(self) -> int:
+        await self._db.connect()
+        try:
+            return await self._db.count(self._where, self._limit)
+        finally:
+            await self._db.disconnect()
+
+    @override
+    async def collect(self) -> AsyncGenerator[Transcript, None]:  # type: ignore[override]
+        await self._db.connect()
+        try:
+            # apply filters
+            index = await self._db.query(self._where, self._limit, self._shuffle)
+
+            # yield transcripts
+            for t in index:
+                yield await self._db.read(t, self._content)
+        finally:
+            await self._db.disconnect()
+
+
+class EvalLogTranscriptsDB:
     def __init__(self, logs: LogPaths | "pd.DataFrame"):
         # pandas required
         verify_df_prerequisites()
@@ -66,7 +96,6 @@ class EvalLogTranscriptsDB(TranscriptDB):
         # sqlite connection (starts out none)
         self._conn: sqlite3.Connection | None = None
 
-    @override
     async def connect(self) -> None:
         # Skip if already connected
         if self._conn is not None:
@@ -76,7 +105,6 @@ class EvalLogTranscriptsDB(TranscriptDB):
             TRANSCRIPTS, self._conn, index=False, if_exists="replace"
         )
 
-    @override
     async def count(
         self,
         where: list[Condition],
@@ -100,7 +128,6 @@ class EvalLogTranscriptsDB(TranscriptDB):
 
         return result[0] if result else 0
 
-    @override
     async def query(
         self,
         where: list[Condition],
@@ -162,7 +189,6 @@ class EvalLogTranscriptsDB(TranscriptDB):
 
         return iter(results)
 
-    @override
     async def read(self, t: TranscriptInfo, content: TranscriptContent) -> Transcript:
         sample = await read_eval_log_sample_async(
             t.source, uuid=t.id, resolve_attachments=True
@@ -175,7 +201,6 @@ class EvalLogTranscriptsDB(TranscriptDB):
             events=sample.events,
         )
 
-    @override
     async def disconnect(self) -> None:
         if self._conn is not None:
             self._conn.close()
