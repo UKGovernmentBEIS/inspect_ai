@@ -37,6 +37,8 @@ from .loader import Loader
 from .result import Result
 from .validate import infer_filters_from_type, validate_scanner_signature
 
+SCANNER_CONFIG = "scanner_config"
+
 # core types
 T = TypeVar("T", contravariant=True)
 P = ParamSpec("P")
@@ -52,7 +54,6 @@ class Scanner(Protocol[T]):
 
 @dataclass
 class ScannerConfig:
-    name: str
     content: TranscriptContent = field(default_factory=TranscriptContent)
     loader: Loader[Any] | None = field(default=None)
 
@@ -229,19 +230,23 @@ def scanner(
                     factory_fn.__globals__,
                 )
 
-            scanner_config = ScannerConfig(name=scanner_name)
+            # compute scanner config
+            scanner_config = ScannerConfig()
             if inferred_messages is not None:
                 scanner_config.content.messages = inferred_messages
             if inferred_events is not None:
                 scanner_config.content.events = inferred_events
             if loader is not None:
                 scanner_config.loader = cast(Loader[Any], loader)
-            setattr(scanner_fn, "__scanner__", scanner_config)  # type: ignore[attr-defined]
 
             registry_tag(
                 factory_fn,
                 scanner_fn,
-                RegistryInfo(type="scanner", name=scanner_name),
+                RegistryInfo(
+                    type="scanner",
+                    name=scanner_name,
+                    metadata={SCANNER_CONFIG: scanner_config},
+                ),
                 *args,
                 **kwargs,
             )

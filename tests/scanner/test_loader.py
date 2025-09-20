@@ -4,21 +4,22 @@ from typing import AsyncGenerator, Sequence
 
 import pytest
 
+from inspect_ai._util.registry import registry_info
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageUser,
 )
-from inspect_ai.scanner._scanner.loader import loader
+from inspect_ai.scanner._scanner.loader import LOADER_CONFIG, loader
 from inspect_ai.scanner._scanner.result import Result
-from inspect_ai.scanner._scanner.scanner import Scanner, scanner
+from inspect_ai.scanner._scanner.scanner import SCANNER_CONFIG, Scanner, scanner
 from inspect_ai.scanner._transcript.types import Transcript
 
 # Loader decorator tests
 
 
 def test_loader_creates_config():
-    """Loader decorator should add __loader__ config."""
+    """Loader decorator should add config."""
 
     @loader(name="test_loader")
     def test_loader():
@@ -34,9 +35,7 @@ def test_loader_creates_config():
         return load
 
     instance = test_loader()
-    assert hasattr(instance, "__loader__")
-    config = instance.__loader__
-    assert config.name == "test_loader"
+    assert registry_info(instance).metadata[LOADER_CONFIG]
 
 
 def test_loader_with_message_filter():
@@ -57,7 +56,7 @@ def test_loader_with_message_filter():
         return load
 
     instance = test_loader()
-    assert instance.__loader__.content.messages == ["user"]
+    assert registry_info(instance).metadata[LOADER_CONFIG].content.messages == ["user"]
 
 
 def test_loader_with_event_filter():
@@ -79,7 +78,10 @@ def test_loader_with_event_filter():
         return load
 
     instance = test_loader()
-    assert instance.__loader__.content.events == ["model", "tool"]
+    assert registry_info(instance).metadata[LOADER_CONFIG].content.events == [
+        "model",
+        "tool",
+    ]
 
 
 def test_loader_requires_async():
@@ -112,7 +114,7 @@ def test_loader_with_both_filters():
         return load
 
     instance = test_loader()
-    config = instance.__loader__
+    config = registry_info(instance).metadata[LOADER_CONFIG]
     assert config.content.messages == ["user"]
     assert config.content.events == ["model"]
 
@@ -147,7 +149,10 @@ def test_scanner_with_custom_loader():
         return scan
 
     scanner_instance = user_scanner()
-    assert scanner_instance.__scanner__.loader == loader_instance
+    assert (
+        registry_info(scanner_instance).metadata[SCANNER_CONFIG].loader
+        == loader_instance
+    )
 
 
 def test_loader_type_transformation():
@@ -177,7 +182,7 @@ def test_loader_type_transformation():
         return scan
 
     scanner_instance = event_scanner()
-    assert scanner_instance.__scanner__.loader
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG].loader
 
 
 def test_loader_with_custom_logic():
@@ -215,7 +220,7 @@ def test_loader_with_custom_logic():
         return scan
 
     scanner_instance = long_message_scanner()
-    assert scanner_instance.__scanner__.loader
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG].loader
 
 
 # Loader registry tests
@@ -238,10 +243,7 @@ def test_loader_added_to_registry():
 
     # Create an instance to trigger registration
     loader_instance = test_loader()
-
-    # The loader instance should have __loader__ config
-    assert hasattr(loader_instance, "__loader__")
-    assert loader_instance.__loader__.name == "registry_test_loader"
+    assert registry_info(loader_instance).metadata[LOADER_CONFIG]
 
 
 def test_loader_factory_with_parameters():
@@ -268,7 +270,6 @@ def test_loader_factory_with_parameters():
     loader1 = param_loader(include_model=True)
     loader2 = param_loader(include_model=False)
 
-    assert hasattr(loader1, "__loader__")
-    assert hasattr(loader2, "__loader__")
-    # Both should have the same config name
-    assert loader1.__loader__.name == loader2.__loader__.name
+    assert registry_info(loader1).name == registry_info(loader2).name
+    assert registry_info(loader1).metadata[LOADER_CONFIG]
+    assert registry_info(loader1).metadata[LOADER_CONFIG]

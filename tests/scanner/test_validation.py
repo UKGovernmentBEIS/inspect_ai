@@ -2,6 +2,7 @@
 
 import pytest
 
+from inspect_ai._util.registry import registry_info
 from inspect_ai.log._transcript import Event, ModelEvent, ToolEvent
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -11,7 +12,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.scanner._scanner.result import Result
-from inspect_ai.scanner._scanner.scanner import Scanner, scanner
+from inspect_ai.scanner._scanner.scanner import SCANNER_CONFIG, Scanner, scanner
 from inspect_ai.scanner._transcript.types import Transcript
 
 # Valid scanner tests
@@ -29,8 +30,9 @@ def test_base_type_with_filter():
 
     # Should not raise
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
-    assert scanner_instance.__scanner__.content.messages == ["system", "user"]
+    assert registry_info(scanner_instance).metadata[
+        SCANNER_CONFIG
+    ].content.messages == ["system", "user"]
 
 
 def test_exact_union_match():
@@ -44,7 +46,7 @@ def test_exact_union_match():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 def test_single_type_single_filter():
@@ -58,7 +60,7 @@ def test_single_type_single_filter():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 def test_list_of_base_type():
@@ -72,7 +74,7 @@ def test_list_of_base_type():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 def test_list_of_specific_type():
@@ -86,7 +88,7 @@ def test_list_of_specific_type():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 def test_list_of_union_type():
@@ -102,7 +104,7 @@ def test_list_of_union_type():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 def test_messages_all_with_base_type():
@@ -116,7 +118,10 @@ def test_messages_all_with_base_type():
         return scan
 
     scanner_instance = test_scanner()
-    assert scanner_instance.__scanner__.content.messages == "all"
+    assert (
+        registry_info(scanner_instance).metadata[SCANNER_CONFIG].content.messages
+        == "all"
+    )
 
 
 def test_events_all_with_base_type():
@@ -130,7 +135,9 @@ def test_events_all_with_base_type():
         return scan
 
     scanner_instance = test_scanner()
-    assert scanner_instance.__scanner__.content.events == "all"
+    assert (
+        registry_info(scanner_instance).metadata[SCANNER_CONFIG].content.events == "all"
+    )
 
 
 def test_event_union_types():
@@ -144,7 +151,7 @@ def test_event_union_types():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 def test_transcript_with_both_filters():
@@ -158,7 +165,7 @@ def test_transcript_with_both_filters():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 def test_all_message_types_union():
@@ -179,7 +186,7 @@ def test_all_message_types_union():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 # Invalid scanner tests
@@ -316,7 +323,7 @@ def test_no_type_hints():
 
     # Should not raise even without type hints
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
 
 
 def test_scanner_without_filters_but_with_loader():
@@ -339,8 +346,8 @@ def test_scanner_without_filters_but_with_loader():
         return scan
 
     scanner_instance = test_scanner()
-    assert hasattr(scanner_instance, "__scanner__")
-    assert scanner_instance.__scanner__.loader
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
+    assert registry_info(scanner_instance).metadata[SCANNER_CONFIG].loader
 
 
 def test_non_async_scanner():
@@ -368,7 +375,10 @@ def test_multiple_event_types():
         return scan
 
     scanner_instance = test_scanner()
-    assert len(scanner_instance.__scanner__.content.events) == 4
+    assert (
+        len(registry_info(scanner_instance).metadata[SCANNER_CONFIG].content.events)
+        == 4
+    )
 
 
 def test_all_supported_event_types():
@@ -399,7 +409,9 @@ def test_all_supported_event_types():
         return scan
 
     scanner_instance = test_scanner()
-    assert len(scanner_instance.__scanner__.content.events) == len(all_events)
+    assert len(
+        registry_info(scanner_instance).metadata[SCANNER_CONFIG].content.events
+    ) == len(all_events)
 
 
 # Parametrized tests
@@ -433,7 +445,7 @@ def test_message_validation_matrix(filter_types, scanner_type, should_pass):
             return scan
 
         scanner_instance = test_scanner()
-        assert hasattr(scanner_instance, "__scanner__")
+        assert registry_info(scanner_instance).metadata[SCANNER_CONFIG]
     else:
         with pytest.raises(TypeError):
 

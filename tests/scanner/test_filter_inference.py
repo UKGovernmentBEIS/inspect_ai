@@ -2,6 +2,7 @@
 
 import pytest
 
+from inspect_ai._util.registry import registry_info
 from inspect_ai.log._transcript import ModelEvent, ToolEvent
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -10,7 +11,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.scanner._scanner.result import Result
-from inspect_ai.scanner._scanner.scanner import Scanner, scanner
+from inspect_ai.scanner._scanner.scanner import SCANNER_CONFIG, Scanner, scanner
 from inspect_ai.scanner._transcript.types import Transcript
 
 
@@ -25,8 +26,7 @@ def test_infer_single_message_type():
         return scan
 
     instance = user_scanner()
-    assert hasattr(instance, "__scanner__")
-    assert instance.__scanner__.content.messages == ["user"]
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages == ["user"]
 
 
 def test_infer_union_message_types():
@@ -40,7 +40,10 @@ def test_infer_union_message_types():
         return scan
 
     instance = multi_scanner()
-    assert set(instance.__scanner__.content.messages) == {"system", "user"}
+    assert set(registry_info(instance).metadata[SCANNER_CONFIG].content.messages) == {
+        "system",
+        "user",
+    }
 
 
 def test_infer_assistant_type():
@@ -54,7 +57,9 @@ def test_infer_assistant_type():
         return scan
 
     instance = assistant_scanner()
-    assert instance.__scanner__.content.messages == ["assistant"]
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages == [
+        "assistant"
+    ]
 
 
 def test_infer_list_message_type():
@@ -68,7 +73,9 @@ def test_infer_list_message_type():
         return scan
 
     instance = batch_scanner()
-    assert instance.__scanner__.content.messages == ["assistant"]
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages == [
+        "assistant"
+    ]
 
 
 def test_infer_event_type():
@@ -82,7 +89,7 @@ def test_infer_event_type():
         return scan
 
     instance = model_scanner()
-    assert instance.__scanner__.content.events == ["model"]
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.events == ["model"]
 
 
 def test_infer_union_event_types():
@@ -96,7 +103,10 @@ def test_infer_union_event_types():
         return scan
 
     instance = event_scanner()
-    assert set(instance.__scanner__.content.events) == {"model", "tool"}
+    assert set(registry_info(instance).metadata[SCANNER_CONFIG].content.events) == {
+        "model",
+        "tool",
+    }
 
 
 def test_no_inference_for_base_message_type():
@@ -139,7 +149,9 @@ def test_explicit_filter_overrides_inference():
 
     instance = explicit_scanner()
     # Should use explicit filter (no inference needed)
-    assert instance.__scanner__.content.messages == ["system"]
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages == [
+        "system"
+    ]
 
 
 def test_inference_with_custom_name():
@@ -153,8 +165,10 @@ def test_inference_with_custom_name():
         return scan
 
     instance = named_scanner()
-    assert instance.__scanner__.name == "custom_inferred"
-    assert instance.__scanner__.content.messages == ["assistant"]
+    assert registry_info(instance).name == "custom_inferred"
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages == [
+        "assistant"
+    ]
 
 
 def test_inference_with_factory_pattern():
@@ -170,7 +184,9 @@ def test_inference_with_factory_pattern():
         return scan
 
     instance = parameterized_scanner(threshold=5)
-    assert instance.__scanner__.content.messages == ["assistant"]
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages == [
+        "assistant"
+    ]
 
 
 def test_no_inference_with_loader():
@@ -196,10 +212,10 @@ def test_no_inference_with_loader():
         return scan
 
     instance = loader_scanner()
-    assert instance.__scanner__.loader
+    assert registry_info(instance).metadata[SCANNER_CONFIG].loader
     # No messages or events should be inferred
-    assert instance.__scanner__.content.messages is None
-    assert instance.__scanner__.content.messages is None
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages is None
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages is None
 
 
 def test_no_inference_with_mixed_message_event_union():
@@ -244,8 +260,7 @@ def test_decorator_without_parentheses():
         return scan
 
     instance = user_scanner()
-    assert hasattr(instance, "__scanner__")
-    assert instance.__scanner__.content.messages == ["user"]
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.messages == ["user"]
 
 
 def test_decorator_without_parentheses_with_union():
@@ -259,7 +274,10 @@ def test_decorator_without_parentheses_with_union():
         return scan
 
     instance = multi_scanner()
-    assert set(instance.__scanner__.content.messages) == {"system", "user"}
+    assert set(registry_info(instance).metadata[SCANNER_CONFIG].content.messages) == {
+        "system",
+        "user",
+    }
 
 
 def test_decorator_without_parentheses_fails_for_base_type():

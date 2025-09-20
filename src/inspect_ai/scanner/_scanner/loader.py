@@ -30,6 +30,8 @@ from .filter import (
     normalize_messages_filter,
 )
 
+LOADER_CONFIG = "loader_config"
+
 T = TypeVar("T", covariant=True)
 P = ParamSpec("P")
 
@@ -41,12 +43,9 @@ class Loader(Protocol[T]):
         /,
     ) -> AsyncGenerator[T, None]: ...
 
-    __loader__: "LoaderConfig"
-
 
 @dataclass
 class LoaderConfig:
-    name: str
     content: TranscriptContent = field(default_factory=TranscriptContent)
 
 
@@ -76,17 +75,20 @@ def loader(
                     f"'{loader_name}' is not declared as an async callable."
                 )
 
-            loader_config = LoaderConfig(name=loader_name)
+            loader_config = LoaderConfig()
             if messages is not None:
                 loader_config.content.messages = messages
             if events is not None:
                 loader_config.content.events = events
-            setattr(loader_fn, "__loader__", loader_config)  # type: ignore[attr-defined]
 
             registry_tag(
                 factory,
                 loader_fn,
-                RegistryInfo(type="loader", name=loader_name),
+                RegistryInfo(
+                    type="loader",
+                    name=loader_name,
+                    metadata={LOADER_CONFIG: loader_config},
+                ),
                 *args,
                 **kwargs,
             )

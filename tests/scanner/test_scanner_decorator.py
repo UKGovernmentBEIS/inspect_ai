@@ -2,16 +2,15 @@
 
 import pytest
 
+from inspect_ai._util.registry import registry_info
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scanner._scanner.result import Result
-from inspect_ai.scanner._scanner.scanner import Scanner, scanner
+from inspect_ai.scanner._scanner.scanner import SCANNER_CONFIG, Scanner, scanner
 
 # Scanner decorator tests
 
 
 def test_scanner_creates_config():
-    """Scanner decorator should add __scanner__ config."""
-
     @scanner(messages=["system"])
     def test_scanner() -> Scanner[ChatMessage]:
         async def scan(message: ChatMessage) -> Result | None:
@@ -20,9 +19,8 @@ def test_scanner_creates_config():
         return scan
 
     instance = test_scanner()
-    assert hasattr(instance, "__scanner__")
-    config = instance.__scanner__
-    assert config.name == "test_scanner"
+    config = registry_info(instance).metadata[SCANNER_CONFIG]
+    assert registry_info(instance).name == "test_scanner"
     assert config.content.messages == ["system"]
 
 
@@ -37,7 +35,7 @@ def test_scanner_with_custom_name():
         return scan
 
     instance = test_scanner()
-    assert instance.__scanner__.name == "custom_scanner"
+    assert registry_info(instance).name == "custom_scanner"
 
 
 def test_scanner_with_events():
@@ -52,7 +50,10 @@ def test_scanner_with_events():
         return scan
 
     instance = test_scanner()
-    assert instance.__scanner__.content.events == ["model", "tool"]
+    assert registry_info(instance).metadata[SCANNER_CONFIG].content.events == [
+        "model",
+        "tool",
+    ]
 
 
 def test_scanner_with_both_filters():
@@ -67,7 +68,7 @@ def test_scanner_with_both_filters():
         return scan
 
     instance = test_scanner()
-    config = instance.__scanner__
+    config = registry_info(instance).metadata[SCANNER_CONFIG]
     assert config.content.messages == ["user"]
     assert config.content.events == ["model"]
 
@@ -116,10 +117,8 @@ def test_scanner_factory_with_parameters():
     scanner1 = parameterized_scanner(threshold=5)
     scanner2 = parameterized_scanner(threshold=20)
 
-    assert hasattr(scanner1, "__scanner__")
-    assert hasattr(scanner2, "__scanner__")
     # Both should have the same config
-    assert scanner1.__scanner__.name == scanner2.__scanner__.name
+    assert registry_info(scanner1).name == registry_info(scanner2).name
 
 
 def test_scanner_with_loader():
@@ -145,8 +144,8 @@ def test_scanner_with_loader():
         return scan
 
     instance = test_scanner()
-    assert instance.__scanner__.loader
-    assert instance.__scanner__.loader == loader_instance
+    assert registry_info(instance).metadata[SCANNER_CONFIG].loader
+    assert registry_info(instance).metadata[SCANNER_CONFIG].loader == loader_instance
 
 
 def test_scanner_preserves_function_metadata():
@@ -181,10 +180,7 @@ def test_scanner_added_to_registry():
 
     # Create an instance to trigger registration
     scanner_instance = test_scanner()
-
-    # The scanner instance should have __scanner__ config
-    assert hasattr(scanner_instance, "__scanner__")
-    assert scanner_instance.__scanner__.name == "registry_test_scanner"
+    assert registry_info(scanner_instance).name == "registry_test_scanner"
 
 
 def test_multiple_scanners_different_names():
@@ -207,5 +203,5 @@ def test_multiple_scanners_different_names():
     instance1 = scanner1()
     instance2 = scanner2()
 
-    assert instance1.__scanner__.name == "scanner_one"
-    assert instance2.__scanner__.name == "scanner_two"
+    assert registry_info(instance1).name == "scanner_one"
+    assert registry_info(instance2).name == "scanner_two"
