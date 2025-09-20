@@ -1,4 +1,3 @@
-from ._results.options import ResultsOptions
 from ._scan import scan, scan_async
 from ._scanner.loader import Loader, loader
 from ._scanner.scanner import Scanner, scanner
@@ -37,6 +36,4 @@ __all__ = [
     # loader
     "Loader",
     "loader",
-    # results
-    "ResultsOptions",
 ]
