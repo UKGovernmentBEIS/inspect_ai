@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import warnings
 from contextlib import asynccontextmanager
 from importlib import resources
 from logging import getLogger
@@ -84,9 +85,11 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
 @asynccontextmanager
 async def _open_executable(executable: str) -> AsyncIterator[BinaryIO]:
     """Open the executable file from the binaries package."""
-    with resources.path("inspect_ai.binaries", executable) as executable_path:
-        with open(executable_path, "rb") as f:
-            yield f
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        with resources.path("inspect_ai.binaries", executable) as executable_path:
+            with open(executable_path, "rb") as f:
+                yield f
 
 
 def _prompt_user_action(message: str, executable_name: str, arch: Architecture) -> None:
