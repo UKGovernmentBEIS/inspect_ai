@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import hashlib
+import pickle
 import sqlite3
 from functools import reduce
 from os import PathLike
@@ -11,6 +13,7 @@ from typing import (
     Iterator,
     Sequence,
     TypeAlias,
+    overload,
 )
 
 from typing_extensions import override
@@ -44,30 +47,58 @@ LogPaths: TypeAlias = (
 class EvalLogTranscripts(Transcripts):
     """Collection of transcripts for scanning."""
 
-    def __init__(self, logs: LogPaths | "pd.DataFrame") -> None:
+    def __init__(self, logs: LogPaths | "pd.DataFrame" | None) -> None:
         super().__init__()
-        self._db = EvalLogTranscriptsDB(logs)
+        self._logs: LogPaths | "pd.DataFrame" | None = logs
+        self._db: EvalLogTranscriptsDB | None = None
+
+    @override
+    def type(self) -> str:
+        return "eval_log"
+
+    @override
+    def save_spec(self) -> dict[str, Any]:
+        spec = super().save_spec()
+        spec["logs"] = base64.b64encode(pickle.dumps(self._logs)).decode("utf-8")
+        return spec
+
+    @override
+    def load_spec(self, spec: dict[str, Any]) -> None:
+        super().load_spec(spec)
+        self._logs = pickle.loads(base64.b64decode(spec["logs"]))
 
     @override
     async def count(self) -> int:
-        await self._db.connect()
+        await self.db.connect()
         try:
-            return await self._db.count(self._where, self._limit)
+            return await self.db.count(self._where, self._limit)
         finally:
-            await self._db.disconnect()
+            await self.db.disconnect()
 
     @override
-    async def collect(self) -> AsyncGenerator[Transcript, None]:  # type: ignore[override]
-        await self._db.connect()
+    async def collect(  # type: ignore[override]
+        self, content: TranscriptContent
+    ) -> AsyncGenerator[Transcript, None]:
+        await self.db.connect()
         try:
             # apply filters
-            index = await self._db.query(self._where, self._limit, self._shuffle)
+            index = await self.db.query(self._where, self._limit, self._shuffle)
 
             # yield transcripts
             for t in index:
-                yield await self._db.read(t, self._content)
+                yield await self.db.read(t, content)
         finally:
-            await self._db.disconnect()
+            await self.db.disconnect()
+
+    @property
+    def db(self) -> EvalLogTranscriptsDB:
+        if self._db is None:
+            if self._logs is None:
+                raise RuntimeError(
+                    "Attempted to use eval log transcripts without specifying 'logs'"
+                )
+            self._db = EvalLogTranscriptsDB(self._logs)
+        return self._db
 
 
 class EvalLogTranscriptsDB:
@@ -222,3 +253,25 @@ class EvalLogTranscriptsDB:
             where_sql, where_params = condition.to_sql()
             return f" WHERE {where_sql}", where_params
         return "", []
+
+
+@overload
+def transcripts(logs: LogPaths) -> Transcripts: ...
+
+
+@overload
+def transcripts(logs: "pd.DataFrame") -> Transcripts: ...
+
+
+def transcripts(logs: LogPaths | "pd.DataFrame") -> Transcripts:
+    return EvalLogTranscripts(logs)
+
+
+def transcripts_from_spec(spec: dict[str, Any]) -> Transcripts:
+    match spec.get("type"):
+        case "eval_log":
+            transcripts = EvalLogTranscripts(None)
+        case _:
+            raise ValueError(f"Unrecognized transcript type '{spec.get('type')}")
+    transcripts.load_spec(spec)
+    return transcripts

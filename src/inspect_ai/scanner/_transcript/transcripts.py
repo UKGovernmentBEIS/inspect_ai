@@ -1,25 +1,14 @@
-from __future__ import annotations
-
 import abc
+import base64
+import pickle
 from copy import deepcopy
 from typing import (
-    TYPE_CHECKING,
+    Any,
     AsyncGenerator,
 )
 
-from pydantic import JsonValue
-
-from .database import EvalLogTranscripts, LogPaths
 from .metadata import Condition
 from .types import Transcript, TranscriptContent
-
-if TYPE_CHECKING:
-    import pandas as pd
-
-
-class TranscriptsData:
-    type: str
-    data: JsonValue
 
 
 class Transcripts(abc.ABC):
@@ -46,17 +35,26 @@ class Transcripts(abc.ABC):
         transcripts._shuffle = seed if seed is not None else True
         return transcripts
 
-    def content(self, content: TranscriptContent) -> "Transcripts":
-        transcripts = deepcopy(self)
-        transcripts._content = content
-        return transcripts
-
     @abc.abstractmethod
     async def count(self) -> int: ...
 
     @abc.abstractmethod
-    async def collect(self) -> AsyncGenerator[Transcript, None]: ...
+    async def collect(
+        self, content: TranscriptContent
+    ) -> AsyncGenerator[Transcript, None]: ...
 
+    @abc.abstractmethod
+    def type(self) -> str: ...
 
-def transcripts(logs: LogPaths | "pd.DataFrame") -> Transcripts:
-    return EvalLogTranscripts(logs)
+    def save_spec(self) -> dict[str, Any]:
+        return dict(
+            type=self.type(),
+            where=base64.b64encode(pickle.dumps(self._where)).decode("utf-8"),
+            limit=self._limit,
+            shuffle=self._shuffle,
+        )
+
+    def load_spec(self, spec: dict[str, Any]) -> None:
+        self._where = pickle.loads(base64.b64decode(spec["where"]))
+        self._limit = spec["limit"]
+        self._shuffle = spec["shuffle"]
