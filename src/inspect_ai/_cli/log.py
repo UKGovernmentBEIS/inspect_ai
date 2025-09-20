@@ -179,7 +179,7 @@ def convert_command(
     stream: int | bool = False,
 ) -> None:
     """Convert between log file formats."""
-    convert_eval_logs(path, to, output_dir, overwrite, stream)
+    convert_eval_logs(path, to, output_dir, overwrite, stream=stream)
 
 
 @log_command.command("headers", hidden=True)
