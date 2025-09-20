@@ -9,6 +9,7 @@ import {
   ContentImage,
   ContentText,
   EvalSample,
+  EvalSet,
   InfoEvent,
   LoggerEvent,
   ModelEvent,
@@ -67,6 +68,7 @@ export interface AppState {
 
 export interface LogsState {
   logs: LogFiles;
+  evalSet?: EvalSet;
   logOverviews: Record<string, LogOverview>;
   logOverviewsLoading: boolean;
   selectedLogIndex: number;

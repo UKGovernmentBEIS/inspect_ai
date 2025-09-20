@@ -568,20 +568,35 @@ export const useLogs = () => {
   // Loading logs
   const load = useStore((state) => state.logsActions.loadLogs);
   const setLogs = useStore((state) => state.logsActions.setLogs);
+
+  // Loading eval set info
+  const loadEvalSetInfo = useStore(
+    (state) => state.logsActions.loadEvalSetInfo,
+  );
+  const setEvalSetInfo = useStore((state) => state.logsActions.setEvalSetInfo);
+
+  // Status
   const setStatus = useStore((state) => state.appActions.setStatus);
 
-  const loadLogs = useCallback(async () => {
-    const exec = async () => {
-      setStatus({ loading: true, error: undefined });
-      const logs = await load();
-      setLogs(logs);
-      setStatus({ loading: false, error: undefined });
-    };
-    exec().catch((e) => {
-      log.error("Error loading logs", e);
-      setStatus({ loading: false, error: e });
-    });
-  }, [load, setLogs, setStatus]);
+  const loadLogs = useCallback(
+    async (logPath?: string) => {
+      const exec = async () => {
+        setStatus({ loading: true, error: undefined });
+        const logs = await load();
+        setLogs(logs);
+
+        const setInfo = await loadEvalSetInfo(logPath);
+        setEvalSetInfo(setInfo);
+
+        setStatus({ loading: false, error: undefined });
+      };
+      exec().catch((e) => {
+        log.error("Error loading logs", e);
+        setStatus({ loading: false, error: e });
+      });
+    },
+    [load, setLogs, setStatus],
+  );
 
   // Loading headers
   const storeLoadHeaders = useStore(

@@ -1,17 +1,25 @@
 ## Unreleased
 
 - Sandbox tools: bash_session, text_editor, and sandbox MCP servers no longer require a separate pipx install (they are now automatically injected into sandbox as a static binary with no Python dependencies).
+- Agent bridge: Python is no longer required within containers using the sandbox agent bridge.
 - Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.
+- Agent bridge: Add `retry_refusals` option for automatically retrying refusals a set number of times.
 - Eval logs: Option to resolve attachments for `convert_eval_logs()`.
+- Eval logs: Option to stream processing for `convert_eval_logs()`.
 - Google: Support disabling thinking for Gemini 2.5 Flash (warn if thinking is disabled for 2.5-Pro which doesn't support disabling thinking).
+- Bedrock: Support for reasoning content in Bedrock models.
 - Model grading: `model_graded_qa()`, `model_graded_fact()`) now look for the "grader" model-role by default.
 - Human agent: Enable installation even when default tool user is not root.
+- Hooks: Added `on_sample_scoring()` and `on_model_cache_usage()` hooks.
 - Hooks: Propagate LimitExceededError so that hooks can raise limit errors.
-- Hooks: Added `on_sample_scoring()` hook to indicate when scoring begins for a sample.
 - Hooks: Emit `on_run_end()` even when the eval is cancelled.
 - Scoring: Allow scorers to return `None` to indicate that they did not score the sample. Such samples are excluded from reductions and metrics.
 - Scoring: Resolve task metrics on to scores returned by solvers.
+- Scoring: Use `Sequence` and `Mapping` types for metrics on scorer decorator.
 - Scoring: Properly make sample events available in the transcript during re-scoring an eval log.
+- Inspect View: Display pending tasks in eval sets (tasks that have not yet started running)
+- Inspect View: Fine tune status appearance to improve legibility
+- Inspect View: Fix issue displaying folders with with overlapping path prefixes.
 - Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
 - Bugfix: Enable passing no reducers to `async_score` in eval score.
 - Bugfix: Handle non-contiguous task sequences in task batching.

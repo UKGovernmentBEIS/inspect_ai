@@ -36,6 +36,7 @@ async def run_model_service(
         instance=instance,
         polling_interval=2,
         started=started,
+        requires_python=False,
     )
 
 

@@ -150,16 +150,7 @@ async def score(
 
     read_sample = None
     if stream:
-        sample_map = sorted(
-            (
-                (x.id, x.epoch)
-                for x in await recorder.read_log_sample_summaries(log_file)
-            ),
-            key=lambda x: (
-                x[1],
-                (x[0] if isinstance(x[0], str) else str(x[0]).zfill(20)),
-            ),
-        )
+        sample_map = await recorder.read_log_sample_ids(log_file)
         semaphore = anyio.Semaphore(len(sample_map) if stream is True else stream)
 
         @contextlib.asynccontextmanager

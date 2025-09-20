@@ -1,6 +1,6 @@
 .statusPanel {
   padding: 1em;
-  margin-top: 0.5em;
+  margin-top: 0em;
   text-transform: uppercase;
   font-size: var(--inspect-font-size-smaller);
   display: grid;

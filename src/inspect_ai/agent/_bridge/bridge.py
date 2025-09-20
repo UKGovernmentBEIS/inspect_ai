@@ -42,6 +42,7 @@ async def agent_bridge(
     state: AgentState | None = None,
     *,
     filter: GenerateFilter | None = None,
+    retry_refusals: int | None = None,
     web_search: WebSearchProviders | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
@@ -59,6 +60,7 @@ async def agent_bridge(
        state: Initial state for agent bridge. Used as a basis for yielding
           an updated state based on traffic over the bridge.
        filter: Filter for bridge model generation.
+       retry_refusals: Should refusals be retried? (pass number of times to retry)
        web_search: Configuration for mapping model internal
           web_search tools to Inspect. By default, will map to the
           internal provider of the target model (supported for OpenAI,
@@ -76,7 +78,7 @@ async def agent_bridge(
     state = state or AgentState(messages=[])
 
     # create the bridge
-    bridge = AgentBridge(state, filter)
+    bridge = AgentBridge(state, filter, retry_refusals)
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(

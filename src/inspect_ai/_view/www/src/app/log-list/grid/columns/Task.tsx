@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FileLogItem, FolderLogItem } from "../../LogItem";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 
 import { parseLogFileName } from "../../../../utils/evallog";
@@ -10,7 +10,10 @@ export const taskColumn = () => {
     id: "task",
     header: "Task",
     cell: (info) => {
-      const item = info.row.original as FileLogItem | FolderLogItem;
+      const item = info.row.original as
+        | FileLogItem
+        | FolderLogItem
+        | PendingTaskItem;
       let value = itemName(item);
       return (
         <div className={styles.nameCell}>
@@ -30,8 +33,14 @@ export const taskColumn = () => {
     minSize: 150,
     enableResizing: true,
     sortingFn: (rowA, rowB) => {
-      const itemA = rowA.original as FileLogItem | FolderLogItem;
-      const itemB = rowB.original as FileLogItem | FolderLogItem;
+      const itemA = rowA.original as
+        | FileLogItem
+        | FolderLogItem
+        | PendingTaskItem;
+      const itemB = rowB.original as
+        | FileLogItem
+        | FolderLogItem
+        | PendingTaskItem;
 
       const valueA = itemName(itemA);
       const valueB = itemName(itemB);
@@ -41,7 +50,7 @@ export const taskColumn = () => {
   });
 };
 
-const itemName = (item: FileLogItem | FolderLogItem) => {
+const itemName = (item: FileLogItem | FolderLogItem | PendingTaskItem) => {
   let value = item.name;
   if (item.type === "file") {
     return item.logOverview?.task || parseLogFileName(item.name).name;

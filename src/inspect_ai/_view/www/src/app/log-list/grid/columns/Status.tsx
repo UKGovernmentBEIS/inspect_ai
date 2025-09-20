@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FileLogItem, FolderLogItem } from "../../LogItem";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "../../LogItem";
 import { columnHelper } from "./columns";
 import { EmptyCell } from "./EmptyCell";
 
@@ -14,27 +14,31 @@ export const statusColumn = () => {
       const item = info.row.original;
       const status = itemStatus(item);
 
-      if (!status) {
+      if (!status && item.type !== "pending-task") {
         return <EmptyCell />;
       }
 
       const icon =
-        status === "error"
-          ? ApplicationIcons.error
-          : status === "started"
-            ? ApplicationIcons.running
-            : status === "cancelled"
-              ? ApplicationIcons.cancelled
-              : ApplicationIcons.success;
+        item.type === "pending-task"
+          ? ApplicationIcons.pendingTask
+          : status === "error"
+            ? ApplicationIcons.error
+            : status === "started"
+              ? ApplicationIcons.running
+              : status === "cancelled"
+                ? ApplicationIcons.cancelled
+                : ApplicationIcons.success;
 
       const clz =
-        status === "error"
-          ? styles.error
-          : status === "started"
-            ? styles.started
-            : status === "cancelled"
-              ? styles.cancelled
-              : styles.success;
+        item.type === "pending-task"
+          ? styles.started
+          : status === "error"
+            ? styles.error
+            : status === "started"
+              ? styles.started
+              : status === "cancelled"
+                ? styles.cancelled
+                : styles.success;
 
       return (
         <div className={styles.statusCell}>
@@ -43,8 +47,14 @@ export const statusColumn = () => {
       );
     },
     sortingFn: (rowA, rowB) => {
-      const itemA = rowA.original as FileLogItem | FolderLogItem;
-      const itemB = rowB.original as FileLogItem | FolderLogItem;
+      const itemA = rowA.original as
+        | FileLogItem
+        | FolderLogItem
+        | PendingTaskItem;
+      const itemB = rowB.original as
+        | FileLogItem
+        | FolderLogItem
+        | PendingTaskItem;
 
       const statusA = itemStatus(itemA) || "";
       const statusB = itemStatus(itemB) || "";
@@ -69,7 +79,7 @@ export const statusColumn = () => {
   });
 };
 
-const itemStatus = (item: FileLogItem | FolderLogItem) => {
+const itemStatus = (item: FileLogItem | FolderLogItem | PendingTaskItem) => {
   if (item.type !== "file") {
     return undefined;
   }
@@ -77,7 +87,9 @@ const itemStatus = (item: FileLogItem | FolderLogItem) => {
   return header?.status;
 };
 
-const itemStatusLabel = (item: FileLogItem | FolderLogItem) => {
+const itemStatusLabel = (
+  item: FileLogItem | FolderLogItem | PendingTaskItem,
+) => {
   const status = itemStatus(item);
   if (!status) return "";
 
