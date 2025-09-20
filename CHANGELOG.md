@@ -8,8 +8,8 @@
 - Google: Support disabling thinking for Gemini 2.5 Flash (warn if thinking is disabled for 2.5-Pro which doesn't support disabling thinking).
 - Model grading: `model_graded_qa()`, `model_graded_fact()`) now look for the "grader" model-role by default.
 - Human agent: Enable installation even when default tool user is not root.
+- Hooks: Added `on_sample_scoring()` and `on_model_cache_usage()` hooks.
 - Hooks: Propagate LimitExceededError so that hooks can raise limit errors.
-- Hooks: Added `on_sample_scoring()` hook to indicate when scoring begins for a sample.
 - Hooks: Emit `on_run_end()` even when the eval is cancelled.
 - Scoring: Allow scorers to return `None` to indicate that they did not score the sample. Such samples are excluded from reductions and metrics.
 - Scoring: Resolve task metrics on to scores returned by solvers.
