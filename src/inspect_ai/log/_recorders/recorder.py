@@ -70,6 +70,19 @@ class Recorder(abc.ABC):
     ) -> list[EvalSampleSummary]: ...
 
     @classmethod
+    async def read_log_sample_ids(cls, location: str) -> list[tuple[str | int, int]]:
+        return sorted(
+            (
+                (sample_summary.id, sample_summary.epoch)
+                for sample_summary in await cls.read_log_sample_summaries(location)
+            ),
+            key=lambda x: (
+                x[1],
+                (x[0] if isinstance(x[0], str) else str(x[0]).zfill(20)),
+            ),
+        )
+
+    @classmethod
     @abc.abstractmethod
     async def write_log(
         cls, location: str, log: EvalLog, if_match_etag: str | None = None
