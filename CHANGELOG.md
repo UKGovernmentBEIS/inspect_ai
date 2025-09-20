@@ -13,6 +13,7 @@
 - Hooks: Emit `on_run_end()` even when the eval is cancelled.
 - Scoring: Allow scorers to return `None` to indicate that they did not score the sample. Such samples are excluded from reductions and metrics.
 - Scoring: Resolve task metrics on to scores returned by solvers.
+- Scoring: Use `Sequence` and `Mapping` types for metrics on scorer decorator.
 - Scoring: Properly make sample events available in the transcript during re-scoring an eval log.
 - Inspect View: Display pending tasks in eval sets (tasks that have not yet started running)
 - Inspect View: Fine tune status appearance to improve legibility
