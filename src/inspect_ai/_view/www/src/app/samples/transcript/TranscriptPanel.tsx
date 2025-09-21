@@ -95,7 +95,6 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     const collapsed = collapsedMode === "collapsed";
 
     allNodesList.forEach((node) => {
-
       if (
         node.event.uuid &&
         ((collapsed && !hasSpans(node.children.map((child) => child.event))) ||
