@@ -1,7 +1,6 @@
 from ._results import (
     ScanResults,
     scan_results,
-    scanner_results,
 )
 from ._scan import scan, scan_async, scan_resume, scan_resume_async
 from ._scanner.loader import Loader, loader
@@ -23,7 +22,6 @@ __all__ = [
     "scan",
     "scan_resume",
     "scan_results",
-    "scanner_results",
     "ScanResults",
     "scan_async",
     "scan_resume_async",
