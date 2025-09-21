@@ -5,9 +5,8 @@ import uuid
 import pandas as pd
 import pytest
 
-from inspect_ai.scanner._transcript.database import EvalLogTranscriptsDB
+from inspect_ai.scanner._transcript.database import EvalLogTranscriptsDB, transcripts
 from inspect_ai.scanner._transcript.metadata import metadata as m
-from inspect_ai.scanner._transcript.transcripts import transcripts
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 
 
@@ -752,32 +751,22 @@ async def test_null_value_handling(db):
 # ============================================================================
 
 
-def test_transcripts_function():
-    """Test the transcripts() function."""
-    df = create_test_dataframe(5)
-    t = transcripts(df)
-
-    # Should return a Transcripts instance
-    assert hasattr(t, "_db")
-    assert isinstance(t._db, EvalLogTranscriptsDB)
-
-
 @pytest.mark.asyncio
 async def test_transcripts_query_integration():
     """Test end-to-end query through transcripts API."""
     df = create_test_dataframe(15)
     t = transcripts(df)
 
-    await t._db.connect()
+    await t.db.connect()
 
     # Test query
-    results = list(await t._db.query(where=[m.score > 0.7], limit=5))
+    results = list(await t.db.query(where=[m.score > 0.7], limit=5))
 
     assert len(results) <= 5
     for result in results:
         assert result.metadata["score"] > 0.7
 
-    await t._db.disconnect()
+    await t.db.disconnect()
 
 
 # ============================================================================

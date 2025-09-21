@@ -135,17 +135,6 @@ def scanner(
 ) -> Callable[[ScannerFactory[P, TEvent]], ScannerFactory[P, TEvent]]: ...
 
 
-# overload for custom loader (no filters): scanner can take arbitrary T from loader instance
-@overload
-def scanner(
-    *,
-    name: str | None = ...,
-    loader: Loader[T],
-    messages: None = ...,
-    events: None = ...,
-) -> Callable[[ScannerFactory[P, T]], ScannerFactory[P, T]]: ...
-
-
 # overload for direct decoration without parentheses (will infer from types)
 # This needs to be last as it's the most general
 @overload

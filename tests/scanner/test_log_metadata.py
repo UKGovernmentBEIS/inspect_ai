@@ -6,11 +6,11 @@ import uuid
 import pandas as pd
 import pytest
 
-from inspect_ai.scanner._transcript.database import EvalLogTranscriptsDB
+from inspect_ai.scanner._transcript.database import EvalLogTranscriptsDB, transcripts
 from inspect_ai.scanner._transcript.log import LogMetadata
 from inspect_ai.scanner._transcript.log import log_metadata as lm
 from inspect_ai.scanner._transcript.metadata import metadata as m
-from inspect_ai.scanner._transcript.transcripts import transcripts
+from inspect_ai.scanner._transcript.types import TranscriptContent
 
 
 def create_log_dataframe(num_samples: int = 10) -> pd.DataFrame:
@@ -579,7 +579,9 @@ async def test_transcripts_with_log_metadata():
 
     # Collect and verify results
     results = []
-    async for transcript in filtered.collect():
+    async for transcript in filtered.collect(
+        TranscriptContent(messages="all", events="all")
+    ):
         results.append(transcript)
         assert transcript.metadata["model"] == "gpt-4"
         assert transcript.metadata["epochs"] > 1

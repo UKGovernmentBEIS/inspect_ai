@@ -72,27 +72,21 @@ def test_mypy_scanner_and_loader_types():
         @loader(messages=["assistant"])
         def typed_loader():  # type: ignore[no-untyped-def]
             async def load(
-                transcripts: Transcript | Sequence[Transcript]
+                transcript: Transcript
             ) -> AsyncGenerator[ChatMessageAssistant, None]:
-                if isinstance(transcripts, Transcript):
-                    transcripts = [transcripts]
-                for t in transcripts:
-                    for msg in t.messages:
-                        if msg.role == "assistant" and isinstance(msg, ChatMessageAssistant):
-                            yield msg
+                for msg in transcript.messages:
+                    if msg.role == "assistant" and isinstance(msg, ChatMessageAssistant):
+                        yield msg
             return load
 
         @loader(events=["model", "tool"])
         def event_loader():  # type: ignore[no-untyped-def]
             async def load(
-                transcripts: Transcript | Sequence[Transcript]
+                transcript: Transcript
             ) -> AsyncGenerator[Event, None]:
-                if isinstance(transcripts, Transcript):
-                    transcripts = [transcripts]
-                for t in transcripts:
-                    for event in t.events:
-                        if event.event in ["model", "tool"]:
-                            yield event
+                for event in transcript.events:
+                    if event.event in ["model", "tool"]:
+                        yield event
             return load
 
         # Scanner with loader integration
@@ -100,14 +94,11 @@ def test_mypy_scanner_and_loader_types():
         @loader(messages=["user"])
         def user_loader():  # type: ignore[no-untyped-def]
             async def load(
-                transcripts: Transcript | Sequence[Transcript]
+                transcript: Transcript
             ) -> AsyncGenerator[ChatMessageUser, None]:
-                if isinstance(transcripts, Transcript):
-                    transcripts = [transcripts]
-                for t in transcripts:
-                    for msg in t.messages:
-                        if msg.role == "user" and isinstance(msg, ChatMessageUser):
-                            yield msg
+                for msg in transcript.messages:
+                    if msg.role == "user" and isinstance(msg, ChatMessageUser):
+                        yield msg
             return load
 
         @scanner(loader=user_loader())
@@ -131,15 +122,12 @@ def test_mypy_scanner_and_loader_types():
         @loader(messages=["assistant"])
         def factory_loader(include_model: str | None = None):  # type: ignore[no-untyped-def]
             async def load(
-                transcripts: Transcript | Sequence[Transcript]
+                transcript: Transcript
             ) -> AsyncGenerator[ChatMessageAssistant, None]:
-                if isinstance(transcripts, Transcript):
-                    transcripts = [transcripts]
-                for t in transcripts:
-                    for msg in t.messages:
-                        if msg.role == "assistant" and isinstance(msg, ChatMessageAssistant):
-                            if include_model is None or msg.model == include_model:
-                                yield msg
+                for msg in transcript.messages:
+                    if msg.role == "assistant" and isinstance(msg, ChatMessageAssistant):
+                        if include_model is None or msg.model == include_model:
+                            yield msg
             return load
 
         # Create instances
@@ -199,14 +187,11 @@ def test_mypy_detects_type_errors():
         @loader(messages=["user"])
         def user_msg_loader():  # type: ignore[no-untyped-def]
             async def load(
-                transcripts: Transcript | Sequence[Transcript]
+                transcript: Transcript
             ) -> AsyncGenerator[ChatMessageUser, None]:
-                if isinstance(transcripts, Transcript):
-                    transcripts = [transcripts]
-                for t in transcripts:
-                    for msg in t.messages:
-                        if msg.role == "user" and isinstance(msg, ChatMessageUser):
-                            yield msg
+                for msg in transcript.messages:
+                    if msg.role == "user" and isinstance(msg, ChatMessageUser):
+                        yield msg
             return load
 
         @scanner(loader=user_msg_loader())

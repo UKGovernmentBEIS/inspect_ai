@@ -6,7 +6,6 @@ from typing import (
     Literal,
     ParamSpec,
     Protocol,
-    Sequence,
     TypeVar,
     cast,
 )
@@ -39,7 +38,7 @@ P = ParamSpec("P")
 class Loader(Protocol[T]):
     def __call__(
         self,
-        input: Transcript | Sequence[Transcript],
+        input: Transcript,
         /,
     ) -> AsyncGenerator[T, None]: ...
 

@@ -1,6 +1,6 @@
 """Tests for the loader functionality."""
 
-from typing import AsyncGenerator, Sequence
+from typing import AsyncGenerator
 
 import pytest
 
@@ -24,13 +24,10 @@ def test_loader_creates_config():
     @loader(name="test_loader")
     def test_loader():
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[ChatMessage, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                for msg in t.messages:
-                    yield msg
+            for msg in transcript.messages:
+                yield msg
 
         return load
 
@@ -44,14 +41,11 @@ def test_loader_with_message_filter():
     @loader(messages=["user"])
     def test_loader():
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[ChatMessageUser, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                for msg in t.messages:
-                    if msg.role == "user" and isinstance(msg, ChatMessageUser):
-                        yield msg
+            for msg in transcript.messages:
+                if msg.role == "user" and isinstance(msg, ChatMessageUser):
+                    yield msg
 
         return load
 
@@ -66,14 +60,11 @@ def test_loader_with_event_filter():
     @loader(events=["model", "tool"])
     def test_loader():
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[Event, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                for event in t.events:
-                    if event.event in ["model", "tool"]:
-                        yield event
+            for event in transcript.events:
+                if event.event in ["model", "tool"]:
+                    yield event
 
         return load
 
@@ -104,12 +95,9 @@ def test_loader_with_both_filters():
     @loader(messages=["user"], events=["model"])
     def test_loader():
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[Transcript, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                yield t
+            yield transcript
 
         return load
 
@@ -128,14 +116,11 @@ def test_scanner_with_custom_loader():
     @loader(messages=["user"])
     def user_message_loader():
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[ChatMessageUser, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                for msg in t.messages:
-                    if msg.role == "user" and isinstance(msg, ChatMessageUser):
-                        yield msg
+            for msg in transcript.messages:
+                if msg.role == "user" and isinstance(msg, ChatMessageUser):
+                    yield msg
 
         return load
 
@@ -162,13 +147,10 @@ def test_loader_type_transformation():
     @loader(name="event_extractor")
     def event_loader():
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[Event, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                for event in t.events:
-                    yield event
+            for event in transcript.events:
+                yield event
 
         return load
 
@@ -191,21 +173,18 @@ def test_loader_with_custom_logic():
     @loader(name="long_message_loader")
     def long_message_loader(min_length: int = 100):
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[ChatMessage, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                for msg in t.messages:
-                    content = (
-                        msg.text
-                        if hasattr(msg, "text")
-                        else str(msg.content)
-                        if msg.content
-                        else ""
-                    )
-                    if len(content) > min_length:
-                        yield msg
+            for msg in transcript.messages:
+                content = (
+                    msg.text
+                    if hasattr(msg, "text")
+                    else str(msg.content)
+                    if msg.content
+                    else ""
+                )
+                if len(content) > min_length:
+                    yield msg
 
         return load
 
@@ -232,12 +211,9 @@ def test_loader_added_to_registry():
     @loader(name="registry_test_loader")
     def test_loader():
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[Transcript, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                yield t
+            yield transcript
 
         return load
 
@@ -252,17 +228,12 @@ def test_loader_factory_with_parameters():
     @loader(name="parameterized_loader", messages=["assistant"])
     def param_loader(include_model: bool = True):
         async def load(
-            transcripts: Transcript | Sequence[Transcript],
+            transcript: Transcript,
         ) -> AsyncGenerator[ChatMessageAssistant, None]:
-            if isinstance(transcripts, Transcript):
-                transcripts = [transcripts]
-            for t in transcripts:
-                for msg in t.messages:
-                    if msg.role == "assistant" and isinstance(
-                        msg, ChatMessageAssistant
-                    ):
-                        if include_model or not hasattr(msg, "model"):
-                            yield msg
+            for msg in transcript.messages:
+                if msg.role == "assistant" and isinstance(msg, ChatMessageAssistant):
+                    if include_model or not hasattr(msg, "model"):
+                        yield msg
 
         return load
 
