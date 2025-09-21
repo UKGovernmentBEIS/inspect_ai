@@ -14,9 +14,9 @@ class ScanOptions:
     scanners: dict[str, Scanner[Any]]
 
 
-def read_scan_options(scan_dir: str) -> ScanOptions | None:
+async def read_scan_options(scan_dir: str) -> ScanOptions | None:
     return cast(ScanOptions, None)
 
 
-def write_scan_options(scan_dir: str) -> None:
+async def write_scan_options(options: ScanOptions) -> None:
     pass

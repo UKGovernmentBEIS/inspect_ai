@@ -39,7 +39,10 @@ def scan_results(
         If scanner_name is provided, returns DataFrame with scanner results.
         Otherwise, returns ScanResults with all scanner results.
     """
-    return run_coroutine(scan_results_async(scans_dir, scan_id, scanner_name))
+    if scanner_name is not None:
+        return run_coroutine(scan_results_async(scans_dir, scan_id, scanner_name))
+    else:
+        return run_coroutine(scan_results_async(scans_dir, scan_id))
 
 
 # Async overloads
@@ -70,6 +73,7 @@ async def scan_results_async(
     if scanner_name is not None:
         # Return specific scanner results
         import pandas as pd
+
         return pd.DataFrame()
     else:
         # Return all scan results

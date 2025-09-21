@@ -85,7 +85,7 @@ async def scan_resume(
 async def scan_resume_async(
     scan_dir: str,
 ) -> ScanResults:
-    options = read_scan_options(scan_dir)
+    options = await read_scan_options(scan_dir)
     if options is None:
         raise RuntimeError(
             f"The specified directory '{scan_dir}' does not contain a scan."
@@ -100,7 +100,7 @@ async def _scan_async(options: ScanOptions) -> ScanResults:
     #  Supporting only Transcript
 
     # set up our tracker (stores results and lets us skip results we already have)
-    tracker = results_tracker(options)
+    tracker = await results_tracker(options)
 
     # read transcripts from index and process them if required
     async with options.transcripts:

@@ -1,6 +1,6 @@
 from typing import Protocol, Sequence
 
-from ._options import ScanOptions
+from ._options import ScanOptions, write_scan_options
 from ._scanner.result import Result
 from ._transcript.types import TranscriptInfo
 
@@ -15,10 +15,11 @@ class ResultsTracker(Protocol):
     ) -> ResultsReporter | None: ...
 
 
-def results_tracker(options: ScanOptions) -> ResultsTracker:
+async def results_tracker(options: ScanOptions) -> ResultsTracker:
     # create the results directory
 
     # create the metadata file for the scan (transcript query + scanners w/ args to reconstruct them)
+    await write_scan_options(options)
 
     async def tracker(
         transcript: TranscriptInfo, scanner: str
