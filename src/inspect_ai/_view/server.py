@@ -15,6 +15,7 @@ from pydantic_core import to_jsonable_python
 from s3fs import S3FileSystem  # type: ignore
 
 from inspect_ai._display import display
+from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import (
     default_fs_options,
@@ -132,6 +133,20 @@ def view_server(
             log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
         )
         return log_listing_response(logs, request_log_dir)
+
+    @routes.get("/api/eval-set")
+    async def eval_set(request: web.Request) -> web.Response:
+        # log dir can optionally be overridden by the request
+
+        request_dir = request.query.getone("dir", None)
+        if request_dir:
+            request_dir = log_dir + "/" + request_dir.lstrip("/")
+            validate_log_file_request(request_dir)
+        else:
+            request_dir = log_dir
+
+        eval_set = read_eval_set_info(request_dir, fs_options=fs_options)
+        return web.json_response(to_jsonable_python(eval_set, exclude_none=True))
 
     @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:
@@ -289,6 +304,28 @@ def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
         ],
     )
     return web.json_response(response)
+
+
+def eval_set_response(eval_set: EvalSet | None) -> web.Response:
+    if eval_set is None:
+        return web.Response(status=404, reason="Eval set not found")
+    else:
+        response = dict(
+            eval_set_id=eval_set.eval_set_id,
+            tasks=[
+                dict(
+                    name=task.name,
+                    task_id=task.task_id,
+                    task_file=task.task_file,
+                    task_args=task.task_args,
+                    model=task.model,
+                    model_roles=task.model_roles,
+                    sequence=task.sequence,
+                )
+                for task in eval_set.tasks
+            ],
+        )
+        return web.json_response(response)
 
 
 async def log_file_response(file: str, header_only_param: str | None) -> web.Response:

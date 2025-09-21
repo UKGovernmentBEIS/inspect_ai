@@ -767,6 +767,16 @@ export type SampleId1 = string | number | null;
 export type Samples2 = EvalSampleScore[];
 export type Location1 = string;
 export type Etag = string | null;
+export type EvalSetId1 = string;
+export type Name15 = string | null;
+export type TaskId1 = string;
+export type TaskFile1 = string | null;
+export type Model5 = string;
+export type ModelRoles1 = {
+  [k: string]: string;
+} | null;
+export type Sequence = number;
+export type Tasks = EvalSetTask[];
 
 /**
  * Evaluation log.
@@ -783,6 +793,7 @@ export interface EvalLog {
   reductions?: Reductions;
   location?: Location1;
   etag?: Etag;
+  eval_set_info?: EvalSet | null;
 }
 /**
  * Eval target and configuration.
@@ -1836,4 +1847,24 @@ export interface EvalSampleScore {
   explanation: Explanation2;
   metadata: Metadata30;
   sample_id: SampleId1;
+}
+export interface EvalSet {
+  eval_set_id: EvalSetId1;
+  tasks: Tasks;
+}
+export interface EvalSetTask {
+  name: Name15;
+  task_id: TaskId1;
+  task_file: TaskFile1;
+  task_args: TaskArgs1;
+  model: Model5;
+  model_args: ModelArgs1;
+  model_roles: ModelRoles1;
+  sequence: Sequence;
+}
+export interface TaskArgs1 {
+  [k: string]: unknown;
+}
+export interface ModelArgs1 {
+  [k: string]: unknown;
 }

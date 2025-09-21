@@ -63,7 +63,7 @@ class RunEnd:
     """The globally unique identifier for the eval set (if any)."""
     run_id: str
     """The globally unique identifier for the run."""
-    exception: Exception | None
+    exception: BaseException | None
     """The exception that occurred during the run, if any. If None, the run completed
     successfully."""
     logs: EvalLogs
@@ -144,6 +144,33 @@ class ModelUsageData:
     """The duration of the model call in seconds. If HTTP retries were made, this is the
     time taken for the successful call. This excludes retry waiting (e.g. exponential
     backoff) time."""
+
+
+@dataclass(frozen=True)
+class ModelCacheUsageData:
+    """Model cache usage hook event data.
+
+    Like ModelUsageData, but without the call_duration field, since no external call is made when the cache is hit.
+    """
+
+    model_name: str
+    """The name of the model that was used."""
+    usage: ModelUsage
+    """The model usage metrics."""
+
+
+@dataclass(frozen=True)
+class SampleScoring:
+    """Sample scoring hook event data."""
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
 
 
 @dataclass(frozen=True)
@@ -260,7 +287,7 @@ class Hooks:
         pass
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
-        """Called when a call to a model's generate() method completes successfully.
+        """Called when a call to a model's generate() method completes successfully without hitting Inspect's local cache.
 
         Note that this is not called when Inspect's local cache is used and is a cache
         hit (i.e. if no external API call was made). Provider-side caching will result
@@ -268,6 +295,21 @@ class Hooks:
 
         Args:
            data: Model usage data.
+        """
+        pass
+
+    async def on_model_cache_usage(self, data: ModelCacheUsageData) -> None:
+        """Called when a call to a model's generate() method completes successfully by hitting Inspect's local cache.
+
+        Args:
+           data: Cached model usage data.
+        """
+        pass
+
+    async def on_sample_scoring(self, data: SampleScoring) -> None:
+        """Called before the sample is scored.
+
+        Can be used by hooks to demarcate the end of solver execution and the start of scoring.
         """
         pass
 
@@ -348,7 +390,7 @@ async def emit_run_end(
     eval_set_id: str | None,
     run_id: str,
     logs: EvalLogs,
-    exception: Exception | None = None,
+    exception: BaseException | None = None,
 ) -> None:
     data = RunEnd(
         eval_set_id=eval_set_id, run_id=run_id, logs=logs, exception=exception
@@ -417,6 +459,24 @@ async def emit_model_usage(
         model_name=model_name, usage=usage, call_duration=call_duration
     )
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
+
+
+async def emit_model_cache_usage(model_name: str, usage: ModelUsage) -> None:
+    data = ModelCacheUsageData(model_name=model_name, usage=usage)
+    await _emit_to_all(lambda hook: hook.on_model_cache_usage(data))
+
+
+async def emit_sample_scoring(
+    eval_set_id: str | None, run_id: str, eval_id: str, sample_id: str
+) -> None:
+    data = SampleScoring(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+    )
+
+    await _emit_to_all(lambda hook: hook.on_sample_scoring(data))
 
 
 def override_api_key(env_var_name: str, value: str) -> str | None:

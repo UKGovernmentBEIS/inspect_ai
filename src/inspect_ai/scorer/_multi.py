@@ -23,6 +23,8 @@ def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer:
         scores = await tg_collect(
             [functools.partial(_scorer, state, target) for _scorer in scorers]
         )
-        return reducer(scores)
+        # Filter out None values from scores list
+        resolved_scores = [score for score in scores if score is not None]
+        return reducer(resolved_scores)
 
     return score

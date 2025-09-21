@@ -1,13 +1,19 @@
 import os
 from typing import Literal
 
+import anyio
+
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import exists, filesystem
 from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log,
+    read_eval_log_async,
     write_eval_log,
 )
+from inspect_ai.log._recorders import create_recorder_for_location
+from inspect_ai.log._recorders.create import recorder_type_for_location
 
 
 def convert_eval_logs(
@@ -16,6 +22,7 @@ def convert_eval_logs(
     output_dir: str,
     overwrite: bool = False,
     resolve_attachments: bool = False,
+    stream: int | bool = False,
 ) -> None:
     """Convert between log file formats.
 
@@ -32,6 +39,8 @@ def convert_eval_logs(
             raising an error if the output file path already exists).
         resolve_attachments (bool): Resolve attachments (e.g. images)
             to their full content.
+        stream (int | bool): Stream samples through the conversion process instead of
+            reading the entire log into memory. Useful for large logs.
     """
     from inspect_ai._display import display
 
@@ -56,7 +65,7 @@ def convert_eval_logs(
         # and files being converted specially
         path_is_dir = fs.info(path).type == "directory"
         if path_is_dir:
-            target_dir = f"{output_dir}{fs.sep}{input_dir}"
+            target_dir = f"{output_dir}{output_fs.sep}{input_dir}"
             input_file = f"{path}{fs.sep}{input_file}"
             output_file_basename = input_name
         else:
@@ -66,15 +75,28 @@ def convert_eval_logs(
         output_fs.mkdir(target_dir, exist_ok=True)
 
         # compute full output file and enforce overwrite
-        output_file = f"{output_dir}{fs.sep}{output_file_basename}.{to}"
+        output_file = f"{output_dir}{output_fs.sep}{output_file_basename}.{to}"
         if exists(output_file) and not overwrite:
             raise FileExistsError(
-                "Output file {output_file} already exists (use --overwrite to overwrite existing files)"
+                f"Output file {output_file} already exists (use --overwrite to overwrite existing files)"
             )
 
         # do a full read/write (normalized deprecated constructs and adds sample summaries)
-        log = read_eval_log(input_file, resolve_attachments=resolve_attachments)
-        write_eval_log(log, output_file)
+        if stream:
+            anyio.run(
+                _stream_convert_file,
+                input_file,
+                output_file,
+                output_dir,
+                resolve_attachments,
+                stream,
+                backend=configured_async_backend(),
+            )
+        else:
+            write_eval_log(
+                read_eval_log(input_file, resolve_attachments=resolve_attachments),
+                output_file,
+            )
 
     if fs.info(path).type == "file":
         convert_file(path)
@@ -89,3 +111,42 @@ def convert_eval_logs(
             for input_file in input_files:
                 convert_file(input_file)
                 p.update()
+
+
+async def _stream_convert_file(
+    input_file: str,
+    output_file: str,
+    output_dir: str,
+    resolve_attachments: bool,
+    stream: int | bool,
+) -> None:
+    input_recorder = recorder_type_for_location(input_file)
+    output_recorder = create_recorder_for_location(output_file, output_dir)
+
+    sample_map = await input_recorder.read_log_sample_ids(input_file)
+    semaphore = anyio.Semaphore(len(sample_map) if stream is True else stream)
+
+    async def _convert_sample(sample_id: str | int, epoch: int) -> None:
+        async with semaphore:
+            await output_recorder.log_sample(
+                log_header.eval,
+                await input_recorder.read_log_sample(input_file, sample_id, epoch),
+            )
+
+    log_header = await read_eval_log_async(
+        input_file, header_only=True, resolve_attachments=resolve_attachments
+    )
+    await output_recorder.log_init(log_header.eval, location=output_file)
+    await output_recorder.log_start(log_header.eval, log_header.plan)
+
+    async with anyio.create_task_group() as tg:
+        for sample_id, epoch in sample_map:
+            tg.start_soon(_convert_sample, sample_id, epoch)
+
+    await output_recorder.log_finish(
+        log_header.eval,
+        log_header.status,
+        log_header.stats,
+        log_header.results,
+        log_header.reductions,
+    )

@@ -8,15 +8,23 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model import GenerateFilter
+from inspect_ai.model._model_output import ModelOutput
 
 
 class AgentBridge:
     """Agent bridge."""
 
-    def __init__(self, state: AgentState, filter: GenerateFilter | None = None) -> None:
+    def __init__(
+        self,
+        state: AgentState,
+        filter: GenerateFilter | None = None,
+        retry_refusals: int | None = None,
+    ) -> None:
         self.state = state
         self.filter = filter
+        self.retry_refusals = retry_refusals
         self._message_ids = {}
+        self._last_message_count = 0
 
     state: AgentState
     """State updated from messages traveling over the bridge."""
@@ -54,6 +62,22 @@ class AgentBridge:
         return message_id
 
     _message_ids: dict[str, list[str]]
+
+    def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
+        # automatically track agent state based on observing generations made through
+        # the bridge. we need to distinguish between the "main" thread of generation
+        # and various types of side / sub-agent calls to the model (e.g. claude code
+        # does bash path detection using a side call). our heuristic is to keep the
+        # number of messages that were in the _last_ generation, and to update the
+        # state whenever the total messages exceeds it. this should pick up normal
+        # agent loops that keep appending, while at the same time discarding side model
+        # calls that tend to be shorter. finally, this should handle recovering from
+        # history compaction, which will shorten the message history considerably
+        messages = input + [output.message]
+        if len(messages) > self._last_message_count:
+            self.state.messages = messages
+            self.state.output = output
+        self._last_message_count = len(messages)
 
 
 @lru_cache(maxsize=100)

@@ -85,7 +85,8 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
-        (status === "started" && streamSamples && hasRunningMetrics) ? (
+        (status === "started" && streamSamples && hasRunningMetrics) ||
+        (status === "error" && evalSpec?.config["continue_on_fail"]) ? (
           <ResultsPanel
             scorers={
               runningMetrics

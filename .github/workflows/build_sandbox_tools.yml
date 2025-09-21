@@ -1,0 +1,228 @@
+# This workflow builds container tool injectable executables (e.g. inspect-sandbox-tools-amd64-v666)
+# when sandbox_tools_version.txt changes. It validates version changes, builds executables
+# for multiple architectures, and creates PR status checks to gate merges until
+# builds succeed.
+
+name: Build Container Tools
+
+# TRIGGER MECHANISM:
+# TODO: TEMPORARILY RUNNING MANUALLY ONLY - the automatic PR trigger is commented out below
+# This workflow only runs when PRs modify sandbox_tools_version.txt. The 'paths' filter
+# ensures builds are triggered ONLY when this specific file changes, preventing
+# unnecessary builds for unrelated code changes. This approach:
+# 1. Conserves CI resources by avoiding builds when tool support code is unchanged
+# 2. Ensures every version bump gets validated through the build process
+# 3. Provides immediate feedback when developers increment the version number
+on:
+  # Manual trigger for temporary use
+  workflow_dispatch:
+
+  # Automatic PR trigger (TODO: temporarily commented out)
+  # pull_request:
+  #   paths:
+  #     # Only trigger when sandbox_tools_version.txt is modified
+  #     - "src/inspect_ai/tool/sandbox_tools/sandbox_tools_version.txt"
+  #   branches:
+  #     - main
+  # TODO: WHEN WE'RE READY TO MAKE THIS GATING
+  #
+  # 🔧 Required Repository Configuration
+
+  #   Repository Settings → Branches → Branch protection rules for
+  #   main:
+
+  #   1. Enable "Require status checks to pass before merging"
+  #   2. Add the specific status check: build-tool-support
+  #     - This is the context name from the workflow's
+  #   createCommitStatus call
+  #   3. Optional but recommended: "Require branches to be up to
+  #   date before merging"
+
+  #   📋 Step-by-Step Instructions
+
+  #   1. Go to Settings → Branches in the GitHub repository
+  #   2. Find the rule for main branch (or create one)
+  #   3. Check ✅ "Require status checks to pass before merging"
+  #   4. In the search box, type build-tool-support and select it
+  #   5. Save the branch protection rule
+
+  #   🎯 How It Works
+
+  #   - Without this setting: The workflow runs and reports status,
+  #   but PRs can still be merged even if builds fail
+  #   - With this setting: PRs with sandbox_tools_version.txt changes
+  #    cannot be merged until the build-tool-support status check
+  #   passes
+
+  #   The workflow creates the status check with context
+  #   'build-tool-support' (line 177 in the workflow), so that's
+  #   exactly what needs to be added to the branch protection
+  #   requirements.
+
+  #   This is a one-time repository configuration that needs to be
+  #   done by someone with admin permissions on the repo.
+
+jobs:
+  # VERSION CHANGE DETECTION:
+  # This job compares sandbox_tools_version.txt between the PR branch and base branch.
+  # Even though the workflow only triggers when this file changes, we still need to:
+  # 1. Extract the actual version numbers for artifact naming
+  # 2. Validate the new version format is correct (simple integer)
+  # 3. Skip builds if someone reverts to the same version (edge case)
+  # 4. Provide version info to downstream jobs for artifact naming
+  detect-version:
+    name: Detect version changes
+    runs-on: ubuntu-latest
+    outputs:
+      version-changed: ${{ steps.check-version.outputs.changed }}
+      new-version: ${{ steps.check-version.outputs.new-version }}
+      old-version: ${{ steps.check-version.outputs.old-version }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version changes
+        id: check-version
+        run: |
+          # Get the current version from the PR branch
+          NEW_VERSION=$(cat src/inspect_ai/tool/sandbox_tools/sandbox_tools_version.txt)
+
+          # Get the version from the base branch
+          git checkout ${{ github.event.pull_request.base.sha }}
+          OLD_VERSION=$(cat src/inspect_ai/tool/sandbox_tools/sandbox_tools_version.txt)
+
+          # Switch back to PR branch
+          git checkout ${{ github.event.pull_request.head.sha }}
+
+          echo "old-version=$OLD_VERSION" >> $GITHUB_OUTPUT
+          echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Check if version changed (should always be true due to paths filter, but validate anyway)
+          if [ "$NEW_VERSION" != "$OLD_VERSION" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Version changed from $OLD_VERSION to $NEW_VERSION"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "Version unchanged: $NEW_VERSION"
+          fi
+
+          # Validate version format (simple integer)
+          if ! [[ "$NEW_VERSION" =~ ^[0-9]+$ ]]; then
+            echo "Error: Version must be a simple integer, got: $NEW_VERSION"
+            exit 1
+          fi
+
+  build-executables:
+    name: Build executables
+    runs-on: ubuntu-latest
+    needs: detect-version
+    if: needs.detect-version.outputs.version-changed == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build all executables
+        run: |
+          cd src/inspect_ai/tool/sandbox_tools
+          python build_within_container.py --all --dev=false
+
+      - name: Upload executable artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspect-sandbox-tools-v${{ needs.detect-version.outputs.new-version }}-all
+          path: src/inspect_ai/binaries/inspect-sandbox-tools-*-v${{ needs.detect-version.outputs.new-version }}*
+          retention-days: 90
+
+  update-pr-status:
+    name: Update PR with build status
+    runs-on: ubuntu-latest
+    needs: [detect-version, build-executables]
+    if: always() && needs.detect-version.outputs.version-changed == 'true'
+    steps:
+      - name: Comment on PR - Success
+        if: needs.build-executables.result == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+
+            const comment = `## ✅ Container Tools Build Successful
+
+            **Version:** ${{ needs.detect-version.outputs.old-version }} → ${{ needs.detect-version.outputs.new-version }}
+
+            **Built Executables:**
+            - \`inspect-sandbox-tools-amd64-v${{ needs.detect-version.outputs.new-version }}\`
+            - \`inspect-sandbox-tools-arm64-v${{ needs.detect-version.outputs.new-version }}\`
+
+            **Download Artifacts:** [View workflow run](${run.html_url})
+
+            The executables are ready for promotion to S3 after PR approval.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Comment on PR - Failure
+        if: needs.build-executables.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## ❌ Container Tools Build Failed
+
+            **Version:** ${{ needs.detect-version.outputs.old-version }} → ${{ needs.detect-version.outputs.new-version }}
+
+            The build failed for one or more architectures. Please check the workflow logs for details.
+
+            **This PR cannot be merged until the build succeeds.**`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      # PR GATING MECHANISM:
+      # This step creates a commit status check that GitHub uses to gate PR merges.
+      # When branch protection rules require status checks to pass:
+      # 1. If builds succeed -> status check passes -> PR can be merged
+      # 2. If builds fail -> status check fails -> PR merge is BLOCKED
+      # 3. Repository maintainers can configure branch protection to require this
+      #    'build-tool-support' status check, ensuring no version bumps merge
+      #    without successful executable builds
+      - name: Set status check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const state = '${{ needs.build-executables.result }}' === 'success' ? 'success' : 'failure';
+            const description = state === 'success' ? 
+              'Container tools executables built successfully' : 
+              'Container tools executable build failed';
+
+            // Create the status check that gates PR merges
+            github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.pull_request.head.sha,
+              state: state,
+              target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: description,
+              context: 'build-container-tools'  // Status check name for branch protection
+            });

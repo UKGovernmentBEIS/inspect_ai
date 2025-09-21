@@ -33,6 +33,7 @@ def model_graded_fact(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
+    model_role: str | None = "grader",
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
 
@@ -61,7 +62,15 @@ def model_graded_fact(
          to `False`. Note that this parameter is only used
          with the default `instructions` (as custom instructions
          provide their own prompts for grades).
-      model: Model or Models to use for grading. If multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
+      model: Model or models to use for grading. If a list is provided,
+        each model grades independently and the final grade is computed by
+        majority vote. When this parameter is provided, it takes precedence
+        over `model_role`.
+      model_role: Named model role to use for grading (default: "grader").
+        Ignored if `model` is provided. If specified and a model is bound to
+        this role (e.g. via the `model_roles` argument to `eval()`), that model
+        is used. If no role-bound model is available, the model being
+        evaluated (the default model) is used.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -70,6 +79,7 @@ def model_graded_fact(
         include_history=include_history,
         partial_credit=partial_credit,
         model=model,
+        model_role=model_role,
     )
 
 
@@ -81,6 +91,7 @@ def model_graded_qa(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
+    model_role: str | None = "grader",
 ) -> Scorer:
     """Score a question/answer task using a model.
 
@@ -110,7 +121,15 @@ def model_graded_qa(
         to `False`. Note that this parameter is only used
         with the default `instructions` (as custom instructions
         provide their own prompts for grades).
-      model: Model or Models to use for grading. If     multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
+      model: Model or models to use for grading. If a list is provided,
+        each model grades independently and the final grade is computed by
+        majority vote. When this parameter is provided, it takes precedence
+        over `model_role`.
+      model_role: Named model role to use for grading (default: "grader").
+        Ignored if `model` is provided. If specified and a model is bound to
+        this role (e.g. via the `model_roles` argument to `eval()`), that
+        model is used. If no role-bound model is available, the model being
+        evaluated (the default model) is used.
     """
     # bind variables
     get_scorer = partial(
@@ -120,6 +139,7 @@ def model_graded_qa(
         grade_pattern,
         include_history,
         partial_credit,
+        model_role=model_role,
     )
     # if only a single model is passed, return a single scorer
     if model is None or not isinstance(model, list):
@@ -139,6 +159,7 @@ def _model_graded_qa_single(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: str | Model | None = None,
+    model_role: str | None = "grader",
 ) -> Scorer:
     # returns a scorer that does model graded qa for a single model
 
@@ -152,7 +173,13 @@ def _model_graded_qa_single(
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
         nonlocal model
-        model = model if isinstance(model, Model) else get_model(model)
+        # Order of precedence: `model` > `model_role` > default model
+        if model is not None:
+            model = model if isinstance(model, Model) else get_model(model)
+        elif model_role is not None:
+            model = get_model(role=model_role)
+        else:
+            model = get_model()
 
         # metadata without grading template variables
         metadata = omit(
@@ -199,6 +226,12 @@ def _model_graded_qa_single(
                 value=INCORRECT,
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
+                metadata=dict(
+                    grading=[
+                        scoring_prompt,
+                        result.message,
+                    ]
+                ),
             )
 
     return score

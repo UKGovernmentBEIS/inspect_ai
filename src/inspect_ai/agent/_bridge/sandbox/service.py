@@ -12,7 +12,7 @@ from ..completions import inspect_completions_api_request
 from ..responses import inspect_responses_api_request
 from .types import SandboxAgentBridge
 
-logger = getLogger(__file__)
+logger = getLogger(__name__)
 
 MODEL_SERVICE = "bridge_model_service"
 
@@ -36,6 +36,7 @@ async def run_model_service(
         instance=instance,
         polling_interval=2,
         started=started,
+        requires_python=False,
     )
 
 
