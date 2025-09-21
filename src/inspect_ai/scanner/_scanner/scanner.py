@@ -35,17 +35,15 @@ from .filter import (
 )
 from .loader import Loader
 from .result import Result
+from .types import ScannerInput, TEvent, TMessage
 from .validate import infer_filters_from_type, validate_scanner_signature
 
 SCANNER_CONFIG = "scanner_config"
 
 # core types
-T = TypeVar("T", contravariant=True)
+# Use bounded TypeVar (contravariant for scanner input)
+T = TypeVar("T", bound=ScannerInput, contravariant=True)
 P = ParamSpec("P")
-
-# overloads to enable scanners to take T or list[T]
-TMessage = TypeVar("TMessage", ChatMessage, list[ChatMessage])
-TEvent = TypeVar("TEvent", Event, list[Event])
 
 
 class Scanner(Protocol[T]):

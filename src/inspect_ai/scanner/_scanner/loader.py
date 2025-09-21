@@ -28,10 +28,12 @@ from .filter import (
     normalize_events_filter,
     normalize_messages_filter,
 )
+from .types import ScannerInput
 
 LOADER_CONFIG = "loader_config"
 
-T = TypeVar("T", covariant=True)
+# Use bounded TypeVar (covariant for loader output)
+T = TypeVar("T", bound=ScannerInput, covariant=True)
 P = ParamSpec("P")
 
 
