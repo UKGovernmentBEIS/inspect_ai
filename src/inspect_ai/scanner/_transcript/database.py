@@ -6,12 +6,13 @@ import pickle
 import sqlite3
 from functools import reduce
 from os import PathLike
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
-    AsyncGenerator,
     Iterator,
     Sequence,
+    Type,
     TypeAlias,
     overload,
 )
@@ -68,27 +69,33 @@ class EvalLogTranscripts(Transcripts):
         self._logs = pickle.loads(base64.b64decode(spec["logs"]))
 
     @override
-    async def count(self) -> int:
+    async def __aenter__(self) -> "Transcripts":
         await self.db.connect()
-        try:
-            return await self.db.count(self._where, self._limit)
-        finally:
-            await self.db.disconnect()
+        return self
 
     @override
-    async def collect(  # type: ignore[override]
-        self, content: TranscriptContent
-    ) -> AsyncGenerator[Transcript, None]:
-        await self.db.connect()
-        try:
-            # apply filters
-            index = await self.db.query(self._where, self._limit, self._shuffle)
+    async def __aexit__(
+        self,
+        exc_type: Type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        await self.db.disconnect()
+        return None
 
-            # yield transcripts
-            for t in index:
-                yield await self.db.read(t, content)
-        finally:
-            await self.db.disconnect()
+    @override
+    async def count(self) -> int:
+        return await self.db.count(self._where, self._limit)
+
+    @override
+    async def index(self) -> Iterator[TranscriptInfo]:
+        return await self.db.query(self._where, self._limit, self._shuffle)
+
+    @override
+    async def read(
+        self, transcript: TranscriptInfo, content: TranscriptContent
+    ) -> Transcript:
+        return await self.db.read(transcript, content)
 
     @property
     def db(self) -> EvalLogTranscriptsDB:

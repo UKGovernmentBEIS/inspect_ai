@@ -569,8 +569,9 @@ async def test_transcripts_with_log_metadata():
 
     # Simple filter
     filtered = t.where(lm.model == "gpt-4")
-    count = await filtered.count()
-    assert count > 0
+    async with filtered:
+        count = await filtered.count()
+        assert count > 0
 
     # Chain multiple filters
     filtered = (
@@ -579,13 +580,15 @@ async def test_transcripts_with_log_metadata():
 
     # Collect and verify results
     results = []
-    async for transcript in filtered.collect(
-        TranscriptContent(messages="all", events="all")
-    ):
-        results.append(transcript)
-        assert transcript.metadata["model"] == "gpt-4"
-        assert transcript.metadata["epochs"] > 1
-        assert transcript.metadata["status"] == "success"
+    async with filtered:
+        for info in await filtered.index():
+            transcript = await filtered.read(
+                info, TranscriptContent(messages="all", events="all")
+            )
+            results.append(transcript)
+            assert transcript.metadata["model"] == "gpt-4"
+            assert transcript.metadata["epochs"] > 1
+            assert transcript.metadata["status"] == "success"
 
 
 @pytest.mark.asyncio

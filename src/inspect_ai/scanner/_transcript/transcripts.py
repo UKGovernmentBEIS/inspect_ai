@@ -2,13 +2,14 @@ import abc
 import base64
 import pickle
 from copy import deepcopy
+from types import TracebackType
 from typing import (
     Any,
-    AsyncGenerator,
+    Iterator,
 )
 
 from .metadata import Condition
-from .types import Transcript, TranscriptContent
+from .types import Transcript, TranscriptContent, TranscriptInfo
 
 
 class Transcripts(abc.ABC):
@@ -36,12 +37,28 @@ class Transcripts(abc.ABC):
         return transcripts
 
     @abc.abstractmethod
+    async def __aenter__(self) -> "Transcripts":
+        """Enter the async context manager."""
+        ...
+
+    @abc.abstractmethod
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None: ...
+
+    @abc.abstractmethod
     async def count(self) -> int: ...
 
     @abc.abstractmethod
-    async def collect(
-        self, content: TranscriptContent
-    ) -> AsyncGenerator[Transcript, None]: ...
+    async def index(self) -> Iterator[TranscriptInfo]: ...
+
+    @abc.abstractmethod
+    async def read(
+        self, transcript: TranscriptInfo, content: TranscriptContent
+    ) -> Transcript: ...
 
     @abc.abstractmethod
     def type(self) -> str: ...

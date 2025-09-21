@@ -1,27 +1,22 @@
-from __future__ import annotations
-
 import os
 import re
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import Any, Sequence
 
 from shortuuid import uuid
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.registry import registry_info
+from inspect_ai.scanner._transcript.types import TranscriptContent
 
+from ._results.tracker import (
+    ScanOptions,
+    ScanResults,
+    results_tracker,
+    scan_options,
+    scan_results,
+)
 from ._scanner.scanner import Scanner
 from ._transcript.transcripts import Transcripts
-
-if TYPE_CHECKING:
-    import pandas as pd
-
-
-@dataclass
-class ScanResults:
-    scan_id: str
-    scan_name: str
-    scanners: dict[str, "pd.DataFrame"]
 
 
 def scan(
@@ -61,7 +56,7 @@ async def scan_async(
     scan_name = scan_name or "scan"
 
     # resolve scans_dir
-    scans_dir = scans_dir or os.getenv("INSPECT_SCANS_DIR", "./scans")
+    scans_dir = scans_dir or str(os.getenv("INSPECT_SCANS_DIR", "./scans"))
 
     # resolve scanners and confirm unique names
     named_scanners: dict[str, Scanner[Any]] = {}
@@ -76,4 +71,59 @@ async def scan_async(
             )
         named_scanners[name] = scanner
 
-    return ScanResults(scan_id=scan_id, scan_name=scan_name, scanners={})
+    return await _scan_async(
+        ScanOptions(scan_id, scan_name, scans_dir, transcripts, named_scanners)
+    )
+
+
+async def scan_resume(
+    scan_dir: str,
+) -> ScanResults:
+    return run_coroutine(scan_resume_async(scan_dir))
+
+
+async def scan_resume_async(
+    scan_dir: str,
+) -> ScanResults:
+    options = scan_options(scan_dir)
+    if options is None:
+        raise RuntimeError(
+            f"The specified directory '{scan_dir}' does not contain a scan."
+        )
+    return await _scan_async(options)
+
+
+async def _scan_async(options: ScanOptions) -> ScanResults:
+    # naive scan with:
+    #  No parallelism
+    #  No content filtering
+    #  Supporting only Transcript
+
+    # set up our tracker (stores results and lets us skip results we already have)
+    tracker = results_tracker(options)
+
+    # read transcripts from index and process them if required
+    async with options.transcripts:
+        for t in await options.transcripts.index():
+            for name, scanner in options.scanners.items():
+                # get reporter for this transcript/scanner (if None we already did this work)
+                reporter = await tracker(t, name)
+                if reporter is None:
+                    continue
+
+                # read the transcript
+                transcript = await options.transcripts.read(
+                    t, TranscriptContent(messages="all")
+                )
+
+                # call the scanner (note that later this may accumulate multiple
+                # scanner calls e.g. for ChatMessage scanners and then report all
+                # of the results together)
+                result = await scanner(transcript)
+
+                # report the result
+                if result is not None:
+                    await reporter([result])
+
+    # read all scan results for this scan
+    return await scan_results(options.scans_dir, options.scan_id, compact=True)
