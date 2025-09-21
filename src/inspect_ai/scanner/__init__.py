@@ -1,4 +1,9 @@
-from ._scan import scan, scan_async
+from ._results import (
+    ScanResults,
+    scan_results,
+    scanner_results,
+)
+from ._scan import scan, scan_async, scan_resume, scan_resume_async
 from ._scanner.loader import Loader, loader
 from ._scanner.scanner import Scanner, scanner
 from ._transcript.database import transcripts
@@ -16,7 +21,12 @@ from ._transcript.types import (
 __all__ = [
     # scan
     "scan",
+    "scan_resume",
+    "scan_results",
+    "scanner_results",
+    "ScanResults",
     "scan_async",
+    "scan_resume_async",
     # transcripts
     "transcripts",
     "Transcripts",

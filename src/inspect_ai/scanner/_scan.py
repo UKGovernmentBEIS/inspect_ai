@@ -6,17 +6,17 @@ from shortuuid import uuid
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.registry import registry_info
-from inspect_ai.scanner._transcript.types import TranscriptContent
 
-from ._results.tracker import (
-    ScanOptions,
+from ._options import ScanOptions, read_scan_options
+from ._results import (
     ScanResults,
-    results_tracker,
-    scan_options,
-    scan_results,
+    scan_compact,
+    scan_results_async,
 )
 from ._scanner.scanner import Scanner
+from ._tracker import results_tracker
 from ._transcript.transcripts import Transcripts
+from ._transcript.types import TranscriptContent
 
 
 def scan(
@@ -85,7 +85,7 @@ async def scan_resume(
 async def scan_resume_async(
     scan_dir: str,
 ) -> ScanResults:
-    options = scan_options(scan_dir)
+    options = read_scan_options(scan_dir)
     if options is None:
         raise RuntimeError(
             f"The specified directory '{scan_dir}' does not contain a scan."
@@ -126,4 +126,5 @@ async def _scan_async(options: ScanOptions) -> ScanResults:
                     await reporter([result])
 
     # read all scan results for this scan
-    return await scan_results(options.scans_dir, options.scan_id, compact=True)
+    await scan_compact(options.scans_dir, options.scan_id)
+    return await scan_results_async(options.scans_dir, options.scan_id)
