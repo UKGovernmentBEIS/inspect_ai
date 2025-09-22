@@ -3,73 +3,89 @@ import { createLogger } from '../../utils/logger';
 
 const log = createLogger('DatabaseManager');
 
-class DatabaseManager {
-  private currentDatabase: AppDatabase | null = null;
-  private currentLogDir: string | null = null;
+/**
+ * Manages database instances for different log directories.
+ * Each instance of this class manages a single database connection.
+ */
+export class DatabaseManager {
+  private database: AppDatabase | null = null;
+  private logDir: string | null = null;
 
-  async switchToLogDir(logDir: string): Promise<AppDatabase> {
-    if (this.currentLogDir === logDir && this.currentDatabase) {
-      return this.currentDatabase;
+  /**
+   * Opens a database for the specified log directory.
+   * If already connected to this directory, returns the existing connection.
+   * If connected to a different directory, closes the current connection first.
+   */
+  async openDatabase(logDir: string): Promise<AppDatabase> {
+    if (this.logDir === logDir && this.database) {
+      return this.database;
     }
 
-    log.debug(`Switching to log directory: ${logDir}`);
+    log.debug(`Opening database for log directory: ${logDir}`);
 
-    // Close current database
-    if (this.currentDatabase) {
-      log.debug(`Closing current database for: ${this.currentLogDir}`);
-      this.currentDatabase.close();
+    // Close current database if switching to a different directory
+    if (this.database && this.logDir !== logDir) {
+      await this.close();
     }
 
-    // Create new database for this log directory
-    this.currentDatabase = new AppDatabase(logDir);
-    this.currentLogDir = logDir;
+    // Create and open new database
+    this.database = new AppDatabase(logDir);
+    this.logDir = logDir;
 
     try {
-      await this.currentDatabase.open();
+      await this.database.open();
       log.debug(`Successfully opened database for: ${logDir}`);
+      return this.database;
     } catch (error) {
       log.error(`Failed to open database for ${logDir}:`, error);
-      this.currentDatabase = null;
-      this.currentLogDir = null;
+      this.database = null;
+      this.logDir = null;
       throw error;
     }
-
-    return this.currentDatabase;
   }
 
-  getCurrentDatabase(): AppDatabase | null {
-    return this.currentDatabase;
+  /**
+   * Get the current database instance.
+   * Returns null if no database is open.
+   */
+  getDatabase(): AppDatabase | null {
+    return this.database;
   }
 
-  getCurrentLogDir(): string | null {
-    return this.currentLogDir;
+  /**
+   * Get the current log directory.
+   * Returns null if no database is open.
+   */
+  getLogDir(): string | null {
+    return this.logDir;
   }
 
+  /**
+   * Close the current database connection.
+   */
   async close(): Promise<void> {
-    if (this.currentDatabase) {
-      log.debug(`Closing database for: ${this.currentLogDir}`);
-      this.currentDatabase.close();
-      this.currentDatabase = null;
-      this.currentLogDir = null;
+    if (this.database) {
+      log.debug(`Closing database for: ${this.logDir}`);
+      this.database.close();
+      this.database = null;
+      this.logDir = null;
     }
   }
 
   /**
-   * Check if a database is currently active
+   * Check if a database is currently open.
    */
-  isActive(): boolean {
-    return this.currentDatabase !== null && this.currentLogDir !== null;
+  isOpen(): boolean {
+    return this.database !== null && this.logDir !== null;
   }
 
   /**
-   * Get database info for debugging
+   * Get database info for debugging.
    */
-  getInfo(): { logDir: string | null; isActive: boolean } {
+  getInfo(): { logDir: string | null; isOpen: boolean } {
     return {
-      logDir: this.currentLogDir,
-      isActive: this.isActive()
+      logDir: this.logDir,
+      isOpen: this.isOpen()
     };
   }
 }
-
-export const databaseManager = new DatabaseManager();
