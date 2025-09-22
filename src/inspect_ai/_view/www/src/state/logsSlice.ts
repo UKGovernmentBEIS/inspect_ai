@@ -39,6 +39,14 @@ export interface LogsSlice {
     selectLogFile: (logUrl: string) => Promise<void>;
     loadLogs: () => Promise<LogFiles>;
 
+    // Cross-file sample operations
+    getAllCachedSamples: () => Promise<any[]>;
+    queryCachedSamples: (filter?: {
+      completed?: boolean;
+      hasError?: boolean;
+      scoreRange?: { min: number; max: number; scoreName?: string };
+    }) => Promise<any[]>;
+
     // Try to fetch an eval-set
     loadEvalSetInfo: (logPath?: string) => Promise<EvalSet | undefined>;
     setEvalSetInfo: (info: EvalSet | undefined) => void;
@@ -411,6 +419,35 @@ export const createLogsSlice = (
         set((state) => {
           state.logs.listing.watchedLogs = undefined;
         });
+      },
+
+      // Cross-file sample operations
+      getAllCachedSamples: async () => {
+        try {
+          log.debug("LOADING ALL CACHED SAMPLES");
+          const samples = await databaseService.getAllSampleSummaries();
+          log.debug(`Retrieved ${samples.length} cached samples`);
+          return samples;
+        } catch (e) {
+          log.debug("No cached samples available");
+          return [];
+        }
+      },
+
+      queryCachedSamples: async (filter?: {
+        completed?: boolean;
+        hasError?: boolean;
+        scoreRange?: { min: number; max: number; scoreName?: string };
+      }) => {
+        try {
+          log.debug("QUERYING CACHED SAMPLES", filter);
+          const samples = await databaseService.querySampleSummaries(filter);
+          log.debug(`Query returned ${samples.length} samples`);
+          return samples;
+        } catch (e) {
+          log.debug("Sample query failed, returning empty results");
+          return [];
+        }
       },
     },
   } as const;
