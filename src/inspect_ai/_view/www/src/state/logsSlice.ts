@@ -154,6 +154,8 @@ export const createLogsSlice = (
           });
         }
 
+        console.log("TO LOAD", filesToLoad);
+
         if (filesToLoad.length === 0) {
           return Object.values({ ...state.logs.logOverviews, ...cached });
         }
@@ -272,50 +274,53 @@ export const createLogsSlice = (
           return kEmptyLogs;
         }
 
-        // OPTIONAL: Try cache first (non-blocking, fail silently)
-        try {
-          const cached = await databaseService.getCachedLogFiles();
-          if (cached) {
-            log.debug("LOADED LOG FILES FROM CACHE");
-
-            // Still cache again in background to refresh (non-blocking)
-            setTimeout(() => {
-              api
-                .get_log_paths()
-                .then((logFiles) => {
-                  databaseService.cacheLogFiles(logFiles).catch(() => {
-                    // Silently ignore cache errors
-                  });
-                })
-                .catch(() => {
-                  // Silently ignore API errors during background refresh
-                });
-            }, 100);
-
-            return cached;
-          }
-        } catch (e) {
-          // Cache read failed, fall through to API (no logging to avoid noise)
-        }
-
-        // Fallback to API (original behavior)
+        // Get log files from API to initialize database with log_dir
+        let logFiles: LogFiles;
         try {
           log.debug("LOADING LOG FILES FROM API");
-          const logFiles = await api.get_log_paths();
+          logFiles = await api.get_log_paths();
 
-          // OPTIONAL: Try to cache result (completely non-blocking)
-          setTimeout(() => {
-            databaseService.cacheLogFiles(logFiles).catch(() => {
-              // Silently ignore cache errors
-            });
-          }, 0);
-
-          return logFiles;
+          // Initialize database with log directory
+          if (logFiles.log_dir) {
+            try {
+              await databaseService.switchLogDir(logFiles.log_dir);
+            } catch (e) {
+              // Silently ignore database initialization errors
+            }
+          }
         } catch (e) {
           console.log(e);
           get().appActions.setStatus({ loading: false, error: e as Error });
           return kEmptyLogs;
         }
+
+        // OPTIONAL: Try cache after DB is initialized (non-blocking, fail silently)
+        try {
+          const cached = await databaseService.getCachedLogFiles();
+          if (cached) {
+            log.debug("LOADED LOG FILES FROM CACHE");
+
+            // Still cache the fresh data in background (non-blocking)
+            setTimeout(() => {
+              databaseService.cacheLogFiles(logFiles).catch(() => {
+                // Silently ignore cache errors
+              });
+            }, 0);
+
+            return cached;
+          }
+        } catch (e) {
+          // Cache read failed, use API results we already have
+        }
+
+        // Cache the result we got from API (completely non-blocking)
+        setTimeout(() => {
+          databaseService.cacheLogFiles(logFiles).catch(() => {
+            // Silently ignore cache errors
+          });
+        }, 0);
+
+        return logFiles;
       },
       refreshLogs: async () => {
         log.debug("REFRESH LOGS");

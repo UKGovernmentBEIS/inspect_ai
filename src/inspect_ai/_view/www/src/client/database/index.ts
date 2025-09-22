@@ -8,7 +8,3 @@ export type {
 
 export { databaseManager } from './manager';
 export { databaseService, DatabaseService } from './service';
-export { testDatabaseOperations } from './test';
-
-// Import manual test utilities (adds window.inspectDB)
-import './manual-test';

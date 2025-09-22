@@ -3380,6 +3380,11 @@ exsolve@^1.0.7:
   resolved "https://registry.npmjs.org/exsolve/-/exsolve-1.0.7.tgz"
   integrity sha512-VO5fQUzZtI6C+vx4w/4BWJpg3s/5l+6pRQEHzFRM8WFi4XffSP1Z+4qi7GbjWbvRQEbdIco5mIMq+zX4rPuLrw==
 
+fake-indexeddb@^6.2.2:
+  version "6.2.2"
+  resolved "https://registry.yarnpkg.com/fake-indexeddb/-/fake-indexeddb-6.2.2.tgz#6e2448cf9e0fcd2f752bf024ba84b1ce47517d90"
+  integrity sha512-SGbf7fzjeHz3+12NO1dYigcYn4ivviaeULV5yY5rdGihBvvgwMds4r4UBbNIUMwkze57KTDm32rq3j1Az8mzEw==
+
 fast-deep-equal@^3.1.1, fast-deep-equal@^3.1.3:
   version "3.1.3"
   resolved "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz"

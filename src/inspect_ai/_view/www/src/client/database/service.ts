@@ -54,7 +54,11 @@ export class DatabaseService {
 
       if (files.length === 0) {
         log.debug('No cached log files found');
-        return null;
+        const logDir = databaseManager.getCurrentLogDir() || '';
+        return {
+          log_dir: logDir,
+          files: []
+        };
       }
 
       log.debug(`Retrieved ${files.length} cached log files`);

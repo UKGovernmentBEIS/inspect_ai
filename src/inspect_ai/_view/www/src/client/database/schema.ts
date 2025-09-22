@@ -4,8 +4,7 @@ import { EvalSpec, EvalPlan, EvalResults, EvalStats, EvalError, EvalMetric } fro
 
 // Log Files Table - Basic file listing from get_log_paths()
 export interface LogFileRecord {
-  id?: number;                    // Auto-increment primary key
-  file_path: string;              // LogFile.name (unique)
+  file_path: string;              // LogFile.name (primary key)
   file_name: string;              // Basename extracted from path
   task?: string;                  // LogFile.task
   task_id?: string;               // LogFile.task_id
@@ -14,8 +13,7 @@ export interface LogFileRecord {
 
 // Log Summaries Table - Summary data from get_log_overviews()
 export interface LogSummaryRecord {
-  id?: number;                    // Auto-increment primary key
-  file_path: string;              // Reference to log file (unique)
+  file_path: string;              // Log file path (primary key)
 
   eval_id: string;                // LogOverview.eval_id
   run_id: string;                 // LogOverview.run_id
@@ -35,8 +33,7 @@ export interface LogSummaryRecord {
 
 // Log Headers Table - Full header data from get_log_summary()
 export interface LogHeaderRecord {
-  id?: number;                    // Auto-increment primary key
-  file_path: string;              // Reference to log file (unique)
+  file_path: string;              // Log file path (primary key)
 
   version?: number;               // EvalLogHeader.version
   status?: 'started' | 'success' | 'cancelled' | 'error'; // EvalLogHeader.status
@@ -51,7 +48,6 @@ export interface LogHeaderRecord {
 
 // Sample Summaries Table - Sample data for cross-file querying
 export interface SampleSummaryRecord {
-  id?: number;                    // Auto-increment primary key
   file_path: string;              // Reference to log file
 
   // Core identifiers from SampleSummary
@@ -75,10 +71,10 @@ export interface SampleSummaryRecord {
 }
 
 export class AppDatabase extends Dexie {
-  log_files!: Dexie.Table<LogFileRecord, number>;
-  log_summaries!: Dexie.Table<LogSummaryRecord, number>;
-  log_headers!: Dexie.Table<LogHeaderRecord, number>;
-  sample_summaries!: Dexie.Table<SampleSummaryRecord, number>;
+  log_files!: Dexie.Table<LogFileRecord, string>;
+  log_summaries!: Dexie.Table<LogSummaryRecord, string>;
+  log_headers!: Dexie.Table<LogHeaderRecord, string>;
+  sample_summaries!: Dexie.Table<SampleSummaryRecord, [string, number | string, number]>;
 
   constructor(logDir: string) {
     // Sanitize logDir for database name
@@ -87,22 +83,13 @@ export class AppDatabase extends Dexie {
     super(dbName);
 
     this.version(1).stores({
-      log_files: '++id, file_path, task, task_id, cached_at',
+      log_files: 'file_path, task, task_id, cached_at',
 
-      log_summaries: '++id, file_path, eval_id, run_id, task, task_id, status, model, started_at, completed_at',
+      log_summaries: 'file_path, eval_id, run_id, task, task_id, status, model, started_at, completed_at',
 
-      log_headers: '++id, file_path, status, cached_at',
+      log_headers: 'file_path, status, cached_at',
 
-      sample_summaries: `
-        ++id,
-        file_path,
-        sample_id,
-        epoch,
-        completed,
-        target,
-        [file_path+sample_id+epoch],
-        [file_path+completed]
-      `
+      sample_summaries: '[file_path+sample_id+epoch], file_path, sample_id, epoch, completed, target, [file_path+completed]'
     });
   }
 }
