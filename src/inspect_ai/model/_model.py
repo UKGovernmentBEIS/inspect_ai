@@ -15,6 +15,7 @@ from typing import (
     Awaitable,
     Callable,
     Literal,
+    NamedTuple,
     Sequence,
     Type,
     TypeAlias,
@@ -94,14 +95,31 @@ from ._model_output import ModelOutput, ModelUsage
 
 logger = logging.getLogger(__name__)
 
+
+class GenerateInput(NamedTuple):
+    """Input parameters for generate function."""
+
+    input: list[ChatMessage]
+    """Chat message input."""
+
+    tools: list[ToolInfo]
+    """Tools available for the model to call."""
+
+    tool_choice: ToolChoice | None
+    """Directives to the model as to which tools to prefer."""
+
+    config: GenerateConfig
+    """Model configuration."""
+
+
 GenerateFilter: TypeAlias = Callable[
     [str, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
-    Awaitable[ModelOutput | None],
+    Awaitable[ModelOutput | GenerateInput | None],
 ]
 """Filter a model generation.
 
 A filter may substitute for the default model generation by returning a
-`ModelOutput` or return `None` to allow default processing to continue.
+`ModelOutput`, modify the input parameters by returning a `GenerateInput`, or return `None` to allow default processing to continue.
 """
 
 
@@ -186,14 +204,10 @@ class ModelAPI(abc.ABC):
         """Generate output from the model.
 
         Args:
-          input (str | list[ChatMessage]): Chat message
-            input (if a `str` is passed it is converted
-            to a `ChatUserMessage`).
-          tools (list[ToolInfo]): Tools available for the
-            model to call.
-          tool_choice (ToolChoice): Directives to the model
-            as to which tools to prefer.
-          config (GenerateConfig): Model configuration.
+          input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+          tools: Tools available for the model to call.
+          tool_choice: Directives to the model as to which tools to prefer.
+          config: Model configuration.
 
         Returns:
            ModelOutput or tuple[ModelOutput,ModelCall], the latter being

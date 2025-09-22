@@ -3,7 +3,13 @@ from typing import Sequence, cast
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
-from inspect_ai.model._model import Model, active_model, get_model, model_roles
+from inspect_ai.model._model import (
+    GenerateInput,
+    Model,
+    active_model,
+    get_model,
+    model_roles,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_choice import ToolChoice
@@ -28,7 +34,11 @@ async def bridge_generate(
             parse_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
             for tool in tools
         ]
-        output = await bridge.filter(model.name, input, tool_info, tool_choice, config)
+        result = await bridge.filter(model.name, input, tool_info, tool_choice, config)
+        if isinstance(result, ModelOutput):
+            output = result
+        elif isinstance(result, GenerateInput):
+            input, tools, tool_choice, config = result
 
     # if the filter didn't take it then run normal inference
     if output is None:
