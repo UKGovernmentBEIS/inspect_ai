@@ -34,9 +34,9 @@ describe('Database Service', () => {
       const cached = await databaseService.getCachedLogFiles();
 
       expect(cached).not.toBeNull();
-      expect(cached!.files).toHaveLength(2);
-      expect(cached!.files[0].name).toBe('/test/logs/eval1.json');
-      expect(cached!.files[0].task).toBe('test-task-1');
+      expect(cached?.files).toHaveLength(2);
+      expect(cached?.files[0].name).toBe('/test/logs/eval1.json');
+      expect(cached?.files[0].task).toBe('test-task-1');
     });
 
     test('should handle empty log files', async () => {
@@ -49,7 +49,7 @@ describe('Database Service', () => {
       const cached = await databaseService.getCachedLogFiles();
 
       expect(cached).not.toBeNull();
-      expect(cached!.files).toHaveLength(0);
+      expect(cached?.files).toHaveLength(0);
     });
 
     test('should update existing log files (upsert)', async () => {
@@ -71,15 +71,15 @@ describe('Database Service', () => {
       // Cache initial files
       await databaseService.cacheLogFiles(initialFiles);
       let cached = await databaseService.getCachedLogFiles();
-      expect(cached!.files).toHaveLength(1);
+      expect(cached?.files).toHaveLength(1);
 
       // Cache updated files (should upsert)
       await databaseService.cacheLogFiles(updatedFiles);
       cached = await databaseService.getCachedLogFiles();
 
-      expect(cached!.files).toHaveLength(2);
-      expect(cached!.files.find(f => f.name === '/test/logs/eval1.json')?.task).toBe('new-task');
-      expect(cached!.files.find(f => f.name === '/test/logs/eval2.json')?.task).toBe('additional-task');
+      expect(cached?.files).toHaveLength(2);
+      expect(cached?.files.find(f => f.name === '/test/logs/eval1.json')?.task).toBe('new-task');
+      expect(cached?.files.find(f => f.name === '/test/logs/eval2.json')?.task).toBe('additional-task');
     });
   });
 
@@ -171,7 +171,7 @@ describe('Database Service', () => {
       expect(cached).toHaveLength(2);
       expect(cached[0].id).toBe('sample-1');
       expect(cached[1].id).toBe('sample-2');
-      expect(cached[0].scores.accuracy.value).toBe(0.85);
+      expect(cached[0].scores?.accuracy?.value).toBe(0.85);
     });
 
     test('should handle cross-file sample queries', async () => {
@@ -249,7 +249,7 @@ describe('Database Service', () => {
       expect(cached).toHaveLength(1); // Should still be 1, not 2
       expect(cached[0].completed).toBe(true); // Should be updated
       expect(cached[0].input).toBe('Updated input');
-      expect(cached[0].scores.accuracy.value).toBe(0.9);
+      expect(cached[0].scores?.accuracy?.value).toBe(0.9);
     });
   });
 
