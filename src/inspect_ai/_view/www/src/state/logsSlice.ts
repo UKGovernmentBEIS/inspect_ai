@@ -99,19 +99,36 @@ export const createLogsSlice = (
           return [];
         }
 
-        // Filter out files that are already loaded or currently loading
+        const filePaths = logs.map(log => log.name);
+
+        // OPTIONAL: Try cache first (non-blocking, fail silently)
+        let cached: Record<string, LogOverview> = {};
+        try {
+          cached = await databaseService.getCachedLogSummaries(filePaths);
+        } catch (e) {
+          // Cache read failed, continue with normal flow
+        }
+
+        // Filter out files that are already loaded, cached, or currently loading
         // reload headers with "started" status as they may have changed
         const filesToLoad = logs.filter((logFile) => {
           const existing = state.logs.logOverviews[logFile.name];
+          const cachedOverview = cached[logFile.name];
           const isLoading = state.logs.loadingFiles.has(logFile.name);
 
-          // Always load if no existing header
-          if (!existing) {
+          // Use cached version if available and not "started"
+          if (cachedOverview && cachedOverview.status !== "started") {
+            return false;
+          }
+
+          // Always load if no existing header and no cached version
+          if (!existing && !cachedOverview) {
             return !isLoading;
           }
 
           // Reload if header status is "started" or "error" (but not if already loading)
-          if (existing.status === "started") {
+          const overview = existing || cachedOverview;
+          if (overview && overview.status === "started") {
             return !isLoading;
           }
 
@@ -119,8 +136,18 @@ export const createLogsSlice = (
           return false;
         });
 
+        // Include cached overviews in the store immediately
+        if (Object.keys(cached).length > 0) {
+          set((state) => {
+            state.logs.logOverviews = {
+              ...state.logs.logOverviews,
+              ...cached,
+            };
+          });
+        }
+
         if (filesToLoad.length === 0) {
-          return [];
+          return Object.values({ ...state.logs.logOverviews, ...cached });
         }
 
         // Mark files as loading
@@ -136,7 +163,7 @@ export const createLogsSlice = (
         });
 
         try {
-          log.debug(`LOADING LOG OVERVIEWS for ${filesToLoad.length} files`);
+          log.debug(`LOADING LOG OVERVIEWS from API for ${filesToLoad.length} files`);
           const headers = await api.get_log_overviews(
             filesToLoad.map((log) => log.name),
           );
@@ -165,7 +192,16 @@ export const createLogsSlice = (
             state.logs.logOverviewsLoading = false;
           });
 
-          return headers;
+          // OPTIONAL: Cache new results (completely non-blocking)
+          setTimeout(() => {
+            if (Object.keys(headerMap).length > 0) {
+              databaseService.cacheLogSummaries(headerMap).catch(() => {
+                // Silently ignore cache errors
+              });
+            }
+          }, 0);
+
+          return Object.values({ ...cached, ...headerMap });
         } catch (error) {
           log.error("Error loading log headers", error);
 
@@ -176,6 +212,11 @@ export const createLogsSlice = (
             });
             state.logs.logOverviewsLoading = false;
           });
+
+          // Still return cached overviews if we have them
+          if (Object.keys(cached).length > 0) {
+            return Object.values(cached);
+          }
 
           // Don't throw - just return empty array like the old implementation
           return [];
