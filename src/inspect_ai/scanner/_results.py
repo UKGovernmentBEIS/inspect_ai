@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, overload
 from upath import UPath
 
 from inspect_ai._util._async import run_coroutine
+from inspect_ai._util.path import pretty_path
 
 from ._reporter import find_scan_dir
 
@@ -79,11 +80,41 @@ async def scan_results_async(
     if scan_dir is None:
         raise ValueError(f"Scan id '{scan_id}' not found in scans dir '{scans_dir}'.")
 
+    # check for uncompacted transcript files
+    uncompacted_files = False
+    for parquet_file in scan_dir.glob("*.parquet"):
+        # transcript files have format: {transcript_id}_{scanner_name}.parquet
+        if "_" in parquet_file.stem and parquet_file.stem != "options":
+            uncompacted_files = True
+
+    if uncompacted_files:
+        raise ValueError(
+            f"Scan '{scan_id}' has uncompacted transcript files. "
+            f"Run scan_resume('{pretty_path(str(scan_dir))}') to complete the scan."
+        )
+
+    # extract scan_name from directory name
+    # format: {timestamp}_{scan_name}_{scan_id}
+    parts = scan_dir.name.rsplit("_", 2)
+    scan_name = parts[1] if len(parts) >= 3 else ""
+
     if scanner_name is not None:
         # Return specific scanner results
-        import pandas as pd
+        scanner_file = scan_dir / f"{scanner_name}.parquet"
+        if not scanner_file.exists():
+            raise ValueError(
+                f"Scanner '{scanner_name}' not found for scan id '{scan_id}'."
+            )
 
-        return pd.DataFrame()
+        return pd.read_parquet(str(scanner_file))
     else:
         # Return all scan results
-        return ScanResults("", "", {})
+        scanners = {}
+        for parquet_file in scan_dir.glob("*.parquet"):
+            # skip any transcript-specific files (they contain underscore)
+            if "_" not in parquet_file.stem or parquet_file.stem == "options":
+                scanner_name = parquet_file.stem
+                if scanner_name != "options":  # skip options.parquet if it exists
+                    scanners[scanner_name] = pd.read_parquet(str(parquet_file))
+
+        return ScanResults(scan_id, scan_name, scanners)

@@ -36,6 +36,11 @@ async def scan_reporter(scans_dir: UPath, options: ScanOptions) -> ScanReporter:
         if scan_file.exists():
             return None
 
+        # check if we already have a full file for this scanner
+        scanner_file = scan_dir / f"{scanner}.parquet"
+        if scanner_file.exists():
+            return None
+
         async def report(results: Sequence[Result]) -> None:
             # create records
             records = [
@@ -82,6 +87,14 @@ async def scan_compact(scans_dir: UPath, scan_id: str) -> None:
 
     # consolidate files for each scanner
     for scanner_name, files in scanner_files.items():
+        # skip if consolidated file already exists
+        consolidated_file = scan_dir / f"{scanner_name}.parquet"
+        if consolidated_file.exists():
+            # just delete the transcript-specific files
+            for file in files:
+                file.unlink()
+            continue
+
         # read all parquet files for this scanner
         dfs = []
         for file in files:
@@ -96,7 +109,6 @@ async def scan_compact(scans_dir: UPath, scan_id: str) -> None:
         df_arrow = table.to_pandas(types_mapper=arrow_types_mapper)
 
         # write consolidated file
-        consolidated_file = scan_dir / f"{scanner_name}.parquet"
         df_arrow.to_parquet(str(consolidated_file))
 
         # delete original files

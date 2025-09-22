@@ -9,12 +9,8 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.registry import registry_info
 
 from ._options import ScanOptions, read_scan_options
-from ._reporter import scan_reporter
-from ._results import (
-    ScanResults,
-    scan_compact,
-    scan_results_async,
-)
+from ._reporter import scan_compact, scan_reporter
+from ._results import ScanResults, scan_results_async
 from ._scanner.scanner import Scanner
 from ._transcript.transcripts import Transcripts
 from ._transcript.types import TranscriptContent
@@ -50,10 +46,8 @@ async def scan_async(
 
     # validate and resolve name
     if scan_name is not None:
-        if not re.match(r"^[a-zA-Z0-9_-]+$", scan_name):
-            raise ValueError(
-                "scan 'name' may use only letters, numbers, underscores, and dashes"
-            )
+        if not re.match(r"^[a-zA-Z0-9-]+$", scan_name):
+            raise ValueError("scan 'name' may use only letters, numbers, and dashes")
     scan_name = scan_name or "scan"
 
     # resolve scans_dir
@@ -73,7 +67,13 @@ async def scan_async(
         named_scanners[name] = scanner
 
     return await _scan_async(
-        UPath(scans_dir), ScanOptions(scan_id, scan_name, transcripts, named_scanners)
+        UPath(scans_dir),
+        ScanOptions(
+            scan_id=scan_id,
+            scan_name=scan_name,
+            transcripts=transcripts,
+            scanners=named_scanners,
+        ),
     )
 
 
