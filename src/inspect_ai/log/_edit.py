@@ -88,7 +88,10 @@ def recompute_metrics(log: EvalLog) -> None:
         ValueError: If log is missing required data for recomputation
     """
     # Import here to avoid circular imports
-    from inspect_ai._eval.score import reducers_from_log_header
+    from inspect_ai._eval.score import (
+        metrics_from_log_header,
+        reducers_from_log_header,
+    )
     from inspect_ai._eval.task.results import eval_results
 
     if log.samples is None:
@@ -125,6 +128,7 @@ def recompute_metrics(log: EvalLog) -> None:
             scores.append(sample_score_dict)
 
     reducers = reducers_from_log_header(log)
+    metrics = metrics_from_log_header(log)
 
     # Create scorers with metrics from registry to ensure proper computation
     from inspect_ai._util.registry import (
@@ -174,6 +178,7 @@ def recompute_metrics(log: EvalLog) -> None:
         scores=scores,
         reducers=reducers,
         scorers=scorers,
+        metrics=metrics,
     )
 
     # Update the log's results and reductions
