@@ -1,4 +1,5 @@
-# Groups: Coding Assistants Cybersecurity Safeguards Mathematics Reasoning Knowledge
+# Groups: Assistants Bias Coding Cybersecurity Knowledge Mathematics Multimodal Personality Reasoning Safeguards Scheming Writing
+
 
 - title: "MASK: Disentangling Honesty from Accuracy in AI Systems"
   description: |
@@ -225,7 +226,7 @@
     - name: cyse2_vulnerability_exploit
       dataset_samples: 585
   metadata:
-    sandbox: ["scorer", "solver"] # (only cyse2_vulnerability_exploit is sandboxed)
+    sandbox: ["scorer", "solver"]  # (only cyse2_vulnerability_exploit is sandboxed)
 
 - title: "CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities in Large Language Models"
   description: |
@@ -273,7 +274,7 @@
   path: src/inspect_evals/gdm_capabilities/self_reasoning
   arxiv: https://arxiv.org/abs/2505.01420
   group: Scheming
-  contributors: ["ZiyueWang25", "XkunW"]
+  contributors: ["ZiyueWang25","XkunW"]
   tasks:
     - name: gdm_approved_directories
       dataset_samples: 2
@@ -316,6 +317,17 @@
     - name: gdm_strategic_rule_breaking
       dataset_samples: 1
   tags: ["Agent"]
+
+- title: "Agentic Misalignment: How LLMs could be insider threats"
+  description: |
+    Eliciting unethical behaviour (most famously blackmail) in response to a fictional company-assistant scenario where the model is faced with replacement.
+  path: src/inspect_evals/agentic_misalignment
+  arxiv: https://www.anthropic.com/research/agentic-misalignment
+  group: Scheming
+  contributors: ["bmillwood-aisi"]
+  tasks:
+    - name: agentic_misalignment
+      dataset_samples: 1
 
 - title: "SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis and response abilities in LLMs for Security Events."
   description: |
@@ -424,7 +436,7 @@
 - title: "MATH: Measuring Mathematical Problem Solving"
   description: |
     Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers. NOTE: The dataset has been taken down due to a DMCA notice from The Art of Problem Solving.
-  path: src/inspect_evals/mathematics
+  path: src/inspect_evals/math
   arxiv: https://arxiv.org/abs/2103.03874
   group: Mathematics
   contributors: ["xeon27"]
@@ -802,6 +814,22 @@
     - name: pubmedqa
       dataset_samples: 500
 
+- title: "HealthBench: Evaluating Large Language Models Towards Improved Human Health"
+  description: |
+    A comprehensive evaluation benchmark designed to assess language models' medical capabilities across a wide range of healthcare scenarios.
+  path: src/inspect_evals/healthbench
+  arxiv: https://arxiv.org/abs/2505.08775
+  group: Knowledge
+  contributors: ["retroam"]
+  tags: ["Medical", "Healthcare"]
+  tasks:
+    - name: healthbench
+      dataset_samples: 5000
+    - name: healthbench_hard
+      dataset_samples: 1000
+    - name: healthbench_consensus
+      dataset_samples: 3671
+
 - title: "AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models"
   description: |
     AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving.
@@ -865,6 +893,28 @@
     - name: "onet_m6"
       dataset_samples: 397
 
+- title: "BBQ: Bias Benchmark for Question Answering"
+  description: |
+    A dataset for evaluating bias in question answering models across multiple social dimensions.
+  path: src/inspect_evals/bbq
+  arxiv: https://arxiv.org/abs/2110.08193
+  group: Bias
+  contributors: ["harshraj172", "shubhobm"]
+  tasks:
+    - name: bbq
+      dataset_samples: 58492
+
+- title: "BOLD: Bias in Open-ended Language Generation Dataset"
+  description: |
+    A dataset to measure fairness in open-ended text generation, covering five domains: profession, gender, race, religious ideologies, and political ideologies.
+  path: src/inspect_evals/bold
+  arxiv: https://arxiv.org/abs/2101.11718
+  group: Bias
+  contributors: ["harshraj172", "shubhobm"]
+  tasks:
+    - name: bold
+      dataset_samples: 7200
+
 - title: "Humanity's Last Exam"
   description: |
     Humanity's Last Exam (HLE) is a multi-modal benchmark at the frontier of human knowledge, designed to be the final closed-ended academic benchmark of its kind with broad subject coverage. Humanity's Last Exam consists of 3,000 questions across dozens of subjects, including mathematics, humanities, and the natural sciences. HLE is developed globally by subject-matter experts and consists of multiple-choice and short-answer questions suitable for automated grading.
@@ -910,6 +960,17 @@
   tasks:
     - name: simpleqa
       dataset_samples: 4326
+
+- title: "AgentBench: Evaluate LLMs as Agents"
+  description: A benchmark designed to evaluate LLMs as Agents
+  path: src/inspect_evals/agent_bench
+  arxiv: https://arxiv.org/abs/2308.03688
+  group: Coding
+  contributors: ["Felhof", "hannagabor", "shaheenahmedc"]
+  tasks:
+     - name: agent_bench_os
+       dataset_samples: 26
+  dependency: "agent_bench"
 
 - title: "Pre-Flight: Aviation Operations Knowledge Evaluation"
   description: |
@@ -1012,7 +1073,7 @@
   description: |
     An evaluation suite consisting of multiple personality tests that can be applied to LLMs.
     Its primary goals are twofold:
-      1. Assess a model's default personality: the persona it naturally exhibits without specific prompting.  
+      1. Assess a model's default personality: the persona it naturally exhibits without specific prompting.
       2. Evaluate whether a model can embody a specified persona**: how effectively it adopts certain personality traits when prompted or guided.
   path: src/inspect_evals/personality
   group: Personality
@@ -1026,8 +1087,46 @@
       dataset_samples: 50
   dependency: "personality"
 
-- title: "SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge"
+- title: "SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language Models"
+  description: | 
+    The Scientific Knowledge Evaluation benchmark is inspired by the profound principles outlined in the “Doctrine of the Mean” from ancient Chinese philosophy. This benchmark is designed to assess LLMs based on their proficiency in Studying Extensively, Enquiring Earnestly, Thinking Profoundly, Discerning Clearly, and Practicing Assiduously. Each of these dimensions offers a unique perspective on evaluating the capabilities of LLMs in handling scientific knowledge.
+  path: src/inspect_evals/sciknoweval
+  arxiv: https://arxiv.org/abs/2406.09098v2
+  group: Knowledge
+  contributors: ["Esther-Guo"]
+  tasks:
+    - name: sciknoweval
+      dataset_samples: 70196 # we are using version 1 on huggingface, the version used in the linked paper, even though there are 2 versions 
+  dependency: "sciknoweval"
+
+- title: "ChemBench: Are large language models superhuman chemists?"
   description: |
+    ChemBench is designed to reveal limitations of current frontier models for use in the chemical sciences. It consists of 2786 question-answer pairs compiled from diverse sources. Our corpus measures reasoning, knowledge and intuition across a large fraction of the topics taught in undergraduate and graduate chemistry curricula. It can be used to evaluate any system that can return text (i.e., including tool-augmented systems).
+  path: src/inspect_evals/chembench
+  arxiv: https://arxiv.org/pdf/2404.01475v2
+  group: Knowledge
+  contributors: ["Esther-Guo"]
+  tasks:
+    - name: chembench
+      dataset_samples: 2786
+
+- title: "LingOly"
+  description: |
+    Two linguistics reasoning benchmarks:
+    LingOly (Linguistic Olympiad questions) is a benchmark utilising low resource languages.
+    LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfuscation) is a benchmark designed to counteract answering without reasoning.
+  path: src/inspect_evals/lingoly
+  arxiv: https://arxiv.org/pdf/2406.06196,https://arxiv.org/abs/2503.02972
+  group: Reasoning
+  contributors: ["am-bean", "jkhouja"]
+  tasks:
+     - name: lingoly
+       dataset_samples: 408
+     - name: lingoly_too
+       dataset_samples: 1203
+
+- title: "SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge"
+  description: | 
     A regulation-grounded, hazard-focused benchmark encompassing six high-risk scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology. The benchmark comprises 3,000 prompts derived from real-world regulations and laws, systematically expanded via an LLM-assisted evolutionary pipeline that introduces diverse, realistic misuse scenarios (e.g., detailed explosive synthesis instructions involving advanced chemical formulas).
   path: src/inspect_evals/sosbench
   arxiv: https://arxiv.org/pdf/2505.21605
@@ -1036,7 +1135,7 @@
   tasks:
     - name: sosbench
       dataset_samples: 3000
-
+      
 - title: "BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents"
   description: |
     A benchmark for evaluating agents' ability to browse the web.
@@ -1091,3 +1190,49 @@
         metric: accuracy
         score: 0.870
         source: https://arxiv.org/abs/2306.10070v2
+
+- title: "BIG-Bench Extra Hard"
+  description: |
+    A reasoning capability dataset that replaces each task in BIG-Bench-Hard with a novel task that probes a similar reasoning capability but exhibits significantly increased difficulty.
+  path: src/inspect_evals/bbeh
+  group: Reasoning
+  arxiv: https://arxiv.org/pdf/2502.19187
+  contributors: ["jeqcho"]
+  tasks:
+    - name: bbeh
+      dataset_samples: 4520
+    - name: bbeh_mini
+      dataset_samples: 460
+
+- title: "Make Me Pay"
+  description: |
+    Evaluates an AI models' susceptibility to social engineering attacks by testing whether a "con-artist" model can persuade a "mark" model to donate money through manipulation and persuasion tactics.
+  path: src/inspect_evals/make_me_pay
+  group: Safeguards
+  contributors: ["PranshuSrivastava"]
+  tasks:
+    - name: make_me_pay
+      dataset_samples: 20
+
+- title: "AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions"
+  description: |
+    Evaluating abstention across 20 diverse datasets, including questions with unknown answers, underspecification, false premises, subjective interpretations, and outdated information.
+  path: src/inspect_evals/abstention_bench
+  group: Safeguards
+  arxiv: https://arxiv.org/pdf/2506.09038
+  contributors: ["jeqcho"]
+  tasks:
+    - name: abstention_bench
+      dataset_samples: 39558
+
+- title: "Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM Agent Cyber Offense Capabilities"
+  description: |
+    A benchmark for evaluating the capabilities of LLM agents in cyber offense.
+  path: src/inspect_evals/threecb
+  arxiv: https://arxiv.org/abs/2410.09114
+  group: Cybersecurity
+  contributors: ["derpyplops", "ralphptorres", "Scott-Simmons"]
+  tasks:
+    - name: threecb
+      dataset_samples: 13
+  tags: ["Agent"]
