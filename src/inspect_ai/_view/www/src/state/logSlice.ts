@@ -1,5 +1,6 @@
 import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { EvalSummary, PendingSamples } from "../client/api/types";
+import { databaseService } from "../client/database";
 import { toBasicInfo } from "../client/utils/type-utils";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
@@ -173,6 +174,15 @@ export const createLogSlice = (
         try {
           const logContents = await api.get_log_summary(logFileName);
           state.logActions.setSelectedLogSummary(logContents);
+
+          // OPTIONAL: Cache sample summaries (completely non-blocking)
+          setTimeout(() => {
+            if (logContents.sampleSummaries && logContents.sampleSummaries.length > 0) {
+              databaseService.cacheSampleSummaries(logFileName, logContents.sampleSummaries).catch(() => {
+                // Silently ignore cache errors
+              });
+            }
+          }, 0);
 
           // Push the updated header information up
           const header = {

@@ -39,6 +39,14 @@ export interface LogsSlice {
     selectLogFile: (logUrl: string) => Promise<void>;
     loadLogs: () => Promise<LogFiles>;
 
+    // Cross-file sample operations
+    getAllCachedSamples: () => Promise<any[]>;
+    queryCachedSamples: (filter?: {
+      completed?: boolean;
+      hasError?: boolean;
+      scoreRange?: { min: number; max: number; scoreName?: string };
+    }) => Promise<any[]>;
+
     // Try to fetch an eval-set
     loadEvalSetInfo: (logPath?: string) => Promise<EvalSet | undefined>;
     setEvalSetInfo: (info: EvalSet | undefined) => void;
@@ -99,7 +107,7 @@ export const createLogsSlice = (
           return [];
         }
 
-        const filePaths = logs.map(log => log.name);
+        const filePaths = logs.map((log) => log.name);
 
         // OPTIONAL: Try cache first (non-blocking, fail silently)
         let cached: Record<string, LogOverview> = {};
@@ -163,7 +171,9 @@ export const createLogsSlice = (
         });
 
         try {
-          log.debug(`LOADING LOG OVERVIEWS from API for ${filesToLoad.length} files`);
+          log.debug(
+            `LOADING LOG OVERVIEWS from API for ${filesToLoad.length} files`,
+          );
           const headers = await api.get_log_overviews(
             filesToLoad.map((log) => log.name),
           );
@@ -270,13 +280,16 @@ export const createLogsSlice = (
 
             // Still cache again in background to refresh (non-blocking)
             setTimeout(() => {
-              api.get_log_paths().then(logFiles => {
-                databaseService.cacheLogFiles(logFiles).catch(() => {
-                  // Silently ignore cache errors
+              api
+                .get_log_paths()
+                .then((logFiles) => {
+                  databaseService.cacheLogFiles(logFiles).catch(() => {
+                    // Silently ignore cache errors
+                  });
+                })
+                .catch(() => {
+                  // Silently ignore API errors during background refresh
                 });
-              }).catch(() => {
-                // Silently ignore API errors during background refresh
-              });
             }, 100);
 
             return cached;
@@ -417,6 +430,34 @@ export const createLogsSlice = (
         set((state) => {
           state.logs.listing.selectedRowIndex = index;
         });
+      },
+      // Cross-file sample operations
+      getAllCachedSamples: async () => {
+        try {
+          log.debug("LOADING ALL CACHED SAMPLES");
+          const samples = await databaseService.getAllSampleSummaries();
+          log.debug(`Retrieved ${samples.length} cached samples`);
+          return samples;
+        } catch (e) {
+          log.debug("No cached samples available");
+          return [];
+        }
+      },
+
+      queryCachedSamples: async (filter?: {
+        completed?: boolean;
+        hasError?: boolean;
+        scoreRange?: { min: number; max: number; scoreName?: string };
+      }) => {
+        try {
+          log.debug("QUERYING CACHED SAMPLES", filter);
+          const samples = await databaseService.querySampleSummaries(filter);
+          log.debug(`Query returned ${samples.length} samples`);
+          return samples;
+        } catch (e) {
+          log.debug("Sample query failed, returning empty results");
+          return [];
+        }
       },
     },
   } as const;
