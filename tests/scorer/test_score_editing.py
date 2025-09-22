@@ -4,7 +4,8 @@ import pytest
 
 from inspect_ai import Task, eval_async, task
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.log._score import edit_score, recompute_metrics
+from inspect_ai.log._metric import recompute_metrics
+from inspect_ai.log._score import edit_score
 from inspect_ai.scorer import Score, Target, accuracy, mean, scorer
 from inspect_ai.scorer._metric import ProvenanceData, ScoreEdit
 from inspect_ai.solver import TaskState
@@ -180,7 +181,7 @@ async def test_recompute_single_metric():
             continue
         edit = ScoreEdit(value=0)
         edit_score(
-            log, sample.id, "single_metric_scorer", edit, should_recompute_metrics=False
+            log, sample.id, "single_metric_scorer", edit, recompute_metrics=False
         )
 
     recompute_metrics(log)
@@ -210,7 +211,7 @@ async def test_recompute_dict_metrics():
                 sample.id,
                 "dict_metric_scorer",
                 edit,
-                should_recompute_metrics=False,
+                recompute_metrics=False,
             )
 
     recompute_metrics(log)
@@ -248,7 +249,7 @@ async def test_recompute_multiple_scorers_metrics():
                 sample.id,
                 "first_scorer",
                 edit,
-                should_recompute_metrics=False,
+                recompute_metrics=False,
             )
 
     # Edit second scorer values in different samples
@@ -260,7 +261,7 @@ async def test_recompute_multiple_scorers_metrics():
                 sample.id,
                 "second_scorer",
                 edit,
-                should_recompute_metrics=False,
+                recompute_metrics=False,
             )
 
     recompute_metrics(log)
@@ -297,7 +298,7 @@ async def test_recompute_custom_reducers():
             log.samples[i].id,
             "single_metric_scorer",
             edit,
-            should_recompute_metrics=False,
+            recompute_metrics=False,
         )
 
     # Set up custom reducer
@@ -330,7 +331,7 @@ async def test_recompute_multiple_metrics():
                 sample.id,
                 "multi_metric_scorer",
                 edit,
-                should_recompute_metrics=False,
+                recompute_metrics=False,
             )
 
     recompute_metrics(log)
@@ -388,7 +389,7 @@ async def test_edit_score_without_recompute():
         log.samples[0].id,
         "single_metric_scorer",
         edit,
-        should_recompute_metrics=False,
+        recompute_metrics=False,
     )
 
     assert log.results.scores[0].metrics["mean"].value == original_mean
