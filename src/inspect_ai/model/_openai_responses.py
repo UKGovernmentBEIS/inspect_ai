@@ -347,7 +347,9 @@ def content_from_response_input_content_param(
         return ContentText(text=input["text"])
     elif is_input_image(input):
         assert input["image_url"]
-        return ContentImage(image=input["image_url"], detail=input["detail"])
+        return ContentImage(
+            image=input["image_url"], detail=input.get("detail", "auto")
+        )
     elif is_input_file(input):
         return ContentDocument(document=input["file_data"], filename=input["filename"])
     else:
