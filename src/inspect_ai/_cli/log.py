@@ -132,7 +132,7 @@ def list_command(
     type=bool,
     is_flag=True,
     default=False,
-    help="Resolve attachments (e.g. images) to their full content.",
+    help="Resolve attachments (duplicated content blocks) to their full content.",
 )
 def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> None:
     """Print log file contents as JSON."""
@@ -167,7 +167,7 @@ def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> Non
     type=bool,
     is_flag=True,
     default=False,
-    help="Resolve attachments (e.g. images) to their full content.",
+    help="Resolve attachments (duplicated content blocks) to their full content.",
 )
 @click.option(
     "--stream",

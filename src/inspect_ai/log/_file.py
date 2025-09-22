@@ -251,7 +251,7 @@ def read_eval_log(
        log_file (str | FileInfo): Log file to read.
        header_only (bool): Read only the header (i.e. exclude
           the "samples" and "logging" fields). Defaults to False.
-       resolve_attachments (bool): Resolve attachments (e.g. images)
+       resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
@@ -289,7 +289,7 @@ async def read_eval_log_async(
        log_file (str | FileInfo): Log file to read.
        header_only (bool): Read only the header (i.e. exclude
           the "samples" and "logging" fields). Defaults to False.
-       resolve_attachments (bool): Resolve attachments (e.g. images)
+       resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
@@ -364,7 +364,7 @@ def read_eval_log_sample(
        epoch (int): Epoch for sample id (defaults to 1)
        uuid: Sample uuid to read. Optional, alternatively specify
          `id` and `epoch` (you must specify either `uuid` or `id`)
-       resolve_attachments (bool): Resolve attachments (e.g. images)
+       resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
@@ -405,7 +405,7 @@ async def read_eval_log_sample_async(
        id (int | str): Sample id to read.
        epoch (int): Epoch for sample id (defaults to 1)
        uuid: Sample uuid to read.
-       resolve_attachments (bool): Resolve attachments (e.g. images)
+       resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
@@ -513,7 +513,7 @@ def read_eval_log_samples(
        log_file (str | FileInfo): Log file to read.
        all_samples_required (bool): All samples must be included in
           the file or an IndexError is thrown.
-       resolve_attachments (bool): Resolve attachments (e.g. images)
+       resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
