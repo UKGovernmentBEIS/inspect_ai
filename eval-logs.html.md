@@ -364,11 +364,10 @@ for sample in read_eval_log_samples(log_file, all_samples_required=False):
 
 ### Attachments
 
-Sample logs often include large pieces of content (e.g. images) that are
-duplicated in multiple places in the log file (input, message history,
-events, etc.). To keep the size of log files manageable, images and
-other large blocks of content are de-duplicated and stored as
-attachments.
+Sample logs often include large pieces of content that are duplicated in
+multiple places in the log file (input, message history, events, etc.).
+To keep the size of log files manageable, images and other large blocks
+of content are de-duplicated and stored as attachments.
 
 When reading log files, you may want to resolve the attachments so you
 can get access to the underlying content. You can do this for an

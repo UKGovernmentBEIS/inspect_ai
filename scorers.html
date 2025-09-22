@@ -636,17 +636,26 @@ Note
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    include_history: <span class="bu">bool</span> <span class="op">|</span> Callable[[TaskState], <span class="bu">str</span>] <span class="op">=</span> <span class="va">False</span>,</span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    partial_credit: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Scorer:</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The default model graded QA scorer is tuned to grade answers to open ended questions. The default <code>template</code> and <code>instructions</code> ask the model to produce a grade in the format <code>GRADE: C</code> or <code>GRADE: I</code>, and this grade is extracted using the default <code>grade_pattern</code> regular expression. The grading is by default done with the model currently being evaluated. There are a few ways you can customise the default behaviour:</p>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    model_role: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="st">"grader"</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Scorer:</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The default model graded QA scorer is tuned to grade answers to open ended questions. The default <code>template</code> and <code>instructions</code> ask the model to produce a grade in the format <code>GRADE: C</code> or <code>GRADE: I</code>, and this grade is extracted using the default <code>grade_pattern</code> regular expression.</p>
+<p>Model selection follows this precedence:</p>
+<ol type="1">
+<li>If <code>model</code> is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).</li>
+<li>Else if <code>model_role</code> is provided (default: <code>"grader"</code>), the model bound to that role (via <code>eval(..., model_roles={...})</code> or <code>--model-role grader=...</code>) is used.</li>
+<li>Else the model currently being evaluated is used.</li>
+</ol>
+<p>There are a few ways you can customise the default behaviour:</p>
 <ol type="1">
 <li>Provide alternate <code>instructions</code>—the default instructions ask the model to use chain of thought reasoning and provide grades in the format <code>GRADE: C</code> or <code>GRADE: I</code>. Note that if you provide instructions that ask the model to format grades in a different way, you will also want to customise the <code>grade_pattern</code>.</li>
 <li>Specify <code>include_history = True</code> to include the full chat history in the presented question (by default only the original sample input is presented). You may optionally instead pass a function that enables customising the presentation of the chat history.</li>
 <li>Specify <code>partial_credit = True</code> to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default <code>instructions</code>.</li>
-<li>Specify an alternate <code>model</code> to perform the grading (e.g.&nbsp;a more powerful model or a model fine tuned for grading).</li>
+<li>Specify an alternate <code>model</code> to perform the grading (e.g.&nbsp;a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.</li>
+<li>Bind a <code>model_role</code> (default: <code>"grader"</code>) at eval time. See <a href="./models.html#model-roles">Model Roles</a> for details.</li>
 <li>Specify a different <code>template</code>—note that templates are passed these variables: <code>question</code>, <code>criterion</code>, <code>answer</code>, and <code>instructions.</code></li>
 </ol>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> scorer works identically to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>, and simply provides an alternate <code>template</code> oriented around judging whether a fact is included in the model output.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> scorer works identically to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span> (including model selection precedence and multi-model voting), and simply provides an alternate <code>template</code> oriented around judging whether a fact is included in the model output.</p>
 <p>If you want to understand how the default templates for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> work, see their <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/scorer/_model.py">source code</a>.</p>
 <section id="multiple-models" class="level3">
 <h3 class="anchored" data-anchor-id="multiple-models">Multiple Models</h3>

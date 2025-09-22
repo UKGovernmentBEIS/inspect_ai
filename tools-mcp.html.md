@@ -333,19 +333,15 @@ secure fashion (e.g. git, filesystem, or code execution tools).
 ### Configuration
 
 To run an MCP server inside a sandbox, you should create a `Dockerfile`
-that includes both the `inspect-tool-support` pip package as well as any
-MCP servers you want to run. The easiest way to do this is to derive
-from the standard `aisiuk/inspect-tool-support` Docker image.
-
-For example, here we create a `Dockerfile` that enables us to use the
-[Filesystem MCP
+that includes any MCP servers you want to run. For example, here we
+create a `Dockerfile` that enables us to use the [Filesystem MCP
 Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem):
 
 **Dockerfile**
 
 ``` Dockerfile
 # base image
-FROM aisiuk/inspect-tool-support
+FROM python:3.12-bookworm
 
 # nodejs (required by mcp server)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -356,41 +352,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # filesystem mcp server
-RUN npm install -g @modelcontextprotocol/server-filesystem
+RUN npx --yes @modelcontextprotocol/server-filesystem --version
 ```
 
-Note that we install the `@modelcontextprotocol/server-filesystem`
-package globally so it is available to sandbox users and can be run even
-when the container is disconnected from the Internet.
-
-You are not required to inherit from the `aisiuk/inspect-tool-support`
-base image. If you want to use another base image please see **Custom
-Base Image** below for details on how to do this.
-
-> [!NOTE]
->
-> ### Custom Base Image
->
-> You should add the following to your sandbox `Dockerfile` in order to
-> use this tool:
->
-> ``` dockerfile
-> RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/*
-> ENV PATH="$PATH:/opt/inspect/bin"
-> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
->     pipx install inspect-tool-support && \
->     chmod -R 755 /opt/inspect && \
->     inspect-tool-support post-install
-> ```
+Note that we run the `npx` server during the build of the Dockerfile so
+that it is cached for use offline (below we’ll run it with the
+`--offline` option).
 
 ### Running the Server
-
-Installing the package globally means we’ll want to invoke it using its
-global executable name (rather than via `npx`). You can typically find
-this in the `"bin"` section of a server’s `package.json` file. For
-example, here is where the Filesystem MCP Server [defines its global
-binary](https://github.com/modelcontextprotocol/servers/blob/368e3b23ca08c629a500c63e9bbe1233012a1f9a/src/filesystem/package.json#L10-L12).
 
 We can now use the `mcp_server_sandbox()` function to run the server as
 follows:
@@ -398,8 +367,12 @@ follows:
 ``` python
 filesystem_server = mcp_server_sandbox(
     name="Filesystem",
-    command="mcp-server-filesystem", 
-    args=["/"]
+    command="npx", 
+    args=[
+        "--offline",
+        "@modelcontextprotocol/server-filesystem",
+        "/"
+    ]
 )
 ```
 

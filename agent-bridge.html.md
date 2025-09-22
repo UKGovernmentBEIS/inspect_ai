@@ -173,9 +173,9 @@ Line 26
 Return the `state` changes automatically tracked by the `bridge`.
 
 The [Claude
-Code](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/claude)
+Code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/claude)
 and [Codex
-CLI](https://github.com/UKGovernmentBEIS/inspect_ai/main/examples/bridge/codex)
+CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex)
 examples provide more in-depth demonstrations of running custom agents
 in sandboxes.
 

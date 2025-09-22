@@ -147,13 +147,14 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.132 (12 September 2025)</a></li>
-  <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.131 (08 September 2025)</a></li>
-  <li><a href="#september-2025-2" id="toc-september-2025-2" class="nav-link" data-scroll-target="#september-2025-2">0.3.130 (06 September 2025)</a></li>
-  <li><a href="#september-2025-3" id="toc-september-2025-3" class="nav-link" data-scroll-target="#september-2025-3">0.3.129 (03 September 2025)</a></li>
-  <li><a href="#september-2025-4" id="toc-september-2025-4" class="nav-link" data-scroll-target="#september-2025-4">0.3.128 (02 September 2025)</a></li>
-  <li><a href="#september-2025-5" id="toc-september-2025-5" class="nav-link" data-scroll-target="#september-2025-5">0.3.127 (01 September 2025)</a></li>
-  <li><a href="#september-2025-6" id="toc-september-2025-6" class="nav-link" data-scroll-target="#september-2025-6">0.3.126 (01 September 2025)</a></li>
+  <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.133 (22 September 2025)</a></li>
+  <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.132 (12 September 2025)</a></li>
+  <li><a href="#september-2025-2" id="toc-september-2025-2" class="nav-link" data-scroll-target="#september-2025-2">0.3.131 (08 September 2025)</a></li>
+  <li><a href="#september-2025-3" id="toc-september-2025-3" class="nav-link" data-scroll-target="#september-2025-3">0.3.130 (06 September 2025)</a></li>
+  <li><a href="#september-2025-4" id="toc-september-2025-4" class="nav-link" data-scroll-target="#september-2025-4">0.3.129 (03 September 2025)</a></li>
+  <li><a href="#september-2025-5" id="toc-september-2025-5" class="nav-link" data-scroll-target="#september-2025-5">0.3.128 (02 September 2025)</a></li>
+  <li><a href="#september-2025-6" id="toc-september-2025-6" class="nav-link" data-scroll-target="#september-2025-6">0.3.127 (01 September 2025)</a></li>
+  <li><a href="#september-2025-7" id="toc-september-2025-7" class="nav-link" data-scroll-target="#september-2025-7">0.3.126 (01 September 2025)</a></li>
   <li><a href="#august-2025" id="toc-august-2025" class="nav-link" data-scroll-target="#august-2025">0.3.125 (25 August 2025)</a></li>
   <li><a href="#august-2025-1" id="toc-august-2025-1" class="nav-link" data-scroll-target="#august-2025-1">0.3.124 (24 August 2025)</a></li>
   <li><a href="#august-2025-2" id="toc-august-2025-2" class="nav-link" data-scroll-target="#august-2025-2">0.3.123 (16 August 2025)</a></li>
@@ -290,14 +291,39 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
-<li>Eval logs: Option to resolve attachments for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#convert_eval_logs">convert_eval_logs()</a></span>.</li>
-<li>Human agent: Enable installation even when default tool user is not root.</li>
-<li>Hooks: Propagate LimitExceededError so that hooks can raise limit errors.</li>
-<li>Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.</li>
+<li>Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).</li>
 </ul>
 </section>
 <section id="september-2025" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025">0.3.132 (12 September 2025)</h2>
+<h2 class="anchored" data-anchor-id="september-2025">0.3.133 (22 September 2025)</h2>
+<ul>
+<li>Sandbox tools: bash_session, text_editor, and sandbox MCP servers no longer require a separate pipx install (they are now automatically injected into sandbox as a static binary with no Python dependencies).</li>
+<li>Agent bridge: Python is no longer required within containers using the sandbox agent bridge.</li>
+<li>Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.</li>
+<li>Agent bridge: Add <code>retry_refusals</code> option for automatically retrying refusals a set number of times.</li>
+<li>Eval logs: Option to resolve attachments for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#convert_eval_logs">convert_eval_logs()</a></span>.</li>
+<li>Eval logs: Option to stream processing for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#convert_eval_logs">convert_eval_logs()</a></span>.</li>
+<li>Google: Support disabling thinking for Gemini 2.5 Flash (warn if thinking is disabled for 2.5-Pro which doesn’t support disabling thinking).</li>
+<li>Bedrock: Support for reasoning content in Bedrock models.</li>
+<li>Model grading: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span>) now look for the “grader” model-role by default.</li>
+<li>Human agent: Enable installation even when default tool user is not root.</li>
+<li>Hooks: Added <code>on_sample_scoring()</code> and <code>on_model_cache_usage()</code> hooks.</li>
+<li>Hooks: Propagate LimitExceededError so that hooks can raise limit errors.</li>
+<li>Hooks: Emit <code>on_run_end()</code> even when the eval is cancelled.</li>
+<li>Scoring: Allow scorers to return <code>None</code> to indicate that they did not score the sample. Such samples are excluded from reductions and metrics.</li>
+<li>Scoring: Resolve task metrics on to scores returned by solvers.</li>
+<li>Scoring: Use <code>Sequence</code> and <code>Mapping</code> types for metrics on scorer decorator.</li>
+<li>Scoring: Properly make sample events available in the transcript during re-scoring an eval log.</li>
+<li>Inspect View: Display pending tasks in eval sets (tasks that have not yet started running)</li>
+<li>Inspect View: Fine tune status appearance to improve legibility</li>
+<li>Inspect View: Fix issue displaying folders with with overlapping path prefixes.</li>
+<li>Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.</li>
+<li>Bugfix: Enable passing no reducers to <code>async_score</code> in eval score.</li>
+<li>Bugfix: Handle non-contiguous task sequences in task batching.</li>
+</ul>
+</section>
+<section id="september-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-1">0.3.132 (12 September 2025)</h2>
 <ul>
 <li>Anthropic: Support for images with mime type image/bmp.</li>
 <li>Sandbox Service: Specify instance externally so a single script can service multiple instances.</li>
@@ -319,14 +345,14 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure that assistant content without reasoning is always passed to responses API.</li>
 </ul>
 </section>
-<section id="september-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-1">0.3.131 (08 September 2025)</h2>
+<section id="september-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-2">0.3.131 (08 September 2025)</h2>
 <ul>
 <li>OpenAI: Correct serialization of web search tool calls (prevent 400 errors).</li>
 </ul>
 </section>
-<section id="september-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-2">0.3.130 (06 September 2025)</h2>
+<section id="september-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-3">0.3.130 (06 September 2025)</h2>
 <ul>
 <li>Agent Bridge: Option to force the sandbox agent bridge to use a specific model.</li>
 <li>Agent Bridge: New <code>filter</code> option to enable bridge to filter model generate calls.</li>
@@ -352,15 +378,15 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.</li>
 </ul>
 </section>
-<section id="september-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-3">0.3.129 (03 September 2025)</h2>
+<section id="september-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-4">0.3.129 (03 September 2025)</h2>
 <ul>
 <li>Agent Bridge: Don’t use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#concurrency">concurrency()</a></span> for agent bridge interactions (not required for long-running proxy server or cheap polling requests).</li>
 <li>Sandboxes: Add <code>concurrency</code> parameter to <code>exec()</code> to advise whether the execution should be subject to local process concurrency limits.</li>
 </ul>
 </section>
-<section id="september-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-4">0.3.128 (02 September 2025)</h2>
+<section id="september-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-5">0.3.128 (02 September 2025)</h2>
 <ul>
 <li>Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.</li>
 <li>Agent Bridge: Respect reference vs.&nbsp;value semantics of agent caller (enables preservation of messages when agent is run via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span>).</li>
@@ -371,14 +397,14 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Work around OpenAI breaking change that renamed “find” web search action to “find_in_page” (bump required version of <code>openai</code> package to v1.104.0).</li>
 </ul>
 </section>
-<section id="september-2025-5" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-5">0.3.127 (01 September 2025)</h2>
+<section id="september-2025-6" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-6">0.3.127 (01 September 2025)</h2>
 <ul>
 <li>Bugfix: Preserve sample list state (e.g.&nbsp;scroll position, selection) across sample open/close.</li>
 </ul>
 </section>
-<section id="september-2025-6" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-6">0.3.126 (01 September 2025)</h2>
+<section id="september-2025-7" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-7">0.3.126 (01 September 2025)</h2>
 <ul>
 <li>Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.</li>
 <li>Agent Bridge: Bridge can now automatically keep track of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span> changes via inspecting model traffic running over the bridge.</li>
@@ -432,6 +458,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Convert samples in the sample list to use simple a tags for navigation. This allows typical user gestures like cmd+click to work correctly.</li>
 <li>Inspect View: Update document titles when viewing a sample, log, or log dir to better disambiguate tabs or windows. Use reverse pyramid to place details at the head of the title.</li>
 <li>Inspect View: Increase sample size limit to 100MB (samples larger than that are not browsable in the viewer).</li>
+<li>Tool Support: Converted to a new runtime reconnaissance and injection architecture for <code>inspect_tool_support</code>.</li>
 <li>Bugifx: Properly handle surrogates in JSON serialization.</li>
 <li>Bugfix: Google and Mistral providers now generate unique tool call IDs to prevent collisions when calling the same tool multiple times.</li>
 <li>Bugfix: Enable use of custom reducers with <code>eval-retry</code> by delaying their creation until after task creation.</li>

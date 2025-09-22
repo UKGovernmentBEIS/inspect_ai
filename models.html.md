@@ -231,6 +231,10 @@ Or with `eval()`:
 eval("math.py", model_roles = { "grader": "google/gemini-2.0-flash" })
 ```
 
+Note that the built-in [model-graded scorers](scorers.qmd#model-graded)
+(e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader`
+role by default.
+
 ### Role Resolution
 
 Model roles are resolved based on what is passed to `eval()`. This means

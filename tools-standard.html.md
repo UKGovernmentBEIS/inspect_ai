@@ -287,47 +287,7 @@ docs for details on customizing this behavior.
 ### Configuration
 
 Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd)
-for the execution of untrusted code. In addition, you’ll need some
-dependencies installed in the sandbox container. Please see **Sandbox
-Dependencies** below for additional instructions.
-
-> [!NOTE]
->
-> ### Sandbox Dependencies
->
-> You should add the following to your sandbox `Dockerfile` in order to
-> use this tool:
->
-> ``` dockerfile
-> RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/*
-> ENV PATH="$PATH:/opt/inspect/bin"
-> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
->     pipx install inspect-tool-support && \
->     chmod -R 755 /opt/inspect && \
->     inspect-tool-support post-install
-> ```
->
-> Note that Playwright (used for the `web_browser()` tool) does not
-> support some versions of Linux (e.g. Kali Linux). If this is the case
-> for your Linux distribution, you should add the `--no-web-browser`
-> option to the `post-install`:
->
-> ``` dockerfile
-> RUN inspect-tool-support post-install --no-web-browser
-> ```
->
-> If you don’t have a custom Dockerfile, you can alternatively use the
-> pre-built `aisiuk/inspect-tool-support` image:
->
-> **compose.yaml**
->
-> ``` yaml
-> services:
->   default:
->     image: aisiuk/inspect-tool-support
->     init: true
-> ```
+for the execution of untrusted code.
 
 ### Task Setup
 
@@ -366,47 +326,7 @@ have a sandbox defined and configured as described below.
 ### Configuration
 
 The text editor tools requires the use of a [Sandbox
-Environment](sandboxing.qmd). In addition, you’ll need some dependencies
-installed in the sandbox container. Please see **Sandbox Dependencies**
-below for additional instructions.
-
-> [!NOTE]
->
-> ### Sandbox Dependencies
->
-> You should add the following to your sandbox `Dockerfile` in order to
-> use this tool:
->
-> ``` dockerfile
-> RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/*
-> ENV PATH="$PATH:/opt/inspect/bin"
-> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
->     pipx install inspect-tool-support && \
->     chmod -R 755 /opt/inspect && \
->     inspect-tool-support post-install
-> ```
->
-> Note that Playwright (used for the `web_browser()` tool) does not
-> support some versions of Linux (e.g. Kali Linux). If this is the case
-> for your Linux distribution, you should add the `--no-web-browser`
-> option to the `post-install`:
->
-> ``` dockerfile
-> RUN inspect-tool-support post-install --no-web-browser
-> ```
->
-> If you don’t have a custom Dockerfile, you can alternatively use the
-> pre-built `aisiuk/inspect-tool-support` image:
->
-> **compose.yaml**
->
-> ``` yaml
-> services:
->   default:
->     image: aisiuk/inspect-tool-support
->     init: true
-> ```
+Environment](sandboxing.qmd).
 
 ### Task Setup
 
@@ -472,7 +392,7 @@ support some versions of Linux (e.g. Kali Linux).
 > ### Sandbox Dependencies
 >
 > You should add the following to your sandbox `Dockerfile` in order to
-> use this tool:
+> use the web browser tool:
 >
 > ``` dockerfile
 > RUN apt-get update && apt-get install -y pipx && \

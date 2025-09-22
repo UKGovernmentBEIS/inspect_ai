@@ -76,7 +76,7 @@ inspect log dump [OPTIONS] PATH
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `--header-only` | boolean | Read and print only the header of the log file (i.e. no samples). | `False` |
-| `--resolve-attachments` | boolean | Resolve attachments (e.g. images) to their full content. | `False` |
+| `--resolve-attachments` | boolean | Resolve attachments (duplicated content blocks) to their full content. | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect log convert
@@ -96,6 +96,8 @@ inspect log convert [OPTIONS] PATH
 | `--to` | choice (`eval` \| `json`) | Target format to convert to. | \_required |
 | `--output-dir` | text | Directory to write converted log files to. | \_required |
 | `--overwrite` | boolean | Overwrite files in the output directory. | `False` |
+| `--resolve-attachments` | boolean | Resolve attachments (duplicated content blocks) to their full content. | `False` |
+| `--stream` | text | Stream the samples through the conversion process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being converted. | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect log schema

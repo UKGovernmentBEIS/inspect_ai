@@ -2555,7 +2555,7 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td><code>--resolve-attachments</code></td>
 <td>boolean</td>
-<td>Resolve attachments (e.g.&nbsp;images) to their full content.</td>
+<td>Resolve attachments (duplicated content blocks) to their full content.</td>
 <td><code>False</code></td>
 </tr>
 <tr class="odd">
@@ -2609,6 +2609,18 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--overwrite</code></td>
 <td>boolean</td>
 <td>Overwrite files in the output directory.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
+<td><code>--resolve-attachments</code></td>
+<td>boolean</td>
+<td>Resolve attachments (duplicated content blocks) to their full content.</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--stream</code></td>
+<td>text</td>
+<td>Stream the samples through the conversion process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being converted.</td>
 <td><code>False</code></td>
 </tr>
 <tr class="even">

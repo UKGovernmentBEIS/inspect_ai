@@ -180,9 +180,14 @@ reasoning used by these models. For example:
 
 ``` bash
 inspect eval math.py \
-  --model google/gemini-2.5-flash-preview-04-17 \
+  --model google/gemini-2.5-flash \
   --reasoning-tokens 4096
 ```
+
+Note that for Flash models you can disable reasoning with
+`--reasoning-tokens=0` (Gemini 2.5 Pro [does not
+support](https://ai.google.dev/gemini-api/docs/thinking#set-budget)
+disabling reasoning).
 
 The most recent Gemini models also include support for including a
 reasoning summary in model output.

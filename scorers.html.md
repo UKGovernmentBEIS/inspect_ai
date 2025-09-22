@@ -139,6 +139,7 @@ def model_graded_qa(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
+    model_role: str | None = "grader",
 ) -> Scorer:
     ...
 ```
@@ -147,7 +148,16 @@ The default model graded QA scorer is tuned to grade answers to open
 ended questions. The default `template` and `instructions` ask the model
 to produce a grade in the format `GRADE: C` or `GRADE: I`, and this
 grade is extracted using the default `grade_pattern` regular expression.
-The grading is by default done with the model currently being evaluated.
+
+Model selection follows this precedence:
+
+1.  If `model` is provided, it is used (if a list is provided, each
+    model grades independently and the final grade is by majority vote).
+2.  Else if `model_role` is provided (default: `"grader"`), the model
+    bound to that role (via `eval(..., model_roles={...})` or
+    `--model-role grader=...`) is used.
+3.  Else the model currently being evaluated is used.
+
 There are a few ways you can customise the default behaviour:
 
 1.  Provide alternate `instructions`—the default instructions ask the
@@ -164,12 +174,17 @@ There are a few ways you can customise the default behaviour:
     (metrics by default convert this to a value of 0.5). Note that this
     parameter is only valid when using the default `instructions`.
 4.  Specify an alternate `model` to perform the grading (e.g. a more
-    powerful model or a model fine tuned for grading).
-5.  Specify a different `template`—note that templates are passed these
+    powerful model or a model fine tuned for grading). If you provide a
+    list of models, each grades independently and the final grade is
+    chosen by majority vote.
+5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model
+    Roles](models.qmd#model-roles) for details.
+6.  Specify a different `template`—note that templates are passed these
     variables: `question`, `criterion`, `answer`, and `instructions.`
 
 The `model_graded_fact()` scorer works identically to
-`model_graded_qa()`, and simply provides an alternate `template`
+`model_graded_qa()` (including model selection precedence and
+multi-model voting), and simply provides an alternate `template`
 oriented around judging whether a fact is included in the model output.
 
 If you want to understand how the default templates for
