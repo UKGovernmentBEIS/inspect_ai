@@ -1,7 +1,7 @@
-import { AppDatabase } from './schema';
-import { createLogger } from '../../utils/logger';
+import { AppDatabase } from "./schema";
+import { createLogger } from "../../utils/logger";
 
-const log = createLogger('DatabaseManager');
+const log = createLogger("DatabaseManager");
 
 /**
  * Manages database instances for different log directories.
@@ -85,7 +85,7 @@ export class DatabaseManager {
   getInfo(): { logDir: string | null; isOpen: boolean } {
     return {
       logDir: this.logDir,
-      isOpen: this.isOpen()
+      isOpen: this.isOpen(),
     };
   }
 }

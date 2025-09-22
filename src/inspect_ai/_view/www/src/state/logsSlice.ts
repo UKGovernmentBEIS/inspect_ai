@@ -79,7 +79,6 @@ export const createLogsSlice = (
   get: () => StoreState,
   _store: any,
 ): [LogsSlice, () => void] => {
-
   const slice = {
     // State
     logs: initialState,
@@ -304,21 +303,21 @@ export const createLogsSlice = (
         if (dbService) {
           try {
             const cached = await dbService.getCachedLogFiles();
-          if (cached) {
-            log.debug("LOADED LOG FILES FROM CACHE");
+            if (cached) {
+              log.debug("LOADED LOG FILES FROM CACHE");
 
-            // Still cache the fresh data in background (non-blocking)
-            setTimeout(() => {
-              const dbSvc = get().databaseService;
-              if (dbSvc) {
-                dbSvc.cacheLogFiles(logFiles).catch(() => {
-                  // Silently ignore cache errors
-                });
-              }
-            }, 0);
+              // Still cache the fresh data in background (non-blocking)
+              setTimeout(() => {
+                const dbSvc = get().databaseService;
+                if (dbSvc) {
+                  dbSvc.cacheLogFiles(logFiles).catch(() => {
+                    // Silently ignore cache errors
+                  });
+                }
+              }, 0);
 
-            return cached;
-          }
+              return cached;
+            }
           } catch (e) {
             // Cache read failed, use API results we already have
           }
@@ -456,7 +455,7 @@ export const createLogsSlice = (
           log.debug("LOADING ALL CACHED SAMPLES");
           const dbService = get().databaseService;
           if (!dbService) {
-            throw new Error('Database service not initialized');
+            throw new Error("Database service not initialized");
           }
           const samples = await dbService.getAllSampleSummaries();
           log.debug(`Retrieved ${samples.length} cached samples`);
@@ -476,7 +475,7 @@ export const createLogsSlice = (
           log.debug("QUERYING CACHED SAMPLES", filter);
           const dbService = get().databaseService;
           if (!dbService) {
-            throw new Error('Database service not initialized');
+            throw new Error("Database service not initialized");
           }
           const samples = await dbService.querySampleSummaries(filter);
           log.debug(`Query returned ${samples.length} samples`);

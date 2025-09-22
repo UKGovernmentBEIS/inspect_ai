@@ -177,10 +177,16 @@ export const createLogSlice = (
           // OPTIONAL: Cache sample summaries (completely non-blocking)
           setTimeout(() => {
             const dbService = state.databaseService;
-            if (dbService && logContents.sampleSummaries && logContents.sampleSummaries.length > 0) {
-              dbService.cacheSampleSummaries(logFileName, logContents.sampleSummaries).catch(() => {
-                // Silently ignore cache errors
-              });
+            if (
+              dbService &&
+              logContents.sampleSummaries &&
+              logContents.sampleSummaries.length > 0
+            ) {
+              dbService
+                .cacheSampleSummaries(logFileName, logContents.sampleSummaries)
+                .catch(() => {
+                  // Silently ignore cache errors
+                });
             }
           }, 0);
 

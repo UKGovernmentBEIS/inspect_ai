@@ -1,9 +1,14 @@
-import { DatabaseManager } from './manager';
-import { AppDatabase } from './schema';
-import { LogFiles, LogOverview, EvalLogHeader, SampleSummary } from '../api/types';
-import { createLogger } from '../../utils/logger';
+import { DatabaseManager } from "./manager";
+import { AppDatabase } from "./schema";
+import {
+  LogFiles,
+  LogOverview,
+  EvalLogHeader,
+  SampleSummary,
+} from "../api/types";
+import { createLogger } from "../../utils/logger";
 
-const log = createLogger('DatabaseService');
+const log = createLogger("DatabaseService");
 
 /**
  * Database service for caching and retrieving log data.
@@ -23,7 +28,7 @@ export class DatabaseService {
   private getDb(): AppDatabase {
     const db = this.manager.getDatabase();
     if (!db) {
-      throw new Error('No database initialized. Call openDatabase first.');
+      throw new Error("No database initialized. Call openDatabase first.");
     }
     return db;
   }
@@ -54,12 +59,12 @@ export class DatabaseService {
     const db = this.getDb();
     const now = new Date().toISOString();
 
-    const records = logFiles.files.map(file => ({
+    const records = logFiles.files.map((file) => ({
       file_path: file.name,
-      file_name: file.name.split('/').pop() || file.name,
+      file_name: file.name.split("/").pop() || file.name,
       task: file.task,
       task_id: file.task_id,
-      cached_at: now
+      cached_at: now,
     }));
 
     log.debug(`Caching ${records.length} log files`);
@@ -69,106 +74,88 @@ export class DatabaseService {
   async getCachedLogFiles(): Promise<LogFiles | null> {
     try {
       const db = this.getDb();
-      const files = await db.log_files.orderBy('cached_at').toArray();
+      const files = await db.log_files.orderBy("cached_at").toArray();
 
       if (files.length === 0) {
-        log.debug('No cached log files found');
-        const logDir = this.manager.getLogDir() || '';
+        log.debug("No cached log files found");
+        const logDir = this.manager.getLogDir() || "";
         return {
           log_dir: logDir,
-          files: []
+          files: [],
         };
       }
 
       log.debug(`Retrieved ${files.length} cached log files`);
-      const logDir = this.manager.getLogDir() || '';
+      const logDir = this.manager.getLogDir() || "";
       return {
         log_dir: logDir,
-        files: files.map(file => ({
+        files: files.map((file) => ({
           name: file.file_path,
           task: file.task,
-          task_id: file.task_id
-        }))
+          task_id: file.task_id,
+        })),
       };
     } catch (error) {
-      log.error('Error retrieving cached log files:', error);
+      log.error("Error retrieving cached log files:", error);
       return null;
     }
   }
 
   // === LOG SUMMARIES ===
-  async cacheLogSummaries(summaries: Record<string, LogOverview>): Promise<void> {
+  async cacheLogSummaries(
+    summaries: Record<string, LogOverview>,
+  ): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
     const records = Object.entries(summaries).map(([filePath, overview]) => ({
       file_path: filePath,
-      eval_id: overview.eval_id,
-      run_id: overview.run_id,
-      task: overview.task,
-      task_id: overview.task_id,
-      task_version: overview.task_version,
-      version: overview.version,
-      status: overview.status,
-      model: overview.model,
-      started_at: overview.started_at,
-      completed_at: overview.completed_at,
-      primary_metric: overview.primary_metric,
-      error: overview.error || undefined,
-      cached_at: now
+      cached_at: now,
+      overview: overview,
     }));
 
     log.debug(`Caching ${records.length} log summaries`);
     await db.log_summaries.bulkPut(records);
   }
 
-  async getCachedLogSummaries(filePaths: string[]): Promise<Record<string, LogOverview>> {
+  async getCachedLogSummaries(
+    filePaths: string[],
+  ): Promise<Record<string, LogOverview>> {
     try {
       const db = this.getDb();
-      const records = await db.log_summaries.where('file_path').anyOf(filePaths).toArray();
+      const records = await db.log_summaries
+        .where("file_path")
+        .anyOf(filePaths)
+        .toArray();
 
-      log.debug(`Retrieved ${records.length} cached log summaries out of ${filePaths.length} requested`);
+      log.debug(
+        `Retrieved ${records.length} cached log summaries out of ${filePaths.length} requested`,
+      );
 
       const result: Record<string, LogOverview> = {};
       for (const record of records) {
-        result[record.file_path] = {
-          eval_id: record.eval_id,
-          run_id: record.run_id,
-          task: record.task,
-          task_id: record.task_id,
-          task_version: record.task_version,
-          version: record.version,
-          status: record.status,
-          model: record.model,
-          started_at: record.started_at,
-          completed_at: record.completed_at,
-          primary_metric: record.primary_metric,
-          error: record.error
-        };
+        result[record.file_path] = record.overview;
       }
 
       return result;
     } catch (error) {
-      log.error('Error retrieving cached log summaries:', error);
+      log.error("Error retrieving cached log summaries:", error);
       return {};
     }
   }
 
   // === LOG HEADERS ===
-  async cacheLogHeaders(filePath: string, header: EvalLogHeader): Promise<void> {
+  async cacheLogHeaders(
+    filePath: string,
+    header: EvalLogHeader,
+  ): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
     const record = {
       file_path: filePath,
-      version: header.version,
-      status: header.status,
-      eval_spec: header.eval,
-      plan: header.plan,
-      results: header.results,
-      stats: header.stats,
-      error: header.error,
-      cached_at: now
+      cached_at: now,
+      header: header,
     };
 
     log.debug(`Caching log header for: ${filePath}`);
@@ -186,15 +173,7 @@ export class DatabaseService {
       }
 
       log.debug(`Retrieved cached log header for: ${filePath}`);
-      return {
-        version: record.version,
-        status: record.status,
-        eval: record.eval_spec,
-        plan: record.plan,
-        results: record.results,
-        stats: record.stats,
-        error: record.error
-      };
+      return record.header;
     } catch (error) {
       log.error(`Error retrieving cached log header for ${filePath}:`, error);
       return null;
@@ -202,25 +181,17 @@ export class DatabaseService {
   }
 
   // === SAMPLE SUMMARIES ===
-  async cacheSampleSummaries(filePath: string, summaries: SampleSummary[]): Promise<void> {
+  async cacheSampleSummaries(
+    filePath: string,
+    summaries: SampleSummary[],
+  ): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
-    const records = summaries.map(summary => ({
+    const records = summaries.map((summary) => ({
       file_path: filePath,
-      uuid: summary.uuid,
-      sample_id: summary.id,
-      epoch: summary.epoch,
-      input: summary.input,
-      target: summary.target,
-      scores: summary.scores || {},
-      error: summary.error,
-      limit: summary.limit,
-      metadata: summary.metadata,
-      completed: summary.completed,
-      retries: summary.retries,
-      summary_data: summary,
-      cached_at: now
+      cached_at: now,
+      summary: summary,
     }));
 
     log.debug(`Caching ${records.length} sample summaries for: ${filePath}`);
@@ -232,15 +203,18 @@ export class DatabaseService {
     const records = await db.sample_summaries.toArray();
 
     log.debug(`Retrieved ${records.length} sample summaries across all files`);
-    return records.map(record => record.summary_data);
+    return records.map((record) => record.summary);
   }
 
   async getSampleSummariesForFile(filePath: string): Promise<SampleSummary[]> {
     const db = this.getDb();
-    const records = await db.sample_summaries.where('file_path').equals(filePath).toArray();
+    const records = await db.sample_summaries
+      .where("file_path")
+      .equals(filePath)
+      .toArray();
 
     log.debug(`Retrieved ${records.length} sample summaries for: ${filePath}`);
-    return records.map(record => record.summary_data);
+    return records.map((record) => record.summary);
   }
 
   async querySampleSummaries(filter?: {
@@ -253,12 +227,14 @@ export class DatabaseService {
 
     // Apply filters
     if (filter?.completed !== undefined) {
-      query = query.filter(record => record.completed === filter.completed);
+      query = query.filter(
+        (record) => record.summary.completed === filter.completed,
+      );
     }
 
     if (filter?.hasError !== undefined) {
-      query = query.filter(record => {
-        const hasError = !!record.error;
+      query = query.filter((record) => {
+        const hasError = !!record.summary.error;
         return hasError === filter.hasError;
       });
     }
@@ -269,24 +245,35 @@ export class DatabaseService {
     let filtered = records;
     if (filter?.scoreRange) {
       const { min, max, scoreName } = filter.scoreRange;
-      filtered = records.filter(record => {
-        if (!record.scores) return false;
+      filtered = records.filter((record) => {
+        if (!record.summary.scores) return false;
 
         // Check specific score or any score
         if (scoreName) {
-          const score = record.scores[scoreName];
-          return score && score.value >= min && score.value <= max;
+          const score = record.summary.scores[scoreName];
+          return (
+            score &&
+            typeof score.value === "number" &&
+            score.value >= min &&
+            score.value <= max
+          );
         } else {
           // Check if any score is in range
-          return Object.values(record.scores).some(
-            score => score && score.value >= min && score.value <= max
+          return Object.values(record.summary.scores).some(
+            (score) =>
+              score &&
+              typeof score.value === "number" &&
+              score.value >= min &&
+              score.value <= max,
           );
         }
       });
     }
 
-    log.debug(`Query returned ${filtered.length} sample summaries (filtered from ${records.length})`);
-    return filtered.map(record => record.summary_data);
+    log.debug(
+      `Query returned ${filtered.length} sample summaries (filtered from ${records.length})`,
+    );
+    return filtered.map((record) => record.summary);
   }
 
   // === MANAGEMENT ===
@@ -297,12 +284,12 @@ export class DatabaseService {
   async clearAllCaches(): Promise<void> {
     const db = this.getDb();
 
-    log.debug('Clearing all caches');
+    log.debug("Clearing all caches");
     await Promise.all([
       db.log_files.clear(),
       db.log_summaries.clear(),
       db.log_headers.clear(),
-      db.sample_summaries.clear()
+      db.sample_summaries.clear(),
     ]);
   }
 
@@ -318,19 +305,20 @@ export class DatabaseService {
   }> {
     const db = this.getDb();
 
-    const [logFiles, logSummaries, logHeaders, sampleSummaries] = await Promise.all([
-      db.log_files.count(),
-      db.log_summaries.count(),
-      db.log_headers.count(),
-      db.sample_summaries.count()
-    ]);
+    const [logFiles, logSummaries, logHeaders, sampleSummaries] =
+      await Promise.all([
+        db.log_files.count(),
+        db.log_summaries.count(),
+        db.log_headers.count(),
+        db.sample_summaries.count(),
+      ]);
 
     return {
       logFiles,
       logSummaries,
       logHeaders,
       sampleSummaries,
-      logDir: this.manager.getLogDir()
+      logDir: this.manager.getLogDir(),
     };
   }
 }
