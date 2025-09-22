@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
+- Agent bridge: Ensure that bridge filters also take advantage of `retry_refusals` loop.
 
 ## 0.3.133 (22 September 2025)
 
