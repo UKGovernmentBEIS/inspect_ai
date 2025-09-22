@@ -103,10 +103,7 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
     #  Supporting only Transcript
 
     # set up our reporter (stores results and lets us skip results we already have)
-    reporter = await scan_reporter(scans_dir, options)
-
-    # read transcripts from index and process them if required
-    async with options.transcripts:
+    async with options.transcripts, scan_reporter(scans_dir, options) as reporter:
         for t in await options.transcripts.index():
             for name, scanner in options.scanners.items():
                 # get reporter for this transcript/scanner (if None we already did this work)
@@ -129,5 +126,4 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
                     await report([result])
 
     # read all scan results for this scan
-    await scan_compact(scans_dir, options.scan_id)
     return await scan_results_async(scans_dir.as_posix(), options.scan_id)

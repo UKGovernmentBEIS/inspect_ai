@@ -1,4 +1,5 @@
-from typing import Protocol, Sequence
+import contextlib
+from typing import AsyncGenerator,  Protocol, Sequence
 
 from upath import UPath
 
@@ -20,7 +21,10 @@ class ScanReporter(Protocol):
     ) -> ScanReport | None: ...
 
 
-async def scan_reporter(scans_dir: UPath, options: ScanOptions) -> ScanReporter:
+@contextlib.asynccontextmanager
+async def scan_reporter(
+    scans_dir: UPath, options: ScanOptions
+) ->  AsyncGenerator[ScanReporter, None]
     import pandas as pd
     import pyarrow as pa
 
@@ -30,7 +34,7 @@ async def scan_reporter(scans_dir: UPath, options: ScanOptions) -> ScanReporter:
     scan_dir = ensure_scan_dir(scans_dir, options.scan_id, options.scan_name)
     await write_scan_options(scan_dir, options)
 
-    async def tracker(transcript: TranscriptInfo, scanner: str) -> ScanReport | None:
+    async def reporter(transcript: TranscriptInfo, scanner: str) -> ScanReport | None:
         # check if we already have this transcript/scanner pair recorded
         scan_file = scan_dir / f"{transcript.id}_{scanner}.parquet"
         if scan_file.exists():
@@ -60,21 +64,21 @@ async def scan_reporter(scans_dir: UPath, options: ScanOptions) -> ScanReporter:
 
         return report
 
-    return tracker
+    try:
+        yield reporter
+    finally:
+        await _scan_compact(scan_dir)
 
 
-async def scan_compact(scans_dir: UPath, scan_id: str) -> None:
+
+
+async def _scan_compact(scan_dir: UPath) -> None:
     from collections import defaultdict
 
     import pandas as pd
     import pyarrow as pa
 
     from inspect_ai.analysis._dataframe.util import arrow_types_mapper
-
-    # determine scan_dir
-    scan_dir = find_scan_dir(scans_dir, scan_id)
-    if scan_dir is None:
-        raise ValueError(f"Scan id '{scan_id}' not found in scans dir '{scans_dir}'.")
 
     # group parquet files by scanner name
     scanner_files = defaultdict(list)
