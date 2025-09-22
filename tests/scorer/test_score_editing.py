@@ -8,11 +8,12 @@ from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._score import edit_score
 from inspect_ai.scorer import Score, Target, accuracy, mean, scorer
 from inspect_ai.scorer._metric import ProvenanceData, ScoreEdit
+from inspect_ai.scorer._scorer import Scorer
 from inspect_ai.solver import TaskState
 
 
 @scorer(metrics=[mean()])
-def single_metric_scorer():
+def single_metric_scorer() -> Scorer:
     async def score(state: TaskState, target: Target):
         return Score(value=1)
 
@@ -20,7 +21,7 @@ def single_metric_scorer():
 
 
 @scorer(metrics=[accuracy()])
-def accuracy_scorer():
+def accuracy_scorer() -> Scorer:
     async def score(state: TaskState, target: Target):
         return Score(value="C")
 
@@ -28,7 +29,7 @@ def accuracy_scorer():
 
 
 @scorer(metrics=[mean(), accuracy()])
-def multi_metric_scorer():
+def multi_metric_scorer() -> Scorer:
     async def score(state: TaskState, target: Target):
         return Score(value="C")
 
@@ -126,7 +127,7 @@ def test_score_model_dump_with_edits():
 
 
 @scorer(metrics={"one": [mean()], "two": [mean()], "three": [mean()]})
-def dict_metric_scorer():
+def dict_metric_scorer() -> Scorer:
     async def score(state: TaskState, target: Target):
         return Score(value={"one": 1, "two": 2, "three": 3})
 
@@ -143,7 +144,7 @@ def dict_metric_task():
 
 
 @scorer(metrics=[mean()])
-def first_scorer():
+def first_scorer() -> Scorer:
     async def score(state: TaskState, target: Target):
         return Score(value=0.8)
 
@@ -151,7 +152,7 @@ def first_scorer():
 
 
 @scorer(metrics=[mean(), accuracy()])
-def second_scorer():
+def second_scorer() -> Scorer:
     async def score(state: TaskState, target: Target):
         return Score(value="C")
 
