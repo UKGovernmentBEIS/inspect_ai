@@ -1,95 +1,77 @@
-import Dexie from 'dexie';
-import { SampleSummary } from '../api/types';
-import { EvalSpec, EvalPlan, EvalResults, EvalStats, EvalError, EvalMetric } from '../../@types/log';
+import Dexie from "dexie";
+import { EvalLogHeader, LogOverview, SampleSummary } from "../api/types";
 
 // Log Files Table - Basic file listing from get_log_paths()
 export interface LogFileRecord {
-  file_path: string;              // LogFile.name (primary key)
-  file_name: string;              // Basename extracted from path
-  task?: string;                  // LogFile.task
-  task_id?: string;               // LogFile.task_id
-  cached_at: string;              // When cached
+  // (primary key)
+  file_path: string;
+  file_name: string;
+  task?: string;
+  task_id?: string;
+
+  // TODO: Remove cached_at
+  cached_at: string;
 }
 
-// Log Summaries Table - Summary data from get_log_overviews()
+// Log Summaries Table - Stores complete log overview data
 export interface LogSummaryRecord {
-  file_path: string;              // Log file path (primary key)
+  // (primary key)
+  file_path: string;
+  cached_at: string;
 
-  eval_id: string;                // LogOverview.eval_id
-  run_id: string;                 // LogOverview.run_id
-  task: string;                   // LogOverview.task
-  task_id: string;                // LogOverview.task_id
-  task_version: number | string;  // LogOverview.task_version
-  version?: number;               // LogOverview.version
-  status?: 'started' | 'success' | 'cancelled' | 'error'; // LogOverview.status
-  model: string;                  // LogOverview.model
-  started_at?: string;            // LogOverview.started_at
-  completed_at?: string;          // LogOverview.completed_at
-  primary_metric?: EvalMetric;    // LogOverview.primary_metric (full object)
-  error?: EvalError;              // LogOverview.error (full object)
-
-  cached_at: string;              // When cached
+  // The complete log overview object
+  overview: LogOverview;
 }
 
-// Log Headers Table - Full header data from get_log_summary()
+// Log Headers Table - Stores complete header data
 export interface LogHeaderRecord {
-  file_path: string;              // Log file path (primary key)
+  // Primary key
+  file_path: string;
+  cached_at: string;
 
-  version?: number;               // EvalLogHeader.version
-  status?: 'started' | 'success' | 'cancelled' | 'error'; // EvalLogHeader.status
-  eval_spec: EvalSpec;            // EvalLogHeader.eval (full object)
-  plan?: EvalPlan;                // EvalLogHeader.plan (full object)
-  results?: EvalResults;          // EvalLogHeader.results (full object)
-  stats?: EvalStats;              // EvalLogHeader.stats (full object)
-  error?: EvalError;              // EvalLogHeader.error (full object)
-
-  cached_at: string;              // When cached
+  // The complete header object
+  header: EvalLogHeader;
 }
 
-// Sample Summaries Table - Sample data for cross-file querying
+// Sample Summaries Table - Stores complete sample data with indexed fields
 export interface SampleSummaryRecord {
-  file_path: string;              // Reference to log file
+  // Metadata
+  file_path: string;
+  cached_at: string;
 
-  // Core identifiers from SampleSummary
-  uuid?: string;                  // SampleSummary.uuid
-  sample_id: number | string;     // SampleSummary.id
-  epoch: number;                  // SampleSummary.epoch
-
-  // Content for querying
-  input: any;                     // SampleSummary.input (string or ChatMessage[])
-  target: string | string[];      // SampleSummary.target
-  scores: Record<string, any>;    // SampleSummary.scores (Record<string, Score>)
-  error?: string;                 // SampleSummary.error
-  limit?: string;                 // SampleSummary.limit
-  metadata?: Record<string, any>; // SampleSummary.metadata
-  completed?: boolean;            // SampleSummary.completed
-  retries?: number;               // SampleSummary.retries
-
-  // Full summary for complete access
-  summary_data: SampleSummary;    // Complete original object
-  cached_at: string;              // When cached
+  // The complete sample summary object
+  summary: SampleSummary;
 }
 
 export class AppDatabase extends Dexie {
   log_files!: Dexie.Table<LogFileRecord, string>;
   log_summaries!: Dexie.Table<LogSummaryRecord, string>;
   log_headers!: Dexie.Table<LogHeaderRecord, string>;
-  sample_summaries!: Dexie.Table<SampleSummaryRecord, [string, number | string, number]>;
+  sample_summaries!: Dexie.Table<
+    SampleSummaryRecord,
+    [string, number | string, number]
+  >;
 
   constructor(logDir: string) {
     // Sanitize logDir for database name
-    const sanitizedDir = logDir.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const sanitizedDir = logDir.replace(/[^a-zA-Z0-9_-]/g, "_");
     const dbName = `InspectAI_${sanitizedDir}`;
     super(dbName);
 
     this.version(1).stores({
-      log_files: 'file_path, task, task_id, cached_at',
+      // Basic file listing - indexes for querying and sorting
+      log_files: "file_path, task, task_id, cached_at",
 
-      log_summaries: 'file_path, eval_id, run_id, task, task_id, status, model, started_at, completed_at',
+      // Summary data - indexes into nested overview properties
+      log_summaries:
+        "file_path, overview.eval_id, overview.run_id, overview.task, overview.task_id, overview.task_version, overview.version, overview.status, overview.model, overview.started_at, overview.completed_at",
 
-      log_headers: 'file_path, status, cached_at',
+      // Full header data - indexes into nested header properties
+      log_headers: "file_path, header.version, header.status, cached_at",
 
-      sample_summaries: '[file_path+sample_id+epoch], file_path, sample_id, epoch, completed, target, [file_path+completed]'
+      // Sample data - indexes into nested summary properties
+      sample_summaries:
+        "[file_path+summary.id+summary.epoch], file_path, summary.id, summary.epoch, summary.completed, summary.target, [file_path+summary.completed], summary.uuid",
     });
   }
 }
