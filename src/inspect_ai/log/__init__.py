@@ -3,7 +3,6 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 from ._bundle import bundle_log_dir
 from ._condense import condense_sample, resolve_sample_attachments
 from ._convert import convert_eval_logs
-from ._edit import edit_score, recompute_metrics
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
@@ -37,6 +36,7 @@ from ._log import (
 )
 from ._message import LoggingLevel, LoggingMessage
 from ._retry import retryable_eval_logs
+from ._score import edit_score, recompute_metrics
 from ._transcript import (
     ApprovalEvent,
     ErrorEvent,

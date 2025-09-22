@@ -4,7 +4,7 @@ import pytest
 
 from inspect_ai import Task, eval_async, task
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.log._edit import edit_score
+from inspect_ai.log._score import edit_score
 from inspect_ai.log._transcript import ScoreEditEvent, SpanEndEvent
 from inspect_ai.log._tree import event_tree, walk_node_spans
 from inspect_ai.scorer import Score, Target, mean, scorer

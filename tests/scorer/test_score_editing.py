@@ -4,7 +4,7 @@ import pytest
 
 from inspect_ai import Task, eval_async, task
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.log._edit import edit_score, recompute_metrics
+from inspect_ai.log._score import edit_score, recompute_metrics
 from inspect_ai.scorer import Score, Target, accuracy, mean, scorer
 from inspect_ai.scorer._metric import ProvenanceData, ScoreEdit
 from inspect_ai.solver import TaskState
