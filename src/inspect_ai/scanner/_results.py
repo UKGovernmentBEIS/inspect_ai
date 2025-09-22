@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, overload
 
+from upath import UPath
+
 from inspect_ai._util._async import run_coroutine
+
+from ._reporter import find_scan_dir
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -70,6 +74,11 @@ async def scan_results_async(
         If scanner_name is provided, returns DataFrame with scanner results.
         Otherwise, returns ScanResults with all scanner results.
     """
+    # determine the scan dir
+    scan_dir = find_scan_dir(UPath(scans_dir), scan_id)
+    if scan_dir is None:
+        raise ValueError(f"Scan id '{scan_id}' not found in scans dir '{scans_dir}'.")
+
     if scanner_name is not None:
         # Return specific scanner results
         import pandas as pd

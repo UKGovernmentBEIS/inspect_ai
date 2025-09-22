@@ -69,7 +69,7 @@ async def scan_compact(scans_dir: UPath, scan_id: str) -> None:
     # determine scan_dir
     scan_dir = find_scan_dir(scans_dir, scan_id)
     if scan_dir is None:
-        raise ValueError(f"Scan id '{scan_id}' not found in scans dir 'scans_dir'.")
+        raise ValueError(f"Scan id '{scan_id}' not found in scans dir '{scans_dir}'.")
 
     # group parquet files by scanner name
     scanner_files = defaultdict(list)
@@ -106,12 +106,7 @@ async def scan_compact(scans_dir: UPath, scan_id: str) -> None:
 
 def ensure_scan_dir(scans_dir: UPath, scan_id: str, scan_name: str) -> UPath:
     # look for an existing scan dir
-    scan_dir: UPath | None = None
-    ensure_scans_dir(scans_dir)
-    for f in scans_dir.glob(f"*_{scan_id}"):
-        if f.is_dir():
-            scan_dir = f
-            break
+    scan_dir = find_scan_dir(scans_dir, scan_id)
 
     # if there is no scan_dir then create one
     if scan_dir is None:
