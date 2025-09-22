@@ -35,8 +35,9 @@ from ._log import (
     EvalStats,
 )
 from ._message import LoggingLevel, LoggingMessage
+from ._metric import recompute_metrics
 from ._retry import retryable_eval_logs
-from ._score import edit_score, recompute_metrics
+from ._score import edit_score
 from ._transcript import (
     ApprovalEvent,
     ErrorEvent,

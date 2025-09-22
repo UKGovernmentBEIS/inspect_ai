@@ -361,8 +361,8 @@ The `edit_score()` function automatically recomputes aggregate metrics by defaul
 from inspect_ai.log import recompute_metrics
 
 # Make edits without recomputing metrics each time
-edit_score(log, sample_id_1, "accuracy", edit1, should_recompute_metrics=False)
-edit_score(log, sample_id_2, "accuracy", edit2, should_recompute_metrics=False)
+edit_score(log, sample_id_1, "accuracy", edit1, recompute_metrics=False)
+edit_score(log, sample_id_2, "accuracy", edit2, recompute_metrics=False)
 
 # Recompute metrics once after all edits
 recompute_metrics(log)
