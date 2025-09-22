@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, overload
 
+from upath import UPath
+
 from inspect_ai._util._async import run_coroutine
 
 if TYPE_CHECKING:
@@ -80,5 +82,5 @@ async def scan_results_async(
         return ScanResults("", "", {})
 
 
-async def scan_compact(scans_dir: str, scan_id: str) -> None:
+async def scan_compact(scans_dir: UPath, scan_id: str) -> None:
     pass

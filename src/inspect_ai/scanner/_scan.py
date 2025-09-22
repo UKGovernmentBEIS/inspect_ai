@@ -3,18 +3,18 @@ import re
 from typing import Any, Sequence
 
 from shortuuid import uuid
+from upath import UPath
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.registry import registry_info
 
-from ._options import ScanOptions, read_scan_options
+from ._reporter import ScanOptions, read_scan_options, scan_reporter
 from ._results import (
     ScanResults,
     scan_compact,
     scan_results_async,
 )
 from ._scanner.scanner import Scanner
-from ._tracker import results_tracker
 from ._transcript.transcripts import Transcripts
 from ._transcript.types import TranscriptContent
 
@@ -72,7 +72,7 @@ async def scan_async(
         named_scanners[name] = scanner
 
     return await _scan_async(
-        ScanOptions(scan_id, scan_name, scans_dir, transcripts, named_scanners)
+        UPath(scans_dir), ScanOptions(scan_id, scan_name, transcripts, named_scanners)
     )
 
 
@@ -85,30 +85,32 @@ async def scan_resume(
 async def scan_resume_async(
     scan_dir: str,
 ) -> ScanResults:
-    options = await read_scan_options(scan_dir)
+    scan_dir_path = UPath(scan_dir)
+    scans_dir = UPath(scan_dir).parent
+    options = await read_scan_options(scan_dir_path)
     if options is None:
         raise RuntimeError(
             f"The specified directory '{scan_dir}' does not contain a scan."
         )
-    return await _scan_async(options)
+    return await _scan_async(scans_dir, options)
 
 
-async def _scan_async(options: ScanOptions) -> ScanResults:
+async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
     # naive scan with:
     #  No parallelism
     #  No content filtering
     #  Supporting only Transcript
 
-    # set up our tracker (stores results and lets us skip results we already have)
-    tracker = await results_tracker(options)
+    # set up our reporter (stores results and lets us skip results we already have)
+    reporter = await scan_reporter(scans_dir, options)
 
     # read transcripts from index and process them if required
     async with options.transcripts:
         for t in await options.transcripts.index():
             for name, scanner in options.scanners.items():
                 # get reporter for this transcript/scanner (if None we already did this work)
-                reporter = await tracker(t, name)
-                if reporter is None:
+                report = await reporter(t, name)
+                if report is None:
                     continue
 
                 # read the transcript
@@ -123,8 +125,8 @@ async def _scan_async(options: ScanOptions) -> ScanResults:
 
                 # report the result
                 if result is not None:
-                    await reporter([result])
+                    await report([result])
 
     # read all scan results for this scan
-    await scan_compact(options.scans_dir, options.scan_id)
-    return await scan_results_async(options.scans_dir, options.scan_id)
+    await scan_compact(scans_dir, options.scan_id)
+    return await scan_results_async(scans_dir.as_posix(), options.scan_id)
