@@ -322,10 +322,10 @@ def tag_exists(tag_name: str) -> bool:
     result = run_command(
         ["git", "tag", "-l", tag_name], capture_output=True, check=False
     )
-    return bool(result.stdout.strip())
+    return bool(result.stdout.strip()) if result else False
 
 
-def get_confirmation(tag_name: str, dry_run: bool = False) -> bool:
+def get_confirmation(tag_name: str, dry_run: bool = False, no_publish: bool = False) -> bool:
     """Get user confirmation before proceeding."""
     print("\n✅ All pre-flight checks passed!")
     print("\nYou are about to:")
@@ -333,11 +333,17 @@ def get_confirmation(tag_name: str, dry_run: bool = False) -> bool:
     print(f"  2. Create git tag: {tag_name}")
     print("  3. Remove dist/ directory")
     print("  4. Build the Python package")
-    print("  5. Upload to PyPI")
-    print(f"  6. Push tag {tag_name} to origin")
+    if not no_publish:
+        print("  5. Upload to PyPI")
+        print(f"  6. Push tag {tag_name} to origin")
+    else:
+        print("  5. Skip PyPI upload (--no-publish mode)")
+        print("  6. Skip pushing tag to origin (--no-publish mode)")
 
     if dry_run:
         print("\n🔸 DRY RUN MODE - No actual changes will be made")
+    elif no_publish:
+        print("\n📦 NO PUBLISH MODE - Package will be built but not published")
 
     while True:
         response = input("\nDo you want to proceed? (yes/no): ").lower().strip()
@@ -370,7 +376,7 @@ def get_current_branch() -> str:
     result = run_command(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True
     )
-    return result.stdout.strip()
+    return result.stdout.strip() if result else ""
 
 
 def is_branch_up_to_date() -> Tuple[bool, str]:
@@ -389,17 +395,17 @@ def is_branch_up_to_date() -> Tuple[bool, str]:
         check=False,
     )
 
-    if result.returncode != 0:
+    if not result or result.returncode != 0:
         # Remote branch might not exist
         return True, "No remote branch to compare with"
 
-    behind_count = int(result.stdout.strip())
+    behind_count = int(result.stdout.strip()) if result.stdout else 0
 
     # Check if we're ahead of remote
     result = run_command(
         ["git", "rev-list", f"origin/{branch}...HEAD", "--count"], capture_output=True
     )
-    ahead_count = int(result.stdout.strip())
+    ahead_count = int(result.stdout.strip()) if result and result.stdout else 0
 
     if behind_count > 0:
         return False, f"Branch is {behind_count} commit(s) behind origin/{branch}"
@@ -412,7 +418,7 @@ def is_branch_up_to_date() -> Tuple[bool, str]:
 def has_uncommitted_changes() -> bool:
     """Check if there are uncommitted changes."""
     result = run_command(["git", "status", "--porcelain"], capture_output=True)
-    return bool(result.stdout.strip())
+    return bool(result.stdout.strip()) if result else False
 
 
 def release_command(args):
@@ -421,6 +427,7 @@ def release_command(args):
     required_branch = args.branch
     dry_run = args.dry_run
     skip_sandbox_download = args.skip_sandbox_download
+    no_publish = args.no_publish
 
     # Set up logging
     setup_logging(f"release_{tag_name}")
@@ -452,8 +459,8 @@ def release_command(args):
         logging.error("Missing required dependencies")
         sys.exit(1)
 
-    # Check PyPI authentication
-    if not dry_run and not check_pypi_auth():
+    # Check PyPI authentication (skip in no-publish mode)
+    if not dry_run and not no_publish and not check_pypi_auth():
         logging.error("PyPI authentication not configured")
         sys.exit(1)
 
@@ -506,7 +513,7 @@ def release_command(args):
     logging.info("-" * 40)
 
     # Get confirmation unless skipped
-    if not args.skip_confirmation and not get_confirmation(tag_name, dry_run):
+    if not args.skip_confirmation and not get_confirmation(tag_name, dry_run, no_publish):
         logging.info("Operation cancelled by user")
         sys.exit(0)
 
@@ -529,31 +536,45 @@ def release_command(args):
         run_command(["python3", "-m", "build"], dry_run=dry_run)
         logging.info("   ✓ Package built successfully")
 
-        # Upload to PyPI
-        logging.info("\n4. Uploading to PyPI...")
-        if not dry_run:
-            # Get all files in dist/ directory
-            dist_files = list(Path("dist").glob("*"))
-            if dist_files:
-                upload_cmd = ["python3", "-m", "twine", "upload"] + [
-                    str(f) for f in dist_files
-                ]
-                run_command(upload_cmd, dry_run=dry_run)
+        # Upload to PyPI (unless --no-publish)
+        if not no_publish:
+            logging.info("\n4. Uploading to PyPI...")
+            if not dry_run:
+                # Get all files in dist/ directory
+                dist_files = list(Path("dist").glob("*"))
+                if dist_files:
+                    upload_cmd = ["python3", "-m", "twine", "upload"] + [
+                        str(f) for f in dist_files
+                    ]
+                    run_command(upload_cmd, dry_run=dry_run)
+                else:
+                    logging.error("No files found in dist/ directory")
+                    sys.exit(1)
             else:
-                logging.error("No files found in dist/ directory")
-                sys.exit(1)
+                logging.info("[DRY RUN] Would upload dist/* to PyPI")
+            logging.info("   ✓ Package uploaded successfully")
+
+            # Push tag to origin (only after successful PyPI upload)
+            logging.info(f"\n5. Pushing tag '{tag_name}' to origin...")
+            run_command(["git", "push", "origin", tag_name], dry_run=dry_run)
+            logging.info("   ✓ Tag pushed successfully")
         else:
-            logging.info("[DRY RUN] Would upload dist/* to PyPI")
-        logging.info("   ✓ Package uploaded successfully")
+            logging.info("\n4. Skipping PyPI upload (--no-publish mode)")
+            logging.info("   ℹ️  Package built in dist/ directory")
+            logging.info("\n5. Skipping tag push to origin (--no-publish mode)")
+            logging.info(f"   ℹ️  Tag '{tag_name}' created locally only")
 
-        # Push tag to origin (only after successful PyPI upload)
-        logging.info(f"\n5. Pushing tag '{tag_name}' to origin...")
-        run_command(["git", "push", "origin", tag_name], dry_run=dry_run)
-        logging.info("   ✓ Tag pushed successfully")
-
-        logging.info(
-            f"\n✨ All done! Tag '{tag_name}' has been created and package uploaded."
-        )
+        if no_publish:
+            logging.info(
+                f"\n✨ Build complete! Tag '{tag_name}' created locally and package built."
+            )
+            logging.info("   To publish later, run:")
+            logging.info("     python3 -m twine upload dist/*")
+            logging.info(f"     git push origin {tag_name}")
+        else:
+            logging.info(
+                f"\n✨ All done! Tag '{tag_name}' has been created and package uploaded."
+            )
         logging.info("-" * 40)
 
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
@@ -650,6 +671,11 @@ def main():
         "--skip-sandbox-download",
         action="store_true",
         help="Skip downloading sandbox tools",
+    )
+    release_parser.add_argument(
+        "--no-publish",
+        action="store_true",
+        help="Build package but don't upload to PyPI or push tag",
     )
 
     # Sandbox tools download command
