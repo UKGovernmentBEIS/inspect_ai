@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
+- Score Editing: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 
 ## 0.3.133 (22 September 2025)
 
@@ -21,7 +22,6 @@
 - Scoring: Resolve task metrics on to scores returned by solvers.
 - Scoring: Use `Sequence` and `Mapping` types for metrics on scorer decorator.
 - Scoring: Properly make sample events available in the transcript during re-scoring an eval log.
-- Score Editing: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Inspect View: Display pending tasks in eval sets (tasks that have not yet started running)
 - Inspect View: Fine tune status appearance to improve legibility
 - Inspect View: Fix issue displaying folders with with overlapping path prefixes.
