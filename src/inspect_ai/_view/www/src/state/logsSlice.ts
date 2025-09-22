@@ -221,8 +221,32 @@ export const createLogsSlice = (
           return kEmptyLogs;
         }
 
+        // OPTIONAL: Try cache first (non-blocking, fail silently)
         try {
-          log.debug("LOADING LOG FILES");
+          const cached = await databaseService.getCachedLogFiles();
+          if (cached) {
+            log.debug("LOADED LOG FILES FROM CACHE");
+
+            // Still cache again in background to refresh (non-blocking)
+            setTimeout(() => {
+              api.get_log_paths().then(logFiles => {
+                databaseService.cacheLogFiles(logFiles).catch(() => {
+                  // Silently ignore cache errors
+                });
+              }).catch(() => {
+                // Silently ignore API errors during background refresh
+              });
+            }, 100);
+
+            return cached;
+          }
+        } catch (e) {
+          // Cache read failed, fall through to API (no logging to avoid noise)
+        }
+
+        // Fallback to API (original behavior)
+        try {
+          log.debug("LOADING LOG FILES FROM API");
           const logFiles = await api.get_log_paths();
 
           // OPTIONAL: Try to cache result (completely non-blocking)
