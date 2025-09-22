@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.133 (22 September 2025)
 
 - Sandbox tools: bash_session, text_editor, and sandbox MCP servers no longer require a separate pipx install (they are now automatically injected into sandbox as a static binary with no Python dependencies).
 - Agent bridge: Python is no longer required within containers using the sandbox agent bridge.
