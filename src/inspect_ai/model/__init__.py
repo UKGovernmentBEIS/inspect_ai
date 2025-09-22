@@ -46,6 +46,7 @@ from ._generate_config import (
 )
 from ._model import (
     GenerateFilter,
+    GenerateInput,
     Model,
     ModelAPI,
     ModelName,
@@ -72,6 +73,7 @@ __all__ = [
     "GenerateConfig",
     "GenerateConfigArgs",
     "GenerateFilter",
+    "GenerateInput",
     "ResponseSchema",
     "CachePolicy",
     "ContentAudio",

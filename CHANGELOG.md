@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
+- Agent bridge: Ensure that bridge filters also take advantage of `retry_refusals` loop.
+- Agent bridge: Workaround Codex CLI not passing `detail` along with images.
+
+## 0.3.133 (22 September 2025)
+
 - Sandbox tools: bash_session, text_editor, and sandbox MCP servers no longer require a separate pipx install (they are now automatically injected into sandbox as a static binary with no Python dependencies).
 - Agent bridge: Python is no longer required within containers using the sandbox agent bridge.
 - Agent bridge: Enhance automatic state tracking by ignoring shorter sub-agent generations.

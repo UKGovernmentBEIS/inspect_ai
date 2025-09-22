@@ -1,5 +1,5 @@
 from textwrap import dedent
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
@@ -15,6 +15,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import GenerateInput
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai import (
     messages_to_openai,
@@ -104,15 +105,20 @@ BRIDGE_FILTER_RESPONSE = "5D1B6E79-C657-4C36-AC38-2032654D3879"
 
 
 @agent
-def bridge_filter_agent() -> Agent:
+def bridge_filter_agent(type: Literal["output", "config"]) -> Agent:
     async def filter(
         model: str,
-        message: list[ChatMessage],
+        input: list[ChatMessage],
         tools: list[ToolInfo],
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
-    ) -> ModelOutput:
-        return ModelOutput.from_content(model, BRIDGE_FILTER_RESPONSE)
+    ) -> ModelOutput | GenerateInput:
+        if type == "output":
+            return ModelOutput.from_content(model, BRIDGE_FILTER_RESPONSE)
+        else:
+            return GenerateInput(
+                input, tools, tool_choice, GenerateConfig(temperature=0.5)
+            )
 
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state, filter=filter) as bridge:
@@ -365,9 +371,15 @@ def check_openai_log_json(log_json: str, tools: bool):
 
 
 @skip_if_no_openai
-def test_bridge_filter():
-    log_json = eval_bridged_task("openai/gpt-4o", agent=bridge_filter_agent())
+def test_bridge_filter_output():
+    log_json = eval_bridged_task("openai/gpt-4o", agent=bridge_filter_agent("output"))
     assert BRIDGE_FILTER_RESPONSE in log_json
+
+
+@skip_if_no_openai
+def test_bridge_filter_config():
+    log_json = eval_bridged_task("openai/gpt-4o", agent=bridge_filter_agent("config"))
+    assert r'"temperature": 0.5' in log_json
 
 
 @skip_if_no_openai

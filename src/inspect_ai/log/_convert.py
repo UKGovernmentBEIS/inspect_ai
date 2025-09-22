@@ -37,7 +37,7 @@ def convert_eval_logs(
         output_dir (str): Output directory to write converted log file(s) to.
         overwrite (bool): Overwrite existing log files (defaults to `False`,
             raising an error if the output file path already exists).
-        resolve_attachments (bool): Resolve attachments (e.g. images)
+        resolve_attachments (bool): Resolve attachments (duplicated content blocks)
             to their full content.
         stream (int | bool): Stream samples through the conversion process instead of
             reading the entire log into memory. Useful for large logs.
