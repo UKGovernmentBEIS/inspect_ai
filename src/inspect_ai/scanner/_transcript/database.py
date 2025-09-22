@@ -60,7 +60,10 @@ class EvalLogTranscripts(Transcripts):
     @override
     def save_spec(self) -> dict[str, Any]:
         spec = super().save_spec()
-        spec["logs"] = base64.b64encode(pickle.dumps(self._logs)).decode("utf-8")
+
+        spec["logs"] = base64.b64encode(pickle.dumps(self.db._transcripts_df)).decode(
+            "utf-8"
+        )
         return spec
 
     @override
