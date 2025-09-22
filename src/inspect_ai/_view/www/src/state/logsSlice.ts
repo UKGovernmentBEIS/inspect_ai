@@ -11,7 +11,6 @@ import {
   LogFiles,
   LogOverview,
 } from "../client/api/types";
-import { databaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
 
@@ -80,6 +79,7 @@ export const createLogsSlice = (
   get: () => StoreState,
   _store: any,
 ): [LogsSlice, () => void] => {
+
   const slice = {
     // State
     logs: initialState,
@@ -111,10 +111,13 @@ export const createLogsSlice = (
 
         // OPTIONAL: Try cache first (non-blocking, fail silently)
         let cached: Record<string, LogOverview> = {};
-        try {
-          cached = await databaseService.getCachedLogSummaries(filePaths);
-        } catch (e) {
-          // Cache read failed, continue with normal flow
+        const databaseService = get().databaseService;
+        if (databaseService) {
+          try {
+            cached = await databaseService.getCachedLogSummaries(filePaths);
+          } catch (e) {
+            // Cache read failed, continue with normal flow
+          }
         }
 
         // Filter out files that are already loaded, cached, or currently loading
@@ -206,8 +209,9 @@ export const createLogsSlice = (
 
           // OPTIONAL: Cache new results (completely non-blocking)
           setTimeout(() => {
-            if (Object.keys(headerMap).length > 0) {
-              databaseService.cacheLogSummaries(headerMap).catch(() => {
+            const dbService = get().databaseService;
+            if (dbService && Object.keys(headerMap).length > 0) {
+              dbService.cacheLogSummaries(headerMap).catch(() => {
                 // Silently ignore cache errors
               });
             }
@@ -281,9 +285,10 @@ export const createLogsSlice = (
           logFiles = await api.get_log_paths();
 
           // Initialize database with log directory
-          if (logFiles.log_dir) {
+          const databaseService = get().databaseService;
+          if (databaseService && logFiles.log_dir) {
             try {
-              await databaseService.switchLogDir(logFiles.log_dir);
+              await databaseService.openDatabase(logFiles.log_dir);
             } catch (e) {
               // Silently ignore database initialization errors
             }
@@ -295,29 +300,38 @@ export const createLogsSlice = (
         }
 
         // OPTIONAL: Try cache after DB is initialized (non-blocking, fail silently)
-        try {
-          const cached = await databaseService.getCachedLogFiles();
+        const dbService = get().databaseService;
+        if (dbService) {
+          try {
+            const cached = await dbService.getCachedLogFiles();
           if (cached) {
             log.debug("LOADED LOG FILES FROM CACHE");
 
             // Still cache the fresh data in background (non-blocking)
             setTimeout(() => {
-              databaseService.cacheLogFiles(logFiles).catch(() => {
-                // Silently ignore cache errors
-              });
+              const dbSvc = get().databaseService;
+              if (dbSvc) {
+                dbSvc.cacheLogFiles(logFiles).catch(() => {
+                  // Silently ignore cache errors
+                });
+              }
             }, 0);
 
             return cached;
           }
-        } catch (e) {
-          // Cache read failed, use API results we already have
+          } catch (e) {
+            // Cache read failed, use API results we already have
+          }
         }
 
         // Cache the result we got from API (completely non-blocking)
         setTimeout(() => {
-          databaseService.cacheLogFiles(logFiles).catch(() => {
-            // Silently ignore cache errors
-          });
+          const dbService = get().databaseService;
+          if (dbService) {
+            dbService.cacheLogFiles(logFiles).catch(() => {
+              // Silently ignore cache errors
+            });
+          }
         }, 0);
 
         return logFiles;
@@ -440,7 +454,11 @@ export const createLogsSlice = (
       getAllCachedSamples: async () => {
         try {
           log.debug("LOADING ALL CACHED SAMPLES");
-          const samples = await databaseService.getAllSampleSummaries();
+          const dbService = get().databaseService;
+          if (!dbService) {
+            throw new Error('Database service not initialized');
+          }
+          const samples = await dbService.getAllSampleSummaries();
           log.debug(`Retrieved ${samples.length} cached samples`);
           return samples;
         } catch (e) {
@@ -456,7 +474,11 @@ export const createLogsSlice = (
       }) => {
         try {
           log.debug("QUERYING CACHED SAMPLES", filter);
-          const samples = await databaseService.querySampleSummaries(filter);
+          const dbService = get().databaseService;
+          if (!dbService) {
+            throw new Error('Database service not initialized');
+          }
+          const samples = await dbService.querySampleSummaries(filter);
           log.debug(`Query returned ${samples.length} samples`);
           return samples;
         } catch (e) {
@@ -467,7 +489,9 @@ export const createLogsSlice = (
     },
   } as const;
 
-  const cleanup = () => {};
+  const cleanup = () => {
+    // Database cleanup is handled in the main store cleanup
+  };
 
   return [slice, cleanup];
 };

@@ -1,6 +1,5 @@
 import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { EvalSummary, PendingSamples } from "../client/api/types";
-import { databaseService } from "../client/database";
 import { toBasicInfo } from "../client/utils/type-utils";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
@@ -177,8 +176,9 @@ export const createLogSlice = (
 
           // OPTIONAL: Cache sample summaries (completely non-blocking)
           setTimeout(() => {
-            if (logContents.sampleSummaries && logContents.sampleSummaries.length > 0) {
-              databaseService.cacheSampleSummaries(logFileName, logContents.sampleSummaries).catch(() => {
+            const dbService = state.databaseService;
+            if (dbService && logContents.sampleSummaries && logContents.sampleSummaries.length > 0) {
+              dbService.cacheSampleSummaries(logFileName, logContents.sampleSummaries).catch(() => {
                 // Silently ignore cache errors
               });
             }
