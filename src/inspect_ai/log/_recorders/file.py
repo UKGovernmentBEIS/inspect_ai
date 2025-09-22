@@ -5,7 +5,7 @@ from typing import Any
 from typing_extensions import override
 
 from inspect_ai._util.constants import MODEL_NONE
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import clean_filename_component, filesystem
 from inspect_ai._util.registry import registry_unqualified_name
 
 from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
@@ -87,11 +87,6 @@ class FileRecorder(Recorder):
         return eval_log
 
     def _log_file_key(self, eval: EvalSpec) -> str:
-        # clean underscores, slashes, and : from the log file key (so we can reliably parse it
-        # later without worrying about underscores)
-        def clean(s: str) -> str:
-            return s.replace("_", "-").replace("/", "-").replace(":", "-")
-
         # remove package from task name
         task = registry_unqualified_name(eval.task)  # noqa: F841
 
@@ -99,10 +94,12 @@ class FileRecorder(Recorder):
         log_file_pattern = os.getenv("INSPECT_EVAL_LOG_FILE_PATTERN", "{task}_{id}")
 
         # compute and return log file name
-        log_file_name = f"{clean(eval.created)}_" + log_file_pattern
-        log_file_name = log_file_name.replace("{task}", clean(task))
-        log_file_name = log_file_name.replace("{id}", clean(eval.task_id))
-        model = clean(eval.model) if eval.model != MODEL_NONE else ""
+        log_file_name = f"{clean_filename_component(eval.created)}_" + log_file_pattern
+        log_file_name = log_file_name.replace("{task}", clean_filename_component(task))
+        log_file_name = log_file_name.replace(
+            "{id}", clean_filename_component(eval.task_id)
+        )
+        model = clean_filename_component(eval.model) if eval.model != MODEL_NONE else ""
         log_file_name = log_file_name.replace("{model}", model)
         return log_file_name
 

@@ -8,7 +8,8 @@ from upath import UPath
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.registry import registry_info
 
-from ._reporter import ScanOptions, read_scan_options, scan_reporter
+from ._options import ScanOptions, read_scan_options
+from ._reporter import scan_reporter
 from ._results import (
     ScanResults,
     scan_compact,
