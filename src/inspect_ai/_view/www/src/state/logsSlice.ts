@@ -11,6 +11,7 @@ import {
   LogFiles,
   LogOverview,
 } from "../client/api/types";
+import { databaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
 
@@ -222,7 +223,16 @@ export const createLogsSlice = (
 
         try {
           log.debug("LOADING LOG FILES");
-          return await api.get_log_paths();
+          const logFiles = await api.get_log_paths();
+
+          // OPTIONAL: Try to cache result (completely non-blocking)
+          setTimeout(() => {
+            databaseService.cacheLogFiles(logFiles).catch(() => {
+              // Silently ignore cache errors
+            });
+          }, 0);
+
+          return logFiles;
         } catch (e) {
           console.log(e);
           get().appActions.setStatus({ loading: false, error: e as Error });
