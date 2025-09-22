@@ -3,18 +3,23 @@
  * Uses fake-indexeddb for testing IndexedDB operations in Jest
  */
 
-import { databaseService } from './service';
+import { createDatabaseService, DatabaseService } from './service';
 import { LogFiles, LogOverview, SampleSummary } from '../api/types';
 
 describe('Database Service', () => {
+  let databaseService: DatabaseService;
+
   beforeEach(async () => {
+    // Create a new database service instance for each test
+    databaseService = createDatabaseService();
     // Initialize with test log directory
-    await databaseService.switchLogDir('/test/logs');
+    await databaseService.openDatabase('/test/logs');
   });
 
   afterEach(async () => {
     // Clean up after each test
     await databaseService.clearAllCaches();
+    await databaseService.closeDatabase();
   });
 
   describe('Log Files Caching', () => {

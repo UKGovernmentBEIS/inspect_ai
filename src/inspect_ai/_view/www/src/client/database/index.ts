@@ -6,5 +6,5 @@ export type {
   SampleSummaryRecord
 } from './schema';
 
-export { databaseManager } from './manager';
-export { databaseService, DatabaseService } from './service';
+export { DatabaseManager } from './manager';
+export { DatabaseService, createDatabaseService } from './service';
