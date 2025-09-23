@@ -6,12 +6,11 @@ import ijson  # type: ignore
 # Cache for common string constants to avoid repeated string creation
 ATTACHMENT_PREFIX = "attachment://"
 ATTACHMENT_PREFIX_LEN = len(ATTACHMENT_PREFIX)
-MESSAGES_PREFIX = "messages"
-EVENTS_PREFIX = "events"
 ATTACHMENTS_PREFIX = "attachments."
+ATTACHMENTS_PREFIX_LEN = len(ATTACHMENTS_PREFIX)
 
 
-@dataclass
+@dataclass(slots=True)
 class ProcessorState:
     """Mutable state for processing array items (messages/events)."""
 
@@ -89,46 +88,36 @@ def _skip_and_reset(state: ProcessorState) -> None:
     state.attachments.clear()
 
 
-@dataclass
-class ArrayItemResult:
-    """Result of processing an array item event."""
-
-    parsed_item: Any | None = None
-    attachment_refs: set[str] = field(default_factory=set)
-
-
 def _process_array_item_event(
     *,
     state: ProcessorState,
     prefix: str,
     event: str,
     value: Any,
-    array_item_prefix: str,
-    filter_field: str,
-    filter_list: None | Literal["all"] | list[str],
-) -> ArrayItemResult:
-    """Process a single array item event using mutable state."""
-    if prefix == array_item_prefix and event == "start_map":
-        _start_item(state, event, value)
-        return ArrayItemResult()
+    config: "ListProcessingConfig",
+) -> tuple[Any, set[str]] | None:
+    """Process a single array item event using mutable state.
 
-    elif prefix == array_item_prefix and event == "end_map":
+    Returns a tuple of (parsed_item, attachment_refs) only when an item finishes
+    (on end_map). Returns None for all other events to avoid per-event allocations.
+    """
+    if prefix == config.array_item_prefix and event == "start_map":
+        _start_item(state, event, value)
+        return None
+
+    elif prefix == config.array_item_prefix and event == "end_map":
         parsed_item = _finish_item(state, event, value)
-        result = ArrayItemResult(
-            parsed_item=parsed_item,
-            attachment_refs=(
-                state.attachments.copy() if parsed_item is not None else set()
-            ),
-        )
-        return result
+        if parsed_item is not None:
+            # Copy attachments to decouple from mutable state
+            return parsed_item, state.attachments.copy()
+        return None
 
     elif state.builder is not None:
         # Check for filter field to make filtering decision
-        filter_prefix = f"{array_item_prefix}.{filter_field}"
-        if prefix == filter_prefix and event == "string":
-            if _should_skip(str(value), filter_list):
+        if prefix == config.filter_prefix and event == "string":
+            if _should_skip(value, config.filter_list):
                 _skip_and_reset(state)
-                return ArrayItemResult()
+                return None
 
         # Only build if we're not skipping this item
         if not state.skip_current:
@@ -136,39 +125,37 @@ def _process_array_item_event(
             # Track attachments in string values
             if event == "string":
                 _track_attachment(state, str(value))
-            return ArrayItemResult()
+            return None
 
-    return ArrayItemResult()
+    return None
 
 
 # Stream Processing Pipeline Functions
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ListProcessingConfig:
     """Configuration for stream processing."""
 
     array_item_prefix: str
     filter_field: str
     filter_list: None | Literal["all"] | list[str]
+    # Precomputed filter prefix to avoid repeated string concatenation
+    filter_prefix: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "filter_prefix", f"{self.array_item_prefix}.{self.filter_field}"
+        )
 
 
-@dataclass(frozen=True)
-class ProcessingResult:
-    """Final result of processing a stream."""
-
-    items: tuple[Any, ...]
-    attachment_refs: frozenset[str]
-
-
-@dataclass
+@dataclass(slots=True)
 class ParseState:
     """Complete parsing state with all accumulators.
 
     Uses mutable state for better performance, eliminating expensive object copying.
     """
 
-    transcript_id: str = ""
     messages_processor: ProcessorState = field(default_factory=ProcessorState)
     events_processor: ProcessorState = field(default_factory=ProcessorState)
     messages: list[dict[str, Any]] = field(default_factory=list)
@@ -187,11 +174,7 @@ def reduce_parse_event(
 ) -> None:
     """Mutate state by applying an action."""
     # Inline target detection logic directly
-    if prefix == "id" and event == "string":
-        state.transcript_id = str(value)
-        return
-
-    elif prefix.startswith("messages.item"):
+    if prefix.startswith("messages.item"):
         if messages_config is None:
             return
         result = _process_array_item_event(
@@ -199,14 +182,12 @@ def reduce_parse_event(
             prefix=prefix,
             event=event,
             value=value,
-            array_item_prefix=messages_config.array_item_prefix,
-            filter_field=messages_config.filter_field,
-            filter_list=messages_config.filter_list,
+            config=messages_config,
         )
-
-        if result.parsed_item is not None:
-            state.messages.append(result.parsed_item)
-            state.attachment_refs.update(result.attachment_refs)
+        if result is not None:
+            parsed_item, attachment_refs = result
+            state.messages.append(parsed_item)
+            state.attachment_refs.update(attachment_refs)
         return
 
     elif prefix.startswith("events.item"):
@@ -217,27 +198,30 @@ def reduce_parse_event(
             prefix=prefix,
             event=event,
             value=value,
-            array_item_prefix=events_config.array_item_prefix,
-            filter_field=events_config.filter_field,
-            filter_list=events_config.filter_list,
+            config=events_config,
         )
-
-        if result.parsed_item is not None:
-            state.events.append(result.parsed_item)
-            state.attachment_refs.update(result.attachment_refs)
+        if result is not None:
+            parsed_item, attachment_refs = result
+            state.events.append(parsed_item)
+            state.attachment_refs.update(attachment_refs)
         return
 
     elif prefix.startswith(ATTACHMENTS_PREFIX):
-        # Handle attachment values
-        attachment_id = prefix.split(".")[1]
-        if attachment_id in state.attachment_refs and event == "string":
-            state.attachments[attachment_id] = str(value)
-        return
-
-    elif prefix == MESSAGES_PREFIX or prefix == EVENTS_PREFIX:
-        # Ignore the top-level array containers themselves
+        if event == "string":
+            # Handle attachment values
+            # Extract the id after "attachments." and before the next dot (if any)
+            end = prefix.find(".", ATTACHMENTS_PREFIX_LEN)
+            attachment_id = (
+                prefix[ATTACHMENTS_PREFIX_LEN:]
+                if end == -1
+                else prefix[ATTACHMENTS_PREFIX_LEN:end]
+            )
+            if attachment_id in state.attachment_refs:
+                # value is str for "string" event
+                state.attachments[attachment_id] = value
         return
 
     else:
-        # Everything else is ignored (metadata is handled by database)
+        # Ignore the top-level array containers themselves (messages and events)
+        # as well as all other top level fields
         return

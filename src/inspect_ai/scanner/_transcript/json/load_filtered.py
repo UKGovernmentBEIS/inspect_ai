@@ -24,7 +24,7 @@ ATTACHMENT_PATTERN = re.compile(r"attachment://([a-f0-9]{32})")
 ATTACHMENT_PREFIX = "attachment://"
 
 
-@dataclass
+@dataclass(slots=True)
 class RawTranscript:
     """Temporary structure for transcript data before validation."""
 
