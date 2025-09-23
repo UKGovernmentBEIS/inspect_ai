@@ -16,6 +16,7 @@ from typing import (
     TypeAlias,
     overload,
 )
+from zipfile import ZipFile
 
 from typing_extensions import override
 
@@ -28,10 +29,12 @@ from inspect_ai.analysis._dataframe.util import (
 )
 from inspect_ai.log._file import (
     EvalLogInfo,
-    read_eval_log_sample_async,
+    read_eval_log_sample_summaries,
 )
+from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.scanner._transcript.transcripts import Transcripts
 
+from .json.load_filtered import load_filtered_transcript
 from .metadata import Condition
 from .types import Transcript, TranscriptContent, TranscriptInfo
 
@@ -137,6 +140,9 @@ class EvalLogTranscriptsDB:
         # sqlite connection (starts out none)
         self._conn: sqlite3.Connection | None = None
 
+        # cache for read_eval_log_sample_summaries results (source, summaries_dict)
+        self._summaries_cache: tuple[str, dict[str, EvalSampleSummary]] | None = None
+
     async def connect(self) -> None:
         # Skip if already connected
         if self._conn is not None:
@@ -230,17 +236,31 @@ class EvalLogTranscriptsDB:
 
         return iter(results)
 
+    def _get_eval_summary(self, t: TranscriptInfo) -> EvalSampleSummary:
+        """Get the eval summary for a transcript, using cache if available.
+
+        This cache assumes that the typical usage pattern will scan through a single
+        source rather than jumping across sources randomly.
+        """
+        if self._summaries_cache is None or self._summaries_cache[0] != t.source:
+            self._summaries_cache = (
+                t.source,
+                {
+                    summary.uuid: summary
+                    for summary in read_eval_log_sample_summaries(t.source)
+                    if summary.uuid is not None
+                },
+            )
+        return self._summaries_cache[1][t.id]
+
     async def read(self, t: TranscriptInfo, content: TranscriptContent) -> Transcript:
-        sample = await read_eval_log_sample_async(
-            t.source, uuid=t.id, resolve_attachments=True
-        )
-        return Transcript(
-            id=t.id,
-            source=t.source,
-            metadata=t.metadata,
-            messages=sample.messages,
-            events=sample.events,
-        )
+        summary = self._get_eval_summary(t)
+        sample_file_name = f"samples/{summary.id}_epoch_{summary.epoch}.json"
+        with ZipFile(t.source, mode="r") as zipfile:
+            with zipfile.open(sample_file_name, "r") as sample_json:
+                return await load_filtered_transcript(
+                    sample_json, t, content.messages, content.events
+                )
 
     async def disconnect(self) -> None:
         if self._conn is not None:
