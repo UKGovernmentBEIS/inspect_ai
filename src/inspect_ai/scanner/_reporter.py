@@ -64,10 +64,11 @@ async def scan_reporter(
 
         return report
 
-    try:
-        yield reporter
-    finally:
-        await _scan_compact(scan_dir)
+    # accept results
+    yield reporter
+
+    # compact if we succeeded w/o errors
+    await _scan_compact(scan_dir)
 
 
 

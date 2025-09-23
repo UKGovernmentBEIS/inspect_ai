@@ -9,7 +9,7 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.registry import registry_info
 
 from ._options import ScanOptions, read_scan_options
-from ._reporter import scan_compact, scan_reporter
+from ._reporter import scan_reporter
 from ._results import ScanResults, scan_results_async
 from ._scanner.scanner import Scanner
 from ._transcript.transcripts import Transcripts
