@@ -6,7 +6,7 @@ from shortuuid import uuid
 from upath import UPath
 
 from inspect_ai._util._async import run_coroutine
-from inspect_ai._util.registry import registry_info
+from inspect_ai._util.registry import registry_unqualified_name
 
 from ._options import ScanOptions, read_scan_options
 from ._reporter import scan_reporter
@@ -59,7 +59,7 @@ async def scan_async(
         if isinstance(scanner, tuple):
             name, scanner = scanner
         else:
-            name = registry_info(scanner).name
+            name = registry_unqualified_name(scanner)
         if name in named_scanners:
             raise ValueError(
                 f"Scanners must have unique names (found duplicate name '{name}'). Use a tuple of str,Scanner to explicitly name a scanner."

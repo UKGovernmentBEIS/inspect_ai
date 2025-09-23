@@ -1,12 +1,13 @@
 import contextlib
-from typing import AsyncGenerator, Protocol, Sequence
+from textwrap import dedent
+from typing import AsyncGenerator, Protocol, Sequence, cast
 
 from upath import UPath
 
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.file import clean_filename_component
+from inspect_ai._util.file import clean_filename_component, file
 
-from ._options import ScanOptions, write_scan_options
+from ._options import ScanOptions, remove_scan_options, write_scan_options
 from ._scanner.result import Result
 from ._transcript.types import TranscriptInfo
 
@@ -36,7 +37,7 @@ async def scan_reporter(
 
     async def reporter(transcript: TranscriptInfo, scanner: str) -> ScanReport | None:
         # check if we already have this transcript/scanner pair recorded
-        scan_file = scan_dir / f"{transcript.id}_{scanner}.parquet"
+        scan_file = scan_dir / f".{transcript.id}_{scanner}.parquet"
         if scan_file.exists():
             return None
 
@@ -48,11 +49,14 @@ async def scan_reporter(
         async def report(results: Sequence[Result]) -> None:
             # create records
             records = [
-                dict(
-                    transcript_id=transcript.id,
-                    transcript_source=transcript.source,
+                cast(
+                    dict[str, str | bool | int | float | None],
+                    dict(
+                        transcript_id=transcript.id,
+                        transcript_source=transcript.source,
+                    ),
                 )
-                | result.model_dump()
+                | result.to_df_columns()
                 for result in results
             ]
 
@@ -67,8 +71,9 @@ async def scan_reporter(
     # accept results
     yield reporter
 
-    # compact if we succeeded w/o errors
+    # remove scans.json and compact if we succeeded w/o errors
     await _scan_compact(scan_dir)
+    await remove_scan_options(scan_dir)
 
 
 async def _scan_compact(scan_dir: UPath) -> None:
@@ -81,12 +86,11 @@ async def _scan_compact(scan_dir: UPath) -> None:
 
     # group parquet files by scanner name
     scanner_files = defaultdict(list)
-    for parquet_file in scan_dir.glob("*.parquet"):
+    for parquet_file in scan_dir.glob(".*.parquet"):
         # parse filename: {transcript_id}_{scanner_name}.parquet
-        parts = parquet_file.stem.rsplit("_", 1)
-        if len(parts) == 2:
-            transcript_id, scanner_name = parts
-            scanner_files[scanner_name].append(parquet_file)
+        parts = parquet_file.stem.split("_", 1)
+        _, scanner_name = parts
+        scanner_files[scanner_name].append(parquet_file)
 
     # consolidate files for each scanner
     for scanner_name, files in scanner_files.items():
@@ -145,3 +149,10 @@ def find_scan_dir(scans_dir: UPath, scan_id: str) -> UPath | None:
 
 def ensure_scans_dir(scans_dir: UPath) -> None:
     scans_dir.mkdir(parents=True, exist_ok=True)
+    with file((scans_dir / ".gitignore").as_posix(), "w") as f:
+        f.write(
+            dedent("""
+            .scan.json
+            .*.parquet
+            """)
+        )

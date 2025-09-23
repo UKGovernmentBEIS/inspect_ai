@@ -11,7 +11,7 @@ from pydantic import (
 )
 from upath import UPath
 
-from inspect_ai._util.file import file
+from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.registry import (
     RegistryDict,
     registry_create_from_dict,
@@ -92,7 +92,7 @@ class ScanOptions(BaseModel):
             raise ValueError(f"Invalid scanners value: {value}")
 
 
-SCAN_OPTIONS_JSON = "scan.json"
+SCAN_OPTIONS_JSON = ".scan.json"
 
 
 async def write_scan_options(scan_dir: UPath, options: ScanOptions) -> None:
@@ -111,3 +111,8 @@ async def read_scan_options(scan_dir: UPath) -> ScanOptions | None:
             return ScanOptions.model_validate(options_dict)
     else:
         return None
+
+
+async def remove_scan_options(scan_dir: UPath) -> None:
+    fs = filesystem(scan_dir.as_posix())
+    fs.rm((scan_dir / SCAN_OPTIONS_JSON).as_posix())

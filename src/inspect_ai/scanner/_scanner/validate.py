@@ -235,6 +235,9 @@ def _validate_message_type(
 
     Scanner must be able to handle ALL message types in the filter.
     """
+    if _is_compatible_with_type(scanner_type, Transcript):
+        return
+
     # Get the core type (unwrap list if needed)
     is_list, core_type = _unwrap_list_type(scanner_type)
 

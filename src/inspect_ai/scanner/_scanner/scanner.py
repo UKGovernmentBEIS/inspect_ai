@@ -17,7 +17,6 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
-    registry_name,
     registry_tag,
 )
 from inspect_ai.log._transcript import Event
@@ -168,9 +167,7 @@ def scanner(
     events = normalize_events_filter(events) if events is not None else None
 
     def decorate(factory_fn: ScannerFactory[P, T]) -> ScannerFactory[P, T]:
-        scanner_name = registry_name(
-            factory_fn, name or str(getattr(factory_fn, "__name__", "scanner"))
-        )
+        scanner_name = name or str(getattr(factory_fn, "__name__", "scanner"))
 
         @wraps(factory_fn)
         def factory_wrapper(*args: P.args, **kwargs: P.kwargs) -> Scanner[T]:

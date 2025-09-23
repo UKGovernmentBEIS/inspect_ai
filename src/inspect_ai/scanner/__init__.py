@@ -4,6 +4,7 @@ from ._results import (
 )
 from ._scan import scan, scan_async, scan_resume, scan_resume_async
 from ._scanner.loader import Loader, loader
+from ._scanner.result import Result
 from ._scanner.scanner import Scanner, scanner
 from ._transcript.database import transcripts
 from ._transcript.log import LogMetadata, log_metadata
@@ -41,6 +42,7 @@ __all__ = [
     "log_metadata",
     # scanner
     "Scanner",
+    "Result",
     "scanner",
     # loader
     "Loader",

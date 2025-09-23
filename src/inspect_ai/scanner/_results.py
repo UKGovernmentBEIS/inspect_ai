@@ -75,6 +75,8 @@ async def scan_results_async(
         If scanner_name is provided, returns DataFrame with scanner results.
         Otherwise, returns ScanResults with all scanner results.
     """
+    import pandas as pd
+
     # determine the scan dir
     scan_dir = find_scan_dir(UPath(scans_dir), scan_id)
     if scan_dir is None:
@@ -82,10 +84,10 @@ async def scan_results_async(
 
     # check for uncompacted transcript files
     uncompacted_files = False
-    for parquet_file in scan_dir.glob("*.parquet"):
-        # transcript files have format: {transcript_id}_{scanner_name}.parquet
-        if "_" in parquet_file.stem and parquet_file.stem != "options":
-            uncompacted_files = True
+    for parquet_file in scan_dir.glob(".*.parquet"):
+        # transcript files have format: .{transcript_id}_{scanner_name}.parquet
+        uncompacted_files = True
+        break
 
     if uncompacted_files:
         raise ValueError(
@@ -111,10 +113,9 @@ async def scan_results_async(
         # Return all scan results
         scanners = {}
         for parquet_file in scan_dir.glob("*.parquet"):
-            # skip any transcript-specific files (they contain underscore)
-            if "_" not in parquet_file.stem or parquet_file.stem == "options":
+            # skip any transcript-specific files (they start with .)
+            if not parquet_file.stem.startswith("."):
                 scanner_name = parquet_file.stem
-                if scanner_name != "options":  # skip options.parquet if it exists
-                    scanners[scanner_name] = pd.read_parquet(str(parquet_file))
+                scanners[scanner_name] = pd.read_parquet(str(parquet_file))
 
         return ScanResults(scan_id, scan_name, scanners)

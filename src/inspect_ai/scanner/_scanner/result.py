@@ -2,6 +2,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, JsonValue
 
+from inspect_ai._util.json import to_json_str_safe
+
 
 class Reference(BaseModel):
     """Reference to scanned content."""
@@ -30,3 +32,15 @@ class Result(BaseModel):
 
     references: list[Reference] = Field(default_factory=list)
     """References to relevant messages or events."""
+
+    def to_df_columns(self) -> dict[str, str | bool | int | float | None]:
+        columns: dict[str, str | bool | int | float | None] = {}
+        if isinstance(self.value, str | bool | int | float | None):
+            columns["value"] = self.value
+        else:
+            columns["value"] = to_json_str_safe(self.value)
+        columns["answer"] = self.answer
+        columns["explanation"] = self.explanation
+        columns["metadata"] = to_json_str_safe(self.metadata or {})
+        columns["references"] = to_json_str_safe(self.references)
+        return columns
