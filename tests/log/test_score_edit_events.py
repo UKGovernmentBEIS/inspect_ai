@@ -9,11 +9,12 @@ from inspect_ai.log._transcript import ScoreEditEvent, SpanEndEvent
 from inspect_ai.log._tree import event_tree, walk_node_spans
 from inspect_ai.scorer import Score, Target, mean, scorer
 from inspect_ai.scorer._metric import ScoreEdit
+from inspect_ai.scorer._scorer import Scorer
 from inspect_ai.solver import TaskState
 
 
 @scorer(metrics=[mean()])
-def test_scorer():
+def test_scorer() -> Scorer:
     async def score(state: TaskState, target: Target):
         return Score(value=1)
 
