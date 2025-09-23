@@ -5,6 +5,7 @@
 - Agent bridge: Workaround Codex CLI not passing `detail` along with images.
 - Inspect View: Fix regression sorting folder and logs in list (folders should sort to the front of the list)
 - Inspect View: Properly reset page when navigating between folders.
+- Sandbox Tools: Rewrite `inspect-ai` package installation type detection code.
 
 ## 0.3.133 (22 September 2025)
 

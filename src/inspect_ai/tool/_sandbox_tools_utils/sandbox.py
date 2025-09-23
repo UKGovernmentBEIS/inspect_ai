@@ -6,6 +6,7 @@ from importlib import resources
 from logging import getLogger
 from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Literal
+from urllib.parse import unquote, urlparse
 
 import httpx
 from rich.prompt import Prompt
@@ -13,6 +14,7 @@ from rich.prompt import Prompt
 import inspect_ai
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.package import get_package_direct_url
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
@@ -37,11 +39,11 @@ logger = getLogger(__name__)
 
 TRACE_SANDBOX_TOOLS = "Sandbox Tools"
 
-InstallState = Literal["pypi", "main", "edited"]
+InstallState = Literal["pypi", "clean", "edited"]
 """Represents the state of the inspect-ai installation.
 
 - **pypi**: PyPI installation
-- **main**: Non-PyPI install with no sandbox tools changes relative to main
+- **clean**: Non-PyPI install with no sandbox tools changes relative to main
 - **edited**: Non-PyPI install with changes to sandbox tools
 """
 
@@ -143,7 +145,7 @@ async def _open_executable_for_arch(
                 warn_once(logger, msg)
 
         # S3 Download Attempt
-        if install_state == "main":
+        if install_state == "clean":
             if await _download_from_s3(executable_name):
                 async with _open_executable(executable_name) as f:
                     trace_message(
@@ -239,141 +241,107 @@ async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
 
 def _get_install_state() -> InstallState:
     """Detect the state of the inspect-ai installation."""
-    import importlib.metadata
-    from importlib.metadata import PackageNotFoundError
+    if (direct_url := get_package_direct_url("inspect-ai")) is None:
+        return "pypi"
 
-    package_path = Path(inspect_ai.__file__).parent
+    if (
+        editable_url := (
+            direct_url.url
+            if direct_url.dir_info and direct_url.dir_info.editable
+            else None
+        )
+    ) is None:
+        return "clean"
 
-    try:
-        # Use importlib.metadata to get package information
-        dist = importlib.metadata.distribution("inspect-ai")
-
-        # If there are editable install indicators, it's not a PyPI install
-        if dist.files:
-            for file_path in dist.files:
-                if file_path.suffix == ".egg-link" or "direct_url.json" in str(
-                    file_path
-                ):
-                    # Not a PyPI install, check for changes
-                    return _check_main_divergence()
-
-        # Check if in site-packages and without source files (indicating PyPI wheel)
-        if "site-packages" in str(package_path):
-            build_script_path = (
-                package_path.parent.parent
-                / "inspect_ai"
-                / "tool"
-                / "sandbox_tools"
-                / "build_within_container.py"
-            )
-            # PyPI installs don't include source files like build scripts
-            if not build_script_path.exists():
-                return "pypi"
-
-        # Not a PyPI install, check for changes
-        return _check_main_divergence()
-
-    except PackageNotFoundError:
-        # Fallback: if in site-packages and no build script, likely PyPI
-        if "site-packages" in str(package_path):
-            build_script_path = (
-                package_path.parent.parent
-                / "inspect_ai"
-                / "tool"
-                / "sandbox_tools"
-                / "build_within_container.py"
-            )
-            if not build_script_path.exists():
-                return "pypi"
-
-        # Not a PyPI install, check for changes
-        return _check_main_divergence()
+    return _check_main_divergence(editable_url)
 
 
-def _check_main_divergence() -> Literal["main", "edited"]:
+def _check_main_divergence(url: str) -> Literal["clean", "edited"]:
     """Check if there are changes to sandbox tools files relative to main.
 
     Returns:
-        Literal["main", "edited"]: The state of changes to sandbox tools files.
-            - "main": No changes to sandbox tools files relative to main branch,
+        Literal["clean", "edited"]: The state of changes to sandbox tools files.
+            - "clean": No changes to sandbox tools files relative to main branch,
               or git is not available/functioning
             - "edited": Changes detected to tool support files - either
               uncommitted changes (staged/unstaged) or committed changes relative
               to main branch
     """
-    return "main"
+    parsed_url = urlparse(url)
+    if parsed_url.scheme != "file":
+        return "clean"
 
-    # git_root = Path(__file__).parent.parent.parent.parent.parent
+    git_root = Path(unquote(parsed_url.path))
 
-    # trace_message(
-    #     logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: checking {git_root=}"
-    # )
+    trace_message(
+        logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: checking {git_root=}"
+    )
 
-    # try:
-    #     # Check if we're in a git repo
-    #     result = subprocess.run(
-    #         ["git", "rev-parse", "--git-dir"],
-    #         capture_output=True,
-    #         text=True,
-    #         check=False,
-    #         cwd=git_root,
-    #     )
-    #     if result.returncode != 0:
-    #         trace_message(
-    #             logger,
-    #             TRACE_SANDBOX_TOOLS,
-    #             f"_check_for_changes: git rev-parse failed {result}",
-    #         )
-    #         # Not a git repo, assume main (not sure this is even possible)
-    #         return "main"
+    try:
+        # Check if we're in a git repo
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=git_root,
+        )
+        if result.returncode != 0:
+            trace_message(
+                logger,
+                TRACE_SANDBOX_TOOLS,
+                f"_check_for_changes: git rev-parse failed {result}",
+            )
+            # Not a git repo, assume clean (not sure this is even possible)
+            return "clean"
 
-    #     # Check for staged or unstaged changes to relevant paths
-    #     paths_to_check = [
-    #         "src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
-    #         "src/inspect_sandbox_tools",
-    #     ]
+        # Check for staged or unstaged changes to relevant paths
+        paths_to_check = [
+            "src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+            "src/inspect_sandbox_tools",
+        ]
 
-    #     for path in paths_to_check:
-    #         # Check for uncommitted changes (staged + unstaged)
-    #         result = subprocess.run(
-    #             ["git", "status", "--porcelain", path],
-    #             capture_output=True,
-    #             text=True,
-    #             check=False,
-    #             cwd=git_root,
-    #         )
-    #         if result.returncode == 0 and result.stdout.strip():
-    #             trace_message(
-    #                 logger,
-    #                 TRACE_SANDBOX_TOOLS,
-    #                 f"_check_for_changes: uncommitted changes (staged + unstaged) detected for {path}",
-    #             )
-    #             return "edited"
+        for path in paths_to_check:
+            # Check for uncommitted changes (staged + unstaged)
+            result = subprocess.run(
+                ["git", "status", "--porcelain", path],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=git_root,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                trace_message(
+                    logger,
+                    TRACE_SANDBOX_TOOLS,
+                    f"_check_for_changes: uncommitted changes (staged + unstaged) detected for {path}",
+                )
+                return "edited"
 
-    #         # Check for committed changes relative to main
-    #         result = subprocess.run(
-    #             ["git", "diff", "main", "--quiet", path],
-    #             capture_output=True,
-    #             text=True,
-    #             check=False,
-    #             cwd=git_root,
-    #         )
-    #         if result.returncode != 0:
-    #             trace_message(
-    #                 logger,
-    #                 TRACE_SANDBOX_TOOLS,
-    #                 f"_check_for_changes: diff's from main detected for {path}",
-    #             )
-    #             return "edited"
+            # Check for committed changes relative to main
+            result = subprocess.run(
+                ["git", "diff", "main", "--quiet", path],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=git_root,
+            )
+            if result.returncode != 0:
+                trace_message(
+                    logger,
+                    TRACE_SANDBOX_TOOLS,
+                    f"_check_for_changes: diff's from main detected for {path}",
+                )
+                return "edited"
 
-    #     trace_message(
-    #         logger, TRACE_SANDBOX_TOOLS, "_check_for_changes: do changes detected"
-    #     )
-    #     return "main"
+        trace_message(
+            logger, TRACE_SANDBOX_TOOLS, "_check_for_changes: do changes detected"
+        )
+        return "clean"
 
-    # except (subprocess.SubprocessError, FileNotFoundError) as ex:
-    #     # If git commands fail, assume main for safety
-    #     trace_message(
-    #         logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: caught exception {ex}"
-    #     )
-    #     return "main"
+    except (subprocess.SubprocessError, FileNotFoundError) as ex:
+        # If git commands fail, assume clean
+        trace_message(
+            logger, TRACE_SANDBOX_TOOLS, f"_check_for_changes: caught exception {ex}"
+        )
+        return "clean"
