@@ -2,6 +2,7 @@ import re
 from typing import Literal
 
 import pytest
+
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._agent import Agent, AgentState, agent
@@ -21,7 +22,6 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
-    ChatMessageTool,
 )
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -567,8 +567,12 @@ def test_remove_submit_tool_filters_reasoning_content():
 @pytest.mark.parametrize(
     ("truncation", "expected_message_count", "expected_submit"),
     [
-        pytest.param("auto", 142, True, id="with_auto_truncation"),  # sys msg + 0.7 * 200
-        pytest.param("disabled", 201, False, id="with_disabled_truncation"),  # no submit (agent terminates)
+        pytest.param(
+            "auto", 142, True, id="with_auto_truncation"
+        ),  # sys msg + 0.7 * 200
+        pytest.param(
+            "disabled", 201, False, id="with_disabled_truncation"
+        ),  # no submit (agent terminates)
     ],
 )
 def test_react_agent_truncation(
@@ -592,7 +596,8 @@ def test_react_agent_truncation(
                         model="mockllm/model",
                         content="This is a repeated message",
                     )
-                ] * 99
+                ]
+                * 99
             ),
             ModelOutput.from_content(
                 model="mockllm/model",
