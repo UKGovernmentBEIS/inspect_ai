@@ -75,6 +75,8 @@ def edit_score(
 
     # create the event
     score_edit_event = ScoreEditEvent(score_name=score_name, edit=edit)
+
+    # attach this edit event to the scorers span (if present)
     if final_scorers_node:
         score_edit_event.span_id = final_scorers_node.begin.id
 
