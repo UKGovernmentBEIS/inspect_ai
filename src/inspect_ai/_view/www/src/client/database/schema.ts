@@ -1,5 +1,5 @@
 import Dexie from "dexie";
-import { EvalLogHeader, LogOverview, SampleSummary } from "../api/types";
+import { EvalHeader, LogOverview, SampleSummary } from "../api/types";
 
 // Log Files Table - Basic file listing from get_log_paths()
 export interface LogFileRecord {
@@ -30,7 +30,7 @@ export interface LogHeaderRecord {
   cached_at: string;
 
   // The complete header object
-  header: EvalLogHeader;
+  header: EvalHeader;
 }
 
 // Sample Summaries Table - Stores complete sample data with indexed fields
