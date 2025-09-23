@@ -143,7 +143,6 @@ export interface Capabilities {
   webWorkers: boolean;
   streamSamples: boolean;
   streamSampleData: boolean;
-  nativeFind: boolean;
 }
 
 export interface LogViewAPI {

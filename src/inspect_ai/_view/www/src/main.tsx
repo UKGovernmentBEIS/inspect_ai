@@ -17,7 +17,6 @@ let capabilities: Capabilities = {
   webWorkers: true,
   streamSamples: !!applicationApi.get_log_pending_samples,
   streamSampleData: !!applicationApi.get_log_sample_data,
-  nativeFind: !vscode,
 };
 
 // Initial state / storage
