@@ -1,5 +1,5 @@
 import contextlib
-from typing import AsyncGenerator,  Protocol, Sequence
+from typing import AsyncGenerator, Protocol, Sequence
 
 from upath import UPath
 
@@ -24,7 +24,7 @@ class ScanReporter(Protocol):
 @contextlib.asynccontextmanager
 async def scan_reporter(
     scans_dir: UPath, options: ScanOptions
-) ->  AsyncGenerator[ScanReporter, None]
+) -> AsyncGenerator[ScanReporter, None]:
     import pandas as pd
     import pyarrow as pa
 
@@ -69,8 +69,6 @@ async def scan_reporter(
 
     # compact if we succeeded w/o errors
     await _scan_compact(scan_dir)
-
-
 
 
 async def _scan_compact(scan_dir: UPath) -> None:
