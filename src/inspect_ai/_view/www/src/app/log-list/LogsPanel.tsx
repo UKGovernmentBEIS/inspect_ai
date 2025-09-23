@@ -4,7 +4,7 @@ import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
-import { useDocumentTitle, useLogs } from "../../state/hooks";
+import { useDocumentTitle, useLogs, usePagination } from "../../state/hooks";
 import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
@@ -43,6 +43,8 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
   const navigate = useNavigate();
+
+  const { setPage } = usePagination(kLogsPaginationId, kDefaultPageSize);
 
   const filterRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -206,6 +208,10 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     };
     exec();
   }, [loadLogs, logPath]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [currentDir]);
 
   useEffect(() => {
     if (maybeShowSingleLog && logItems.length === 1) {
