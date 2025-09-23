@@ -156,8 +156,6 @@ export const createLogsSlice = (
           });
         }
 
-        console.log("TO LOAD", filesToLoad);
-
         if (filesToLoad.length === 0) {
           return Object.values({ ...state.logs.logOverviews, ...cached });
         }
