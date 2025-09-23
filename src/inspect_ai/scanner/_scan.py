@@ -11,7 +11,7 @@ from inspect_ai._util.registry import registry_unqualified_name
 
 from ._options import ScanOptions, read_scan_options
 from ._reporter import scan_reporter
-from ._results import ScanResults, scan_results_async
+from ._results import ScanResults
 from ._scanner.scanner import Scanner
 from ._transcript.transcripts import Transcripts
 from ._transcript.types import TranscriptContent
