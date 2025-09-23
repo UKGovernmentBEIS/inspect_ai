@@ -16,11 +16,14 @@ group_order = {
     "Mathematics": 5,
     "Reasoning": 6,
     "Knowledge": 7,
-    "Writing": 8,
-    "Scheming": 9,
-    "Personality": 10
+    "Multimodal": 8,
+    "Writing": 9,
+    "Scheming": 10,
+    "Personality": 11,
+    "Bias": 12,
+ 
 }
-    
+
 records = sorted(records, key=lambda x: group_order.get(x["group"], float('inf')))    
 
 for record in records:
