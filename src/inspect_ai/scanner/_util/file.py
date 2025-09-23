@@ -1,0 +1,80 @@
+from typing import Any, cast
+from urllib.parse import urlparse
+
+import anyio.to_thread
+import boto3
+from botocore.config import Config
+
+from inspect_ai._util.file import file
+
+
+async def read_file_async(filename: str) -> bytes:
+    if is_s3_filename(filename):
+        bucket, key = s3_bucket_and_key(filename)
+        return await anyio.to_thread.run_sync(s3_read_file, s3_client(), bucket, key)
+    else:
+        with file(filename, "rb") as f:
+            return f.read()
+
+
+async def read_file_bytes_async(filename: str, start: int, end: int) -> bytes:
+    if is_s3_filename(filename):
+        bucket, key = s3_bucket_and_key(filename)
+        return await anyio.to_thread.run_sync(
+            s3_read_file_bytes, s3_client(), bucket, key, start, end
+        )
+    else:
+        with file(filename, "rb") as f:
+            f.seek(start)
+            return f.read(end - start)
+
+
+async def write_file_async(filename: str, content: bytes) -> None:
+    if is_s3_filename(filename):
+        bucket, key = s3_bucket_and_key(filename)
+        await anyio.to_thread.run_sync(s3_write_file, s3_client(), bucket, key, content)
+    else:
+        with file(filename, "wb") as f:
+            f.write(content)
+
+
+def s3_read_file(s3: Any, bucket: str, key: str) -> bytes:
+    response = s3.get_object(Bucket=bucket, Key=key)
+    return cast(bytes, response["Body"].read())
+
+
+def s3_read_file_bytes(s3: Any, bucket: str, key: str, start: int, end: int) -> bytes:
+    range_header = f"bytes={start}-{end - 1}"
+    response = s3.get_object(Bucket=bucket, Key=key, Range=range_header)
+    return cast(bytes, response["Body"].read())
+
+
+def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
+    s3.put_object(Bucket=bucket, Key=key, Body=content)
+
+
+def s3_bucket_and_key(filename: str) -> tuple[str, str]:
+    parsed = urlparse(filename)
+    bucket = parsed.netloc
+    key = parsed.path.lstrip("/")
+    return bucket, key
+
+
+def is_s3_filename(filename: str) -> bool:
+    return filename.startswith("s3://")
+
+
+def s3_client() -> Any:
+    global _s3_client
+    if _s3_client is None:
+        _s3_client = boto3.client(
+            "s3",
+            config=Config(
+                max_pool_connections=50,
+                retries={"max_attempts": 10, "mode": "adaptive"},
+            ),
+        )
+    return _s3_client
+
+
+_s3_client: Any | None = None
