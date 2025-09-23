@@ -608,9 +608,9 @@ def test_react_agent_truncation(
     )
 
     log = eval(task, model=model)[0]
+    assert log.results
 
-    assert log.samples
-    sample = log.samples[0]
+    assert log.samples and (sample := log.samples[0])
     assert len(sample.messages) == expected_message_count
     last_message = sample.messages[-1]
     assert (
