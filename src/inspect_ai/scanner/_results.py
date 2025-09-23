@@ -8,10 +8,12 @@ from upath import UPath
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.path import pretty_path
 
-from ._reporter import find_scan_dir
-
 if TYPE_CHECKING:
     import pandas as pd
+
+from textwrap import dedent
+
+from inspect_ai._util.file import file
 
 
 @dataclass
@@ -119,3 +121,23 @@ async def scan_results_async(
                 scanners[scanner_name] = pd.read_parquet(str(parquet_file))
 
         return ScanResults(scan_id, scan_name, scanners)
+
+
+def find_scan_dir(scans_dir: UPath, scan_id: str) -> UPath | None:
+    ensure_scans_dir(scans_dir)
+    for f in scans_dir.glob(f"*_{scan_id}"):
+        if f.is_dir():
+            return f
+
+    return None
+
+
+def ensure_scans_dir(scans_dir: UPath) -> None:
+    scans_dir.mkdir(parents=True, exist_ok=True)
+    with file((scans_dir / ".gitignore").as_posix(), "w") as f:
+        f.write(
+            dedent("""
+            .scan.json
+            .*.parquet
+            """)
+        )

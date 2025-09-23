@@ -104,7 +104,8 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
     #  Supporting only Transcript
 
     # set up our reporter (stores results and lets us skip results we already have)
-    async with options.transcripts, scan_reporter(scans_dir, options) as reporter:
+    async with options.transcripts:
+        reporter, complete = await scan_reporter(scans_dir, options)
         with Progress(
             TextColumn("Scanning"),
             BarColumn(),
@@ -139,4 +140,4 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
                     progress.update(task_id, advance=1)
 
     # read all scan results for this scan
-    return await scan_results_async(scans_dir.as_posix(), options.scan_id)
+    return await complete()

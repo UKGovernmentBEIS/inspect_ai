@@ -1,6 +1,13 @@
 from pathlib import Path
 
-from inspect_ai.scanner import Result, Scanner, Transcript, scan, scanner, transcripts
+from inspect_ai.scanner import (
+    Result,
+    Scanner,
+    Transcript,
+    scan,
+    scanner,
+    transcripts,
+)
 
 
 @scanner(messages="all")

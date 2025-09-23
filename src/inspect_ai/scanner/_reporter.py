@@ -1,15 +1,22 @@
-import contextlib
-from textwrap import dedent
-from typing import AsyncGenerator, Protocol, Sequence, cast
+import functools
+import io
+from typing import Protocol, Sequence, cast
 
 from upath import UPath
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.file import clean_filename_component, file
+from inspect_ai._util.file import clean_filename_component
 
 from ._options import ScanOptions, remove_scan_options, write_scan_options
+from ._results import ScanResults, find_scan_dir
 from ._scanner.result import Result
 from ._transcript.types import TranscriptInfo
+from ._util.file import (
+    delete_files_async,
+    read_file_async,
+    write_file_async,
+)
 
 
 class ScanReport(Protocol):
@@ -22,10 +29,13 @@ class ScanReporter(Protocol):
     ) -> ScanReport | None: ...
 
 
-@contextlib.asynccontextmanager
+class ScanComplete(Protocol):
+    async def __call__(self) -> ScanResults: ...
+
+
 async def scan_reporter(
     scans_dir: UPath, options: ScanOptions
-) -> AsyncGenerator[ScanReporter, None]:
+) -> tuple[ScanReporter, ScanComplete]:
     import pandas as pd
     import pyarrow as pa
 
@@ -64,19 +74,21 @@ async def scan_reporter(
             df = pd.DataFrame(records)
             table = pa.Table.from_pandas(df)
             df_arrow = table.to_pandas(types_mapper=arrow_types_mapper)
-            df_arrow.to_parquet(str(scan_file))
+            buffer = io.BytesIO()
+            df_arrow.to_parquet(buffer)
+            await write_file_async(str(scan_file), buffer.getvalue())
 
         return report
 
-    # accept results
-    yield reporter
+    async def complete() -> ScanResults:
+        results = await _scan_compact(scan_dir, options)
+        await remove_scan_options(scan_dir)
+        return results
 
-    # remove scans.json and compact if we succeeded w/o errors
-    await _scan_compact(scan_dir)
-    await remove_scan_options(scan_dir)
+    return reporter, complete
 
 
-async def _scan_compact(scan_dir: UPath) -> None:
+async def _scan_compact(scan_dir: UPath, options: ScanOptions) -> ScanResults:
     from collections import defaultdict
 
     import pandas as pd
@@ -93,6 +105,7 @@ async def _scan_compact(scan_dir: UPath) -> None:
         scanner_files[scanner_name].append(parquet_file)
 
     # consolidate files for each scanner
+    scanner_results: dict[str, pd.DataFrame] = {}
     for scanner_name, files in scanner_files.items():
         # skip if consolidated file already exists
         consolidated_file = scan_dir / f"{scanner_name}.parquet"
@@ -103,9 +116,13 @@ async def _scan_compact(scan_dir: UPath) -> None:
             continue
 
         # read all parquet files for this scanner
+        dfs_bytes = await tg_collect(
+            functools.partial(read_file_async, str(file)) for file in files
+        )
         dfs = []
-        for file in files:
-            df = pd.read_parquet(str(file))
+        for df_bytes in dfs_bytes:
+            buffer = io.BytesIO(df_bytes)
+            df = pd.read_parquet(buffer)
             dfs.append(df)
 
         # concatenate all dataframes
@@ -114,13 +131,19 @@ async def _scan_compact(scan_dir: UPath) -> None:
         # convert to arrow table and back to ensure consistent types
         table = pa.Table.from_pandas(consolidated_df)
         df_arrow = table.to_pandas(types_mapper=arrow_types_mapper)
+        scanner_results[scanner_name] = df_arrow
 
         # write consolidated file
-        df_arrow.to_parquet(str(consolidated_file))
+        buffer = io.BytesIO()
+        df_arrow.to_parquet(buffer)
+        await write_file_async(str(consolidated_file), buffer.getvalue())
 
         # delete original files
-        for file in files:
-            file.unlink()
+        await delete_files_async([str(file) for file in files])
+
+    return ScanResults(
+        scan_id=options.scan_id, scan_name=options.scan_name, scanners=scanner_results
+    )
 
 
 def ensure_scan_dir(scans_dir: UPath, scan_id: str, scan_name: str) -> UPath:
@@ -136,23 +159,3 @@ def ensure_scan_dir(scans_dir: UPath, scan_id: str, scan_name: str) -> UPath:
 
     # return scan dir
     return scan_dir
-
-
-def find_scan_dir(scans_dir: UPath, scan_id: str) -> UPath | None:
-    ensure_scans_dir(scans_dir)
-    for f in scans_dir.glob(f"*_{scan_id}"):
-        if f.is_dir():
-            return f
-
-    return None
-
-
-def ensure_scans_dir(scans_dir: UPath) -> None:
-    scans_dir.mkdir(parents=True, exist_ok=True)
-    with file((scans_dir / ".gitignore").as_posix(), "w") as f:
-        f.write(
-            dedent("""
-            .scan.json
-            .*.parquet
-            """)
-        )
