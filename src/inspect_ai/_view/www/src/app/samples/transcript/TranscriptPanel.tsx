@@ -105,7 +105,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     });
 
     setCollapsedEvents(kTranscriptCollapseScope, collapseIds);
-  }, [collapsedMode]);
+  }, [collapsedMode, events, allNodesList]);
 
   const { logPath } = useLogRouteParams();
   const [collapsed, setCollapsed] = useCollapsedState(
