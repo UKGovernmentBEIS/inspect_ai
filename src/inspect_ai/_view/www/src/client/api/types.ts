@@ -107,16 +107,6 @@ export interface AttachmentData {
   content: string;
 }
 
-export interface EvalLogHeader {
-  version?: Version;
-  status?: Status;
-  eval: EvalSpec;
-  plan?: EvalPlan;
-  results?: EvalResults;
-  stats?: EvalStats;
-  error?: EvalError;
-}
-
 export interface SampleSummary {
   uuid?: string;
   id: number | string;

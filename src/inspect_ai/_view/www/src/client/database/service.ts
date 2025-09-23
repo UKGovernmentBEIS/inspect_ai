@@ -3,7 +3,7 @@ import { AppDatabase } from "./schema";
 import {
   LogFiles,
   LogOverview,
-  EvalLogHeader,
+  EvalHeader,
   SampleSummary,
 } from "../api/types";
 import { createLogger } from "../../utils/logger";
@@ -147,7 +147,7 @@ export class DatabaseService {
   // === LOG HEADERS ===
   async cacheLogHeaders(
     filePath: string,
-    header: EvalLogHeader,
+    header: EvalHeader,
   ): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
@@ -162,7 +162,7 @@ export class DatabaseService {
     await db.log_headers.put(record);
   }
 
-  async getCachedLogHeader(filePath: string): Promise<EvalLogHeader | null> {
+  async getCachedLogHeader(filePath: string): Promise<EvalHeader | null> {
     try {
       const db = this.getDb();
       const record = await db.log_headers.get(filePath);

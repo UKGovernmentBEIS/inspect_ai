@@ -25,7 +25,7 @@ import {
 } from "../@types/log";
 import {
   AttachmentData,
-  EvalLogHeader,
+  EvalHeader,
   EvalSummary,
   EventData,
   LogFile,
@@ -74,7 +74,7 @@ export interface LogsState {
   selectedLogFile?: string;
   listing: LogsListing;
   loadingFiles: Set<string>;
-  pendingRequests: Map<string, Promise<EvalLogHeader | null>>;
+  pendingRequests: Map<string, Promise<EvalHeader | null>>;
 }
 
 export interface LogsListing {

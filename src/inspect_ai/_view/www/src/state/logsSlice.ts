@@ -6,7 +6,7 @@ import {
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
 import {
-  EvalLogHeader,
+  EvalHeader,
   LogFile,
   LogFiles,
   LogOverview,
@@ -71,7 +71,7 @@ const initialState: LogsState = {
   selectedLogFile: undefined as string | undefined,
   listing: {},
   loadingFiles: new Set<string>(),
-  pendingRequests: new Map<string, Promise<EvalLogHeader | null>>(),
+  pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
 };
 
 export const createLogsSlice = (
