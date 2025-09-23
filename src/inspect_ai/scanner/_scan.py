@@ -2,6 +2,7 @@ import os
 import re
 from typing import Any, Sequence
 
+from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from shortuuid import uuid
 from upath import UPath
 
@@ -104,26 +105,38 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
 
     # set up our reporter (stores results and lets us skip results we already have)
     async with options.transcripts, scan_reporter(scans_dir, options) as reporter:
-        for t in await options.transcripts.index():
-            for name, scanner in options.scanners.items():
-                # get reporter for this transcript/scanner (if None we already did this work)
-                report = await reporter(t, name)
-                if report is None:
-                    continue
+        with Progress(
+            TextColumn("Scanning"),
+            BarColumn(),
+            TimeElapsedColumn(),
+            transient=True,
+        ) as progress:
+            total_ticks = (await options.transcripts.count()) * len(options.scanners)
+            task_id = progress.add_task("Scan", total=total_ticks)
 
-                # read the transcript
-                transcript = await options.transcripts.read(
-                    t, TranscriptContent(messages="all")
-                )
+            for t in await options.transcripts.index():
+                for name, scanner in options.scanners.items():
+                    # get reporter for this transcript/scanner (if None we already did this work)
+                    report = await reporter(t, name)
+                    if report is None:
+                        continue
 
-                # call the scanner (note that later this may accumulate multiple
-                # scanner calls e.g. for ChatMessage scanners and then report all
-                # of the results together)
-                result = await scanner(transcript)
+                    # read the transcript
+                    transcript = await options.transcripts.read(
+                        t, TranscriptContent(messages="all")
+                    )
 
-                # report the result
-                if result is not None:
-                    await report([result])
+                    # call the scanner (note that later this may accumulate multiple
+                    # scanner calls e.g. for ChatMessage scanners and then report all
+                    # of the results together)
+                    result = await scanner(transcript)
+
+                    # report the result
+                    if result is not None:
+                        await report([result])
+
+                    # tick progress
+                    progress.update(task_id, advance=1)
 
     # read all scan results for this scan
     return await scan_results_async(scans_dir.as_posix(), options.scan_id)
