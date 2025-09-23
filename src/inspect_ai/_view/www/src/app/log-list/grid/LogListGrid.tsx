@@ -75,7 +75,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
   // Initial sort
   useEffect(() => {
-    setSorting([{ id: "icon", desc: true }]);
+    setSorting([{ id: "icon", desc: false }]);
   }, []);
 
   // Force re-sort when logHeaders change (affects task column sorting)

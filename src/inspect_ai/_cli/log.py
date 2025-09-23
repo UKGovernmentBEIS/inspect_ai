@@ -132,7 +132,7 @@ def list_command(
     type=bool,
     is_flag=True,
     default=False,
-    help="Resolve attachments (e.g. images) to their full content.",
+    help="Resolve attachments (duplicated content blocks) to their full content.",
 )
 def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> None:
     """Print log file contents as JSON."""
@@ -163,6 +163,13 @@ def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> Non
     help="Overwrite files in the output directory.",
 )
 @click.option(
+    "--resolve-attachments",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Resolve attachments (duplicated content blocks) to their full content.",
+)
+@click.option(
     "--stream",
     flag_value="true",
     type=str,
@@ -176,10 +183,18 @@ def convert_command(
     to: Literal["eval", "json"],
     output_dir: str,
     overwrite: bool,
+    resolve_attachments: bool,
     stream: int | bool = False,
 ) -> None:
     """Convert between log file formats."""
-    convert_eval_logs(path, to, output_dir, overwrite, stream=stream)
+    convert_eval_logs(
+        path,
+        to,
+        output_dir,
+        overwrite,
+        resolve_attachments=resolve_attachments,
+        stream=stream,
+    )
 
 
 @log_command.command("headers", hidden=True)

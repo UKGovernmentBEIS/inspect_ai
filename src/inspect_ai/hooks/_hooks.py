@@ -310,6 +310,9 @@ class Hooks:
         """Called before the sample is scored.
 
         Can be used by hooks to demarcate the end of solver execution and the start of scoring.
+
+        Args:
+           data: Sample scoring data.
         """
         pass
 
