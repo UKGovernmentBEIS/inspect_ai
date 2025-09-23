@@ -151,6 +151,7 @@ export interface LogViewAPI {
   eval_logs: () => Promise<LogFiles | undefined>;
   eval_log: (
     log_file: string,
+    // This is the number of MB of the log to fetch. If the log is larger than this, only the header will be returned. If not provided, it always fetches the entire log. Really only user for old JSON logs.
     headerOnly?: number,
     capabilities?: Capabilities,
   ) => Promise<LogContents>;
