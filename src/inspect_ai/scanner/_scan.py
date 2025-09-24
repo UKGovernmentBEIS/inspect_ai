@@ -6,7 +6,7 @@ from shortuuid import uuid
 from upath import UPath
 
 from inspect_ai._util._async import run_coroutine
-from inspect_ai.scanner._scandef.scandef import ScanDef
+from inspect_ai.scanner._scandef import ScanDef
 
 from ._options import ScanOptions, read_scan_options
 from ._reporter import scan_reporter
@@ -40,6 +40,7 @@ async def scan_async(
 
     # validate name
     # TODO: move this earlier?
+    print(scandef.name)
     if not re.match(r"^[a-zA-Z0-9-]+$", scandef.name):
         raise ValueError("scan 'name' may use only letters, numbers, and dashes")
 
