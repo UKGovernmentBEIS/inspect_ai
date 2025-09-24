@@ -5,6 +5,7 @@ from inspect_ai.analysis._dataframe.extract import messages_as_str
 from inspect_ai.model._model import get_model
 from inspect_ai.scanner import (
     Result,
+    ScanDef,
     Scanner,
     Transcript,
     scan,
@@ -46,8 +47,7 @@ if __name__ == "__main__":
     # LOGS_DIR = Path("/Users/ericpatey/code/parsing/logs")
 
     results = scan(
-        transcripts(LOGS_DIR),  # .limit(120)
-        [dummy_scanner(), llm_scanner()],
+        ScanDef(transcripts=transcripts(LOGS_DIR), scanners=[dummy_scanner(), llm_scanner()]),
         scans_dir=SCANS_DIR.as_posix(),
     )
 
