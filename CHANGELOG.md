@@ -3,6 +3,9 @@
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
 - Agent bridge: Ensure that bridge filters also take advantage of `retry_refusals` loop.
 - Agent bridge: Workaround Codex CLI not passing `detail` along with images.
+- Inspect View: Fix regression sorting folder and logs in list (folders should sort to the front of the list)
+- Inspect View: Properly reset page when navigating between folders.
+- Bugfix: Fix "auto" message truncation in react agent.
 
 ## 0.3.133 (22 September 2025)
 

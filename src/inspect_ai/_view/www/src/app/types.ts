@@ -129,6 +129,7 @@ export interface SampleState {
   runningEvents: Event[];
   collapsedEvents: Record<string, Record<string, boolean>> | null;
   collapsedIdBuckets: Record<string, Record<string, boolean>>;
+  collapsedMode: "collapsed" | "expanded" | null;
   eventFilter: EventFilter;
 
   selectedOutlineId?: string;
