@@ -171,12 +171,12 @@ const messageRenderers: Record<string, MessageRenderer> = {
   reasoning: {
     render: (key, content, isLast, _context) => {
       const r = content as ContentReasoning;
-      if (!r.reasoning && !r.redacted) {
-        return undefined;
+      let text = r.reasoning;
+      if (r.redacted) {
+        text = "Reasoning encrypted by model provider.";
+      } else if (!text) {
+        text = "Reasoning text not provided.";
       }
-      const text = r.redacted
-        ? "Reasoning encrypted by model provider."
-        : r.reasoning;
       return (
         <div key={key} className={clsx(styles.reasoning, "text-size-small")}>
           <div
