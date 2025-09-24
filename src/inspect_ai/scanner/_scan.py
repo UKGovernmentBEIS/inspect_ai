@@ -1,20 +1,32 @@
 import os
 import re
-from typing import Any, Sequence
+import time
+from typing import Any, Sequence, TypeAlias
 
+import anyio
+from anyio import create_task_group
+from anyio.abc import TaskGroup
+from anyio.streams.memory import MemoryObjectReceiveStream
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from shortuuid import uuid
 from upath import UPath
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._transcript.types import (
+    Transcript,
+)
+from inspect_ai.scanner._transcript.util import (
+    filter_transcript,
+    union_transcript_contents,
+)
 
 from ._options import ScanOptions, read_scan_options
-from ._reporter import scan_reporter
+from ._reporter import ScanReport, scan_reporter
 from ._results import ScanResults
-from ._scanner.scanner import Scanner
+from ._scanner.scanner import Scanner, config_for_scanner
 from ._transcript.transcripts import Transcripts
-from ._transcript.types import TranscriptContent
 
 
 def scan(
@@ -97,15 +109,52 @@ async def scan_resume_async(
     return await _scan_async(scans_dir, options)
 
 
+WorkItem: TypeAlias = tuple[Transcript, Scanner[Any], ScanReport]
+
+
 async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
     # naive scan with:
     #  No parallelism
     #  No content filtering
     #  Supporting only Transcript
 
-    # set up our reporter (stores results and lets us skip results we already have)
+    # TODO: plumb these for real
+    max_llm_connections = 100
+    max_concurrent_scanners: int | None = 100
+    lookahead_buffer_multiple: float = 1.0
+    # TODO ^^^^^^^
+
+    if max_concurrent_scanners is None:
+        max_concurrent_scanners = max_llm_connections
+
+    overall_start_time = time.time()
+
+    active_workers_count = 0
+    waiting_worker_count = 0
+    active_scan_count = 0
+    active_report_count = 0
+    worker_id_counter = 0
+
+    # Compute work queue size from buffered transcripts
+    work_queue_size = int(max_concurrent_scanners * lookahead_buffer_multiple)
+
+    # Create bounded work queue and result stream
+    work_item_send_stream, work_item_receive_stream = anyio.create_memory_object_stream[
+        WorkItem
+    ](work_queue_size)
+
+    # Track queue size for backpressure monitoring
+    current_queue_size = 0
+
+    union_content = union_transcript_contents(
+        [config_for_scanner(scanner).content for scanner in options.scanners.values()]
+    )
+
+    def _running_time() -> str:
+        return f"+{time.time() - overall_start_time:.3f}s"
+
+    reporter, complete = await scan_reporter(scans_dir, options)
     async with options.transcripts:
-        reporter, complete = await scan_reporter(scans_dir, options)
         with Progress(
             TextColumn("Scanning"),
             BarColumn(),
@@ -115,29 +164,163 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
             total_ticks = (await options.transcripts.count()) * len(options.scanners)
             task_id = progress.add_task("Scan", total=total_ticks)
 
-            for t in await options.transcripts.index():
-                for name, scanner in options.scanners.items():
-                    # get reporter for this transcript/scanner (if None we already did this work)
-                    report = await reporter(t, name)
-                    if report is None:
-                        continue
+            async def producer(tg: TaskGroup) -> None:
+                # set up our reporter (stores results and lets us skip results we already have)
+                nonlocal \
+                    current_queue_size, \
+                    active_workers_count, \
+                    active_scan_count, \
+                    active_report_count, \
+                    waiting_worker_count, \
+                    worker_id_counter
 
-                    # read the transcript
-                    transcript = await options.transcripts.read(
-                        t, TranscriptContent(messages="all")
+                for t in await options.transcripts.index():
+                    for name, scanner in options.scanners.items():
+                        # get reporter for this transcript/scanner (if None we already did this work)
+                        report = await reporter(t, name)
+                        if report is None:
+                            continue
+
+                        # TODO: We currently call read for the same transcript redundantly
+                        # for all scanners.
+
+                        s_time = time.time()
+                        transcript = await options.transcripts.read(t, union_content)
+                        if (read_time := time.time() - s_time) > 1:
+                            print(
+                                f"{_running_time()} Producer: Read transcript {t.id} in {read_time:.3f}s"
+                            )
+
+                        # This send into the work_item_send_stream is a point where backpressure
+                        # can be applied
+                        if backpressure := current_queue_size >= work_queue_size:
+                            print(
+                                f"{_running_time()} Producer: pausing due to backpressure"
+                            )
+                        await work_item_send_stream.send((transcript, scanner, report))
+                        current_queue_size += 1
+                        print(
+                            f"{_running_time()} Producer: Added work item {' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
+                        )
+
+                        if active_workers_count < max_concurrent_scanners:
+                            active_workers_count += 1
+                            worker_id_counter += 1
+
+                            print(
+                                f"{_running_time()} Producer: Spawned worker #{worker_id_counter}\n\t{_metrics_info()}"
+                            )
+
+                            tg.start_soon(
+                                worker_task, work_item_receive_stream, worker_id_counter
+                            )
+
+                        # We need to sleep whenever we add work and/or a new task.
+                        # without doing this, the producer greedily keeps producing
+                        # transcripts
+                        await anyio.sleep(0)
+
+            async def worker_task(
+                work_item_stream: MemoryObjectReceiveStream[WorkItem], worker_id: int
+            ) -> None:
+                """Worker that pulls work items from stream until empty."""
+                nonlocal \
+                    active_workers_count, \
+                    active_scan_count, \
+                    current_queue_size, \
+                    waiting_worker_count
+                items_processed = 0
+                # print(f"{_running_time()} Worker #{worker_id} starting")
+
+                try:
+                    # Continuously process items from stream
+                    while True:
+                        queue_was_empty_start_time = (
+                            time.time() if current_queue_size == 0 else None
+                        )
+
+                        # Use anyio's timeout handling
+                        try:
+                            waiting_worker_count += 1
+                            with anyio.move_on_after(2.0) as timeout_scope:
+                                item = await work_item_stream.receive()
+                        finally:
+                            waiting_worker_count -= 1
+
+                        # If timeout occurred, break out of loop
+                        if timeout_scope.cancelled_caught:
+                            break
+
+                        # Decrement queue size since we consumed an item
+                        current_queue_size -= 1
+
+                        if queue_was_empty_start_time:
+                            stall_duration = time.time() - queue_was_empty_start_time
+                            print(
+                                f"{_running_time()} Worker #{worker_id} got work item after stalling for {stall_duration:.3f}s\n\t{_metrics_info()}"
+                            )
+
+                        await _execute_work_item(item)
+                        items_processed += 1
+
+                    print(
+                        f"{_running_time()} Worker #{worker_id} finished after processing {items_processed} items.\n\t{_metrics_info()}"
                     )
+                finally:
+                    active_workers_count -= 1
 
-                    # call the scanner (note that later this may accumulate multiple
-                    # scanner calls e.g. for ChatMessage scanners and then report all
-                    # of the results together)
-                    result = await scanner(transcript)
+            async def _execute_work_item(item: WorkItem) -> None:
+                nonlocal active_scan_count
+                raw_transcript, scanner, report = item
+                transcript = _transcript_for_scanner(raw_transcript, scanner)
 
-                    # report the result
-                    if result is not None:
-                        await report([result])
+                # call the scanner (note that later this may accumulate multiple
+                # scanner calls e.g. for ChatMessage scanners and then report all
+                # of the results together)
+                result = await _call_scanner(scanner, transcript)
 
-                    # tick progress
-                    progress.update(task_id, advance=1)
+                if result is not None:
+                    await _call_report(report, result)
+                    await report([result])
 
-    # read all scan results for this scan
-    return await complete()
+                # tick progress
+                progress.update(task_id, advance=1)
+
+            async def _call_scanner(
+                scanner: Scanner[Any], transcript: Transcript
+            ) -> Result | None:
+                nonlocal active_scan_count
+                try:
+                    active_scan_count += 1
+                    return await scanner(transcript)
+                finally:
+                    active_scan_count -= 1
+
+            async def _call_report(report: ScanReport, result: Result) -> None:
+                nonlocal active_report_count
+                try:
+                    active_report_count += 1
+                    await report([result])
+                finally:
+                    active_report_count -= 1
+
+            def _metrics_info() -> str:
+                return f"{current_queue_size=} {active_workers_count=} {active_scan_count=} {active_report_count=} {waiting_worker_count=}"
+
+            try:
+                async with create_task_group() as tg:
+                    await producer(tg)
+            except Exception as ex:
+                print(f"caught {ex}")
+                raise
+
+            # read all scan results for this scan
+            results = await complete()
+
+    return results
+
+
+def _transcript_for_scanner(
+    transcript: Transcript, scanner: Scanner[Any]
+) -> Transcript:
+    return filter_transcript(transcript, config_for_scanner(scanner).content)

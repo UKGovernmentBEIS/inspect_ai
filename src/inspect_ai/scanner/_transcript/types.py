@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Iterator, Literal, Protocol
+from typing import Iterator, Literal, Protocol, TypeAlias
 
 from pydantic import BaseModel, Field, JsonValue
 
@@ -27,11 +27,14 @@ EventType = Literal[
     "span_end",
 ]
 
+MessageFilter: TypeAlias = Literal["all"] | list[MessageType] | None
+EventFilter: TypeAlias = Literal["all"] | list[EventType] | None
+
 
 @dataclass
 class TranscriptContent:
-    messages: Literal["all"] | list[MessageType] | None = field(default=None)
-    events: Literal["all"] | list[EventType] | None = field(default=None)
+    messages: MessageFilter = field(default=None)
+    events: EventFilter = field(default=None)
 
 
 class TranscriptInfo(BaseModel):

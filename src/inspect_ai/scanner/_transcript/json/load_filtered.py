@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from typing import IO, Any, Callable, Literal, TypeAlias
+from typing import IO, Any, Callable
 
 import ijson  # type: ignore
 
@@ -10,14 +10,11 @@ from inspect_ai.scanner._transcript.json.reducer import (
     reduce_parse_event,
 )
 from inspect_ai.scanner._transcript.types import (
-    EventType,
-    MessageType,
+    EventFilter,
+    MessageFilter,
     Transcript,
     TranscriptInfo,
 )
-
-MessageFilter: TypeAlias = Literal["all"] | list[MessageType] | None
-EventFilter: TypeAlias = Literal["all"] | list[EventType] | None
 
 # Pre-compiled regex patterns for performance
 ATTACHMENT_PATTERN = re.compile(r"attachment://([a-f0-9]{32})")

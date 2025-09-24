@@ -17,6 +17,7 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
+    registry_info,
     registry_tag,
 )
 from inspect_ai.log._transcript import Event
@@ -243,3 +244,7 @@ def scanner(
         return cast(ScannerFactory[P, T], factory_wrapper)
 
     return decorate
+
+
+def config_for_scanner(scanner: Scanner[Any]) -> ScannerConfig:
+    return cast(ScannerConfig, registry_info(scanner).metadata[SCANNER_CONFIG])
