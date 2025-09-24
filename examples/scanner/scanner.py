@@ -2,13 +2,13 @@ from pathlib import Path
 
 from inspect_ai.scanner import (
     Result,
+    ScanDef,
     Scanner,
     Transcript,
     scan,
     scanner,
     transcripts,
 )
-from inspect_ai.scanner._scandef import ScanDef
 
 
 @scanner(messages="all")

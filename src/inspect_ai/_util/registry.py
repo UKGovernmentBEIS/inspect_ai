@@ -18,7 +18,6 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.package import get_installed_package_name
-from inspect_ai.scanner._scandef import ScanDef
 
 from .constants import PKG_NAME
 from .entrypoints import ensure_entry_points
@@ -29,6 +28,7 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.hooks._hooks import Hooks
     from inspect_ai.model import ModelAPI
+    from inspect_ai.scanner._scandef.scandef import ScanDef
     from inspect_ai.scanner._scanner.loader import Loader
     from inspect_ai.scanner._scanner.scanner import Scanner
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer

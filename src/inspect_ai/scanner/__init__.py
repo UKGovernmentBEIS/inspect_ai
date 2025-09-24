@@ -3,7 +3,8 @@ from ._results import (
     scan_results,
 )
 from ._scan import scan, scan_async, scan_resume, scan_resume_async
-from ._scandef import ScanDef, scandef
+from ._scandef.registry import scandef
+from ._scandef.scandef import ScanDef
 from ._scanner.loader import Loader, loader
 from ._scanner.result import Result
 from ._scanner.scanner import Scanner, scanner
