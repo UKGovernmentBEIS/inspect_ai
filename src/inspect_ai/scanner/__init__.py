@@ -26,6 +26,8 @@ __all__ = [
     "ScanResults",
     "scan_async",
     "scan_resume_async",
+    "scandef",
+    "ScanDef",
     # transcripts
     "transcripts",
     "Transcripts",
