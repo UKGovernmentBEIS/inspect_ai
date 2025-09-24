@@ -8,6 +8,7 @@ from inspect_ai.scanner import (
     scanner,
     transcripts,
 )
+from inspect_ai.scanner._scandef import ScanDef
 
 
 @scanner(messages="all")
@@ -23,8 +24,7 @@ if __name__ == "__main__":
     SCANS_DIR = Path(__file__).parent / "scans"
 
     results = scan(
-        transcripts(LOGS_DIR),
-        [dummy_scanner()],
+        ScanDef(transcripts=transcripts(LOGS_DIR), scanners=[dummy_scanner()]),
         scans_dir=SCANS_DIR.as_posix(),
     )
 

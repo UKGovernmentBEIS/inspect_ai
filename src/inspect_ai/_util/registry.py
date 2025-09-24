@@ -18,6 +18,7 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.package import get_installed_package_name
+from inspect_ai.scanner._scandef import ScanDef
 
 from .constants import PKG_NAME
 from .entrypoints import ensure_entry_points
@@ -52,6 +53,7 @@ RegistryType = Literal[
     "tool",
     "loader",
     "scanner",
+    "scandef",
 ]
 """Enumeration of registry object types.
 
@@ -300,6 +302,10 @@ def registry_create(
 def registry_create(
     type: Literal["scanner"], name: str, **kwargs: Any
 ) -> Scanner[Any]: ...
+
+
+@overload
+def registry_create(type: Literal["scandef"], name: str, **kwargs: Any) -> ScanDef: ...
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
