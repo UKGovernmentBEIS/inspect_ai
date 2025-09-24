@@ -40,7 +40,6 @@ async def scan_async(
 
     # validate name
     # TODO: move this earlier?
-    print(scandef.name)
     if not re.match(r"^[a-zA-Z0-9-]+$", scandef.name):
         raise ValueError("scan 'name' may use only letters, numbers, and dashes")
 
