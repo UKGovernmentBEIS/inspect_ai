@@ -35,10 +35,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.log._model import model_roles_to_model_roles_config
-from inspect_ai.model import (
-    GenerateConfigArgs,
-    Model,
-)
+from inspect_ai.model import GenerateConfigArgs, Model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -761,7 +758,7 @@ def status_msg(msg: str) -> str:
 class EvalSetTask(BaseModel):
     name: str | None
     task_id: str
-    task_file: str | None
+    task_file: str | None = None
     task_args: dict[str, Any]
     model: str
     model_args: dict[str, Any]
