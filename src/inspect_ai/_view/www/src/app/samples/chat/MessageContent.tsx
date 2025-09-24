@@ -173,9 +173,9 @@ const messageRenderers: Record<string, MessageRenderer> = {
       const r = content as ContentReasoning;
       let text = r.reasoning;
       if (r.redacted) {
-        text = "Reasoning encrypted by model provider."
+        text = "Reasoning encrypted by model provider.";
       } else if (!text) {
-        text = "Reasoning text not provided."
+        text = "Reasoning text not provided.";
       }
       return (
         <div key={key} className={clsx(styles.reasoning, "text-size-small")}>
