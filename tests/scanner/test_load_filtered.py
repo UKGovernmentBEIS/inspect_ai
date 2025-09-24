@@ -102,8 +102,19 @@ async def test_event_filtering(event_filter, expected_count, expected_types):
         "id": "test",
         "messages": [],
         "events": [
-            {"span_id": "s1", "timestamp": 1.0, "event": "span_begin", "id": "s1", "name": "test_span"},
-            {"span_id": "s2", "timestamp": 2.0, "event": "score", "score": {"value": 0.85}},
+            {
+                "span_id": "s1",
+                "timestamp": 1.0,
+                "event": "span_begin",
+                "id": "s1",
+                "name": "test_span",
+            },
+            {
+                "span_id": "s2",
+                "timestamp": 2.0,
+                "event": "score",
+                "score": {"value": 0.85},
+            },
             {"span_id": "s3", "timestamp": 3.0, "event": "span_end", "id": "s1"},
         ],
         "attachments": {},
@@ -130,7 +141,12 @@ async def test_combined_filtering():
             {"role": "system", "content": "S"},
         ],
         "events": [
-            {"span_id": "s1", "timestamp": 1.0, "event": "score", "score": {"value": 0.9}},
+            {
+                "span_id": "s1",
+                "timestamp": 1.0,
+                "event": "score",
+                "score": {"value": 0.9},
+            },
             {"span_id": "s2", "timestamp": 2.0, "event": "error", "error": "Test"},
         ],
         "attachments": {},
@@ -155,17 +171,17 @@ async def test_attachment_resolution():
         "messages": [
             {
                 "role": "user",
-                "content": "attachment://a1b2c3d4e5f678901234567890123456"
+                "content": "attachment://a1b2c3d4e5f678901234567890123456",
             },
             {
                 "role": "assistant",
                 "content": [
                     {
                         "type": "text",
-                        "text": "attachment://b2c3d4e5f67890123456789012345678"
+                        "text": "attachment://b2c3d4e5f67890123456789012345678",
                     }
-                ]
-            }
+                ],
+            },
         ],
         "events": [
             {
@@ -175,7 +191,7 @@ async def test_attachment_resolution():
                 "id": "tool1",
                 "function": "test_function",
                 "arguments": {},
-                "result": "attachment://c3d4e5f6789012345678901234567890"
+                "result": "attachment://c3d4e5f6789012345678901234567890",
             }
         ],
         "attachments": {
@@ -201,10 +217,7 @@ async def test_missing_attachments():
     data = {
         "id": "test",
         "messages": [
-            {
-                "role": "user",
-                "content": "attachment://missingabcdef1234567890123456"
-            }
+            {"role": "user", "content": "attachment://missingabcdef1234567890123456"}
         ],
         "events": [],
         "attachments": {},
@@ -226,7 +239,10 @@ async def test_malformed_attachments():
         "id": "test",
         "messages": [
             {"role": "user", "content": "attachment://short"},
-            {"role": "user", "content": "attachment://toolong123456789012345678901234567890"},
+            {
+                "role": "user",
+                "content": "attachment://toolong123456789012345678901234567890",
+            },
             {"role": "user", "content": "Regular text without attachments"},
         ],
         "events": [],
@@ -240,7 +256,10 @@ async def test_malformed_attachments():
 
     # Malformed references should remain unchanged
     assert result.messages[0].content == "attachment://short"
-    assert result.messages[1].content == "attachment://toolong123456789012345678901234567890"
+    assert (
+        result.messages[1].content
+        == "attachment://toolong123456789012345678901234567890"
+    )
     assert result.messages[2].content == "Regular text without attachments"
 
 
@@ -289,7 +308,12 @@ def test_parse_and_filter():
             {"role": "system", "content": "System"},
         ],
         "events": [
-            {"span_id": "s1", "timestamp": 1.0, "event": "score", "score": {"value": 0.9}},
+            {
+                "span_id": "s1",
+                "timestamp": 1.0,
+                "event": "score",
+                "score": {"value": 0.9},
+            },
             {"span_id": "s2", "timestamp": 2.0, "event": "error", "error": "Error"},
         ],
         "attachments": {},
@@ -311,6 +335,7 @@ def test_parse_and_filter():
 
 def test_resolve_dict_attachments():
     """Test _resolve_dict_attachments function."""
+
     def resolve_func(text: str) -> str:
         return text.replace("attachment://test", "RESOLVED")
 

@@ -47,7 +47,9 @@ if __name__ == "__main__":
     # LOGS_DIR = Path("/Users/ericpatey/code/parsing/logs")
 
     results = scan(
-        ScanDef(transcripts=transcripts(LOGS_DIR), scanners=[dummy_scanner(), llm_scanner()]),
+        ScanDef(
+            transcripts=transcripts(LOGS_DIR), scanners=[dummy_scanner(), llm_scanner()]
+        ),
         scans_dir=SCANS_DIR.as_posix(),
     )
 
