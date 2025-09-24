@@ -294,8 +294,12 @@ ul.task-list li input[type="checkbox"] {
 <li>Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).</li>
 <li>Agent bridge: Ensure that bridge filters also take advantage of <code>retry_refusals</code> loop.</li>
 <li>Agent bridge: Workaround Codex CLI not passing <code>detail</code> along with images.</li>
+<li>OpenAI: Automatically switch to the completions API when <code>--num-choices</code> is specified.</li>
+<li>Sandbox tools: Rewrite <code>inspect-ai</code> package installation type detection code.</li>
 <li>Inspect View: Fix regression sorting folder and logs in list (folders should sort to the front of the list)</li>
 <li>Inspect View: Properly reset page when navigating between folders.</li>
+<li>Inspect View: Always show reasoning blocks (previously we hid them when there was no content, i.e.&nbsp;Responses API store=True).</li>
+<li>Bugfix: Fix “auto” message truncation in react agent.</li>
 </ul>
 </section>
 <section id="september-2025" class="level2">

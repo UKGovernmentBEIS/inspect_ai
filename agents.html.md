@@ -23,6 +23,11 @@ Below, we’ll cover the basic role and function of agents in Inspect.
 Subsequent articles provide more details on the ReAct agent, custom
 agents, and multi-agent systems.
 
+If you are looking for state of the art software engineering agents,
+check out the [Inspect
+SWE](https://meridianlabs-ai.github.io/inspect_swe/) package which makes
+Claude Code and Codex CLI available as standard Inspect agents.
+
 ## Agent Basics
 
 The Inspect `Agent` protocol enables the creation of agent components
