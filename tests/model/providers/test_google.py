@@ -20,7 +20,7 @@ def test_google_safety_settings():
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
             scorer=includes(),
         ),
-        model="google/gemini-1.5-flash",
+        model="google/gemini-2.5-flash",
         model_args=dict(safety_settings=safety_settings),
     )
 

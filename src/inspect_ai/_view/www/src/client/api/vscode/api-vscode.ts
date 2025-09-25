@@ -49,7 +49,7 @@ async function eval_logs() {
 }
 
 async function eval_set(): Promise<undefined> {
-  throw new Error("TODO: Eval set is not supported in VS Code");
+  return undefined;
 }
 
 async function eval_log(

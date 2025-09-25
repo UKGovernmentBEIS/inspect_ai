@@ -25,7 +25,7 @@ GATSBY_TOKENS = 69062
 GPT_4O = "openai/gpt-4o"
 GPT_4O_MINI_AZURE = "openai/azure/gpt-4o-mini"
 CLAUDE_3_5_HAIKU = "anthropic/claude-3-5-haiku-latest"
-GEMINI_1_5_FLASH = "google/gemini-1.5-flash"
+GEMINI_2_0_FLASH = "google/gemini-2.0-flash"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
 GROK_3_MINI = "grok/grok-3-mini"
 GROQ_LLAMA_3_70B = "groq/llama3-70b-8192"
@@ -37,7 +37,7 @@ MODELS = {
     GPT_4O: 128000,
     GPT_4O_MINI_AZURE: 128000,
     CLAUDE_3_5_HAIKU: 200000,
-    GEMINI_1_5_FLASH: 1000000,
+    GEMINI_2_0_FLASH: 1000000,
     MISTRAL_LARGE_2411: 131000,
     GROK_3_MINI: 131072,
     GROQ_LLAMA_3_70B: 8192,
@@ -108,7 +108,7 @@ async def test_model_length_anthropic():
 @pytest.mark.asyncio
 @skip_if_no_google
 async def test_model_length_google():
-    await check_model_length(GEMINI_1_5_FLASH)
+    await check_model_length(GEMINI_2_0_FLASH)
 
 
 @pytest.mark.asyncio

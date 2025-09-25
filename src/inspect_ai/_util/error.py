@@ -32,9 +32,9 @@ def module_version_error(
     feature: str, package: str, required_version: str
 ) -> Exception:
     return PrerequisiteError(
-        f"[bold]ERROR[/bold]: {feature} requires at least version {required_version} of package {package} "
+        f"ERROR: {feature} requires at least version {required_version} of package {package} "
         f"(you have version {version(package)} installed).\n\n"
-        f"Upgrade with:\n\n[bold]pip install --upgrade {package}[/bold]"
+        f"Upgrade with: pip install --upgrade {package}"
     )
 
 

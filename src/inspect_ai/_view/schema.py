@@ -6,6 +6,7 @@ from typing import Any
 
 from inspect_ai._eval.evalset import EvalSet
 from inspect_ai.log import EvalLog
+from inspect_ai.scorer._metric import Score
 
 WWW_DIR = os.path.abspath((Path(__file__).parent / "www").as_posix())
 
@@ -47,6 +48,9 @@ def sync_view_schema() -> None:
             "anyOf": [{"$ref": "#/$defs/EvalSetInfo"}, {"type": "null"}],
             "default": None,
         }
+        # Replace Score schema with our custom one that includes computed fields
+        if "Score" in defs:
+            defs["Score"] = Score.model_json_schema()
 
         for key in defs.keys():
             defs[key] = schema_to_strict(defs[key])
