@@ -161,21 +161,21 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
                     worker_id_counter
 
                 for t in await options.transcripts.index():
+                    transcript: Transcript | None = None
                     for name, scanner in options.scanners.items():
                         # get reporter for this transcript/scanner (if None we already did this work)
                         report = await reporter(t, name)
                         if report is None:
                             continue
 
-                        # TODO: We currently call read for the same transcript redundantly
-                        # for all scanners.
-
-                        s_time = time.time()
-                        transcript = await options.transcripts.read(t, union_content)
-                        if (read_time := time.time() - s_time) > 1:
-                            print(
-                                f"{_running_time()} Producer: Read transcript {t.id} in {read_time:.3f}s"
-                            )
+                        # Lazy load transcript on first scanner that needs it
+                        if transcript is None:
+                            s_time = time.time()
+                            transcript = await options.transcripts.read(t, union_content)
+                            if (read_time := time.time() - s_time) > 1:
+                                print(
+                                    f"{_running_time()} Producer: Read transcript {t.id} in {read_time:.3f}s"
+                                )
 
                         # This send into the work_item_send_stream is a point where backpressure
                         # can be applied
