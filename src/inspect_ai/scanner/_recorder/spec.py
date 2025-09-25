@@ -1,11 +1,10 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, NotRequired, Required, TypedDict
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    SkipValidation,
     field_serializer,
 )
 from shortuuid import uuid
@@ -13,10 +12,10 @@ from typing_extensions import Literal
 
 
 class ScanScanner(BaseModel):
-    scanner: str
+    name: str
     """Scanner name."""
 
-    args: dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
     """Scanner arguments."""
 
 
@@ -43,11 +42,23 @@ class ScanConfig(BaseModel):
     """Shuffle order of transcripts."""
 
 
-class ScanTranscripts:
+class TranscriptField(TypedDict, total=False):
+    name: Required[str]
+    type: Required[str]
+    tz: NotRequired[str]
+
+
+class ScanTranscripts(BaseModel):
     """Transcripts target by a scan."""
 
-    fields: list[dict[Literal["name", "type", "tz"], str]]
+    type: str
+    """Transcripts backing store type (currently only 'eval_log')."""
+
+    fields: list[TranscriptField]
+    """Data types of transcripts fields."""
+
     data: str
+    """Transcript data as a csv."""
 
 
 class ScanSpec(BaseModel):
@@ -92,7 +103,7 @@ class ScanSpec(BaseModel):
     transcripts: ScanTranscripts
     """Transcripts to scan."""
 
-    scanners: SkipValidation[dict[str, ScanScanner]]
+    scanners: dict[str, ScanScanner]
     """Scanners to apply to transcripts."""
 
     @field_serializer("created")

@@ -1,12 +1,11 @@
 import abc
-import base64
-import pickle
 from copy import deepcopy
 from types import TracebackType
 from typing import (
-    Any,
     Iterator,
 )
+
+from inspect_ai.scanner._recorder.spec import ScanTranscripts
 
 from .metadata import Condition
 from .types import Transcript, TranscriptContent, TranscriptInfo
@@ -61,17 +60,4 @@ class Transcripts(abc.ABC):
     ) -> Transcript: ...
 
     @abc.abstractmethod
-    def type(self) -> str: ...
-
-    def save_spec(self) -> dict[str, Any]:
-        return dict(
-            type=self.type(),
-            where=base64.b64encode(pickle.dumps(self._where)).decode("utf-8"),
-            limit=self._limit,
-            shuffle=self._shuffle,
-        )
-
-    def load_spec(self, spec: dict[str, Any]) -> None:
-        self._where = pickle.loads(base64.b64decode(spec["where"]))
-        self._limit = spec["limit"]
-        self._shuffle = spec["shuffle"]
+    async def snapshot(self) -> ScanTranscripts: ...

@@ -1,7 +1,8 @@
+import functools
 import os
 import re
 import time
-from typing import Any, TypeAlias
+from typing import Any, Protocol, Sequence, TypeAlias
 
 import anyio
 from anyio import create_task_group
@@ -9,10 +10,16 @@ from anyio.abc import TaskGroup
 from anyio.streams.memory import MemoryObjectReceiveStream
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from shortuuid import uuid
-from upath import UPath
 
+from inspect_ai._eval.context import init_runtime_context
 from inspect_ai._util._async import run_coroutine
+from inspect_ai._util.platform import platform_init
+from inspect_ai.scanner._recorder.recorder import ScanRecorder, ScanResults
+from inspect_ai.scanner._recorder.types import (
+    scan_recorder_for_location,
+)
 from inspect_ai.scanner._scandef import ScanDef
+from inspect_ai.scanner._scanjob import ScanJob, create_scan_job, resume_scan_job
 from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._transcript.types import (
     Transcript,
@@ -22,9 +29,6 @@ from inspect_ai.scanner._transcript.util import (
     union_transcript_contents,
 )
 
-from ._options import ScanOptions, read_scan_options
-from ._reporter import ScanReport, scan_reporter
-from ._results import ScanResults
 from ._scanner.scanner import Scanner, config_for_scanner
 from ._transcript.transcripts import Transcripts
 
@@ -65,14 +69,14 @@ async def scan_async(
     # resolve scans_dir
     scans_dir = scans_dir or str(os.getenv("INSPECT_SCANS_DIR", "./scans"))
 
+    # create job and recorder
+    job = await create_scan_job(scandef, transcripts, scan_id=scan_id)
+    recorder = scan_recorder_for_location(scans_dir)
+    await recorder.init(job.spec, scans_dir)
+
     return await _scan_async(
-        UPath(scans_dir),
-        ScanOptions(
-            scan_id=scan_id,
-            scan_name=scandef.name,
-            transcripts=transcripts,
-            scanners=scandef.scanners,
-        ),
+        job=await create_scan_job(scandef, transcripts, scan_id=scan_id),
+        recorder=recorder,
     )
 
 
@@ -85,24 +89,27 @@ async def scan_resume(
 async def scan_resume_async(
     scan_dir: str,
 ) -> ScanResults:
-    scan_dir_path = UPath(scan_dir)
-    scans_dir = UPath(scan_dir).parent
-    options = await read_scan_options(scan_dir_path)
-    if options is None:
-        raise RuntimeError(
-            f"The specified directory '{scan_dir}' does not contain a scan."
-        )
-    return await _scan_async(scans_dir, options)
+    # resume job and create recorder
+    job = await resume_scan_job(scan_dir)
+    recorder = scan_recorder_for_location(scan_dir)
+    return await _scan_async(job=job, recorder=recorder)
+
+
+class ScanReport(Protocol):
+    async def __call__(self, results: Sequence[Result]) -> None: ...
 
 
 WorkItem: TypeAlias = tuple[Transcript, Scanner[Any], str, ScanReport]
 
 
-async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
+async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
     # naive scan with:
     #  No parallelism
     #  No content filtering
     #  Supporting only Transcript
+
+    platform_init()
+    init_runtime_context()
 
     # TODO: plumb these for real
     max_llm_connections = 100
@@ -130,21 +137,20 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
     ](work_queue_size)
 
     union_content = union_transcript_contents(
-        [config_for_scanner(scanner).content for scanner in options.scanners.values()]
+        [config_for_scanner(scanner).content for scanner in job.scanners.values()]
     )
 
     def _running_time() -> str:
         return f"+{time.time() - overall_start_time:.3f}s"
 
-    reporter, complete = await scan_reporter(scans_dir, options)
-    async with options.transcripts:
+    async with job.transcripts:
         with Progress(
             TextColumn("Scanning"),
             BarColumn(),
             TimeElapsedColumn(),
             transient=True,
         ) as progress:
-            total_ticks = (await options.transcripts.count()) * len(options.scanners)
+            total_ticks = (await job.transcripts.count()) * len(job.scanners)
             task_id = progress.add_task("Scan", total=total_ticks)
 
             async def producer(tg: TaskGroup) -> None:
@@ -156,20 +162,17 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
                     workers_waiting, \
                     worker_id_counter
 
-                for t in await options.transcripts.index():
+                for t in await job.transcripts.index():
                     transcript: Transcript | None = None
-                    for name, scanner in options.scanners.items():
+                    for name, scanner in job.scanners.items():
                         # get reporter for this transcript/scanner (if None we already did this work)
-                        report = await reporter(t, name)
-                        if report is None:
+                        if await recorder.is_recorded(t, name):
                             continue
 
                         # Lazy load transcript on first scanner that needs it
                         if transcript is None:
                             s_time = time.time()
-                            transcript = await options.transcripts.read(
-                                t, union_content
-                            )
+                            transcript = await job.transcripts.read(t, union_content)
                             if (read_time := time.time() - s_time) > 1:
                                 print(
                                     f"{_running_time()} Producer: Read transcript {t.id} in {read_time:.3f}s"
@@ -183,7 +186,12 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
                             >= work_queue_size
                         )
 
-                        new_item = (transcript, scanner, name, report)
+                        new_item = (
+                            transcript,
+                            scanner,
+                            name,
+                            functools.partial(recorder.record, t, name),
+                        )
                         await work_item_send_stream.send(new_item)
                         print(
                             f"{_running_time()} Producer: Added work item {_work_item_info(new_item)} {' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
@@ -309,7 +317,7 @@ async def _scan_async(scans_dir: UPath, options: ScanOptions) -> ScanResults:
                 raise
 
             # read all scan results for this scan
-            results = await complete()
+            results = await recorder.complete()
 
     return results
 

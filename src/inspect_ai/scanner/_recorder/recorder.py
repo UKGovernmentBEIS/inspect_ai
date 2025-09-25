@@ -42,4 +42,8 @@ class ScanRecorder(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    async def results(scans_location: str, scan_id: str) -> ScanResults: ...
+    async def spec(scan_location: str) -> ScanSpec: ...
+
+    @staticmethod
+    @abc.abstractmethod
+    async def results(scan_location: str) -> ScanResults: ...

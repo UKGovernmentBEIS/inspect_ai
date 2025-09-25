@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import base64
 import hashlib
-import pickle
+import io
+import json
 import sqlite3
 from functools import reduce
 from os import PathLike
@@ -32,6 +32,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
 )
 from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.scanner._recorder.spec import ScanTranscripts, TranscriptField
 from inspect_ai.scanner._transcript.transcripts import Transcripts
 
 from .json.load_filtered import load_filtered_transcript
@@ -51,28 +52,13 @@ LogPaths: TypeAlias = (
 class EvalLogTranscripts(Transcripts):
     """Collection of transcripts for scanning."""
 
-    def __init__(self, logs: LogPaths | "pd.DataFrame" | None) -> None:
+    def __init__(self, logs: LogPaths | "pd.DataFrame" | ScanTranscripts) -> None:
         super().__init__()
-        self._logs: LogPaths | "pd.DataFrame" | None = logs
+        if isinstance(logs, ScanTranscripts):
+            self._logs: LogPaths | "pd.DataFrame" = self._logs_df_from_snapshot(logs)
+        else:
+            self._logs = logs
         self._db: EvalLogTranscriptsDB | None = None
-
-    @override
-    def type(self) -> str:
-        return "eval_log"
-
-    @override
-    def save_spec(self) -> dict[str, Any]:
-        spec = super().save_spec()
-
-        spec["logs"] = base64.b64encode(pickle.dumps(self.db._transcripts_df)).decode(
-            "utf-8"
-        )
-        return spec
-
-    @override
-    def load_spec(self, spec: dict[str, Any]) -> None:
-        super().load_spec(spec)
-        self._logs = pickle.loads(base64.b64decode(spec["logs"]))
 
     @override
     async def __aenter__(self) -> "Transcripts":
@@ -102,6 +88,75 @@ class EvalLogTranscripts(Transcripts):
         self, transcript: TranscriptInfo, content: TranscriptContent
     ) -> Transcript:
         return await self.db.read(transcript, content)
+
+    @override
+    async def snapshot(self) -> ScanTranscripts:
+        # get the subset of the transcripts df that matches our current query
+        df = self.db._transcripts_df
+        sample_ids = [item.id for item in await self.index()]
+        df = df[df["sample_id"].isin(sample_ids)]
+
+        # get fields
+        fields: list[TranscriptField] = json.loads(df.to_json(orient="table"))[
+            "schema"
+        ]["fields"]
+
+        # get data as csv
+        buffer = io.StringIO()
+        df.to_csv(buffer, index=False)
+        data = buffer.getvalue()
+
+        return ScanTranscripts(
+            type="eval_log",
+            fields=fields,
+            data=data,
+        )
+
+    @staticmethod
+    def _logs_df_from_snapshot(snapshot: ScanTranscripts) -> "pd.DataFrame":
+        import pandas as pd
+
+        # Read CSV data from snapshot
+        df = pd.read_csv(io.StringIO(snapshot.data))
+
+        # Process field definitions to apply correct dtypes
+        for field in snapshot.fields:
+            col_name = field["name"]
+            col_type = field["type"]
+
+            # Skip if column doesn't exist in DataFrame
+            if col_name not in df.columns:
+                continue
+
+            # Handle datetime columns with timezone
+            if col_type == "datetime":
+                tz = field.get("tz")
+                if tz:
+                    # Parse datetime with timezone
+                    df[col_name] = pd.to_datetime(df[col_name]).dt.tz_localize(tz)
+                else:
+                    df[col_name] = pd.to_datetime(df[col_name])
+
+            # Handle other specific types
+            elif col_type == "integer":
+                # Handle nullable integers
+                if df[col_name].isnull().any():
+                    df[col_name] = df[col_name].astype("Int64")
+                else:
+                    df[col_name] = df[col_name].astype("int64")
+
+            elif col_type == "number":
+                df[col_name] = pd.to_numeric(df[col_name], errors="coerce")
+
+            elif col_type == "boolean":
+                df[col_name] = df[col_name].astype("bool")
+
+            elif col_type == "string":
+                df[col_name] = df[col_name].astype("string")
+
+            # For any other type, let pandas infer or keep as-is
+
+        return df
 
     @property
     def db(self) -> EvalLogTranscriptsDB:
@@ -297,11 +352,9 @@ def transcripts(logs: LogPaths | "pd.DataFrame") -> Transcripts:
     return EvalLogTranscripts(logs)
 
 
-def transcripts_from_spec(spec: dict[str, Any]) -> Transcripts:
-    match spec.get("type"):
+async def transcripts_from_snapshot(snapshot: ScanTranscripts) -> Transcripts:
+    match snapshot.type:
         case "eval_log":
-            transcripts = EvalLogTranscripts(None)
+            return EvalLogTranscripts(snapshot)
         case _:
-            raise ValueError(f"Unrecognized transcript type '{spec.get('type')}")
-    transcripts.load_spec(spec)
-    return transcripts
+            raise ValueError(f"Unrecognized transcript type '{snapshot.type}")

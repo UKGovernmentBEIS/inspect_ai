@@ -173,15 +173,16 @@ class FileRecorder(ScanRecorder):
         return self._scan_spec
 
     @staticmethod
-    async def results(scans_location: str, scan_id: str) -> ScanResults:
+    async def spec(scan_location: str) -> ScanSpec:
+        return _read_scan_spec(UPath(scan_location))
+
+    @staticmethod
+    async def results(scan_location: str) -> ScanResults:
         import pandas as pd
 
-        # determine the scan dir
-        scan_dir = _find_scan_dir(UPath(scans_location), scan_id)
-        if scan_dir is None:
-            raise ValueError(
-                f"Scan id '{scan_id}' not found in scans dir '{scans_location}'."
-            )
+        # read scan spec
+        scan_dir = UPath(scan_location)
+        spec = _read_scan_spec(scan_dir)
 
         # check for uncompacted transcript files
         uncompacted_files = False
@@ -191,9 +192,10 @@ class FileRecorder(ScanRecorder):
             break
 
         if uncompacted_files:
+            pretty_scan_dir = pretty_path(str(scan_dir))
             raise ValueError(
-                f"Scan '{scan_id}' has uncompacted transcript files. "
-                f"Run scan_resume('{pretty_path(str(scan_dir))}') to complete the scan."
+                f"Scan '{pretty_scan_dir}' has uncompacted transcript files. "
+                f"Run scan_resume('{pretty_scan_dir}') to complete the scan."
             )
 
         # read data frames
@@ -205,7 +207,7 @@ class FileRecorder(ScanRecorder):
                 scanners[scanner_name] = pd.read_parquet(str(parquet_file))
 
         return ScanResults(
-            spec=_read_scan_spec(scan_dir),
+            spec=spec,
             location=scan_dir.as_posix(),
             scanners=scanners,
         )
@@ -239,7 +241,8 @@ def _ensure_scan_dir(scans_path: UPath, scan_id: str, scan_name: str) -> UPath:
     # if there is no scan_dir then create one
     if scan_dir is None:
         scan_dir = (
-            scans_path / f"{clean_filename_component(iso_now())}_{scan_name}_{scan_id}"
+            scans_path
+            / f"{clean_filename_component(iso_now())}_{clean_filename_component(scan_name)}_{scan_id}"
         )
         scan_dir.mkdir(parents=True, exist_ok=False)
 
