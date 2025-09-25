@@ -71,6 +71,11 @@ const extractInputMetadata = (
       inputArg: "todos",
       contentType: kToolTodoContentType,
     };
+  } else if (toolName == "update_plan") {
+    return {
+      inputArg: "plan",
+      contentType: kToolTodoContentType,
+    };
   } else {
     return undefined;
   }
