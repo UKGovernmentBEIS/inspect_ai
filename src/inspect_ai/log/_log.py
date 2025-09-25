@@ -795,7 +795,9 @@ class EvalSpec(BaseModel):
     """Scorers and args for this eval"""
 
     metrics: (
-        list[EvalMetricDefinition] | dict[str, list[EvalMetricDefinition]] | None
+        list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+        | dict[str, list[EvalMetricDefinition]]
+        | None
     ) = Field(default=None)
     """metrics and args for this eval"""
 

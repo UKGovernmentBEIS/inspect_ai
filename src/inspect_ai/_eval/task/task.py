@@ -57,7 +57,9 @@ class Task:
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: Scorer | list[Scorer] | None = None,
-        metrics: list[Metric] | dict[str, list[Metric]] | None = None,
+        metrics: list[Metric | dict[str, list[Metric]]]
+        | dict[str, list[Metric]]
+        | None = None,
         model: str | Model | None = None,
         config: GenerateConfig = GenerateConfig(),
         model_roles: dict[str, str | Model] | None = None,
@@ -207,7 +209,10 @@ def task_with(
     solver: Solver | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: Scorer | list[Scorer] | None | NotGiven = NOT_GIVEN,
-    metrics: list[Metric] | dict[str, list[Metric]] | None | NotGiven = NOT_GIVEN,
+    metrics: list[Metric | dict[str, list[Metric]]]
+    | dict[str, list[Metric]]
+    | None
+    | NotGiven = NOT_GIVEN,
     model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
@@ -422,7 +427,8 @@ def resolve_scorer(scorer: Scorer | list[Scorer] | None) -> list[Scorer] | None:
 
 
 def resolve_scorer_metrics(
-    scorers: list[Scorer] | None, metrics: list[Metric] | dict[str, list[Metric]] | None
+    scorers: list[Scorer] | None,
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
 ) -> list[Scorer] | None:
     if scorers is not None and metrics is not None:
         for scorer in scorers:

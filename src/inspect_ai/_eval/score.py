@@ -352,11 +352,24 @@ async def _run_score_task(
 
 def metrics_from_log_header(
     log: EvalLog,
-) -> list[Metric] | dict[str, list[Metric]] | None:
+) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None:
     # See if we have metrics in the eval itself
     if log.eval.metrics:
         if isinstance(log.eval.metrics, list):
-            return [metric_from_log(metric) for metric in log.eval.metrics]
+            result: list[Metric | dict[str, list[Metric]]] = []
+            for metric_item in log.eval.metrics:
+                if isinstance(metric_item, dict):
+                    # It's a dict of metric groups
+                    result.append(
+                        {
+                            key: [metric_from_log(metric) for metric in metrics]
+                            for key, metrics in metric_item.items()
+                        }
+                    )
+                else:
+                    # It's a direct metric
+                    result.append(metric_from_log(metric_item))
+            return result
         else:
             return {
                 key: [metric_from_log(metric) for metric in metrics]

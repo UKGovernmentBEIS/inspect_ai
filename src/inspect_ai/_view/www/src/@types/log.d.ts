@@ -149,7 +149,12 @@ export type Metadata1 = {
   [k: string]: unknown;
 } | null;
 export type Metrics1 =
-  | EvalMetricDefinition[]
+  | (
+      | EvalMetricDefinition
+      | {
+          [k: string]: EvalMetricDefinition[];
+        }
+    )[]
   | {
       [k: string]: EvalMetricDefinition[];
     }
