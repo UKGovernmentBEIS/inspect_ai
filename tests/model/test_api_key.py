@@ -54,7 +54,7 @@ async def test_anthropic_api_key():
 @pytest.mark.anyio
 @skip_if_no_google
 async def test_google_api_key():
-    await check_explicit_api_key("google/gemini-1.5-pro", "GOOGLE_API_KEY")
+    await check_explicit_api_key("google/gemini-2.5-pro", "GOOGLE_API_KEY")
 
 
 @pytest.mark.anyio

@@ -5,7 +5,7 @@ from typing import (
     Iterator,
 )
 
-from inspect_ai.scanner._recorder.spec import ScanTranscripts
+from inspect_ai.scanner._scanspec import ScanTranscripts
 
 from .metadata import Condition
 from .types import Transcript, TranscriptContent, TranscriptInfo

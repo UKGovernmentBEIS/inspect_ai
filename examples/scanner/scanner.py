@@ -54,4 +54,5 @@ if __name__ == "__main__":
     )
 
     results.scanners["dummy_scanner"].info()
-    results.scanners["llm_scanner"].info()
+    if "llm_scanner" in results.scanners:
+        results.scanners["llm_scanner"].info()

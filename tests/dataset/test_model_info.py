@@ -23,4 +23,4 @@ def test_read_model_info():
     )
 
     # Assert GDM is present
-    assert models.get("google/gemini-1.5-flash").context_length == 1048576
+    assert models.get("google/gemini-2.5-flash").context_length == 1048576

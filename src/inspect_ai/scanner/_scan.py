@@ -22,6 +22,7 @@ from inspect_ai.scanner._recorder.types import (
 from inspect_ai.scanner._scandef import ScanDef
 from inspect_ai.scanner._scanjob import ScanJob, create_scan_job, resume_scan_job
 from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanspec import ScanConfig
 from inspect_ai.scanner._transcript.types import (
     Transcript,
 )
@@ -36,14 +37,20 @@ from ._transcript.transcripts import Transcripts
 
 def scan(
     scandef: ScanDef,
-    scan_id: str | None = None,
+    transcripts: Transcripts | None = None,
+    limit: int | None = None,
+    shuffle: bool | int | None = None,
     scans_dir: str | None = None,
+    scan_id: str | None = None,
 ) -> ScanResults:
     return run_coroutine(
         scan_async(
             scandef=scandef,
-            scan_id=scan_id,
+            transcripts=transcripts,
+            limit=limit,
+            shuffle=shuffle,
             scans_dir=scans_dir,
+            scan_id=scan_id,
         )
     )
 
@@ -51,8 +58,10 @@ def scan(
 async def scan_async(
     scandef: ScanDef,
     transcripts: Transcripts | None = None,
-    scan_id: str | None = None,
+    limit: int | None = None,
+    shuffle: bool | int | None = None,
     scans_dir: str | None = None,
+    scan_id: str | None = None,
 ) -> ScanResults:
     # resolve id
     scan_id = scan_id or uuid()
@@ -70,13 +79,20 @@ async def scan_async(
     # resolve scans_dir
     scans_dir = scans_dir or str(os.getenv("INSPECT_SCANS_DIR", "./scans"))
 
+    # initialize config
+    scan_config = ScanConfig(limit=limit, shuffle=shuffle)
+
     # create job and recorder
-    job = await create_scan_job(scandef, transcripts, scan_id=scan_id)
+    job = await create_scan_job(
+        scandef, transcripts, config=scan_config, scan_id=scan_id
+    )
     recorder = scan_recorder_for_location(scans_dir)
     await recorder.init(job.spec, scans_dir)
 
     return await _scan_async(
-        job=await create_scan_job(scandef, transcripts, scan_id=scan_id),
+        job=await create_scan_job(
+            scandef, transcripts, config=scan_config, scan_id=scan_id
+        ),
         recorder=recorder,
     )
 
@@ -158,14 +174,26 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
     def _running_time() -> str:
         return f"+{time.time() - overall_start_time:.3f}s"
 
-    async with job.transcripts:
+    # apply limits/shuffle
+    if job.spec.config.limit is not None:
+        transcripts = job.transcripts.limit(job.spec.config.limit)
+    if job.spec.config.shuffle is not None:
+        transcripts = transcripts.shuffle(
+            job.spec.config.shuffle
+            if isinstance(job.spec.config.shuffle, int)
+            else None
+        )
+    else:
+        transcripts = job.transcripts
+
+    async with transcripts:
         with Progress(
             TextColumn("Scanning"),
             BarColumn(),
             TimeElapsedColumn(),
             transient=True,
         ) as progress:
-            total_ticks = (await job.transcripts.count()) * len(job.scanners)
+            total_ticks = (await transcripts.count()) * len(job.scanners)
             task_id = progress.add_task("Scan", total=total_ticks)
 
             async def producer(tg: TaskGroup) -> None:
@@ -181,7 +209,7 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                 tg.start_soon(cpu_worker_task, cpu_work_receive_stream)
                 print(f"{_running_time()} Producer: Started CPU worker")
 
-                for t in await job.transcripts.index():
+                for t in await transcripts.index():
                     transcript: Transcript | None = None
                     for name, scanner in job.scanners.items():
                         # get reporter for this transcript/scanner (if None we already did this work)
@@ -191,7 +219,7 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                         # Lazy load transcript on first scanner that needs it
                         if transcript is None:
                             s_time = time.time()
-                            transcript = await job.transcripts.read(t, union_content)
+                            transcript = await transcripts.read(t, union_content)
                             if (read_time := time.time() - s_time) > 1:
                                 print(
                                     f"{_running_time()} Producer: Read transcript {t.id} in {read_time:.3f}s"

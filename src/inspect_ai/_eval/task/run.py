@@ -76,6 +76,10 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
+from inspect_ai.model._providers.providers import (
+    validate_anthropic_client,
+    validate_openai_client,
+)
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -169,7 +173,12 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
     # init task context
-    init_task_context(model, model_roles, options.task.approval, generate_config)
+    init_task_context(
+        model,
+        model_roles,
+        generate_config,
+        options.task.approval,
+    )
 
     # track stats and error
     results: EvalResults | None = None
@@ -1195,6 +1204,8 @@ def create_sample_semaphore(
 
 def init_sample_assistant_internal() -> None:
     if importlib.util.find_spec("openai"):
+        validate_openai_client("OpenAI API")
+
         from inspect_ai.model._openai_responses import (
             init_sample_openai_assistant_internal,
         )
@@ -1202,6 +1213,8 @@ def init_sample_assistant_internal() -> None:
         init_sample_openai_assistant_internal()
 
     if importlib.util.find_spec("anthropic"):
+        validate_anthropic_client("Anthropic API")
+
         from inspect_ai.model._providers.anthropic import (
             init_sample_anthropic_assistant_internal,
         )

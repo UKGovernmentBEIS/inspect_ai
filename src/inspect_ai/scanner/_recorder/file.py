@@ -10,8 +10,8 @@ from inspect_ai._util.file import clean_filename_component, file, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis._dataframe.util import arrow_types_mapper
-from inspect_ai.scanner._recorder.spec import ScanSpec
 from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 from inspect_ai.scanner._util.file import (
     delete_files_async,
