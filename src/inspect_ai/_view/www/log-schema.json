@@ -3121,7 +3121,20 @@
           "anyOf": [
             {
               "items": {
-                "$ref": "#/$defs/EvalMetricDefinition"
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EvalMetricDefinition"
+                  },
+                  {
+                    "additionalProperties": {
+                      "items": {
+                        "$ref": "#/$defs/EvalMetricDefinition"
+                      },
+                      "type": "array"
+                    },
+                    "type": "object"
+                  }
+                ]
               },
               "type": "array"
             },

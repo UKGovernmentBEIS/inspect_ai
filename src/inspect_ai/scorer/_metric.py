@@ -537,10 +537,23 @@ def metric_create(name: str, **kwargs: Any) -> Metric:
 
 
 def to_metric_specs(
-    metrics: list[Metric] | dict[str, list[Metric]],
-) -> list[MetricSpec] | dict[str, list[MetricSpec]]:
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+) -> list[MetricSpec | dict[str, list[MetricSpec]]] | dict[str, list[MetricSpec]]:
     if isinstance(metrics, list):
-        return [as_metric_spec(m) for m in metrics]
+        result: list[MetricSpec | dict[str, list[MetricSpec]]] = []
+        for metric_item in metrics:
+            if isinstance(metric_item, dict):
+                # It's a dict of metric groups
+                result.append(
+                    {
+                        k: [as_metric_spec(v) for v in metric_list]
+                        for k, metric_list in metric_item.items()
+                    }
+                )
+            else:
+                # It's a direct metric
+                result.append(as_metric_spec(metric_item))
+        return result
     else:
         return {
             k: [as_metric_spec(v) for v in metric_list]
