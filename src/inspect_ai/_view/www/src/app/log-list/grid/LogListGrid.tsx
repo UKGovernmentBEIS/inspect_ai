@@ -16,13 +16,13 @@ import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 import { LogFile } from "../../../client/api/types";
 import { useLogs, useLogsListing, usePagination } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
-import { FileLogItem, FolderLogItem } from "../LogItem";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
 import { kDefaultPageSize, kLogsPaginationId } from "../LogsPanel";
 import styles from "./LogListGrid.module.css";
 import { getColumns } from "./columns/columns";
 
 interface LogListGridProps {
-  items: Array<FileLogItem | FolderLogItem>;
+  items: Array<FileLogItem | FolderLogItem | PendingTaskItem>;
 }
 
 export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
@@ -75,7 +75,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
   // Initial sort
   useEffect(() => {
-    setSorting([{ id: "icon", desc: true }]);
+    setSorting([{ id: "icon", desc: false }]);
   }, []);
 
   // Force re-sort when logHeaders change (affects task column sorting)

@@ -7,7 +7,12 @@ from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
@@ -107,6 +112,14 @@ class ConverseGuardContent(BaseModel):
     text: ConverseGuardContentText
 
 
+class ConverseReasoningText(BaseModel):
+    text: str
+
+
+class ConverseReasoningContent(BaseModel):
+    reasoningText: ConverseReasoningText
+
+
 class ConverseMessageContent(BaseModel):
     text: str | None = None
     image: ConverseImage | None = None
@@ -114,6 +127,7 @@ class ConverseMessageContent(BaseModel):
     toolUse: ConverseToolUse | None = None
     toolResult: ConverseToolResult | None = None
     guardContent: ConverseGuardContent | None = None
+    reasoningContent: ConverseReasoningContent | None = None
 
 
 class ConverseMessage(BaseModel):
@@ -317,6 +331,19 @@ class BedrockAPI(ModelAPI):
     def collapse_assistant_messages(self) -> bool:
         return True
 
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        # claude needs reasoning history emulation because the reasoning signature doesn't
+        # make it all the way through the converse api (so when we try to replay it there is
+        # an error from claude indicating the signature was missing)
+        return self.is_claude()
+
+    def is_gpt_oss(self) -> bool:
+        return "gpt-oss" in self.model_name
+
+    def is_claude(self) -> bool:
+        return "claude" in self.model_name
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -350,6 +377,14 @@ class BedrockAPI(ModelAPI):
             # Resolve the input messages into converse messages
             system, messages = await converse_messages(input)
 
+            # additional model request fields
+            additionalModelRequestFields: dict[str, Any] = {}
+            if config.top_k:
+                additionalModelRequestFields["top_k"] = config.top_k
+            additionalModelRequestFields = (
+                additionalModelRequestFields | self.reasoning_config(config)
+            )
+
             # Make the request
             request = ConverseClientConverseRequest(
                 modelId=self.model_name,
@@ -361,10 +396,7 @@ class BedrockAPI(ModelAPI):
                     topP=config.top_p,
                     stopSequences=config.stop_seqs,
                 ),
-                additionalModelRequestFields={
-                    "top_k": config.top_k,
-                    **config.model_config,
-                },
+                additionalModelRequestFields=additionalModelRequestFields,
                 toolConfig=tool_config,
             )
 
@@ -404,6 +436,21 @@ class BedrockAPI(ModelAPI):
 
         # return
         return output, model_call(response)
+
+    def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
+        if self.is_gpt_oss():
+            if config.reasoning_effort is not None:
+                return {"reasoning_effort": config.reasoning_effort}
+        elif self.is_claude():
+            if config.reasoning_tokens is not None:
+                return {
+                    "reasoning_config": {
+                        "type": "enabled",
+                        "budget_tokens": config.reasoning_tokens,
+                    }
+                }
+
+        return {}
 
 
 async def converse_messages(
@@ -453,6 +500,10 @@ def model_output_from_response(
                     arguments=cast(dict[str, Any], c.toolUse.input or {}),
                 )
             )
+        elif c.reasoningContent is not None:
+            # Handle reasoning content
+            reasoning_text = c.reasoningContent.reasoningText.text
+            content.append(ContentReasoning(reasoning=reasoning_text))
         else:
             raise ValueError("Unexpected message response in Bedrock provider")
 
@@ -629,6 +680,14 @@ async def converse_contents(
                 )
             elif c.type == "text":
                 result.append(ConverseMessageContent(text=c.text))
+            elif c.type == "reasoning":
+                result.append(
+                    ConverseMessageContent(
+                        reasoningContent=ConverseReasoningContent(
+                            reasoningText=ConverseReasoningText(text=c.reasoning)
+                        )
+                    )
+                )
             else:
                 raise RuntimeError(f"Unsupported content type {c.type}")
         return result

@@ -1,8 +1,12 @@
 import re
+from typing import Literal
+
+import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent._filter import MessageFilter
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._react import react
 from inspect_ai.agent._types import (
@@ -558,3 +562,66 @@ def test_remove_submit_tool_filters_reasoning_content():
         "Reasoning content should remain when no submit tool call is filtered"
     )
     assert reasoning_content[0].reasoning == "This reasoning should stay"
+
+
+@pytest.mark.parametrize(
+    ("truncation", "expected_message_count", "expected_submit"),
+    [
+        pytest.param(
+            "auto", 142, True, id="with_auto_truncation"
+        ),  # sys msg + 0.7 * 200
+        pytest.param(
+            "disabled", 201, False, id="with_disabled_truncation"
+        ),  # no submit (agent terminates)
+    ],
+)
+def test_react_agent_truncation(
+    truncation: Literal["auto", "disabled"] | MessageFilter,
+    expected_message_count: int,
+    expected_submit: bool,
+):
+    """Test the react agent with different truncation settings"""
+    task = Task(
+        dataset=[Sample(input="What is the capital of Denmark?", target="Copenhagen")],
+        solver=react(truncation=truncation),
+        scorer=includes(),
+    )
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            *(
+                [
+                    ModelOutput.from_content(
+                        model="mockllm/model",
+                        content="This is a repeated message",
+                    )
+                ]
+                * 99
+            ),
+            ModelOutput.from_content(
+                model="mockllm/model",
+                content="Final message with stop_reason=model_length",
+                stop_reason="model_length",
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "Copenhagen"},
+            ),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.results
+
+    assert log.samples and (sample := log.samples[0])
+    assert len(sample.messages) == expected_message_count
+    last_message = sample.messages[-1]
+    assert (
+        last_message.content == "tool call for tool submit\n\nCopenhagen"
+    ) == expected_submit
+
+    assert sample.scores and len(sample.scores) == 1
+    assert (score := sample.scores["includes"])
+    assert score.value == "C" if expected_submit else "I"

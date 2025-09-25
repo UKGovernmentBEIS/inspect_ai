@@ -137,6 +137,20 @@ Disallow: /
         f.write(content)
 
 
+def copy_file_to_bundle(
+    file_path: str, base_log_dir: str, target_dir: str, log_fs: Any
+) -> None:
+    """Copy a single file to the bundle target directory."""
+    relative_path = os.path.relpath(file_path, base_log_dir)
+    output_path = os.path.join(target_dir, relative_path)
+
+    # Make directories containing output_path if they don't exist.
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # Copy log to output_path
+    log_fs.get_file(file_path, output_path)
+
+
 def copy_log_files(
     log_dir: str,
     target_dir: str,
@@ -153,17 +167,22 @@ def copy_log_files(
                 f"The log directory {log_dir} doesn't contain any log files."
             )
 
+        # find any eval-set files and move those as well
+        eval_set_files = set()
+        for eval_log in eval_logs:
+            eval_set_path = os.path.join(
+                os.path.dirname(eval_log.name), "eval-set.json"
+            )
+            if log_fs.exists(eval_set_path):
+                eval_set_files.add(eval_set_path)
+
         base_log_dir = log_fs.info(log_dir).name
-        with progress_adapter(p, 200, len(eval_logs)) as tick:
+        with progress_adapter(p, 200, len(eval_logs) + len(eval_set_files)) as tick:
             for eval_log in eval_logs:
-                relative_path = os.path.relpath(eval_log.name, base_log_dir)
-                output_path = os.path.join(target_dir, relative_path)
-
-                # Make directories containing output_path if they don't exist.
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-                # Copy log to output_path
-                log_fs.get_file(eval_log.name, output_path)
+                copy_file_to_bundle(eval_log.name, base_log_dir, target_dir, log_fs)
+                tick()
+            for eval_set_file in eval_set_files:
+                copy_file_to_bundle(eval_set_file, base_log_dir, target_dir, log_fs)
                 tick()
 
     else:

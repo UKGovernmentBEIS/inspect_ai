@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Literal, Sequence, cast
+from typing import Literal, Sequence
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
@@ -399,7 +399,7 @@ def _resolve_overflow(
 ) -> MessageFilter | None:
     # resolve overflow handling
     if truncation == "auto":
-        overflow = cast(MessageFilter | None, trim_messages)
+        overflow: MessageFilter | None = trim_messages
     elif truncation == "disabled":
         overflow = None
     else:

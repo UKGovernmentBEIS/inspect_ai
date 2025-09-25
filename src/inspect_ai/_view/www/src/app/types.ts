@@ -9,6 +9,7 @@ import {
   ContentImage,
   ContentText,
   EvalSample,
+  EvalSet,
   InfoEvent,
   LoggerEvent,
   ModelEvent,
@@ -67,6 +68,7 @@ export interface AppState {
 
 export interface LogsState {
   logs: LogFiles;
+  evalSet?: EvalSet;
   logOverviews: Record<string, LogOverview>;
   logOverviewsLoading: boolean;
   selectedLogIndex: number;
@@ -127,6 +129,7 @@ export interface SampleState {
   runningEvents: Event[];
   collapsedEvents: Record<string, Record<string, boolean>> | null;
   collapsedIdBuckets: Record<string, Record<string, boolean>>;
+  collapsedMode: "collapsed" | "expanded" | null;
   eventFilter: EventFilter;
 
   selectedOutlineId?: string;

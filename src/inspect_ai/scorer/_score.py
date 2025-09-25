@@ -55,10 +55,11 @@ async def score(conversation: ModelConversation) -> list[Score]:
     scores: list[Score] = []
     for scorer in scorers:
         score = await scorer(state, target)
-        scores.append(score)
-        transcript()._event(
-            ScoreEvent(score=score, target=target.target, intermediate=True)
-        )
+        if score is not None:
+            scores.append(score)
+            transcript()._event(
+                ScoreEvent(score=score, target=target.target, intermediate=True)
+            )
 
     return scores
 

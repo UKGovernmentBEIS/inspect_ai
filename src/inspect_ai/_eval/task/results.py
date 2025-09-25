@@ -69,6 +69,7 @@ def eval_results(
     scores: list[dict[str, SampleScore]],
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
+    metrics: list[Metric] | dict[str, list[Metric]] | None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
@@ -81,7 +82,23 @@ def eval_results(
     for sample_scores in scores:
         for name, sample_score in sample_scores.items():
             if sample_score.scorer is None and name not in scorer_names:
-                scorers_info.append(ScorerInfo.from_name(name))
+                # the scorer info for this score
+                scorer_info = ScorerInfo.from_name(name)
+
+                # resolve the task scores
+                if metrics is not None:
+                    scorer_info.metrics = cast(
+                        list[
+                            MetricProtocol
+                            | MetricDeprecated
+                            | dict[str, list[MetricProtocol | MetricDeprecated]]
+                        ]
+                        | dict[str, list[MetricProtocol | MetricDeprecated]],
+                        metrics,
+                    )
+
+                # capture the scorer information
+                scorers_info.append(scorer_info)
                 scorer_names.add(name)
 
     # record scorer

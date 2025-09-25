@@ -4,7 +4,7 @@ import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
-import { useDocumentTitle, useLogs } from "../../state/hooks";
+import { useDocumentTitle, useLogs, usePagination } from "../../state/hooks";
 import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
@@ -12,7 +12,7 @@ import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid } from "./grid/LogListGrid";
-import { FileLogItem, FolderLogItem } from "./LogItem";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import { LogsFilterInput } from "./LogsFilterInput";
 import styles from "./LogsPanel.module.css";
@@ -38,10 +38,13 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const { loadLogs } = useLogs();
   const logs = useStore((state) => state.logs.logs);
+  const evalSet = useStore((state) => state.logs.evalSet);
   const logHeaders = useStore((state) => state.logs.logOverviews);
   const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
   const navigate = useNavigate();
+
+  const { setPage } = usePagination(kLogsPaginationId, kDefaultPageSize);
 
   const filterRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -105,82 +108,117 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   // All the items visible in the current directory (might span
   // multiple pages)
-  const logItems: Array<FileLogItem | FolderLogItem> = useMemo(() => {
-    // Build the list of files / folders that for the current directory
-    const logItems: Array<FileLogItem | FolderLogItem> = [];
+  const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
+    useMemo(() => {
+      // Build the list of files / folders that for the current directory
+      const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> = [];
 
-    // Track process folders to avoid duplicates
-    const processedFolders = new Set<string>();
+      // Track process folders to avoid duplicates
+      const processedFolders = new Set<string>();
+      const runningOrFinishedTasks = new Set<string>();
 
-    for (const logFile of logs.files) {
-      // The file name
-      const name = logFile.name;
+      for (const logFile of logs.files) {
+        // Note that this task is running or complete
+        if (logFile.task_id) {
+          runningOrFinishedTasks.add(logFile.task_id);
+        }
 
-      // Process paths in the current directory
-      const cleanDir = currentDir.endsWith("/")
-        ? currentDir.slice(0, -1)
-        : currentDir;
+        // The file name
+        const name = logFile.name;
 
-      if (isInDirectory(logFile.name, cleanDir)) {
-        // This is a file within the current directory
-        const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
-        const relativePath = directoryRelativeUrl(name, currentDir);
+        // Process paths in the current directory
+        const cleanDir = currentDir.endsWith("/")
+          ? currentDir.slice(0, -1)
+          : currentDir;
 
-        const fileOrFolderName = decodeURIComponent(rootName(relativePath));
-        const path = join(
-          decodeURIComponent(relativePath),
-          decodeURIComponent(dirName),
-        );
+        const dirWithSlash = !currentDir.endsWith("/")
+          ? currentDir + "/"
+          : currentDir;
 
-        logItems.push({
-          id: fileOrFolderName,
-          name: fileOrFolderName,
-          type: "file",
-          url: logUrl(path, logs.log_dir),
-          logFile: logFile,
-          logOverview: logHeaders[logFile.name],
-        });
-      } else if (name.startsWith(currentDir)) {
-        // This is file that is next level (or deeper) child
-        // of the current directory, extract the top level folder name
+        if (isInDirectory(name, cleanDir)) {
+          // This is a file within the current directory
+          const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
+          const relativePath = directoryRelativeUrl(name, currentDir);
 
-        const relativePath = directoryRelativeUrl(name, currentDir);
+          const fileOrFolderName = decodeURIComponent(rootName(relativePath));
+          const path = join(
+            decodeURIComponent(relativePath),
+            decodeURIComponent(dirName),
+          );
 
-        const dirName = decodeURIComponent(rootName(relativePath));
-        const currentDirRelative = directoryRelativeUrl(
-          currentDir,
-          logs.log_dir,
-        );
-        const url = join(dirName, decodeURIComponent(currentDirRelative));
-        if (!processedFolders.has(dirName)) {
           logItems.push({
-            id: dirName,
-            name: dirName,
-            type: "folder",
-            url: logUrl(url, logs.log_dir),
-            itemCount: logs.files.filter((file) =>
-              file.name.startsWith(dirname(name)),
-            ).length,
+            id: fileOrFolderName,
+            name: fileOrFolderName,
+            type: "file",
+            url: logUrl(path, logs.log_dir),
+            logFile: logFile,
+            logOverview: logHeaders[logFile.name],
           });
-          processedFolders.add(dirName);
+        } else if (name.startsWith(dirWithSlash)) {
+          // This is file that is next level (or deeper) child
+          // of the current directory, extract the top level folder name
+
+          const relativePath = directoryRelativeUrl(name, currentDir);
+
+          const dirName = decodeURIComponent(rootName(relativePath));
+          const currentDirRelative = directoryRelativeUrl(
+            currentDir,
+            logs.log_dir,
+          );
+          const url = join(dirName, decodeURIComponent(currentDirRelative));
+          if (!processedFolders.has(dirName)) {
+            logItems.push({
+              id: dirName,
+              name: dirName,
+              type: "folder",
+              url: logUrl(url, logs.log_dir),
+              itemCount: logs.files.filter((file) =>
+                file.name.startsWith(dirname(name)),
+              ).length,
+            });
+            processedFolders.add(dirName);
+          }
         }
       }
-    }
 
-    return logItems;
-  }, [logPath, logs.files, logHeaders]);
+      const pendingTasks = new Array<PendingTaskItem>();
+      for (const task of evalSet?.tasks || []) {
+        if (!runningOrFinishedTasks.has(task.task_id)) {
+          pendingTasks.push({
+            id: task.task_id,
+            name: task.name || "<unknown>",
+            model: task.model,
+            type: "pending-task",
+          });
+        }
+      }
+
+      // Sort pending tasks by name
+      pendingTasks.sort((a, b) => a.name.localeCompare(b.name));
+
+      // Add pending tasks to the end of the list
+      logItems.push(...pendingTasks);
+
+      return logItems;
+    }, [logPath, logs.files, logHeaders, evalSet]);
 
   useEffect(() => {
     const exec = async () => {
-      await loadLogs();
+      await loadLogs(logPath);
     };
     exec();
-  }, [loadLogs]);
+  }, [loadLogs, logPath]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [currentDir]);
 
   useEffect(() => {
     if (maybeShowSingleLog && logItems.length === 1) {
       const onlyItem = logItems[0];
-      navigate(onlyItem.url);
+      if (onlyItem.url) {
+        navigate(onlyItem.url);
+      }
     }
   }, [logItems, maybeShowSingleLog]);
 

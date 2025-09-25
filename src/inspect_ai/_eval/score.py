@@ -8,6 +8,7 @@ from typing import (
     AsyncGenerator,
     Callable,
     Literal,
+    Sequence,
 )
 
 import anyio
@@ -120,7 +121,7 @@ def _get_updated_scores(
 
 
 def _get_updated_events(
-    sample: EvalSample, transcript: Transcript, action: ScoreAction
+    sample: EvalSample, new_events: Sequence[Event], action: ScoreAction
 ) -> list[Event]:
     final_scorers_node: SpanNode | None = None
     sample_event_tree = event_tree(sample.events)
@@ -129,9 +130,9 @@ def _get_updated_events(
             final_scorers_node = node
 
     if final_scorers_node is None:
-        return [*sample.events, *transcript.events]
+        return [*sample.events, *new_events]
 
-    (new_scorers_tree,) = event_tree(transcript.events)
+    (new_scorers_tree,) = event_tree(new_events)
     assert isinstance(new_scorers_tree, SpanNode)
     if action == "append":
         # Add the new score nodes to the existing scorer node's children
@@ -264,6 +265,7 @@ async def score_async(
             list(filter(None, scores)),
             epochs_reducer,
             scorers,
+            log_metrics,
         )
 
     return log
@@ -305,7 +307,8 @@ async def _run_score_task(
     init_task_context(model, model_roles)
     init_subtask_store(state.store)
 
-    init_transcript(Transcript())
+    # load a copy of the current sample events into the transcript
+    init_transcript(Transcript([*sample.events]))
 
     if state.scores is None:
         state.scores = {}
@@ -323,24 +326,28 @@ async def _run_score_task(
                     raise RuntimeError(
                         f"Scorer {scorer_name} has modified state.scores"
                     )
-                state.scores[scorer_name] = score_result
+                if score_result is not None:
+                    state.scores[scorer_name] = score_result
 
-                transcript()._event(
-                    ScoreEvent(
-                        score=score_result,
-                        target=target.target,
+                    transcript()._event(
+                        ScoreEvent(
+                            score=score_result,
+                            target=target.target,
+                        )
                     )
-                )
 
-                results[scorer_name] = SampleScore(
-                    score=score_result,
-                    sample_id=state.sample_id,
-                    sample_metadata=state.metadata,
-                    scorer=registry_unqualified_name(scorer),
-                )
+                    results[scorer_name] = SampleScore(
+                        score=score_result,
+                        sample_id=state.sample_id,
+                        sample_metadata=state.metadata,
+                        scorer=registry_unqualified_name(scorer),
+                    )
+
+    # slice off only the newly added events
+    new_events = transcript().events[len(sample.events) :]
 
     sample.scores = _get_updated_scores(sample, results, action=action)
-    sample.events = _get_updated_events(sample, transcript(), action=action)
+    sample.events = _get_updated_events(sample, new_events, action=action)
 
 
 def metrics_from_log_header(

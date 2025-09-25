@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from functools import wraps
@@ -35,7 +36,7 @@ class Scorer(Protocol):
         self,
         state: TaskState,
         target: Target,
-    ) -> Score:
+    ) -> Score | None:
         r"""Score model outputs.
 
         Evaluate the passed outputs and targets and return a
@@ -121,7 +122,8 @@ def scorer_create(name: str, **kwargs: Any) -> Scorer:
 
 
 def scorer(
-    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+    metrics: Sequence[Metric | Mapping[str, Sequence[Metric]]]
+    | Mapping[str, Sequence[Metric]],
     name: str | None = None,
     **metadata: Any,
 ) -> Callable[[Callable[P, Scorer]], Callable[P, Scorer]]:

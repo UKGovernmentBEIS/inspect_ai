@@ -10,6 +10,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
+from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai.log import list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs
@@ -131,7 +132,7 @@ def list_command(
     type=bool,
     is_flag=True,
     default=False,
-    help="Resolve attachments (e.g. images) to their full content.",
+    help="Resolve attachments (duplicated content blocks) to their full content.",
 )
 def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> None:
     """Print log file contents as JSON."""
@@ -161,11 +162,39 @@ def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> Non
     default=False,
     help="Overwrite files in the output directory.",
 )
+@click.option(
+    "--resolve-attachments",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Resolve attachments (duplicated content blocks) to their full content.",
+)
+@click.option(
+    "--stream",
+    flag_value="true",
+    type=str,
+    is_flag=False,
+    default=False,
+    callback=int_or_bool_flag_callback(True, false_value=False, is_one_true=False),
+    help="Stream the samples through the conversion process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being converted.",
+)
 def convert_command(
-    path: str, to: Literal["eval", "json"], output_dir: str, overwrite: bool
+    path: str,
+    to: Literal["eval", "json"],
+    output_dir: str,
+    overwrite: bool,
+    resolve_attachments: bool,
+    stream: int | bool = False,
 ) -> None:
     """Convert between log file formats."""
-    convert_eval_logs(path, to, output_dir, overwrite)
+    convert_eval_logs(
+        path,
+        to,
+        output_dir,
+        overwrite,
+        resolve_attachments=resolve_attachments,
+        stream=stream,
+    )
 
 
 @log_command.command("headers", hidden=True)

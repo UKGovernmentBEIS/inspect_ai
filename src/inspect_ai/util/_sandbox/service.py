@@ -45,6 +45,7 @@ async def sandbox_service(
     instance: str | None = None,
     polling_interval: float | None = None,
     started: anyio.Event | None = None,
+    requires_python: bool = True,
 ) -> None:
     """Run a service that is callable from within a sandbox.
 
@@ -82,9 +83,11 @@ async def sandbox_service(
         polling_interval: Polling interval for request checking. If not specified uses
             sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
+        requires_python: Does the sandbox service require Python? Note that ALL sandbox services require Python unless they've injected an alternate implementation of the sandbox service client code.
     """
     # validate python in sandbox
-    await validate_sandbox_python(name, sandbox, user)
+    if requires_python:
+        await validate_sandbox_python(name, sandbox, user)
 
     # sort out polling interval
     default_polling_interval = sandbox.default_polling_interval()

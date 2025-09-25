@@ -1,7 +1,14 @@
 import JSON5 from "json5";
-import { asyncJsonParse } from "../../utils/json-worker";
+import { asyncJsonParse } from "../../../utils/json-worker";
 
-import { getVscodeApi } from "../../utils/vscode";
+import { getVscodeApi } from "../../../utils/vscode";
+import {
+  Capabilities,
+  LogContents,
+  LogViewAPI,
+  PendingSampleResponse,
+  SampleDataResponse,
+} from "../types";
 import {
   kMethodEvalLog,
   kMethodEvalLogBytes,
@@ -13,13 +20,6 @@ import {
   kMethodSampleData,
   webViewJsonRpcClient,
 } from "./jsonrpc";
-import {
-  Capabilities,
-  LogContents,
-  LogViewAPI,
-  PendingSampleResponse,
-  SampleDataResponse,
-} from "./types";
 
 const kNotFoundSignal = "NotFound";
 const kNotModifiedSignal = "NotModified";
@@ -46,6 +46,10 @@ async function eval_logs() {
   } else {
     return undefined;
   }
+}
+
+async function eval_set(): Promise<undefined> {
+  throw new Error("TODO: Eval set is not supported in VS Code");
 }
 
 async function eval_log(
@@ -168,6 +172,7 @@ async function open_log_file(log_file: string, log_dir: string) {
 const api: LogViewAPI = {
   client_events,
   eval_logs,
+  eval_set,
   eval_log,
   eval_log_size,
   eval_log_bytes,

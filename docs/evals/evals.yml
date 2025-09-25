@@ -170,6 +170,20 @@
   tasks:
   - apps
   title: 'APPS: Automated Programming Progress Standard'
+- arxiv: https://arxiv.org/abs/2308.03688
+  categories:
+  - Coding
+  contributors:
+  - Felhof
+  - hannagabor
+  - shaheenahmedc
+  dependency: agent_bench
+  description: A benchmark designed to evaluate LLMs as Agents
+  group: Coding
+  path: src/inspect_evals/agent_bench
+  tasks:
+  - agent_bench_os
+  title: 'AgentBench: Evaluate LLMs as Agents'
 - arxiv: https://arxiv.org/abs/2409.11363
   categories:
   - Coding
@@ -507,6 +521,26 @@
   - sec_qa_v2_5_shot
   title: 'SecQA: A Concise Question-Answering Dataset for Evaluating Large Language
     Models in Computer Security'
+- arxiv: https://arxiv.org/abs/2410.09114
+  categories:
+  - Cybersecurity
+  - Agent
+  contributors:
+  - derpyplops
+  - ralphptorres
+  - Scott-Simmons
+  description: 'A benchmark for evaluating the capabilities of LLM agents in cyber
+    offense.
+
+    '
+  group: Cybersecurity
+  path: src/inspect_evals/threecb
+  tags:
+  - Agent
+  tasks:
+  - threecb
+  title: 'Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM
+    Agent Cyber Offense Capabilities'
 - arxiv: https://arxiv.org/abs/2503.03750?
   categories:
   - Safeguards
@@ -636,6 +670,35 @@
   tasks:
   - stereoset
   title: 'StereoSet: Measuring stereotypical bias in pretrained language models'
+- categories:
+  - Safeguards
+  contributors:
+  - PranshuSrivastava
+  description: 'Evaluates an AI models'' susceptibility to social engineering attacks
+    by testing whether a "con-artist" model can persuade a "mark" model to donate
+    money through manipulation and persuasion tactics.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/make_me_pay
+  tasks:
+  - make_me_pay
+  title: Make Me Pay
+- arxiv: https://arxiv.org/pdf/2506.09038
+  categories:
+  - Safeguards
+  contributors:
+  - jeqcho
+  description: 'Evaluating abstention across 20 diverse datasets, including questions
+    with unknown answers, underspecification, false premises, subjective interpretations,
+    and outdated information.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/abstention_bench
+  tasks:
+  - abstention_bench
+  title: 'AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions'
 - arxiv: https://arxiv.org/abs/2103.03874
   categories:
   - Mathematics
@@ -648,7 +711,7 @@
 
     '
   group: Mathematics
-  path: src/inspect_evals/mathematics
+  path: src/inspect_evals/math
   tasks:
   - math
   title: 'MATH: Measuring Mathematical Problem Solving'
@@ -945,6 +1008,43 @@
   tasks:
   - paws
   title: 'PAWS: Paraphrase Adversaries from Word Scrambling'
+- arxiv: https://arxiv.org/pdf/2406.06196,https://arxiv.org/abs/2503.02972
+  categories:
+  - Reasoning
+  contributors:
+  - am-bean
+  - jkhouja
+  description: 'Two linguistics reasoning benchmarks:
+
+    LingOly (Linguistic Olympiad questions) is a benchmark utilising low resource
+    languages.
+
+    LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfuscation)
+    is a benchmark designed to counteract answering without reasoning.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/lingoly
+  tasks:
+  - lingoly
+  - lingoly_too
+  title: LingOly
+- arxiv: https://arxiv.org/pdf/2502.19187
+  categories:
+  - Reasoning
+  contributors:
+  - jeqcho
+  description: 'A reasoning capability dataset that replaces each task in BIG-Bench-Hard
+    with a novel task that probes a similar reasoning capability but exhibits significantly
+    increased difficulty.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/bbeh
+  tasks:
+  - bbeh
+  - bbeh_mini
+  title: BIG-Bench Extra Hard
 - arxiv: https://arxiv.org/abs/2009.03300
   categories:
   - Knowledge
@@ -1049,6 +1149,27 @@
   tasks:
   - pubmedqa
   title: 'PubMedQA: A Dataset for Biomedical Research Question Answering'
+- arxiv: https://arxiv.org/abs/2505.08775
+  categories:
+  - Knowledge
+  - Medical
+  - Healthcare
+  contributors:
+  - retroam
+  description: 'A comprehensive evaluation benchmark designed to assess language models''
+    medical capabilities across a wide range of healthcare scenarios.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/healthbench
+  tags:
+  - Medical
+  - Healthcare
+  tasks:
+  - healthbench
+  - healthbench_hard
+  - healthbench_consensus
+  title: 'HealthBench: Evaluating Large Language Models Towards Improved Human Health'
 - arxiv: https://arxiv.org/abs/2304.06364
   categories:
   - Knowledge
@@ -1167,6 +1288,42 @@
   tasks:
   - air_bench
   title: 'AIR Bench: AI Risk Benchmark'
+- arxiv: https://arxiv.org/abs/2406.09098v2
+  categories:
+  - Knowledge
+  contributors:
+  - Esther-Guo
+  dependency: sciknoweval
+  description: "The Scientific Knowledge Evaluation benchmark is inspired by the profound\
+    \ principles outlined in the \u201CDoctrine of the Mean\u201D from ancient Chinese\
+    \ philosophy. This benchmark is designed to assess LLMs based on their proficiency\
+    \ in Studying Extensively, Enquiring Earnestly, Thinking Profoundly, Discerning\
+    \ Clearly, and Practicing Assiduously. Each of these dimensions offers a unique\
+    \ perspective on evaluating the capabilities of LLMs in handling scientific knowledge.\n"
+  group: Knowledge
+  path: src/inspect_evals/sciknoweval
+  tasks:
+  - sciknoweval
+  title: 'SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language
+    Models'
+- arxiv: https://arxiv.org/pdf/2404.01475v2
+  categories:
+  - Knowledge
+  contributors:
+  - Esther-Guo
+  description: 'ChemBench is designed to reveal limitations of current frontier models
+    for use in the chemical sciences. It consists of 2786 question-answer pairs compiled
+    from diverse sources. Our corpus measures reasoning, knowledge and intuition across
+    a large fraction of the topics taught in undergraduate and graduate chemistry
+    curricula. It can be used to evaluate any system that can return text (i.e., including
+    tool-augmented systems).
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/chembench
+  tasks:
+  - chembench
+  title: 'ChemBench: Are large language models superhuman chemists?'
 - arxiv: https://arxiv.org/pdf/2505.21605
   categories:
   - Knowledge
@@ -1201,86 +1358,6 @@
   tasks:
   - medqa
   title: 'MedQA: Medical exam Q&A benchmark'
-- arxiv: https://arxiv.org/pdf/2503.05244
-  categories:
-  - Writing
-  contributors:
-  - jtv199
-  description: 'A comprehensive evaluation benchmark designed to assess large language
-    models'' capabilities across diverse writing tasks. The benchmark evaluates models
-    on various writing domains including academic papers, business documents, creative
-    writing, and technical documentation, with multi-dimensional scoring based on
-    domain-specific criteria.
-
-    '
-  group: Writing
-  path: src/inspect_evals/writingbench
-  tasks:
-  - writingbench
-  title: 'WritingBench: A Comprehensive Benchmark for Generative Writing'
-- arxiv: https://arxiv.org/abs/2505.01420
-  categories:
-  - Scheming
-  - Agent
-  contributors:
-  - ZiyueWang25
-  - XkunW
-  description: 'Test AI''s ability to reason about its environment.
-
-    '
-  group: Scheming
-  path: src/inspect_evals/gdm_capabilities/self_reasoning
-  tags:
-  - Agent
-  tasks:
-  - gdm_approved_directories
-  - gdm_calculator_improvement
-  - gdm_context_length_mod_instrumental_only
-  - gdm_context_length_mod_irreversibility_only
-  - gdm_database_tool
-  - gdm_latency_calculator
-  - gdm_max_messages_calculator
-  - gdm_max_tokens
-  - gdm_oversight_frequency
-  - gdm_read_logs
-  - gdm_turn_off_filters
-  title: 'GDM Dangerous Capabilities: Self-reasoning'
-- arxiv: https://arxiv.org/abs/2505.01420
-  categories:
-  - Scheming
-  - Agent
-  contributors:
-  - ZiyueWang25
-  description: 'Test AI''s ability to reason about and circumvent oversight.
-
-    '
-  group: Scheming
-  path: src/inspect_evals/gdm_capabilities/stealth
-  tags:
-  - Agent
-  tasks:
-  - gdm_classifier_evasion
-  - gdm_cover_your_tracks
-  - gdm_oversight_pattern
-  - gdm_strategic_rule_breaking
-  title: 'GDM Dangerous Capabilities: Stealth'
-- categories:
-  - Personality
-  contributors:
-  - guiem
-  dependency: personality
-  description: "An evaluation suite consisting of multiple personality tests that\
-    \ can be applied to LLMs.\nIts primary goals are twofold:\n  1. Assess a model's\
-    \ default personality: the persona it naturally exhibits without specific prompting.\
-    \  \n  2. Evaluate whether a model can embody a specified persona**: how effectively\
-    \ it adopts certain personality traits when prompted or guided.\n"
-  group: Personality
-  path: src/inspect_evals/personality
-  tasks:
-  - personality_BFI
-  - personality_TRAIT
-  - personality_PRIME
-  title: Personality
 - arxiv: https://arxiv.org/abs/2312.14135
   categories:
   - Multimodal
@@ -1349,3 +1426,127 @@
   - Zerobench
   - Zerobench Subquestions
   title: ZeroBench
+- arxiv: https://arxiv.org/pdf/2503.05244
+  categories:
+  - Writing
+  contributors:
+  - jtv199
+  description: 'A comprehensive evaluation benchmark designed to assess large language
+    models'' capabilities across diverse writing tasks. The benchmark evaluates models
+    on various writing domains including academic papers, business documents, creative
+    writing, and technical documentation, with multi-dimensional scoring based on
+    domain-specific criteria.
+
+    '
+  group: Writing
+  path: src/inspect_evals/writingbench
+  tasks:
+  - writingbench
+  title: 'WritingBench: A Comprehensive Benchmark for Generative Writing'
+- arxiv: https://arxiv.org/abs/2505.01420
+  categories:
+  - Scheming
+  - Agent
+  contributors:
+  - ZiyueWang25
+  - XkunW
+  description: 'Test AI''s ability to reason about its environment.
+
+    '
+  group: Scheming
+  path: src/inspect_evals/gdm_capabilities/self_reasoning
+  tags:
+  - Agent
+  tasks:
+  - gdm_approved_directories
+  - gdm_calculator_improvement
+  - gdm_context_length_mod_instrumental_only
+  - gdm_context_length_mod_irreversibility_only
+  - gdm_database_tool
+  - gdm_latency_calculator
+  - gdm_max_messages_calculator
+  - gdm_max_tokens
+  - gdm_oversight_frequency
+  - gdm_read_logs
+  - gdm_turn_off_filters
+  title: 'GDM Dangerous Capabilities: Self-reasoning'
+- arxiv: https://arxiv.org/abs/2505.01420
+  categories:
+  - Scheming
+  - Agent
+  contributors:
+  - ZiyueWang25
+  description: 'Test AI''s ability to reason about and circumvent oversight.
+
+    '
+  group: Scheming
+  path: src/inspect_evals/gdm_capabilities/stealth
+  tags:
+  - Agent
+  tasks:
+  - gdm_classifier_evasion
+  - gdm_cover_your_tracks
+  - gdm_oversight_pattern
+  - gdm_strategic_rule_breaking
+  title: 'GDM Dangerous Capabilities: Stealth'
+- arxiv: https://www.anthropic.com/research/agentic-misalignment
+  categories:
+  - Scheming
+  contributors:
+  - bmillwood-aisi
+  description: 'Eliciting unethical behaviour (most famously blackmail) in response
+    to a fictional company-assistant scenario where the model is faced with replacement.
+
+    '
+  group: Scheming
+  path: src/inspect_evals/agentic_misalignment
+  tasks:
+  - agentic_misalignment
+  title: 'Agentic Misalignment: How LLMs could be insider threats'
+- categories:
+  - Personality
+  contributors:
+  - guiem
+  dependency: personality
+  description: "An evaluation suite consisting of multiple personality tests that\
+    \ can be applied to LLMs.\nIts primary goals are twofold:\n  1. Assess a model's\
+    \ default personality: the persona it naturally exhibits without specific prompting.\n\
+    \  2. Evaluate whether a model can embody a specified persona**: how effectively\
+    \ it adopts certain personality traits when prompted or guided.\n"
+  group: Personality
+  path: src/inspect_evals/personality
+  tasks:
+  - personality_BFI
+  - personality_TRAIT
+  - personality_PRIME
+  title: Personality
+- arxiv: https://arxiv.org/abs/2110.08193
+  categories:
+  - Bias
+  contributors:
+  - harshraj172
+  - shubhobm
+  description: 'A dataset for evaluating bias in question answering models across
+    multiple social dimensions.
+
+    '
+  group: Bias
+  path: src/inspect_evals/bbq
+  tasks:
+  - bbq
+  title: 'BBQ: Bias Benchmark for Question Answering'
+- arxiv: https://arxiv.org/abs/2101.11718
+  categories:
+  - Bias
+  contributors:
+  - harshraj172
+  - shubhobm
+  description: 'A dataset to measure fairness in open-ended text generation, covering
+    five domains: profession, gender, race, religious ideologies, and political ideologies.
+
+    '
+  group: Bias
+  path: src/inspect_evals/bold
+  tasks:
+  - bold
+  title: 'BOLD: Bias in Open-ended Language Generation Dataset'

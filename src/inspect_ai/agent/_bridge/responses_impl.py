@@ -134,7 +134,7 @@ from .util import (
     resolve_inspect_model,
 )
 
-logger = getLogger(__file__)
+logger = getLogger(__name__)
 
 
 async def inspect_responses_api_request_impl(
@@ -183,9 +183,8 @@ async def inspect_responses_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state
-    bridge.state.messages = messages + [output.message]
-    bridge.state.output = output
+    # update state if we have more messages than the last generation
+    bridge._track_state(messages, output)
 
     # return response
     response = Response(

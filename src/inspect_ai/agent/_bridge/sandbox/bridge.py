@@ -1,25 +1,27 @@
 import contextlib
 from logging import getLogger
-from pathlib import Path
 from typing import AsyncIterator
 
 import anyio
 from shortuuid import uuid
 
-from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.model._model import GenerateFilter
+from inspect_ai.tool._sandbox_tools_utils.sandbox import (
+    SANDBOX_TOOLS_CLI,
+    sandbox_with_injected_tools,
+)
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._sandbox import SandboxEnvironment
-from inspect_ai.util._sandbox import sandbox as default_sandbox
 
 from ..._agent import AgentState
 from ..util import internal_web_search_providers
 from .service import MODEL_SERVICE, run_model_service
+from .types import SandboxAgentBridge
 
-logger = getLogger(__file__)
+logger = getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
@@ -28,7 +30,8 @@ async def sandbox_agent_bridge(
     *,
     model: str | None = None,
     filter: GenerateFilter | None = None,
-    sandbox: SandboxEnvironment | None = None,
+    retry_refusals: int | None = None,
+    sandbox: str | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
@@ -49,6 +52,7 @@ async def sandbox_agent_bridge(
             the default model for the task or "inspect/openai/gpt-4o" to force
             another specific model).
         filter: Filter for bridge model generation.
+        retry_refusals: Should refusals be retried? (pass number of times to retry)
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
         web_search: Configuration for mapping model internal
@@ -62,7 +66,7 @@ async def sandbox_agent_bridge(
     instance = f"proxy_{uuid()}"
 
     # resolve sandbox
-    sandbox = sandbox or default_sandbox()
+    sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
 
     # resolve web search config
     web_search = web_search or internal_web_search_providers()
@@ -77,16 +81,20 @@ async def sandbox_agent_bridge(
 
             # create the bridge
             bridge = SandboxAgentBridge(
-                state=state, filter=filter, port=port, model=model
+                state=state,
+                filter=filter,
+                retry_refusals=retry_refusals,
+                port=port,
+                model=model,
             )
 
             # sandbox service that receives model requests
             tg.start_soon(
-                run_model_service, sandbox, web_search, bridge, instance, started
+                run_model_service, sandbox_env, web_search, bridge, instance, started
             )
 
             # proxy server that runs in container and forwards to sandbox service
-            tg.start_soon(run_model_proxy, sandbox, port, instance, started)
+            tg.start_soon(run_model_proxy, sandbox_env, port, instance, started)
 
             # ensure services are up
             await anyio.sleep(0.1)
@@ -106,21 +114,13 @@ async def run_model_proxy(
     # wait for model service to be started up
     await started.wait()
 
-    # install the model proxy script in the container
-    MODEL_PROXY_PY = "/var/tmp/inspect-sandbox/model-proxy.py"
-    with open(Path(__file__).parent / "proxy.py", "r") as f:
-        proxy_script = f.read()
-        await sandbox.write_file(MODEL_PROXY_PY, proxy_script)
-    result = await sandbox.exec(["chmod", "+x", MODEL_PROXY_PY])
-    if not result.success:
-        raise RuntimeError(
-            f"Error installing model proxy script for agent bridge: {result.stderr}"
-        )
-
     # run the model proxy script
     result = await sandbox.exec(
-        cmd=[MODEL_PROXY_PY, str(port), instance],
-        env={f"{MODEL_SERVICE.upper()}_INSTANCE": instance},
+        cmd=[SANDBOX_TOOLS_CLI, "model_proxy"],
+        env={
+            f"{MODEL_SERVICE.upper()}_PORT": str(port),
+            f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
+        },
         concurrency=False,
     )
     if not result.success:
