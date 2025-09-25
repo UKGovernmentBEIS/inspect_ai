@@ -759,9 +759,9 @@ def status_msg(msg: str) -> str:
 
 
 class EvalSetTask(BaseModel):
-    name: str | None
+    name: str | None = None
     task_id: str
-    task_file: str | None
+    task_file: str | None = None
     task_args: dict[str, Any]
     model: str
     model_args: dict[str, Any]

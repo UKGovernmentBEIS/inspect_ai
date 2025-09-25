@@ -10,6 +10,7 @@
 - Inspect View: Properly reset page when navigating between folders.
 - Score Editing: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Inspect View: Always show reasoning blocks (previously we hid them when there was no content, i.e. Responses API store=True).
+- Bugfix: Properly deserialize `EvalSet` when optional values are missing.
 - Bugfix: Fix "auto" message truncation in react agent.
 
 ## 0.3.133 (22 September 2025)
