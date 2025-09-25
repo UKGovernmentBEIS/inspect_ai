@@ -41,8 +41,8 @@ def init_eval_context(
 def init_task_context(
     model: Model,
     model_roles: dict[str, Model] | None = None,
-    approval: list[ApprovalPolicy] | None = None,
     config: GenerateConfig = GenerateConfig(),
+    approval: list[ApprovalPolicy] | None = None,
 ) -> None:
     init_active_model(model, config)
     init_model_roles(model_roles or {})

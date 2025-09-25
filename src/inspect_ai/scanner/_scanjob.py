@@ -12,7 +12,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.scanner._recorder.types import scan_recorder_type_for_location
 from inspect_ai.scanner._scandef import ScanDef
 from inspect_ai.scanner._scanner.scanner import Scanner
-from inspect_ai.scanner._scanspec import ScanScanner, ScanSpec
+from inspect_ai.scanner._scanspec import ScanConfig, ScanScanner, ScanSpec
 from inspect_ai.scanner._transcript.database import transcripts_from_snapshot
 from inspect_ai.scanner._transcript.transcripts import Transcripts
 
@@ -30,7 +30,10 @@ class ScanJob:
 
 
 async def create_scan_job(
-    scandef: ScanDef, transcripts: Transcripts | None = None, scan_id: str | None = None
+    scandef: ScanDef,
+    transcripts: Transcripts | None = None,
+    config: ScanConfig | None = None,
+    scan_id: str | None = None,
 ) -> ScanJob:
     # resolve id
     scan_id = scan_id or uuid()
@@ -45,6 +48,7 @@ async def create_scan_job(
         spec = ScanSpec(
             scan_id=scan_id,
             scan_name=scandef.name,
+            config=config or ScanConfig(),
             transcripts=await transcripts.snapshot(),
             scanners=_spec_scanners(scandef.scanners),
         )

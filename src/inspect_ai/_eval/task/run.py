@@ -169,7 +169,12 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
     # init task context
-    init_task_context(model, model_roles, options.task.approval, generate_config)
+    init_task_context(
+        model,
+        model_roles,
+        generate_config,
+        options.task.approval,
+    )
 
     # track stats and error
     results: EvalResults | None = None
