@@ -3,6 +3,7 @@
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
 - Agent bridge: Ensure that bridge filters also take advantage of `retry_refusals` loop.
 - Agent bridge: Workaround Codex CLI not passing `detail` along with images.
+- Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - OpenAI: Automatically switch to the completions API when `--num-choices` is specified.
 - Model APIs: Improve legibility/clarify of error messages when updated versions of anthropic or openai packages are required.
 - Sandbox tools: Rewrite `inspect-ai` package installation type detection code.
@@ -11,7 +12,7 @@
 - Inspect View: Always show reasoning blocks (previously we hid them when there was no content, i.e. Responses API store=True).
 - Inspect View: Improve the display of Codex Agent `update_plan` and `shell` tool inputs.
 - Inspect View: Fix flash of error message when initially viewing a log file in VS Code.
-- Score Editing: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
+- Bugfix: Properly deserialize `EvalSet` when optional values are missing.
 - Bugfix: Fix "auto" message truncation in react agent.
 
 ## 0.3.133 (22 September 2025)
