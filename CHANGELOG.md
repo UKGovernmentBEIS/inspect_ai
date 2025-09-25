@@ -8,6 +8,7 @@
 - Sandbox tools: Rewrite `inspect-ai` package installation type detection code.
 - Inspect View: Fix regression sorting folder and logs in list (folders should sort to the front of the list)
 - Inspect View: Properly reset page when navigating between folders.
+- Score Editing: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Inspect View: Always show reasoning blocks (previously we hid them when there was no content, i.e. Responses API store=True).
 - Bugfix: Properly deserialize `EvalSet` when optional values are missing.
 - Bugfix: Fix "auto" message truncation in react agent.
@@ -37,6 +38,7 @@
 - Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
 - Bugfix: Enable passing no reducers to `async_score` in eval score.
 - Bugfix: Handle non-contiguous task sequences in task batching.
+
 
 ## 0.3.132 (12 September 2025)
 
