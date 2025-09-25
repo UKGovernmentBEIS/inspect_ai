@@ -7299,6 +7299,7 @@
                   "type": "null"
                 }
               ],
+              "default": null,
               "title": "Name"
             },
             "task_id": {
@@ -7314,6 +7315,7 @@
                   "type": "null"
                 }
               ],
+              "default": null,
               "title": "Task File"
             },
             "task_args": {
@@ -7397,6 +7399,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Name"
         },
         "task_id": {
@@ -7412,6 +7415,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Task File"
         },
         "task_args": {

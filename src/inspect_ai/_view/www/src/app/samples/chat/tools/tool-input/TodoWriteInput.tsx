@@ -13,9 +13,19 @@ const toToolTodos = (obj: unknown): ToolTodo[] => {
   if (
     Array.isArray(obj) &&
     obj.every((item) => typeof item === "object") &&
-    obj.every((item) => item !== null && "content" in item && "status" in item)
+    obj.every(
+      (item) =>
+        item !== null &&
+        ("content" in item || "step" in item) &&
+        "status" in item,
+    )
   ) {
-    return obj as ToolTodo[];
+    return obj.map((o) => {
+      return {
+        content: o.content || (o as any).step || "",
+        status: o.status as "pending" | "in_progress" | "completed",
+      };
+    });
   } else {
     return [];
   }
