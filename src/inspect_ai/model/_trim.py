@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from ._chat_message import ChatMessage
 
 
-def trim_messages(
+async def trim_messages(
     messages: list[ChatMessage], preserve: float = 0.7
 ) -> list[ChatMessage]:
     """Trim message list to fit within model context.
