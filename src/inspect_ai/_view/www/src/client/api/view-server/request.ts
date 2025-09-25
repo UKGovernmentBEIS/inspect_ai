@@ -174,6 +174,11 @@ export function serverRequestApi(
       "Cache-Control": "no-cache",
     };
 
+    if (getHeaders) {
+      const globalHeaders = await getHeaders();
+      Object.assign(headers, globalHeaders);
+    }
+
     const response = await fetch(url, {
       method,
       headers,
