@@ -83,7 +83,7 @@ You can evaluate multiple models in parallel by passing a list of models to the 
 eval("mathematics.py", model=[
     "openai/gpt-4-turbo",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.5-pro"
+    "google/gemini-2.5-pro"
 ])
 ```
 
@@ -94,7 +94,7 @@ Since each model provider has its own `max_connections` they don't contend with 
 If you want to specify multiple models when using the `--model` CLI argument or `INSPECT_EVAL_MODEL` environment variable, just separate the model names with commas. For example:
 
 ``` bash
-INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
+INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-2.5-pro
 ```
 
 ## Multiple Tasks {#sec-multiple-tasks}
