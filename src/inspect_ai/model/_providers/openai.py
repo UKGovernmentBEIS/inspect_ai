@@ -103,7 +103,7 @@ class OpenAIAPI(ModelAPI):
             (self.is_o_series() and not self.is_o1_early())
             or self.is_codex()
             or self.is_gpt_5()
-        )
+        ) and config.num_choices is None
 
         # resolve whether we are forcing the responses api
         self.responses_api = (

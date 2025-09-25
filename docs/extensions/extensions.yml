@@ -16,11 +16,17 @@
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/control-arena)"
   categories: ["Framework"]
 
+- name: "[Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/)"
+  description: |
+    Software engineering agents (Claude Code and Codex CLI) for Inspect.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_swe)"
+  categories: ["Agents"]
+
 - name: "[Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/)"
   description: |
     Interactive data visualization for Inspect evalutions.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_viz)"
-  categories: ["Framework"]
+  categories: ["Analysis"]
 
 - name: "[Docent](https://docs.transluce.org/)"
   description: |
@@ -44,6 +50,12 @@
   description: |
     Python package that provides a Kubernetes sandbox environment for Inspect.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox)"
+  categories: ["Sandbox"]
+
+- name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
+  description: |
+    Python package that provides a EC2 virtual machine sandbox environment for Inspect.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
   categories: ["Sandbox"]
 
 - name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"

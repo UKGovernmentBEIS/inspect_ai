@@ -36,12 +36,14 @@ def tool_response() -> ChatMessageTool:
 
 
 # Tests for the trim_messages function
-def test_empty_list() -> None:
+@pytest.mark.asynco
+async def test_empty_list() -> None:
     """Test trimming an empty list of messages."""
-    assert trim_messages([]) == []
+    assert await trim_messages([]) == []
 
 
-def test_simple_conversation() -> None:
+@pytest.mark.asynco
+async def test_simple_conversation() -> None:
     """Test trimming a simple conversation."""
     messages: list[ChatMessage] = [
         ChatMessageSystem(content="You are a helpful assistant."),
@@ -49,19 +51,21 @@ def test_simple_conversation() -> None:
         ChatMessageAssistant(content="How can I help you today?"),
     ]
     # With default preserve=0.7, all messages should be retained
-    assert trim_messages(messages) == messages[:-1]
+    assert await trim_messages(messages) == messages[:-1]
 
 
-def test_no_system_messages() -> None:
+@pytest.mark.asynco
+async def test_no_system_messages() -> None:
     """Test trimming a conversation with no system messages."""
     messages: list[ChatMessage] = [
         ChatMessageUser(content="Hello!"),
         ChatMessageAssistant(content="How can I help you today?"),
     ]
-    assert trim_messages(messages) == messages[:-1]
+    assert await trim_messages(messages) == messages[:-1]
 
 
-def test_preserve_ratio() -> None:
+@pytest.mark.asynco
+async def test_preserve_ratio() -> None:
     """Test preserving a specific ratio of messages."""
     # Create a longer conversation
     system_message = ChatMessageSystem(content="You are a helpful assistant.")
@@ -71,7 +75,7 @@ def test_preserve_ratio() -> None:
         messages.append(ChatMessageAssistant(content=f"Assistant message {i}"))
 
     # With preserve=0.5, we should keep 50% of the conversation messages (plus the first user and system message)
-    trimmed = trim_messages(messages, preserve=0.5)
+    trimmed = await trim_messages(messages, preserve=0.5)
 
     # System message + user message + 10 preserved conversation messages (5 user-assistant pairs)
     assert len(trimmed) == 2 + 10 - 1
@@ -81,7 +85,8 @@ def test_preserve_ratio() -> None:
     assert trimmed[2].content == "User message 5"
 
 
-def test_tool_message_without_assistant() -> None:
+@pytest.mark.asynco
+async def test_tool_message_without_assistant() -> None:
     """Test a tool message without a corresponding assistant message."""
     # A tool message without a corresponding assistant message should be excluded
     tool_message = ChatMessageTool(
@@ -94,12 +99,13 @@ def test_tool_message_without_assistant() -> None:
     messages: list[ChatMessage] = [user_message, tool_message]
 
     # The tool message should be excluded
-    trimmed = trim_messages(messages)
+    trimmed = await trim_messages(messages)
     assert tool_message not in trimmed
     assert user_message in trimmed
 
 
-def test_tool_calls(
+@pytest.mark.asynco
+async def test_tool_calls(
     assistant_with_tool_call: ChatMessageAssistant,
     tool_response: ChatMessageTool,
 ) -> None:
@@ -113,18 +119,19 @@ def test_tool_calls(
         tool_response,
         ChatMessageUser(content="Thanks for the weather info!"),
     ]
-    trimmed = trim_messages(messages, preserve=1)
+    trimmed = await trim_messages(messages, preserve=1)
     # All messages should be retained
     assert trimmed == messages
 
     # Now test with a higher trim rate
-    trimmed = trim_messages(messages, preserve=0.5)
+    trimmed = await trim_messages(messages, preserve=0.5)
     # Even with high trim, tool_response should be kept because assistant_with_tool_call is kept
     assert assistant_with_tool_call in trimmed
     assert tool_response in trimmed
 
 
-def test_orphaned_tool_responses(
+@pytest.mark.asynco
+async def test_orphaned_tool_responses(
     assistant_with_tool_call: ChatMessageAssistant,
     tool_response: ChatMessageTool,
 ) -> None:
@@ -144,7 +151,7 @@ def test_orphaned_tool_responses(
         tool_response,
     ]
 
-    trimmed = trim_messages(messages)
+    trimmed = await trim_messages(messages)
 
     # The orphaned tool message should be removed
     assert (
@@ -163,7 +170,8 @@ def test_orphaned_tool_responses(
     )
 
 
-def test_user_message_resets_tool_ids() -> None:
+@pytest.mark.asynco
+async def test_user_message_resets_tool_ids() -> None:
     """Test that a user message resets the active tool IDs."""
     assistant1 = ChatMessageAssistant(
         content="First tool call",
@@ -179,13 +187,14 @@ def test_user_message_resets_tool_ids() -> None:
     messages: list[ChatMessage] = [assistant1, user, tool1]
 
     # The tool message should be excluded since active_tool_ids is reset by the user message
-    trimmed = trim_messages(messages)
+    trimmed = await trim_messages(messages)
     assert assistant1 in trimmed
     assert user in trimmed
     assert tool1 not in trimmed
 
 
-def test_input_source() -> None:
+@pytest.mark.asynco
+async def test_input_source() -> None:
     """Test handling of messages with source='input'."""
     # Test with messages explicitly marked as input
     system_message = ChatMessageSystem(content="You are a helpful assistant.")
@@ -203,7 +212,7 @@ def test_input_source() -> None:
     ]
 
     # Even with preserve=0, input messages should be kept
-    trimmed = trim_messages(messages, preserve=0)
+    trimmed = await trim_messages(messages, preserve=0)
     assert system_message in trimmed
     assert input_user in trimmed
     assert input_assistant in trimmed
@@ -212,7 +221,8 @@ def test_input_source() -> None:
     assert conversation_assistant not in trimmed
 
 
-def test_first_user_as_input() -> None:
+@pytest.mark.asynco
+async def test_first_user_as_input() -> None:
     """Test that the first user message is treated as input if no input source is specified."""
     # When no source="input" is specified, the first user message becomes input
     system_message = ChatMessageSystem(content="You are a helpful assistant.")
@@ -224,13 +234,14 @@ def test_first_user_as_input() -> None:
     messages: list[ChatMessage] = [system_message, user1, assistant1, user2, assistant2]
 
     # With preserve=0, only system and input (first user) should be kept
-    trimmed = trim_messages(messages, preserve=0)
+    trimmed = await trim_messages(messages, preserve=0)
     assert system_message in trimmed
     assert user1 in trimmed
     assert assistant1 not in trimmed
 
 
-def test_preserve_edge_cases() -> None:
+@pytest.mark.asynco
+async def test_preserve_edge_cases() -> None:
     """Test edge cases of the preserve parameter."""
     # Create a longer conversation
     system_message = ChatMessageSystem(content="You are a helpful assistant.")
@@ -240,26 +251,27 @@ def test_preserve_edge_cases() -> None:
         messages.append(ChatMessageAssistant(content=f"Assistant message {i}"))
 
     # Test with preserve=0
-    trimmed = trim_messages(messages, preserve=0)
+    trimmed = await trim_messages(messages, preserve=0)
     # Only system message and first user message should remain
     assert len(trimmed) == 2
     assert trimmed[0] == system_message
 
     # Test with preserve=1
-    trimmed = trim_messages(messages, preserve=1)
+    trimmed = await trim_messages(messages, preserve=1)
     # All messages should be preserved
     assert trimmed == messages[:-1]
 
     # Test with preserve > 1
     with pytest.raises(ValueError):
-        trim_messages(messages, preserve=1.5)
+        await trim_messages(messages, preserve=1.5)
 
     # Test with preserve < 0
     with pytest.raises(ValueError):
-        trim_messages(messages, preserve=-0.5)
+        await trim_messages(messages, preserve=-0.5)
 
 
-def test_consecutive_assistant_tool_chains() -> None:
+@pytest.mark.asynco
+async def test_consecutive_assistant_tool_chains() -> None:
     """Test with multiple consecutive assistant-tool chains."""
     # Test with multiple assistant-tool chains
     assistant1 = ChatMessageAssistant(
@@ -287,14 +299,15 @@ def test_consecutive_assistant_tool_chains() -> None:
     ]
 
     # With preserve=0.5, we should keep the second assistant-tool chain
-    trimmed = trim_messages(messages, preserve=0.5)
+    trimmed = await trim_messages(messages, preserve=0.5)
     assert assistant1 not in trimmed
     assert tool1 not in trimmed
     assert assistant2 in trimmed
     assert tool2 in trimmed
 
 
-def test_preserve_assistant_tool_sequence() -> None:
+@pytest.mark.asynco
+async def test_preserve_assistant_tool_sequence() -> None:
     """Test preserving assistant-tool sequences."""
     # Create a longer conversation with tool calls
     messages: list[ChatMessage] = []
@@ -314,7 +327,7 @@ def test_preserve_assistant_tool_sequence() -> None:
         )
 
     # With preserve=0.4, we should keep 2 out of 5 assistant-tool sequences
-    trimmed = trim_messages(messages, preserve=0.4)
+    trimmed = await trim_messages(messages, preserve=0.4)
 
     # Check that we have exactly 2 assistant-tool sequences
     assistant_count = len([m for m in trimmed if m.role == "assistant"])
@@ -338,7 +351,8 @@ def test_preserve_assistant_tool_sequence() -> None:
     assert tool_ids.issubset(assistant_ids)
 
 
-def test_alternating_conversation() -> None:
+@pytest.mark.asynco
+async def test_alternating_conversation() -> None:
     """Test with alternating user-assistant pairs."""
     # Create a conversation with alternating user-assistant pairs
     system_message = ChatMessageSystem(content="You are a helpful assistant.")
@@ -348,7 +362,7 @@ def test_alternating_conversation() -> None:
         messages.append(ChatMessageAssistant(content=f"Assistant message {i}"))
 
     # With preserve=0.5, we should keep 5 out of 10 user-assistant pairs
-    trimmed = trim_messages(messages, preserve=0.5)
+    trimmed = await trim_messages(messages, preserve=0.5)
 
     # Check that we have the right number of each type of message
     system_count = len([m for m in trimmed if m.role == "system"])
