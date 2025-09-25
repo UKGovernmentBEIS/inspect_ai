@@ -63,7 +63,7 @@ def test_openai_o4_mini_tool_image_result():
 
 @skip_if_no_google
 def test_google_tool_image_result():
-    check_tool_image_result("google/gemini-1.5-pro")
+    check_tool_image_result("google/gemini-2.5-pro")
 
 
 @skip_if_no_anthropic

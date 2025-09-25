@@ -12,6 +12,7 @@
 - Inspect View: Always show reasoning blocks (previously we hid them when there was no content, i.e. Responses API store=True).
 - Bugfix: Properly deserialize `EvalSet` when optional values are missing.
 - Bugfix: Fix "auto" message truncation in react agent.
+- Bugfix: Update various tests to react to Google's deprecation of old models.
 
 ## 0.3.133 (22 September 2025)
 
