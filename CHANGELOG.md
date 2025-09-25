@@ -14,6 +14,7 @@
 - Inspect View: Fix flash of error message when initially viewing a log file in VS Code.
 - Bugfix: Properly deserialize `EvalSet` when optional values are missing.
 - Bugfix: Fix "auto" message truncation in react agent.
+- Bugfix: Update various tests to react to Google's deprecation of old models.
 
 ## 0.3.133 (22 September 2025)
 
