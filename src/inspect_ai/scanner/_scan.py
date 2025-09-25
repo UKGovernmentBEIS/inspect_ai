@@ -14,6 +14,7 @@ from shortuuid import uuid
 from inspect_ai._eval.context import init_runtime_context
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.platform import platform_init
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.scanner._recorder.recorder import ScanRecorder, ScanResults
 from inspect_ai.scanner._recorder.types import (
     scan_recorder_for_location,
@@ -102,6 +103,12 @@ class ScanReport(Protocol):
 WorkItem: TypeAlias = tuple[Transcript, Scanner[Any], str, ScanReport]
 
 
+def _is_cpu_blocking_scanner(scanner: Scanner[Any], name: str) -> bool:
+    # TODO: Temporary for testing - just to see if it's worth it
+    return False
+    # return name == "dummy_scanner"
+
+
 async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
     # naive scan with:
     #  No parallelism
@@ -112,8 +119,8 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
     init_runtime_context()
 
     # TODO: plumb these for real
-    max_llm_connections = 100
-    max_concurrent_scanners: int | None = 100
+    max_llm_connections = 15
+    max_concurrent_scanners: int | None = max_llm_connections
     lookahead_buffer_multiple: float = 1.0
     # TODO ^^^^^^^
 
@@ -122,19 +129,27 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
 
     overall_start_time = time.time()
 
-    worker_task_count = 0
-    workers_waiting = 0
-    workers_scanning = 0
-    workers_reporting = 0
-    worker_id_counter = 0
+    # IO-blocking worker tracking
+    io_worker_count = 0
+    io_workers_waiting = 0
+    io_workers_scanning = 0
+    workers_reporting = 0  # Shared between both worker types
+    io_worker_id_counter = 0
+    io_scans_completed = 0
+    cpu_scans_completed = 0
 
-    # Compute work queue size from buffered transcripts
-    work_queue_size = int(max_concurrent_scanners * lookahead_buffer_multiple)
+    # Compute queue sizes
+    io_queue_size = int(max_concurrent_scanners * lookahead_buffer_multiple)
+    cpu_queue_size = 20  # Small buffer for fast CPU operations
 
-    # Create bounded work queue and result stream
-    work_item_send_stream, work_item_receive_stream = anyio.create_memory_object_stream[
+    # Create dual queues for IO-blocking and CPU-blocking scanners
+    io_work_send_stream, io_work_receive_stream = anyio.create_memory_object_stream[
         WorkItem
-    ](work_queue_size)
+    ](io_queue_size)
+
+    cpu_work_send_stream, cpu_work_receive_stream = anyio.create_memory_object_stream[
+        WorkItem
+    ](cpu_queue_size)
 
     union_content = union_transcript_contents(
         [config_for_scanner(scanner).content for scanner in job.scanners.values()]
@@ -156,11 +171,15 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
             async def producer(tg: TaskGroup) -> None:
                 # set up our reporter (stores results and lets us skip results we already have)
                 nonlocal \
-                    worker_task_count, \
-                    workers_scanning, \
+                    io_worker_count, \
+                    io_workers_scanning, \
                     workers_reporting, \
-                    workers_waiting, \
-                    worker_id_counter
+                    io_workers_waiting, \
+                    io_worker_id_counter
+
+                # Start single CPU worker at beginning
+                tg.start_soon(cpu_worker_task, cpu_work_receive_stream)
+                print(f"{_running_time()} Producer: Started CPU worker")
 
                 for t in await job.transcripts.index():
                     transcript: Transcript | None = None
@@ -178,12 +197,24 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                                     f"{_running_time()} Producer: Read transcript {t.id} in {read_time:.3f}s"
                                 )
 
-                        # This send into the work_item_send_stream is a point where backpressure
-                        # can be applied
+                        # Route work item to appropriate queue based on scanner type
+                        is_cpu_blocking = _is_cpu_blocking_scanner(scanner, name)
 
+                        if is_cpu_blocking:
+                            target_queue = cpu_work_send_stream
+                            target_receive_stream = cpu_work_receive_stream
+                            queue_size = cpu_queue_size
+                            queue_name = "cpu"
+                        else:
+                            target_queue = io_work_send_stream
+                            target_receive_stream = io_work_receive_stream
+                            queue_size = io_queue_size
+                            queue_name = "io"
+
+                        # Check backpressure
                         backpressure = (
-                            work_item_receive_stream.statistics().current_buffer_used
-                            >= work_queue_size
+                            target_receive_stream.statistics().current_buffer_used
+                            >= queue_size
                         )
 
                         new_item = (
@@ -192,22 +223,38 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                             name,
                             functools.partial(recorder.record, t, name),
                         )
-                        await work_item_send_stream.send(new_item)
+                        await target_queue.send(new_item)
                         print(
-                            f"{_running_time()} Producer: Added work item {_work_item_info(new_item)} {' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
+                            f"{_running_time()} Producer: Added {queue_name} work item {_work_item_info(new_item)} {' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
                         )
 
-                        if worker_task_count < max_concurrent_scanners:
-                            worker_task_count += 1
-                            worker_id_counter += 1
-
-                            print(
-                                f"{_running_time()} Producer: Spawned worker #{worker_id_counter}\n\t{_metrics_info()}"
+                        # Only spawn IO workers dynamically (CPU worker is already started)
+                        # Spawn when there's actual backlog: queue depth exceeds the number
+                        # of workers currently waiting to receive, or when there are no IO workers yet.
+                        if not is_cpu_blocking:
+                            io_depth = (
+                                io_work_receive_stream.statistics().current_buffer_used
                             )
-
-                            tg.start_soon(
-                                worker_task, work_item_receive_stream, worker_id_counter
+                            should_spawn = (
+                                io_worker_count < max_concurrent_scanners
+                                and (
+                                    io_worker_count == 0
+                                    or io_depth > io_workers_waiting
+                                )
                             )
+                            if should_spawn:
+                                io_worker_count += 1
+                                io_worker_id_counter += 1
+
+                                print(
+                                    f"{_running_time()} Producer: Spawned IO worker #{io_worker_id_counter}\n\t{_metrics_info()}"
+                                )
+
+                                tg.start_soon(
+                                    io_worker_task,
+                                    io_work_receive_stream,
+                                    io_worker_id_counter,
+                                )
 
                         # We need to sleep whenever we add work and/or a new task.
                         # without doing this, the producer greedily keeps producing
@@ -216,11 +263,16 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
 
                 print(f"{_running_time()} Producer: FINISHED PRODUCING ALL WORK")
 
-            async def worker_task(
+            async def io_worker_task(
                 work_item_stream: MemoryObjectReceiveStream[WorkItem], worker_id: int
             ) -> None:
-                """Worker that pulls work items from stream until empty."""
-                nonlocal worker_task_count, workers_scanning, workers_waiting
+                """IO worker that pulls work items from IO stream until empty."""
+                nonlocal \
+                    io_worker_count, \
+                    io_workers_scanning, \
+                    io_workers_waiting, \
+                    io_scans_completed
+
                 items_processed = 0
                 # print(f"{_running_time()} Worker #{worker_id} starting")
 
@@ -229,18 +281,19 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                     while True:
                         queue_was_empty_start_time = (
                             time.time()
-                            if work_item_receive_stream.statistics().current_buffer_used
-                            == 0
+                            if work_item_stream.statistics().current_buffer_used == 0
                             else None
                         )
 
                         # Use anyio's timeout handling
                         try:
-                            workers_waiting += 1
-                            with anyio.move_on_after(2.0) as timeout_scope:
+                            io_workers_waiting += 1
+                            # Use a slightly longer timeout to avoid short-lived workers exiting
+                            # during brief producer pauses (e.g., transcript reads).
+                            with anyio.move_on_after(5.0) as timeout_scope:
                                 item = await work_item_stream.receive()
                         finally:
-                            workers_waiting -= 1
+                            io_workers_waiting -= 1
 
                         # If timeout occurred, break out of loop
                         if timeout_scope.cancelled_caught:
@@ -256,28 +309,69 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                         )
 
                         exec_start_time = time.time()
-                        await _execute_work_item(item)
+                        await _execute_work_item(item, True)
                         print(
                             f"{_running_time()} Worker #{worker_id} completed {_work_item_info(item)} in {(time.time() - exec_start_time):.3f}s"
                         )
 
                         items_processed += 1
+                        io_scans_completed += 1
 
                     print(
-                        f"{_running_time()} Worker #{worker_id} finished after processing {items_processed} items.\n\t{_metrics_info()}"
+                        f"{_running_time()} IO Worker #{worker_id} finished after processing {items_processed} items.\n\t{_metrics_info()}"
                     )
                 finally:
-                    worker_task_count -= 1
+                    io_worker_count -= 1
 
-            async def _execute_work_item(item: WorkItem) -> None:
-                nonlocal workers_scanning
+            async def cpu_worker_task(
+                work_item_stream: MemoryObjectReceiveStream[WorkItem],
+            ) -> None:
+                """Single CPU worker for fast, CPU-bound scanners."""
+                nonlocal cpu_scans_completed
+                max_consecutive = 10  # Process N items before yielding
+
+                print(f"{_running_time()} CPU Worker starting")
+
+                try:
+                    while True:
+                        # Use timeout to detect when no more work is available
+                        try:
+                            with anyio.move_on_after(2.0) as timeout_scope:
+                                item = await work_item_stream.receive()
+                        except Exception as e:
+                            print(f"CPU worker receive error: {e}")
+                            break
+
+                        # If timeout occurred, break out of loop
+                        if timeout_scope.cancelled_caught:
+                            break
+
+                        exec_start_time = time.time()
+                        await _execute_work_item(item, False)
+                        cpu_scans_completed += 1
+                        print(
+                            f"{_running_time()} CPU Worker completed {_work_item_info(item)} in {(time.time() - exec_start_time):.3f}s"
+                        )
+
+                        # Yield periodically to allow IO callbacks and other tasks to run
+                        if cpu_scans_completed % max_consecutive == 0:
+                            await anyio.sleep(0)  # Force yield
+
+                    print(
+                        f"{_running_time()} CPU Worker finished after processing {cpu_scans_completed} items."
+                    )
+                except Exception as e:
+                    print(f"CPU worker error: {e}")
+
+            async def _execute_work_item(item: WorkItem, is_io_scanner: bool) -> None:
+                nonlocal io_workers_scanning
                 raw_transcript, scanner, name, report = item
                 transcript = _transcript_for_scanner(raw_transcript, scanner)
 
                 # call the scanner (note that later this may accumulate multiple
                 # scanner calls e.g. for ChatMessage scanners and then report all
                 # of the results together)
-                result = await _call_scanner(scanner, transcript)
+                result = await _call_scanner(scanner, transcript, is_io_scanner)
                 if result is not None:
                     await _call_report(report, result)
                     await report([result])
@@ -286,14 +380,16 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                 progress.update(task_id, advance=1)
 
             async def _call_scanner(
-                scanner: Scanner[Any], transcript: Transcript
+                scanner: Scanner[Any], transcript: Transcript, is_io_scanner: bool
             ) -> Result | None:
-                nonlocal workers_scanning
+                nonlocal io_workers_scanning
                 try:
-                    workers_scanning += 1
+                    if is_io_scanner:
+                        io_workers_scanning += 1
                     return await scanner(transcript)
                 finally:
-                    workers_scanning -= 1
+                    if is_io_scanner:
+                        io_workers_scanning -= 1
 
             async def _call_report(report: ScanReport, result: Result) -> None:
                 nonlocal workers_reporting
@@ -304,7 +400,17 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                     workers_reporting -= 1
 
             def _metrics_info() -> str:
-                return f"worker tasks: {worker_task_count} (scanning: {workers_scanning}, reporting: {workers_reporting}, stalled: {workers_waiting}) queue size: {work_item_receive_stream.statistics().current_buffer_used} "
+                io_queue_depth = io_work_receive_stream.statistics().current_buffer_used
+                cpu_queue_depth = (
+                    cpu_work_receive_stream.statistics().current_buffer_used
+                )
+
+                return (
+                    f"io_workers: {io_worker_count} "
+                    f"(scanning: {io_workers_scanning}, reporting: {workers_reporting}, stalled: {io_workers_waiting}, done: {io_scans_completed}) "
+                    f"io_queue: {io_queue_depth}/{io_queue_size} | "
+                    f"cpu scans completed: {cpu_scans_completed}, cpu_queue: {cpu_queue_depth}/{cpu_queue_size}"
+                )
 
             def _work_item_info(item: WorkItem) -> str:
                 return f"{item[0].id, item[2]}"
