@@ -40,6 +40,7 @@ interface ToolInputDescriptor {
   inputArg?: string;
   descriptionArg?: string;
   contentType?: string;
+  inputToStr?: (input: unknown) => string | undefined;
 }
 
 const extractInputMetadata = (
@@ -65,6 +66,17 @@ const extractInputMetadata = (
       inputArg: "command",
       descriptionArg: "description",
       contentType: "bash",
+    };
+  } else if (toolName === "shell") {
+    return {
+      inputArg: "command",
+      contentType: "bash",
+      inputToStr: (input: unknown) => {
+        if (Array.isArray(input)) {
+          return input.join(" ");
+        }
+        return undefined;
+      },
     };
   } else if (toolName == "TodoWrite") {
     return {
@@ -111,7 +123,10 @@ const extractInput = (
 
     if (inputDescriptor.inputArg && args[inputDescriptor.inputArg]) {
       filterKeys.add(inputDescriptor.inputArg);
-      base.input = args[inputDescriptor.inputArg];
+      base.input = inputDescriptor.inputToStr
+        ? inputDescriptor.inputToStr(args[inputDescriptor.inputArg]) ||
+          args[inputDescriptor.inputArg]
+        : args[inputDescriptor.inputArg];
     }
 
     if (
