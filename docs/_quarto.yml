@@ -17,6 +17,7 @@ filters:
  
 website:
    title: "Inspect"
+   favicon: favicon.svg
    bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
