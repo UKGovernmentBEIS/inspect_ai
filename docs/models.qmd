@@ -29,7 +29,7 @@ eval("arc.py", model="anthropic/claude-sonnet-4-0")
 Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable (either in the shell or a `.env` file) to select a model externally:
 
 ``` bash
-INSPECT_EVAL_MODEL=google/gemini-1.5-pro
+INSPECT_EVAL_MODEL=google/gemini-2.5-pro
 ```
 
 #### No Model
@@ -56,14 +56,14 @@ You can specify generation options either on the command line or in direct calls
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4 --temperature 0.9
-inspect eval arc.py --model google/gemini-1.5-pro --max-connections 20
+inspect eval arc.py --model google/gemini-2.5-pro --max-connections 20
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-4", temperature=0.9)
-eval("arc.py", model="google/gemini-1.5-pro", max_connections=20)
+eval("arc.py", model="google/gemini-2.5-pro", max_connections=20)
 ```
 
 Use `inspect eval --help` to learn about all of the available generation config options.
@@ -73,7 +73,7 @@ Use `inspect eval --help` to learn about all of the available generation config 
 If there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
 
 ``` bash
-inspect eval arc.py --model google/gemini-1.5-pro -M location=us-east5
+inspect eval arc.py --model google/gemini-2.5-pro -M location=us-east5
 ```
 
 See the documentation for the requisite model provider for information on how model args are passed through to model clients.

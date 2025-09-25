@@ -36,7 +36,7 @@ def check_images(model):
 
 @skip_if_no_google
 def test_google_images():
-    check_images("google/gemini-1.5-flash")
+    check_images("google/gemini-2.5-flash")
 
 
 @skip_if_no_openai
