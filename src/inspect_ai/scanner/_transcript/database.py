@@ -32,7 +32,7 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
 )
 from inspect_ai.log._log import EvalSampleSummary
-from inspect_ai.scanner._recorder.spec import ScanTranscripts, TranscriptField
+from inspect_ai.scanner._scanspec import ScanTranscripts, TranscriptField
 from inspect_ai.scanner._transcript.transcripts import Transcripts
 
 from .json.load_filtered import load_filtered_transcript

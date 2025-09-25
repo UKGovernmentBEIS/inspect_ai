@@ -9,10 +9,10 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_params,
 )
-from inspect_ai.scanner._recorder.spec import ScanScanner, ScanSpec
 from inspect_ai.scanner._recorder.types import scan_recorder_type_for_location
 from inspect_ai.scanner._scandef import ScanDef
 from inspect_ai.scanner._scanner.scanner import Scanner
+from inspect_ai.scanner._scanspec import ScanScanner, ScanSpec
 from inspect_ai.scanner._transcript.database import transcripts_from_snapshot
 from inspect_ai.scanner._transcript.transcripts import Transcripts
 

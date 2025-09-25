@@ -4,8 +4,8 @@ import abc
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Sequence
 
-from inspect_ai.scanner._recorder.spec import ScanSpec
 from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 
 if TYPE_CHECKING:
