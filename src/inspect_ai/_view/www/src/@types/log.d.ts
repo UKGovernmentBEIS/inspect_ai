@@ -1143,6 +1143,7 @@ export interface EvalStats {
   started_at: StartedAt;
   completed_at: CompletedAt;
   model_usage: ModelUsage;
+  sample_message_counts: SampleMessageCounts;
 }
 export interface ModelUsage {
   [k: string]: ModelUsage1;
@@ -1157,6 +1158,9 @@ export interface ModelUsage1 {
   input_tokens_cache_write: InputTokensCacheWrite;
   input_tokens_cache_read: InputTokensCacheRead;
   reasoning_tokens: ReasoningTokens1;
+}
+export interface SampleMessageCounts {
+  [k: string]: number;
 }
 /**
  * Eval error details.

@@ -51,3 +51,25 @@ def test_eval_config_override():
     assert log.eval.config.epochs == 5
     assert log.eval.config.epochs_reducer == ["at_least_3"]
     assert log.eval.config.fail_on_error == 0.5
+
+
+def test_message_count_with_multiple_epochs():
+    """Test that message counts work correctly with multi-epoch evaluations."""
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        epochs=2,
+        scorer=match(),
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.stats.sample_message_counts is not None
+
+    key_epoch_1 = "1_1"
+    key_epoch_2 = "1_2"
+
+    assert key_epoch_1 in log.stats.sample_message_counts
+    assert key_epoch_2 in log.stats.sample_message_counts
+
+    assert log.stats.sample_message_counts[key_epoch_1] > 0
+    assert log.stats.sample_message_counts[key_epoch_2] > 0
