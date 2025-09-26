@@ -15,16 +15,17 @@ from inspect_ai.model._model_config import (
     model_args_for_log,
     model_roles_to_model_roles_config,
 )
-from inspect_ai.scanner._recorder.factory import scan_recorder_type_for_location
-from inspect_ai.scanner._scandef import ScanDef
-from inspect_ai.scanner._scanner.scanner import Scanner
-from inspect_ai.scanner._scanspec import (
+
+from ._recorder.factory import scan_recorder_type_for_location
+from ._scandef import ScanDef
+from ._scanner.scanner import Scanner
+from ._scanspec import (
     ScanConfig,
     ScanScanner,
     ScanSpec,
 )
-from inspect_ai.scanner._transcript.database import transcripts_from_snapshot
-from inspect_ai.scanner._transcript.transcripts import Transcripts
+from ._transcript.database import transcripts_from_snapshot
+from ._transcript.transcripts import Transcripts
 
 
 @dataclass

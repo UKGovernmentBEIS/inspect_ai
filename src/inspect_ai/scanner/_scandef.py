@@ -14,8 +14,9 @@ from inspect_ai._util.registry import (
     registry_tag,
     registry_unqualified_name,
 )
-from inspect_ai.scanner._scanner.scanner import Scanner
-from inspect_ai.scanner._transcript.transcripts import Transcripts
+
+from ._scanner.scanner import Scanner
+from ._transcript.transcripts import Transcripts
 
 
 class ScanDef:
