@@ -80,3 +80,4 @@ SampleScores: list[Column] = [
     SampleColumn("score_*", path="scores", value=score_values, full=True),
     SampleColumn("score_*", path="scores", value=score_details, full=True),
 ]
+"""Score values, answer, explanation, and metadata."""
