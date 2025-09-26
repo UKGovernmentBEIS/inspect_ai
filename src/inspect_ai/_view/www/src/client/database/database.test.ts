@@ -3,7 +3,7 @@
  * Uses fake-indexeddb for testing IndexedDB operations in Jest
  */
 
-import { LogFiles, SampleSummary, EvalHeader } from "../api/types";
+import { EvalHeader, LogRoot, SampleSummary } from "../api/types";
 import { createDatabaseService, DatabaseService } from "./service";
 
 // Helper function to create a minimal EvalHeader for testing
@@ -89,7 +89,7 @@ describe("Database Service", () => {
 
   describe("Log Files Caching", () => {
     test("should cache and retrieve log files", async () => {
-      const testLogFiles: LogFiles = {
+      const testLogFiles: LogRoot = {
         log_dir: "/test/logs",
         files: [
           {
@@ -118,7 +118,7 @@ describe("Database Service", () => {
     });
 
     test("should handle empty log files", async () => {
-      const emptyLogFiles: LogFiles = {
+      const emptyLogFiles: LogRoot = {
         log_dir: "/test/logs",
         files: [],
       };
@@ -131,7 +131,7 @@ describe("Database Service", () => {
     });
 
     test("should update existing log files (upsert)", async () => {
-      const initialFiles: LogFiles = {
+      const initialFiles: LogRoot = {
         log_dir: "/test/logs",
         files: [
           {
@@ -142,7 +142,7 @@ describe("Database Service", () => {
         ],
       };
 
-      const updatedFiles: LogFiles = {
+      const updatedFiles: LogRoot = {
         log_dir: "/test/logs",
         files: [
           {
@@ -191,7 +191,10 @@ describe("Database Service", () => {
       });
 
       // Cache the header
-      await databaseService.cacheLogHeaders("/test/logs/eval1.json", testHeader);
+      await databaseService.cacheLogHeaders(
+        "/test/logs/eval1.json",
+        testHeader,
+      );
 
       // Retrieve as overviews (which internally uses headers)
       const cached = await databaseService.getCachedLogOverviews([
@@ -421,7 +424,7 @@ describe("Database Service", () => {
   describe("Cache Statistics and Management", () => {
     test("should provide accurate cache statistics", async () => {
       // Add some test data
-      const logFiles: LogFiles = {
+      const logFiles: LogRoot = {
         log_dir: "/test/logs",
         files: [
           { name: "/test/logs/eval1.json", task: "task1", task_id: "id1" },
@@ -469,14 +472,14 @@ describe("Database Service", () => {
       const stats = await databaseService.getCacheStats();
 
       expect(stats.logFiles).toBe(2);
-      expect(stats.logSummaries).toBe(1);  // This now returns logHeaders count
+      expect(stats.logSummaries).toBe(1); // This now returns logHeaders count
       expect(stats.sampleSummaries).toBe(1);
       expect(stats.logDir).toBe("/test/logs");
     });
 
     test("should clear all caches", async () => {
       // Add test data
-      const logFiles: LogFiles = {
+      const logFiles: LogRoot = {
         log_dir: "/test/logs",
         files: [
           { name: "/test/logs/eval1.json", task: "task1", task_id: "id1" },

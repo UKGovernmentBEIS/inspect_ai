@@ -35,7 +35,7 @@ export function createLogPolling(
     log.debug(`refresh: ${selectedLogFile}`);
 
     try {
-      const logContents = await api.get_log_summary(selectedLogFile);
+      const logContents = await api.get_log_info(selectedLogFile);
 
       set((state) => {
         // Set the log summary
