@@ -26,6 +26,8 @@ from .._log import (
     EvalSampleSummary,
     EvalSpec,
     EvalStats,
+    collect_message_counts_from_samples,
+    collect_message_counts_from_summaries,
     sort_samples,
 )
 from .file import FileRecorder
@@ -151,6 +153,8 @@ class EvalRecorder(FileRecorder):
         # write reductions
         if reductions is not None:
             await log.write(REDUCTIONS_JSON, reductions)
+
+        collect_message_counts_from_summaries(stats, log._summaries)
 
         # Get the results
         log_results = LogResults(
@@ -544,6 +548,12 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
                 if evalLog.results is not None:
                     evalLog.reductions = reductions
 
+        # populate sample_message_counts from summaries if not already present
+        if evalLog.stats and not evalLog.stats.sample_message_counts:
+            if SUMMARIES_JSON in zip.namelist():
+                summaries = _read_sample_summaries(zip)
+                collect_message_counts_from_summaries(evalLog.stats, summaries)
+
         samples: list[EvalSample] | None = None
         if not header_only:
             samples = []
@@ -557,6 +567,17 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
                         )
             sort_samples(samples)
             evalLog.samples = samples
+
+            # Fix message counts if they were populated with default values from old summaries
+            if (
+                evalLog.stats
+                and evalLog.stats.sample_message_counts
+                and all(
+                    count == 0 for count in evalLog.stats.sample_message_counts.values()
+                )
+            ):
+                collect_message_counts_from_samples(evalLog.stats, samples)
+
         return evalLog
 
 
