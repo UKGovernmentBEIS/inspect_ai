@@ -67,8 +67,8 @@ export const openRemoteLogFile = async (
     try {
       remoteZipFile = await openRemoteZipFile(
         url,
-        api.eval_log_size,
-        api.eval_log_bytes,
+        api.get_log_size,
+        api.get_log_bytes,
       );
     } catch {
       retryCount++;

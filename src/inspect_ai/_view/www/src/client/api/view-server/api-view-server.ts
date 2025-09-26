@@ -43,7 +43,7 @@ export function viewServerApi(
     return result.parsed;
   };
 
-  const eval_logs = async () => {
+  const get_log_root = async () => {
     const path = logDir
       ? `/logs?log_dir=${encodeURIComponent(logDir)}`
       : "/logs";
@@ -55,7 +55,7 @@ export function viewServerApi(
     return logs.parsed;
   };
 
-  const eval_set = async (dir?: string) => {
+  const get_eval_set = async (dir?: string) => {
     if (logDir) dir ??= logDir;
     const path = dir ? `/eval-set?dir=${encodeURIComponent(dir)}` : "/eval-set";
     try {
@@ -71,7 +71,7 @@ export function viewServerApi(
     }
   };
 
-  const eval_log = async (
+  const get_log_contents = async (
     file: string,
     headerOnly?: number,
     _capabilities?: Capabilities,
@@ -83,7 +83,7 @@ export function viewServerApi(
     return result;
   };
 
-  const eval_log_size = async (file: string): Promise<number> => {
+  const get_log_size = async (file: string): Promise<number> => {
     const result = await requestApi.fetchString(
       "GET",
       `/log-size/${encodeURIComponent(file)}`,
@@ -91,7 +91,7 @@ export function viewServerApi(
     return result.parsed;
   };
 
-  const eval_log_bytes = async (
+  const get_log_bytes = async (
     file: string,
     start: number,
     end: number,
@@ -101,7 +101,7 @@ export function viewServerApi(
       `/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`,
     );
 
-  const eval_log_overviews = async (files: string[]) => {
+  const get_log_summaries = async (files: string[]) => {
     const params = new URLSearchParams();
     for (const file of files) {
       params.append("file", file);
@@ -234,12 +234,12 @@ export function viewServerApi(
 
   return {
     client_events,
-    eval_logs,
-    eval_set,
-    eval_log,
-    eval_log_size,
-    eval_log_bytes,
-    eval_log_overviews,
+    get_log_root,
+    get_eval_set,
+    get_log_contents,
+    get_log_size,
+    get_log_bytes,
+    get_log_summaries,
     log_message,
     download_file,
     open_log_file: async () => {},
