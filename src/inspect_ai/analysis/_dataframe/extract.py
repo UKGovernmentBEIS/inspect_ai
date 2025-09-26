@@ -38,17 +38,19 @@ def score_values(x: JsonValue) -> dict[str, JsonValue]:
 
 
 def score_details(x: JsonValue) -> dict[str, JsonValue]:
-    scores = cast(dict[str, Any], x)
-    details = {}
-    if scores is not None and len(scores) > 0:
-        for k, v in scores.items():
-            details[k] = v["value"]
-            if "answer" in v and v["answer"]:
-                details[f"{k}_answer"] = v["answer"]
-            if "explanation" in v and v["explanation"]:
-                details[f"{k}_explanation"] = v["explanation"]
-            if "metadata" in v and v["metadata"]:
-                details[f"{k}_metadata"] = v["metadata"]
+    if not isinstance(x, dict):
+        return {}
+
+    details: dict[str, JsonValue] = {}
+    for key, value in x.items():
+        if not isinstance(value, dict):
+            continue
+
+        details[key] = value.get("value")
+        for extra_field in ("answer", "explanation", "metadata"):
+            extra_value = value.get(extra_field)
+            if extra_value:
+                details[f"{key}_{extra_field}"] = extra_value
 
     return details
 
