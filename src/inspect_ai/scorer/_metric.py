@@ -124,7 +124,7 @@ class Score(BaseModel):
         metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ):
-        """Initialize a Score with backward compatibility."""
+        # Initialize a Score with backward compatibility.
         # If history is provided, we're deserializing from the new format
         if "history" in kwargs:
             super().__init__(**kwargs)
@@ -145,7 +145,7 @@ class Score(BaseModel):
 
     @classmethod
     def model_validate(cls, obj: Any, **kwargs: Any) -> "Score":
-        """Override deserialization to handle both old and new formats."""
+        # Override deserialization to handle both old and new formats.
         if isinstance(obj, dict) and "value" in obj and "history" not in obj:
             # Convert legacy format
             original = ScoreEdit(
@@ -166,7 +166,7 @@ class Score(BaseModel):
         schema_generator: Any = None,
         mode: Literal["validation", "serialization"] = "validation",
     ) -> dict[str, Any]:
-        """Override schema generation to include computed properties."""
+        # Override schema generation to include computed properties.
         # Call parent method with conditional arguments
         if schema_generator is not None:
             schema = super().model_json_schema(
@@ -237,7 +237,7 @@ class Score(BaseModel):
 
     @model_serializer
     def _serialize(self) -> dict[str, Any]:
-        """Custom serializer for backward compatibility and clean legacy format."""
+        # Custom serializer for backward compatibility and clean legacy format.
         if len(self.history) == 1 and self.history[0].provenance is None:
             edit = self.history[0]
             result = {"value": edit.value}
@@ -537,10 +537,23 @@ def metric_create(name: str, **kwargs: Any) -> Metric:
 
 
 def to_metric_specs(
-    metrics: list[Metric] | dict[str, list[Metric]],
-) -> list[MetricSpec] | dict[str, list[MetricSpec]]:
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+) -> list[MetricSpec | dict[str, list[MetricSpec]]] | dict[str, list[MetricSpec]]:
     if isinstance(metrics, list):
-        return [as_metric_spec(m) for m in metrics]
+        result: list[MetricSpec | dict[str, list[MetricSpec]]] = []
+        for metric_item in metrics:
+            if isinstance(metric_item, dict):
+                # It's a dict of metric groups
+                result.append(
+                    {
+                        k: [as_metric_spec(v) for v in metric_list]
+                        for k, metric_list in metric_item.items()
+                    }
+                )
+            else:
+                # It's a direct metric
+                result.append(as_metric_spec(metric_item))
+        return result
     else:
         return {
             k: [as_metric_spec(v) for v in metric_list]

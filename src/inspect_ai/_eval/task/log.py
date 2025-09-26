@@ -69,7 +69,9 @@ class TaskLogger:
         model_roles: dict[str, Model] | None,
         dataset: Dataset,
         scorer: list[ScorerSpec] | None,
-        metrics: list[MetricSpec] | dict[str, list[MetricSpec]] | None,
+        metrics: list[MetricSpec | dict[str, list[MetricSpec]]]
+        | dict[str, list[MetricSpec]]
+        | None,
         sandbox: SandboxEnvironmentSpec | None,
         task_attribs: dict[str, Any],
         task_args: dict[str, Any],
@@ -289,12 +291,38 @@ def collect_eval_data(stats: EvalStats) -> None:
 
 
 def resolve_eval_metrics(
-    metrics: list[MetricSpec] | dict[str, list[MetricSpec]] | None,
-) -> list[EvalMetricDefinition] | dict[str, list[EvalMetricDefinition]] | None:
+    metrics: list[MetricSpec | dict[str, list[MetricSpec]]]
+    | dict[str, list[MetricSpec]]
+    | None,
+) -> (
+    list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+    | dict[str, list[EvalMetricDefinition]]
+    | None
+):
     if metrics is None:
         return None
     elif isinstance(metrics, list):
-        return [EvalMetricDefinition(name=m.metric, options=m.args) for m in metrics]
+        result: list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]] = []
+        for metric_item in metrics:
+            if isinstance(metric_item, dict):
+                # It's a dict of metric groups
+                result.append(
+                    {
+                        k: [
+                            EvalMetricDefinition(name=v.metric, options=v.args)
+                            for v in metric_list
+                        ]
+                        for k, metric_list in metric_item.items()
+                    }
+                )
+            else:
+                # It's a direct MetricSpec
+                result.append(
+                    EvalMetricDefinition(
+                        name=metric_item.metric, options=metric_item.args
+                    )
+                )
+        return result
     else:
         return {
             k: [

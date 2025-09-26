@@ -6,7 +6,9 @@
 - Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - OpenAI: Automatically switch to the completions API when `--num-choices` is specified.
 - Model APIs: Improve legibility/clarify of error messages when updated versions of anthropic or openai packages are required.
+- Dataframes: Added `SampleScores` column group for extracting score answer, explanation, and metadata.
 - Sandbox tools: Rewrite `inspect-ai` package installation type detection code.
+- Task: Support mixed metrics (both direct metrics and dict groupings in the same list), matching the flexibility of the @scorer decorator.
 - Inspect View: Fix regression sorting folder and logs in list (folders should sort to the front of the list)
 - Inspect View: Properly reset page when navigating between folders.
 - Inspect View: Always show reasoning blocks (previously we hid them when there was no content, i.e. Responses API store=True).

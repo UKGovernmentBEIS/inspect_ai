@@ -489,7 +489,7 @@ def update_metrics_display_fn(
         list[dict[str, SampleScore]],
         list[Scorer] | None,
         ScoreReducer | list[ScoreReducer] | None,
-        list[Metric] | dict[str, list[Metric]] | None,
+        list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
     ],
     None,
 ]:
@@ -500,7 +500,9 @@ def update_metrics_display_fn(
         sample_scores: list[dict[str, SampleScore]],
         scorers: list[Scorer] | None,
         reducers: ScoreReducer | list[ScoreReducer] | None,
-        metrics: list[Metric] | dict[str, list[Metric]] | None,
+        metrics: list[Metric | dict[str, list[Metric]]]
+        | dict[str, list[Metric]]
+        | None,
     ) -> None:
         # Don't compute metrics if they are not being displayed
         if not display_metrics:
