@@ -81,18 +81,13 @@ async def scan_async(
     # resolve id
     scan_id = scan_id or uuid()
 
-    # validate name
-    # TODO: move this earlier?
-    if not re.match(r"^[a-zA-Z0-9-]+$", scandef.name):
-        raise ValueError("scan 'name' may use only letters, numbers, and dashes")
-
     # resolve transcripts
     transcripts = transcripts or scandef.transcripts
     if transcripts is None:
         raise ValueError("No 'transcripts' specified for scan.")
 
     # resolve scans_dir
-    scans_dir = scans_dir or str(os.getenv("INSPECT_SCANS_DIR", "./scans"))
+    scans_dir = scans_dir or str(os.getenv("INSPECT_SCAN_DIR", "./scans"))
 
     # initialize config
     scan_config = ScanConfig(limit=limit, shuffle=shuffle)
@@ -136,6 +131,12 @@ async def scan_resume_async(
 ) -> ScanResults:
     # resume job
     job = await resume_scan_job(scan_dir)
+
+    # can't resume a job with non-deterministic shuffling
+    if job.spec.config.shuffle is True:
+        raise RuntimeError(
+            "Cannot resume scans with transcripts shuffled without a seed."
+        )
 
     # create model
     if job.spec.model is not None:
