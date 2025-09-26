@@ -7,7 +7,7 @@ from typing_extensions import override
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
 from ..columns import Column, ColumnType
-from ..extract import list_as_str, score_values, score_details
+from ..extract import list_as_str, score_details, score_values
 from ..validate import resolved_schema
 from .extract import (
     sample_input_as_str,
