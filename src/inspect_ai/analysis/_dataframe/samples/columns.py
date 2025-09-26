@@ -7,7 +7,7 @@ from typing_extensions import override
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
 from ..columns import Column, ColumnType
-from ..extract import list_as_str, score_values
+from ..extract import list_as_str, score_details, score_values
 from ..validate import resolved_schema
 from .extract import (
     sample_input_as_str,
@@ -75,3 +75,9 @@ SampleMessages: list[Column] = [
     SampleColumn("messages", path=sample_messages_as_str, required=True, full=True)
 ]
 """Sample messages as a string."""
+
+SampleScores: list[Column] = [
+    SampleColumn("score_*", path="scores", value=score_values, full=True),
+    SampleColumn("score_*", path="scores", value=score_details, full=True),
+]
+"""Score values, answer, explanation, and metadata."""

@@ -37,6 +37,24 @@ def score_values(x: JsonValue) -> dict[str, JsonValue]:
     return {k: v["value"] for k, v in scores.items()}
 
 
+def score_details(x: JsonValue) -> dict[str, JsonValue]:
+    if not isinstance(x, dict):
+        return {}
+
+    details: dict[str, JsonValue] = {}
+    for key, value in x.items():
+        if not isinstance(value, dict):
+            continue
+
+        details[key] = value.get("value")
+        for extra_field in ("answer", "explanation", "metadata"):
+            extra_value = value.get(extra_field)
+            if extra_value:
+                details[f"{key}_{extra_field}"] = extra_value
+
+    return details
+
+
 def auto_id(base: str, index: str) -> str:
     seed = f"{base}_{index}"
     hash_bytes = hashlib.md5(seed.encode("utf-8")).digest()
