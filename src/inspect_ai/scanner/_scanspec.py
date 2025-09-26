@@ -10,6 +10,8 @@ from pydantic import (
 from shortuuid import uuid
 from typing_extensions import Literal
 
+from inspect_ai.model._generate_config import GenerateConfig
+
 
 class ScanScanner(BaseModel):
     name: str
@@ -17,6 +19,22 @@ class ScanScanner(BaseModel):
 
     params: dict[str, Any] = Field(default_factory=dict)
     """Scanner arguments."""
+
+
+class ScanModelConfig(BaseModel):
+    """Model config."""
+
+    model: str
+    """Model name."""
+
+    config: GenerateConfig = Field(default_factory=GenerateConfig)
+    """Generate config"""
+
+    base_url: str | None = Field(default=None)
+    """Model base url."""
+
+    args: dict[str, Any] = Field(default_factory=dict)
+    """Model specific arguments."""
 
 
 class ScanRevision(BaseModel):
@@ -88,14 +106,20 @@ class ScanSpec(BaseModel):
     tags: list[str] | None = Field(default=None)
     """Tags associated with the scan."""
 
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional scan metadata."""
+
+    model: ScanModelConfig | None = Field(default=None)
+    """Model used for eval."""
+
+    model_roles: dict[str, ScanModelConfig] | None = Field(default=None)
+    """Model roles."""
+
     revision: ScanRevision | None = Field(default=None)
     """Source revision of scan."""
 
     packages: dict[str, str] = Field(default_factory=dict)
     """Package versions for scan."""
-
-    metadata: dict[str, Any] | None = Field(default=None)
-    """Additional scan metadata."""
 
     config: ScanConfig = Field(default_factory=ScanConfig)
     """Scan configuration."""

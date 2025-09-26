@@ -9,6 +9,8 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_params,
 )
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import Model
 from inspect_ai.scanner._recorder.types import scan_recorder_type_for_location
 from inspect_ai.scanner._scandef import ScanDef
 from inspect_ai.scanner._scanner.scanner import Scanner
@@ -32,6 +34,13 @@ class ScanJob:
 async def create_scan_job(
     scandef: ScanDef,
     transcripts: Transcripts | None = None,
+    model: str | Model | None = None,
+    model_config: GenerateConfig | None = None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] | str | None = None,
+    model_roles: dict[str, str | Model] | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     config: ScanConfig | None = None,
     scan_id: str | None = None,
 ) -> ScanJob:
@@ -51,6 +60,8 @@ async def create_scan_job(
             config=config or ScanConfig(),
             transcripts=await transcripts.snapshot(),
             scanners=_spec_scanners(scandef.scanners),
+            tags=tags,
+            metadata=metadata,
         )
 
     return ScanJob(spec=spec, transcripts=transcripts, scanners=scandef.scanners)

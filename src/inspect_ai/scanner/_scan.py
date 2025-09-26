@@ -14,7 +14,8 @@ from shortuuid import uuid
 from inspect_ai._eval.context import init_runtime_context
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.platform import platform_init
-from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import Model
 from inspect_ai.scanner._recorder.recorder import ScanRecorder, ScanResults
 from inspect_ai.scanner._recorder.types import (
     scan_recorder_for_location,
@@ -38,8 +39,15 @@ from ._transcript.transcripts import Transcripts
 def scan(
     scandef: ScanDef,
     transcripts: Transcripts | None = None,
+    model: str | Model | None = None,
+    model_config: GenerateConfig | None = None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] | str | None = None,
+    model_roles: dict[str, str | Model] | None = None,
     limit: int | None = None,
     shuffle: bool | int | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     scans_dir: str | None = None,
     scan_id: str | None = None,
 ) -> ScanResults:
@@ -47,8 +55,15 @@ def scan(
         scan_async(
             scandef=scandef,
             transcripts=transcripts,
+            model=model,
+            model_config=model_config,
+            model_base_url=model_base_url,
+            model_args=model_args,
+            model_roles=model_roles,
             limit=limit,
             shuffle=shuffle,
+            tags=tags,
+            metadata=metadata,
             scans_dir=scans_dir,
             scan_id=scan_id,
         )
@@ -58,8 +73,15 @@ def scan(
 async def scan_async(
     scandef: ScanDef,
     transcripts: Transcripts | None = None,
+    model: str | Model | None = None,
+    model_config: GenerateConfig | None = None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] | str | None = None,
+    model_roles: dict[str, str | Model] | None = None,
     limit: int | None = None,
     shuffle: bool | int | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     scans_dir: str | None = None,
     scan_id: str | None = None,
 ) -> ScanResults:
@@ -84,17 +106,23 @@ async def scan_async(
 
     # create job and recorder
     job = await create_scan_job(
-        scandef, transcripts, config=scan_config, scan_id=scan_id
+        scandef=scandef,
+        transcripts=transcripts,
+        model=model,
+        model_config=model_config,
+        model_base_url=model_base_url,
+        model_args=model_args,
+        model_roles=model_roles,
+        config=scan_config,
+        tags=tags,
+        metadata=metadata,
+        scan_id=scan_id,
     )
     recorder = scan_recorder_for_location(scans_dir)
     await recorder.init(job.spec, scans_dir)
 
-    return await _scan_async(
-        job=await create_scan_job(
-            scandef, transcripts, config=scan_config, scan_id=scan_id
-        ),
-        recorder=recorder,
-    )
+    # run the scan
+    return await _scan_async(job=job, recorder=recorder)
 
 
 async def scan_resume(
