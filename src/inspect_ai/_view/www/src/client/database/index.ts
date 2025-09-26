@@ -1,7 +1,6 @@
 export { AppDatabase } from "./schema";
 export type {
   LogFileRecord,
-  LogSummaryRecord,
   LogHeaderRecord,
   SampleSummaryRecord,
 } from "./schema";
