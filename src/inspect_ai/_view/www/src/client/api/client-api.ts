@@ -94,7 +94,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
       // Otherwise, create a new promise for fetching the log
       pending_log_promise = api
-        .eval_log(log_file, 100)
+        .get_log_contents(log_file, 100)
         .then((log) => {
           current_log = log;
           current_path = log_file;
@@ -206,10 +206,10 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     return undefined;
   };
 
-  const get_eval_log_header = async (log_file: string) => {
+  const read_eval_file_log_summary = async (log_file: string) => {
     // If the API supports this, delegate to it
-    if (api.eval_log_overview) {
-      return api.eval_log_overview(log_file);
+    if (api.get_log_summary) {
+      return api.get_log_summary(log_file);
     } else {
       // Don't re-use the eval log file since we know these are all different log files
       const remoteLogFile = await openRemoteLogFile(
@@ -243,37 +243,37 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
     // Get the promises for eval log headers
     const evalLogHeadersPromises = Object.keys(eval_files).map((file) =>
-      get_eval_log_header(file).then((header) => ({
+      read_eval_file_log_summary(file).then((summary) => ({
         index: eval_files[file], // Store original index
-        header,
+        summary,
       })),
     );
 
     // Get the promise for json log headers
-    const jsonLogHeadersPromise = api
-      .eval_log_overviews(Object.keys(json_files))
-      .then((headers) =>
-        headers.map((header, i) => ({
-          index: json_files[Object.keys(json_files)[i]], // Store original index
-          header,
-        })),
-      );
+    const jsonLogHeadersPromise = get_log_summaries(
+      Object.keys(json_files),
+    ).then((summaries) =>
+      summaries.map((summary, i) => ({
+        index: json_files[Object.keys(json_files)[i]], // Store original index
+        summary,
+      })),
+    );
 
     // Wait for all promises to resolve
-    const headers = await Promise.all([
+    const summaries = await Promise.all([
       ...evalLogHeadersPromises,
       jsonLogHeadersPromise,
     ]);
 
     // Flatten the nested array and sort headers by their original index
-    const orderedHeaders = headers.flat().sort((a, b) => a.index - b.index);
+    const orderedSummaries = summaries.flat().sort((a, b) => a.index - b.index);
 
     // Return only the header values in the correct order
-    return orderedHeaders.map(({ header }) => header);
+    return orderedSummaries.map(({ summary }) => summary);
   };
 
   const get_log_root = async (): Promise<LogRoot> => {
-    const logFiles = await api.eval_logs();
+    const logFiles = await api.get_log_root();
     if (logFiles) {
       return logFiles!;
     } else if (log_file) {
@@ -329,7 +329,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     },
     get_log_root,
     get_eval_set: (dir?: string) => {
-      return api.eval_set(dir);
+      return api.get_eval_set(dir);
     },
     get_log_summaries,
     get_log_info,

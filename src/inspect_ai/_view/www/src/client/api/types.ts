@@ -137,22 +137,22 @@ export interface Capabilities {
 
 export interface LogViewAPI {
   client_events: () => Promise<any[]>;
-  eval_set: (dir?: string) => Promise<EvalSet | undefined>;
-  eval_logs: () => Promise<LogRoot | undefined>;
-  eval_log: (
+  get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
+  get_log_root: () => Promise<LogRoot | undefined>;
+  get_log_contents: (
     log_file: string,
     // This is the number of MB of the log to fetch. If the log is larger than this, only the header will be returned. If not provided, it always fetches the entire log. Really only user for old JSON logs.
     headerOnly?: number,
     capabilities?: Capabilities,
   ) => Promise<LogContents>;
-  eval_log_size: (log_file: string) => Promise<number>;
-  eval_log_bytes: (
+  get_log_size: (log_file: string) => Promise<number>;
+  get_log_bytes: (
     log_file: string,
     start: number,
     end: number,
   ) => Promise<Uint8Array>;
-  eval_log_overview?: (log_file: string) => Promise<LogSummary>;
-  eval_log_overviews: (log_files: string[]) => Promise<LogSummary[]>;
+  get_log_summary?: (log_file: string) => Promise<LogSummary>;
+  get_log_summaries: (log_files: string[]) => Promise<LogSummary[]>;
   log_message: (log_file: string, message: string) => Promise<void>;
   download_file: (
     filename: string,

@@ -56,7 +56,7 @@ function staticHttpApiForLog(logInfo: {
       // http
       return Promise.resolve([]);
     },
-    eval_logs: async (): Promise<LogRoot | undefined> => {
+    get_log_root: async (): Promise<LogRoot | undefined> => {
       // First check based upon the log dir
       if (log_dir) {
         const manifest = await getManifest();
@@ -77,7 +77,7 @@ function staticHttpApiForLog(logInfo: {
 
       return undefined;
     },
-    eval_set: async (dir?: string) => {
+    get_eval_set: async (dir?: string) => {
       const dirSegments = [];
       if (log_dir) {
         dirSegments.push(log_dir);
@@ -92,7 +92,7 @@ function staticHttpApiForLog(logInfo: {
     log_message: async (log_file: string, message: string) => {
       console.log(`[CLIENT MESSAGE] (${log_file}): ${message}`);
     },
-    eval_log: async (
+    get_log_contents: async (
       log_file: string,
       _headerOnly?: number,
       _capabilities?: Capabilities,
@@ -104,13 +104,13 @@ function staticHttpApiForLog(logInfo: {
         throw new Error(`"Unable to load eval log ${log_file}`);
       }
     },
-    eval_log_size: async (log_file: string) => {
+    get_log_size: async (log_file: string) => {
       return await fetchSize(log_file);
     },
-    eval_log_bytes: async (log_file: string, start: number, end: number) => {
+    get_log_bytes: async (log_file: string, start: number, end: number) => {
       return await fetchRange(log_file, start, end);
     },
-    eval_log_overview: async (log_file: string) => {
+    get_log_summary: async (log_file: string) => {
       const manifest = await getManifest();
       if (manifest) {
         const manifestAbs: Record<string, LogSummary> = {};
@@ -124,7 +124,7 @@ function staticHttpApiForLog(logInfo: {
       }
       throw new Error(`Unable to load eval log header for ${log_file}`);
     },
-    eval_log_overviews: async (files: string[]) => {
+    get_log_summaries: async (files: string[]) => {
       if (files.length === 0) {
         return [];
       }
