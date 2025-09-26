@@ -13,7 +13,6 @@ export interface LogFileRecord {
   cached_at: string;
 }
 
-
 // Log Headers Table - Stores complete header data
 export interface LogHeaderRecord {
   // Primary key

@@ -1,5 +1,5 @@
 import { EvalResults } from "../@types/log";
-import { EvalSummary, SampleSummary } from "../client/api/types";
+import { LogInfo, SampleSummary } from "../client/api/types";
 
 export interface ScorerInfo {
   name: string;
@@ -50,7 +50,7 @@ const getScorersFromSamples = (samples: SampleSummary[]): ScorerInfo[] => {
  * Gets all available scorers for a log, prioritizing results over samples
  */
 export const getAvailableScorers = (
-  log: EvalSummary,
+  log: LogInfo,
   sampleSummaries: SampleSummary[],
 ): ScorerInfo[] | undefined => {
   const resultScorers = log.results ? getScorersFromResults(log.results) : [];
@@ -71,7 +71,7 @@ export const getAvailableScorers = (
  * or falling back to the first scorer from samples
  */
 export const getDefaultScorer = (
-  log: EvalSummary,
+  log: LogInfo,
   sampleSummaries: SampleSummary[],
 ): ScorerInfo | undefined => {
   if (sampleSummaries.length === 0) {

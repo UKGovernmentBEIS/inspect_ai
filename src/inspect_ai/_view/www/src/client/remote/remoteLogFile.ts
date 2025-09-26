@@ -3,8 +3,8 @@ import { asyncJsonParse } from "../../utils/json-worker";
 import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
-  EvalSummary,
-  LogOverview,
+  LogInfo,
+  LogSummary,
   LogViewAPI,
   SampleSummary,
 } from "../api/types";
@@ -33,8 +33,8 @@ export class SampleNotFoundError extends Error {
   }
 }
 export interface RemoteLogFile {
-  readEvalBasicInfo: () => Promise<LogOverview>;
-  readLogSummary: () => Promise<EvalSummary>;
+  readEvalBasicInfo: () => Promise<LogSummary>;
+  readLogSummary: () => Promise<LogInfo>;
   readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
   readCompleteLog: () => Promise<EvalLog>;
 }
@@ -165,7 +165,7 @@ export const openRemoteLogFile = async (
     }
   };
 
-  const readEvalBasicInfo = async (): Promise<LogOverview> => {
+  const readEvalBasicInfo = async (): Promise<LogSummary> => {
     const header = await readHeader();
     return toBasicInfo(header);
   };

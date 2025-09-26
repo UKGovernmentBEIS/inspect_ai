@@ -8,9 +8,10 @@ import {
 import { FileSizeLimitError } from "../remote/remoteZipFile";
 import {
   ClientAPI,
-  EvalSummary,
   LogContents,
-  LogFiles,
+  LogInfo,
+  LogRoot,
+  LogSummary,
   LogViewAPI,
   PendingSampleResponse,
   SampleDataResponse,
@@ -114,7 +115,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   /**
    * Gets a log summary
    */
-  const get_log_summary = async (log_file: string): Promise<EvalSummary> => {
+  const get_log_info = async (log_file: string): Promise<LogInfo> => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
       if (remoteLogFile) {
@@ -223,9 +224,9 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   /**
    * Gets log headers
    */
-  const get_log_headers = async (
+  const get_log_summaries = async (
     log_files: string[],
-  ): Promise<EvalLogHeader[]> => {
+  ): Promise<LogSummary[]> => {
     const eval_files: Record<string, number> = {};
     const json_files: Record<string, number> = {};
     let index = 0;
@@ -271,13 +272,13 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     return orderedHeaders.map(({ header }) => header);
   };
 
-  const get_log_paths = async (): Promise<LogFiles> => {
+  const get_log_root = async (): Promise<LogRoot> => {
     const logFiles = await api.eval_logs();
     if (logFiles) {
       return logFiles!;
     } else if (log_file) {
       // Is there an explicitly passed log file?
-      const summary = await get_log_summary(log_file);
+      const summary = await get_log_info(log_file);
       if (summary) {
         return {
           files: [
@@ -326,16 +327,12 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     client_events: () => {
       return api.client_events();
     },
-    get_log_paths: () => {
-      return get_log_paths();
-    },
-    get_log_overviews: (log_files) => {
-      return get_log_headers(log_files);
-    },
-    get_eval_set_info: (dir?: string) => {
+    get_log_root,
+    get_eval_set: (dir?: string) => {
       return api.eval_set(dir);
     },
-    get_log_summary,
+    get_log_summaries,
+    get_log_info,
     get_log_sample,
     open_log_file: (log_file, log_dir) => {
       return api.open_log_file(log_file, log_dir);
