@@ -113,7 +113,7 @@ export const createLogsSlice = (
         const databaseService = get().databaseService;
         if (databaseService) {
           try {
-            cached = await databaseService.getCachedLogSummaries(filePaths);
+            cached = await databaseService.getCachedLogOverviews(filePaths);
           } catch (e) {
             // Cache read failed, continue with normal flow
           }
@@ -204,15 +204,7 @@ export const createLogsSlice = (
             state.logs.logOverviewsLoading = false;
           });
 
-          // OPTIONAL: Cache new results (completely non-blocking)
-          setTimeout(() => {
-            const dbService = get().databaseService;
-            if (dbService && Object.keys(headerMap).length > 0) {
-              dbService.cacheLogSummaries(headerMap).catch(() => {
-                // Silently ignore cache errors
-              });
-            }
-          }, 0);
+          // Note: We no longer cache LogOverviews directly since we use headers instead
 
           return Object.values({ ...cached, ...headerMap });
         } catch (error) {

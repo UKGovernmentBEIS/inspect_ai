@@ -3,8 +3,73 @@
  * Uses fake-indexeddb for testing IndexedDB operations in Jest
  */
 
+import { LogFiles, SampleSummary, EvalHeader } from "../api/types";
 import { createDatabaseService, DatabaseService } from "./service";
-import { LogFiles, LogOverview, SampleSummary } from "../api/types";
+
+// Helper function to create a minimal EvalHeader for testing
+function createTestHeader(overrides: {
+  evalId: string;
+  runId: string;
+  task: string;
+  taskId: string;
+  model: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string;
+}): EvalHeader {
+  return {
+    version: 1,
+    status: overrides.status as any,
+    eval: {
+      eval_set_id: "set-1",
+      eval_id: overrides.evalId,
+      run_id: overrides.runId,
+      created: overrides.startedAt,
+      task: overrides.task,
+      task_id: overrides.taskId,
+      task_version: 1,
+      task_file: "",
+      task_display_name: "",
+      task_registry_name: "",
+      task_attribs: {},
+      task_args: {},
+      task_args_passed: {},
+      solver: null,
+      solver_args: {},
+      tags: [],
+      dataset: {
+        name: "test",
+        location: "test",
+        samples: 10,
+        sample_ids: [],
+        shuffled: false,
+      },
+      sandbox: null,
+      model: overrides.model,
+      model_generate_config: {} as any,
+      model_base_url: null,
+      model_args: {},
+      model_roles: {} as any,
+      config: {} as any,
+      revision: null,
+      packages: {},
+      metadata: {},
+      scorers: [],
+      metrics: {},
+    },
+    stats: overrides.completedAt
+      ? {
+          started_at: overrides.startedAt,
+          completed_at: overrides.completedAt,
+          model_usage: {},
+        }
+      : {
+          started_at: overrides.startedAt,
+          completed_at: "",
+          model_usage: {},
+        },
+  };
+}
 
 describe("Database Service", () => {
   let databaseService: DatabaseService;
@@ -114,22 +179,22 @@ describe("Database Service", () => {
 
   describe("Log Summaries Caching", () => {
     test("should cache and retrieve log summaries", async () => {
-      const testSummaries: Record<string, LogOverview> = {
-        "/test/logs/eval1.json": {
-          eval_id: "eval-1",
-          run_id: "run-1",
-          task: "test-task-1",
-          task_id: "task1",
-          task_version: 1,
-          model: "gpt-4",
-          status: "success",
-          started_at: "2024-01-01T00:00:00Z",
-          completed_at: "2024-01-01T01:00:00Z",
-        },
-      };
+      const testHeader = createTestHeader({
+        evalId: "eval-1",
+        runId: "run-1",
+        task: "test-task-1",
+        taskId: "task1",
+        model: "gpt-4",
+        status: "success",
+        startedAt: "2024-01-01T00:00:00Z",
+        completedAt: "2024-01-01T01:00:00Z",
+      });
 
-      await databaseService.cacheLogSummaries(testSummaries);
-      const cached = await databaseService.getCachedLogSummaries([
+      // Cache the header
+      await databaseService.cacheLogHeaders("/test/logs/eval1.json", testHeader);
+
+      // Retrieve as overviews (which internally uses headers)
+      const cached = await databaseService.getCachedLogOverviews([
         "/test/logs/eval1.json",
       ]);
 
@@ -139,32 +204,32 @@ describe("Database Service", () => {
     });
 
     test("should handle multiple log summaries", async () => {
-      const testSummaries: Record<string, LogOverview> = {
-        "/test/logs/eval1.json": {
-          eval_id: "eval-1",
-          run_id: "run-1",
-          task: "task-1",
-          task_id: "task1",
-          task_version: 1,
-          model: "gpt-4",
-          status: "success",
-          started_at: "2024-01-01T00:00:00Z",
-          completed_at: "2024-01-01T01:00:00Z",
-        },
-        "/test/logs/eval2.json": {
-          eval_id: "eval-2",
-          run_id: "run-2",
-          task: "task-2",
-          task_id: "task2",
-          task_version: 1,
-          model: "claude-3",
-          status: "started",
-          started_at: "2024-01-01T02:00:00Z",
-        },
-      };
+      const header1 = createTestHeader({
+        evalId: "eval-1",
+        runId: "run-1",
+        task: "task-1",
+        taskId: "task1",
+        model: "gpt-4",
+        status: "success",
+        startedAt: "2024-01-01T00:00:00Z",
+        completedAt: "2024-01-01T01:00:00Z",
+      });
 
-      await databaseService.cacheLogSummaries(testSummaries);
-      const cached = await databaseService.getCachedLogSummaries([
+      const header2 = createTestHeader({
+        evalId: "eval-2",
+        runId: "run-2",
+        task: "task-2",
+        taskId: "task2",
+        model: "claude-3",
+        status: "started",
+        startedAt: "2024-01-01T02:00:00Z",
+      });
+
+      // Cache headers individually
+      await databaseService.cacheLogHeaders("/test/logs/eval1.json", header1);
+      await databaseService.cacheLogHeaders("/test/logs/eval2.json", header2);
+
+      const cached = await databaseService.getCachedLogOverviews([
         "/test/logs/eval1.json",
         "/test/logs/eval2.json",
       ]);
@@ -189,6 +254,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
           completed: true,
@@ -204,6 +270,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
           completed: true,
@@ -237,6 +304,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
           completed: true,
@@ -255,6 +323,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
           completed: true,
@@ -296,6 +365,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
           completed: false,
@@ -314,6 +384,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
           completed: true,
@@ -358,20 +429,6 @@ describe("Database Service", () => {
         ],
       };
 
-      const logSummaries: Record<string, LogOverview> = {
-        "/test/logs/eval1.json": {
-          eval_id: "eval-1",
-          run_id: "run-1",
-          task: "task1",
-          task_id: "id1",
-          task_version: 1,
-          model: "gpt-4",
-          status: "success",
-          started_at: "2024-01-01T00:00:00Z",
-          completed_at: "2024-01-01T01:00:00Z",
-        },
-      };
-
       const sampleSummaries: SampleSummary[] = [
         {
           id: "sample-1",
@@ -384,6 +441,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
           completed: true,
@@ -391,7 +449,18 @@ describe("Database Service", () => {
       ];
 
       await databaseService.cacheLogFiles(logFiles);
-      await databaseService.cacheLogSummaries(logSummaries);
+      // Cache a header instead of a summary
+      const header = createTestHeader({
+        evalId: "eval-1",
+        runId: "run-1",
+        task: "task1",
+        taskId: "id1",
+        model: "gpt-4",
+        status: "success",
+        startedAt: "2024-01-01T00:00:00Z",
+        completedAt: "2024-01-01T01:00:00Z",
+      });
+      await databaseService.cacheLogHeaders("/test/logs/eval1.json", header);
       await databaseService.cacheSampleSummaries(
         "/test/logs/eval1.json",
         sampleSummaries,
@@ -400,7 +469,7 @@ describe("Database Service", () => {
       const stats = await databaseService.getCacheStats();
 
       expect(stats.logFiles).toBe(2);
-      expect(stats.logSummaries).toBe(1);
+      expect(stats.logSummaries).toBe(1);  // This now returns logHeaders count
       expect(stats.sampleSummaries).toBe(1);
       expect(stats.logDir).toBe("/test/logs");
     });
@@ -441,7 +510,7 @@ describe("Database Service", () => {
     });
 
     test("should handle empty query results", async () => {
-      const cached = await databaseService.getCachedLogSummaries([
+      const cached = await databaseService.getCachedLogOverviews([
         "/nonexistent/file.json",
       ]);
       expect(cached).toEqual({});

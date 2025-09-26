@@ -11,7 +11,6 @@ import {
   EvalSummary,
   LogContents,
   LogFiles,
-  LogOverview,
   LogViewAPI,
   PendingSampleResponse,
   SampleDataResponse,
@@ -226,7 +225,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
    */
   const get_log_headers = async (
     log_files: string[],
-  ): Promise<LogOverview[]> => {
+  ): Promise<EvalLogHeader[]> => {
     const eval_files: Record<string, number> = {};
     const json_files: Record<string, number> = {};
     let index = 0;

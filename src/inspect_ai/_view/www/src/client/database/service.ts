@@ -6,6 +6,7 @@ import {
   EvalHeader,
   SampleSummary,
 } from "../api/types";
+import { toLogOverview } from "./utils";
 import { createLogger } from "../../utils/logger";
 
 const log = createLogger("DatabaseService");
@@ -101,49 +102,6 @@ export class DatabaseService {
     }
   }
 
-  // === LOG SUMMARIES ===
-  async cacheLogSummaries(
-    summaries: Record<string, LogOverview>,
-  ): Promise<void> {
-    const db = this.getDb();
-    const now = new Date().toISOString();
-
-    const records = Object.entries(summaries).map(([filePath, overview]) => ({
-      file_path: filePath,
-      cached_at: now,
-      overview: overview,
-    }));
-
-    log.debug(`Caching ${records.length} log summaries`);
-    await db.log_summaries.bulkPut(records);
-  }
-
-  async getCachedLogSummaries(
-    filePaths: string[],
-  ): Promise<Record<string, LogOverview>> {
-    try {
-      const db = this.getDb();
-      const records = await db.log_summaries
-        .where("file_path")
-        .anyOf(filePaths)
-        .toArray();
-
-      log.debug(
-        `Retrieved ${records.length} cached log summaries out of ${filePaths.length} requested`,
-      );
-
-      const result: Record<string, LogOverview> = {};
-      for (const record of records) {
-        result[record.file_path] = record.overview;
-      }
-
-      return result;
-    } catch (error) {
-      log.error("Error retrieving cached log summaries:", error);
-      return {};
-    }
-  }
-
   // === LOG HEADERS ===
   async cacheLogHeaders(
     filePath: string,
@@ -178,6 +136,43 @@ export class DatabaseService {
       log.error(`Error retrieving cached log header for ${filePath}:`, error);
       return null;
     }
+  }
+
+  async getCachedLogHeaders(
+    filePaths: string[],
+  ): Promise<Record<string, EvalHeader>> {
+    try {
+      const db = this.getDb();
+      const records = await db.log_headers
+        .where("file_path")
+        .anyOf(filePaths)
+        .toArray();
+
+      log.debug(
+        `Retrieved ${records.length} cached log headers out of ${filePaths.length} requested`,
+      );
+
+      const result: Record<string, EvalHeader> = {};
+      for (const record of records) {
+        result[record.file_path] = record.header;
+      }
+
+      return result;
+    } catch (error) {
+      log.error("Error retrieving cached log headers:", error);
+      return {};
+    }
+  }
+
+  async getCachedLogOverviews(
+    filePaths: string[],
+  ): Promise<Record<string, LogOverview>> {
+    const headers = await this.getCachedLogHeaders(filePaths);
+    const result: Record<string, LogOverview> = {};
+    for (const [path, header] of Object.entries(headers)) {
+      result[path] = toLogOverview(header);
+    }
+    return result;
   }
 
   // === SAMPLE SUMMARIES ===
@@ -287,7 +282,6 @@ export class DatabaseService {
     log.debug("Clearing all caches");
     await Promise.all([
       db.log_files.clear(),
-      db.log_summaries.clear(),
       db.log_headers.clear(),
       db.sample_summaries.clear(),
     ]);
@@ -305,17 +299,15 @@ export class DatabaseService {
   }> {
     const db = this.getDb();
 
-    const [logFiles, logSummaries, logHeaders, sampleSummaries] =
-      await Promise.all([
-        db.log_files.count(),
-        db.log_summaries.count(),
-        db.log_headers.count(),
-        db.sample_summaries.count(),
-      ]);
+    const [logFiles, logHeaders, sampleSummaries] = await Promise.all([
+      db.log_files.count(),
+      db.log_headers.count(),
+      db.sample_summaries.count(),
+    ]);
 
     return {
       logFiles,
-      logSummaries,
+      logSummaries: logHeaders, // Use headers count for backward compatibility
       logHeaders,
       sampleSummaries,
       logDir: this.manager.getLogDir(),
