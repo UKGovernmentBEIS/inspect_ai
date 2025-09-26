@@ -17,6 +17,7 @@ from inspect_ai.analysis import (
     samples_df,
 )
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
+from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.log import EvalLog, list_eval_logs
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
@@ -118,3 +119,17 @@ def test_eval_df_display_name():
         eval(Task(name="my_task"), model="mockllm/model", log_dir=log_dir)
         df = evals_df(log_dir)
         assert df["task_display_name"].to_list().sort() == ["My Task", "my_task"].sort()
+
+
+def test_samples_df_with_sample_scores():
+    """Test that SampleSummary + SampleScores combination works correctly."""
+    df = samples_df(LOGS_DIR, columns=SampleSummary + SampleScores)
+
+    assert "eval_id" in df.columns
+    assert "sample_id" in df.columns
+    assert "input" in df.columns
+    assert "target" in df.columns
+
+    # Check that score columns are present
+    score_columns = [col for col in df.columns if col.startswith("score_")]
+    assert len(score_columns) > 0
