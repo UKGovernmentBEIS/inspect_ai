@@ -14,7 +14,7 @@
 - Inspect View: Always show reasoning blocks (previously we hid them when there was no content, i.e. Responses API store=True).
 - Inspect View: Improve the display of Codex Agent `update_plan` and `shell` tool inputs.
 - Inspect View: Fix flash of error message when initially viewing a log file in VS Code.
-- Inspect View: Propery create tree for transcripts when tasks include async work generating spans and events.
+- Inspect View: Properly create tree for transcripts when tasks include async work generating spans and events.
 - Bugfix: Properly deserialize `EvalSet` when optional values are missing.
 - Bugfix: Fix "auto" message truncation in react agent.
 - Bugfix: Update various tests to react to Google's deprecation of old models.
