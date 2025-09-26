@@ -47,6 +47,7 @@ class RecorderBuffer:
                     "transcript_id": transcript.id,
                     "transcript_source_id": transcript.source_id,
                     "transcript_source_uri": transcript.source_uri,
+                    "scanner": scanner,
                 },
             )
             | result.to_df_columns()
