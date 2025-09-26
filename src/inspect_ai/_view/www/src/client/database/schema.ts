@@ -1,5 +1,5 @@
 import Dexie from "dexie";
-import { EvalHeader, LogOverview, SampleSummary } from "../api/types";
+import { EvalHeader, SampleSummary } from "../api/types";
 
 // Log Files Table - Basic file listing from get_log_paths()
 export interface LogFileRecord {
@@ -13,15 +13,6 @@ export interface LogFileRecord {
   cached_at: string;
 }
 
-// Log Summaries Table - Stores complete log overview data
-export interface LogSummaryRecord {
-  // (primary key)
-  file_path: string;
-  cached_at: string;
-
-  // The complete log overview object
-  overview: LogOverview;
-}
 
 // Log Headers Table - Stores complete header data
 export interface LogHeaderRecord {
@@ -45,7 +36,6 @@ export interface SampleSummaryRecord {
 
 export class AppDatabase extends Dexie {
   log_files!: Dexie.Table<LogFileRecord, string>;
-  log_summaries!: Dexie.Table<LogSummaryRecord, string>;
   log_headers!: Dexie.Table<LogHeaderRecord, string>;
   sample_summaries!: Dexie.Table<
     SampleSummaryRecord,
@@ -61,10 +51,6 @@ export class AppDatabase extends Dexie {
     this.version(1).stores({
       // Basic file listing - indexes for querying and sorting
       log_files: "file_path, task, task_id, cached_at",
-
-      // Summary data - indexes into nested overview properties
-      log_summaries:
-        "file_path, overview.eval_id, overview.run_id, overview.task, overview.task_id, overview.task_version, overview.version, overview.status, overview.model, overview.started_at, overview.completed_at",
 
       // Full header data - indexes into nested header properties
       log_headers: "file_path, header.version, header.status, cached_at",
