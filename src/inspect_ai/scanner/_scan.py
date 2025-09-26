@@ -197,7 +197,7 @@ def init_runtime_context(
 
     # resolve from inspect eval model env var if rquired
     if model is None:
-        model = os.getenv("INSPECT_EVAL_MODEL", None)
+        model = os.getenv("INSPECT_SCAN_MODEL", os.getenv("INSPECT_EVAL_MODEL", None))
 
     # init model context
     resolved_model_args = resolve_args(model_args or {})
