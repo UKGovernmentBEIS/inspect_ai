@@ -16,6 +16,8 @@ import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import { LogsFilterInput } from "./LogsFilterInput";
 import styles from "./LogsPanel.module.css";
+import { ViewerOptionsButton } from "./ViewerOptionsButton";
+import { ViewerOptionsPopover } from "./ViewerOptionsPopover";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -47,7 +49,13 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const { setPage } = usePagination(kLogsPaginationId, kDefaultPageSize);
 
   const filterRef = useRef<HTMLInputElement>(null);
+  const optionsRef = useRef<HTMLButtonElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  const isShowing = useStore((state) => state.app.dialogs.options);
+  const setShowing = useStore(
+    (state) => state.appActions.setShowingOptionsDialog,
+  );
 
   const { logPath } = useLogRouteParams();
 
@@ -252,6 +260,16 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     >
       <Navbar>
         <LogsFilterInput ref={filterRef} />
+        <ViewerOptionsButton
+          showing={isShowing}
+          setShowing={setShowing}
+          ref={optionsRef}
+        />
+        <ViewerOptionsPopover
+          positionEl={optionsRef.current}
+          showing={isShowing}
+          setShowing={setShowing}
+        />
       </Navbar>
 
       <ActivityBar animating={loading || headersLoading} />
