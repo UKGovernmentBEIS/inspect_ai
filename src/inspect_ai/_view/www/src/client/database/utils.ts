@@ -1,6 +1,6 @@
-import { EvalHeader, LogOverview } from "../api/types";
+import { EvalHeader, LogSummary } from "../api/types";
 
-export function toLogOverview(header: EvalHeader): LogOverview {
+export function toLogOverview(header: EvalHeader): LogSummary {
   const { eval: evalSpec, version, status, error, stats, results } = header;
 
   // Get the first metric from the first score's metrics

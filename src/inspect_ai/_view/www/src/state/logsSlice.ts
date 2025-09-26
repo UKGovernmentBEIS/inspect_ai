@@ -5,18 +5,13 @@ import {
 } from "@tanstack/react-table";
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
-import {
-  EvalHeader,
-  LogFile,
-  LogFiles,
-  LogOverview,
-} from "../client/api/types";
+import { EvalHeader, LogFile, LogRoot, LogSummary } from "../client/api/types";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
 
-const kEmptyLogs: LogFiles = {
+const kEmptyLogs: LogRoot = {
   log_dir: "",
   files: [],
 };
@@ -25,10 +20,10 @@ export interface LogsSlice {
   logs: LogsState;
   logsActions: {
     // Update State
-    setLogs: (logs: LogFiles) => void;
-    setLogOverviews: (overviews: Record<string, LogOverview>) => void;
-    loadLogOverviews: (logs: LogFile[]) => Promise<LogOverview[]>;
-    updateLogOverviews: (overviews: Record<string, LogOverview>) => void;
+    setLogs: (logs: LogRoot) => void;
+    setLogOverviews: (overviews: Record<string, LogSummary>) => void;
+    loadLogOverviews: (logs: LogFile[]) => Promise<LogSummary[]>;
+    updateLogOverviews: (overviews: Record<string, LogSummary>) => void;
     setLogOverviewsLoading: (loading: boolean) => void;
     setSelectedLogIndex: (index: number) => void;
     setSelectedLogFile: (logUrl: string) => void;
@@ -36,7 +31,7 @@ export interface LogsSlice {
     // Fetch or update logs
     refreshLogs: () => Promise<void>;
     selectLogFile: (logUrl: string) => Promise<void>;
-    loadLogs: () => Promise<LogFiles>;
+    loadLogs: () => Promise<LogRoot>;
 
     // Cross-file sample operations
     getAllCachedSamples: () => Promise<any[]>;
@@ -85,7 +80,7 @@ export const createLogsSlice = (
 
     // Actions
     logsActions: {
-      setLogs: (logs: LogFiles) => {
+      setLogs: (logs: LogRoot) => {
         set((state) => {
           state.logs.logs = logs;
           state.logs.selectedLogFile =
@@ -94,7 +89,7 @@ export const createLogsSlice = (
               : undefined;
         });
       },
-      setLogOverviews: (overviews: Record<string, LogOverview>) =>
+      setLogOverviews: (overviews: Record<string, LogSummary>) =>
         set((state) => {
           state.logs.logOverviews = overviews;
         }),
@@ -109,7 +104,7 @@ export const createLogsSlice = (
         const filePaths = logs.map((log) => log.name);
 
         // OPTIONAL: Try cache first (non-blocking, fail silently)
-        let cached: Record<string, LogOverview> = {};
+        let cached: Record<string, LogSummary> = {};
         const databaseService = get().databaseService;
         if (databaseService) {
           try {
@@ -176,17 +171,17 @@ export const createLogsSlice = (
           log.debug(
             `LOADING LOG OVERVIEWS from API for ${filesToLoad.length} files`,
           );
-          const headers = await api.get_log_overviews(
+          const headers = await api.get_log_summaries(
             filesToLoad.map((log) => log.name),
           );
 
           // Process results and update store
-          const headerMap: Record<string, LogOverview> = {};
+          const headerMap: Record<string, LogSummary> = {};
           for (let i = 0; i < filesToLoad.length; i++) {
             const logFile = filesToLoad[i];
             const header = headers[i];
             if (header) {
-              headerMap[logFile.name] = header as LogOverview;
+              headerMap[logFile.name] = header as LogSummary;
             }
           }
 
@@ -238,7 +233,7 @@ export const createLogsSlice = (
           state.logs.selectedLogFile = file ? file.name : undefined;
         });
       },
-      updateLogOverviews: (overviews: Record<string, LogOverview>) =>
+      updateLogOverviews: (overviews: Record<string, LogSummary>) =>
         set((state) => {
           state.logs.logOverviews = {
             ...get().logs.logOverviews,
@@ -268,10 +263,10 @@ export const createLogsSlice = (
         }
 
         // Get log files from API to initialize database with log_dir
-        let logFiles: LogFiles;
+        let logFiles: LogRoot;
         try {
           log.debug("LOADING LOG FILES FROM API");
-          logFiles = await api.get_log_paths();
+          logFiles = await api.get_log_root();
 
           // Initialize database with log directory
           const databaseService = get().databaseService;
@@ -355,7 +350,7 @@ export const createLogsSlice = (
           return undefined;
         }
 
-        const info = await api.get_eval_set_info(logPath);
+        const info = await api.get_eval_set(logPath);
         return info;
       },
       setEvalSetInfo: (info: EvalSet | undefined) => {

@@ -26,11 +26,11 @@ import {
 import {
   AttachmentData,
   EvalHeader,
-  EvalSummary,
   EventData,
   LogFile,
-  LogFiles,
-  LogOverview,
+  LogInfo,
+  LogRoot,
+  LogSummary,
   PendingSamples,
   SampleSummary,
 } from "../client/api/types";
@@ -66,9 +66,9 @@ export interface AppState {
 }
 
 export interface LogsState {
-  logs: LogFiles;
+  logs: LogRoot;
   evalSet?: EvalSet;
-  logOverviews: Record<string, LogOverview>;
+  logOverviews: Record<string, LogSummary>;
   logOverviewsLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;
@@ -92,7 +92,7 @@ export interface LogState {
   loadedLog?: string;
 
   selectedSampleIndex: number;
-  selectedLogSummary?: EvalSummary;
+  selectedLogSummary?: LogInfo;
   pendingSampleSummaries?: PendingSamples;
 
   filter: string;
@@ -159,7 +159,7 @@ export interface AppStatus {
 
 export interface CurrentLog {
   name: string;
-  contents: EvalSummary;
+  contents: LogInfo;
 }
 
 export interface Logs {

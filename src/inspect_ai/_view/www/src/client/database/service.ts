@@ -1,13 +1,8 @@
+import { createLogger } from "../../utils/logger";
+import { EvalHeader, LogRoot, LogSummary, SampleSummary } from "../api/types";
 import { DatabaseManager } from "./manager";
 import { AppDatabase } from "./schema";
-import {
-  LogFiles,
-  LogOverview,
-  EvalHeader,
-  SampleSummary,
-} from "../api/types";
 import { toLogOverview } from "./utils";
-import { createLogger } from "../../utils/logger";
 
 const log = createLogger("DatabaseService");
 
@@ -56,7 +51,7 @@ export class DatabaseService {
   }
 
   // === LOG FILES ===
-  async cacheLogFiles(logFiles: LogFiles): Promise<void> {
+  async cacheLogFiles(logFiles: LogRoot): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
@@ -72,7 +67,7 @@ export class DatabaseService {
     await db.log_files.bulkPut(records);
   }
 
-  async getCachedLogFiles(): Promise<LogFiles | null> {
+  async getCachedLogFiles(): Promise<LogRoot | null> {
     try {
       const db = this.getDb();
       const files = await db.log_files.orderBy("cached_at").toArray();
@@ -103,10 +98,7 @@ export class DatabaseService {
   }
 
   // === LOG HEADERS ===
-  async cacheLogHeaders(
-    filePath: string,
-    header: EvalHeader,
-  ): Promise<void> {
+  async cacheLogHeaders(filePath: string, header: EvalHeader): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
@@ -166,9 +158,9 @@ export class DatabaseService {
 
   async getCachedLogOverviews(
     filePaths: string[],
-  ): Promise<Record<string, LogOverview>> {
+  ): Promise<Record<string, LogSummary>> {
     const headers = await this.getCachedLogHeaders(filePaths);
-    const result: Record<string, LogOverview> = {};
+    const result: Record<string, LogSummary> = {};
     for (const [path, header] of Object.entries(headers)) {
       result[path] = toLogOverview(header);
     }

@@ -1,5 +1,5 @@
 import { FilterError, LogState, ScoreLabel } from "../app/types";
-import { EvalSummary, PendingSamples } from "../client/api/types";
+import { LogInfo, PendingSamples } from "../client/api/types";
 import { toBasicInfo } from "../client/utils/type-utils";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
@@ -14,7 +14,7 @@ export interface LogSlice {
     selectSample: (index: number) => void;
 
     // Set the selected log summary
-    setSelectedLogSummary: (summary: EvalSummary) => void;
+    setSelectedLogSummary: (summary: LogInfo) => void;
 
     // Clear the selected log summary
     clearSelectedLogSummary: () => void;
@@ -97,7 +97,7 @@ export const createLogSlice = (
           state.log.selectedSampleIndex = index;
         }),
 
-      setSelectedLogSummary: (selectedLogSummary: EvalSummary) => {
+      setSelectedLogSummary: (selectedLogSummary: LogInfo) => {
         set((state) => {
           state.log.selectedLogSummary = selectedLogSummary;
           state.log.selectedScores = undefined;
@@ -171,7 +171,7 @@ export const createLogSlice = (
 
         log.debug(`Load log: ${logFileName}`);
         try {
-          const logContents = await api.get_log_summary(logFileName);
+          const logContents = await api.get_log_info(logFileName);
           state.logActions.setSelectedLogSummary(logContents);
 
           // OPTIONAL: Cache sample summaries (completely non-blocking)
@@ -232,7 +232,7 @@ export const createLogSlice = (
 
         log.debug(`refresh: ${selectedLogFile}`);
         try {
-          const logContents = await api.get_log_summary(selectedLogFile);
+          const logContents = await api.get_log_info(selectedLogFile);
           state.logActions.setSelectedLogSummary(logContents);
         } catch (error) {
           log.error("Error refreshing log:", error);
