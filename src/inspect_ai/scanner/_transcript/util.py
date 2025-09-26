@@ -49,7 +49,8 @@ def filter_transcript(transcript: Transcript, content: TranscriptContent) -> Tra
     """
     return Transcript(
         id=transcript.id,
-        source=transcript.source,
+        source_id=transcript.source_id,
+        source_uri=transcript.source_uri,
         metadata=transcript.metadata,
         messages=_apply_filter_to_list(transcript.messages, content.messages),
         events=_apply_filter_to_list(transcript.events, content.events),

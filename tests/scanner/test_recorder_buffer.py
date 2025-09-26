@@ -24,7 +24,8 @@ def sample_transcript():
     """Create a sample TranscriptInfo for testing."""
     return TranscriptInfo(
         id="test-transcript-123",
-        source="/path/to/source.log",
+        source_id="source-42",
+        source_uri="/path/to/source.log",
         metadata={"model": "gpt-4", "temperature": 0.7},
     )
 
@@ -75,7 +76,8 @@ async def test_record_and_retrieve(
     assert table is not None
     assert table.num_rows == 3
     assert "transcript_id" in table.column_names
-    assert "transcript_source" in table.column_names
+    assert "transcript_source_id" in table.column_names
+    assert "transcript_source_uri" in table.column_names
     assert "value" in table.column_names
     assert "answer" in table.column_names
     assert "explanation" in table.column_names
@@ -87,7 +89,7 @@ async def test_record_and_retrieve(
 
     # Check transcript info
     assert df["transcript_id"].iloc[0] == "test-transcript-123"
-    assert df["transcript_source"].iloc[0] == "/path/to/source.log"
+    assert df["transcript_source_uri"].iloc[0] == "/path/to/source.log"
 
     # Check values (mixed types are converted to strings)
     assert df["value"].iloc[0] == "correct"
@@ -117,7 +119,7 @@ async def test_is_recorded(
 
     # Check with different transcript ID
     other_transcript = TranscriptInfo(
-        id="other-transcript-456", source="/other/source.log"
+        id="other-transcript-456", source_id="42", source_uri="/other/source.log"
     )
     is_recorded = await recorder_buffer.is_recorded(other_transcript, scanner_name)
     assert is_recorded is False
@@ -193,6 +195,7 @@ async def test_type_preservation(
     assert pd.isna(values[5]) or values[5] is None
     # Complex types are JSON stringified (might have formatting)
     import json
+
     assert json.loads(values[6]) == {"nested": "dict"}
     assert json.loads(values[7]) == ["list", "of", "items"]
 

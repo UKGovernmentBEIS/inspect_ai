@@ -17,6 +17,7 @@ def create_test_dataframe(num_samples: int = 10) -> pd.DataFrame:
         data.append(
             {
                 "sample_id": f"sample_{i:03d}_{uuid.uuid4().hex[:8]}",
+                "eval_id": f"eval_{uuid.uuid4().hex[:8]}",  # Add eval_id
                 "log": f"/path/to/log_{i:03d}.json",
                 "model": ["gpt-4", "gpt-3.5-turbo", "claude"][i % 3],
                 "score": 0.5 + (i % 10) * 0.05,  # 0.5 to 0.95
@@ -582,7 +583,7 @@ async def test_query_all(db):
     for result in results:
         assert isinstance(result, TranscriptInfo)
         assert result.id.startswith("sample_")
-        assert result.source.startswith("/path/to/log_")
+        assert result.source_uri.startswith("/path/to/log_")
         assert isinstance(result.metadata, dict)
 
 
@@ -777,7 +778,7 @@ async def test_transcripts_query_integration():
 @pytest.mark.asyncio
 async def test_empty_dataframe():
     """Test with empty DataFrame."""
-    df = pd.DataFrame(columns=["sample_id", "log"])
+    df = pd.DataFrame(columns=["sample_id", "eval_id", "log"])
     db = EvalLogTranscriptsDB(df)
     await db.connect()
 
@@ -797,6 +798,7 @@ async def test_missing_required_columns():
     df = pd.DataFrame(
         {
             "sample_id": [None],  # Missing sample_id value
+            "eval_id": ["eval_123"],
             "log": ["/path/to/log.json"],
             "model": ["gpt-4"],
         }

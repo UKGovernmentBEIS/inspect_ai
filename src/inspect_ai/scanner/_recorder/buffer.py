@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
-from typing import TYPE_CHECKING, Any, Sequence, cast
+from typing import TYPE_CHECKING, Any, Sequence, Set, cast
 
 from upath import UPath
 
@@ -45,7 +45,8 @@ class RecorderBuffer:
                 dict[str, str | bool | int | float | None],
                 {
                     "transcript_id": transcript.id,
-                    "transcript_source": transcript.source,
+                    "transcript_source_id": transcript.source_id,
+                    "transcript_source_uri": transcript.source_uri,
                 },
             )
             | result.to_df_columns()
@@ -148,7 +149,7 @@ def _records_to_arrow(records: list[dict[str, Any]]) -> "pa.Table":
     # Check for mixed-type columns and convert them to strings
     if norm:
         # Detect which columns have mixed types
-        columns_types = {}
+        columns_types: dict[str, Set[Any]] = {}
         for record in norm:
             for key, value in record.items():
                 if value is not None:

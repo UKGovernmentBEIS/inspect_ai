@@ -21,7 +21,7 @@ from zipfile import ZipFile
 from typing_extensions import override
 
 from inspect_ai.analysis._dataframe.evals.columns import EvalColumns
-from inspect_ai.analysis._dataframe.evals.table import EVAL_LOG_PATH
+from inspect_ai.analysis._dataframe.evals.table import EVAL_ID, EVAL_LOG_PATH
 from inspect_ai.analysis._dataframe.samples.columns import SampleSummary
 from inspect_ai.analysis._dataframe.samples.table import SAMPLE_ID, samples_df
 from inspect_ai.analysis._dataframe.util import (
@@ -179,6 +179,12 @@ class EvalLogTranscriptsDB:
         if not isinstance(logs, pd.DataFrame):
             self._transcripts_df = samples_df(logs, EvalColumns + SampleSummary)
         else:
+            # ensure we have an EVAL_ID
+            if EVAL_ID not in logs.columns:
+                raise ValueError(
+                    f"Transcripts data frame does not have an '{EVAL_ID}' column."
+                )
+
             # ensure we have a log path
             if EVAL_LOG_PATH not in logs.columns:
                 raise ValueError(
@@ -256,12 +262,13 @@ class EvalLogTranscriptsDB:
 
             # extract required fields
             transcript_id = row_dict.pop("sample_id", None)
-            transcript_source = row_dict.pop("log", None)
+            transcript_source_id = row_dict.pop("eval_id", None)
+            transcript_source_uri = row_dict.pop("log", None)
 
             # ensure we have required fields
-            if transcript_id is None or transcript_source is None:
+            if transcript_id is None or transcript_source_uri is None:
                 raise ValueError(
-                    f"Missing required fields: sample_id={transcript_id}, log={transcript_source}"
+                    f"Missing required fields: sample_id={transcript_id}, log={transcript_source_uri}"
                 )
 
             # everything else goes into metadata
@@ -269,7 +276,10 @@ class EvalLogTranscriptsDB:
 
             results.append(
                 TranscriptInfo(
-                    id=transcript_id, source=transcript_source, metadata=metadata
+                    id=transcript_id,
+                    source_id=transcript_source_id,
+                    source_uri=transcript_source_uri,
+                    metadata=metadata,
                 )
             )
 
@@ -297,12 +307,12 @@ class EvalLogTranscriptsDB:
         This cache assumes that the typical usage pattern will scan through a single
         source rather than jumping across sources randomly.
         """
-        if self._summaries_cache is None or self._summaries_cache[0] != t.source:
+        if self._summaries_cache is None or self._summaries_cache[0] != t.source_uri:
             self._summaries_cache = (
-                t.source,
+                t.source_uri,
                 {
                     summary.uuid: summary
-                    for summary in read_eval_log_sample_summaries(t.source)
+                    for summary in read_eval_log_sample_summaries(t.source_uri)
                     if summary.uuid is not None
                 },
             )
@@ -311,7 +321,7 @@ class EvalLogTranscriptsDB:
     async def read(self, t: TranscriptInfo, content: TranscriptContent) -> Transcript:
         summary = self._get_eval_summary(t)
         sample_file_name = f"samples/{summary.id}_epoch_{summary.epoch}.json"
-        with ZipFile(t.source, mode="r") as zipfile:
+        with ZipFile(t.source_uri, mode="r") as zipfile:
             with zipfile.open(sample_file_name, "r") as sample_json:
                 return await load_filtered_transcript(
                     sample_json, t, content.messages, content.events
