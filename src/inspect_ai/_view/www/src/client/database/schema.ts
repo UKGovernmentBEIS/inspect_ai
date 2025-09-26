@@ -1,7 +1,7 @@
 import Dexie from "dexie";
-import { EvalHeader, SampleSummary } from "../api/types";
+import { LogInfo, LogSummary } from "../api/types";
 
-// Log Files Table - Basic file listing from get_log_paths()
+// Log Files Table - Basic file listing from get_log_root()
 export interface LogFileRecord {
   // (primary key)
   file_path: string;
@@ -13,28 +13,29 @@ export interface LogFileRecord {
   cached_at: string;
 }
 
-// Log Headers Table - Stores complete header data
-export interface LogHeaderRecord {
+// Log Summaries Table - Stores results from get_log_summaries()
+export interface LogSummaryRecord {
   // Primary key
   file_path: string;
   cached_at: string;
 
-  // The complete header object
-  header: EvalHeader;
+  // The complete log summary object
+  summary: LogSummary;
 }
 
-// Sample Summaries Table - Stores complete sample data with indexed fields
-export interface SampleSummaryRecord {
-  // Metadata
+// Log Info Table - Stores complete results from get_log_info()
+// This includes the full header and sample summaries
+export interface LogInfoRecord {
+  // Primary key
   file_path: string;
   cached_at: string;
 
-  // The complete sample summary object
-  summary: SampleSummary;
+  // The complete log info object (includes sample summaries)
+  info: LogInfo;
 }
 
 // Current database schema version
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 // Resolves a log dir into a database name
 function resolveDBName(logDir: string): string {
@@ -45,11 +46,8 @@ function resolveDBName(logDir: string): string {
 
 export class AppDatabase extends Dexie {
   log_files!: Dexie.Table<LogFileRecord, string>;
-  log_headers!: Dexie.Table<LogHeaderRecord, string>;
-  sample_summaries!: Dexie.Table<
-    SampleSummaryRecord,
-    [string, number | string, number]
-  >;
+  log_summaries!: Dexie.Table<LogSummaryRecord, string>;
+  log_info!: Dexie.Table<LogInfoRecord, string>;
 
   /**
    * Check if an existing database needs to be recreated due to version mismatch.
@@ -91,12 +89,12 @@ export class AppDatabase extends Dexie {
       // Basic file listing - indexes for querying and sorting
       log_files: "file_path, task, task_id, cached_at",
 
-      // Full header data - indexes into nested header properties
-      log_headers: "file_path, header.version, header.status, cached_at",
+      // Log summaries from get_log_summaries() - indexes for common queries
+      log_summaries:
+        "file_path, summary.status, summary.task_id, summary.model, cached_at",
 
-      // Sample data - indexes into nested summary properties
-      sample_summaries:
-        "[file_path+summary.id+summary.epoch], file_path, summary.id, summary.epoch, summary.completed, summary.target, [file_path+summary.completed], summary.uuid",
+      // Complete log info from get_log_info() - includes samples
+      log_info: "file_path, info.status, cached_at",
     });
   }
 }

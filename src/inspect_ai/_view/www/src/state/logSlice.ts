@@ -170,25 +170,49 @@ export const createLogSlice = (
         }
 
         log.debug(`Load log: ${logFileName}`);
+
+        // OPTIONAL: Try cache first (non-blocking, fail silently)
+        const dbService = state.databaseService;
+        if (dbService) {
+          try {
+            const cachedInfo = await dbService.getCachedLogInfo(logFileName);
+            if (cachedInfo) {
+              log.debug(`Using cached log info for: ${logFileName}`);
+              state.logActions.setSelectedLogSummary(cachedInfo);
+              // Still fetch fresh data in background to update cache
+              api.get_log_info(logFileName).then((freshInfo) => {
+                state.logActions.setSelectedLogSummary(freshInfo);
+                dbService.cacheLogInfo(logFileName, freshInfo).catch(() => {
+                  // Silently ignore cache errors
+                });
+              });
+              // Continue with rest of the function using cached data
+              const header = {
+                [logFileName]: toBasicInfo(cachedInfo),
+              };
+              state.logsActions.updateLogOverviews(header);
+              set((state) => {
+                state.log.loadedLog = logFileName;
+              });
+              return;
+            }
+          } catch (e) {
+            // Cache read failed, continue with normal flow
+          }
+        }
+
         try {
           const logContents = await api.get_log_info(logFileName);
           state.logActions.setSelectedLogSummary(logContents);
 
-          // OPTIONAL: Cache sample summaries (completely non-blocking)
-          setTimeout(() => {
-            const dbService = state.databaseService;
-            if (
-              dbService &&
-              logContents.sampleSummaries &&
-              logContents.sampleSummaries.length > 0
-            ) {
-              dbService
-                .cacheSampleSummaries(logFileName, logContents.sampleSummaries)
-                .catch(() => {
-                  // Silently ignore cache errors
-                });
-            }
-          }, 0);
+          // OPTIONAL: Cache log info (completely non-blocking)
+          if (dbService) {
+            setTimeout(() => {
+              dbService.cacheLogInfo(logFileName, logContents).catch(() => {
+                // Silently ignore cache errors
+              });
+            }, 0);
+          }
 
           // Push the updated header information up
           const header = {
