@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import cache
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
 
@@ -13,6 +14,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
+from inspect_ai.model import Model
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util._limit import LimitExceededError
 
@@ -330,6 +332,9 @@ class Hooks:
         """
         return None
 
+    def invalidate_model_cache(self, cached_model: Model) -> bool:
+        return False
+
 
 T = TypeVar("T", bound=Hooks)
 
@@ -499,6 +504,16 @@ def override_api_key(env_var_name: str, value: str) -> str | None:
     return override_api_key_legacy(env_var_name, value)
 
 
+def invalidate_model_cache(cached_model: Model) -> bool:
+    for hook in get_all_hooks():
+        if not hook.enabled():
+            continue
+        if hook.invalidate_model_cache(cached_model):
+            return True
+    return False
+
+
+@cache
 def get_all_hooks() -> list[Hooks]:
     """Get all registered hooks."""
     results = registry_find(lambda info: info.type == "hooks")

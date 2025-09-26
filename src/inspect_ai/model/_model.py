@@ -1031,7 +1031,10 @@ def get_model(
         )
         cached = cached_model(model_cache_key)
         if cached is not None:
-            return cached
+            from ..hooks._hooks import invalidate_model_cache
+
+            if not invalidate_model_cache(cached):
+                return cached
 
     # split model into api name and model name if necessary
     api_name = None
