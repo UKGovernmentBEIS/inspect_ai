@@ -1,6 +1,6 @@
 from ._recorder.recorder import ScanResults
 from ._scan import scan, scan_async, scan_resume, scan_resume_async
-from ._scandef import ScanDef, scandef
+from ._scanjob import ScanJob, scanjob
 from ._scanner.loader import Loader, loader
 from ._scanner.result import Result
 from ._scanner.scanner import Scanner, scanner
@@ -26,8 +26,8 @@ __all__ = [
     "scan_async",
     "scan_resume_async",
     "scan_results_async",
-    "scandef",
-    "ScanDef",
+    "scanjob",
+    "ScanJob",
     # transcripts
     "transcripts",
     "Transcripts",

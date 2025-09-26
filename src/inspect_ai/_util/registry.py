@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.hooks._hooks import Hooks
     from inspect_ai.model import ModelAPI
-    from inspect_ai.scanner._scandef import ScanDef
+    from inspect_ai.scanner._scanjob import ScanJob
     from inspect_ai.scanner._scanner.loader import Loader
     from inspect_ai.scanner._scanner.scanner import Scanner
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer
@@ -53,7 +53,7 @@ RegistryType = Literal[
     "tool",
     "loader",
     "scanner",
-    "scandef",
+    "scanjob",
 ]
 """Enumeration of registry object types.
 
@@ -305,7 +305,7 @@ def registry_create(
 
 
 @overload
-def registry_create(type: Literal["scandef"], name: str, **kwargs: Any) -> ScanDef: ...
+def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> ScanJob: ...
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]

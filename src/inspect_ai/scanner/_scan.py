@@ -9,19 +9,21 @@ from inspect_ai._eval.context import init_model_context
 from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.config import resolve_args
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.platform import platform_init
+from inspect_ai._util.registry import is_registry_object
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, resolve_models
 from inspect_ai.model._model_config import (
     model_config_to_model,
     model_roles_config_to_model_roles,
 )
-from inspect_ai.scanner._util.contstants import DEFAULT_MAX_SCANNERS
+from inspect_ai.scanner._util.contstants import DEFAULT_MAX_TRANSCRIPTS
 
 from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanResults
-from ._scandef import ScanDef
-from ._scanjob import ScanJob, create_scan_job, resume_scan_job
+from ._scancontext import ScanContext, create_scan, resume_scan
+from ._scanjob import ScanJob
 from ._scanner.scanner import config_for_scanner
 from ._scanspec import ScanConfig
 from ._transcript.transcripts import Transcripts
@@ -30,14 +32,14 @@ from ._work_pool import WorkItem, scan_with_work_pool
 
 
 def scan(
-    scandef: ScanDef,
+    scanjob: ScanJob,
     transcripts: Transcripts | None = None,
     model: str | Model | None = None,
     model_config: GenerateConfig | None = None,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str | None = None,
     model_roles: dict[str, str | Model] | None = None,
-    max_scanners: int | None = None,
+    max_transcripts: int | None = None,
     limit: int | None = None,
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
@@ -47,14 +49,14 @@ def scan(
 ) -> ScanResults:
     return run_coroutine(
         scan_async(
-            scandef=scandef,
+            scanjob=scanjob,
             transcripts=transcripts,
             model=model,
             model_config=model_config,
             model_base_url=model_base_url,
             model_args=model_args,
             model_roles=model_roles,
-            max_scanners=max_scanners,
+            max_transcripts=max_transcripts,
             limit=limit,
             shuffle=shuffle,
             tags=tags,
@@ -66,14 +68,14 @@ def scan(
 
 
 async def scan_async(
-    scandef: ScanDef,
+    scanjob: ScanJob,
     transcripts: Transcripts | None = None,
     model: str | Model | None = None,
     model_config: GenerateConfig | None = None,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str | None = None,
     model_roles: dict[str, str | Model] | None = None,
-    max_scanners: int | None = None,
+    max_transcripts: int | None = None,
     limit: int | None = None,
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
@@ -81,11 +83,17 @@ async def scan_async(
     scans_dir: str | None = None,
     scan_id: str | None = None,
 ) -> ScanResults:
+    # validate that ScanJob is a registry object (required for resume)
+    if not is_registry_object(scanjob):
+        raise PrerequisiteError(
+            "ScanJob must be created by a function decorated with @scanjob (this enables scans to be resumed when interrupted by errors or cancellation)."
+        )
+
     # resolve id
     scan_id = scan_id or uuid()
 
     # resolve transcripts
-    transcripts = transcripts or scandef.transcripts
+    transcripts = transcripts or scanjob.transcripts
     if transcripts is None:
         raise ValueError("No 'transcripts' specified for scan.")
 
@@ -94,13 +102,15 @@ async def scan_async(
 
     # initialize scan config
     scan_config = ScanConfig(
-        max_scanners=max_scanners or DEFAULT_MAX_SCANNERS, limit=limit, shuffle=shuffle
+        max_transcripts=max_transcripts or DEFAULT_MAX_TRANSCRIPTS,
+        limit=limit,
+        shuffle=shuffle,
     )
 
     # derive max_connections if not specified
     model_config = model_config or GenerateConfig()
     if model_config.max_connections is None:
-        model_config.max_connections = scan_config.max_scanners
+        model_config.max_connections = scan_config.max_transcripts
 
     # initialize runtime context
     resolved_model, resolved_model_args, resolved_model_roles = init_runtime_context(
@@ -112,8 +122,8 @@ async def scan_async(
     )
 
     # create job and recorder
-    job = await create_scan_job(
-        scandef=scandef,
+    job = await create_scan(
+        scanjob=scanjob,
         transcripts=transcripts,
         model=resolved_model,
         model_args=resolved_model_args,
@@ -140,7 +150,7 @@ async def scan_resume_async(
     scan_dir: str,
 ) -> ScanResults:
     # resume job
-    job = await resume_scan_job(scan_dir)
+    job = await resume_scan(scan_dir)
 
     # can't resume a job with non-deterministic shuffling
     if job.spec.config.shuffle is True:
@@ -199,11 +209,11 @@ def init_runtime_context(
     return model, resolved_model_args, resolved_model_roles
 
 
-async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
+async def _scan_async(*, job: ScanContext, recorder: ScanRecorder) -> ScanResults:
     LOOKAHEAD_BUFFER_MULTIPLE: float = 1.0
 
-    # establish max_scanners
-    max_scanners = job.spec.config.max_scanners or DEFAULT_MAX_SCANNERS
+    # establish max_transcripts
+    max_transcripts = job.spec.config.max_transcripts or DEFAULT_MAX_TRANSCRIPTS
 
     # apply limits/shuffle
     if job.spec.config.limit is not None:
@@ -240,10 +250,10 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                 return result
 
             await scan_with_work_pool(
-                job=job,
+                context=job,
                 recorder=recorder,
-                max_tasks=max_scanners,
-                max_queue_size=int(max_scanners * LOOKAHEAD_BUFFER_MULTIPLE),
+                max_tasks=max_transcripts,
+                max_queue_size=int(max_transcripts * LOOKAHEAD_BUFFER_MULTIPLE),
                 item_processor=_execute_scan_item,
                 transcripts=transcripts,
                 content=union_transcript_contents(

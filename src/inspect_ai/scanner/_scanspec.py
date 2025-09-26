@@ -37,8 +37,8 @@ class ScanRevision(BaseModel):
 class ScanConfig(BaseModel):
     """Configuration used for scan."""
 
-    max_scanners: int | None = Field(default=None)
-    """Maximum number of concurrent scanners (defaults to 10)."""
+    max_transcripts: int | None = Field(default=None)
+    """Maximum number of concurrent transcripts (defaults to 10)."""
 
     limit: int | None = Field(default=None)
     """Transcript limit (maximum number of transcripts to read)."""
@@ -82,7 +82,7 @@ class ScanSpec(BaseModel):
     """Scan name (defaults to 'scan')."""
 
     scan_attribs: dict[str, Any] = Field(default_factory=dict)
-    """Attributes of the @scandef decorator."""
+    """Attributes of the @scanjob decorator."""
 
     scan_args: dict[str, Any] = Field(default_factory=dict)
     """Arguments used for invoking the scan (including defaults)."""

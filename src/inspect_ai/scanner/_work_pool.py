@@ -11,7 +11,7 @@ from anyio.abc import TaskGroup
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 from ._recorder.recorder import ScanRecorder
-from ._scanjob import ScanJob
+from ._scancontext import ScanContext
 from ._scanner.result import Result
 from ._scanner.scanner import Scanner
 from ._transcript.transcripts import Transcripts
@@ -42,7 +42,7 @@ class WorkerMetrics:
 
 
 async def scan_with_work_pool(
-    job: ScanJob,
+    context: ScanContext,
     recorder: ScanRecorder,
     max_tasks: int,
     max_queue_size: int,
@@ -75,7 +75,7 @@ async def scan_with_work_pool(
     concerns while the caller maintains control over scanner execution and UI.
 
     Args:
-        job: The scan job containing scanners and configuration.
+        context: The context containing scanners and configuration.
             Used to iterate through scanners and determine what work needs to be done.
 
         recorder: The scan recorder for checking if work is already complete
@@ -196,7 +196,7 @@ async def scan_with_work_pool(
         """Produce work items and manage worker spawning."""
         for t in await transcripts.index():
             transcript: Transcript | None = None
-            for name, scanner in job.scanners.items():
+            for name, scanner in context.scanners.items():
                 # Skip if already recorded
                 if await recorder.is_recorded(t, name):
                     continue
