@@ -17,8 +17,8 @@ from inspect_ai.model._model_config import (
     model_roles_config_to_model_roles,
 )
 
+from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanResults
-from ._recorder.types import scan_recorder_for_location
 from ._scandef import ScanDef
 from ._scanjob import ScanJob, create_scan_job, resume_scan_job
 from ._scanner.scanner import config_for_scanner
@@ -151,6 +151,7 @@ async def scan_resume_async(
 
     # create recorder and scan
     recorder = scan_recorder_for_location(scan_dir)
+    await recorder.resume(scan_dir)
     return await _scan_async(job=job, recorder=recorder)
 
 

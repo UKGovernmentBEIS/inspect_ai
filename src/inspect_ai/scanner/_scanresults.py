@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, overload
 
 from inspect_ai._util._async import run_coroutine
+from inspect_ai.scanner._recorder.factory import scan_recorder_type_for_location
 from inspect_ai.scanner._recorder.recorder import ScanResults
-from inspect_ai.scanner._recorder.types import scan_recorder_type_for_location
 
 if TYPE_CHECKING:
     import pandas as pd

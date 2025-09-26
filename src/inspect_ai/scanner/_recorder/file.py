@@ -1,23 +1,14 @@
-import functools
-import io
-from typing import Sequence, cast, override
+from typing import Sequence, override
 
 from upath import UPath
 
-from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.file import clean_filename_component, file, filesystem
 from inspect_ai._util.json import to_json_str_safe
-from inspect_ai._util.path import pretty_path
-from inspect_ai.analysis._dataframe.util import arrow_types_mapper
+from inspect_ai.scanner._recorder.buffer import RecorderBuffer
 from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
-from inspect_ai.scanner._util.file import (
-    delete_files_async,
-    read_file_async,
-    write_file_async,
-)
 
 from .recorder import ScanRecorder, ScanResults
 
@@ -41,56 +32,25 @@ class FileRecorder(ScanRecorder):
         # save the spec
         self._scan_spec = spec
 
+        # create the scan buffer
+        self._scan_buffer = RecorderBuffer(self._scan_dir.as_posix())
+
     @override
     async def resume(self, scan_location: str) -> ScanSpec:
         self._scan_dir = UPath(scan_location)
         self._scan_spec = _read_scan_spec(self._scan_dir)
+        self._scan_buffer = RecorderBuffer(self._scan_dir.as_posix())
         return self._scan_spec
 
     @override
     async def is_recorded(self, transcript: TranscriptInfo, scanner: str) -> bool:
-        # check if we already have this transcript/scanner pair recorded
-        scan_file = self.scan_dir / f".{transcript.id}_{scanner}.parquet"
-        if scan_file.exists():
-            return True
-
-        # check if we already have a full file for this scanner
-        scanner_file = self.scan_dir / f"{scanner}.parquet"
-        if scanner_file.exists():
-            return True
-
-        return False
+        return await self._scan_buffer.is_recorded(transcript, scanner)
 
     @override
     async def record(
         self, transcript: TranscriptInfo, scanner: str, results: Sequence[Result]
     ) -> None:
-        import pandas as pd
-        import pyarrow as pa
-
-        # compute scan file name
-        scan_file = self.scan_dir / f".{transcript.id}_{scanner}.parquet"
-
-        # create records
-        records = [
-            cast(
-                dict[str, str | bool | int | float | None],
-                dict(
-                    transcript_id=transcript.id,
-                    transcript_source=transcript.source,
-                ),
-            )
-            | result.to_df_columns()
-            for result in results
-        ]
-
-        # convert to arrow-typed dataframe and write to parquet
-        df = pd.DataFrame(records)
-        table = pa.Table.from_pandas(df)
-        df_arrow = table.to_pandas(types_mapper=arrow_types_mapper)
-        buffer = io.BytesIO()
-        df_arrow.to_parquet(buffer)
-        await write_file_async(str(scan_file), buffer.getvalue())
+        await self._scan_buffer.record(transcript, scanner, results)
 
     @override
     async def flush(self) -> None:
@@ -98,62 +58,34 @@ class FileRecorder(ScanRecorder):
 
     @override
     async def complete(self) -> ScanResults:
-        from collections import defaultdict
-
         import pandas as pd
         import pyarrow as pa
+        import pyarrow.parquet as pq
 
-        from inspect_ai.analysis._dataframe.util import arrow_types_mapper
+        # get scanners
+        scanners: dict[str, pa.Table] = {}
+        for scanner in sorted(self.scan_spec.scanners.keys()):
+            tbl = await self._scan_buffer.table_for_scanner(scanner)
+            if tbl is not None:
+                scanners[scanner] = tbl
 
-        # group parquet files by scanner name
-        scanner_files = defaultdict(list)
-        for parquet_file in self.scan_dir.glob(".*.parquet"):
-            # parse filename: {transcript_id}_{scanner_name}.parquet
-            parts = parquet_file.stem.split("_", 1)
-            _, scanner_name = parts
-            scanner_files[scanner_name].append(parquet_file)
-
-        # consolidate files for each scanner
-        scanner_results: dict[str, pd.DataFrame] = {}
-        for scanner_name, files in scanner_files.items():
-            # skip if consolidated file already exists
-            consolidated_file = self.scan_dir / f"{scanner_name}.parquet"
-            if consolidated_file.exists():
-                # just delete the transcript-specific files
-                for file in files:
-                    file.unlink()
-                continue
-
-            # read all parquet files for this scanner
-            dfs_bytes = await tg_collect(
-                functools.partial(read_file_async, str(file)) for file in files
+        for name, table in scanners.items():
+            # write directly with Arrow
+            pq.write_table(
+                table,
+                (self.scan_dir / f"{name}.parquet").as_posix(),
+                compression="zstd",
+                use_dictionary=True,
             )
-            dfs = []
-            for df_bytes in dfs_bytes:
-                buffer = io.BytesIO(df_bytes)
-                df = pd.read_parquet(buffer)
-                dfs.append(df)
 
-            # concatenate all dataframes
-            consolidated_df = pd.concat(dfs, ignore_index=True)
-
-            # convert to arrow table and back to ensure consistent types
-            table = pa.Table.from_pandas(consolidated_df)
-            df_arrow = table.to_pandas(types_mapper=arrow_types_mapper)
-            scanner_results[scanner_name] = df_arrow
-
-            # write consolidated file
-            buffer = io.BytesIO()
-            df_arrow.to_parquet(buffer)
-            await write_file_async(str(consolidated_file), buffer.getvalue())
-
-            # delete original files
-            await delete_files_async([str(file) for file in files])
-
+        # return results
+        scanners_pd = {
+            n: t.to_pandas(types_mapper=pd.ArrowDtype) for n, t in scanners.items()
+        }
         return ScanResults(
             spec=self.scan_spec,
             location=self.scan_dir.as_posix(),
-            scanners=scanner_results,
+            scanners=scanners_pd,
         )
 
     @property
@@ -179,38 +111,21 @@ class FileRecorder(ScanRecorder):
     @staticmethod
     async def results(scan_location: str) -> ScanResults:
         import pandas as pd
+        import pyarrow.parquet as pq
+        from upath import UPath
 
-        # read scan spec
         scan_dir = UPath(scan_location)
         spec = _read_scan_spec(scan_dir)
 
-        # check for uncompacted transcript files
-        uncompacted_files = False
-        for parquet_file in scan_dir.glob(".*.parquet"):
-            # transcript files have format: .{transcript_id}_{scanner_name}.parquet
-            uncompacted_files = True
-            break
+        scanners: dict[str, pd.DataFrame] = {}
+        for parquet_file in sorted(scan_dir.glob("*.parquet")):
+            # Read with Arrow, then convert using Arrow-backed pandas dtypes
+            name = parquet_file.stem
+            table = pq.read_table(parquet_file.as_posix(), memory_map=True)
+            df = table.to_pandas(types_mapper=pd.ArrowDtype)
+            scanners[name] = df
 
-        if uncompacted_files:
-            pretty_scan_dir = pretty_path(str(scan_dir))
-            raise ValueError(
-                f"Scan '{pretty_scan_dir}' has uncompacted transcript files. "
-                f"Run scan_resume('{pretty_scan_dir}') to complete the scan."
-            )
-
-        # read data frames
-        scanners = {}
-        for parquet_file in scan_dir.glob("*.parquet"):
-            # skip any transcript-specific files (they start with .)
-            if not parquet_file.stem.startswith("."):
-                scanner_name = parquet_file.stem
-                scanners[scanner_name] = pd.read_parquet(str(parquet_file))
-
-        return ScanResults(
-            spec=spec,
-            location=scan_dir.as_posix(),
-            scanners=scanners,
-        )
+        return ScanResults(spec=spec, location=scan_dir.as_posix(), scanners=scanners)
 
 
 def _read_scan_spec(scan_dir: UPath) -> ScanSpec:
@@ -252,5 +167,3 @@ def _ensure_scan_dir(scans_path: UPath, scan_id: str, scan_name: str) -> UPath:
 
 def _ensure_scans_dir(scans_dir: UPath) -> None:
     scans_dir.mkdir(parents=True, exist_ok=True)
-    with file((scans_dir / ".gitignore").as_posix(), "w") as f:
-        f.write(".*.parquet\n")
