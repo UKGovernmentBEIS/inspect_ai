@@ -1,4 +1,4 @@
-import { EvalMetric } from "../../../@types/log";
+import { Scores } from "../../../@types/log";
 import { asyncJsonParse } from "../../../utils/json-worker";
 import { download_file } from "../shared/api-shared";
 import {
@@ -95,8 +95,12 @@ export function viewServerApi(
   };
 
   const toLogSummary = (header: EvalHeader): LogSummary => {
-    const metrics: EvalMetric[] = Object.values(header.eval.metrics || {});
-    const primary_metric = metrics.length > 0 ? metrics[0] : undefined;
+    console.log({ a: header.results?.scores });
+    const scores: Scores = Object.values(header.results?.scores || {});
+    const metric = scores.length > 0 ? scores[0].metrics : undefined;
+    const evalMetrics = Object.values(metric || {});
+    const primary_metric = evalMetrics.length > 0 ? evalMetrics[0] : undefined;
+
     return {
       eval_id: header.eval.eval_id,
       run_id: header.eval.run_id,
