@@ -11,7 +11,7 @@ from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
-from inspect_ai.log._model import model_roles_config_to_model_roles
+from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):

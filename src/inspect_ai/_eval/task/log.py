@@ -34,7 +34,6 @@ from inspect_ai.log._log import (
     EvalScorer,
     eval_config_defaults,
 )
-from inspect_ai.log._model import model_args_for_log, model_roles_to_model_roles_config
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
@@ -45,6 +44,10 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._model import model_usage
+from inspect_ai.model._model_config import (
+    model_args_for_log,
+    model_roles_to_model_roles_config,
+)
 from inspect_ai.scorer._metric import MetricSpec
 from inspect_ai.scorer._scorer import ScorerSpec
 from inspect_ai.solver._plan import Plan

@@ -25,11 +25,11 @@ from inspect_ai.log import (
     ScoreEvent,
 )
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
-from inspect_ai.log._model import model_roles_config_to_model_roles
 from inspect_ai.log._transcript import Event, Transcript, init_transcript, transcript
 from inspect_ai.log._tree import SpanNode, event_sequence, event_tree, walk_node_spans
 from inspect_ai.model import ModelName
 from inspect_ai.model._model import get_model
+from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._reducer import (

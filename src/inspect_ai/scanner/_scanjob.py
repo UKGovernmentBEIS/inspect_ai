@@ -9,12 +9,20 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_params,
 )
-from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import Model
+from inspect_ai.model._model import Model, ModelName
+from inspect_ai.model._model_config import (
+    ModelConfig,
+    model_args_for_log,
+    model_roles_to_model_roles_config,
+)
 from inspect_ai.scanner._recorder.types import scan_recorder_type_for_location
 from inspect_ai.scanner._scandef import ScanDef
 from inspect_ai.scanner._scanner.scanner import Scanner
-from inspect_ai.scanner._scanspec import ScanConfig, ScanScanner, ScanSpec
+from inspect_ai.scanner._scanspec import (
+    ScanConfig,
+    ScanScanner,
+    ScanSpec,
+)
 from inspect_ai.scanner._transcript.database import transcripts_from_snapshot
 from inspect_ai.scanner._transcript.transcripts import Transcripts
 
@@ -33,16 +41,14 @@ class ScanJob:
 
 async def create_scan_job(
     scandef: ScanDef,
-    transcripts: Transcripts | None = None,
-    model: str | Model | None = None,
-    model_config: GenerateConfig | None = None,
-    model_base_url: str | None = None,
-    model_args: dict[str, Any] | str | None = None,
-    model_roles: dict[str, str | Model] | None = None,
-    tags: list[str] | None = None,
-    metadata: dict[str, Any] | None = None,
-    config: ScanConfig | None = None,
-    scan_id: str | None = None,
+    transcripts: Transcripts | None,
+    model: Model,
+    model_args: dict[str, Any],
+    model_roles: dict[str, Model] | None,
+    tags: list[str] | None,
+    metadata: dict[str, Any] | None,
+    config: ScanConfig | None,
+    scan_id: str | None,
 ) -> ScanJob:
     # resolve id
     scan_id = scan_id or uuid()
@@ -62,6 +68,13 @@ async def create_scan_job(
             scanners=_spec_scanners(scandef.scanners),
             tags=tags,
             metadata=metadata,
+            model=ModelConfig(
+                model=str(ModelName(model)),
+                config=model.config,
+                base_url=model.api.base_url,
+                args=model_args_for_log(model_args),
+            ),
+            model_roles=model_roles_to_model_roles_config(model_roles),
         )
 
     return ScanJob(spec=spec, transcripts=transcripts, scanners=scandef.scanners)

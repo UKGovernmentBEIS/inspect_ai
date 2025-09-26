@@ -10,7 +10,7 @@ from pydantic import (
 from shortuuid import uuid
 from typing_extensions import Literal
 
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_config import ModelConfig
 
 
 class ScanScanner(BaseModel):
@@ -19,22 +19,6 @@ class ScanScanner(BaseModel):
 
     params: dict[str, Any] = Field(default_factory=dict)
     """Scanner arguments."""
-
-
-class ScanModelConfig(BaseModel):
-    """Model config."""
-
-    model: str
-    """Model name."""
-
-    config: GenerateConfig = Field(default_factory=GenerateConfig)
-    """Generate config"""
-
-    base_url: str | None = Field(default=None)
-    """Model base url."""
-
-    args: dict[str, Any] = Field(default_factory=dict)
-    """Model specific arguments."""
 
 
 class ScanRevision(BaseModel):
@@ -109,10 +93,10 @@ class ScanSpec(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional scan metadata."""
 
-    model: ScanModelConfig | None = Field(default=None)
+    model: ModelConfig | None = Field(default=None)
     """Model used for eval."""
 
-    model_roles: dict[str, ScanModelConfig] | None = Field(default=None)
+    model_roles: dict[str, ModelConfig] | None = Field(default=None)
     """Model roles."""
 
     revision: ScanRevision | None = Field(default=None)

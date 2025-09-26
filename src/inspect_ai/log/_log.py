@@ -27,6 +27,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
+from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -691,22 +692,6 @@ class EvalRevision(BaseModel):
     """Revision commit."""
 
 
-class EvalModelConfig(BaseModel):
-    """Model config."""
-
-    model: str
-    """Model name."""
-
-    config: GenerateConfig = Field(default_factory=GenerateConfig)
-    """Generate config"""
-
-    base_url: str | None = Field(default=None)
-    """Model base url."""
-
-    args: dict[str, Any] = Field(default_factory=dict)
-    """Model specific arguments."""
-
-
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -776,7 +761,7 @@ class EvalSpec(BaseModel):
     model_args: dict[str, Any] = Field(default_factory=dict)
     """Model specific arguments."""
 
-    model_roles: dict[str, EvalModelConfig] | None = Field(default=None)
+    model_roles: dict[str, ModelConfig] | None = Field(default=None)
     """Model roles."""
 
     config: EvalConfig

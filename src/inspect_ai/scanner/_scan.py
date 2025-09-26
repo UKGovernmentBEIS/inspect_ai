@@ -2,20 +2,27 @@ import functools
 import os
 import re
 import time
-from typing import Any, NamedTuple, Protocol, Sequence
+from typing import Any, Mapping, NamedTuple, Protocol, Sequence
 
 import anyio
 from anyio import create_task_group
 from anyio.abc import TaskGroup
 from anyio.streams.memory import MemoryObjectReceiveStream
+from dotenv import find_dotenv, load_dotenv
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from shortuuid import uuid
 
-from inspect_ai._eval.context import init_runtime_context
+from inspect_ai._eval.context import init_model_context
+from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util._async import run_coroutine
+from inspect_ai._util.config import resolve_args
 from inspect_ai._util.platform import platform_init
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import Model
+from inspect_ai.model._model import Model, resolve_models
+from inspect_ai.model._model_config import (
+    model_config_to_model,
+    model_roles_config_to_model_roles,
+)
 from inspect_ai.scanner._recorder.recorder import ScanRecorder, ScanResults
 from inspect_ai.scanner._recorder.types import (
     scan_recorder_for_location,
@@ -104,15 +111,22 @@ async def scan_async(
     # initialize config
     scan_config = ScanConfig(limit=limit, shuffle=shuffle)
 
-    # create job and recorder
-    job = await create_scan_job(
-        scandef=scandef,
-        transcripts=transcripts,
+    # initialize runtime context
+    resolved_model, resolved_model_args, resolved_model_roles = init_runtime_context(
         model=model,
         model_config=model_config,
         model_base_url=model_base_url,
         model_args=model_args,
         model_roles=model_roles,
+    )
+
+    # create job and recorder
+    job = await create_scan_job(
+        scandef=scandef,
+        transcripts=transcripts,
+        model=resolved_model,
+        model_args=resolved_model_args,
+        model_roles=resolved_model_roles,
         config=scan_config,
         tags=tags,
         metadata=metadata,
@@ -134,8 +148,22 @@ async def scan_resume(
 async def scan_resume_async(
     scan_dir: str,
 ) -> ScanResults:
-    # resume job and create recorder
+    # resume job
     job = await resume_scan_job(scan_dir)
+
+    # create model
+    if job.spec.model is not None:
+        model = model_config_to_model(job.spec.model)
+    else:
+        model = None
+
+    # create/initialize models then call init runtime context
+    init_runtime_context(
+        model=model,
+        model_roles=model_roles_config_to_model_roles(job.spec.model_roles),
+    )
+
+    # create recorder and scan
     recorder = scan_recorder_for_location(scan_dir)
     return await _scan_async(job=job, recorder=recorder)
 
@@ -153,14 +181,44 @@ class WorkItem(NamedTuple):
     report_callback: ScanReport
 
 
+def init_runtime_context(
+    model: str | Model | None = None,
+    model_config: GenerateConfig | None = None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] | str | None = None,
+    model_roles: Mapping[str, str | Model] | None = None,
+) -> tuple[Model, dict[str, Any], dict[str, Model] | None]:
+    # platform init
+    platform_init(hooks=False)
+
+    # apply dotenv
+    dotenv_file = find_dotenv(usecwd=True)
+    load_dotenv(dotenv_file)
+
+    # resolve from inspect eval model env var if rquired
+    if model is None:
+        model = os.getenv("INSPECT_EVAL_MODEL", None)
+
+    # init model context
+    resolved_model_args = resolve_args(model_args or {})
+    model = resolve_models(
+        model, model_base_url, resolved_model_args, model_config or GenerateConfig()
+    )[0]
+    resolved_model_roles = resolve_model_roles(model_roles)
+    init_model_context(
+        model=model,
+        model_roles=resolved_model_roles,
+        config=model_config or GenerateConfig(),
+    )
+
+    return model, resolved_model_args, resolved_model_roles
+
+
 async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
     # naive scan with:
     #  No parallelism
     #  No content filtering
     #  Supporting only Transcript
-
-    platform_init()
-    init_runtime_context()
 
     # TODO: plumb these for real
     max_llm_connections = 100

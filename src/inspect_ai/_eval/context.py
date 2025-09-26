@@ -38,14 +38,22 @@ def init_eval_context(
     init_eval_task_group(task_group)
 
 
+def init_model_context(
+    model: Model,
+    model_roles: dict[str, Model] | None = None,
+    config: GenerateConfig = GenerateConfig(),
+) -> None:
+    init_active_model(model, config)
+    init_model_roles(model_roles or {})
+    init_model_usage()
+
+
 def init_task_context(
     model: Model,
     model_roles: dict[str, Model] | None = None,
     config: GenerateConfig = GenerateConfig(),
     approval: list[ApprovalPolicy] | None = None,
 ) -> None:
-    init_active_model(model, config)
-    init_model_roles(model_roles or {})
-    init_model_usage()
+    init_model_context(model, model_roles, config)
     if not have_tool_approval():
         init_tool_approval(approval)

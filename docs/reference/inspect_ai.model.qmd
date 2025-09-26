@@ -12,6 +12,7 @@ title: "inspect_ai.model"
 ### BatchConfig
 ### ResponseSchema
 ### ModelOutput
+### ModelConfig
 ### ModelCall
 ### ModelConversation
 ### ModelUsage
