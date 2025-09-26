@@ -16,16 +16,16 @@ from inspect_ai.model._model_config import (
     model_config_to_model,
     model_roles_config_to_model_roles,
 )
-from inspect_ai.scanner._recorder.recorder import ScanRecorder, ScanResults
-from inspect_ai.scanner._recorder.types import (
-    scan_recorder_for_location,
-)
-from inspect_ai.scanner._scandef import ScanDef
-from inspect_ai.scanner._scanjob import ScanJob, create_scan_job, resume_scan_job
-from inspect_ai.scanner._scanspec import ScanConfig
 
+from ._recorder.recorder import ScanRecorder, ScanResults
+from ._recorder.types import scan_recorder_for_location
+from ._scandef import ScanDef
+from ._scanjob import ScanJob, create_scan_job, resume_scan_job
+from ._scanner.scanner import config_for_scanner
+from ._scanspec import ScanConfig
 from ._transcript.transcripts import Transcripts
-from ._work_pool import ScannerWorkPool
+from ._transcript.util import filter_transcript, union_transcript_contents
+from ._work_pool import WorkItem, scan_with_work_pool
 
 
 def scan(
@@ -224,16 +224,33 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
             total_ticks = (await transcripts.count()) * len(job.scanners)
             task_id = progress.add_task("Scan", total=total_ticks)
 
-            # Create and execute the work pool
-            pool = ScannerWorkPool(
+            async def _execute_scan_item(item: WorkItem) -> Any:
+                if (
+                    result := await item.scanner(
+                        filter_transcript(
+                            item.transcript, config_for_scanner(item.scanner).content
+                        )
+                    )
+                ) is not None:
+                    await item.report_callback([result])
+                progress.update(task_id, advance=1)
+                return result
+
+            await scan_with_work_pool(
                 job=job,
                 recorder=recorder,
-                max_concurrent_scanners=max_concurrent_scanners,
-                lookahead_buffer_multiple=lookahead_buffer_multiple,
+                max_tasks=max_concurrent_scanners,
+                max_queue_size=int(max_concurrent_scanners * lookahead_buffer_multiple),
+                item_processor=_execute_scan_item,
+                transcripts=transcripts,
+                content=union_transcript_contents(
+                    [
+                        config_for_scanner(scanner).content
+                        for scanner in job.scanners.values()
+                    ]
+                ),
             )
-            await pool.execute(transcripts, progress, task_id)
 
-            # read all scan results for this scan
             results = await recorder.complete()
 
     return results
