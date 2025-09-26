@@ -1,8 +1,11 @@
+import { EvalMetric } from "../../../@types/log";
 import { asyncJsonParse } from "../../../utils/json-worker";
 import { download_file } from "../shared/api-shared";
 import {
   Capabilities,
+  EvalHeader,
   LogContents,
+  LogSummary,
   LogViewAPI,
   PendingSampleResponse,
   SampleDataResponse,
@@ -91,6 +94,30 @@ export function viewServerApi(
     return result.parsed;
   };
 
+  const toLogSummary = (header: EvalHeader): LogSummary => {
+    const metrics: EvalMetric[] = Object.values(header.eval.metrics || {});
+    const primary_metric = metrics.length > 0 ? metrics[0] : undefined;
+    return {
+      eval_id: header.eval.eval_id,
+      run_id: header.eval.run_id,
+
+      task: header.eval.task,
+      task_id: header.eval.task_id,
+      task_version: header.eval.task_version,
+
+      version: header.version,
+      status: header.status,
+      error: header.error,
+
+      model: header.eval.model,
+
+      started_at: header.stats?.started_at,
+      completed_at: header.stats?.completed_at,
+
+      primary_metric,
+    };
+  };
+
   const get_log_bytes = async (
     file: string,
     start: number,
@@ -110,7 +137,8 @@ export function viewServerApi(
       "GET",
       `/log-headers?${params.toString()}`,
     );
-    return result.parsed;
+    const logHeaders: EvalHeader[] = result.parsed;
+    return logHeaders.map(toLogSummary);
   };
 
   const log_message = async (

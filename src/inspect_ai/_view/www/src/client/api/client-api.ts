@@ -250,14 +250,14 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     );
 
     // Get the promise for json log headers
-    const jsonLogHeadersPromise = get_log_summaries(
-      Object.keys(json_files),
-    ).then((summaries) =>
-      summaries.map((summary, i) => ({
-        index: json_files[Object.keys(json_files)[i]], // Store original index
-        summary,
-      })),
-    );
+    const jsonLogHeadersPromise = api
+      .get_log_summaries(Object.keys(json_files))
+      .then((summaries) =>
+        summaries.map((summary, i) => ({
+          index: json_files[Object.keys(json_files)[i]], // Store original index
+          summary,
+        })),
+      );
 
     // Wait for all promises to resolve
     const summaries = await Promise.all([
