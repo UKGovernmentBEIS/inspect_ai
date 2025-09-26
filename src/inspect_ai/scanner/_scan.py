@@ -1,5 +1,4 @@
 import os
-import re
 from typing import Any, Mapping
 
 from dotenv import find_dotenv, load_dotenv
