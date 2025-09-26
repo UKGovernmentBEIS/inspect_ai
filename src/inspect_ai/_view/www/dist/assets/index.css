@@ -16618,7 +16618,56 @@ a._citationLink_t2k1z_9:hover {
   padding: 0;
   background-color: inherit;
 }
-._container_1vktp_1 {
+._container_1d7iz_1 {
+  /* Container for the popover content */
+}
+
+._content_1d7iz_5 {
+  padding: 8px;
+}
+
+._statsSection_1d7iz_9 {
+  margin-bottom: 12px;
+}
+
+._statRow_1d7iz_13 {
+  margin-bottom: 4px;
+}
+
+._logDir_1d7iz_17 {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+._notSet_1d7iz_22 {
+  color: #666;
+}
+
+._cachedItemsList_1d7iz_26 {
+  margin: 4px 0 0 20px;
+  padding: 0;
+}
+
+._clearButton_1d7iz_31 {
+  width: 100%;
+}
+
+._message_1d7iz_35 {
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+}
+
+._messageSuccess_1d7iz_43 {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+._messageError_1d7iz_48 {
+  background-color: #f8d7da;
+  color: #721c24;
 }
 .findBand {
   position: absolute;
