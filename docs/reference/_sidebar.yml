@@ -413,6 +413,10 @@ website:
           href: reference/inspect_ai.log.qmd#read_eval_log_samples
         - text: read_eval_log_sample_summaries
           href: reference/inspect_ai.log.qmd#read_eval_log_sample_summaries
+        - text: edit_score
+          href: reference/inspect_ai.log.qmd#edit_score
+        - text: recompute_metrics
+          href: reference/inspect_ai.log.qmd#recompute_metrics
         - text: convert_eval_logs
           href: reference/inspect_ai.log.qmd#convert_eval_logs
         - text: bundle_log_dir
@@ -513,6 +517,8 @@ website:
           href: reference/inspect_ai.log.qmd#spanendevent
         - text: SubtaskEvent
           href: reference/inspect_ai.log.qmd#subtaskevent
+        - text: ScoreEditEvent
+          href: reference/inspect_ai.log.qmd#scoreeditevent
       - section: inspect_ai.analysis
         href: reference/inspect_ai.analysis.qmd
         contents:
@@ -542,6 +548,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#samplesummary
         - text: SampleMessages
           href: reference/inspect_ai.analysis.qmd#samplemessages
+        - text: SampleScores
+          href: reference/inspect_ai.analysis.qmd#samplescores
         - text: messages_df
           href: reference/inspect_ai.analysis.qmd#messages_df
         - text: MessageFilter
