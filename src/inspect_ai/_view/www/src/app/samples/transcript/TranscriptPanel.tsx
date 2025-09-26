@@ -10,10 +10,10 @@ import { useLogRouteParams } from "../../routing/url";
 import { TranscriptOutline } from "./outline/TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
+import { flatTree as flattenTree } from "./transform/flatten";
 import { useEventNodes } from "./transform/hooks";
-import { flatTree } from "./transform/treeify";
-import { kTranscriptCollapseScope } from "./types";
 import { hasSpans } from "./transform/utils";
+import { kTranscriptCollapseScope } from "./types";
 
 interface TranscriptPanelProps {
   id: string;
@@ -59,7 +59,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
 
   const flattenedNodes = useMemo(() => {
     // flattten the event tree
-    return flatTree(
+    return flattenTree(
       eventNodes,
       (collapsedEvents
         ? collapsedEvents[kTranscriptCollapseScope]
@@ -83,7 +83,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
   }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
   const allNodesList = useMemo(() => {
-    return flatTree(eventNodes, null);
+    return flattenTree(eventNodes, null);
   }, [eventNodes]);
 
   useEffect(() => {

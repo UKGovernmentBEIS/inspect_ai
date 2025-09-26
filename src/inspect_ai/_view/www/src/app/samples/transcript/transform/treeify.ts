@@ -1,63 +1,191 @@
-import { Events, SpanBeginEvent, SpanEndEvent } from "../../../../@types/log";
+import {
+  Events,
+  SpanBeginEvent,
+  SpanEndEvent,
+  SubtaskEvent,
+  ToolEvent,
+} from "../../../../@types/log";
 import { EventNode, EventType } from "../types";
+import { transformTree } from "./transform";
 import {
   ACTION_BEGIN,
   SPAN_BEGIN,
   SPAN_END,
-  STATE,
   STEP,
-  STORE,
   SUBTASK,
   TOOL,
-  TYPE_AGENT,
-  TYPE_HANDOFF,
   TYPE_SCORER,
   TYPE_SCORERS,
-  TYPE_SOLVER,
-  TYPE_SOLVERS,
   TYPE_SUBTASK,
   TYPE_TOOL,
   hasSpans,
 } from "./utils";
 
-type TreeifyFunction = (
-  event: EventType,
-  addNode: (event: EventType) => EventNode,
-  pushStack: (node: EventNode) => void,
-  popStack: () => void,
-) => void;
-
 export function treeifyEvents(events: Events, depth: number): EventNode[] {
   const useSpans = hasSpans(events);
-  const pathIndices: number[] = [];
 
-  const rootNodes: EventNode[] = [];
-  const stack: EventNode[] = [];
+  // First inject spans that may be needed
+  events = injectScorersSpan(events);
 
-  // The function used to build the tree
-  const treeifyFn = getTreeifyFunction();
+  const nodes = useSpans
+    ? treeifyWithSpans(events, depth)
+    : treeifyWithSteps(events, depth);
 
-  const addNode = (event: EventType): EventNode => {
-    const currentDepth = stack.length;
+  return useSpans ? transformTree(nodes) : nodes;
+}
 
-    // Track sibling count for the parent node
-    if (pathIndices.length <= currentDepth) {
-      pathIndices.push(0);
-    } else {
-      pathIndices[currentDepth]++;
-      // Reset deeper levels if coming back up the stack
-      pathIndices.length = currentDepth + 1;
+const treeifyWithSpans = (events: Events, depth: number): EventNode[] => {
+  const { rootNodes, createNode } = createNodeFactory(depth);
+  const spanNodes = new Map<string, EventNode>();
+
+  const processEvent = (
+    event: EventType,
+    parentOverride?: EventNode | null,
+  ) => {
+    if (event.event === SPAN_END) {
+      const spanId = getEventSpanId(event);
+      if (spanId !== null) {
+        spanNodes.delete(spanId);
+      }
+      return;
     }
 
-    // Provision an ID for this event if it doesn't have one
-    const idPath = pathIndices.slice(0, currentDepth + 1).join(".");
-    const event_id = event.uuid || `event_node_${idPath}`;
+    if (event.event === STEP && event.action !== ACTION_BEGIN) {
+      return;
+    }
 
-    // Create a new node
-    const node = new EventNode(event_id, event, currentDepth + depth);
+    const resolvedParent =
+      parentOverride !== undefined
+        ? parentOverride
+        : resolveParentForEvent(event, spanNodes);
+    const parentNode = resolvedParent ?? null;
+
+    const node = createNode(event, parentNode);
+
+    if (event.event === SPAN_BEGIN) {
+      const spanId = getEventSpanId(event);
+      if (spanId !== null) {
+        spanNodes.set(spanId, node);
+      }
+    }
+
+    if (event.event === TOOL) {
+      if (shouldExpandToolChildren(event)) {
+        for (const child of event.events) {
+          processEvent(child, node);
+        }
+      }
+    } else if (event.event === SUBTASK) {
+      if (shouldExpandSubtaskChildren(event)) {
+        for (const child of event.events) {
+          processEvent(child, node);
+        }
+      }
+    }
+  };
+
+  events.forEach((event) => processEvent(event));
+
+  return rootNodes;
+};
+
+const treeifyWithSteps = (events: Events, depth: number): EventNode[] => {
+  const { rootNodes, createNode } = createNodeFactory(depth);
+  const stack: EventNode[] = [];
+
+  const pushStack = (node: EventNode) => {
+    stack.push(node);
+  };
+
+  const popStack = () => {
     if (stack.length > 0) {
-      const parentNode = stack[stack.length - 1];
-      parentNode.children.push(node);
+      stack.pop();
+    }
+  };
+
+  const processEvent = (event: EventType) => {
+    const parent = stack.length > 0 ? stack[stack.length - 1] : null;
+
+    switch (event.event) {
+      case STEP:
+        if (event.action === ACTION_BEGIN) {
+          const node = createNode(event, parent);
+          pushStack(node);
+        } else {
+          popStack();
+        }
+        break;
+      case SPAN_BEGIN: {
+        const node = createNode(event, parent);
+        pushStack(node);
+        break;
+      }
+      case SPAN_END:
+        popStack();
+        break;
+      case TOOL: {
+        const node = createNode(event, parent);
+        if (shouldExpandToolChildren(event)) {
+          pushStack(node);
+          for (const child of event.events) {
+            processEvent(child);
+          }
+          popStack();
+        }
+        break;
+      }
+      case SUBTASK: {
+        const node = createNode(event, parent);
+        if (shouldExpandSubtaskChildren(event)) {
+          pushStack(node);
+          for (const child of event.events) {
+            processEvent(child);
+          }
+          popStack();
+        }
+        break;
+      }
+      default:
+        createNode(event, parent);
+        break;
+    }
+  };
+
+  events.forEach(processEvent);
+
+  return rootNodes;
+};
+
+type NodeFactory = {
+  rootNodes: EventNode[];
+  createNode: (event: EventType, parent: EventNode | null) => EventNode;
+};
+
+const createNodeFactory = (depth: number): NodeFactory => {
+  const rootNodes: EventNode[] = [];
+  const childCounts = new Map<EventNode | null, number>();
+  const pathByNode = new Map<EventNode, string>();
+
+  const createNode = (
+    event: EventType,
+    parent: EventNode | null,
+  ): EventNode => {
+    const parentKey = parent ?? null;
+    const nextIndex = childCounts.get(parentKey) ?? 0;
+    childCounts.set(parentKey, nextIndex + 1);
+
+    const parentPath = parent ? pathByNode.get(parent) : undefined;
+    const path =
+      parentPath !== undefined ? `${parentPath}.${nextIndex}` : `${nextIndex}`;
+
+    const eventId = event.uuid || `event_node_${path}`;
+    const nodeDepth = parent ? parent.depth + 1 : depth;
+
+    const node = new EventNode(eventId, event, nodeDepth);
+    pathByNode.set(node, path);
+
+    if (parent) {
+      parent.children.push(node);
     } else {
       rootNodes.push(node);
     }
@@ -65,29 +193,48 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
     return node;
   };
 
-  const pushStack = (node: EventNode): void => {
-    stack.push(node);
-  };
+  return { rootNodes, createNode };
+};
 
-  const popStack = (): void => {
-    stack.pop();
-    pathIndices.pop();
-  };
-
-  // First inject spans that may be needed
-  events = injectScorersSpan(events);
-
-  // Now treeify the list
-  events.forEach((event) => {
-    treeifyFn(event, addNode, pushStack, popStack);
-  });
-
-  if (useSpans) {
-    return transformTree(rootNodes);
-  } else {
-    return rootNodes;
+const resolveParentForEvent = (
+  event: EventType,
+  spanNodes: Map<string, EventNode>,
+): EventNode | null => {
+  if (event.event === SPAN_BEGIN) {
+    const parentId = event.parent_id;
+    if (parentId) {
+      return spanNodes.get(parentId) ?? null;
+    }
+    return null;
   }
-}
+
+  const spanId = getEventSpanId(event);
+  if (spanId !== null) {
+    return spanNodes.get(spanId) ?? null;
+  }
+
+  return null;
+};
+
+const getEventSpanId = (event: EventType): string | null => {
+  const spanId = (event as { span_id?: string | null }).span_id;
+  return spanId ?? null;
+};
+
+const shouldExpandToolChildren = (event: ToolEvent): boolean => {
+  return (
+    event.events.length > 0 &&
+    (event.events[0].event !== SPAN_BEGIN || event.events[0].type !== TYPE_TOOL)
+  );
+};
+
+const shouldExpandSubtaskChildren = (event: SubtaskEvent): boolean => {
+  return (
+    event.events.length > 0 &&
+    (event.events[0].event !== SPAN_BEGIN ||
+      event.events[0].type !== TYPE_SUBTASK)
+  );
+};
 
 // This injects a scorer span around top level scorer events if one
 // isn't already present
@@ -175,369 +322,4 @@ const injectScorersSpan = (events: Events): Events => {
   }
 
   return results;
-};
-
-const getTreeifyFunction = () => {
-  const treeifyFn: TreeifyFunction = (
-    event: EventType,
-    addNode: (event: EventType) => EventNode,
-    pushStack: (node: EventNode) => void,
-    popStack: () => void,
-  ): void => {
-    switch (event.event) {
-      case STEP:
-        if (event.action === ACTION_BEGIN) {
-          // Starting a new step
-          const node = addNode(event);
-          pushStack(node);
-        } else {
-          // An ending step
-          popStack();
-        }
-        break;
-      case SPAN_BEGIN: {
-        const node = addNode(event);
-        pushStack(node);
-        break;
-      }
-      case SPAN_END: {
-        popStack();
-        break;
-      }
-      case TOOL:
-        {
-          const node = addNode(event);
-
-          // In the span world, the first child will be a span of type tool
-          if (
-            event.events.length > 0 &&
-            (event.events[0].event !== SPAN_BEGIN ||
-              event.events[0].type !== TYPE_TOOL)
-          ) {
-            // Expand the children
-            pushStack(node);
-            for (const child of event.events) {
-              treeifyFn(child, addNode, pushStack, popStack);
-            }
-            popStack();
-          }
-        }
-
-        break;
-      case SUBTASK:
-        {
-          const node = addNode(event);
-
-          // In the span world, the first child will be a span of type tool
-          if (
-            event.events.length > 0 &&
-            (event.events[0].event !== SPAN_BEGIN ||
-              event.events[0].type !== TYPE_SUBTASK)
-          ) {
-            // Expand the children
-            pushStack(node);
-            for (const child of event.events) {
-              treeifyFn(child, addNode, pushStack, popStack);
-            }
-            popStack();
-          }
-        }
-
-        break;
-
-      default:
-        // An event
-        addNode(event);
-        break;
-    }
-  };
-  return treeifyFn;
-};
-
-const transformTree = (roots: EventNode[]): EventNode[] => {
-  // Gather the transformers that we'll use
-  const treeNodeTransformers: TreeNodeTransformer[] = transformers();
-
-  const visitNode = (node: EventNode): EventNode | EventNode[] => {
-    // Start with the original node
-    let currentNodes: EventNode[] = [node];
-
-    // Process children of all nodes first (depth-first)
-    currentNodes = currentNodes.map((n) => {
-      n.children = n.children.flatMap(visitNode);
-      return n;
-    });
-
-    // Apply each transformer to all nodes that match
-    for (const transformer of treeNodeTransformers) {
-      const nextNodes: EventNode[] = [];
-
-      // Process each current node with this transformer
-      for (const currentNode of currentNodes) {
-        if (transformer.matches(currentNode)) {
-          const result = transformer.process(currentNode);
-          if (Array.isArray(result)) {
-            nextNodes.push(...result);
-          } else {
-            nextNodes.push(result);
-          }
-        } else {
-          // Node doesn't match this transformer, keep it unchanged
-          nextNodes.push(currentNode);
-        }
-      }
-
-      // Update current nodes for next transformer
-      currentNodes = nextNodes;
-    }
-
-    // Return all processed nodes
-    return currentNodes.length === 1 ? currentNodes[0] : currentNodes;
-  };
-
-  // Process all nodes first
-  const processedRoots = roots.flatMap(visitNode);
-
-  // Call flush on any transformers that have it
-  const flushedNodes: EventNode[] = [];
-  for (const transformer of treeNodeTransformers) {
-    if (transformer.flush) {
-      const flushResults = transformer.flush();
-      if (flushResults && flushResults.length > 0) {
-        flushedNodes.push(...flushResults);
-      }
-    }
-  }
-
-  return [...processedRoots, ...flushedNodes];
-};
-
-const transformers = () => {
-  const treeNodeTransformers: TreeNodeTransformer[] = [
-    {
-      name: "unwrap_tools",
-      matches: (node) =>
-        node.event.event === SPAN_BEGIN && node.event.type === TYPE_TOOL,
-      process: (node) => elevateChildNode(node, TYPE_TOOL) || node,
-    },
-    {
-      name: "unwrap_subtasks",
-      matches: (node) =>
-        node.event.event === SPAN_BEGIN && node.event.type === TYPE_SUBTASK,
-      process: (node) => elevateChildNode(node, TYPE_SUBTASK) || node,
-    },
-    {
-      name: "unwrap_agent_solver",
-      matches: (node) =>
-        node.event.event === SPAN_BEGIN &&
-        node.event["type"] === TYPE_SOLVER &&
-        node.children.length === 2 &&
-        node.children[0].event.event === SPAN_BEGIN &&
-        node.children[0].event.type === TYPE_AGENT &&
-        node.children[1].event.event === STATE,
-
-      process: (node) => skipFirstChildNode(node),
-    },
-    {
-      name: "unwrap_agent_solver w/store",
-      matches: (node) =>
-        node.event.event === SPAN_BEGIN &&
-        node.event["type"] === TYPE_SOLVER &&
-        node.children.length === 3 &&
-        node.children[0].event.event === SPAN_BEGIN &&
-        node.children[0].event.type === TYPE_AGENT &&
-        node.children[1].event.event === STATE &&
-        node.children[2].event.event === STORE,
-      process: (node) => skipFirstChildNode(node),
-    },
-    {
-      name: "unwrap_handoff",
-      matches: (node) => {
-        const isHandoffNode =
-          node.event.event === SPAN_BEGIN &&
-          node.event["type"] === TYPE_HANDOFF;
-
-        if (!isHandoffNode) {
-          return false;
-        }
-
-        if (node.children.length === 1) {
-          return (
-            node.children[0].event.event === TOOL &&
-            !!node.children[0].event.agent
-          );
-        } else {
-          return (
-            node.children.length === 2 &&
-            node.children[0].event.event === TOOL &&
-            node.children[1].event.event === STORE &&
-            node.children[0].children.length === 2 &&
-            node.children[0].children[0].event.event === SPAN_BEGIN &&
-            node.children[0].children[0].event.type === TYPE_AGENT
-          );
-        }
-      },
-      process: (node) => skipThisNode(node),
-    },
-    {
-      name: "discard_solvers_span",
-      matches: (Node) =>
-        Node.event.event === SPAN_BEGIN && Node.event.type === TYPE_SOLVERS,
-      process: (node) => {
-        const nodes = discardNode(node);
-        return nodes;
-      },
-    },
-  ];
-  return treeNodeTransformers;
-};
-
-type TreeNodeTransformer = {
-  name: string;
-  matches: (node: EventNode) => boolean;
-  process: (node: EventNode) => EventNode | EventNode[];
-  flush?: () => EventNode[];
-};
-
-/**
- * Process a span node by elevating a specific child node type and moving its siblings as children
- * @template T - Type of the event (either ToolEvent or SubtaskEvent)
- */
-const elevateChildNode = (
-  node: EventNode,
-  childEventType: "tool" | "subtask",
-): EventNode | null => {
-  // Find the specific event child
-  const targetIndex = node.children.findIndex(
-    (child) => child.event.event === childEventType,
-  );
-
-  if (targetIndex === -1) {
-    console.log(
-      `No ${childEventType} event found in a span, this is very unexpected.`,
-    );
-    return null;
-  }
-
-  // Get the target node and set its depth
-  const targetNode = { ...node.children[targetIndex] };
-  const remainingChildren = node.children.filter((_, i) => i !== targetIndex);
-
-  // Process the remaining children
-  targetNode.depth = node.depth;
-  targetNode.children = setDepth(remainingChildren, node.depth + 1);
-
-  // No need to update the event itself (events have been deprecated
-  // and more importantly we drive children / transcripts using the tree structure itself
-  // and notes rather than the event.events itself)
-  return targetNode;
-};
-
-const skipFirstChildNode = (node: EventNode): EventNode => {
-  const agentSpan = node.children.splice(0, 1)[0];
-  node.children.unshift(...reduceDepth(agentSpan.children));
-  return node;
-};
-
-const skipThisNode = (node: EventNode): EventNode => {
-  const newNode = { ...node.children[0] };
-  newNode.depth = node.depth;
-  newNode.children = reduceDepth(newNode.children, 2);
-  return newNode;
-};
-
-const discardNode = (node: EventNode): EventNode[] => {
-  const nodes = reduceDepth(node.children, 1);
-  return nodes;
-};
-
-// Reduce the depth of the children by 1
-// This is used when we hoist a child node to the parent
-const reduceDepth = (nodes: EventNode[], depth: number = 1): EventNode[] => {
-  return nodes.map((node) => {
-    if (node.children.length > 0) {
-      node.children = reduceDepth(node.children, 1);
-    }
-    node.depth = node.depth - depth;
-    return node;
-  });
-};
-
-const setDepth = (nodes: EventNode[], depth: number): EventNode[] => {
-  return nodes.map((node) => {
-    if (node.children.length > 0) {
-      node.children = setDepth(node.children, depth + 1);
-    }
-    node.depth = depth;
-    return node;
-  });
-};
-
-export interface TreeNodeVisitor {
-  visit: (node: EventNode, parent?: EventNode) => EventNode[];
-  flush?: () => EventNode[];
-}
-
-/**
- * Flatten the tree structure into a flat array of EventNode objects
- * Each node in the result will have its children set properly
- * @param eventNodes - The event nodes to flatten
- * @param collapsed - Record indicating which nodes are collapsed
- * @param visitors - Array of visitors to apply to each node
- * @param parentNode - The parent node of the current nodes being processed
- * @returns An array of EventNode objects
- */
-export const flatTree = (
-  eventNodes: EventNode[],
-  collapsed: Record<string, boolean> | null,
-  visitors?: TreeNodeVisitor[],
-  parentNode?: EventNode,
-): EventNode[] => {
-  const result: EventNode[] = [];
-  for (const node of eventNodes) {
-    if (visitors && visitors.length > 0) {
-      let pendingNodes: EventNode[] = [{ ...node }];
-
-      for (const visitor of visitors) {
-        const allResults: EventNode[] = [];
-        for (const pendingNode of pendingNodes) {
-          const visitorResult = visitor.visit(pendingNode);
-          if (parentNode) {
-            parentNode.children = visitorResult;
-          }
-          allResults.push(...visitorResult);
-        }
-        pendingNodes = allResults;
-      }
-
-      for (const pendingNode of pendingNodes) {
-        const children = flatTree(
-          pendingNode.children,
-          collapsed,
-          visitors,
-          pendingNode,
-        );
-        pendingNode.children = children;
-        result.push(pendingNode);
-        if (collapsed === null || collapsed[pendingNode.id] !== true) {
-          result.push(...children);
-        }
-      }
-
-      for (const visitor of visitors) {
-        if (visitor.flush) {
-          const finalNodes = visitor.flush();
-          result.push(...finalNodes);
-        }
-      }
-    } else {
-      result.push(node);
-      const children = flatTree(node.children, collapsed, visitors, node);
-      if (collapsed === null || collapsed[node.id] !== true) {
-        result.push(...children);
-      }
-    }
-  }
-
-  return result;
 };
