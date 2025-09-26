@@ -16,6 +16,7 @@ from inspect_ai.model._model_config import (
     model_config_to_model,
     model_roles_config_to_model_roles,
 )
+from inspect_ai.scanner._util.contstants import DEFAULT_MAX_SCANNERS
 
 from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanResults
@@ -36,6 +37,7 @@ def scan(
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str | None = None,
     model_roles: dict[str, str | Model] | None = None,
+    max_scanners: int | None = None,
     limit: int | None = None,
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
@@ -52,6 +54,7 @@ def scan(
             model_base_url=model_base_url,
             model_args=model_args,
             model_roles=model_roles,
+            max_scanners=max_scanners,
             limit=limit,
             shuffle=shuffle,
             tags=tags,
@@ -70,6 +73,7 @@ async def scan_async(
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str | None = None,
     model_roles: dict[str, str | Model] | None = None,
+    max_scanners: int | None = None,
     limit: int | None = None,
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
@@ -88,8 +92,15 @@ async def scan_async(
     # resolve scans_dir
     scans_dir = scans_dir or str(os.getenv("INSPECT_SCAN_DIR", "./scans"))
 
-    # initialize config
-    scan_config = ScanConfig(limit=limit, shuffle=shuffle)
+    # initialize scan config
+    scan_config = ScanConfig(
+        max_scanners=max_scanners or DEFAULT_MAX_SCANNERS, limit=limit, shuffle=shuffle
+    )
+
+    # derive max_connections if not specified
+    model_config = model_config or GenerateConfig()
+    if model_config.max_connections is None:
+        model_config.max_connections = scan_config.max_scanners
 
     # initialize runtime context
     resolved_model, resolved_model_args, resolved_model_roles = init_runtime_context(
@@ -189,19 +200,10 @@ def init_runtime_context(
 
 
 async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
-    # naive scan with:
-    #  No parallelism
-    #  No content filtering
-    #  Supporting only Transcript
+    LOOKAHEAD_BUFFER_MULTIPLE: float = 1.0
 
-    # TODO: plumb these for real
-    max_llm_connections = 100
-    max_concurrent_scanners: int | None = 100
-    lookahead_buffer_multiple: float = 1.0
-    # TODO ^^^^^^^
-
-    if max_concurrent_scanners is None:
-        max_concurrent_scanners = max_llm_connections
+    # establish max_scanners
+    max_scanners = job.spec.config.max_scanners or DEFAULT_MAX_SCANNERS
 
     # apply limits/shuffle
     if job.spec.config.limit is not None:
@@ -240,8 +242,8 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
             await scan_with_work_pool(
                 job=job,
                 recorder=recorder,
-                max_tasks=max_concurrent_scanners,
-                max_queue_size=int(max_concurrent_scanners * lookahead_buffer_multiple),
+                max_tasks=max_scanners,
+                max_queue_size=int(max_scanners * LOOKAHEAD_BUFFER_MULTIPLE),
                 item_processor=_execute_scan_item,
                 transcripts=transcripts,
                 content=union_transcript_contents(

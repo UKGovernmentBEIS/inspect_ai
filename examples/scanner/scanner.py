@@ -50,6 +50,7 @@ if __name__ == "__main__":
         ScanDef(
             transcripts=transcripts(LOGS_DIR), scanners=[dummy_scanner(), llm_scanner()]
         ),
+        max_scanners=50,
         scans_dir=SCANS_DIR.as_posix(),
     )
 

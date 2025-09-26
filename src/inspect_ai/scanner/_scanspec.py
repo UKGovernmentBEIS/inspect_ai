@@ -35,7 +35,10 @@ class ScanRevision(BaseModel):
 
 
 class ScanConfig(BaseModel):
-    """Configuration used for evaluation."""
+    """Configuration used for scan."""
+
+    max_scanners: int | None = Field(default=None)
+    """Maximum number of concurrent scanners (defaults to 10)."""
 
     limit: int | None = Field(default=None)
     """Transcript limit (maximum number of transcripts to read)."""
