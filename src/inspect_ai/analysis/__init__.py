@@ -30,7 +30,12 @@ from ._dataframe.messages.columns import (
     MessageToolCalls,
 )
 from ._dataframe.messages.table import MessageFilter, messages_df
-from ._dataframe.samples.columns import SampleColumn, SampleMessages, SampleSummary
+from ._dataframe.samples.columns import (
+    SampleColumn,
+    SampleMessages,
+    SampleScores,
+    SampleSummary,
+)
 from ._dataframe.samples.table import samples_df
 from ._prepare.frontier import frontier
 from ._prepare.log_viewer import log_viewer
@@ -56,6 +61,7 @@ __all__ = [
     "samples_df",
     "SampleColumn",
     "SampleSummary",
+    "SampleScores",
     "SampleMessages",
     "messages_df",
     "MessageColumn",
