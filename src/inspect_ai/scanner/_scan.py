@@ -2,7 +2,7 @@ import functools
 import os
 import re
 import time
-from typing import Any, Protocol, Sequence, TypeAlias
+from typing import Any, NamedTuple, Protocol, Sequence
 
 import anyio
 from anyio import create_task_group
@@ -144,7 +144,13 @@ class ScanReport(Protocol):
     async def __call__(self, results: Sequence[Result]) -> None: ...
 
 
-WorkItem: TypeAlias = tuple[Transcript, Scanner[Any], str, ScanReport]
+class WorkItem(NamedTuple):
+    """Represents a unit of work for scanning a transcript."""
+
+    transcript: Transcript
+    scanner: Scanner[Any]
+    scanner_name: str
+    report_callback: ScanReport
 
 
 async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
@@ -243,11 +249,11 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                             >= work_queue_size
                         )
 
-                        new_item = (
-                            transcript,
-                            scanner,
-                            name,
-                            functools.partial(recorder.record, t, name),
+                        new_item = WorkItem(
+                            transcript=transcript,
+                            scanner=scanner,
+                            scanner_name=name,
+                            report_callback=functools.partial(recorder.record, t, name),
                         )
                         await work_item_send_stream.send(new_item)
                         print(
@@ -328,7 +334,9 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
 
             async def _execute_work_item(item: WorkItem) -> None:
                 nonlocal workers_scanning
-                raw_transcript, scanner, name, report = item
+                raw_transcript = item.transcript
+                scanner = item.scanner
+                report = item.report_callback
                 transcript = _transcript_for_scanner(raw_transcript, scanner)
 
                 # call the scanner (note that later this may accumulate multiple
@@ -337,7 +345,6 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                 result = await _call_scanner(scanner, transcript)
                 if result is not None:
                     await _call_report(report, result)
-                    await report([result])
 
                 # tick progress
                 progress.update(task_id, advance=1)
@@ -364,7 +371,7 @@ async def _scan_async(*, job: ScanJob, recorder: ScanRecorder) -> ScanResults:
                 return f"worker tasks: {worker_task_count} (scanning: {workers_scanning}, reporting: {workers_reporting}, stalled: {workers_waiting}) queue size: {work_item_receive_stream.statistics().current_buffer_used} "
 
             def _work_item_info(item: WorkItem) -> str:
-                return f"{item[0].id, item[2]}"
+                return f"{item.transcript.id, item.scanner_name}"
 
             try:
                 async with create_task_group() as tg:
