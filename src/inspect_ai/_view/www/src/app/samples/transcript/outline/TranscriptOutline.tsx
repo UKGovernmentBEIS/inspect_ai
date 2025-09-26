@@ -14,10 +14,10 @@ import clsx from "clsx";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { useScrollTrack, useVirtuosoState } from "../../../../state/scrolling";
 import { useStore } from "../../../../state/store";
-import { flatTree } from "../transform/treeify";
 
 import { useSampleDetailNavigation } from "../../../routing/sampleNavigation";
 import { kSandboxSignalName } from "../transform/fixups";
+import { flatTree } from "../transform/flatten";
 import { OutlineRow } from "./OutlineRow";
 import styles from "./TranscriptOutline.module.css";
 import {

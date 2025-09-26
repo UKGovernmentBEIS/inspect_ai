@@ -20,6 +20,7 @@ title: "inspect_ai.analysis"
 ### SampleColumn
 ### SampleSummary
 ### SampleMessages
+### SampleScores
 
 ## Messages
 
