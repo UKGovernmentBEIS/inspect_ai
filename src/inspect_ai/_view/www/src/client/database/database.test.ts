@@ -1,36 +1,50 @@
 /**
  * Automated tests for database functionality
  * Uses fake-indexeddb for testing IndexedDB operations in Jest
+ *
+ * Schema v3 structure:
+ * - log_files: stores results from get_log_root()
+ * - log_summaries: stores results from get_log_summaries()
+ * - log_info: stores complete results from get_log_info() including samples
  */
 
-import { EvalHeader, LogRoot, SampleSummary } from "../api/types";
+import { LogRoot, LogSummary, LogInfo, SampleSummary } from "../api/types";
 import { createDatabaseService, DatabaseService } from "./service";
 
-// Helper function to create a minimal EvalHeader for testing
-function createTestHeader(overrides: {
-  evalId: string;
-  runId: string;
-  task: string;
-  taskId: string;
-  model: string;
-  status: string;
-  startedAt: string;
-  completedAt?: string;
-}): EvalHeader {
+// Helper function to create test LogSummary
+function createTestLogSummary(overrides: Partial<LogSummary> = {}): LogSummary {
+  return {
+    eval_id: "eval-1",
+    run_id: "run-1",
+    task: "test-task",
+    task_id: "task-1",
+    task_version: 1,
+    version: 1,
+    status: "success",
+    error: null,
+    model: "gpt-4",
+    started_at: "2024-01-01T00:00:00Z",
+    completed_at: "2024-01-01T01:00:00Z",
+    ...overrides,
+  } as LogSummary;
+}
+
+// Helper function to create test LogInfo
+function createTestLogInfo(overrides: Partial<LogInfo> = {}): LogInfo {
   return {
     version: 1,
-    status: overrides.status as any,
+    status: "success",
     eval: {
       eval_set_id: "set-1",
-      eval_id: overrides.evalId,
-      run_id: overrides.runId,
-      created: overrides.startedAt,
-      task: overrides.task,
-      task_id: overrides.taskId,
+      eval_id: "eval-1",
+      run_id: "run-1",
+      created: "2024-01-01T00:00:00Z",
+      task: "test-task",
+      task_id: "task-1",
       task_version: 1,
-      task_file: "",
-      task_display_name: "",
-      task_registry_name: "",
+      task_file: "test.py",
+      task_display_name: "Test Task",
+      task_registry_name: "test",
       task_attribs: {},
       task_args: {},
       task_args_passed: {},
@@ -38,58 +52,72 @@ function createTestHeader(overrides: {
       solver_args: {},
       tags: [],
       dataset: {
-        name: "test",
-        location: "test",
+        name: "test-dataset",
+        location: "/test/dataset",
         samples: 10,
-        sample_ids: [],
+        sample_ids: ["1", "2", "3"],
         shuffled: false,
       },
       sandbox: null,
-      model: overrides.model,
+      model: "gpt-4",
       model_generate_config: {} as any,
       model_base_url: null,
-      model_args: {},
-      model_roles: {} as any,
-      config: {} as any,
-      revision: null,
-      packages: {},
-      metadata: {},
-      scorers: [],
-      metrics: {},
-    },
-    stats: overrides.completedAt
-      ? {
-          started_at: overrides.startedAt,
-          completed_at: overrides.completedAt,
-          model_usage: {},
-        }
-      : {
-          started_at: overrides.startedAt,
-          completed_at: "",
-          model_usage: {},
-        },
+    } as any,
+    plan: undefined,
+    results: null,
+    stats: undefined,
+    error: null,
+    sampleSummaries: [],
+    ...overrides,
   };
+}
+
+// Helper function to create test SampleSummary
+function createTestSampleSummary(
+  overrides: Partial<SampleSummary> = {},
+): SampleSummary {
+  return {
+    id: 1,
+    epoch: 0,
+    input: "test input",
+    target: "test target",
+    scores: {
+      accuracy: {
+        value: 0.9,
+        answer: null,
+        explanation: null,
+        metadata: {},
+        history: [],
+      },
+    },
+    completed: true,
+    ...overrides,
+  } as SampleSummary;
 }
 
 describe("Database Service", () => {
   let databaseService: DatabaseService;
 
   beforeEach(async () => {
-    // Create a new database service instance for each test
+    // Create a new database service for each test
     databaseService = createDatabaseService();
-    // Initialize with test log directory
+    // Open database with test log directory
     await databaseService.openDatabase("/test/logs");
   });
 
   afterEach(async () => {
-    // Clean up after each test
-    await databaseService.clearAllCaches();
-    await databaseService.closeDatabase();
+    // Clean up after each test (only if database is still open)
+    try {
+      await databaseService.clearAllCaches();
+      await databaseService.closeDatabase();
+    } catch {
+      // Database might already be closed in error handling tests
+    }
   });
 
   describe("Log Files Caching", () => {
     test("should cache and retrieve log files", async () => {
-      const testLogFiles: LogRoot = {
+      const testLogRoot: LogRoot = {
         log_dir: "/test/logs",
         files: [
           {
@@ -105,10 +133,10 @@ describe("Database Service", () => {
         ],
       };
 
-      // Cache the files
-      await databaseService.cacheLogFiles(testLogFiles);
+      // Cache the log files
+      await databaseService.cacheLogFiles(testLogRoot);
 
-      // Retrieve from cache
+      // Retrieve cached files
       const cached = await databaseService.getCachedLogFiles();
 
       expect(cached).not.toBeNull();
@@ -117,60 +145,30 @@ describe("Database Service", () => {
       expect(cached?.files[0].task).toBe("test-task-1");
     });
 
-    test("should handle empty log files", async () => {
-      const emptyLogFiles: LogRoot = {
+    test("should update existing cached log files", async () => {
+      const initialLogRoot: LogRoot = {
         log_dir: "/test/logs",
-        files: [],
+        files: [{ name: "/test/logs/eval1.json", task: "initial-task" }],
       };
 
-      await databaseService.cacheLogFiles(emptyLogFiles);
+      await databaseService.cacheLogFiles(initialLogRoot);
+
+      // Update with new data
+      const updatedLogRoot: LogRoot = {
+        log_dir: "/test/logs",
+        files: [
+          { name: "/test/logs/eval1.json", task: "updated-task" },
+          { name: "/test/logs/eval2.json", task: "additional-task" },
+        ],
+      };
+
+      await databaseService.cacheLogFiles(updatedLogRoot);
+
       const cached = await databaseService.getCachedLogFiles();
-
-      expect(cached).not.toBeNull();
-      expect(cached?.files).toHaveLength(0);
-    });
-
-    test("should update existing log files (upsert)", async () => {
-      const initialFiles: LogRoot = {
-        log_dir: "/test/logs",
-        files: [
-          {
-            name: "/test/logs/eval1.json",
-            task: "old-task",
-            task_id: "old_id",
-          },
-        ],
-      };
-
-      const updatedFiles: LogRoot = {
-        log_dir: "/test/logs",
-        files: [
-          {
-            name: "/test/logs/eval1.json",
-            task: "new-task",
-            task_id: "new_id",
-          },
-          {
-            name: "/test/logs/eval2.json",
-            task: "additional-task",
-            task_id: "add_id",
-          },
-        ],
-      };
-
-      // Cache initial files
-      await databaseService.cacheLogFiles(initialFiles);
-      let cached = await databaseService.getCachedLogFiles();
-      expect(cached?.files).toHaveLength(1);
-
-      // Cache updated files (should upsert)
-      await databaseService.cacheLogFiles(updatedFiles);
-      cached = await databaseService.getCachedLogFiles();
-
       expect(cached?.files).toHaveLength(2);
       expect(
         cached?.files.find((f) => f.name === "/test/logs/eval1.json")?.task,
-      ).toBe("new-task");
+      ).toBe("updated-task");
       expect(
         cached?.files.find((f) => f.name === "/test/logs/eval2.json")?.task,
       ).toBe("additional-task");
@@ -179,78 +177,53 @@ describe("Database Service", () => {
 
   describe("Log Summaries Caching", () => {
     test("should cache and retrieve log summaries", async () => {
-      const testHeader = createTestHeader({
-        evalId: "eval-1",
-        runId: "run-1",
-        task: "test-task-1",
-        taskId: "task1",
-        model: "gpt-4",
-        status: "success",
-        startedAt: "2024-01-01T00:00:00Z",
-        completedAt: "2024-01-01T01:00:00Z",
-      });
+      const summaries = [
+        createTestLogSummary({ eval_id: "eval-1", task: "task-1" }),
+        createTestLogSummary({ eval_id: "eval-2", task: "task-2" }),
+      ];
+      const filePaths = ["/test/logs/eval1.json", "/test/logs/eval2.json"];
 
-      // Cache the header
-      await databaseService.cacheLogHeaders(
-        "/test/logs/eval1.json",
-        testHeader,
-      );
+      // Cache the summaries
+      await databaseService.cacheLogSummaries(summaries, filePaths);
 
-      // Retrieve as overviews (which internally uses headers)
-      const cached = await databaseService.getCachedLogOverviews([
-        "/test/logs/eval1.json",
-      ]);
-
-      expect(cached["/test/logs/eval1.json"]).toBeDefined();
-      expect(cached["/test/logs/eval1.json"].eval_id).toBe("eval-1");
-      expect(cached["/test/logs/eval1.json"].model).toBe("gpt-4");
-    });
-
-    test("should handle multiple log summaries", async () => {
-      const header1 = createTestHeader({
-        evalId: "eval-1",
-        runId: "run-1",
-        task: "task-1",
-        taskId: "task1",
-        model: "gpt-4",
-        status: "success",
-        startedAt: "2024-01-01T00:00:00Z",
-        completedAt: "2024-01-01T01:00:00Z",
-      });
-
-      const header2 = createTestHeader({
-        evalId: "eval-2",
-        runId: "run-2",
-        task: "task-2",
-        taskId: "task2",
-        model: "claude-3",
-        status: "started",
-        startedAt: "2024-01-01T02:00:00Z",
-      });
-
-      // Cache headers individually
-      await databaseService.cacheLogHeaders("/test/logs/eval1.json", header1);
-      await databaseService.cacheLogHeaders("/test/logs/eval2.json", header2);
-
-      const cached = await databaseService.getCachedLogOverviews([
-        "/test/logs/eval1.json",
-        "/test/logs/eval2.json",
-      ]);
+      // Retrieve cached summaries
+      const cached = await databaseService.getCachedLogSummaries(filePaths);
 
       expect(Object.keys(cached)).toHaveLength(2);
-      expect(cached["/test/logs/eval1.json"].status).toBe("success");
-      expect(cached["/test/logs/eval2.json"].status).toBe("started");
+      expect(cached["/test/logs/eval1.json"]).toBeDefined();
+      expect(cached["/test/logs/eval1.json"].eval_id).toBe("eval-1");
+      expect(cached["/test/logs/eval2.json"].task).toBe("task-2");
+    });
+
+    test("should handle partial cache hits", async () => {
+      const summary = createTestLogSummary({ eval_id: "eval-1" });
+
+      // Cache only one summary
+      await databaseService.cacheLogSummaries(
+        [summary],
+        ["/test/logs/eval1.json"],
+      );
+
+      // Request multiple summaries
+      const cached = await databaseService.getCachedLogSummaries([
+        "/test/logs/eval1.json",
+        "/test/logs/eval2.json",
+        "/test/logs/eval3.json",
+      ]);
+
+      // Should only return the cached one
+      expect(Object.keys(cached)).toHaveLength(1);
+      expect(cached["/test/logs/eval1.json"]).toBeDefined();
+      expect(cached["/test/logs/eval2.json"]).toBeUndefined();
     });
   });
 
-  describe("Sample Summaries Caching", () => {
-    test("should cache and retrieve sample summaries", async () => {
-      const testSampleSummaries: SampleSummary[] = [
-        {
-          id: "sample-1",
-          epoch: 1,
-          input: "Test input",
-          target: "Test target",
+  describe("Log Info Caching", () => {
+    test("should cache and retrieve log info with samples", async () => {
+      const samples = [
+        createTestSampleSummary({ id: 1 }),
+        createTestSampleSummary({
+          id: 2,
           scores: {
             accuracy: {
               value: 0.85,
@@ -260,268 +233,239 @@ describe("Database Service", () => {
               history: [],
             },
           },
-          completed: true,
-        },
-        {
-          id: "sample-2",
-          epoch: 1,
-          input: "Test input 2",
-          target: "Test target 2",
-          scores: {
-            accuracy: {
-              value: 0.92,
-              answer: null,
-              explanation: null,
-              metadata: {},
-              history: [],
-            },
-          },
-          completed: true,
-        },
+        }),
       ];
 
-      await databaseService.cacheSampleSummaries(
-        "/test/logs/eval1.json",
-        testSampleSummaries,
-      );
-      const cached = await databaseService.getSampleSummariesForFile(
-        "/test/logs/eval1.json",
-      );
-
-      expect(cached).toHaveLength(2);
-      expect(cached[0].id).toBe("sample-1");
-      expect(cached[1].id).toBe("sample-2");
-      expect(cached[0].scores?.accuracy?.value).toBe(0.85);
-    });
-
-    test("should handle cross-file sample queries", async () => {
-      const samples1: SampleSummary[] = [
-        {
-          id: "sample-1",
-          epoch: 1,
-          input: "Input 1",
-          target: "Target 1",
-          scores: {
-            accuracy: {
-              value: 0.85,
-              answer: null,
-              explanation: null,
-              metadata: {},
-              history: [],
-            },
-          },
-          completed: true,
-        },
-      ];
-
-      const samples2: SampleSummary[] = [
-        {
-          id: "sample-2",
-          epoch: 1,
-          input: "Input 2",
-          target: "Target 2",
-          scores: {
-            accuracy: {
-              value: 0.95,
-              answer: null,
-              explanation: null,
-              metadata: {},
-              history: [],
-            },
-          },
-          completed: true,
-        },
-      ];
-
-      // Cache samples from different files
-      await databaseService.cacheSampleSummaries(
-        "/test/logs/eval1.json",
-        samples1,
-      );
-      await databaseService.cacheSampleSummaries(
-        "/test/logs/eval2.json",
-        samples2,
-      );
-
-      // Query all samples across files
-      const allSamples = await databaseService.getAllSampleSummaries();
-      expect(allSamples).toHaveLength(2);
-
-      // Query with filters
-      const highScoreSamples = await databaseService.querySampleSummaries({
-        scoreRange: { min: 0.9, max: 1.0 },
+      const logInfo = createTestLogInfo({
+        sampleSummaries: samples,
       });
-      expect(highScoreSamples).toHaveLength(1);
-      expect(highScoreSamples[0].id).toBe("sample-2");
+
+      // Cache the log info
+      await databaseService.cacheLogInfo("/test/logs/eval1.json", logInfo);
+
+      // Retrieve cached log info
+      const cached = await databaseService.getCachedLogInfo(
+        "/test/logs/eval1.json",
+      );
+
+      expect(cached).not.toBeNull();
+      expect(cached?.eval.eval_id).toBe("eval-1");
+      expect(cached?.sampleSummaries).toHaveLength(2);
+      expect(cached?.sampleSummaries[0].id).toBe(1);
     });
 
-    test("should handle compound primary key updates", async () => {
-      const initialSample: SampleSummary[] = [
-        {
-          id: "sample-1",
-          epoch: 1,
-          input: "Initial input",
-          target: "Initial target",
-          scores: {
-            accuracy: {
-              value: 0.5,
-              answer: null,
-              explanation: null,
-              metadata: {},
-              history: [],
-            },
-          },
+    test("should return null for non-cached log info", async () => {
+      const cached = await databaseService.getCachedLogInfo(
+        "/test/logs/nonexistent.json",
+      );
+      expect(cached).toBeNull();
+    });
+  });
+
+  describe("Sample Summaries Extraction", () => {
+    test("should extract sample summaries from cached log info", async () => {
+      const samples = [
+        createTestSampleSummary({ id: 1, completed: true }),
+        createTestSampleSummary({ id: 2, completed: false }),
+        createTestSampleSummary({ id: 3, error: "timeout" }),
+      ];
+
+      const logInfo = createTestLogInfo({
+        sampleSummaries: samples,
+      });
+
+      // Cache the log info
+      await databaseService.cacheLogInfo("/test/logs/eval1.json", logInfo);
+
+      // Get samples for the file
+      const retrievedSamples = await databaseService.getSampleSummariesForFile(
+        "/test/logs/eval1.json",
+      );
+
+      expect(retrievedSamples).toHaveLength(3);
+      expect(retrievedSamples[0].id).toBe(1);
+      expect(retrievedSamples[1].completed).toBe(false);
+      expect(retrievedSamples[2].error).toBe("timeout");
+    });
+
+    test("should return empty array for file without cached info", async () => {
+      const samples = await databaseService.getSampleSummariesForFile(
+        "/test/logs/nonexistent.json",
+      );
+      expect(samples).toEqual([]);
+    });
+
+    test("should get all sample summaries across multiple files", async () => {
+      const logInfo1 = createTestLogInfo({
+        sampleSummaries: [
+          createTestSampleSummary({ id: 1 }),
+          createTestSampleSummary({ id: 2 }),
+        ],
+      });
+
+      const logInfo2 = createTestLogInfo({
+        sampleSummaries: [createTestSampleSummary({ id: 3 })],
+      });
+
+      await databaseService.cacheLogInfo("/test/logs/eval1.json", logInfo1);
+      await databaseService.cacheLogInfo("/test/logs/eval2.json", logInfo2);
+
+      const allSamples = await databaseService.getAllSampleSummaries();
+      expect(allSamples).toHaveLength(3);
+    });
+
+    test("should query sample summaries with filters", async () => {
+      const samples = [
+        createTestSampleSummary({ id: 1, completed: true }),
+        createTestSampleSummary({
+          id: 2,
           completed: false,
-        },
-      ];
-
-      const updatedSample: SampleSummary[] = [
-        {
-          id: "sample-1",
-          epoch: 1,
-          input: "Updated input",
-          target: "Updated target",
           scores: {
             accuracy: {
-              value: 0.9,
+              value: 0.7,
               answer: null,
               explanation: null,
               metadata: {},
               history: [],
             },
           },
+        }),
+        createTestSampleSummary({
+          id: 3,
           completed: true,
-        },
+          error: "timeout",
+          scores: {
+            accuracy: {
+              value: 0.8,
+              answer: null,
+              explanation: null,
+              metadata: {},
+              history: [],
+            },
+          },
+        }),
+        createTestSampleSummary({
+          id: 4,
+          completed: true,
+          scores: {
+            accuracy: {
+              value: 0.6,
+              answer: null,
+              explanation: null,
+              metadata: {},
+              history: [],
+            },
+          },
+        }),
       ];
 
-      // Cache initial sample
-      await databaseService.cacheSampleSummaries(
-        "/test/logs/eval1.json",
-        initialSample,
-      );
-      let cached = await databaseService.getSampleSummariesForFile(
-        "/test/logs/eval1.json",
-      );
-      expect(cached).toHaveLength(1);
-      expect(cached[0].completed).toBe(false);
+      const logInfo = createTestLogInfo({ sampleSummaries: samples });
+      await databaseService.cacheLogInfo("/test/logs/eval1.json", logInfo);
 
-      // Update the same sample (same file_path + sample_id + epoch)
-      await databaseService.cacheSampleSummaries(
-        "/test/logs/eval1.json",
-        updatedSample,
-      );
-      cached = await databaseService.getSampleSummariesForFile(
-        "/test/logs/eval1.json",
-      );
+      // Test completed filter
+      const completedSamples = await databaseService.querySampleSummaries({
+        completed: true,
+      });
+      expect(completedSamples).toHaveLength(3);
 
-      expect(cached).toHaveLength(1); // Should still be 1, not 2
-      expect(cached[0].completed).toBe(true); // Should be updated
-      expect(cached[0].input).toBe("Updated input");
-      expect(cached[0].scores?.accuracy?.value).toBe(0.9);
+      // Test error filter
+      const errorSamples = await databaseService.querySampleSummaries({
+        hasError: true,
+      });
+      expect(errorSamples).toHaveLength(1);
+      expect(errorSamples[0].id).toBe(3);
+
+      // Test score range filter
+      const highScoreSamples = await databaseService.querySampleSummaries({
+        scoreRange: { min: 0.8, max: 1.0, scoreName: "accuracy" },
+      });
+      expect(highScoreSamples).toHaveLength(2);
+      expect(highScoreSamples[0].id).toBe(1);
+      expect(highScoreSamples[1].id).toBe(3);
     });
   });
 
   describe("Cache Statistics and Management", () => {
-    test("should provide accurate cache statistics", async () => {
-      // Add some test data
-      const logFiles: LogRoot = {
-        log_dir: "/test/logs",
-        files: [
-          { name: "/test/logs/eval1.json", task: "task1", task_id: "id1" },
-          { name: "/test/logs/eval2.json", task: "task2", task_id: "id2" },
-        ],
-      };
-
-      const sampleSummaries: SampleSummary[] = [
-        {
-          id: "sample-1",
-          epoch: 1,
-          input: "Input",
-          target: "Target",
-          scores: {
-            accuracy: {
-              value: 0.85,
-              answer: null,
-              explanation: null,
-              metadata: {},
-              history: [],
-            },
-          },
-          completed: true,
-        },
-      ];
-
-      await databaseService.cacheLogFiles(logFiles);
-      // Cache a header instead of a summary
-      const header = createTestHeader({
-        evalId: "eval-1",
-        runId: "run-1",
-        task: "task1",
-        taskId: "id1",
-        model: "gpt-4",
-        status: "success",
-        startedAt: "2024-01-01T00:00:00Z",
-        completedAt: "2024-01-01T01:00:00Z",
-      });
-      await databaseService.cacheLogHeaders("/test/logs/eval1.json", header);
-      await databaseService.cacheSampleSummaries(
-        "/test/logs/eval1.json",
-        sampleSummaries,
-      );
-
+    test("should return cache statistics", async () => {
       const stats = await databaseService.getCacheStats();
 
-      expect(stats.logFiles).toBe(2);
-      expect(stats.logSummaries).toBe(1); // This now returns logHeaders count
-      expect(stats.sampleSummaries).toBe(1);
+      expect(stats.logFiles).toBe(0);
+      expect(stats.logSummaries).toBe(0);
+      expect(stats.sampleSummaries).toBe(0);
       expect(stats.logDir).toBe("/test/logs");
     });
 
     test("should clear all caches", async () => {
-      // Add test data
-      const logFiles: LogRoot = {
+      // Cache data in all tables
+      await databaseService.cacheLogFiles({
         log_dir: "/test/logs",
         files: [
-          { name: "/test/logs/eval1.json", task: "task1", task_id: "id1" },
+          { name: "/test/logs/eval1.json", task: "task-1", task_id: "task1" },
         ],
-      };
+      });
 
-      await databaseService.cacheLogFiles(logFiles);
+      await databaseService.cacheLogSummaries(
+        [createTestLogSummary()],
+        ["/test/logs/eval1.json"],
+      );
 
-      // Verify data exists
-      let stats = await databaseService.getCacheStats();
-      expect(stats.logFiles).toBe(1);
+      await databaseService.cacheLogInfo(
+        "/test/logs/eval1.json",
+        createTestLogInfo({
+          sampleSummaries: [createTestSampleSummary()],
+        }),
+      );
+
+      const stats1 = await databaseService.getCacheStats();
+      expect(stats1.logFiles).toBe(1);
+      expect(stats1.logSummaries).toBe(1);
+      expect(stats1.sampleSummaries).toBe(1);
 
       // Clear all caches
       await databaseService.clearAllCaches();
 
-      // Verify data is cleared
-      stats = await databaseService.getCacheStats();
-      expect(stats.logFiles).toBe(0);
-      expect(stats.logSummaries).toBe(0);
-      expect(stats.sampleSummaries).toBe(0);
+      const stats2 = await databaseService.getCacheStats();
+      expect(stats2.logFiles).toBe(0);
+      expect(stats2.logSummaries).toBe(0);
+      expect(stats2.sampleSummaries).toBe(0);
+    });
+
+    test("should count sample summaries correctly", async () => {
+      // Cache multiple log info with different number of samples
+      await databaseService.cacheLogInfo(
+        "/test/logs/eval1.json",
+        createTestLogInfo({
+          sampleSummaries: [
+            createTestSampleSummary({ id: 1 }),
+            createTestSampleSummary({ id: 2 }),
+          ],
+        }),
+      );
+
+      await databaseService.cacheLogInfo(
+        "/test/logs/eval2.json",
+        createTestLogInfo({
+          sampleSummaries: [
+            createTestSampleSummary({ id: 3 }),
+            createTestSampleSummary({ id: 4 }),
+            createTestSampleSummary({ id: 5 }),
+          ],
+        }),
+      );
+
+      const stats = await databaseService.getCacheStats();
+      expect(stats.sampleSummaries).toBe(5); // Total samples across both files
     });
   });
 
   describe("Error Handling", () => {
-    test("should handle database errors gracefully", async () => {
-      // This test ensures the service handles database errors without crashing
-      // In a real scenario, we might simulate database failures
+    test("should handle cache retrieval errors gracefully", async () => {
+      // Close database to simulate error
+      await databaseService.closeDatabase();
 
+      // Should return null when database is closed (graceful error handling)
       const result = await databaseService.getCachedLogFiles();
-      expect(result).toBeDefined(); // Should not throw
-    });
-
-    test("should handle empty query results", async () => {
-      const cached = await databaseService.getCachedLogOverviews([
-        "/nonexistent/file.json",
-      ]);
-      expect(cached).toEqual({});
-
-      const samples = await databaseService.getSampleSummariesForFile(
-        "/nonexistent/file.json",
-      );
-      expect(samples).toEqual([]);
+      expect(result).toBeNull();
     });
   });
 });
