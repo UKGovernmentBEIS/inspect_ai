@@ -1,3 +1,4 @@
+import Dexie from "dexie";
 import { AppDatabase } from "./schema";
 import { createLogger } from "../../utils/logger";
 
@@ -26,6 +27,16 @@ export class DatabaseManager {
     // Close current database if switching to a different directory
     if (this.database && this.logDir !== logDir) {
       await this.close();
+    }
+
+    // Check for version mismatch before opening
+    const needsRecreation = await AppDatabase.checkVersionMismatch(logDir);
+    if (needsRecreation) {
+      log.info(`Recreating database due to version mismatch for: ${logDir}`);
+      const sanitizedDir = logDir.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const dbName = `InspectAI_${sanitizedDir}`;
+      await Dexie.delete(dbName);
+      log.debug(`Deleted old database: ${dbName}`);
     }
 
     // Create and open new database
