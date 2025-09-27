@@ -3,7 +3,6 @@ from typing import Any, Mapping, Sequence
 
 from dotenv import find_dotenv, load_dotenv
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
-from shortuuid import uuid
 
 from inspect_ai._eval.context import init_model_context
 from inspect_ai._eval.task.task import resolve_model_roles
@@ -35,6 +34,7 @@ def scan(
     | dict[str, Scanner[ScannerInput]]
     | ScanJob,
     transcripts: Transcripts | None = None,
+    results: str | None = None,
     model: str | Model | None = None,
     model_config: GenerateConfig | None = None,
     model_base_url: str | None = None,
@@ -45,13 +45,12 @@ def scan(
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
-    scans_dir: str | None = None,
-    scan_id: str | None = None,
 ) -> ScanResults:
     return run_coroutine(
         scan_async(
             scanners=scanners,
             transcripts=transcripts,
+            results=results,
             model=model,
             model_config=model_config,
             model_base_url=model_base_url,
@@ -62,8 +61,6 @@ def scan(
             shuffle=shuffle,
             tags=tags,
             metadata=metadata,
-            scans_dir=scans_dir,
-            scan_id=scan_id,
         )
     )
 
@@ -73,6 +70,7 @@ async def scan_async(
     | dict[str, Scanner[ScannerInput]]
     | ScanJob,
     transcripts: Transcripts | None = None,
+    results: str | None = None,
     model: str | Model | None = None,
     model_config: GenerateConfig | None = None,
     model_base_url: str | None = None,
@@ -83,8 +81,6 @@ async def scan_async(
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
-    scans_dir: str | None = None,
-    scan_id: str | None = None,
 ) -> ScanResults:
     # resolve scanjob
     if isinstance(scanners, ScanJob):
@@ -92,16 +88,13 @@ async def scan_async(
     else:
         scanjob = ScanJob(scanners=scanners)
 
-    # resolve id
-    scan_id = scan_id or uuid()
-
     # resolve transcripts
     transcripts = transcripts or scanjob.transcripts
     if transcripts is None:
         raise ValueError("No 'transcripts' specified for scan.")
 
-    # resolve scans_dir
-    scans_dir = scans_dir or str(os.getenv("INSPECT_SCAN_DIR", "./scans"))
+    # resolve results
+    results = results or str(os.getenv("INSPECT_SCAN_RESULTS", "./scans"))
 
     # initialize scan config
     scan_config = ScanConfig(
@@ -134,10 +127,9 @@ async def scan_async(
         config=scan_config,
         tags=tags,
         metadata=metadata,
-        scan_id=scan_id,
     )
-    recorder = scan_recorder_for_location(scans_dir)
-    await recorder.init(scan.spec, scans_dir)
+    recorder = scan_recorder_for_location(results)
+    await recorder.init(scan.spec, results)
 
     # run the scan
     return await _scan_async(scan=scan, recorder=recorder)

@@ -5,7 +5,6 @@ from inspect_ai.analysis._dataframe.extract import messages_as_str
 from inspect_ai.model._model import get_model
 from inspect_ai.scanner import (
     Result,
-    ScanJob,
     Scanner,
     Transcript,
     scan,
@@ -50,7 +49,7 @@ if __name__ == "__main__":
         scanners=[dummy_scanner(), llm_scanner()],
         transcripts=transcripts(LOGS_DIR),
         max_transcripts=50,
-        scans_dir=SCANS_DIR.as_posix(),
+        results=SCANS_DIR.as_posix(),
     )
 
     results.scanners["dummy_scanner"].info()

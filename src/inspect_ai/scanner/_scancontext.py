@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any, Set, cast
 
 import importlib_metadata
-from shortuuid import uuid
 
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.git import git_context
@@ -58,11 +57,7 @@ async def create_scan(
     tags: list[str] | None,
     metadata: dict[str, Any] | None,
     config: ScanConfig | None,
-    scan_id: str | None,
 ) -> ScanContext:
-    # resolve id
-    scan_id = scan_id or uuid()
-
     # resolve transcripts
     transcripts = transcripts or scanjob.transcripts
     if transcripts is None:
@@ -78,7 +73,6 @@ async def create_scan(
     # create scan spec
     async with transcripts:
         spec = ScanSpec(
-            job_id=scan_id,
             job_file=job_file(scanjob),
             job_name=scanjob.name,
             job_args=job_args(scanjob),
