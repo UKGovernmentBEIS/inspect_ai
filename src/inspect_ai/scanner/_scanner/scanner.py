@@ -1,5 +1,7 @@
+import inspect
 from dataclasses import dataclass, field
 from functools import wraps
+from pathlib import Path
 from typing import (
     Any,
     Awaitable,
@@ -14,6 +16,7 @@ from typing import (
 from typing_extensions import overload
 
 from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -39,6 +42,8 @@ from .types import ScannerInput, TEvent, TMessage
 from .validate import infer_filters_from_type, validate_scanner_signature
 
 SCANNER_CONFIG = "scanner_config"
+
+SCANNER_FILE_ATTR = "___scanner_file___"
 
 # core types
 # Use bounded TypeVar (contravariant for scanner input)
@@ -235,6 +240,15 @@ def scanner(
                 *args,
                 **kwargs,
             )
+
+            # if its not from an installed package then it is a "local"
+            # module import, so set its scanner file
+            if get_installed_package_name(factory_fn) is None:
+                module = inspect.getmodule(factory_fn)
+                if module and hasattr(module, "__file__") and module.__file__:
+                    file = Path(getattr(module, "__file__"))
+                    setattr(scanner_fn, SCANNER_FILE_ATTR, file.as_posix())
+
             return scanner_fn
 
         registry_add(

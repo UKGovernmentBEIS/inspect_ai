@@ -17,6 +17,9 @@ class ScanScanner(BaseModel):
     name: str
     """Scanner name."""
 
+    file: str | None = Field(default=None)
+    """Scanner source file (if not in a package)."""
+
     params: dict[str, Any] = Field(default_factory=dict)
     """Scanner arguments."""
 

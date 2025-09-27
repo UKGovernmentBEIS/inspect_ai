@@ -7,7 +7,6 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
-    extract_named_params,
     is_registry_object,
     registry_add,
     registry_info,
@@ -67,7 +66,6 @@ class ScanJob:
 ScanJobType = TypeVar("ScanJobType", bound=Callable[..., ScanJob])
 
 SCANJOB_FILE_ATTR = "__scanjob_file__"
-SCANJOB_ALL_PARAMS_ATTR = "__scanjob_all_params__"
 
 
 @overload
@@ -124,12 +122,8 @@ def scanjob(
                 **w_kwargs,
             )
 
-            # extract all task parameters including defaults
-            named_params = extract_named_params(scanjob_type, True, *w_args, **w_kwargs)
-            setattr(scanjob_instance, SCANJOB_ALL_PARAMS_ATTR, named_params)
-
             # if its not from an installed package then it is a "local"
-            # module import, so set its task file and run dir
+            # module import, so set its scanjob file
             if get_installed_package_name(scanjob_type) is None:
                 module = inspect.getmodule(scanjob_type)
                 if module and hasattr(module, "__file__") and module.__file__:

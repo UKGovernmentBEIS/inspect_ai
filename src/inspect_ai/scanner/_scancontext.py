@@ -1,11 +1,14 @@
 from dataclasses import dataclass
-from typing import Any, cast
+from pathlib import Path
+from typing import Any, Set, cast
 
 import importlib_metadata
 from shortuuid import uuid
 
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.git import git_context
+from inspect_ai._util.module import load_module
+from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     RegistryDict,
     registry_create_from_dict,
@@ -20,8 +23,8 @@ from inspect_ai.model._model_config import (
 )
 
 from ._recorder.factory import scan_recorder_type_for_location
-from ._scanjob import ScanJob
-from ._scanner.scanner import Scanner
+from ._scanjob import SCANJOB_FILE_ATTR, ScanJob
+from ._scanner.scanner import SCANNER_FILE_ATTR, Scanner
 from ._scanner.types import ScannerInput
 from ._scanspec import (
     ScanConfig,
@@ -75,7 +78,9 @@ async def create_scan(
     async with transcripts:
         spec = ScanSpec(
             job_id=scan_id,
+            job_file=job_file(scanjob),
             job_name=scanjob.name,
+            job_args=dict(registry_params(scanjob)),
             config=config or ScanConfig(),
             transcripts=await transcripts.snapshot(),
             scanners=_spec_scanners(scanjob.scanners),
@@ -96,8 +101,10 @@ async def create_scan(
 
 
 async def resume_scan(scan_location: str) -> ScanContext:
+    # load the spec
     recorder_type = scan_recorder_type_for_location(scan_location)
     spec = await recorder_type.spec(scan_location)
+
     return ScanContext(
         spec=spec,
         transcripts=await transcripts_from_snapshot(spec.transcripts),
@@ -109,18 +116,44 @@ def _spec_scanners(
     scanners: dict[str, Scanner[ScannerInput]],
 ) -> dict[str, ScanScanner]:
     return {
-        k: ScanScanner(name=registry_log_name(v), params=registry_params(v))
+        k: ScanScanner(
+            name=registry_log_name(v), file=scanner_file(v), params=registry_params(v)
+        )
         for k, v in scanners.items()
     }
 
 
 def _scanners_from_spec(spec: ScanSpec) -> dict[str, Scanner[ScannerInput]]:
-    return {
-        k: cast(
+    loaded: Set[str] = set()
+    scanners: dict[str, Scanner[ScannerInput]] = {}
+    for name, scanner in spec.scanners.items():
+        # we need to ensure that any files scanners were defined in have been loaded/parsed
+        if scanner.file is not None and scanner.file not in loaded:
+            load_module(Path(scanner.file))
+            loaded.add(scanner.file)
+
+        # create the scanner
+        scanners[name] = cast(
             Scanner[ScannerInput],
             registry_create_from_dict(
-                RegistryDict(type="scanner", name=v.name, params=v.params)
+                RegistryDict(type="scanner", name=scanner.name, params=scanner.params)
             ),
         )
-        for k, v in spec.scanners.items()
-    }
+
+    return scanners
+
+
+def scanner_file(scanner: Scanner[ScannerInput]) -> str | None:
+    file = cast(str | None, getattr(scanner, SCANNER_FILE_ATTR, None))
+    if file:
+        return cwd_relative_path(file)
+    else:
+        return None
+
+
+def job_file(scanjob: ScanJob) -> str | None:
+    file = cast(str | None, getattr(scanjob, SCANJOB_FILE_ATTR, None))
+    if file:
+        return cwd_relative_path(file)
+    else:
+        return None
