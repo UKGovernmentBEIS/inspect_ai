@@ -34,9 +34,7 @@ from ._log import (
     EvalStats,
 )
 from ._message import LoggingLevel, LoggingMessage
-from ._metric import recompute_metrics
 from ._retry import retryable_eval_logs
-from ._score import edit_score
 from ._transcript import (
     ApprovalEvent,
     ErrorEvent,
@@ -48,7 +46,6 @@ from ._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     SandboxEvent,
-    ScoreEditEvent,
     ScoreEvent,
     SpanBeginEvent,
     SpanEndEvent,
@@ -96,7 +93,6 @@ __all__ = [
     "SampleInitEvent",
     "SampleLimitEvent",
     "SandboxEvent",
-    "ScoreEditEvent",
     "ScoreEvent",
     "SpanBeginEvent",
     "SpanEndEvent",
@@ -124,6 +120,4 @@ __all__ = [
     "EventTree",
     "EventNode",
     "SpanNode",
-    "edit_score",
-    "recompute_metrics",
 ]
