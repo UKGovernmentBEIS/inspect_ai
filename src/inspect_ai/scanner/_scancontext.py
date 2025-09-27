@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 from typing import Any, cast
 
+import importlib_metadata
 from shortuuid import uuid
 
+from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.git import git_context
 from inspect_ai._util.registry import (
     RegistryDict,
     registry_create_from_dict,
@@ -22,6 +25,7 @@ from ._scanner.scanner import Scanner
 from ._scanner.types import ScannerInput
 from ._scanspec import (
     ScanConfig,
+    ScanRevision,
     ScanScanner,
     ScanSpec,
 )
@@ -60,6 +64,13 @@ async def create_scan(
     if transcripts is None:
         raise ValueError("No 'transcripts' specified for scan.")
 
+    # get revision and package version
+    git = git_context()
+    revision = (
+        ScanRevision(type="git", origin=git.origin, commit=git.commit) if git else None
+    )
+    packages = {PKG_NAME: importlib_metadata.version(PKG_NAME)}
+
     # create scan spec
     async with transcripts:
         spec = ScanSpec(
@@ -77,6 +88,8 @@ async def create_scan(
                 args=model_args_for_log(model_args),
             ),
             model_roles=model_roles_to_model_roles_config(model_roles),
+            revision=revision,
+            packages=packages,
         )
 
     return ScanContext(spec=spec, transcripts=transcripts, scanners=scanjob.scanners)
@@ -92,7 +105,9 @@ async def resume_scan(scan_location: str) -> ScanContext:
     )
 
 
-def _spec_scanners(scanners: dict[str, Scanner[ScannerInput]]) -> dict[str, ScanScanner]:
+def _spec_scanners(
+    scanners: dict[str, Scanner[ScannerInput]],
+) -> dict[str, ScanScanner]:
     return {
         k: ScanScanner(name=registry_log_name(v), params=registry_params(v))
         for k, v in scanners.items()
