@@ -13,6 +13,7 @@ from inspect_ai._util.registry import (
     registry_tag,
     registry_unqualified_name,
 )
+from inspect_ai.scanner._scanner.types import ScannerInput
 
 from ._scanner.scanner import Scanner
 from ._transcript.transcripts import Transcripts
@@ -23,8 +24,8 @@ class ScanJob:
         self,
         *,
         transcripts: Transcripts | None = None,
-        scanners: Sequence[Scanner[Any] | tuple[str, Scanner[Any]]]
-        | dict[str, Scanner[Any]],
+        scanners: Sequence[Scanner[ScannerInput] | tuple[str, Scanner[ScannerInput]]]
+        | dict[str, Scanner[ScannerInput]],
         name: str | None = None,
     ):
         # save transcripts and name
@@ -32,7 +33,7 @@ class ScanJob:
         self._name = name
 
         # resolve scanners and confirm unique names
-        self._scanners: dict[str, Scanner[Any]] = {}
+        self._scanners: dict[str, Scanner[ScannerInput]] = {}
         if isinstance(scanners, dict):
             self._scanners = scanners
         else:
@@ -61,7 +62,7 @@ class ScanJob:
         return self._trancripts
 
     @property
-    def scanners(self) -> dict[str, Scanner[Any]]:
+    def scanners(self) -> dict[str, Scanner[ScannerInput]]:
         return self._scanners
 
 

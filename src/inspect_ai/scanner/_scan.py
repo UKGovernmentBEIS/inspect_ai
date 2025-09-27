@@ -1,5 +1,5 @@
 import os
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from dotenv import find_dotenv, load_dotenv
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
@@ -16,13 +16,14 @@ from inspect_ai.model._model_config import (
     model_config_to_model,
     model_roles_config_to_model_roles,
 )
+from inspect_ai.scanner._scanner.types import ScannerInput
 from inspect_ai.scanner._util.contstants import DEFAULT_MAX_TRANSCRIPTS
 
 from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanResults
 from ._scancontext import ScanContext, create_scan, resume_scan
 from ._scanjob import ScanJob
-from ._scanner.scanner import config_for_scanner
+from ._scanner.scanner import Scanner, config_for_scanner
 from ._scanspec import ScanConfig
 from ._transcript.transcripts import Transcripts
 from ._transcript.util import filter_transcript, union_transcript_contents
@@ -30,7 +31,9 @@ from ._work_pool import WorkItem, scan_with_work_pool
 
 
 def scan(
-    scanjob: ScanJob,
+    scanners: Sequence[Scanner[ScannerInput] | tuple[str, Scanner[ScannerInput]]]
+    | dict[str, Scanner[ScannerInput]]
+    | ScanJob,
     transcripts: Transcripts | None = None,
     model: str | Model | None = None,
     model_config: GenerateConfig | None = None,
@@ -47,7 +50,7 @@ def scan(
 ) -> ScanResults:
     return run_coroutine(
         scan_async(
-            scanjob=scanjob,
+            scanners=scanners,
             transcripts=transcripts,
             model=model,
             model_config=model_config,
@@ -66,7 +69,9 @@ def scan(
 
 
 async def scan_async(
-    scanjob: ScanJob,
+    scanners: Sequence[Scanner[ScannerInput] | tuple[str, Scanner[ScannerInput]]]
+    | dict[str, Scanner[ScannerInput]]
+    | ScanJob,
     transcripts: Transcripts | None = None,
     model: str | Model | None = None,
     model_config: GenerateConfig | None = None,
@@ -81,6 +86,12 @@ async def scan_async(
     scans_dir: str | None = None,
     scan_id: str | None = None,
 ) -> ScanResults:
+    # resolve scanjob
+    if isinstance(scanners, ScanJob):
+        scanjob = scanners
+    else:
+        scanjob = ScanJob(scanners=scanners)
+
     # resolve id
     scan_id = scan_id or uuid()
 
@@ -114,7 +125,7 @@ async def scan_async(
     )
 
     # create job and recorder
-    job = await create_scan(
+    scan = await create_scan(
         scanjob=scanjob,
         transcripts=transcripts,
         model=resolved_model,
@@ -126,10 +137,10 @@ async def scan_async(
         scan_id=scan_id,
     )
     recorder = scan_recorder_for_location(scans_dir)
-    await recorder.init(job.spec, scans_dir)
+    await recorder.init(scan.spec, scans_dir)
 
     # run the scan
-    return await _scan_async(job=job, recorder=recorder)
+    return await _scan_async(scan=scan, recorder=recorder)
 
 
 async def scan_resume(
@@ -165,7 +176,7 @@ async def scan_resume_async(
     # create recorder and scan
     recorder = scan_recorder_for_location(scan_dir)
     await recorder.resume(scan_dir)
-    return await _scan_async(job=job, recorder=recorder)
+    return await _scan_async(scan=job, recorder=recorder)
 
 
 def init_runtime_context(
@@ -201,23 +212,23 @@ def init_runtime_context(
     return model, resolved_model_args, resolved_model_roles
 
 
-async def _scan_async(*, job: ScanContext, recorder: ScanRecorder) -> ScanResults:
+async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanResults:
     LOOKAHEAD_BUFFER_MULTIPLE: float = 1.0
 
     # establish max_transcripts
-    max_transcripts = job.spec.config.max_transcripts or DEFAULT_MAX_TRANSCRIPTS
+    max_transcripts = scan.spec.config.max_transcripts or DEFAULT_MAX_TRANSCRIPTS
 
     # apply limits/shuffle
-    if job.spec.config.limit is not None:
-        transcripts = job.transcripts.limit(job.spec.config.limit)
-    if job.spec.config.shuffle is not None:
+    if scan.spec.config.limit is not None:
+        transcripts = scan.transcripts.limit(scan.spec.config.limit)
+    if scan.spec.config.shuffle is not None:
         transcripts = transcripts.shuffle(
-            job.spec.config.shuffle
-            if isinstance(job.spec.config.shuffle, int)
+            scan.spec.config.shuffle
+            if isinstance(scan.spec.config.shuffle, int)
             else None
         )
     else:
-        transcripts = job.transcripts
+        transcripts = scan.transcripts
 
     async with transcripts:
         with Progress(
@@ -226,7 +237,7 @@ async def _scan_async(*, job: ScanContext, recorder: ScanRecorder) -> ScanResult
             TimeElapsedColumn(),
             transient=True,
         ) as progress:
-            total_ticks = (await transcripts.count()) * len(job.scanners)
+            total_ticks = (await transcripts.count()) * len(scan.scanners)
             task_id = progress.add_task("Scan", total=total_ticks)
 
             async def _execute_scan_item(item: WorkItem) -> Any:
@@ -242,7 +253,7 @@ async def _scan_async(*, job: ScanContext, recorder: ScanRecorder) -> ScanResult
                 return result
 
             await scan_with_work_pool(
-                context=job,
+                context=scan,
                 recorder=recorder,
                 max_tasks=max_transcripts,
                 max_queue_size=int(max_transcripts * LOOKAHEAD_BUFFER_MULTIPLE),
@@ -251,7 +262,7 @@ async def _scan_async(*, job: ScanContext, recorder: ScanRecorder) -> ScanResult
                 content=union_transcript_contents(
                     [
                         config_for_scanner(scanner).content
-                        for scanner in job.scanners.values()
+                        for scanner in scan.scanners.values()
                     ]
                 ),
             )
