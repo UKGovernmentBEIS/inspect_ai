@@ -280,3 +280,39 @@ def test_unicode_surrogates_are_escaped():
     sample = log.samples[0]
     assert sample.output.message.text == "\\udc00\\udc00\\udc00"
     assert sample.scores["exact"].answer == "\\udc00\\udc00\\udc00"
+
+
+def test_message_count_legacy():
+    """Test that old eval logs without message_count get populated correctly."""
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    log = read_eval_log(log_file)
+
+    assert log.stats.sample_message_counts is not None
+
+    if log.samples:
+        for sample in log.samples:
+            sample_key = f"{sample.id}_{sample.epoch}"
+
+            assert sample_key in log.stats.sample_message_counts
+            assert log.stats.sample_message_counts[sample_key] == len(sample.messages)
+
+
+def test_message_count_data_integrity():
+    """Test that message counts match actual message lengths in samples."""
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+    log = read_eval_log(log_file)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        log_path = os.path.join(tmpdir, "test_integrity.json")
+        write_eval_log(log, log_path, format="json")
+        log = read_eval_log(log_path, format="json")
+
+        assert log.stats.sample_message_counts is not None
+        if log.samples:
+            for sample in log.samples:
+                sample_key = f"{sample.id}_{sample.epoch}"
+
+                assert sample_key in log.stats.sample_message_counts
+                assert log.stats.sample_message_counts[sample_key] == len(
+                    sample.messages
+                )

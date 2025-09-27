@@ -3295,6 +3295,13 @@
           },
           "title": "Model Usage",
           "type": "object"
+        },
+        "sample_message_counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Sample Message Counts",
+          "type": "object"
         }
       },
       "title": "EvalStats",
@@ -3302,7 +3309,8 @@
       "required": [
         "started_at",
         "completed_at",
-        "model_usage"
+        "model_usage",
+        "sample_message_counts"
       ],
       "additionalProperties": false
     },

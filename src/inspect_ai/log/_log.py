@@ -227,6 +227,9 @@ class EvalSampleSummary(BaseModel):
     completed: bool = Field(default=False)
     """Is the sample complete."""
 
+    message_count: int = Field(default=0)
+    """Number of messages in the sample conversation."""
+
     @model_validator(mode="after")
     def thin_data(self) -> "EvalSampleSummary":
         # thin input
@@ -395,6 +398,7 @@ class EvalSample(BaseModel):
             limit=f"{self.limit.type}" if self.limit is not None else None,
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
+            message_count=len(self.messages),
         )
 
     # deprecated properties
@@ -935,6 +939,9 @@ class EvalStats(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
 
+    sample_message_counts: dict[str, int] = Field(default_factory=dict)
+    """Message counts for each sample."""
+
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
 
@@ -1027,3 +1034,19 @@ def sort_samples(samples: list[EvalSample]) -> None:
             (sample.id if isinstance(sample.id, str) else str(sample.id).zfill(20)),
         )
     )
+
+
+def collect_message_counts_from_samples(
+    stats: EvalStats, samples: list[EvalSample]
+) -> None:
+    for sample in samples:
+        sample_key = f"{sample.id}_{sample.epoch}"
+        stats.sample_message_counts[sample_key] = len(sample.messages)
+
+
+def collect_message_counts_from_summaries(
+    stats: EvalStats, summaries: list[EvalSampleSummary]
+) -> None:
+    for summary in summaries:
+        sample_key = f"{summary.id}_{summary.epoch}"
+        stats.sample_message_counts[sample_key] = summary.message_count
