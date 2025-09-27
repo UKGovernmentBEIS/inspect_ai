@@ -15,7 +15,6 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import (
     ModelEvent,
     SandboxEvent,
-    ScoreEditEvent,
     SubtaskEvent,
     ToolEvent,
 )
@@ -23,7 +22,6 @@ from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import exact
-from inspect_ai.scorer._metric import ProvenanceData
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -227,21 +225,6 @@ def test_can_round_trip_serialize_subtask_event():
 
     serialized = original.model_dump_json()
     deserialized = SubtaskEvent.model_validate_json(serialized)
-
-    assert original == deserialized
-
-
-def test_can_round_trip_serialize_score_edit_event():
-    from inspect_ai.scorer._metric import ScoreEdit
-
-    provenance = ProvenanceData(author="test_user", reason="Test edit")
-    edit = ScoreEdit(value="I", provenance=provenance)
-    original = ScoreEditEvent(
-        score_name="test_scorer", edit=edit, timestamp=datetime.now(timezone.utc)
-    )
-
-    serialized = original.model_dump_json()
-    deserialized = ScoreEditEvent.model_validate_json(serialized)
 
     assert original == deserialized
 
