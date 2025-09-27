@@ -9,7 +9,6 @@ from inspect_ai.scanner import (
     Scanner,
     Transcript,
     scan,
-    scanjob,
     scanner,
     transcripts,
 )
@@ -42,20 +41,15 @@ def llm_scanner() -> Scanner:
     return execute
 
 
-@scanjob
-def job() -> ScanJob:
-    return ScanJob(
-        transcripts=transcripts(LOGS_DIR), scanners=[dummy_scanner(), llm_scanner()]
-    )
-
-
 if __name__ == "__main__":
     LOGS_DIR = Path(__file__).parent / "logs"
     SCANS_DIR = Path(__file__).parent / "scans"
     # LOGS_DIR = Path("/Users/ericpatey/code/parsing/logs")
 
     results = scan(
-        job(),
+        ScanJob(
+            transcripts=transcripts(LOGS_DIR), scanners=[dummy_scanner(), llm_scanner()]
+        ),
         max_transcripts=50,
         scans_dir=SCANS_DIR.as_posix(),
     )

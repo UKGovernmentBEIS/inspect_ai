@@ -11,6 +11,7 @@ from inspect_ai._util.module import load_module
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     RegistryDict,
+    is_registry_object,
     registry_create_from_dict,
     registry_log_name,
     registry_params,
@@ -80,7 +81,7 @@ async def create_scan(
             job_id=scan_id,
             job_file=job_file(scanjob),
             job_name=scanjob.name,
-            job_args=dict(registry_params(scanjob)),
+            job_args=job_args(scanjob),
             config=config or ScanConfig(),
             transcripts=await transcripts.snapshot(),
             scanners=_spec_scanners(scanjob.scanners),
@@ -155,5 +156,12 @@ def job_file(scanjob: ScanJob) -> str | None:
     file = cast(str | None, getattr(scanjob, SCANJOB_FILE_ATTR, None))
     if file:
         return cwd_relative_path(file)
+    else:
+        return None
+
+
+def job_args(scanjob: ScanJob) -> dict[str, Any] | None:
+    if is_registry_object(scanjob):
+        return dict(registry_params(scanjob))
     else:
         return None

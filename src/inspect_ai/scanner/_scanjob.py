@@ -1,9 +1,8 @@
 import inspect
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, NoReturn, Sequence, TypeVar, cast, overload
+from typing import Any, Callable, Sequence, TypeVar, cast, overload
 
-from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -16,7 +15,6 @@ from inspect_ai._util.registry import (
 )
 
 from ._scanner.scanner import Scanner
-from ._scanner.types import ScannerInput
 from ._transcript.transcripts import Transcripts
 
 
@@ -25,14 +23,16 @@ class ScanJob:
         self,
         *,
         transcripts: Transcripts | None = None,
-        scanners: Sequence[Scanner[ScannerInput] | tuple[str, Scanner[ScannerInput]]]
-        | dict[str, Scanner[ScannerInput]],
+        scanners: Sequence[Scanner[Any] | tuple[str, Scanner[Any]]]
+        | dict[str, Scanner[Any]],
+        name: str | None = None,
     ):
         # save transcripts and name
         self._trancripts = transcripts
+        self._name = name
 
         # resolve scanners and confirm unique names
-        self._scanners: dict[str, Scanner[ScannerInput]] = {}
+        self._scanners: dict[str, Scanner[Any]] = {}
         if isinstance(scanners, dict):
             self._scanners = scanners
         else:
@@ -49,17 +49,19 @@ class ScanJob:
 
     @property
     def name(self) -> str:
-        if is_registry_object(self):
+        if self._name is not None:
+            return self._name
+        elif is_registry_object(self):
             return registry_info(self).name
         else:
-            raise_scanjob_no_registry_error()
+            return "scan"
 
     @property
     def transcripts(self) -> Transcripts | None:
         return self._trancripts
 
     @property
-    def scanners(self) -> dict[str, Scanner[ScannerInput]]:
+    def scanners(self) -> dict[str, Scanner[Any]]:
         return self._scanners
 
 
@@ -123,7 +125,7 @@ def scanjob(
             )
 
             # if its not from an installed package then it is a "local"
-            # module import, so set its scanjob file
+            # module import, so set its task file and run dir
             if get_installed_package_name(scanjob_type) is None:
                 module = inspect.getmodule(scanjob_type)
                 if module and hasattr(module, "__file__") and module.__file__:
@@ -157,9 +159,3 @@ def scanjob(
             return create_scanjob_wrapper(func)
 
         return decorator
-
-
-def raise_scanjob_no_registry_error() -> NoReturn:
-    raise PrerequisiteError(
-        "ScanJob must be created by a function decorated with @scanjob (this enables scans to be resumed when interrupted by errors or cancellation)."
-    )
