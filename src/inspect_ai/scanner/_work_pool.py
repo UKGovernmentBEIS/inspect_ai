@@ -3,7 +3,7 @@
 import functools
 import time
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, NamedTuple, Protocol, Sequence
+from typing import Awaitable, Callable, NamedTuple, Protocol, Sequence
 
 import anyio
 from anyio import create_task_group
@@ -14,6 +14,7 @@ from ._recorder.recorder import ScanRecorder
 from ._scancontext import ScanContext
 from ._scanner.result import Result
 from ._scanner.scanner import Scanner
+from ._scanner.types import ScannerInput
 from ._transcript.transcripts import Transcripts
 from ._transcript.types import Transcript, TranscriptContent
 
@@ -26,7 +27,7 @@ class WorkItem(NamedTuple):
     """Represents a unit of work for scanning a transcript."""
 
     transcript: Transcript
-    scanner: Scanner[Any]
+    scanner: Scanner[ScannerInput]
     scanner_name: str
     report_callback: ScanReport
 

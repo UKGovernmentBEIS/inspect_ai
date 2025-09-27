@@ -246,5 +246,5 @@ def scanner(
     return decorate
 
 
-def config_for_scanner(scanner: Scanner[Any]) -> ScannerConfig:
+def config_for_scanner(scanner: Scanner[ScannerInput]) -> ScannerConfig:
     return cast(ScannerConfig, registry_info(scanner).metadata[SCANNER_CONFIG])

@@ -19,6 +19,7 @@ from inspect_ai.model._model_config import (
 from ._recorder.factory import scan_recorder_type_for_location
 from ._scanjob import ScanJob
 from ._scanner.scanner import Scanner
+from ._scanner.types import ScannerInput
 from ._scanspec import (
     ScanConfig,
     ScanScanner,
@@ -36,7 +37,7 @@ class ScanContext:
     transcripts: Transcripts
     """Corpus of transcripts to scan."""
 
-    scanners: dict[str, Scanner[Any]]
+    scanners: dict[str, Scanner[ScannerInput]]
     """Scanners to apply to transcripts."""
 
 
@@ -91,17 +92,17 @@ async def resume_scan(scan_location: str) -> ScanContext:
     )
 
 
-def _spec_scanners(scanners: dict[str, Scanner[Any]]) -> dict[str, ScanScanner]:
+def _spec_scanners(scanners: dict[str, Scanner[ScannerInput]]) -> dict[str, ScanScanner]:
     return {
         k: ScanScanner(name=registry_log_name(v), params=registry_params(v))
         for k, v in scanners.items()
     }
 
 
-def _scanners_from_spec(spec: ScanSpec) -> dict[str, Scanner[Any]]:
+def _scanners_from_spec(spec: ScanSpec) -> dict[str, Scanner[ScannerInput]]:
     return {
         k: cast(
-            Scanner[Any],
+            Scanner[ScannerInput],
             registry_create_from_dict(
                 RegistryDict(type="scanner", name=v.name, params=v.params)
             ),
