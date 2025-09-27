@@ -3,7 +3,6 @@
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
 - Agent bridge: Ensure that bridge filters also take advantage of `retry_refusals` loop.
 - Agent bridge: Workaround Codex CLI not passing `detail` along with images.
-- Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - OpenAI: Automatically switch to the completions API when `--num-choices` is specified.
 - Model APIs: Improve legibility/clarify of error messages when updated versions of anthropic or openai packages are required.
 - Dataframes: Added `SampleScores` column group for extracting score answer, explanation, and metadata.
@@ -44,7 +43,6 @@
 - Bugfix: Fix Google Gemini 2.5 function calling configuration error when using native search tools.
 - Bugfix: Enable passing no reducers to `async_score` in eval score.
 - Bugfix: Handle non-contiguous task sequences in task batching.
-
 
 ## 0.3.132 (12 September 2025)
 
