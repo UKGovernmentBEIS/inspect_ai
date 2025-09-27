@@ -9,7 +9,6 @@ from inspect_ai._eval.context import init_model_context
 from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.config import resolve_args
-from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import is_registry_object
 from inspect_ai.model._generate_config import GenerateConfig
@@ -23,7 +22,7 @@ from inspect_ai.scanner._util.contstants import DEFAULT_MAX_TRANSCRIPTS
 from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanResults
 from ._scancontext import ScanContext, create_scan, resume_scan
-from ._scanjob import ScanJob
+from ._scanjob import ScanJob, raise_scanjob_no_registry_error
 from ._scanner.scanner import config_for_scanner
 from ._scanspec import ScanConfig
 from ._transcript.transcripts import Transcripts
@@ -85,9 +84,7 @@ async def scan_async(
 ) -> ScanResults:
     # validate that ScanJob is a registry object (required for resume)
     if not is_registry_object(scanjob):
-        raise PrerequisiteError(
-            "ScanJob must be created by a function decorated with @scanjob (this enables scans to be resumed when interrupted by errors or cancellation)."
-        )
+        raise_scanjob_no_registry_error()
 
     # resolve id
     scan_id = scan_id or uuid()

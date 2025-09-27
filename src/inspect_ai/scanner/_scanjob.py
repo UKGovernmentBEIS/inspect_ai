@@ -1,8 +1,9 @@
 import inspect
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Sequence, TypeVar, cast, overload
+from typing import Any, Callable, NoReturn, Sequence, TypeVar, cast, overload
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -26,11 +27,9 @@ class ScanJob:
         transcripts: Transcripts | None = None,
         scanners: Sequence[Scanner[Any] | tuple[str, Scanner[Any]]]
         | dict[str, Scanner[Any]],
-        name: str | None = None,
     ):
         # save transcripts and name
         self._trancripts = transcripts
-        self._name = name
 
         # resolve scanners and confirm unique names
         self._scanners: dict[str, Scanner[Any]] = {}
@@ -50,12 +49,10 @@ class ScanJob:
 
     @property
     def name(self) -> str:
-        if self._name is not None:
-            return self._name
-        elif is_registry_object(self):
+        if is_registry_object(self):
             return registry_info(self).name
         else:
-            return "scan"
+            raise_scanjob_no_registry_error()
 
     @property
     def transcripts(self) -> Transcripts | None:
@@ -78,21 +75,23 @@ def scanjob(func: ScanJobType) -> ScanJobType: ...
 
 @overload
 def scanjob(
-    *, name: str | None = ..., **attribs: Any
+    *,
+    name: str | None = ...,
 ) -> Callable[[ScanJobType], ScanJobType]: ...
 
 
-def scanjob(*args: Any, name: str | None = None, **attribs: Any) -> Any:
+def scanjob(
+    func: ScanJobType | None = None, *, name: str | None = None
+) -> ScanJobType | Callable[[ScanJobType], ScanJobType]:
     r"""Decorator for registering scan jobs.
 
     Args:
-      *args: Function returning `ScanJob` targeted by
+      func: Function returning `ScanJob` targeted by
         plain task decorator without attributes (e.g. `@scanjob`)
       name:
         Optional name for scanjob. If the decorator has no name
         argument then the name of the function
         will be used to automatically assign a name.
-      **attribs: (dict[str,Any]): Additional scanjob attributes.
 
     Returns:
         ScanJob with registry attributes.
@@ -118,7 +117,7 @@ def scanjob(*args: Any, name: str | None = None, **attribs: Any) -> Any:
                 RegistryInfo(
                     type="scanjob",
                     name=scanjob_name,
-                    metadata=dict(attribs=attribs, params=params),
+                    metadata=dict(params=params),
                 ),
                 *w_args,
                 **w_kwargs,
@@ -150,14 +149,12 @@ def scanjob(*args: Any, name: str | None = None, **attribs: Any) -> Any:
             RegistryInfo(
                 type="scanjob",
                 name=scanjob_name,
-                metadata=(dict(attribs=attribs, params=params)),
+                metadata=(dict(params=params)),
             ),
         )
         return wrapped_scanjob_type
 
-    if args:
-        # The decorator was used without arguments: @scanjob
-        func = args[0]
+    if func:
         return create_scanjob_wrapper(func)
     else:
         # The decorator was used with arguments: @scanjob(name="foo")
@@ -165,3 +162,9 @@ def scanjob(*args: Any, name: str | None = None, **attribs: Any) -> Any:
             return create_scanjob_wrapper(func)
 
         return decorator
+
+
+def raise_scanjob_no_registry_error() -> NoReturn:
+    raise PrerequisiteError(
+        "ScanJob must be created by a function decorated with @scanjob (this enables scans to be resumed when interrupted by errors or cancellation)."
+    )

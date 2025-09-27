@@ -62,8 +62,8 @@ async def create_scan(
     # create scan spec
     async with transcripts:
         spec = ScanSpec(
-            scan_id=scan_id,
-            scan_name=scanjob.name,
+            job_id=scan_id,
+            job_name=scanjob.name,
             config=config or ScanConfig(),
             transcripts=await transcripts.snapshot(),
             scanners=_spec_scanners(scanjob.scanners),

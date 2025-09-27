@@ -24,7 +24,7 @@ class FileRecorder(ScanRecorder):
     async def init(self, spec: ScanSpec, scans_location: str) -> None:
         # create the scan dir
         self._scan_dir = _ensure_scan_dir(
-            UPath(scans_location), spec.scan_id, spec.scan_name
+            UPath(scans_location), spec.job_id, spec.job_name or "job"
         )
         # write the spec
         with file((self.scan_dir / SCAN_JSON).as_posix(), "w") as f:
@@ -140,24 +140,24 @@ def _read_scan_spec(scan_dir: UPath) -> ScanSpec:
         return ScanSpec.model_validate_json(f.read())
 
 
-def _find_scan_dir(scans_path: UPath, scan_id: str) -> UPath | None:
+def _find_scan_dir(scans_path: UPath, job_id: str) -> UPath | None:
     _ensure_scans_dir(scans_path)
-    for f in scans_path.glob(f"*_{scan_id}"):
+    for f in scans_path.glob(f"*_{job_id}"):
         if f.is_dir():
             return f
 
     return None
 
 
-def _ensure_scan_dir(scans_path: UPath, scan_id: str, scan_name: str) -> UPath:
+def _ensure_scan_dir(scans_path: UPath, job_id: str, job_name: str) -> UPath:
     # look for an existing scan dir
-    scan_dir = _find_scan_dir(scans_path, scan_id)
+    scan_dir = _find_scan_dir(scans_path, job_id)
 
     # if there is no scan_dir then create one
     if scan_dir is None:
         scan_dir = (
             scans_path
-            / f"{clean_filename_component(iso_now())}_{clean_filename_component(scan_name)}_{scan_id}"
+            / f"{clean_filename_component(iso_now())}_{clean_filename_component(job_name)}_{job_id}"
         )
         scan_dir.mkdir(parents=True, exist_ok=False)
 
