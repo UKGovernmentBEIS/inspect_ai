@@ -67,6 +67,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="quarto:offset" content="./">
 <link href="./providers.html" rel="next">
 <link href="./scorers.html" rel="prev">
+<link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -581,7 +582,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4o-mini"</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"anthropic/claude-sonnet-4-0"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Alternatively, you can set the <code>INSPECT_EVAL_MODEL</code> environment variable (either in the shell or a <code>.env</code> file) to select a model externally:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_MODEL</span><span class="op">=</span>google/gemini-1.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_MODEL</span><span class="op">=</span>google/gemini-2.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="no-model" class="level4">
 <h4 class="anchored" data-anchor-id="no-model">No Model</h4>
 <p>Some evaluations will either not make use of models or call the lower-level <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> function to explicitly access models for different roles (see the <a href="#model-api">Model API</a> section below for details on this).</p>
@@ -596,16 +597,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>There are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (<code>temperature</code>, <code>top_p</code>, etc.) as well as the connection to model providers (<code>timeout</code>, <code>max_retries</code>, etc.)</p>
 <p>You can specify generation options either on the command line or in direct calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>. For example:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4 <span class="at">--temperature</span> 0.9</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-1.5-pro <span class="at">--max-connections</span> 20</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-2.5-pro <span class="at">--max-connections</span> 20</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>, temperature<span class="op">=</span><span class="fl">0.9</span>)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"google/gemini-1.5-pro"</span>, max_connections<span class="op">=</span><span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"google/gemini-2.5-pro"</span>, max_connections<span class="op">=</span><span class="dv">20</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Use <code>inspect eval --help</code> to learn about all of the available generation config options.</p>
 </section>
 <section id="model-args" class="level2">
 <h2 class="anchored" data-anchor-id="model-args">Model Args</h2>
 <p>If there is an additional aspect of a model you want to tweak that isn’t covered by the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span>, you can use model args to pass additional arguments to model clients. For example, here we specify the <code>location</code> option for a Google Gemini model:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-1.5-pro <span class="at">-M</span> location=us-east5</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-2.5-pro <span class="at">-M</span> location=us-east5</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>See the documentation for the requisite model provider for information on how model args are passed through to model clients.</p>
 </section>
 <section id="max-connections" class="level2">

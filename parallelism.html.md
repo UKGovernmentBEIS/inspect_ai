@@ -128,7 +128,7 @@ to the `eval()` function. For example:
 eval("mathematics.py", model=[
     "openai/gpt-4-turbo",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.5-pro"
+    "google/gemini-2.5-pro"
 ])
 ```
 
@@ -143,7 +143,7 @@ argument or `INSPECT_EVAL_MODEL` environment variable, just separate the
 model names with commas. For example:
 
 ``` bash
-INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
+INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-2.5-pro
 ```
 
 ## Multiple Tasks

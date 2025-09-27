@@ -590,6 +590,21 @@ SampleSummary: list[Column] = [
 ]
 ```
 
+By default, only score values are included in the `SampleSummary`
+columns. If you want to additional read the score answer, metadata, and
+explanation then use the `SampleScores` column group. For example:
+
+``` python
+from inspect_ai.analysis import (
+    SampleScores, SampleSummary, samples_df
+)
+
+samples_df(
+    logs="logs", 
+    columns = SampleSummary + SampleScores
+)
+```
+
 If you want to read all of the messages contained in a sample into a
 string column, use the `SampleMessages` column group. For example, here
 we read the summary field and the messages:

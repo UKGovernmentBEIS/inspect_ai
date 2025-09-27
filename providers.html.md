@@ -285,7 +285,7 @@ the `--model` option:
 ``` bash
 pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
-inspect eval arc.py --model google/gemini-1.5-pro
+inspect eval arc.py --model google/gemini-2.5-pro
 ```
 
 For the `google` provider, custom model args (`-M`) are forwarded to the

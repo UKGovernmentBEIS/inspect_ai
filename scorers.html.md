@@ -200,7 +200,7 @@ example, here we specify that 3 models should be used for grading:
 ``` python
 model_graded_qa(
     model = [
-        "google/gemini-1.5-pro",
+        "google/gemini-2.5-pro",
         "anthropic/claude-3-opus-20240229" 
         "together/meta-llama/Llama-3-70b-chat-hf",
     ]
@@ -303,7 +303,7 @@ or another model interface. For example:
 grader_model = get_model() 
 
 # use another model for grading
-grader_model = get_model("google/gemini-1.5-pro")
+grader_model = get_model("google/gemini-2.5-pro")
 ```
 
 Use the `config` parameter of `get_model()` to override default
@@ -311,7 +311,7 @@ generation options:
 
 ``` python
 grader_model = get_model(
-    "google/gemini-1.5-pro", 
+    "google/gemini-2.5-pro", 
     config = GenerateConfig(temperature = 0.9, max_connections = 10)
 )
 ```
@@ -458,7 +458,7 @@ Task(
     ],
     scorer=[
         model_graded_qa(model="openai/gpt-4"), 
-        model_graded_qa(model="google/gemini-1.5-pro")
+        model_graded_qa(model="google/gemini-2.5-pro")
     ],
 )
 ```
@@ -1013,7 +1013,7 @@ log = eval(popularity, model="openai/gpt-4")[0]
 grader_models = [
     "openai/gpt-4",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.5-pro",
+    "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
 ]
 
@@ -1034,7 +1034,7 @@ log = read_eval_log(input_log_path)
 grader_models = [
     "openai/gpt-4",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.5-pro",
+    "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
 ]
 

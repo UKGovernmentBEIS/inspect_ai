@@ -575,7 +575,7 @@ the currently evaluated model or another model interface. For example:
 critique_model = get_model() 
 
 # use another model for critique
-critique_model = get_model("google/gemini-1.5-pro")
+critique_model = get_model("google/gemini-2.5-pro")
 ```
 
 Use the `config` parameter of `get_model()` to override default
@@ -583,7 +583,7 @@ generation options:
 
 ``` python
 critique_model = get_model(
-    "google/gemini-1.5-pro", 
+    "google/gemini-2.5-pro", 
     config = GenerateConfig(temperature = 0.9, max_connections = 10)
 )
 ```

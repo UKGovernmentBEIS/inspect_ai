@@ -67,6 +67,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="quarto:offset" content="./">
 <link href="./interactivity.html" rel="next">
 <link href="./tracing.html" rel="prev">
+<link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -612,12 +613,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"mathematics.py"</span>, model<span class="op">=</span>[</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai/gpt-4-turbo"</span>,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"anthropic/claude-3-opus-20240229"</span>,</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-1.5-pro"</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-2.5-pro"</span></span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><img src="images/inspect-multiple-models.png" class="img-fluid" alt="An evaluation task display showing the progress for 3 different models."></p>
 <p>Since each model provider has its own <code>max_connections</code> they don’t contend with each other for resources. If you need to evaluate multiple models, doing so concurrently is highly recommended.</p>
 <p>If you want to specify multiple models when using the <code>--model</code> CLI argument or <code>INSPECT_EVAL_MODEL</code> environment variable, just separate the model names with commas. For example:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_MODEL</span><span class="op">=</span>openai/gpt-4-turbo,google/gemini-1.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_MODEL</span><span class="op">=</span>openai/gpt-4-turbo,google/gemini-2.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="sec-multiple-tasks" class="level2">
 <h2 class="anchored" data-anchor-id="sec-multiple-tasks">Multiple Tasks</h2>

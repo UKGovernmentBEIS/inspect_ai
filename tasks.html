@@ -67,6 +67,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="quarto:offset" content="./">
 <link href="./datasets.html" rel="next">
 <link href="./vscode.html" rel="prev">
+<link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -904,7 +905,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> {</span>
 <span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>: [<span class="st">"devops.txt"</span>, <span class="st">"researcher.txt"</span>],</span>
 <span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader"</span>: [<span class="st">"hacker.txt"</span>, <span class="st">"expert.txt"</span>],</span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader_model"</span>: [<span class="st">"openai/gpt-4o"</span>, <span class="st">"google/gemini-1.5-pro"</span>],</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader_model"</span>: [<span class="st">"openai/gpt-4o"</span>, <span class="st">"google/gemini-2.5-pro"</span>],</span>
 <span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>}</span>
 <span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>grid <span class="op">=</span> <span class="bu">list</span>(product(<span class="op">*</span>(params[name] <span class="cf">for</span> name <span class="kw">in</span> params)))</span>
 <span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a></span>
@@ -914,7 +915,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>        security_guide(system, grader, grader_model)</span>
 <span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> system, grader, grader_model <span class="kw">in</span> grid</span>
 <span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"google/gemini-1.5-flash"</span>, <span class="st">"mistral/mistral-large-latest"</span>],</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"google/gemini-2.5-flash"</span>, <span class="st">"mistral/mistral-large-latest"</span>],</span>
 <span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>    log_dir<span class="op">=</span><span class="st">"security-tasks"</span></span>
 <span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a></span>

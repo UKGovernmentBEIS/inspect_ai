@@ -443,7 +443,7 @@ from itertools import product
 params = {
     "system": ["devops.txt", "researcher.txt"],
     "grader": ["hacker.txt", "expert.txt"],
-    "grader_model": ["openai/gpt-4o", "google/gemini-1.5-pro"],
+    "grader_model": ["openai/gpt-4o", "google/gemini-2.5-pro"],
 }
 grid = list(product(*(params[name] for name in params)))
 
@@ -453,7 +453,7 @@ logs = eval_set(
         security_guide(system, grader, grader_model)
         for system, grader, grader_model in grid
     ],
-    model=["google/gemini-1.5-flash", "mistral/mistral-large-latest"],
+    model=["google/gemini-2.5-flash", "mistral/mistral-large-latest"],
     log_dir="security-tasks"
 )
 

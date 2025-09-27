@@ -53,7 +53,7 @@ Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable
 (either in the shell or a `.env` file) to select a model externally:
 
 ``` bash
-INSPECT_EVAL_MODEL=google/gemini-1.5-pro
+INSPECT_EVAL_MODEL=google/gemini-2.5-pro
 ```
 
 #### No Model
@@ -90,14 +90,14 @@ direct calls to `eval()`. For example:
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4 --temperature 0.9
-inspect eval arc.py --model google/gemini-1.5-pro --max-connections 20
+inspect eval arc.py --model google/gemini-2.5-pro --max-connections 20
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-4", temperature=0.9)
-eval("arc.py", model="google/gemini-1.5-pro", max_connections=20)
+eval("arc.py", model="google/gemini-2.5-pro", max_connections=20)
 ```
 
 Use `inspect eval --help` to learn about all of the available generation
@@ -111,7 +111,7 @@ additional arguments to model clients. For example, here we specify the
 `location` option for a Google Gemini model:
 
 ``` bash
-inspect eval arc.py --model google/gemini-1.5-pro -M location=us-east5
+inspect eval arc.py --model google/gemini-2.5-pro -M location=us-east5
 ```
 
 See the documentation for the requisite model provider for information

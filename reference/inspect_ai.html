@@ -67,6 +67,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="quarto:offset" content="../">
 <link href="../reference/inspect_ai.qmd#eval" rel="next">
 <link href="../reference/index.html" rel="prev">
+<link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -1827,6 +1828,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#samplescores" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleScores</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.analysis.html#messages_df" class="sidebar-item-text sidebar-link">
  <span class="menu-text">messages_df</span></a>
   </div>
@@ -2436,7 +2443,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval">eval</h3>
 <p>Evaluate tasks using a Model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/eval.py#L79">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/eval.py#L79">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">eval</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -2672,7 +2679,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_retry">eval_retry</h3>
 <p>Retry a previously failed evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/eval.py#L737">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/eval.py#L737">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_retry(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    tasks: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo <span class="op">|</span> EvalLog <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[EvalLogInfo] <span class="op">|</span> <span class="bu">list</span>[EvalLog],</span>
@@ -2813,7 +2820,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_set">eval_set</h3>
 <p>Evaluate a set of tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/evalset.py#L68">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/evalset.py#L68">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_set(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -3064,7 +3071,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="score">score</h3>
 <p>Score an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/score.py#L56">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/score.py#L56">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -3109,7 +3116,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Evaluation task.</p>
 <p>Tasks are the basis for defining and running evaluations.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/task/task.py#L47">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/task/task.py#L47">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
@@ -3119,7 +3126,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/task/task.py#L53">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/task/task.py#L53">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -3128,25 +3135,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    solver: Solver <span class="op">|</span> Agent <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">=</span> generate(),</span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    cleanup: Callable[[TaskState], Awaitable[<span class="va">None</span>]] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    scorer: Scorer <span class="op">|</span> <span class="bu">list</span>[Scorer] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    metrics: <span class="bu">list</span>[Metric] <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    model_roles: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    display_name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="dv">0</span>,</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[TaskDeprecatedArgs],</span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    metrics: <span class="bu">list</span>[Metric <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]]]</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]]</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    model_roles: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    display_name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="dv">0</span>,</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[TaskDeprecatedArgs],</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">dataset</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#dataset">Dataset</a></span> | <span class="element-type-name">Sequence</span>[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -3168,7 +3177,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Scorer used to evaluate model output.</p>
 </dd>
-<dt><code class="ref-definition">metrics</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span>] | dict[<span class="element-type-name">str</span>, list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span>]] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">metrics</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span> | dict[<span class="element-type-name">str</span>, list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span>]]] | dict[<span class="element-type-name">str</span>, list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span>]] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Alternative metrics (overrides the metrics provided by the specified scorer).</p>
 </dd>
@@ -3250,7 +3259,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task adapted with alternate values for one or more options.</p>
 <p>This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task_with">task_with()</a></span> you should create the underlying task multiple times.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/task/task.py#L202">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/task/task.py#L204">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_with(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    task: Task,</span>
@@ -3260,23 +3269,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    solver: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
 <span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    cleanup: Callable[[TaskState], Awaitable[<span class="va">None</span>]] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    scorer: Scorer <span class="op">|</span> <span class="bu">list</span>[Scorer] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    metrics: <span class="bu">list</span>[Metric] <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    model_roles: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    metrics: <span class="bu">list</span>[Metric <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]]]</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]]</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    model_roles: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    continue_on_fail: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    working_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">task</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.html#task">Task</a></span></span></dt>
 <dd>
@@ -3302,7 +3314,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Scorer used to evaluate model output.</p>
 </dd>
-<dt><code class="ref-definition">metrics</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span>] | dict[<span class="element-type-name">str</span>, list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span>]] | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
+<dt><code class="ref-definition">metrics</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span> | dict[<span class="element-type-name">str</span>, list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span>]]] | dict[<span class="element-type-name">str</span>, list[<span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#metric">Metric</a></span>]] | <span class="element-type-name">None</span> | <span class="element-type-name">NotGiven</span></span></dt>
 <dd>
 <p>Alternative metrics (overrides the metrics provided by the specified scorer).</p>
 </dd>
@@ -3373,7 +3385,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task epochs.</p>
 <p>Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Epochs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3392,7 +3404,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Task epochs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, epochs: <span class="bu">int</span>, reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -3413,7 +3425,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskinfo">TaskInfo</h3>
 <p>Task information (file, name, and attributes).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/task/task.py#L323">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/task/task.py#L328">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskInfo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3439,7 +3451,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>One or more tasks.</p>
 <p>Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/task/tasks.py#L6">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/task/tasks.py#L6">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Tasks: TypeAlias <span class="op">=</span> (</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
@@ -3466,7 +3478,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="view-1">view</h3>
 <p>Run the Inspect View server.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_view/view.py#L24">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_view/view.py#L24">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> view(</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -3515,7 +3527,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="task-1">task</h3>
 <p>Decorator for registering tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3de34c7a25392d55361c2cc7fe0be2d424f4ceb9/src/inspect_ai/_eval/registry.py#L97">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/_eval/registry.py#L97">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
