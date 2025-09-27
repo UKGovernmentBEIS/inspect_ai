@@ -5,7 +5,9 @@ import {
   Event10,
   Event11,
   Event12,
+  Event13,
   Event16,
+  Event17,
   Event2,
   Event3,
   Event4,
@@ -32,7 +34,9 @@ export type AllEventTypes =
   | Event10
   | Event11
   | Event12
-  | Event16;
+  | Event13
+  | Event16
+  | Event17;
 
 const eventTypes: Record<AllEventTypes, string> = {
   sample_init: "Sample Init",
@@ -45,9 +49,11 @@ const eventTypes: Record<AllEventTypes, string> = {
   approval: "Approval",
   input: "Input",
   score: "Score",
+  score_edit: "Score Edit",
   error: "Error",
   logger: "Logger",
   info: "Info",
+  step: "Step",
   subtask: "Subtask",
 } as const;
 
