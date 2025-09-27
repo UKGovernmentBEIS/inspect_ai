@@ -69,6 +69,12 @@ class ScanTranscripts(BaseModel):
 class ScanSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    # job_id
+
+    # job_file (optional)
+    # job_name (optional)
+    # do scanners need to record their file?
+
     scan_id: str = Field(default_factory=uuid)
     """Globally unique id for scan."""
 
