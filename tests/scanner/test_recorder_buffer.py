@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import tempfile
 
-import pandas as pd
 import pytest
 
 from inspect_ai.scanner._recorder.buffer import RecorderBuffer
