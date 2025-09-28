@@ -1,3 +1,4 @@
+import io
 from typing import Sequence, override
 
 from upath import UPath
@@ -9,6 +10,7 @@ from inspect_ai.scanner._recorder.buffer import RecorderBuffer
 from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
+from inspect_ai.scanner._util.file import read_file_async
 
 from .recorder import ScanRecorder, ScanResults, ScanStatus
 
@@ -121,9 +123,9 @@ class FileRecorder(ScanRecorder):
         scan_dir = UPath(scan_location)
         status = await FileRecorder.status(scan_location)
 
-        def scanner_df(parquet_file: UPath) -> pd.DataFrame:
-            # Read with Arrow, then convert using Arrow-backed pandas dtypes
-            table = pq.read_table(parquet_file.as_posix())
+        async def scanner_df(parquet_file: UPath) -> pd.DataFrame:
+            bytes = await read_file_async(parquet_file.as_posix())
+            table = pq.read_table(io.BytesIO(bytes))
             return table.to_pandas(types_mapper=pd.ArrowDtype)
 
         # read scanner parquet files
@@ -132,13 +134,13 @@ class FileRecorder(ScanRecorder):
         # single scanner
         if scanner is not None:
             parquet_file = scan_dir / f"{scanner}.parquet"
-            scanners[scanner] = scanner_df(parquet_file)
+            scanners[scanner] = await scanner_df(parquet_file)
 
         # all scanners
         else:
             for parquet_file in sorted(scan_dir.glob("*.parquet")):
                 name = parquet_file.stem
-                scanners[name] = scanner_df(parquet_file)
+                scanners[name] = await scanner_df(parquet_file)
 
         return ScanResults(
             status=status.complete,

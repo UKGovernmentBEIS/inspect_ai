@@ -2,17 +2,20 @@ import os
 from typing import Any, cast
 from urllib.parse import urlparse
 
-import anyio.to_thread
 import boto3
 from botocore.config import Config
 
 from inspect_ai._util.file import file
 
+# NOTE We currently don't run any of these operations async. We were using anyio.to_thread.run_sync
+# however observed deadlocks at exit when doing this so are back to sync. If we want to make this
+# async we should probably condition this on the asyncio backend and use aioboto3
+
 
 async def read_file_async(filename: str) -> bytes:
     if is_s3_filename(filename):
         bucket, key = s3_bucket_and_key(filename)
-        return await anyio.to_thread.run_sync(s3_read_file, s3_client(), bucket, key)
+        return s3_read_file(s3_client(), bucket, key)
     else:
         with file(filename, "rb") as f:
             return f.read()
@@ -21,9 +24,7 @@ async def read_file_async(filename: str) -> bytes:
 async def read_file_bytes_async(filename: str, start: int, end: int) -> bytes:
     if is_s3_filename(filename):
         bucket, key = s3_bucket_and_key(filename)
-        return await anyio.to_thread.run_sync(
-            s3_read_file_bytes, s3_client(), bucket, key, start, end
-        )
+        return s3_read_file_bytes(s3_client(), bucket, key, start, end)
     else:
         with file(filename, "rb") as f:
             f.seek(start)
@@ -33,7 +34,7 @@ async def read_file_bytes_async(filename: str, start: int, end: int) -> bytes:
 async def write_file_async(filename: str, content: bytes) -> None:
     if is_s3_filename(filename):
         bucket, key = s3_bucket_and_key(filename)
-        await anyio.to_thread.run_sync(s3_write_file, s3_client(), bucket, key, content)
+        return s3_write_file(s3_client(), bucket, key, content)
     else:
         with file(filename, "wb") as f:
             f.write(content)
@@ -55,7 +56,7 @@ async def delete_files_async(filenames: list[str]) -> None:
 
     # Delete S3 files in batches per bucket
     for bucket, keys in s3_files_by_bucket.items():
-        await anyio.to_thread.run_sync(s3_batch_delete, s3_client(), bucket, keys)
+        s3_batch_delete(s3_client(), bucket, keys)
 
     # Delete local files individually
     for filename in local_files:

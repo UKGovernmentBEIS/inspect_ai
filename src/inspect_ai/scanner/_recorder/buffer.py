@@ -6,7 +6,6 @@ import os
 import shutil
 from typing import TYPE_CHECKING, Any, Final, Sequence, Set, cast
 
-import anyio.to_thread
 from upath import UPath
 
 from inspect_ai._util.appdirs import inspect_data_dir
@@ -120,63 +119,58 @@ class RecorderBuffer:
             # If you *must* emit a file even when the directory is missing, you need a known schema.
             return
 
-        def _compact() -> bytes:
-            # build dataset
-            dataset: ds.Dataset = ds.dataset(str(sdir), format="parquet")
+        # build dataset
+        dataset: ds.Dataset = ds.dataset(str(sdir), format="parquet")
 
-            # discover the unified schema up-front. This ensures column order/types are stable.
-            # if there are absolutely no fragments under sdir, accessing .schema may raise.
-            try:
-                schema: pa.Schema = dataset.schema
-            except Exception as e:
-                raise RuntimeError(
-                    f"Unable to discover dataset schema under {sdir}: {e}"
-                ) from e
+        # discover the unified schema up-front. This ensures column order/types are stable.
+        # if there are absolutely no fragments under sdir, accessing .schema may raise.
+        try:
+            schema: pa.Schema = dataset.schema
+        except Exception as e:
+            raise RuntimeError(
+                f"Unable to discover dataset schema under {sdir}: {e}"
+            ) from e
 
-            # state for bounded accumulation -> large-ish row groups
-            accumulated: list[pa.RecordBatch] = []
-            accumulated_bytes: int = 0
+        # state for bounded accumulation -> large-ish row groups
+        accumulated: list[pa.RecordBatch] = []
+        accumulated_bytes: int = 0
 
-            def flush_accumulated(writer: pq.ParquetWriter) -> None:
-                nonlocal accumulated, accumulated_bytes
-                if not accumulated:
-                    return
-                table = pa.Table.from_batches(accumulated)  # bounded by MAX_BYTES
-                writer.write_table(table)
-                accumulated.clear()
-                accumulated_bytes = 0
+        def flush_accumulated(writer: pq.ParquetWriter) -> None:
+            nonlocal accumulated, accumulated_bytes
+            if not accumulated:
+                return
+            table = pa.Table.from_batches(accumulated)  # bounded by MAX_BYTES
+            writer.write_table(table)
+            accumulated.clear()
+            accumulated_bytes = 0
 
-            # Create an in-memory buffer
-            buffer = io.BytesIO()
-            writer = pq.ParquetWriter(
-                buffer,
-                schema,
-                compression="zstd",
-                use_dictionary=True,
-            )
+        # Create an in-memory buffer
+        buffer = io.BytesIO()
+        writer = pq.ParquetWriter(
+            buffer,
+            schema,
+            compression="zstd",
+            use_dictionary=True,
+        )
 
-            # iterate materialized batches; to keep memory in check we use a small batch_size.
-            for batch in dataset.to_batches(
-                batch_size=DEFAULT_BATCH_ROWS,
-                use_threads=True,
-            ):
-                size = batch.nbytes
-                if accumulated_bytes and accumulated_bytes + size > MAX_BYTES:
-                    flush_accumulated(writer)
-                accumulated.append(batch)
-                accumulated_bytes += size
+        # iterate materialized batches; to keep memory in check we use a small batch_size.
+        for batch in dataset.to_batches(
+            batch_size=DEFAULT_BATCH_ROWS,
+            use_threads=True,
+        ):
+            size = batch.nbytes
+            if accumulated_bytes and accumulated_bytes + size > MAX_BYTES:
+                flush_accumulated(writer)
+            accumulated.append(batch)
+            accumulated_bytes += size
 
-            # Final flush. If no rows were seen, this still leaves us with an empty file (schema only).
-            flush_accumulated(writer)
-            writer.close()
+        # Final flush. If no rows were seen, this still leaves us with an empty file (schema only).
+        flush_accumulated(writer)
+        writer.close()
 
-            # return bytes
-            buffer.seek(0)
-            return buffer.getvalue()
-
-        # offload to a worker thread to avoid blocking the event loop
-        table_bytes = await anyio.to_thread.run_sync(_compact)
-        await write_file_async(table_file, table_bytes)
+        # rewind bytes and write
+        buffer.seek(0)
+        await write_file_async(table_file, buffer.getvalue())
 
     def cleanup(self) -> None:
         """Remove the buffer directory for this scan (best-effort)."""
