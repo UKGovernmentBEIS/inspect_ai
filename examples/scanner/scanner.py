@@ -67,7 +67,7 @@ if __name__ == "__main__":
             results=SCANS_DIR.as_posix(),
         )
 
-        if status.status == "complete":
+        if status.complete:
             results = scan_results(status.location)
             results.scanners["dummy_scanner"].info()
             if "llm_scanner" in results.scanners:
