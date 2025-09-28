@@ -4,6 +4,7 @@
 - Agents: Improve overload return value typing for agent `run()` function.
 - Task display: Improved reporting of errors that occur during log initialization.
 - Event API: Created new `inspect_ai.event` module with event related tyeps and functions.
+- Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Dependencies: Update to fsspec 2025.9.0 to match upper bound of HF datasets.
 - Dependencies: Allow any version of `rich` > 13.3.3 save for 14.0.0 (which had an infinite recursion bug affecting stack traces with exception groups).
 - Dependencies: Unpin textual dependency (was <= 4.0.0 is now >=2.1.0) as we have mitigated layout issue we saw in 4.0.0.
@@ -30,7 +31,6 @@
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
 - Agent bridge: Ensure that bridge filters also take advantage of `retry_refusals` loop.
 - Agent bridge: Workaround Codex CLI not passing `detail` along with images.
-- Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - OpenAI: Automatically switch to the completions API when `--num-choices` is specified.
 - Model APIs: Improve legibility/clarify of error messages when updated versions of anthropic or openai packages are required.
 - Dataframes: Added `SampleScores` column group for extracting score answer, explanation, and metadata.
