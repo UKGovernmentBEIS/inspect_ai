@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import os
 import shutil
-from typing import TYPE_CHECKING, Any, Sequence, Set, cast
+from typing import TYPE_CHECKING, Any, Final, Sequence, Set, cast
 
+import anyio.to_thread
 from upath import UPath
 
 from inspect_ai._util.appdirs import inspect_data_dir
@@ -88,31 +89,99 @@ class RecorderBuffer:
         return (sdir / f"{transcript.id}.parquet").exists()
 
     async def write_table_for_scanner(self, scanner: str, table_file: str) -> None:
-        """
-        Write a PyArrow Table with all shards for the scanner.
-
-        If a fixed schema for the scanner was provided, it is supplied to the dataset
-        so that unification uses the canonical types.
-        """
+        import pyarrow as pa
         import pyarrow.dataset as ds
+        import pyarrow.fs as pafs
         import pyarrow.parquet as pq
 
+        # NOTE: this function attempts to cap memory usage at ~ 100MB for compacting
+        # scanner results. It does get a bit fancy/complicated and uses a bunch of
+        # pyarrow streaming primitives. If this ends up working out poorly the naive
+        # implementation is just this:
+        #
+        #   dataset = ds.dataset(sdir.as_posix(), format="parquet")
+        #   table = dataset.to_table() # materialize fully
+        #
+        #   pq.write_table(
+        #       table,
+        #       table_file,
+        #       compression="zstd",
+        #       use_dictionary=True,
+        #   )
+
+        MAX_BYTES: Final[int] = 100_000_000
+        DEFAULT_BATCH_ROWS: Final[int] = 1_000
+
+        # resolve input dir
         sdir = self._buffer_dir / f"scanner={_sanitize_component(scanner)}"
         if not sdir.exists():
-            return None
+            # we avoid creating a schema-less empty Parquet when there is no dataset at all.
+            # If you *must* emit a file even when the directory is missing, you need a known schema.
+            return
 
-        dataset = ds.dataset(sdir.as_posix(), format="parquet")
-        table = (
-            dataset.to_table()
-        )  # materialize; for huge datasets you can stream batches
+        def _do_write() -> None:
+            # resolve filesystem + normalized path
+            fs, out_path = pafs.FileSystem.from_uri(table_file)
 
-        # write table
-        pq.write_table(
-            table,
-            table_file,
-            compression="zstd",
-            use_dictionary=True,
-        )
+            # ensure parent dir exists for filesystems that support it (no-op on many object stores)
+            parent = os.path.dirname(out_path)
+            if parent:
+                try:
+                    fs.create_dir(parent, recursive=True)
+                except Exception:
+                    pass
+
+            # build dataset
+            dataset: ds.Dataset = ds.dataset(str(sdir), format="parquet")
+
+            # discover the unified schema up-front. This ensures column order/types are stable.
+            # if there are absolutely no fragments under sdir, accessing .schema may raise.
+            try:
+                schema: pa.Schema = dataset.schema
+            except Exception as e:
+                raise RuntimeError(
+                    f"Unable to discover dataset schema under {sdir}: {e}"
+                ) from e
+
+            # state for bounded accumulation -> large-ish row groups
+            accumulated: list[pa.RecordBatch] = []
+            accumulated_bytes: int = 0
+
+            def flush_accumulated(writer: pq.ParquetWriter) -> None:
+                nonlocal accumulated, accumulated_bytes
+                if not accumulated:
+                    return
+                table = pa.Table.from_batches(accumulated)  # bounded by MAX_BYTES
+                writer.write_table(table)
+                accumulated.clear()
+                accumulated_bytes = 0
+
+            with fs.open_output_stream(out_path) as sink:
+                # create writer immediately so we can produce an empty file if needed.
+                writer: pq.ParquetWriter = pq.ParquetWriter(
+                    sink,
+                    schema,
+                    compression="zstd",
+                    use_dictionary=True,
+                )
+
+                # iterate materialized batches; to keep memory in check we use a small batch_size.
+                for batch in dataset.to_batches(
+                    batch_size=DEFAULT_BATCH_ROWS,
+                    use_threads=True,
+                ):
+                    size = batch.nbytes
+                    if accumulated_bytes and accumulated_bytes + size > MAX_BYTES:
+                        flush_accumulated(writer)
+                    accumulated.append(batch)
+                    accumulated_bytes += size
+
+                # Final flush. If no rows were seen, this still leaves us with an empty file (schema only).
+                flush_accumulated(writer)
+                writer.close()
+
+        # offload to a worker thread to avoid blocking the event loop
+        await anyio.to_thread.run_sync(_do_write)
 
     def cleanup(self) -> None:
         """Remove the buffer directory for this scan (best-effort)."""

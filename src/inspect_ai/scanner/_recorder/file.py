@@ -120,7 +120,7 @@ class FileRecorder(ScanRecorder):
 
         def scanner_df(parquet_file: UPath) -> pd.DataFrame:
             # Read with Arrow, then convert using Arrow-backed pandas dtypes
-            table = pq.read_table(parquet_file.as_posix(), memory_map=True)
+            table = pq.read_table(parquet_file.as_posix())
             return table.to_pandas(types_mapper=pd.ArrowDtype)
 
         # read scanner parquet files
