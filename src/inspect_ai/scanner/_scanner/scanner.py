@@ -251,11 +251,15 @@ def scanner(
 
             return scanner_fn
 
+        scanner_factory_wrapper = cast(ScannerFactory[P, T], factory_wrapper)
         registry_add(
-            factory_fn,
-            RegistryInfo(type="scanner", name=scanner_name),
+            scanner_factory_wrapper,
+            RegistryInfo(
+                type="scanner",
+                name=scanner_name,
+            ),
         )
-        return cast(ScannerFactory[P, T], factory_wrapper)
+        return scanner_factory_wrapper
 
     return decorate
 

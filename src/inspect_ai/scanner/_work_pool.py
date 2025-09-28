@@ -48,6 +48,7 @@ async def scan_with_work_pool(
     max_tasks: int,
     max_queue_size: int,
     item_processor: Callable[[WorkItem], Awaitable[Result | None]],
+    progress: Callable[[], None],
     transcripts: Transcripts,
     content: TranscriptContent,
 ) -> None:
@@ -95,6 +96,9 @@ async def scan_with_work_pool(
             Should take a WorkItem and return a Result or None.
             Allows the caller to customize how scanners are executed while
             still leveraging the pool's concurrency management.
+
+        progress: Callable to report progress (should be called even when skipping
+            already recorder scans).
 
         transcripts: The transcripts to process.
 
@@ -182,7 +186,7 @@ async def scan_with_work_pool(
                 print(
                     f"{_running_time()} Worker #{worker_id} completed {_work_item_info(item)} in {(time.time() - exec_start_time):.3f}s"
                 )
-
+                progress()
                 items_processed += 1
 
             print(
@@ -200,6 +204,7 @@ async def scan_with_work_pool(
             for name, scanner in context.scanners.items():
                 # Skip if already recorded
                 if await recorder.is_recorded(t, name):
+                    progress()
                     continue
 
                 # Lazy load transcript on first scanner that needs it

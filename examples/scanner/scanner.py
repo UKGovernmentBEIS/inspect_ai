@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from pathlib import Path
 
 from inspect_ai.analysis._dataframe.extract import messages_as_str
@@ -11,6 +12,7 @@ from inspect_ai.scanner import (
     scanner,
     transcripts,
 )
+from inspect_ai.scanner._scan import scan_resume
 
 
 @scanner(messages="all")
@@ -41,17 +43,30 @@ def llm_scanner() -> Scanner:
 
 
 if __name__ == "__main__":
-    LOGS_DIR = Path(__file__).parent / "logs"
-    SCANS_DIR = Path(__file__).parent / "scans"
-    # LOGS_DIR = Path("/Users/ericpatey/code/parsing/logs")
+    # check for a resume
+    if len(sys.argv) > 1 and sys.argv[1] == "resume":
+        if len(sys.argv) > 2:
+            resume_path = sys.argv[2]
+            print(f"Resuming from: {resume_path}")
+            scan_resume(resume_path)
+        else:
+            print("Error: Please provide a path after 'resume'")
+            sys.exit(1)
 
-    results = scan(
-        scanners=[dummy_scanner(), llm_scanner()],
-        transcripts=transcripts(LOGS_DIR),
-        max_transcripts=50,
-        results=SCANS_DIR.as_posix(),
-    )
+    # otherwise normal flow
+    else:
+        LOGS_DIR = Path(__file__).parent / "logs"
+        SCANS_DIR = Path(__file__).parent / "scans"
+        # LOGS_DIR = Path("/Users/ericpatey/code/parsing/logs")
 
-    results.scanners["dummy_scanner"].info()
-    if "llm_scanner" in results.scanners:
-        results.scanners["llm_scanner"].info()
+        results = scan(
+            scanners=[dummy_scanner(), llm_scanner()],
+            transcripts=transcripts(LOGS_DIR),
+            max_transcripts=50,
+            results=SCANS_DIR.as_posix(),
+        )
+
+        if results.status == "complete":
+            results.scanners["dummy_scanner"].info()
+            if "llm_scanner" in results.scanners:
+                results.scanners["llm_scanner"].info()

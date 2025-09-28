@@ -31,8 +31,9 @@ class RecorderBuffer:
     """
 
     def __init__(self, scan_location: str):
+        scan_path = UPath(scan_location).resolve()
         self._buffer_dir = UPath(
-            inspect_data_dir("scan_buffer") / f"{mm3_hash(scan_location)}"
+            inspect_data_dir("scan_buffer") / f"{mm3_hash(scan_path.as_posix())}"
         )
 
     async def record(
