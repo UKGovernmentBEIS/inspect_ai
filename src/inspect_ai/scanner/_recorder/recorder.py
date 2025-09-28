@@ -13,11 +13,25 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ScanResults:
+class ScanInfo:
     status: Literal["started", "complete"]
     spec: ScanSpec
     location: str
+
+
+@dataclass
+class ScanResults(ScanInfo):
     scanners: dict[str, "pd.DataFrame"]
+
+    def __init__(
+        self,
+        status: Literal["started", "complete"],
+        spec: ScanSpec,
+        location: str,
+        scanners: dict[str, "pd.DataFrame"],
+    ) -> None:
+        super().__init__(status, spec, location)
+        self.scanners = scanners
 
 
 class ScanRecorder(abc.ABC):
@@ -42,12 +56,14 @@ class ScanRecorder(abc.ABC):
     async def flush(self) -> None: ...
 
     @abc.abstractmethod
-    async def complete(self) -> ScanResults: ...
+    async def complete(self) -> ScanInfo: ...
 
     @staticmethod
     @abc.abstractmethod
-    async def spec(scan_location: str) -> ScanSpec: ...
+    async def info(scan_location: str) -> ScanInfo: ...
 
     @staticmethod
     @abc.abstractmethod
-    async def results(scan_location: str) -> ScanResults: ...
+    async def results(
+        scan_location: str, scanner: str | None = None
+    ) -> ScanResults: ...

@@ -26,7 +26,7 @@ from inspect_ai.scanner._scanner.types import ScannerInput
 from inspect_ai.scanner._util.contstants import DEFAULT_MAX_TRANSCRIPTS
 
 from ._recorder.factory import scan_recorder_for_location
-from ._recorder.recorder import ScanRecorder, ScanResults
+from ._recorder.recorder import ScanInfo, ScanRecorder
 from ._scancontext import ScanContext, create_scan, resume_scan
 from ._scanjob import ScanJob
 from ._scanner.scanner import Scanner, config_for_scanner
@@ -52,7 +52,7 @@ def scan(
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
-) -> ScanResults:
+) -> ScanInfo:
     return run_coroutine(
         scan_async(
             scanners=scanners,
@@ -88,7 +88,7 @@ async def scan_async(
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
-) -> ScanResults:
+) -> ScanInfo:
     # init runtime
     init_runtime_context()
 
@@ -147,13 +147,13 @@ async def scan_async(
 
 def scan_resume(
     scan_dir: str,
-) -> ScanResults:
+) -> ScanInfo:
     return run_coroutine(scan_resume_async(scan_dir))
 
 
 async def scan_resume_async(
     scan_dir: str,
-) -> ScanResults:
+) -> ScanInfo:
     # init runtime
     init_runtime_context()
 
@@ -184,7 +184,7 @@ async def scan_resume_async(
     return await _scan_async(scan=scan, recorder=recorder)
 
 
-async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanResults:
+async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanInfo:
     try:
         LOOKAHEAD_BUFFER_MULTIPLE: float = 1.0
 
@@ -241,9 +241,9 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanResul
                     ),
                 )
 
-                results = await recorder.complete()
+                scan_info = await recorder.complete()
 
-        return results
+        return scan_info
     except Exception as ex:
         type, value, traceback = sys.exc_info()
         type = type if type else BaseException
@@ -294,7 +294,7 @@ def init_scan_model_context(
 
 async def handle_scan_interruped(
     message: RenderableType, spec: ScanSpec, location: str
-) -> ScanResults:
+) -> ScanInfo:
     theme = rich_theme()
 
     print(message)
@@ -305,9 +305,8 @@ async def handle_scan_interruped(
     )
     print(resume_message)
 
-    return ScanResults(
+    return ScanInfo(
         status="started",
         spec=spec,
         location=location,
-        scanners={},
     )

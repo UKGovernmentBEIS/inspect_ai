@@ -10,7 +10,7 @@ from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 
-from .recorder import ScanRecorder, ScanResults
+from .recorder import ScanInfo, ScanRecorder, ScanResults
 
 SCAN_JSON = "_scan.json"
 
@@ -68,8 +68,7 @@ class FileRecorder(ScanRecorder):
         pass
 
     @override
-    async def complete(self) -> ScanResults:
-        import pandas as pd
+    async def complete(self) -> ScanInfo:
         import pyarrow as pa
         import pyarrow.parquet as pq
 
@@ -92,15 +91,10 @@ class FileRecorder(ScanRecorder):
         # cleanup scan buffer
         self._scan_buffer.cleanup()
 
-        # return results
-        scanners_pd = {
-            n: t.to_pandas(types_mapper=pd.ArrowDtype) for n, t in scanners.items()
-        }
-        return ScanResults(
+        return ScanInfo(
             status="complete",
             spec=self.scan_spec,
             location=self.scan_dir.as_posix(),
-            scanners=scanners_pd,
         )
 
     @property
@@ -120,11 +114,16 @@ class FileRecorder(ScanRecorder):
         return self._scan_spec
 
     @staticmethod
-    async def spec(scan_location: str) -> ScanSpec:
-        return _read_scan_spec(UPath(scan_location))
+    async def info(scan_location: str) -> ScanInfo:
+        buffer_dir = RecorderBuffer.buffer_dir(scan_location)
+        return ScanInfo(
+            status="started" if buffer_dir.exists() else "complete",
+            spec=_read_scan_spec(UPath(scan_location)),
+            location=scan_location,
+        )
 
     @staticmethod
-    async def results(scan_location: str) -> ScanResults:
+    async def results(scan_location: str, scanner: str | None = None) -> ScanResults:
         import pandas as pd
         import pyarrow.parquet as pq
         from upath import UPath
@@ -132,13 +131,24 @@ class FileRecorder(ScanRecorder):
         scan_dir = UPath(scan_location)
         spec = _read_scan_spec(scan_dir)
 
-        scanners: dict[str, pd.DataFrame] = {}
-        for parquet_file in sorted(scan_dir.glob("*.parquet")):
+        def scanner_df(parquet_file: UPath) -> pd.DataFrame:
             # Read with Arrow, then convert using Arrow-backed pandas dtypes
-            name = parquet_file.stem
             table = pq.read_table(parquet_file.as_posix(), memory_map=True)
-            df = table.to_pandas(types_mapper=pd.ArrowDtype)
-            scanners[name] = df
+            return table.to_pandas(types_mapper=pd.ArrowDtype)
+
+        # read scanner parquet files
+        scanners: dict[str, pd.DataFrame] = {}
+
+        # single scanner
+        if scanner is not None:
+            parquet_file = scan_dir / f"{scanner}.parquet"
+            scanners[scanner] = scanner_df(parquet_file)
+
+        # all scanners
+        else:
+            for parquet_file in sorted(scan_dir.glob("*.parquet")):
+                name = parquet_file.stem
+                scanners[name] = scanner_df(parquet_file)
 
         return ScanResults(
             status="complete",

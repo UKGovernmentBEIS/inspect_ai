@@ -9,6 +9,7 @@ from inspect_ai.scanner import (
     Scanner,
     Transcript,
     scan,
+    scan_results,
     scanner,
     transcripts,
 )
@@ -59,14 +60,15 @@ if __name__ == "__main__":
         SCANS_DIR = Path(__file__).parent / "scans"
         # LOGS_DIR = Path("/Users/ericpatey/code/parsing/logs")
 
-        results = scan(
+        scan_info = scan(
             scanners=[dummy_scanner(), llm_scanner()],
             transcripts=transcripts(LOGS_DIR),
             max_transcripts=50,
             results=SCANS_DIR.as_posix(),
         )
 
-        if results.status == "complete":
+        if scan_info.status == "complete":
+            results = scan_results(scan_info)
             results.scanners["dummy_scanner"].info()
             if "llm_scanner" in results.scanners:
                 results.scanners["llm_scanner"].info()

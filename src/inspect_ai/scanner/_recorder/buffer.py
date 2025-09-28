@@ -30,11 +30,15 @@ class RecorderBuffer:
       - only one process writes a given <transcript_id>.parquet once
     """
 
-    def __init__(self, scan_location: str):
+    @staticmethod
+    def buffer_dir(scan_location: str) -> UPath:
         scan_path = UPath(scan_location).resolve()
-        self._buffer_dir = UPath(
+        return UPath(
             inspect_data_dir("scan_buffer") / f"{mm3_hash(scan_path.as_posix())}"
         )
+
+    def __init__(self, scan_location: str):
+        self._buffer_dir = RecorderBuffer.buffer_dir(scan_location)
 
     async def record(
         self, transcript: TranscriptInfo, scanner: str, results: Sequence[Result]
