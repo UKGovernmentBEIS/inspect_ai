@@ -51,6 +51,7 @@ async def scan_with_work_pool(
     progress: Callable[[], None],
     transcripts: Transcripts,
     content: TranscriptContent,
+    diagnostics: bool = False,
 ) -> None:
     """Manages concurrent scanner execution with backpressure and worker pooling.
 
@@ -104,7 +105,15 @@ async def scan_with_work_pool(
 
         content: The union of all scanner content requirements, used to
             efficiently read only the necessary data from each transcript.
+
+        diagnostics: Print work pool diagnostics.
     """
+
+    # helper to print diagnostics
+    def print_diagnostics(*values: object) -> None:
+        if diagnostics:
+            print(*values)
+
     # Initialize metrics
     metrics = WorkerMetrics()
     overall_start_time = time.time()
@@ -177,19 +186,19 @@ async def scan_with_work_pool(
                     if queue_was_empty_start_time
                     else ""
                 )
-                print(
+                print_diagnostics(
                     f"{_running_time()} Worker #{worker_id} starting on {_work_item_info(item)} item{stall_phrase}\n\t{_metrics_info()}"
                 )
 
                 exec_start_time = time.time()
                 await _execute_work_item(item)
-                print(
+                print_diagnostics(
                     f"{_running_time()} Worker #{worker_id} completed {_work_item_info(item)} in {(time.time() - exec_start_time):.3f}s"
                 )
                 progress()
                 items_processed += 1
 
-            print(
+            print_diagnostics(
                 f"{_running_time()} Worker #{worker_id} finished after processing {items_processed} items.\n\t{_metrics_info()}"
             )
         finally:
@@ -232,7 +241,7 @@ async def scan_with_work_pool(
                 # This send will block if queue is full (backpressure)
                 await work_item_send_stream.send(new_item)
 
-                print(
+                print_diagnostics(
                     f"{_running_time()} Producer: Added work item {_work_item_info(new_item)} "
                     f"{' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
                 )
@@ -247,14 +256,14 @@ async def scan_with_work_pool(
                         work_item_receive_stream,
                         metrics.worker_id_counter,
                     )
-                    print(
+                    print_diagnostics(
                         f"{_running_time()} Producer: Spawned worker #{metrics.worker_id_counter}\n\t{_metrics_info()}"
                     )
 
                 # Yield control to allow other tasks to run
                 await anyio.sleep(0)
 
-        print(f"{_running_time()} Producer: FINISHED PRODUCING ALL WORK")
+        print_diagnostics(f"{_running_time()} Producer: FINISHED PRODUCING ALL WORK")
 
     # Execute the scan with worker pool management
     try:
