@@ -89,6 +89,9 @@ class FileRecorder(ScanRecorder):
                 use_dictionary=True,
             )
 
+        # cleanup scan buffer
+        self._scan_buffer.cleanup()
+
         # return results
         scanners_pd = {
             n: t.to_pandas(types_mapper=pd.ArrowDtype) for n, t in scanners.items()
