@@ -45,6 +45,14 @@ NOANSWER = "N"
 """Value to assign for no answer or refusal to answer."""
 
 
+def _nan_to_json(value: Any) -> Any:
+    return "NaN" if isinstance(value, float) and math.isnan(value) else value
+
+
+def _nan_from_json(value: Any) -> Any:
+    return math.nan if value == "NaN" else value
+
+
 Value = Union[
     str | int | float | bool,
     Sequence[str | int | float | bool],
@@ -103,9 +111,8 @@ class ScoreEdit(BaseModel):
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize ScoreEdit, setting None defaults for original scores."""
-        # Handle "NaN" string that represents serialized math.nan
-        if "value" in kwargs and kwargs["value"] == "NaN":
-            kwargs["value"] = math.nan
+        if "value" in kwargs:
+            kwargs["value"] = _nan_from_json(kwargs["value"])
 
         # Original scores (provenance=None) get None defaults, not "UNCHANGED"
         if kwargs.get("provenance") is None and "provenance" in kwargs:
@@ -153,13 +160,8 @@ class Score(BaseModel):
         # Override deserialization to handle both old and new formats.
         if isinstance(obj, dict) and "value" in obj and "history" not in obj:
             # Convert legacy format
-            value = obj["value"]
-            # Handle "NaN" string that represents serialized math.nan
-            if value == "NaN":
-                value = math.nan
-
             original = ScoreEdit(
-                value=value,
+                value=_nan_from_json(obj["value"]),
                 answer=obj.get("answer"),
                 explanation=obj.get("explanation"),
                 metadata=obj.get("metadata", {}),
@@ -247,28 +249,16 @@ class Score(BaseModel):
 
     @model_serializer(mode="wrap")
     def _serialize(self, serializer: Any, info: Any) -> dict[str, Any]:
-        # Check if we need to handle NaN values
-        # In wrap mode, we have access to both self (raw object) and serializer
-
-        # Apply backward compatibility formatting for legacy single-edit format
+        # Custom serializer for backward compatibility and clean legacy format
         if len(self.history) == 1 and self.history[0].provenance is None:
             edit = self.history[0]
+            result = {"value": _nan_to_json(edit.value)}
 
-            # Build the legacy format with raw values
-            # Check for NaN and convert to "NaN" string for JSON compatibility
-            value = edit.value
-            if isinstance(value, float) and math.isnan(value):
-                value = "NaN"
-
-            result = {"value": value}
-
-            # Add other fields if they exist and are not None/UNCHANGED
             for field in ["answer", "explanation"]:
                 field_value = getattr(edit, field)
                 if field_value is not None and field_value != "UNCHANGED":
                     result[field] = field_value
 
-            # Add metadata if it exists and is not empty
             if edit.metadata:
                 result["metadata"] = edit.metadata
 
@@ -280,15 +270,10 @@ class Score(BaseModel):
 
             # Fix any NaN values that got converted to null in history
             for i, edit in enumerate(self.history):
-                if isinstance(edit.value, float) and math.isnan(edit.value):
-                    data["history"][i]["value"] = "NaN"
+                data["history"][i]["value"] = _nan_to_json(edit.value)
 
             # Add computed properties (these aren't included by default)
-            current_value = self.value
-            if isinstance(current_value, float) and math.isnan(current_value):
-                current_value = "NaN"
-
-            data["value"] = current_value
+            data["value"] = _nan_to_json(self.value)
             data["answer"] = self.answer
             data["explanation"] = self.explanation
             data["metadata"] = self.metadata
