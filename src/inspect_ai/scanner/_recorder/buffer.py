@@ -87,14 +87,15 @@ class RecorderBuffer:
         sdir = self._buffer_dir / f"scanner={_sanitize_component(scanner)}"
         return (sdir / f"{transcript.id}.parquet").exists()
 
-    async def table_for_scanner(self, scanner: str) -> "pa.Table" | None:
+    async def write_table_for_scanner(self, scanner: str, table_file: str) -> None:
         """
-        Return a PyArrow Table with all shards for the scanner (or None if none exist).
+        Write a PyArrow Table with all shards for the scanner.
 
         If a fixed schema for the scanner was provided, it is supplied to the dataset
         so that unification uses the canonical types.
         """
         import pyarrow.dataset as ds
+        import pyarrow.parquet as pq
 
         sdir = self._buffer_dir / f"scanner={_sanitize_component(scanner)}"
         if not sdir.exists():
@@ -104,8 +105,14 @@ class RecorderBuffer:
         table = (
             dataset.to_table()
         )  # materialize; for huge datasets you can stream batches
-        # Return None for totally empty datasets (e.g., rare edge cases)
-        return table if table.num_rows > 0 else None
+
+        # write table
+        pq.write_table(
+            table,
+            table_file,
+            compression="zstd",
+            use_dictionary=True,
+        )
 
     def cleanup(self) -> None:
         """Remove the buffer directory for this scan (best-effort)."""

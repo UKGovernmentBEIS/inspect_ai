@@ -69,18 +69,11 @@ class FileRecorder(ScanRecorder):
 
     @override
     async def complete(self) -> ScanStatus:
-        import pyarrow.parquet as pq
-
         # write scanners
         for scanner in sorted(self.scan_spec.scanners.keys()):
-            table = await self._scan_buffer.table_for_scanner(scanner)
-            if table is not None:
-                pq.write_table(
-                    table,
-                    self._scanner_parquet_file(scanner),
-                    compression="zstd",
-                    use_dictionary=True,
-                )
+            await self._scan_buffer.write_table_for_scanner(
+                scanner, self._scanner_parquet_file(scanner)
+            )
 
         # cleanup scan buffer
         self._scan_buffer.cleanup()
