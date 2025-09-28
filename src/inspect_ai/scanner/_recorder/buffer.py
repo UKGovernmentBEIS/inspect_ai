@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import shutil
+import time
 from typing import TYPE_CHECKING, Any, Final, Sequence, Set, cast
 
 import anyio.to_thread
@@ -12,6 +14,7 @@ from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._transcript.types import TranscriptInfo
+from inspect_ai.scanner._util.file import write_file_async
 
 if TYPE_CHECKING:
     import pyarrow as pa
@@ -91,7 +94,6 @@ class RecorderBuffer:
     async def write_table_for_scanner(self, scanner: str, table_file: str) -> None:
         import pyarrow as pa
         import pyarrow.dataset as ds
-        import pyarrow.fs as pafs
         import pyarrow.parquet as pq
 
         # NOTE: this function attempts to cap memory usage at ~ 100MB for compacting
@@ -119,18 +121,7 @@ class RecorderBuffer:
             # If you *must* emit a file even when the directory is missing, you need a known schema.
             return
 
-        def _do_write() -> None:
-            # resolve filesystem + normalized path
-            fs, out_path = pafs.FileSystem.from_uri(table_file)
-
-            # ensure parent dir exists for filesystems that support it (no-op on many object stores)
-            parent = os.path.dirname(out_path)
-            if parent:
-                try:
-                    fs.create_dir(parent, recursive=True)
-                except Exception:
-                    pass
-
+        def _compact() -> bytes:
             # build dataset
             dataset: ds.Dataset = ds.dataset(str(sdir), format="parquet")
 
@@ -156,32 +147,43 @@ class RecorderBuffer:
                 accumulated.clear()
                 accumulated_bytes = 0
 
-            with fs.open_output_stream(out_path) as sink:
-                # create writer immediately so we can produce an empty file if needed.
-                writer: pq.ParquetWriter = pq.ParquetWriter(
-                    sink,
-                    schema,
-                    compression="zstd",
-                    use_dictionary=True,
-                )
+            # Create an in-memory buffer
+            buffer = io.BytesIO()
+            writer = pq.ParquetWriter(
+                buffer,
+                schema,
+                compression="zstd",
+                use_dictionary=True,
+            )
 
-                # iterate materialized batches; to keep memory in check we use a small batch_size.
-                for batch in dataset.to_batches(
-                    batch_size=DEFAULT_BATCH_ROWS,
-                    use_threads=True,
-                ):
-                    size = batch.nbytes
-                    if accumulated_bytes and accumulated_bytes + size > MAX_BYTES:
-                        flush_accumulated(writer)
-                    accumulated.append(batch)
-                    accumulated_bytes += size
+            # iterate materialized batches; to keep memory in check we use a small batch_size.
+            for batch in dataset.to_batches(
+                batch_size=DEFAULT_BATCH_ROWS,
+                use_threads=True,
+            ):
+                size = batch.nbytes
+                if accumulated_bytes and accumulated_bytes + size > MAX_BYTES:
+                    flush_accumulated(writer)
+                accumulated.append(batch)
+                accumulated_bytes += size
 
-                # Final flush. If no rows were seen, this still leaves us with an empty file (schema only).
-                flush_accumulated(writer)
-                writer.close()
+            # Final flush. If no rows were seen, this still leaves us with an empty file (schema only).
+            flush_accumulated(writer)
+            writer.close()
+
+            # return bytes
+            buffer.seek(0)
+            return buffer.getvalue()
 
         # offload to a worker thread to avoid blocking the event loop
-        await anyio.to_thread.run_sync(_do_write)
+        start_time = time.perf_counter()
+        table_bytes = await anyio.to_thread.run_sync(_compact)
+        end_time = time.perf_counter()
+
+        print(f"Compact time: {end_time - start_time:.6f} seconds")
+        await write_file_async(table_file, table_bytes)
+        write_end_time = time.perf_counter()
+        print(f"Write time: {write_end_time - end_time:.6f} seconds")
 
     def cleanup(self) -> None:
         """Remove the buffer directory for this scan (best-effort)."""
