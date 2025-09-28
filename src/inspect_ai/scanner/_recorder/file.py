@@ -40,7 +40,7 @@ class FileRecorder(ScanRecorder):
     async def resume(self, scan_location: str) -> ScanSpec:
         self._scan_dir = UPath(scan_location)
         self._scanners_completed = [
-            scanner.name for scanner in self._scan_dir.glob("*.parquet")
+            scanner.as_posix() for scanner in self._scan_dir.glob("*.parquet")
         ]
         self._scan_fs = filesystem(self._scan_dir.as_posix())
         self._scan_spec = _read_scan_spec(self._scan_dir)
