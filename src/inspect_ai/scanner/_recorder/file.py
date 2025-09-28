@@ -69,24 +69,18 @@ class FileRecorder(ScanRecorder):
 
     @override
     async def complete(self) -> ScanStatus:
-        import pyarrow as pa
         import pyarrow.parquet as pq
 
-        # get scanners
-        scanners: dict[str, pa.Table] = {}
+        # write scanners
         for scanner in sorted(self.scan_spec.scanners.keys()):
-            tbl = await self._scan_buffer.table_for_scanner(scanner)
-            if tbl is not None:
-                scanners[scanner] = tbl
-
-        for name, table in scanners.items():
-            # write directly with Arrow
-            pq.write_table(
-                table,
-                self._scanner_parquet_file(name),
-                compression="zstd",
-                use_dictionary=True,
-            )
+            table = await self._scan_buffer.table_for_scanner(scanner)
+            if table is not None:
+                pq.write_table(
+                    table,
+                    self._scanner_parquet_file(scanner),
+                    compression="zstd",
+                    use_dictionary=True,
+                )
 
         # cleanup scan buffer
         self._scan_buffer.cleanup()
