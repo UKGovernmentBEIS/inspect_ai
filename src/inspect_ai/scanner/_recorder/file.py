@@ -10,7 +10,7 @@ from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 
-from .recorder import ScanInfo, ScanRecorder, ScanResults
+from .recorder import ScanRecorder, ScanResults, ScanStatus
 
 SCAN_JSON = "_scan.json"
 
@@ -68,7 +68,7 @@ class FileRecorder(ScanRecorder):
         pass
 
     @override
-    async def complete(self) -> ScanInfo:
+    async def complete(self) -> ScanStatus:
         import pyarrow as pa
         import pyarrow.parquet as pq
 
@@ -91,8 +91,8 @@ class FileRecorder(ScanRecorder):
         # cleanup scan buffer
         self._scan_buffer.cleanup()
 
-        return ScanInfo(
-            status="complete",
+        return ScanStatus(
+            complete=True,
             spec=self.scan_spec,
             location=self.scan_dir.as_posix(),
         )
@@ -114,10 +114,10 @@ class FileRecorder(ScanRecorder):
         return self._scan_spec
 
     @staticmethod
-    async def info(scan_location: str) -> ScanInfo:
+    async def status(scan_location: str) -> ScanStatus:
         buffer_dir = RecorderBuffer.buffer_dir(scan_location)
-        return ScanInfo(
-            status="started" if buffer_dir.exists() else "complete",
+        return ScanStatus(
+            complete=False if buffer_dir.exists() else True,
             spec=_read_scan_spec(UPath(scan_location)),
             location=scan_location,
         )
@@ -129,7 +129,7 @@ class FileRecorder(ScanRecorder):
         from upath import UPath
 
         scan_dir = UPath(scan_location)
-        spec = _read_scan_spec(scan_dir)
+        status = await FileRecorder.status(scan_location)
 
         def scanner_df(parquet_file: UPath) -> pd.DataFrame:
             # Read with Arrow, then convert using Arrow-backed pandas dtypes
@@ -151,9 +151,9 @@ class FileRecorder(ScanRecorder):
                 scanners[name] = scanner_df(parquet_file)
 
         return ScanResults(
-            status="complete",
-            spec=spec,
-            location=scan_dir.as_posix(),
+            status=status.complete,
+            spec=status.spec,
+            location=status.location,
             scanners=scanners,
         )
 

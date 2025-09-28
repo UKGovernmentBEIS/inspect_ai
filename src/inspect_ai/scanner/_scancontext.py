@@ -98,7 +98,7 @@ async def create_scan(
 async def resume_scan(scan_location: str) -> ScanContext:
     # load the spec
     recorder_type = scan_recorder_type_for_location(scan_location)
-    spec = (await recorder_type.info(scan_location)).spec
+    spec = (await recorder_type.status(scan_location)).spec
 
     return ScanContext(
         spec=spec,

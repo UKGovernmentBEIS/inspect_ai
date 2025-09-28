@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._scanspec import ScanSpec
@@ -13,19 +13,19 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ScanInfo:
-    status: Literal["started", "complete"]
+class ScanStatus:
+    complete: bool
     spec: ScanSpec
     location: str
 
 
 @dataclass
-class ScanResults(ScanInfo):
+class ScanResults(ScanStatus):
     scanners: dict[str, "pd.DataFrame"]
 
     def __init__(
         self,
-        status: Literal["started", "complete"],
+        status: bool,
         spec: ScanSpec,
         location: str,
         scanners: dict[str, "pd.DataFrame"],
@@ -56,11 +56,11 @@ class ScanRecorder(abc.ABC):
     async def flush(self) -> None: ...
 
     @abc.abstractmethod
-    async def complete(self) -> ScanInfo: ...
+    async def complete(self) -> ScanStatus: ...
 
     @staticmethod
     @abc.abstractmethod
-    async def info(scan_location: str) -> ScanInfo: ...
+    async def status(scan_location: str) -> ScanStatus: ...
 
     @staticmethod
     @abc.abstractmethod

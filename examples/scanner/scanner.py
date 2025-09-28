@@ -60,15 +60,15 @@ if __name__ == "__main__":
         SCANS_DIR = Path(__file__).parent / "scans"
         # LOGS_DIR = Path("/Users/ericpatey/code/parsing/logs")
 
-        scan_info = scan(
+        status = scan(
             scanners=[dummy_scanner(), llm_scanner()],
             transcripts=transcripts(LOGS_DIR),
             max_transcripts=50,
             results=SCANS_DIR.as_posix(),
         )
 
-        if scan_info.status == "complete":
-            results = scan_results(scan_info)
+        if status.status == "complete":
+            results = scan_results(status.location)
             results.scanners["dummy_scanner"].info()
             if "llm_scanner" in results.scanners:
                 results.scanners["llm_scanner"].info()

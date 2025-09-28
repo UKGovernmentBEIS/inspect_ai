@@ -26,7 +26,7 @@ from inspect_ai.scanner._scanner.types import ScannerInput
 from inspect_ai.scanner._util.contstants import DEFAULT_MAX_TRANSCRIPTS
 
 from ._recorder.factory import scan_recorder_for_location
-from ._recorder.recorder import ScanInfo, ScanRecorder
+from ._recorder.recorder import ScanRecorder, ScanStatus
 from ._scancontext import ScanContext, create_scan, resume_scan
 from ._scanjob import ScanJob
 from ._scanner.scanner import Scanner, config_for_scanner
@@ -52,7 +52,7 @@ def scan(
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
-) -> ScanInfo:
+) -> ScanStatus:
     return run_coroutine(
         scan_async(
             scanners=scanners,
@@ -88,7 +88,7 @@ async def scan_async(
     shuffle: bool | int | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
-) -> ScanInfo:
+) -> ScanStatus:
     # init runtime
     init_runtime_context()
 
@@ -147,13 +147,13 @@ async def scan_async(
 
 def scan_resume(
     scan_dir: str,
-) -> ScanInfo:
+) -> ScanStatus:
     return run_coroutine(scan_resume_async(scan_dir))
 
 
 async def scan_resume_async(
     scan_dir: str,
-) -> ScanInfo:
+) -> ScanStatus:
     # init runtime
     init_runtime_context()
 
@@ -184,7 +184,7 @@ async def scan_resume_async(
     return await _scan_async(scan=scan, recorder=recorder)
 
 
-async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanInfo:
+async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatus:
     try:
         LOOKAHEAD_BUFFER_MULTIPLE: float = 1.0
 
@@ -294,7 +294,7 @@ def init_scan_model_context(
 
 async def handle_scan_interruped(
     message: RenderableType, spec: ScanSpec, location: str
-) -> ScanInfo:
+) -> ScanStatus:
     theme = rich_theme()
 
     print(message)
@@ -305,8 +305,8 @@ async def handle_scan_interruped(
     )
     print(resume_message)
 
-    return ScanInfo(
-        status="started",
+    return ScanStatus(
+        complete=False,
         spec=spec,
         location=location,
     )
