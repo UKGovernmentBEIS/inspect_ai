@@ -4,7 +4,6 @@ import io
 import json
 import os
 import shutil
-import time
 from typing import TYPE_CHECKING, Any, Final, Sequence, Set, cast
 
 import anyio.to_thread
@@ -176,14 +175,8 @@ class RecorderBuffer:
             return buffer.getvalue()
 
         # offload to a worker thread to avoid blocking the event loop
-        start_time = time.perf_counter()
         table_bytes = await anyio.to_thread.run_sync(_compact)
-        end_time = time.perf_counter()
-
-        print(f"Compact time: {end_time - start_time:.6f} seconds")
         await write_file_async(table_file, table_bytes)
-        write_end_time = time.perf_counter()
-        print(f"Write time: {write_end_time - end_time:.6f} seconds")
 
     def cleanup(self) -> None:
         """Remove the buffer directory for this scan (best-effort)."""
