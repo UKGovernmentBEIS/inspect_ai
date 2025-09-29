@@ -36,13 +36,13 @@ def tool_response() -> ChatMessageTool:
 
 
 # Tests for the trim_messages function
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_empty_list() -> None:
     """Test trimming an empty list of messages."""
     assert await trim_messages([]) == []
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_simple_conversation() -> None:
     """Test trimming a simple conversation."""
     messages: list[ChatMessage] = [
@@ -54,7 +54,7 @@ async def test_simple_conversation() -> None:
     assert await trim_messages(messages) == messages[:-1]
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_no_system_messages() -> None:
     """Test trimming a conversation with no system messages."""
     messages: list[ChatMessage] = [
@@ -64,7 +64,7 @@ async def test_no_system_messages() -> None:
     assert await trim_messages(messages) == messages[:-1]
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_preserve_ratio() -> None:
     """Test preserving a specific ratio of messages."""
     # Create a longer conversation
@@ -85,7 +85,7 @@ async def test_preserve_ratio() -> None:
     assert trimmed[2].content == "User message 5"
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_tool_message_without_assistant() -> None:
     """Test a tool message without a corresponding assistant message."""
     # A tool message without a corresponding assistant message should be excluded
@@ -104,7 +104,7 @@ async def test_tool_message_without_assistant() -> None:
     assert user_message in trimmed
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_tool_calls(
     assistant_with_tool_call: ChatMessageAssistant,
     tool_response: ChatMessageTool,
@@ -130,7 +130,7 @@ async def test_tool_calls(
     assert tool_response in trimmed
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_orphaned_tool_responses(
     assistant_with_tool_call: ChatMessageAssistant,
     tool_response: ChatMessageTool,
@@ -170,7 +170,7 @@ async def test_orphaned_tool_responses(
     )
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_user_message_resets_tool_ids() -> None:
     """Test that a user message resets the active tool IDs."""
     assistant1 = ChatMessageAssistant(
@@ -193,7 +193,7 @@ async def test_user_message_resets_tool_ids() -> None:
     assert tool1 not in trimmed
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_input_source() -> None:
     """Test handling of messages with source='input'."""
     # Test with messages explicitly marked as input
@@ -221,7 +221,7 @@ async def test_input_source() -> None:
     assert conversation_assistant not in trimmed
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_first_user_as_input() -> None:
     """Test that the first user message is treated as input if no input source is specified."""
     # When no source="input" is specified, the first user message becomes input
@@ -240,7 +240,7 @@ async def test_first_user_as_input() -> None:
     assert assistant1 not in trimmed
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_preserve_edge_cases() -> None:
     """Test edge cases of the preserve parameter."""
     # Create a longer conversation
@@ -270,7 +270,7 @@ async def test_preserve_edge_cases() -> None:
         await trim_messages(messages, preserve=-0.5)
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_consecutive_assistant_tool_chains() -> None:
     """Test with multiple consecutive assistant-tool chains."""
     # Test with multiple assistant-tool chains
@@ -306,7 +306,7 @@ async def test_consecutive_assistant_tool_chains() -> None:
     assert tool2 in trimmed
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_preserve_assistant_tool_sequence() -> None:
     """Test preserving assistant-tool sequences."""
     # Create a longer conversation with tool calls
@@ -351,7 +351,7 @@ async def test_preserve_assistant_tool_sequence() -> None:
     assert tool_ids.issubset(assistant_ids)
 
 
-@pytest.mark.asynco
+@pytest.mark.asyncio
 async def test_alternating_conversation() -> None:
     """Test with alternating user-assistant pairs."""
     # Create a conversation with alternating user-assistant pairs

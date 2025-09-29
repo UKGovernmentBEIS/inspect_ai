@@ -47,7 +47,13 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
           message.role === "user" ? styles.userRole : undefined,
         )}
       >
-        <div className={clsx(styles.messageGrid, "text-style-label")}>
+        <div
+          className={clsx(
+            styles.messageGrid,
+            message.role === "tool" ? styles.toolMessageGrid : undefined,
+            "text-style-label",
+          )}
+        >
           {message.role}
           {message.role === "tool" ? `: ${message.function}` : ""}
           {supportsLinking() && messageUrl ? (
