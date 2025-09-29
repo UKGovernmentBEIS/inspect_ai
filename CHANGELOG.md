@@ -1,3 +1,8 @@
+## Unreleased
+
+- OpenAI: Capture reasoning summaries even when there is encrypted reasoning content.
+- Inspect View: Improve rendering for Codex CLI shell tool output.
+
 ## 0.3.134 (27 September 2025)
 
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).

@@ -71,6 +71,7 @@ from openai.types.responses.response_output_text import (
 from openai.types.responses.response_output_text_param import (
     Annotation as AnnotationParam,
 )
+from openai.types.responses.response_reasoning_item_param import Content as ContentParam
 from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
 from openai.types.responses.response_usage import (
     InputTokensDetails,
@@ -512,7 +513,14 @@ def reasoning_from_responses_reasoning(
             reasoning = f"{reasoning}\n" + "\n".join([s.text for s in item.content])
         redacted = False
 
-    return ContentReasoning(reasoning=reasoning, signature=item.id, redacted=redacted)
+    if item.summary:
+        summary: str | None = "\n\n".join([s.text for s in item.summary])
+    else:
+        summary = None
+
+    return ContentReasoning(
+        reasoning=reasoning, summary=summary, signature=item.id, redacted=redacted
+    )
 
 
 # two issues addressed here:
@@ -534,19 +542,26 @@ def read_reasoning_item_param(
 def responses_reasoning_from_reasoning(
     content: ContentReasoning,
 ) -> ResponseReasoningItemParam:
-    summary: list[SummaryParam] = []
+    content_params: list[ContentParam] = []
     if content.redacted:
         encrypted_content: str | None = content.reasoning
     else:
         encrypted_content = None
         if content.reasoning:
-            summary.append(SummaryParam(type="summary_text", text=content.reasoning))
+            content_params.append(
+                ContentParam(type="reasoning_text", text=content.reasoning)
+            )
+
+    summary_params: list[SummaryParam] = []
+    if content.summary:
+        summary_params.append(SummaryParam(type="summary_text", text=content.summary))
 
     return ResponseReasoningItemParam(
         type="reasoning",
         # OpenAI returns 'None' when store=False even though the schema requires the id
         id=content.signature,  # type: ignore[typeddict-item]
-        summary=summary,
+        content=content_params,
+        summary=summary_params,
         encrypted_content=encrypted_content,
     )
 
