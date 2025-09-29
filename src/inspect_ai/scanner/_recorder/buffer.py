@@ -57,6 +57,7 @@ class RecorderBuffer:
                     "scanner": scanner,
                 },
             )
+            | transcript.metadata
             | result.to_df_columns()
             for result in results
         ]
