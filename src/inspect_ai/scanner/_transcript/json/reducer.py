@@ -61,13 +61,10 @@ def _feed_event(state: ProcessorState, event: str, value: Any) -> None:
 
 def _track_attachment(state: ProcessorState, value: str) -> None:
     """Track attachment reference if value is an attachment URL."""
-    if (
-        isinstance(value, str)
-        and value.startswith(ATTACHMENT_PREFIX)
-        and len(value) >= 45
-    ):
-        attachment_id = value[ATTACHMENT_PREFIX_LEN : ATTACHMENT_PREFIX_LEN + 32]
-        state.attachments.add(attachment_id)
+    # Fast path: attachment references are exactly 45 characters
+    # (13 for "attachment://" + 32 for the hex ID)
+    if len(value) == 45 and value.startswith(ATTACHMENT_PREFIX):
+        state.attachments.add(value[ATTACHMENT_PREFIX_LEN:])
 
 
 def _should_skip(
