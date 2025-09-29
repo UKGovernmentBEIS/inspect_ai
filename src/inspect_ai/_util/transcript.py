@@ -116,9 +116,9 @@ def transcript_panel(
 def transcript_reasoning(reasoning: ContentReasoning) -> list[RenderableType]:
     content: list[RenderableType] = []
     text = (
-        reasoning.reasoning
+        (reasoning.reasoning or reasoning.summary or "")
         if not reasoning.redacted
-        else "Reasoning encrypted by model provider."
+        else (reasoning.summary or "Reasoning encrypted by model provider.")
     ).strip()
 
     if len(text) > 0:
