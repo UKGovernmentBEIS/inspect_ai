@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { ContentImage, ContentText } from "../../../../@types/log";
+import { isJson } from "../../../../utils/json";
+import { JsonMessageContent } from "../JsonMessageContent";
 import styles from "./ToolOutput.module.css";
 
 interface ToolOutputProps {
@@ -54,6 +56,11 @@ interface ToolTextOutputProps {
  * Renders the ToolTextOutput component.
  */
 const ToolTextOutput: FC<ToolTextOutputProps> = ({ text }) => {
+  if (isJson(text)) {
+    const obj = JSON.parse(text);
+    return <JsonMessageContent id={`1-json`} json={obj} />;
+  }
+
   return (
     <pre className={clsx(styles.textOutput, "tool-output")}>
       <code className={clsx("sourceCode", styles.textCode)}>{text.trim()}</code>
