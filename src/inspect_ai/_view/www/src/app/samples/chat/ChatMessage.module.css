@@ -17,6 +17,10 @@
   margin-bottom: 0.3em;
 }
 
+.toolMessageGrid {
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
 .messageContents {
   margin-left: 0;
   padding-bottom: 0;

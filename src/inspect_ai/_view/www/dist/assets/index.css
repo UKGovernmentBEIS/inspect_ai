@@ -15792,18 +15792,18 @@ so disabling selection can break that functionality */
 ._treeIcon_qjlxf_23 {
   margin-top: -3px;
 }
-._message_1ivu3_1 {
+._message_1o9fy_1 {
   font-weight: 300;
   margin-left: 0;
   margin-right: 0;
   white-space: normal;
 }
 
-._systemRole_1ivu3_8 {
+._systemRole_1o9fy_8 {
   opacity: 0.7;
 }
 
-._messageGrid_1ivu3_12 {
+._messageGrid_1o9fy_12 {
   display: grid;
   grid-template-columns: max-content max-content max-content;
   column-gap: 0.3em;
@@ -15811,26 +15811,30 @@ so disabling selection can break that functionality */
   margin-bottom: 0.3em;
 }
 
-._messageContents_1ivu3_20 {
+._toolMessageGrid_1o9fy_20 {
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+._messageContents_1o9fy_24 {
   margin-left: 0;
   padding-bottom: 0;
 }
 
-._messageContents_1ivu3_20._indented_1ivu3_25 {
+._messageContents_1o9fy_24._indented_1o9fy_29 {
   margin-left: 0rem;
 }
 
-._copyLink_1ivu3_29 {
+._copyLink_1o9fy_33 {
   opacity: 0;
   padding-left: 0;
   padding-right: 2em;
 }
 
-._copyLink_1ivu3_29:hover {
+._copyLink_1o9fy_33:hover {
   opacity: 1;
 }
 
-._metadataLabel_1ivu3_39 {
+._metadataLabel_1o9fy_43 {
   padding-top: 1em;
 }
 .markdown-ordered-list-item {
@@ -15904,8 +15908,7 @@ so disabling selection can break that functionality */
   max-height: 200px;
   object-fit: cover;
 }
-._jsonMessage_4pkcz_1 {
-  border-top: solid 1px var(--bs-border-color);
+._jsonMessage_oxf8d_1 {
 }
 ._citations_t2k1z_1 {
   margin-top: 1em;
