@@ -5,9 +5,15 @@ from typing import IO, Any, Callable
 import ijson  # type: ignore
 
 from inspect_ai.scanner._transcript.json.reducer import (
+    ATTACHMENT_PREFIX,
+    ATTACHMENTS_PREFIX,
+    EVENTS_ITEM_PREFIX,
+    MESSAGES_ITEM_PREFIX,
     ListProcessingConfig,
     ParseState,
-    reduce_parse_event,
+    attachments_coroutine,
+    event_item_coroutine,
+    message_item_coroutine,
 )
 from inspect_ai.scanner._transcript.types import (
     EventFilter,
@@ -18,7 +24,19 @@ from inspect_ai.scanner._transcript.types import (
 
 # Pre-compiled regex patterns for performance
 ATTACHMENT_PATTERN = re.compile(r"attachment://([a-f0-9]{32})")
-ATTACHMENT_PREFIX = "attachment://"
+
+# Section constants for prefix classification
+_SECTION_OTHER = 0
+_SECTION_MESSAGES = 1
+_SECTION_EVENTS = 2
+_SECTION_ATTACHMENTS = 3
+
+_MESSAGES_ITEM_PREFIX_LEN = len(MESSAGES_ITEM_PREFIX)
+_EVENTS_ITEM_PREFIX_LEN = len(EVENTS_ITEM_PREFIX)
+_ATTACHMENTS_PREFIX_LEN = len(ATTACHMENTS_PREFIX)
+_MIN_SECTION_PREFIX_LEN = min(
+    _MESSAGES_ITEM_PREFIX_LEN, _EVENTS_ITEM_PREFIX_LEN, _ATTACHMENTS_PREFIX_LEN
+)
 
 
 @dataclass(slots=True)
@@ -100,9 +118,53 @@ def _parse_and_filter(
 
     state = ParseState()
 
+    # Initialize coroutine processors
+    messages_coro = (
+        message_item_coroutine(state, messages_config) if messages_config else None
+    )
+    events_coro = event_item_coroutine(state, events_config) if events_config else None
+    attachments_coro = attachments_coroutine(state)
+
+    last_prefix = ""
+    current_section = _SECTION_OTHER
+
     for prefix, event, value in ijson.parse(sample_json, use_float=True):
-        # Use mutable reducer for all events
-        reduce_parse_event(state, prefix, event, value, messages_config, events_config)
+        # Inline prefix classification for performance (56M+ calls in hot path)
+        if prefix != last_prefix:
+            last_prefix = prefix
+            p_len = len(prefix)
+            if p_len == 0 or prefix[0] not in ("m", "e", "a"):
+                current_section = _SECTION_OTHER
+            elif p_len < _MIN_SECTION_PREFIX_LEN:
+                current_section = _SECTION_OTHER
+            elif (
+                prefix[0] == "m"
+                and p_len >= _MESSAGES_ITEM_PREFIX_LEN
+                and prefix[:_MESSAGES_ITEM_PREFIX_LEN] == MESSAGES_ITEM_PREFIX
+            ):
+                current_section = _SECTION_MESSAGES
+            elif (
+                prefix[0] == "e"
+                and p_len >= _EVENTS_ITEM_PREFIX_LEN
+                and prefix[:_EVENTS_ITEM_PREFIX_LEN] == EVENTS_ITEM_PREFIX
+            ):
+                current_section = _SECTION_EVENTS
+            elif (
+                prefix[0] == "a"
+                and p_len >= _ATTACHMENTS_PREFIX_LEN
+                and prefix[:_ATTACHMENTS_PREFIX_LEN] == ATTACHMENTS_PREFIX
+            ):
+                current_section = _SECTION_ATTACHMENTS
+            else:
+                current_section = _SECTION_OTHER
+
+        # Dispatch to coroutines (optimized to avoid redundant None checks)
+        if current_section == _SECTION_MESSAGES and messages_coro:
+            messages_coro.send((prefix, event, value))
+        elif current_section == _SECTION_EVENTS and events_coro:
+            events_coro.send((prefix, event, value))
+        elif current_section == _SECTION_ATTACHMENTS:
+            attachments_coro.send((prefix, event, value))
 
     return (
         RawTranscript(
