@@ -227,7 +227,7 @@ class EvalSampleSummary(BaseModel):
     completed: bool = Field(default=False)
     """Is the sample complete."""
 
-    message_count: int = Field(default=0)
+    message_count: int | None = Field(default=None)
     """Number of messages in the sample conversation."""
 
     @model_validator(mode="after")
@@ -1049,4 +1049,5 @@ def collect_message_counts_from_summaries(
 ) -> None:
     for summary in summaries:
         sample_key = f"{summary.id}_{summary.epoch}"
-        stats.sample_message_counts[sample_key] = summary.message_count
+        if summary.message_count is not None:
+            stats.sample_message_counts[sample_key] = summary.message_count

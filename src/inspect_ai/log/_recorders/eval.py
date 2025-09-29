@@ -568,13 +568,10 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
             sort_samples(samples)
             evalLog.samples = samples
 
-            # Fix message counts if they were populated with default values from old summaries
-            if (
-                evalLog.stats
-                and evalLog.stats.sample_message_counts
-                and all(
-                    count == 0 for count in evalLog.stats.sample_message_counts.values()
-                )
+            # Populate message counts from samples if not already present or if all are zero
+            # This handles legacy logs that don't have message_count in summaries
+            if evalLog.stats and all(
+                count == 0 for count in evalLog.stats.sample_message_counts.values()
             ):
                 collect_message_counts_from_samples(evalLog.stats, samples)
 

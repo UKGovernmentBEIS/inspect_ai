@@ -1,6 +1,8 @@
 import tempfile
 from pathlib import Path
 
+import pandas as pd
+
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai.analysis import (
@@ -140,5 +142,5 @@ def test_samples_df_message_count():
     df = samples_df(LOGS_DIR, columns=SampleSummary)
 
     assert "message_count" in df.columns
-    assert all(df["message_count"] >= 0)
+    assert all(pd.isna(df["message_count"]) | (df["message_count"] >= 0))
     assert any(df["message_count"] > 0)
