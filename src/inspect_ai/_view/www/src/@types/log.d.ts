@@ -247,6 +247,7 @@ export type Type7 = "url";
 export type Url = string;
 export type Type8 = "reasoning";
 export type Reasoning = string;
+export type Summary = string | null;
 export type Signature = string | null;
 export type Redacted = boolean;
 export type Type9 = "image";
@@ -1241,6 +1242,7 @@ export interface ContentReasoning {
   internal: unknown;
   type: Type8;
   reasoning: Reasoning;
+  summary: Summary;
   signature: Signature;
   redacted: Redacted;
 }
