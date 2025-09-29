@@ -21,7 +21,6 @@ from .._log import (
     EvalSampleReductions,
     EvalSpec,
     EvalStats,
-    collect_message_counts_from_samples,
     sort_samples,
 )
 from .eval import _s3_bucket_and_key, _write_s3_conditional
@@ -103,10 +102,6 @@ class JSONRecorder(FileRecorder):
     ) -> EvalLog:
         log = self.data[self._log_file_key(spec)]
         log.data.status = status
-
-        if log.data.samples:
-            collect_message_counts_from_samples(stats, log.data.samples)
-
         log.data.stats = stats
         log.data.results = results
         if error:
@@ -198,8 +193,6 @@ class JSONRecorder(FileRecorder):
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
-            if log.stats:
-                collect_message_counts_from_samples(log.stats, log.samples)
 
         fs = filesystem(location)
         if fs.is_s3() and if_match_etag:

@@ -939,9 +939,6 @@ class EvalStats(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
 
-    sample_message_counts: dict[str, int] = Field(default_factory=dict)
-    """Message counts for each sample."""
-
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
 
@@ -1034,20 +1031,3 @@ def sort_samples(samples: list[EvalSample]) -> None:
             (sample.id if isinstance(sample.id, str) else str(sample.id).zfill(20)),
         )
     )
-
-
-def collect_message_counts_from_samples(
-    stats: EvalStats, samples: list[EvalSample]
-) -> None:
-    for sample in samples:
-        sample_key = f"{sample.id}_{sample.epoch}"
-        stats.sample_message_counts[sample_key] = len(sample.messages)
-
-
-def collect_message_counts_from_summaries(
-    stats: EvalStats, summaries: list[EvalSampleSummary]
-) -> None:
-    for summary in summaries:
-        sample_key = f"{summary.id}_{summary.epoch}"
-        if summary.message_count is not None:
-            stats.sample_message_counts[sample_key] = summary.message_count
