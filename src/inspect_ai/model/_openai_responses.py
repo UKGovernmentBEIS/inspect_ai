@@ -508,9 +508,11 @@ def reasoning_from_responses_reasoning(
         reasoning = item.encrypted_content
         redacted = True
     else:
-        reasoning = "\n".join([s.text for s in item.summary])
-        if item.content is not None:
-            reasoning = f"{reasoning}\n" + "\n".join([s.text for s in item.content])
+        reasoning = (
+            "\n".join([s.text for s in item.content])
+            if item.content is not None
+            else ""
+        )
         redacted = False
 
     if item.summary:
