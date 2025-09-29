@@ -8,6 +8,18 @@ ATTACHMENT_PREFIX = "attachment://"
 ATTACHMENT_PREFIX_LEN = len(ATTACHMENT_PREFIX)
 ATTACHMENTS_PREFIX = "attachments."
 ATTACHMENTS_PREFIX_LEN = len(ATTACHMENTS_PREFIX)
+# Pre-computed constants for section detection
+MESSAGES_ITEM_PREFIX = "messages.item"
+MESSAGES_ITEM_PREFIX_LEN = len(MESSAGES_ITEM_PREFIX)
+EVENTS_ITEM_PREFIX = "events.item"
+EVENTS_ITEM_PREFIX_LEN = len(EVENTS_ITEM_PREFIX)
+MIN_SECTION_PREFIX_LEN = min(MESSAGES_ITEM_PREFIX_LEN, EVENTS_ITEM_PREFIX_LEN, ATTACHMENTS_PREFIX_LEN)
+
+# Section constants - using integers for faster comparisons than strings
+SECTION_OTHER = 0
+SECTION_MESSAGES = 1
+SECTION_EVENTS = 2
+SECTION_ATTACHMENTS = 3
 
 
 @dataclass(slots=True)
@@ -159,6 +171,10 @@ class ParseState:
     events: list[dict[str, Any]] = field(default_factory=list)
     attachment_refs: set[str] = field(default_factory=set)
     attachments: dict[str, str] = field(default_factory=dict)
+    # Stateful optimization: track current section to avoid repeated startswith checks
+    current_section: int = field(default=SECTION_OTHER)  # Use integer constants for faster comparisons
+    last_prefix: str = field(default="")
+    last_prefix_len: int = field(default=0)  # Cache prefix length to avoid repeated len() calls
 
 
 def reduce_parse_event(
@@ -170,8 +186,39 @@ def reduce_parse_event(
     events_config: ListProcessingConfig | None = None,
 ) -> None:
     """Mutate state by applying an action."""
-    # Inline target detection logic directly
-    if prefix.startswith("messages.item"):
+    # Cache frequently accessed attributes as locals for speed
+    last_prefix = state.last_prefix
+    current_section = state.current_section
+
+    # Stateful optimization: only check section when prefix changes
+    if prefix != last_prefix:
+        state.last_prefix = prefix
+        prefix_len = len(prefix)
+        state.last_prefix_len = prefix_len  # Cache the length
+
+        # Super fast path: if empty prefix or first char is not m/e/a, set to "other"
+        if prefix_len == 0 or prefix[0] not in ('m', 'e', 'a'):
+            current_section = SECTION_OTHER
+        # Fast path: if prefix is too short, it can't be any of our sections
+        elif prefix_len < MIN_SECTION_PREFIX_LEN:
+            current_section = SECTION_OTHER
+        # Use slice comparisons with first-char pre-checks for better performance
+        # Order by likelihood: messages are most common, then events, then attachments
+        elif prefix[0] == 'm' and prefix_len >= MESSAGES_ITEM_PREFIX_LEN and prefix[:MESSAGES_ITEM_PREFIX_LEN] == MESSAGES_ITEM_PREFIX:
+            current_section = SECTION_MESSAGES
+        elif prefix[0] == 'e' and prefix_len >= EVENTS_ITEM_PREFIX_LEN and prefix[:EVENTS_ITEM_PREFIX_LEN] == EVENTS_ITEM_PREFIX:
+            current_section = SECTION_EVENTS
+        elif prefix[0] == 'a' and prefix_len >= ATTACHMENTS_PREFIX_LEN and prefix[:ATTACHMENTS_PREFIX_LEN] == ATTACHMENTS_PREFIX:
+            current_section = SECTION_ATTACHMENTS
+        else:
+            current_section = SECTION_OTHER
+
+        # Update state with new section
+        state.current_section = current_section
+
+    # Process based on cached section (integer comparisons are faster)
+    # Use locally cached section for speed
+    if current_section == SECTION_MESSAGES:
         if messages_config is None:
             return
         result = _process_array_item_event(
@@ -187,7 +234,7 @@ def reduce_parse_event(
             state.attachment_refs.update(attachment_refs)
         return
 
-    elif prefix.startswith("events.item"):
+    elif current_section == SECTION_EVENTS:
         if events_config is None:
             return
         result = _process_array_item_event(
@@ -203,7 +250,7 @@ def reduce_parse_event(
             state.attachment_refs.update(attachment_refs)
         return
 
-    elif prefix.startswith(ATTACHMENTS_PREFIX):
+    elif current_section == SECTION_ATTACHMENTS:
         if event == "string":
             # Handle attachment values
             # Extract the id after "attachments." and before the next dot (if any)
