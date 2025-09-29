@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: Update text editor tool detection to support latest text editor tool for Claude Sonnet 4.5.
+
 ## 0.3.134 (27 September 2025)
 
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
