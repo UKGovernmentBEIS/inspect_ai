@@ -72,19 +72,19 @@ class ScanTranscripts(BaseModel):
 class ScanSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    job_id: str = Field(default_factory=uuid)
+    scan_id: str = Field(default_factory=uuid)
     """Globally unique id for scan job."""
 
-    job_file: str | None = Field(default=None)
+    scan_file: str | None = Field(default=None)
     """Source file for scan job."""
 
-    job_name: str | None = Field(default=None)
+    scan_name: str | None = Field(default=None)
     """Scan job name."""
 
-    job_args: dict[str, Any] | None = Field(default=None)
+    scan_args: dict[str, Any] | None = Field(default=None)
     """Arguments used for invoking the scan job."""
 
-    created: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime.now)
     """Time created."""
 
     tags: list[str] | None = Field(default=None)
@@ -114,6 +114,6 @@ class ScanSpec(BaseModel):
     scanners: dict[str, ScanScanner]
     """Scanners to apply to transcripts."""
 
-    @field_serializer("created")
-    def serialize_created(self, created: datetime) -> str:
-        return created.astimezone().isoformat()
+    @field_serializer("timestamp")
+    def serialize_created(self, timestamp: datetime) -> str:
+        return timestamp.astimezone().isoformat()

@@ -4,6 +4,7 @@ import io
 import json
 import os
 import shutil
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Final, Sequence, Set, cast
 
 from upath import UPath
@@ -11,6 +12,7 @@ from upath import UPath
 from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 from inspect_ai.scanner._util.file import write_file_async
 
@@ -39,8 +41,9 @@ class RecorderBuffer:
             inspect_data_dir("scan_buffer") / f"{mm3_hash(scan_path.as_posix())}"
         )
 
-    def __init__(self, scan_location: str):
+    def __init__(self, scan_location: str, spec: ScanSpec):
         self._buffer_dir = RecorderBuffer.buffer_dir(scan_location)
+        self._spec = spec
 
     async def record(
         self, transcript: TranscriptInfo, scanner: str, results: Sequence[Result]
@@ -54,7 +57,13 @@ class RecorderBuffer:
                     "transcript_id": transcript.id,
                     "transcript_source_id": transcript.source_id,
                     "transcript_source_uri": transcript.source_uri,
-                    "scanner": scanner,
+                    "timestamp": datetime.now().astimezone().isoformat(),
+                    "scan_id": self._spec.scan_id,
+                    "scan_tags": self._spec.tags,
+                    "scan_metadata": self._spec.metadata,
+                    "scanner_name": scanner,
+                    "scanner_file": self._spec.scanners[scanner].file,
+                    "scanner_params": self._spec.scanners[scanner].params,
                 },
             )
             | transcript.metadata

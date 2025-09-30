@@ -3,8 +3,7 @@ from typing import Sequence, override
 
 from upath import UPath
 
-from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.file import clean_filename_component, file, filesystem
+from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.scanner._recorder.buffer import RecorderBuffer
 from inspect_ai.scanner._scanner.result import Result
@@ -25,9 +24,7 @@ class FileRecorder(ScanRecorder):
     @override
     async def init(self, spec: ScanSpec, scans_location: str) -> None:
         # create the scan dir
-        self._scan_dir = _ensure_scan_dir(
-            UPath(scans_location), spec.job_id, spec.job_name or "job"
-        )
+        self._scan_dir = _ensure_scan_dir(UPath(scans_location), spec.scan_id)
         self._scanners_completed: list[str] = []
         # write the spec
         with file((self.scan_dir / SCAN_JSON).as_posix(), "w") as f:
@@ -36,7 +33,7 @@ class FileRecorder(ScanRecorder):
         self._scan_spec = spec
 
         # create the scan buffer
-        self._scan_buffer = RecorderBuffer(self._scan_dir.as_posix())
+        self._scan_buffer = RecorderBuffer(self._scan_dir.as_posix(), self._scan_spec)
 
     @override
     async def resume(self, scan_location: str) -> ScanSpec:
@@ -46,7 +43,7 @@ class FileRecorder(ScanRecorder):
         ]
         self._scan_fs = filesystem(self._scan_dir.as_posix())
         self._scan_spec = _read_scan_spec(self._scan_dir)
-        self._scan_buffer = RecorderBuffer(self._scan_dir.as_posix())
+        self._scan_buffer = RecorderBuffer(self._scan_dir.as_posix(), self.scan_spec)
         return self._scan_spec
 
     @override
@@ -165,25 +162,22 @@ def _read_scan_spec(scan_dir: UPath) -> ScanSpec:
         return ScanSpec.model_validate_json(f.read())
 
 
-def _find_scan_dir(scans_path: UPath, job_id: str) -> UPath | None:
+def _find_scan_dir(scans_path: UPath, scan_id: str) -> UPath | None:
     _ensure_scans_dir(scans_path)
-    for f in scans_path.glob(f"*_{job_id}"):
+    for f in scans_path.glob(f"scan_id={scan_id}"):
         if f.is_dir():
             return f
 
     return None
 
 
-def _ensure_scan_dir(scans_path: UPath, job_id: str, job_name: str) -> UPath:
+def _ensure_scan_dir(scans_path: UPath, scan_id: str) -> UPath:
     # look for an existing scan dir
-    scan_dir = _find_scan_dir(scans_path, job_id)
+    scan_dir = _find_scan_dir(scans_path, scan_id)
 
     # if there is no scan_dir then create one
     if scan_dir is None:
-        scan_dir = (
-            scans_path
-            / f"{clean_filename_component(iso_now())}_{clean_filename_component(job_name)}_{job_id}"
-        )
+        scan_dir = scans_path / f"scan_id={scan_id}"
         scan_dir.mkdir(parents=True, exist_ok=False)
 
     # return scan dir
