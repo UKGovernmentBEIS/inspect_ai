@@ -1,35 +1,37 @@
 """Work pool implementation for scanner operations."""
 
-import functools
 import time
 from dataclasses import dataclass
-from typing import Awaitable, Callable, NamedTuple, Protocol, Sequence
+from typing import Awaitable, Callable, NamedTuple
 
 import anyio
 from anyio import create_task_group
 from anyio.abc import TaskGroup
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+from inspect_ai._util.registry import registry_info
+
 from ._recorder.recorder import ScanRecorder
 from ._scancontext import ScanContext
 from ._scanner.result import Result
-from ._scanner.scanner import Scanner
+from ._scanner.scanner import Scanner, config_for_scanner
 from ._scanner.types import ScannerInput
 from ._transcript.transcripts import Transcripts
-from ._transcript.types import Transcript, TranscriptContent
-
-
-class ScanReport(Protocol):
-    async def __call__(self, results: Sequence[Result]) -> None: ...
+from ._transcript.types import TranscriptContent, TranscriptInfo
+from ._transcript.util import union_transcript_contents
 
 
 class WorkItem(NamedTuple):
-    """Represents a unit of work for scanning a transcript."""
+    """Represents a unit of work for reading a transcript and scanning with multiple scanners.
 
-    transcript: Transcript
-    scanner: Scanner[ScannerInput]
-    scanner_name: str
-    report_callback: ScanReport
+    This groups all scanners that need to process the same transcript, allowing
+    the transcript to be loaded once and reused across scanners within a single
+    worker process.
+    """
+
+    transcript_info: TranscriptInfo
+    union_content: TranscriptContent
+    scanners: list[Scanner[ScannerInput]]
 
 
 @dataclass
@@ -47,10 +49,9 @@ async def scan_with_work_pool(
     recorder: ScanRecorder,
     max_tasks: int,
     max_queue_size: int,
-    item_processor: Callable[[WorkItem], Awaitable[Result | None]],
+    item_processor: Callable[[WorkItem], Awaitable[dict[str, list[Result]]]],
     progress: Callable[[], None],
     transcripts: Transcripts,
-    content: TranscriptContent,
     diagnostics: bool = False,
 ) -> None:
     """Manages concurrent scanner execution with backpressure and worker pooling.
@@ -59,9 +60,8 @@ async def scan_with_work_pool(
     not WHAT work needs to be done (which is determined by the caller).
 
     Core responsibilities:
-    - Work item generation (iterating transcripts and scanners)
+    - Work item generation (grouping scanners by transcript)
     - Checking for already-completed work via recorder
-    - Lazy loading of transcripts as needed
     - Queue management and backpressure control
     - Worker lifecycle management (spawning, reusing, terminating)
     - Concurrency control and rate limiting
@@ -69,13 +69,15 @@ async def scan_with_work_pool(
     - Efficient work distribution across workers
 
     The caller (_scan.py) is responsible for:
+    - Transcript loading (within item_processor callback)
     - Scanner-specific execution logic (via item_processor callback)
     - Transcript filtering and content determination
     - Progress reporting and UI updates
     - Overall scan orchestration and configuration
 
     This separation allows the pool to handle all concurrency and work generation
-    concerns while the caller maintains control over scanner execution and UI.
+    concerns while the caller maintains control over transcript loading, scanner
+    execution, and UI.
 
     Args:
         context: The context containing scanners and configuration.
@@ -94,17 +96,16 @@ async def scan_with_work_pool(
             When the queue is full, the producer will block until workers consume items.
 
         item_processor: Async function to process work items.
-            Should take a WorkItem and return a Result or None.
-            Allows the caller to customize how scanners are executed while
-            still leveraging the pool's concurrency management.
+            Takes a WorkItem (containing TranscriptInfo and scanners) and loads
+            the transcript, executes all scanners, and returns a dict mapping
+            scanner names to lists of results. Allows the caller to customize
+            transcript loading and scanner execution while still leveraging the
+            pool's concurrency management.
 
-        progress: Callable to report progress (should be called even when skipping
-            already recorder scans).
+        progress: Callable to report progress for both skipped and executed work items.
+            Called once per scanner completion.
 
         transcripts: The transcripts to process.
-
-        content: The union of all scanner content requirements, used to
-            efficiently read only the necessary data from each transcript.
 
         diagnostics: Print work pool diagnostics.
     """
@@ -144,13 +145,18 @@ async def scan_with_work_pool(
 
     def _work_item_info(item: WorkItem) -> str:
         """Get formatted work item info for debugging."""
-        return f"{item.transcript.id, item.scanner_name}"
+        scanner_names = ", ".join(
+            registry_info(scanner).name for scanner in item.scanners
+        )
+        return f"({item.transcript_info.id}, [{scanner_names}])"
 
     async def _execute_work_item(item: WorkItem) -> None:
-        """Call scanner with metrics tracking."""
+        """Call scanner with metrics tracking and record results."""
         try:
             metrics.workers_scanning += 1
-            await item_processor(item)
+            for name, results in (await item_processor(item)).items():
+                await recorder.record(item.transcript_info, name, results)
+                progress()
         finally:
             metrics.workers_scanning -= 1
 
@@ -195,7 +201,6 @@ async def scan_with_work_pool(
                 print_diagnostics(
                     f"{_running_time()} Worker #{worker_id} completed {_work_item_info(item)} in {(time.time() - exec_start_time):.3f}s"
                 )
-                progress()
                 items_processed += 1
 
             print_diagnostics(
@@ -204,73 +209,75 @@ async def scan_with_work_pool(
         finally:
             metrics.worker_count -= 1
 
-    async def _producer(
-        tg: TaskGroup, transcripts: Transcripts, content: TranscriptContent
-    ) -> None:
+    async def _producer(tg: TaskGroup, transcripts: Transcripts) -> None:
         """Produce work items and manage worker spawning."""
+        union_content = union_transcript_contents(
+            [
+                config_for_scanner(scanner).content
+                for scanner in context.scanners.values()
+            ]
+        )
+
         for transcript_info in await transcripts.index():
-            transcript: Transcript | None = None
+            # Collect scanners that need to process this transcript
+            scanners_for_transcript: list[Scanner[ScannerInput]] = []
+
             for name, scanner in context.scanners.items():
                 # Skip if already recorded
                 if await recorder.is_recorded(transcript_info, name):
                     progress()
                     continue
 
-                # Lazy load transcript on first scanner that needs it
-                if transcript is None:
-                    s_time = time.time()
-                    transcript = await transcripts.read(transcript_info, content)
-                    if (read_time := time.time() - s_time) > 1:
-                        print(
-                            f"{_running_time()} Producer: Read transcript {transcript_info.id} in {read_time:.3f}s"
-                        )
+                # Add scanner to this transcript's work item
+                scanners_for_transcript.append(scanner)
 
-                # Check for backpressure
-                backpressure = (
-                    work_item_receive_stream.statistics().current_buffer_used
-                    >= work_queue_size
+            # Skip if no scanners need this transcript
+            if not scanners_for_transcript:
+                continue
+
+            # Check for backpressure
+            backpressure = (
+                work_item_receive_stream.statistics().current_buffer_used
+                >= work_queue_size
+            )
+
+            new_item = WorkItem(
+                transcript_info=transcript_info,
+                union_content=union_content,
+                scanners=scanners_for_transcript,
+            )
+
+            # This send will block if queue is full (backpressure)
+            await work_item_send_stream.send(new_item)
+
+            print_diagnostics(
+                f"{_running_time()} Producer: Added work item {_work_item_info(new_item)} "
+                f"{' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
+            )
+
+            # Spawn workers as needed
+            if metrics.worker_count < max_tasks:
+                metrics.worker_count += 1
+                metrics.worker_id_counter += 1
+
+                tg.start_soon(
+                    _worker_task,
+                    work_item_receive_stream,
+                    metrics.worker_id_counter,
                 )
-
-                new_item = WorkItem(
-                    transcript=transcript,
-                    scanner=scanner,
-                    scanner_name=name,
-                    report_callback=functools.partial(
-                        recorder.record, transcript_info, name
-                    ),
-                )
-
-                # This send will block if queue is full (backpressure)
-                await work_item_send_stream.send(new_item)
-
                 print_diagnostics(
-                    f"{_running_time()} Producer: Added work item {_work_item_info(new_item)} "
-                    f"{' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
+                    f"{_running_time()} Producer: Spawned worker #{metrics.worker_id_counter}\n\t{_metrics_info()}"
                 )
 
-                # Spawn workers as needed
-                if metrics.worker_count < max_tasks:
-                    metrics.worker_count += 1
-                    metrics.worker_id_counter += 1
-
-                    tg.start_soon(
-                        _worker_task,
-                        work_item_receive_stream,
-                        metrics.worker_id_counter,
-                    )
-                    print_diagnostics(
-                        f"{_running_time()} Producer: Spawned worker #{metrics.worker_id_counter}\n\t{_metrics_info()}"
-                    )
-
-                # Yield control to allow other tasks to run
-                await anyio.sleep(0)
+            # Yield control to allow other tasks to run
+            await anyio.sleep(0)
 
         print_diagnostics(f"{_running_time()} Producer: FINISHED PRODUCING ALL WORK")
 
     # Execute the scan with worker pool management
     try:
         async with create_task_group() as tg:
-            await _producer(tg, transcripts, content)
+            await _producer(tg, transcripts)
     except Exception as ex:
         print(f"caught {ex}")
         raise

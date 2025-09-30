@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generator, Literal
+from typing import Any, Generator, Literal
 
 from ijson import ObjectBuilder  # type: ignore
 from ijson.utils import coroutine as _ijson_coroutine  # type: ignore

@@ -15,6 +15,7 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.platform import platform_init
+from inspect_ai._util.registry import registry_info
 from inspect_ai._util.rich import rich_traceback
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, resolve_models
@@ -29,10 +30,11 @@ from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanStatus
 from ._scancontext import ScanContext, create_scan, resume_scan
 from ._scanjob import ScanJob
+from ._scanner.result import Result
 from ._scanner.scanner import Scanner, config_for_scanner
 from ._scanspec import ScanConfig, ScanSpec
 from ._transcript.transcripts import Transcripts
-from ._transcript.util import filter_transcript, union_transcript_contents
+from ._transcript.util import filter_transcript
 from ._work_pool import WorkItem, scan_with_work_pool
 
 
@@ -238,32 +240,39 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                 total_ticks = (await transcripts.count()) * len(scan.scanners)
                 task_id = progress.add_task("Scan", total=total_ticks)
 
-                async def _execute_scan_item(item: WorkItem) -> Any:
-                    if (
-                        result := await item.scanner(
-                            filter_transcript(
-                                item.transcript,
-                                config_for_scanner(item.scanner).content,
+                async def _execute_work_item(item: WorkItem) -> dict[str, list[Result]]:
+                    # Load transcript once for all scanners in this work item
+                    transcript = await transcripts.read(
+                        item.transcript_info, item.union_content
+                    )
+
+                    # Execute each scanner with the loaded transcript
+                    return {
+                        registry_info(scanner).name: (
+                            # TODO: For now, scanners return a single Result, but
+                            # it probably will allow multiple in the future
+                            [result]
+                            if (
+                                result := await scanner(
+                                    filter_transcript(
+                                        transcript,
+                                        config_for_scanner(scanner).content,
+                                    )
+                                )
                             )
+                            else []
                         )
-                    ) is not None:
-                        await item.report_callback([result])
-                    return result
+                        for scanner in item.scanners
+                    }
 
                 await scan_with_work_pool(
                     context=scan,
                     recorder=recorder,
                     max_tasks=max_transcripts,
                     max_queue_size=int(max_transcripts * LOOKAHEAD_BUFFER_MULTIPLE),
-                    item_processor=_execute_scan_item,
+                    item_processor=_execute_work_item,
                     progress=lambda: progress.update(task_id, advance=1),
                     transcripts=transcripts,
-                    content=union_transcript_contents(
-                        [
-                            config_for_scanner(scanner).content
-                            for scanner in scan.scanners.values()
-                        ]
-                    ),
                 )
 
                 scan_info = await recorder.complete()
