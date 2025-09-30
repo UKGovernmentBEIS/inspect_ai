@@ -85,6 +85,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
             description={description}
             contentType={contentType}
             output={resolvedToolOutput}
+            collapsible={false}
           />
         );
       }
