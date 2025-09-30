@@ -208,21 +208,21 @@ async def scan_with_work_pool(
         tg: TaskGroup, transcripts: Transcripts, content: TranscriptContent
     ) -> None:
         """Produce work items and manage worker spawning."""
-        for t in await transcripts.index():
+        for transcript_info in await transcripts.index():
             transcript: Transcript | None = None
             for name, scanner in context.scanners.items():
                 # Skip if already recorded
-                if await recorder.is_recorded(t, name):
+                if await recorder.is_recorded(transcript_info, name):
                     progress()
                     continue
 
                 # Lazy load transcript on first scanner that needs it
                 if transcript is None:
                     s_time = time.time()
-                    transcript = await transcripts.read(t, content)
+                    transcript = await transcripts.read(transcript_info, content)
                     if (read_time := time.time() - s_time) > 1:
                         print(
-                            f"{_running_time()} Producer: Read transcript {t.id} in {read_time:.3f}s"
+                            f"{_running_time()} Producer: Read transcript {transcript_info.id} in {read_time:.3f}s"
                         )
 
                 # Check for backpressure
@@ -235,7 +235,9 @@ async def scan_with_work_pool(
                     transcript=transcript,
                     scanner=scanner,
                     scanner_name=name,
-                    report_callback=functools.partial(recorder.record, t, name),
+                    report_callback=functools.partial(
+                        recorder.record, transcript_info, name
+                    ),
                 )
 
                 # This send will block if queue is full (backpressure)
