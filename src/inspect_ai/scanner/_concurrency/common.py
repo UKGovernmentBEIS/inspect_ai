@@ -21,16 +21,6 @@ class WorkItem(NamedTuple):
     scanners: list[Scanner[ScannerInput]]
 
 
-@dataclass
-class WorkerMetrics:
-    """Encapsulates all worker-related metrics."""
-
-    worker_count: int = 0
-    workers_waiting: int = 0
-    workers_scanning: int = 0
-    worker_id_counter: int = 0
-
-
 class ConcurrencyStrategy(Protocol):  # pragma: no cover - interface
     """Callable strategy interface (Strategy Pattern) for executing scanner work.
 

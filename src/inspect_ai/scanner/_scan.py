@@ -24,6 +24,7 @@ from inspect_ai.model._model_config import (
     model_roles_config_to_model_roles,
 )
 from inspect_ai.scanner._concurrency.common import WorkItem
+from inspect_ai.scanner._concurrency.multi_process import multi_process_strategy
 from inspect_ai.scanner._concurrency.single_process import single_process_strategy
 from inspect_ai.scanner._scanner.types import ScannerInput
 from inspect_ai.scanner._util.contstants import DEFAULT_MAX_TRANSCRIPTS
@@ -277,10 +278,17 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                         for scanner in item.scanners
                     }
 
-                # TODO: Soon, we'll have a MultiProcessStrategy
-                strategy = single_process_strategy(
-                    max_tasks=max_transcripts,
-                    max_queue_size=int(max_transcripts * LOOKAHEAD_BUFFER_MULTIPLE),
+                # TODO: Plumb this
+                multi_testing = False
+                strategy = (
+                    multi_process_strategy(
+                        max_processes=4, max_tasks=max_transcripts, max_queue_size=None
+                    )
+                    if multi_testing
+                    else single_process_strategy(
+                        max_tasks=max_transcripts,
+                        max_queue_size=int(max_transcripts * LOOKAHEAD_BUFFER_MULTIPLE),
+                    )
                 )
 
                 await strategy(

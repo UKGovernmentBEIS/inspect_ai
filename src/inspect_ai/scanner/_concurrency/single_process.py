@@ -8,6 +8,7 @@ execution without altering the public API.
 """
 
 import time
+from dataclasses import dataclass
 from typing import AsyncIterator, Awaitable, Callable
 
 import anyio
@@ -20,7 +21,17 @@ from inspect_ai.util._anyio import inner_exception
 
 from .._recorder.recorder import ScanRecorder
 from .._scanner.result import ResultReport
-from .common import ConcurrencyStrategy, WorkerMetrics, WorkItem
+from .common import ConcurrencyStrategy, WorkItem
+
+
+@dataclass
+class WorkerMetrics:
+    """Encapsulates all worker-related metrics."""
+
+    worker_count: int = 0
+    workers_waiting: int = 0
+    workers_scanning: int = 0
+    worker_id_counter: int = 0
 
 
 def single_process_strategy(
