@@ -37,8 +37,21 @@ class Result(BaseModel):
         columns: dict[str, str | bool | int | float | None] = {}
         if isinstance(self.value, str | bool | int | float | None):
             columns["value"] = self.value
+            if isinstance(self.value, str):
+                columns["value_type"] = "string"
+            elif isinstance(self.value, int | float):
+                columns["value_type"] = "number"
+            elif isinstance(self.value, bool):
+                columns["value_type"] = "boolean"
+            else:
+                columns["value_type"] = "null"
+
         else:
             columns["value"] = to_json_str_safe(self.value)
+            columns["value_type"] = (
+                "array" if isinstance(self.value, list) else "object"
+            )
+
         columns["answer"] = self.answer
         columns["explanation"] = self.explanation
         columns["metadata"] = to_json_str_safe(self.metadata or {})

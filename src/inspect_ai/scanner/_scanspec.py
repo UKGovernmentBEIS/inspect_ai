@@ -17,6 +17,9 @@ class ScanScanner(BaseModel):
     name: str
     """Scanner name."""
 
+    file: str | None = Field(default=None)
+    """Scanner source file (if not in a package)."""
+
     params: dict[str, Any] = Field(default_factory=dict)
     """Scanner arguments."""
 
@@ -35,7 +38,10 @@ class ScanRevision(BaseModel):
 
 
 class ScanConfig(BaseModel):
-    """Configuration used for evaluation."""
+    """Configuration used for scan."""
+
+    max_transcripts: int | None = Field(default=None)
+    """Maximum number of concurrent transcripts (defaults to 10)."""
 
     limit: int | None = Field(default=None)
     """Transcript limit (maximum number of transcripts to read)."""
@@ -66,26 +72,20 @@ class ScanTranscripts(BaseModel):
 class ScanSpec(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    scan_id: str = Field(default_factory=uuid)
-    """Globally unique id for scan."""
+    job_id: str = Field(default_factory=uuid)
+    """Globally unique id for scan job."""
+
+    job_file: str | None = Field(default=None)
+    """Source file for scan job."""
+
+    job_name: str | None = Field(default=None)
+    """Scan job name."""
+
+    job_args: dict[str, Any] | None = Field(default=None)
+    """Arguments used for invoking the scan job."""
 
     created: datetime = Field(default_factory=datetime.now)
     """Time created."""
-
-    scan_file: str | None = Field(default=None)
-    """Source file for scan."""
-
-    scan_name: str = Field(default="scan")
-    """Scan name (defaults to 'scan')."""
-
-    scan_attribs: dict[str, Any] = Field(default_factory=dict)
-    """Attributes of the @scandef decorator."""
-
-    scan_args: dict[str, Any] = Field(default_factory=dict)
-    """Arguments used for invoking the scan (including defaults)."""
-
-    scan_args_passed: dict[str, Any] = Field(default_factory=dict)
-    """Arguments explicitly passed by caller for invoking the scan."""
 
     tags: list[str] | None = Field(default=None)
     """Tags associated with the scan."""

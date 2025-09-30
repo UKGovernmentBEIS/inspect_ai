@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import sqlite3
+from datetime import datetime
 from functools import reduce
 from os import PathLike
 from types import TracebackType
@@ -20,9 +21,22 @@ from zipfile import ZipFile
 
 from typing_extensions import override
 
-from inspect_ai.analysis._dataframe.evals.columns import EvalColumns
-from inspect_ai.analysis._dataframe.evals.table import EVAL_LOG_PATH
-from inspect_ai.analysis._dataframe.samples.columns import SampleSummary
+from inspect_ai.analysis._dataframe.columns import Column
+from inspect_ai.analysis._dataframe.evals.columns import (
+    EvalColumn,
+    EvalColumns,
+    EvalId,
+    EvalLogPath,
+)
+from inspect_ai.analysis._dataframe.evals.table import EVAL_ID, EVAL_LOG_PATH
+from inspect_ai.analysis._dataframe.extract import (
+    list_as_str,
+    remove_namespace,
+    score_value,
+    score_values,
+)
+from inspect_ai.analysis._dataframe.samples.columns import SampleColumn, SampleSummary
+from inspect_ai.analysis._dataframe.samples.extract import sample_total_tokens
 from inspect_ai.analysis._dataframe.samples.table import SAMPLE_ID, samples_df
 from inspect_ai.analysis._dataframe.util import (
     verify_prerequisites as verify_df_prerequisites,
@@ -177,8 +191,14 @@ class EvalLogTranscriptsDB:
 
         # resolve logs or df to transcript_df (sample per row)
         if not isinstance(logs, pd.DataFrame):
-            self._transcripts_df = samples_df(logs, EvalColumns + SampleSummary)
+            self._transcripts_df = samples_df(logs, TranscriptColumns)
         else:
+            # ensure we have an EVAL_ID
+            if EVAL_ID not in logs.columns:
+                raise ValueError(
+                    f"Transcripts data frame does not have an '{EVAL_ID}' column."
+                )
+
             # ensure we have a log path
             if EVAL_LOG_PATH not in logs.columns:
                 raise ValueError(
@@ -256,12 +276,13 @@ class EvalLogTranscriptsDB:
 
             # extract required fields
             transcript_id = row_dict.pop("sample_id", None)
-            transcript_source = row_dict.pop("log", None)
+            transcript_source_id = row_dict.pop("eval_id", None)
+            transcript_source_uri = row_dict.pop("log", None)
 
             # ensure we have required fields
-            if transcript_id is None or transcript_source is None:
+            if transcript_id is None or transcript_source_uri is None:
                 raise ValueError(
-                    f"Missing required fields: sample_id={transcript_id}, log={transcript_source}"
+                    f"Missing required fields: sample_id={transcript_id}, log={transcript_source_uri}"
                 )
 
             # everything else goes into metadata
@@ -269,7 +290,10 @@ class EvalLogTranscriptsDB:
 
             results.append(
                 TranscriptInfo(
-                    id=transcript_id, source=transcript_source, metadata=metadata
+                    id=transcript_id,
+                    source_id=transcript_source_id,
+                    source_uri=transcript_source_uri,
+                    metadata=metadata,
                 )
             )
 
@@ -297,12 +321,12 @@ class EvalLogTranscriptsDB:
         This cache assumes that the typical usage pattern will scan through a single
         source rather than jumping across sources randomly.
         """
-        if self._summaries_cache is None or self._summaries_cache[0] != t.source:
+        if self._summaries_cache is None or self._summaries_cache[0] != t.source_uri:
             self._summaries_cache = (
-                t.source,
+                t.source_uri,
                 {
                     summary.uuid: summary
-                    for summary in read_eval_log_sample_summaries(t.source)
+                    for summary in read_eval_log_sample_summaries(t.source_uri)
                     if summary.uuid is not None
                 },
             )
@@ -311,7 +335,7 @@ class EvalLogTranscriptsDB:
     async def read(self, t: TranscriptInfo, content: TranscriptContent) -> Transcript:
         summary = self._get_eval_summary(t)
         sample_file_name = f"samples/{summary.id}_epoch_{summary.epoch}.json"
-        with ZipFile(t.source, mode="r") as zipfile:
+        with ZipFile(t.source_uri, mode="r") as zipfile:
             with zipfile.open(sample_file_name, "r") as sample_json:
                 return await load_filtered_transcript(
                     sample_json, t, content.messages, content.events
@@ -358,3 +382,32 @@ async def transcripts_from_snapshot(snapshot: ScanTranscripts) -> Transcripts:
             return EvalLogTranscripts(snapshot)
         case _:
             raise ValueError(f"Unrecognized transcript type '{snapshot.type}")
+
+
+TranscriptColumns: list[Column] = (
+    EvalId
+    + EvalLogPath
+    + [
+        EvalColumn("eval_created", path="eval.created", type=datetime, required=True),
+        EvalColumn("eval_tags", path="eval.tags", default="", value=list_as_str),
+        EvalColumn("eval_metadata", path="eval.metadata"),
+        EvalColumn(
+            "task_name", path="eval.task", required=True, value=remove_namespace
+        ),
+        EvalColumn("task_args", path="eval.task_args"),
+        EvalColumn("solver", path="eval.solver"),
+        EvalColumn("solver_args", path="eval.solver_args"),
+        EvalColumn("model", path="eval.model", required=True),
+        EvalColumn("generate_config", path="eval.model_generate_config"),
+        EvalColumn("model_roles", path="eval.model_roles"),
+        SampleColumn("id", path="id", required=True, type=str),
+        SampleColumn("epoch", path="epoch", required=True),
+        SampleColumn("sample_metadata", path="metadata"),
+        SampleColumn("score", path="scores", value=score_value),
+        SampleColumn("score_*", path="scores", value=score_values),
+        SampleColumn("total_tokens", path=sample_total_tokens),
+        SampleColumn("total_time", path="total_time"),
+        SampleColumn("working_time", path="total_time"),
+        SampleColumn("limit", path="limit"),
+    ]
+)

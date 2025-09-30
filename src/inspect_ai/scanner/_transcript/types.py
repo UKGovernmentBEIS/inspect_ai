@@ -41,9 +41,12 @@ class TranscriptInfo(BaseModel):
     """Transcript identifier, location, and metadata."""
 
     id: str
-    """Unique id for transcript (e.g. sample uuid)."""
+    """Globally unique id for transcript (e.g. sample uuid)."""
 
-    source: str
+    source_id: str
+    """Globally unique ID for transcript source (e.g. eval_id)."""
+
+    source_uri: str
     """URI for source data (e.g. log file path)"""
 
     metadata: dict[str, JsonValue] = Field(default_factory=dict)

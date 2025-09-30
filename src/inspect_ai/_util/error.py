@@ -55,6 +55,10 @@ class PrerequisiteError(Exception):
         self.message = message
 
 
+class SilentException(Exception):
+    pass
+
+
 class WriteConflictError(Exception):
     """Exception raised when a conditional write fails due to concurrent modification.
 
@@ -74,8 +78,10 @@ def exception_hook() -> Callable[..., None]:
     ) -> None:
         if isinstance(exception, PrerequisiteError):
             print(f"\n{exception.message}\n")
-        else:
+        elif not isinstance(exception, SilentException):
             sys_handler(exception_type, exception, traceback)
+        else:
+            sys.exit(1)
 
     return handler
 

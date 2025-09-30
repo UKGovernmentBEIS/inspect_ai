@@ -48,13 +48,15 @@ async def test_basic_loading():
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test-001", source="/test.json", metadata={"test": True})
+    info = TranscriptInfo(
+        id="test-001", source_id="source-001", source_uri="/test.json", metadata={"test": True}
+    )
 
     result = await load_filtered_transcript(stream, info, "all", "all")
 
     assert isinstance(result, Transcript)
     assert result.id == "test-001"
-    assert result.source == "/test.json"
+    assert result.source_uri == "/test.json"
     assert result.metadata == {"test": True}
     assert len(result.messages) == 2
     assert len(result.events) == 1
@@ -84,7 +86,7 @@ async def test_message_filtering(message_filter, expected_count, expected_roles)
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test", source="/test.json")
+    info = TranscriptInfo(id="test", source_id="42", source_uri="/test.json")
 
     result = await load_filtered_transcript(stream, info, message_filter, "all")
 
@@ -128,7 +130,7 @@ async def test_event_filtering(event_filter, expected_count, expected_types):
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test", source="/test.json")
+    info = TranscriptInfo(id="test", source_id="42", source_uri="/test.json")
 
     result = await load_filtered_transcript(stream, info, "all", event_filter)
 
@@ -160,7 +162,7 @@ async def test_combined_filtering():
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test", source="/test.json")
+    info = TranscriptInfo(id="test", source_id="42", source_uri="/test.json")
 
     result = await load_filtered_transcript(stream, info, ["user"], ["score"])
 
@@ -209,7 +211,7 @@ async def test_attachment_resolution():
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test", source="/test.json")
+    info = TranscriptInfo(id="test", source_id="42", source_uri="/test.json")
 
     result = await load_filtered_transcript(stream, info, "all", "all")
 
@@ -231,7 +233,7 @@ async def test_missing_attachments():
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test", source="/test.json")
+    info = TranscriptInfo(id="test", source_id="42", source_uri="/test.json")
 
     result = await load_filtered_transcript(stream, info, "all", "all")
 
@@ -257,7 +259,7 @@ async def test_malformed_attachments():
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test", source="/test.json")
+    info = TranscriptInfo(id="test", source_id="42", source_uri="/test.json")
 
     result = await load_filtered_transcript(stream, info, "all", "all")
 
@@ -285,7 +287,7 @@ async def test_unicode_and_special_chars():
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test", source="/test.json")
+    info = TranscriptInfo(id="test", source_id="42", source_uri="/test.json")
 
     result = await load_filtered_transcript(stream, info, "all", "all")
 
@@ -298,7 +300,7 @@ async def test_empty_transcript():
     data = {"id": "empty", "messages": [], "events": [], "attachments": {}}
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="empty", source="/test.json")
+    info = TranscriptInfo(id="empty", source_id="42", source_uri="/test.json")
 
     result = await load_filtered_transcript(stream, info, "all", "all")
 
@@ -327,7 +329,9 @@ def test_parse_and_filter():
     }
 
     stream = create_json_stream(data)
-    info = TranscriptInfo(id="test", source="/test.json", metadata={"key": "value"})
+    info = TranscriptInfo(
+        id="test", source_id="42", source_uri="/test.json", metadata={"key": "value"}
+    )
 
     raw_transcript, _ = _parse_and_filter(stream, info, ["user"], ["score"])
 
@@ -377,7 +381,8 @@ def test_resolve_attachments():
     """Test _resolve_attachments function."""
     raw_transcript = RawTranscript(
         id="test",
-        source="/test.json",
+        source_id="source-42",
+        source_uri="/test.json",
         metadata={},
         messages=[
             {"role": "user", "content": "attachment://a1b2c3d4e5f678901234567890123456"}

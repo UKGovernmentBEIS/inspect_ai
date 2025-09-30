@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.hooks._hooks import Hooks
     from inspect_ai.model import ModelAPI
-    from inspect_ai.scanner._scandef import ScanDef
+    from inspect_ai.scanner._scanjob import ScanJob
     from inspect_ai.scanner._scanner.loader import Loader
     from inspect_ai.scanner._scanner.scanner import Scanner
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer
@@ -53,7 +53,7 @@ RegistryType = Literal[
     "tool",
     "loader",
     "scanner",
-    "scandef",
+    "scanjob",
 ]
 """Enumeration of registry object types.
 
@@ -305,7 +305,7 @@ def registry_create(
 
 
 @overload
-def registry_create(type: Literal["scandef"], name: str, **kwargs: Any) -> ScanDef: ...
+def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> ScanJob: ...
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
@@ -342,14 +342,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         return set_registry_info(o, registry_info(obj))
 
     # instantiate registry and model objects
-    for param in kwargs.keys():
-        value = kwargs[param]
-        if is_registry_dict(value):
-            kwargs[param] = registry_create(
-                value["type"], value["name"], **value["params"]
-            )
-        elif is_model_dict(value):
-            kwargs[param] = model_create_from_dict(value)
+    kwargs = registry_kwargs(**kwargs)
 
     if isclass(obj):
         return with_registry_info(obj(**kwargs))
@@ -551,6 +544,20 @@ def registry_value(o: object) -> Any:
         )
     else:
         return o
+
+
+# resolve embedded registry objects and models
+def registry_kwargs(**kwargs: Any) -> dict[str, Any]:
+    kwargs = kwargs.copy()
+    for param in kwargs.keys():
+        value = kwargs[param]
+        if is_registry_dict(value):
+            kwargs[param] = registry_create(
+                value["type"], value["name"], **value["params"]
+            )
+        elif is_model_dict(value):
+            kwargs[param] = model_create_from_dict(value)
+    return kwargs
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:

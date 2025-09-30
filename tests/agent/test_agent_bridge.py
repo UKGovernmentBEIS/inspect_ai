@@ -230,7 +230,7 @@ def anthropic_agent(tools: bool) -> Agent:
         async with agent_bridge(state) as bridge:
             client = AsyncAnthropic()
 
-            await client.messages.create(
+            await client.messages.create(  # type: ignore[call-overload]
                 model="inspect",
                 max_tokens=4096,
                 temperature=0.8,

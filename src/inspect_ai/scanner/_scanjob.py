@@ -1,109 +1,162 @@
-from dataclasses import dataclass
-from typing import Any, cast
+import inspect
+from functools import wraps
+from pathlib import Path
+from typing import Any, Callable, Sequence, TypeVar, cast, overload
 
-from shortuuid import uuid
-
+from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
-    RegistryDict,
-    registry_create_from_dict,
-    registry_log_name,
-    registry_params,
+    RegistryInfo,
+    is_registry_object,
+    registry_add,
+    registry_info,
+    registry_name,
+    registry_tag,
+    registry_unqualified_name,
 )
-from inspect_ai.model._model import Model, ModelName
-from inspect_ai.model._model_config import (
-    ModelConfig,
-    model_args_for_log,
-    model_roles_to_model_roles_config,
-)
-from inspect_ai.scanner._recorder.types import scan_recorder_type_for_location
-from inspect_ai.scanner._scandef import ScanDef
-from inspect_ai.scanner._scanner.scanner import Scanner
-from inspect_ai.scanner._scanspec import (
-    ScanConfig,
-    ScanScanner,
-    ScanSpec,
-)
-from inspect_ai.scanner._transcript.database import transcripts_from_snapshot
-from inspect_ai.scanner._transcript.transcripts import Transcripts
+from inspect_ai.scanner._scanner.types import ScannerInput
+
+from ._scanner.scanner import Scanner
+from ._transcript.transcripts import Transcripts
 
 
-@dataclass
 class ScanJob:
-    spec: ScanSpec
-    """Scan specification."""
+    def __init__(
+        self,
+        *,
+        transcripts: Transcripts | None = None,
+        scanners: Sequence[Scanner[ScannerInput] | tuple[str, Scanner[ScannerInput]]]
+        | dict[str, Scanner[ScannerInput]],
+        name: str | None = None,
+    ):
+        # save transcripts and name
+        self._trancripts = transcripts
+        self._name = name
 
-    transcripts: Transcripts
-    """Corpus of transcripts to scan."""
+        # resolve scanners and confirm unique names
+        self._scanners: dict[str, Scanner[ScannerInput]] = {}
+        if isinstance(scanners, dict):
+            self._scanners = scanners
+        else:
+            for scanner in scanners:
+                if isinstance(scanner, tuple):
+                    name, scanner = scanner
+                else:
+                    name = registry_unqualified_name(scanner)
+                if name in self._scanners:
+                    raise ValueError(
+                        f"Scanners must have unique names (found duplicate name '{name}'). Use a tuple of str,Scanner to explicitly name a scanner."
+                    )
+                self._scanners[name] = scanner
 
-    scanners: dict[str, Scanner[Any]]
-    """Scanners to apply to transcripts."""
+    @property
+    def name(self) -> str:
+        if self._name is not None:
+            return self._name
+        elif is_registry_object(self):
+            return registry_info(self).name
+        else:
+            return "scan"
+
+    @property
+    def transcripts(self) -> Transcripts | None:
+        return self._trancripts
+
+    @property
+    def scanners(self) -> dict[str, Scanner[ScannerInput]]:
+        return self._scanners
 
 
-async def create_scan_job(
-    scandef: ScanDef,
-    transcripts: Transcripts | None,
-    model: Model,
-    model_args: dict[str, Any],
-    model_roles: dict[str, Model] | None,
-    tags: list[str] | None,
-    metadata: dict[str, Any] | None,
-    config: ScanConfig | None,
-    scan_id: str | None,
-) -> ScanJob:
-    # resolve id
-    scan_id = scan_id or uuid()
+ScanJobType = TypeVar("ScanJobType", bound=Callable[..., ScanJob])
 
-    # resolve transcripts
-    transcripts = transcripts or scandef.transcripts
-    if transcripts is None:
-        raise ValueError("No 'transcripts' specified for scan.")
+SCANJOB_FILE_ATTR = "__scanjob_file__"
 
-    # create scan spec
-    async with transcripts:
-        spec = ScanSpec(
-            scan_id=scan_id,
-            scan_name=scandef.name,
-            config=config or ScanConfig(),
-            transcripts=await transcripts.snapshot(),
-            scanners=_spec_scanners(scandef.scanners),
-            tags=tags,
-            metadata=metadata,
-            model=ModelConfig(
-                model=str(ModelName(model)),
-                config=model.config,
-                base_url=model.api.base_url,
-                args=model_args_for_log(model_args),
-            ),
-            model_roles=model_roles_to_model_roles_config(model_roles),
+
+@overload
+def scanjob(func: ScanJobType) -> ScanJobType: ...
+
+
+@overload
+def scanjob(
+    *,
+    name: str | None = ...,
+) -> Callable[[ScanJobType], ScanJobType]: ...
+
+
+def scanjob(
+    func: ScanJobType | None = None, *, name: str | None = None
+) -> ScanJobType | Callable[[ScanJobType], ScanJobType]:
+    r"""Decorator for registering scan jobs.
+
+    Args:
+      func: Function returning `ScanJob` targeted by
+        plain task decorator without attributes (e.g. `@scanjob`)
+      name:
+        Optional name for scanjob. If the decorator has no name
+        argument then the name of the function
+        will be used to automatically assign a name.
+
+    Returns:
+        ScanJob with registry attributes.
+    """
+
+    def create_scanjob_wrapper(scanjob_type: ScanJobType) -> ScanJobType:
+        # Get the name and parameters of the task
+        scanjob_name = registry_name(
+            scanjob_type, name or getattr(scanjob_type, "__name__")
         )
+        params = list(inspect.signature(scanjob_type).parameters.keys())
 
-    return ScanJob(spec=spec, transcripts=transcripts, scanners=scandef.scanners)
+        # Create and return the wrapper function
+        @wraps(scanjob_type)
+        def wrapper(*w_args: Any, **w_kwargs: Any) -> ScanJob:
+            # Create the scanjob
+            scanjob_instance = scanjob_type(*w_args, **w_kwargs)
 
+            # Tag the task with registry information
+            registry_tag(
+                scanjob_type,
+                scanjob_instance,
+                RegistryInfo(
+                    type="scanjob",
+                    name=scanjob_name,
+                    metadata=dict(params=params),
+                ),
+                *w_args,
+                **w_kwargs,
+            )
 
-async def resume_scan_job(scan_location: str) -> ScanJob:
-    recorder_type = scan_recorder_type_for_location(scan_location)
-    spec = await recorder_type.spec(scan_location)
-    return ScanJob(
-        spec=spec,
-        transcripts=await transcripts_from_snapshot(spec.transcripts),
-        scanners=_scanners_from_spec(spec),
-    )
+            # if its not from an installed package then it is a "local"
+            # module import, so set its task file and run dir
+            if get_installed_package_name(scanjob_type) is None:
+                module = inspect.getmodule(scanjob_type)
+                if module and hasattr(module, "__file__") and module.__file__:
+                    file = Path(getattr(module, "__file__"))
+                    setattr(scanjob_instance, SCANJOB_FILE_ATTR, file.as_posix())
 
+            # Return the task instance
+            return scanjob_instance
 
-def _spec_scanners(scanners: dict[str, Scanner[Any]]) -> dict[str, ScanScanner]:
-    return {
-        k: ScanScanner(name=registry_log_name(v), params=registry_params(v))
-        for k, v in scanners.items()
-    }
+        # functools.wraps overrides the return type annotation of the inner function, so
+        # we explicitly set it again
+        wrapper.__annotations__["return"] = ScanJob
 
-
-def _scanners_from_spec(spec: ScanSpec) -> dict[str, Scanner[Any]]:
-    return {
-        k: cast(
-            Scanner[Any],
-            registry_create_from_dict(
-                RegistryDict(type="scanner", name=v.name, params=v.params)
+        # Register the task and return the wrapper
+        wrapped_scanjob_type = cast(ScanJobType, wrapper)
+        registry_add(
+            wrapped_scanjob_type,
+            RegistryInfo(
+                type="scanjob",
+                name=scanjob_name,
+                metadata=(dict(params=params)),
             ),
         )
-        for k, v in spec.scanners.items()
-    }
+        return wrapped_scanjob_type
+
+    if func:
+        return create_scanjob_wrapper(func)
+    else:
+        # The decorator was used with arguments: @scanjob(name="foo")
+        def decorator(func: ScanJobType) -> ScanJobType:
+            return create_scanjob_wrapper(func)
+
+        return decorator

@@ -375,7 +375,6 @@ def metrics_from_log_header(
                 key: [metric_from_log(metric) for metric in metrics]
                 for key, metrics in log.eval.metrics.items()
             }
-
     return None
 
 
@@ -388,7 +387,7 @@ def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
 
 
 def resolve_scorers(
-    log: EvalLog, scorer: str | None = None, scorer_args: dict[str, Any] | None = None
+    log: EvalLog, scorer: str | None, scorer_args: dict[str, Any] | None
 ) -> list[Scorer]:
     """
     Create a list of Scorer objects from an evaluation log.

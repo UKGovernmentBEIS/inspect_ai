@@ -44,7 +44,8 @@ class RawTranscript:
     """Temporary structure for transcript data before validation."""
 
     id: str
-    source: str
+    source_id: str
+    source_uri: str
     metadata: dict[str, Any]
     messages: list[dict[str, Any]]
     events: list[dict[str, Any]]
@@ -169,7 +170,8 @@ def _parse_and_filter(
     return (
         RawTranscript(
             id=t.id,
-            source=t.source,
+            source_id=t.source_id,
+            source_uri=t.source_uri,
             metadata=t.metadata,
             messages=state.messages,
             events=state.events,
@@ -222,7 +224,8 @@ def _resolve_attachments(
     return Transcript.model_validate(
         {
             "id": transcript.id,
-            "source": transcript.source,
+            "source_id": transcript.source_id,
+            "source_uri": transcript.source_uri,
             "metadata": transcript.metadata,
             "messages": resolved_messages,
             "events": resolved_events,

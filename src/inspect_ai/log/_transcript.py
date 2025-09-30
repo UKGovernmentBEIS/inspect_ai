@@ -34,7 +34,7 @@ from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer._metric import Score, ScoreEdit
+from inspect_ai.scorer._metric import Score
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -427,19 +427,6 @@ class ScoreEvent(BaseEvent):
     """Was this an intermediate scoring?"""
 
 
-class ScoreEditEvent(BaseEvent):
-    """Event recorded when a score is edited."""
-
-    event: Literal["score_edit"] = Field(default="score_edit")
-    """Event type."""
-
-    score_name: str
-    """Name of the score being edited."""
-
-    edit: ScoreEdit
-    """The edit being applied to the score."""
-
-
 class SpanBeginEvent(BaseEvent):
     """Mark the beginning of a transcript span."""
 
@@ -536,7 +523,6 @@ Event = Union[
     ApprovalEvent,
     InputEvent,
     ScoreEvent,
-    ScoreEditEvent,
     ErrorEvent,
     LoggerEvent,
     InfoEvent,
