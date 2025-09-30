@@ -1,18 +1,18 @@
 import clsx from "clsx";
 import { FC } from "react";
-import styles from "./ProgressBar.module.css";
+import styles from "./ActivityBar.module.css";
 
-interface ProgressBarProps {
+interface ActivityBarProps {
   animating: boolean;
 }
 
-export const ProgressBar: FC<ProgressBarProps> = ({ animating }) => {
+export const ActivityBar: FC<ActivityBarProps> = ({ animating }) => {
   return (
     <div className={clsx(styles.wrapper)}>
       <div
         className={clsx(styles.container)}
         role="progressbar"
-        aria-label="Basic example"
+        aria-label="Progress bar"
         aria-valuenow={25}
         aria-valuemin={0}
         aria-valuemax={100}

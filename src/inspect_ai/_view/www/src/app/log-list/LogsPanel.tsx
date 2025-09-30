@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
-import { ProgressBar } from "../../components/ProgressBar";
+import { ActivityBar } from "../../components/ActivityBar";
 import { useClientEvents } from "../../state/clientEvents";
 import { useDocumentTitle, useLogs, usePagination } from "../../state/hooks";
 import { useUnloadLog } from "../../state/log";
@@ -202,6 +202,20 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       return logItems;
     }, [logPath, logs.files, logHeaders, evalSet]);
 
+  const evalSetProgress = useMemo(() => {
+    let pending = 0;
+    let total = 0;
+    for (const item of logItems) {
+      if (item.type === "file" || item.type === "pending-task") {
+        total += 1;
+        if (item.type === "pending-task") {
+          pending += 1;
+        }
+      }
+    }
+    return pending / total;
+  }, [logItems]);
+
   useEffect(() => {
     const exec = async () => {
       await loadLogs(logPath);
@@ -242,7 +256,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         <LogsFilterInput ref={filterRef} />
       </Navbar>
 
-      <ProgressBar animating={loading || headersLoading} />
+      <ActivityBar animating={loading || headersLoading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
         <LogListGrid items={logItems} />
       </div>
