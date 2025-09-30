@@ -25,7 +25,7 @@
     "dev-watch": "NODE_ENV=development vite build --mode development --watch",
     "dev-watch-log": "cross-env DEV_LOGGING=true NODE_ENV=development vite build --mode development --watch",
     "dev": "vite",
-    "prepublishOnly": "npm version from-git && yarn build:lib",
+    "prepublishOnly": "npm version from-git --no-git-tag-version --allow-same-version && yarn build:lib",
     "prettier:check": "prettier --check src",
     "prettier:write": "prettier --write src",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config=jest.config.mjs",
