@@ -19,10 +19,19 @@ interface ExpandablePanelProps {
   lines?: number;
   children?: ReactNode;
   className?: string | string[];
+  togglePosition?: "inline-right" | "block-left";
 }
 
 export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
-  ({ id, collapse, border, lines = 15, children, className }) => {
+  ({
+    id,
+    collapse,
+    border,
+    lines = 15,
+    children,
+    className,
+    togglePosition: layout = "inline-right",
+  }) => {
     const [collapsed, setCollapsed] = useCollapsedState(id, collapse);
 
     const [showToggle, setShowToggle] = useState(false);
@@ -68,17 +77,31 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
           )}
         >
           {children}
-          {showToggle && (
+          {showToggle && layout == "inline-right" && (
             <>
               <MoreToggle
                 collapsed={collapsed}
                 setCollapsed={setCollapsed}
                 border={!border}
+                type="inline-right"
               />
             </>
           )}
         </div>
-        {showToggle && <div className={clsx(styles.separator)}></div>}
+        {showToggle && layout === "block-left" && (
+          <>
+            <MoreToggle
+              collapsed={collapsed}
+              setCollapsed={setCollapsed}
+              border={!border}
+              type="block-left"
+            />
+          </>
+        )}
+
+        {showToggle && layout == "inline-right" && (
+          <div className={clsx(styles.separator)}></div>
+        )}
       </div>
     );
   },
@@ -89,6 +112,7 @@ interface MoreToggleProps {
   border: boolean;
   setCollapsed: (collapsed: boolean) => void;
   style?: CSSProperties;
+  type: "inline-right" | "block-left";
 }
 
 const MoreToggle: FC<MoreToggleProps> = ({
@@ -96,6 +120,7 @@ const MoreToggle: FC<MoreToggleProps> = ({
   border,
   setCollapsed,
   style,
+  type,
 }) => {
   const text = collapsed ? "more" : "less";
   const handleClick = useCallback(() => {
@@ -104,7 +129,11 @@ const MoreToggle: FC<MoreToggleProps> = ({
 
   return (
     <div
-      className={clsx(styles.moreToggle, border ? styles.bordered : undefined)}
+      className={clsx(
+        styles.moreToggle,
+        border ? styles.bordered : undefined,
+        type === "inline-right" ? styles.inlineRight : styles.blockLeft,
+      )}
       style={style}
     >
       <button
