@@ -38,9 +38,7 @@ def create_log_dataframe(num_samples: int = 10) -> pd.DataFrame:
                 "solver_args": json.dumps({"steps": i % 5 + 1}),  # Serialize dict
                 # Model configuration
                 "model": ["gpt-4", "claude-3", "gemini-pro"][i % 3],
-                "generate_config": json.dumps(
-                    {"temperature": 0.7}
-                ),  # Serialize dict
+                "generate_config": json.dumps({"temperature": 0.7}),  # Serialize dict
                 "model_roles": json.dumps(
                     {"assistant": {"model": "gpt-3.5"}}
                 ),  # Serialize dict
