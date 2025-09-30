@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.135 (29 September 2025)
 
 - OpenAI: Capture reasoning summaries even when there is encrypted reasoning content.
 - Anthropic: Update text editor tool detection to support latest text editor tool for Claude Sonnet 4.5.
