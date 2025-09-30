@@ -98,5 +98,4 @@ async def test_sanitize_table_names(
     await recorder_buffer.record(sample_transcript, scanner_name, sample_results)
 
     # Should still be able to retrieve
-    with tempfile.NamedTemporaryFile() as temp:
-        await recorder_buffer.write_table_for_scanner(scanner_name, temp.name)
+    recorder_buffer.scanner_table(scanner_name)

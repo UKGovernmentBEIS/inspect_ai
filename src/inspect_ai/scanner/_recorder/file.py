@@ -3,13 +3,13 @@ from typing import Sequence, override
 
 from upath import UPath
 
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.scanner._recorder.buffer import RecorderBuffer
 from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
-from inspect_ai.scanner._util.file import read_file_async
 
 from .recorder import ScanRecorder, ScanResults, ScanStatus
 
@@ -72,10 +72,13 @@ class FileRecorder(ScanRecorder):
     @override
     async def complete(self) -> ScanStatus:
         # write scanners
-        for scanner in sorted(self.scan_spec.scanners.keys()):
-            await self._scan_buffer.write_table_for_scanner(
-                scanner, self._scanner_parquet_file(scanner)
-            )
+        async with AsyncFilesystem() as fs:
+            for scanner in sorted(self.scan_spec.scanners.keys()):
+                parquet_bytes = self._scan_buffer.scanner_table(scanner)
+                if parquet_bytes is not None:
+                    await fs.write_file(
+                        self._scanner_parquet_file(scanner), parquet_bytes
+                    )
 
         # cleanup scan buffer
         self._scan_buffer.cleanup()
@@ -120,31 +123,33 @@ class FileRecorder(ScanRecorder):
         scan_dir = UPath(scan_location)
         status = await FileRecorder.status(scan_location)
 
-        async def scanner_df(parquet_file: UPath) -> pd.DataFrame:
-            bytes = await read_file_async(parquet_file.as_posix())
-            table = pq.read_table(io.BytesIO(bytes))
-            return table.to_pandas(types_mapper=pd.ArrowDtype)
+        async with AsyncFilesystem() as fs:
 
-        # read scanner parquet files
-        scanners: dict[str, pd.DataFrame] = {}
+            async def scanner_df(parquet_file: UPath) -> pd.DataFrame:
+                bytes = await fs.read_file(parquet_file.as_posix())
+                table = pq.read_table(io.BytesIO(bytes))
+                return table.to_pandas(types_mapper=pd.ArrowDtype)
 
-        # single scanner
-        if scanner is not None:
-            parquet_file = scan_dir / f"{scanner}.parquet"
-            scanners[scanner] = await scanner_df(parquet_file)
+            # read scanner parquet files
+            scanners: dict[str, pd.DataFrame] = {}
 
-        # all scanners
-        else:
-            for parquet_file in sorted(scan_dir.glob("*.parquet")):
-                name = parquet_file.stem
-                scanners[name] = await scanner_df(parquet_file)
+            # single scanner
+            if scanner is not None:
+                parquet_file = scan_dir / f"{scanner}.parquet"
+                scanners[scanner] = await scanner_df(parquet_file)
 
-        return ScanResults(
-            status=status.complete,
-            spec=status.spec,
-            location=status.location,
-            scanners=scanners,
-        )
+            # all scanners
+            else:
+                for parquet_file in sorted(scan_dir.glob("*.parquet")):
+                    name = parquet_file.stem
+                    scanners[name] = await scanner_df(parquet_file)
+
+            return ScanResults(
+                status=status.complete,
+                spec=status.spec,
+                location=status.location,
+                scanners=scanners,
+            )
 
     def _scanner_parquet_file(self, scanner: str) -> str:
         return (self.scan_dir / f"{scanner}.parquet").as_posix()

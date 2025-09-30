@@ -14,7 +14,6 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai.scanner._scanner.result import Result
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
-from inspect_ai.scanner._util.file import write_file_async
 
 if TYPE_CHECKING:
     import pyarrow as pa
@@ -99,7 +98,7 @@ class RecorderBuffer:
         sdir = self._buffer_dir / f"scanner={_sanitize_component(scanner)}"
         return (sdir / f"{transcript.id}.parquet").exists()
 
-    async def write_table_for_scanner(self, scanner: str, table_file: str) -> None:
+    def scanner_table(self, scanner: str) -> bytes | None:
         import pyarrow as pa
         import pyarrow.dataset as ds
         import pyarrow.parquet as pq
@@ -127,7 +126,7 @@ class RecorderBuffer:
         if not sdir.exists():
             # we avoid creating a schema-less empty Parquet when there is no dataset at all.
             # If you *must* emit a file even when the directory is missing, you need a known schema.
-            return
+            return None
 
         # build dataset
         dataset: ds.Dataset = ds.dataset(str(sdir), format="parquet")
@@ -180,7 +179,7 @@ class RecorderBuffer:
 
         # rewind bytes and write
         buffer.seek(0)
-        await write_file_async(table_file, buffer.getvalue())
+        return buffer.getvalue()
 
     def cleanup(self) -> None:
         """Remove the buffer directory for this scan (best-effort)."""
