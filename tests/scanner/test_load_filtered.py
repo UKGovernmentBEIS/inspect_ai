@@ -2,9 +2,16 @@
 
 import io
 import json
+import os
+import shutil
+import time
+import urllib.request
+from typing import Counter
+from zipfile import ZipFile
 
 import pytest
 
+from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai.scanner._transcript.json.load_filtered import (
     RawTranscript,
     _parse_and_filter,
@@ -398,3 +405,58 @@ def test_resolve_attachments():
     assert isinstance(result, Transcript)
     assert result.messages[0].content == "Resolved A"
     assert result.events[0].arguments["input"] == "Resolved B"
+
+
+# @pytest.mark.slow
+@pytest.mark.asyncio
+async def test_vend_fat_eval_assistant_tool_filter():
+    # TODO: For now, we'll just copy the s3 file locally. Eventually, the test
+    # will stream directly from s3
+    s3_path = "https://slow-tests.s3.us-east-2.amazonaws.com/vend.eval"
+    cache_root = inspect_cache_dir("tests")
+    cache_root.mkdir(parents=True, exist_ok=True)
+    file_path = str(cache_root / os.path.basename(s3_path))
+    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+        tmp_download = file_path + ".partial"
+        with urllib.request.urlopen(s3_path, timeout=30) as response:
+            with open(tmp_download, "wb") as f:
+                shutil.copyfileobj(response, f)
+        os.replace(tmp_download, file_path)
+
+    # Extract the first JSON file from samples/ directory in the ZIP
+    with ZipFile(file_path, mode="r") as zipfile:
+        # Find the first JSON file in samples/
+        sample_file = next(
+            (
+                f
+                for f in zipfile.namelist()
+                if f.startswith("samples/") and f.endswith(".json")
+            ),
+            None,
+        )
+        with zipfile.open(sample_file, "r") as sample_json:
+            info = TranscriptInfo(
+                id="vend_fat_eval",
+                source=file_path,
+                metadata={"test": "vend_fat_eval", "sample_file": sample_file},
+            )
+
+            start = time.time()
+            result = await load_filtered_transcript(
+                sample_json,
+                info,
+                ["assistant", "tool"],  # Filter for assistant and tool messages
+                None,
+            )
+            duration = time.time() - start
+            print(f"Parse took {duration:.3f}s")
+
+    assert isinstance(result, Transcript)
+    assert result.id == "vend_fat_eval"
+    assert result.source == file_path
+    # Check that we got what we asked for and only what we asked for
+    role_counts = Counter(msg.role for msg in result.messages)
+    assert len(role_counts) == 2
+    assert role_counts["assistant"] == 887
+    assert role_counts["tool"] == 923
+    assert not result.events
