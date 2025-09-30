@@ -185,6 +185,31 @@ async def scan_resume_async(
 
 
 async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatus:
+    """Execute a scan by orchestrating concurrent scanner execution across transcripts.
+
+    This function is the orchestration layer that coordinates scanner execution
+    with a focus on maximizing LLM call throughput. Since scanners often make LLM
+    calls, which are orders of magnitude slower than local computation, the primary
+    optimization goal is to keep `max_transcripts` concurrent LLM calls in flight
+    at all times.
+
+    Optimization Strategy:
+        - Concurrency control: `max_transcripts` sets both the worker pool size
+          and the model's `max_connections`, ensuring N concurrent LLM calls can
+          execute simultaneously
+        - Lazy loading: Transcripts are loaded on-demand only when needed by a scanner,
+          minimizing memory usage and I/O
+        - Backpressure: A bounded queue (size = max_transcripts × LOOKAHEAD_BUFFER_MULTIPLE)
+          ensures work items are ready when workers finish, preventing worker starvation
+          while controlling memory growth
+
+    Args:
+        scan: The scan context containing scanners, transcripts, and configuration
+        recorder: The scan recorder for tracking completed work and persisting results
+
+    Returns:
+        ScanStatus indicating completion status, spec, and location for resumption
+    """
     try:
         LOOKAHEAD_BUFFER_MULTIPLE: float = 1.0
 
