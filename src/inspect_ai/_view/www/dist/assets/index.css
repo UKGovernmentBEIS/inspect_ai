@@ -15584,6 +15584,30 @@ so disabling selection can break that functionality */
     transform: translateX(2000%);
   }
 }
+._container_1n7pm_1 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+}
+
+._label_1n7pm_7 {
+  margin-left: 0.3em;
+}
+
+._outer_1n7pm_11 {
+  display: flex;
+  height: 1em;
+  border-radius: var(--bs-border-radius);
+  border: solid var(--bs-border-color) 1px;
+  overflow: hidden;
+  background-color: var(--bs-body-bg);
+}
+
+._inner_1n7pm_20 {
+  background-color: var(--bs-primary);
+  position: sticky;
+  opacity: 0.7;
+}
 ._circle_qymy9_1 {
   font-family: "Consola Regular";
   width: 40px;

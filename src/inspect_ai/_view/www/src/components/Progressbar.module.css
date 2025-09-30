@@ -1,0 +1,24 @@
+.container {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+}
+
+.label {
+  margin-left: 0.3em;
+}
+
+.outer {
+  display: flex;
+  height: 1em;
+  border-radius: var(--bs-border-radius);
+  border: solid var(--bs-border-color) 1px;
+  overflow: hidden;
+  background-color: var(--bs-body-bg);
+}
+
+.inner {
+  background-color: var(--bs-primary);
+  position: sticky;
+  opacity: 0.7;
+}

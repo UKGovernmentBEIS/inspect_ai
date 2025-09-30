@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
+- Inspect View: Display eval set progress in the lower right corner of the log list.
 
 ## 0.3.135 (29 September 2025)
 
