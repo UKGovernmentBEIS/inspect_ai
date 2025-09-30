@@ -5,7 +5,7 @@ import tempfile
 import pytest
 
 from inspect_ai.scanner._recorder.buffer import RecorderBuffer
-from inspect_ai.scanner._scanner.result import Reference, Result
+from inspect_ai.scanner._scanner.result import Reference, Result, ResultReport
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 
 
@@ -33,26 +33,38 @@ def sample_transcript():
 def sample_results():
     """Create sample Results for testing."""
     return [
-        Result(
-            value="correct",
-            answer="42",
-            explanation="The answer to everything",
-            metadata={"confidence": 0.95},
-            references=[Reference(type="message", id="msg-1")],
+        ResultReport(
+            input_type="transcript",
+            input_id="",
+            result=Result(
+                value="correct",
+                answer="42",
+                explanation="The answer to everything",
+                metadata={"confidence": 0.95},
+                references=[Reference(type="message", id="msg-1")],
+            ),
         ),
-        Result(
-            value=True,
-            answer="yes",
-            explanation="Affirmative response",
-            metadata={"confidence": 0.88},
-            references=[Reference(type="event", id="evt-1")],
+        ResultReport(
+            input_type="transcript",
+            input_id="",
+            result=Result(
+                value=True,
+                answer="yes",
+                explanation="Affirmative response",
+                metadata={"confidence": 0.88},
+                references=[Reference(type="event", id="evt-1")],
+            ),
         ),
-        Result(
-            value=3.14159,
-            answer=None,
-            explanation="Pi value",
-            metadata=None,
-            references=[],
+        ResultReport(
+            input_type="transcript",
+            input_id="",
+            result=Result(
+                value=3.14159,
+                answer=None,
+                explanation="Pi value",
+                metadata=None,
+                references=[],
+            ),
         ),
     ]
 
@@ -61,7 +73,7 @@ def sample_results():
 async def test_is_recorded(
     recorder_buffer: RecorderBuffer,
     sample_transcript: TranscriptInfo,
-    sample_results: list[Result],
+    sample_results: list[ResultReport],
 ):
     """Test is_recorded method."""
     scanner_name = "test_scanner"
@@ -89,7 +101,7 @@ async def test_is_recorded(
 async def test_sanitize_table_names(
     recorder_buffer: RecorderBuffer,
     sample_transcript: TranscriptInfo,
-    sample_results: list[Result],
+    sample_results: list[ResultReport],
 ):
     """Test that table names with special characters are sanitized."""
     scanner_name = "test-scanner.with:special/chars"

@@ -30,7 +30,7 @@ from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanStatus
 from ._scancontext import ScanContext, create_scan, resume_scan
 from ._scanjob import ScanJob
-from ._scanner.result import Result
+from ._scanner.result import Result, ResultReport
 from ._scanner.scanner import Scanner, config_for_scanner
 from ._scanspec import ScanConfig, ScanSpec
 from ._transcript.transcripts import Transcripts
@@ -240,7 +240,9 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                 total_ticks = (await transcripts.count()) * len(scan.scanners)
                 task_id = progress.add_task("Scan", total=total_ticks)
 
-                async def _execute_work_item(item: WorkItem) -> dict[str, list[Result]]:
+                async def _execute_work_item(
+                    item: WorkItem,
+                ) -> dict[str, list[ResultReport]]:
                     # Load transcript once for all scanners in this work item
                     transcript = await transcripts.read(
                         item.transcript_info, item.union_content
@@ -251,7 +253,13 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                         registry_info(scanner).name: (
                             # TODO: For now, scanners return a single Result, but
                             # it probably will allow multiple in the future
-                            [result]
+                            [
+                                ResultReport(
+                                    input_type="transcript",
+                                    input_id=transcript.id,
+                                    result=result,
+                                )
+                            ]
                             if (
                                 result := await scanner(
                                     filter_transcript(

@@ -11,7 +11,7 @@ from upath import UPath
 
 from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanner.result import ResultReport
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 
@@ -45,7 +45,7 @@ class RecorderBuffer:
         self._spec = spec
 
     async def record(
-        self, transcript: TranscriptInfo, scanner: str, results: Sequence[Result]
+        self, transcript: TranscriptInfo, scanner: str, results: Sequence[ResultReport]
     ) -> None:
         import pyarrow.parquet as pq
 

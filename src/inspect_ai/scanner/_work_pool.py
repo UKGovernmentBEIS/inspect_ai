@@ -10,10 +10,11 @@ from anyio.abc import TaskGroup
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 from inspect_ai._util.registry import registry_info
+from inspect_ai.util._anyio import inner_exception
 
 from ._recorder.recorder import ScanRecorder
 from ._scancontext import ScanContext
-from ._scanner.result import Result
+from ._scanner.result import ResultReport
 from ._scanner.scanner import Scanner, config_for_scanner
 from ._scanner.types import ScannerInput
 from ._transcript.transcripts import Transcripts
@@ -49,7 +50,7 @@ async def scan_with_work_pool(
     recorder: ScanRecorder,
     max_tasks: int,
     max_queue_size: int,
-    item_processor: Callable[[WorkItem], Awaitable[dict[str, list[Result]]]],
+    item_processor: Callable[[WorkItem], Awaitable[dict[str, list[ResultReport]]]],
     progress: Callable[[], None],
     transcripts: Transcripts,
     diagnostics: bool = False,
@@ -279,5 +280,4 @@ async def scan_with_work_pool(
         async with create_task_group() as tg:
             await _producer(tg, transcripts)
     except Exception as ex:
-        print(f"caught {ex}")
-        raise
+        raise inner_exception(ex)

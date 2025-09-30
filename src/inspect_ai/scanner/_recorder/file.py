@@ -7,7 +7,7 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.scanner._recorder.buffer import RecorderBuffer
-from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanner.result import ResultReport
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 
@@ -61,7 +61,7 @@ class FileRecorder(ScanRecorder):
 
     @override
     async def record(
-        self, transcript: TranscriptInfo, scanner: str, results: Sequence[Result]
+        self, transcript: TranscriptInfo, scanner: str, results: Sequence[ResultReport]
     ) -> None:
         await self._scan_buffer.record(transcript, scanner, results)
 

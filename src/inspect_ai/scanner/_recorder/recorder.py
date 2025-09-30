@@ -4,7 +4,7 @@ import abc
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Sequence
 
-from inspect_ai.scanner._scanner.result import Result
+from inspect_ai.scanner._scanner.result import ResultReport
 from inspect_ai.scanner._scanspec import ScanSpec
 from inspect_ai.scanner._transcript.types import TranscriptInfo
 
@@ -49,7 +49,7 @@ class ScanRecorder(abc.ABC):
 
     @abc.abstractmethod
     async def record(
-        self, transcript: TranscriptInfo, scanner: str, results: Sequence[Result]
+        self, transcript: TranscriptInfo, scanner: str, results: Sequence[ResultReport]
     ) -> None: ...
 
     @abc.abstractmethod
