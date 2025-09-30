@@ -49,7 +49,10 @@ async def test_basic_loading():
 
     stream = create_json_stream(data)
     info = TranscriptInfo(
-        id="test-001", source_id="source-001", source_uri="/test.json", metadata={"test": True}
+        id="test-001",
+        source_id="source-001",
+        source_uri="/test.json",
+        metadata={"test": True},
     )
 
     result = await load_filtered_transcript(stream, info, "all", "all")
@@ -412,7 +415,7 @@ def test_resolve_attachments():
     assert result.events[0].arguments["input"] == "Resolved B"
 
 
-# @pytest.mark.slow
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_vend_fat_eval_assistant_tool_filter():
     # TODO: For now, we'll just copy the s3 file locally. Eventually, the test
@@ -428,6 +431,13 @@ async def test_vend_fat_eval_assistant_tool_filter():
                 shutil.copyfileobj(response, f)
         os.replace(tmp_download, file_path)
 
+    info = TranscriptInfo(
+        id="what id?",
+        source_id="vend_fat_eval",
+        source_uri=file_path,
+        metadata={"test": True},
+    )
+
     # Extract the first JSON file from samples/ directory in the ZIP
     with ZipFile(file_path, mode="r") as zipfile:
         # Find the first JSON file in samples/
@@ -440,12 +450,6 @@ async def test_vend_fat_eval_assistant_tool_filter():
             None,
         )
         with zipfile.open(sample_file, "r") as sample_json:
-            info = TranscriptInfo(
-                id="vend_fat_eval",
-                source=file_path,
-                metadata={"test": "vend_fat_eval", "sample_file": sample_file},
-            )
-
             start = time.time()
             result = await load_filtered_transcript(
                 sample_json,
@@ -457,8 +461,8 @@ async def test_vend_fat_eval_assistant_tool_filter():
             print(f"Parse took {duration:.3f}s")
 
     assert isinstance(result, Transcript)
-    assert result.id == "vend_fat_eval"
-    assert result.source == file_path
+    assert result.id == "what id?"
+    assert result.source_uri == file_path
     # Check that we got what we asked for and only what we asked for
     role_counts = Counter(msg.role for msg in result.messages)
     assert len(role_counts) == 2
