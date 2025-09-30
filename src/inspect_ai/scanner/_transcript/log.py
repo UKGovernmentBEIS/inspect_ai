@@ -136,6 +136,11 @@ class LogMetadata(Metadata):
         return Column("working_time")
 
     @property
+    def error(self) -> Column:
+        """Error that halted the sample."""
+        return Column("error")
+
+    @property
     def limit(self) -> Column:
         """Limit that halted the sample."""
         return Column("limit")

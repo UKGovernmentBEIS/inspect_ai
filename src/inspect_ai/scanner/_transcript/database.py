@@ -408,6 +408,7 @@ TranscriptColumns: list[Column] = (
         SampleColumn("total_tokens", path=sample_total_tokens),
         SampleColumn("total_time", path="total_time"),
         SampleColumn("working_time", path="total_time"),
-        SampleColumn("limit", path="limit"),
+        SampleColumn("error", path="error", default=""),
+        SampleColumn("limit", path="limit", default=""),
     ]
 )
