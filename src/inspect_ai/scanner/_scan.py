@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Mapping, Sequence
+from typing import Any, AsyncIterator, Callable, Mapping, Sequence
 
 import anyio
 from dotenv import find_dotenv, load_dotenv
@@ -23,6 +23,8 @@ from inspect_ai.model._model_config import (
     model_config_to_model,
     model_roles_config_to_model_roles,
 )
+from inspect_ai.scanner._concurrency.common import WorkItem
+from inspect_ai.scanner._concurrency.single_process import single_process_strategy
 from inspect_ai.scanner._scanner.types import ScannerInput
 from inspect_ai.scanner._util.contstants import DEFAULT_MAX_TRANSCRIPTS
 
@@ -30,12 +32,11 @@ from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanStatus
 from ._scancontext import ScanContext, create_scan, resume_scan
 from ._scanjob import ScanJob
-from ._scanner.result import Result, ResultReport
+from ._scanner.result import ResultReport
 from ._scanner.scanner import Scanner, config_for_scanner
 from ._scanspec import ScanConfig, ScanSpec
 from ._transcript.transcripts import Transcripts
-from ._transcript.util import filter_transcript
-from ._work_pool import WorkItem, scan_with_work_pool
+from ._transcript.util import filter_transcript, union_transcript_contents
 
 
 def scan(
@@ -240,6 +241,9 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                 total_ticks = (await transcripts.count()) * len(scan.scanners)
                 task_id = progress.add_task("Scan", total=total_ticks)
 
+                def bump_progress() -> None:
+                    progress.update(task_id, advance=1)
+
                 async def _execute_work_item(
                     item: WorkItem,
                 ) -> dict[str, list[ResultReport]]:
@@ -273,14 +277,17 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                         for scanner in item.scanners
                     }
 
-                await scan_with_work_pool(
-                    context=scan,
-                    recorder=recorder,
+                # TODO: Soon, we'll have a MultiProcessStrategy
+                strategy = single_process_strategy(
                     max_tasks=max_transcripts,
                     max_queue_size=int(max_transcripts * LOOKAHEAD_BUFFER_MULTIPLE),
+                )
+
+                await strategy(
+                    work_items=work_items(scan, recorder, transcripts, bump_progress),
+                    recorder=recorder,
                     item_processor=_execute_work_item,
-                    progress=lambda: progress.update(task_id, advance=1),
-                    transcripts=transcripts,
+                    bump_progress=bump_progress,
                 )
 
                 scan_info = await recorder.complete()
@@ -352,3 +359,36 @@ async def handle_scan_interruped(
         spec=spec,
         location=location,
     )
+
+
+async def work_items(
+    context: ScanContext,
+    recorder: ScanRecorder,
+    transcripts: Transcripts,
+    bump_progress: Callable[[], None],
+) -> AsyncIterator[WorkItem]:
+    """Yield `WorkItem` objects for transcripts needing scanning.
+
+    This encapsulates the logic for:
+    - Determining union content once
+    - Skipping already recorded (per-scanner) work while still reporting progress
+    - Grouping scanners per transcript
+    """
+    union_content = union_transcript_contents(
+        [config_for_scanner(scanner).content for scanner in context.scanners.values()]
+    )
+
+    for transcript_info in await transcripts.index():
+        scanners_for_transcript: list[Scanner[ScannerInput]] = []
+        for name, scanner in context.scanners.items():
+            if await recorder.is_recorded(transcript_info, name):
+                bump_progress()
+                continue
+            scanners_for_transcript.append(scanner)
+        if not scanners_for_transcript:
+            continue
+        yield WorkItem(
+            transcript_info=transcript_info,
+            union_content=union_content,
+            scanners=scanners_for_transcript,
+        )
