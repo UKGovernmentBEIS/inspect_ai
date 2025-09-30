@@ -63,67 +63,16 @@ def multi_metric_task():
     )
 
 
-def test_score_creation_with_none_explanation():
-    """Test Score creation with explicit None explanation."""
-    score = Score(value="C", explanation=None)
-    assert score.value == "C"
-    assert score.explanation is None
-    assert score.history[0].explanation is None
+def test_direct_score_mutation_no_history():
+    """Test that directly mutating score doesn't affect history."""
+    score = Score(value="C", explanation="Original")
 
+    score.value = "I"
+    score.explanation = "Updated"
 
-def test_score_properties():
-    """Test Score property access after edits."""
-    score = Score(value="C", answer="Yes", explanation="Original")
-
-    provenance = ProvenanceData(author="editor", reason="Correction")
-    edit = ScoreEdit(
-        value="I", explanation="Updated explanation", provenance=provenance
-    )
-    score.history.append(edit)
-    # Properties should return most recent values
+    assert len(score.history) == 0
     assert score.value == "I"
-    assert score.answer == "Yes"
-    assert score.explanation == "Updated explanation"
-    assert score.history[0].value == "C"
-    assert len(score.history) > 1
-
-
-def test_score_history_tracking():
-    """Test that score history accumulates correctly."""
-    score = Score(value=1.0)
-
-    edit1 = ScoreEdit(value=2.0)
-    edit2 = ScoreEdit(value=3.0, explanation="Final value")
-
-    score.history.append(edit1)
-    score.history.append(edit2)
-
-    assert len(score.history) == 3
-    assert score.value == 3.0
-    assert score.explanation == "Final value"
-    assert score.history[0].value == 1.0
-    assert len(score.history) > 1
-
-
-def test_score_model_dump_legacy():
-    """Test serializing legacy scores (no edits)."""
-    score = Score(value="C", answer="Yes")
-    serialized = score.model_dump()
-
-    assert serialized == {"value": "C", "answer": "Yes"}
-
-
-def test_score_model_dump_with_edits():
-    """Test serializing scores with edits."""
-    score = Score(value="C", answer="Yes")
-    edit = ScoreEdit(value="I")
-    score.history.append(edit)
-
-    serialized = score.model_dump()
-
-    assert "history" in serialized
-    assert serialized["value"] == "I"
-    assert serialized["answer"] == "Yes"
+    assert score.explanation == "Updated"
 
 
 @scorer(metrics={"one": [mean()], "two": [mean()], "three": [mean()]})

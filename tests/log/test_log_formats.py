@@ -193,16 +193,17 @@ def test_log_format_eval_zip_roundtrip(original_log, temp_dir):
 @pytest.mark.parametrize("format", ["json", "eval"])
 def test_score_editing_round_trip(original_log, temp_dir, format):
     """Test that logs with edited scores survive round-trip."""
-    # First, add some score edits to the log
+    from inspect_ai.log._score import edit_score
+
     if original_log.samples and len(original_log.samples) > 0:
         sample = original_log.samples[0]
         if sample.scores:
             score_name = list(sample.scores.keys())[0]
-            score = sample.scores[score_name]
-
             provenance = ProvenanceData(author="test_user", reason="Test edit")
             edit = ScoreEdit(value="edited_value", provenance=provenance)
-            score.history.append(edit)
+            edit_score(
+                original_log, sample.id, score_name, edit, recompute_metrics=False
+            )
 
     log_path = temp_dir / f"edited_log.{format}"
     write_eval_log(original_log, log_path, format=format)
@@ -217,35 +218,10 @@ def test_score_editing_round_trip(original_log, temp_dir, format):
             new_score_name = list(new_sample.scores.keys())[0]
             new_score = new_sample.scores[new_score_name]
 
-            assert len(new_score.history) > 1
             assert new_score.value == "edited_value"
-
-            edit_with_provenance = next(
-                (h for h in new_score.history if h.provenance is not None), None
-            )
-
-            assert edit_with_provenance is not None
-            assert edit_with_provenance.provenance.author == "test_user"
-
-
-@pytest.mark.parametrize("format", ["json", "eval"])
-def test_mixed_scores_round_trip(original_log, temp_dir, format):
-    """Test logs with both legacy and edited scores."""
-    # Add edits to some scores but not others
-    if original_log.samples and len(original_log.samples) > 1:
-        sample1 = original_log.samples[0]
-        if sample1.scores:
-            score = next(sample1.scores.values())
-            edit = ScoreEdit(value="edited")
-            score.history.append(edit)
-
-    log_path = temp_dir / f"mixed_log.{format}"
-    write_eval_log(original_log, log_path, format=format)
-
-    new_log = read_eval_log(log_path, format=format)
-    new_log.location = None
-
-    assert original_log.model_dump_json() == new_log.model_dump_json()
+            assert len(new_score.history) == 2  # original + edit
+            assert new_score.history[0].provenance is None  # original has no provenance
+            assert new_score.history[1].provenance.author == "test_user"
 
 
 def compare_zip_contents(zip_file1: Path, zip_file2: Path) -> bool:

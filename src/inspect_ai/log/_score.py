@@ -42,6 +42,27 @@ def edit_score(
         raise ValueError(f"Score '{score_name}' not found in sample {sample_id}")
 
     score = sample.scores[score_name]
+
+    # If history is empty, capture original state first
+    if len(score.history) == 0:
+        original = ScoreEdit(
+            value=score.value,
+            answer=score.answer,
+            explanation=score.explanation,
+            metadata=score.metadata or {},
+        )
+        score.history.append(original)
+
+    # Apply the edit to the Score fields
+    if edit.value != "UNCHANGED":
+        score.value = edit.value
+    if edit.answer != "UNCHANGED":
+        score.answer = edit.answer
+    if edit.explanation != "UNCHANGED":
+        score.explanation = edit.explanation
+    if edit.metadata != "UNCHANGED":
+        score.metadata = edit.metadata
+
     score.history.append(edit)
 
     score_edit_event = ScoreEditEvent(score_name=score_name, edit=edit)
