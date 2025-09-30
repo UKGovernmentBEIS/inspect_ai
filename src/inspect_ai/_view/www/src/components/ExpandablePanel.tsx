@@ -83,7 +83,7 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
                 collapsed={collapsed}
                 setCollapsed={setCollapsed}
                 border={!border}
-                type="inline-right"
+                position="inline-right"
               />
             </>
           )}
@@ -94,7 +94,7 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
               collapsed={collapsed}
               setCollapsed={setCollapsed}
               border={!border}
-              type="block-left"
+              position="block-left"
             />
           </>
         )}
@@ -112,7 +112,7 @@ interface MoreToggleProps {
   border: boolean;
   setCollapsed: (collapsed: boolean) => void;
   style?: CSSProperties;
-  type: "inline-right" | "block-left";
+  position: "inline-right" | "block-left";
 }
 
 const MoreToggle: FC<MoreToggleProps> = ({
@@ -120,7 +120,7 @@ const MoreToggle: FC<MoreToggleProps> = ({
   border,
   setCollapsed,
   style,
-  type,
+  position,
 }) => {
   const text = collapsed ? "more" : "less";
   const handleClick = useCallback(() => {
@@ -132,7 +132,7 @@ const MoreToggle: FC<MoreToggleProps> = ({
       className={clsx(
         styles.moreToggle,
         border ? styles.bordered : undefined,
-        type === "inline-right" ? styles.inlineRight : styles.blockLeft,
+        position === "inline-right" ? styles.inlineRight : styles.blockLeft,
       )}
       style={style}
     >
