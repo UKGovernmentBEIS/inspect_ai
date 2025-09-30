@@ -11,6 +11,7 @@ import {
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { RenderedContent } from "./RenderedContent";
 
+import ExpandablePanel from "../../components/ExpandablePanel";
 import { useCollapsibleIds } from "../../state/hooks";
 import { useVirtuosoState } from "../../state/scrolling";
 import { useStore } from "../../state/store";
@@ -199,14 +200,21 @@ export const RecordTree: FC<RecordTreeProps> = ({
         <div>
           {item.value !== null &&
           (!item.hasChildren || collapsedIds?.[item.id]) ? (
-            <RenderedContent
-              id={`${id}-value-${item.id}`}
-              entry={{
-                name: item.key,
-                value: item.value,
-              }}
-              renderOptions={{ renderString: "pre" }}
-            />
+            <ExpandablePanel
+              id={`${id}-collapse-${item.id}`}
+              collapse={true}
+              lines={15}
+              togglePosition="block-left"
+            >
+              <RenderedContent
+                id={`${id}-value-${item.id}`}
+                entry={{
+                  name: item.key,
+                  value: item.value,
+                }}
+                renderOptions={{ renderString: "pre" }}
+              />
+            </ExpandablePanel>
           ) : undefined}
         </div>
       </div>

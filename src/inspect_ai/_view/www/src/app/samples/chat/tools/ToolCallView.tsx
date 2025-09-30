@@ -45,6 +45,7 @@ interface ToolCallViewProps {
         | ContentData
       )[];
   mode?: "compact";
+  collapsible?: boolean;
 }
 
 /**
@@ -59,6 +60,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   view,
   output,
   mode,
+  collapsible = true,
 }) => {
   // don't collapse if output includes an image
   function isContentImage(
@@ -130,7 +132,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           toolCallView={view}
         />
       </div>
-      {hasContent ? (
+      {hasContent && collapsible ? (
         <ExpandablePanel
           id={`${id}-tool-input`}
           collapse={collapse}
@@ -140,7 +142,9 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
         >
           <MessageContent contents={normalizedContent} context={context} />
         </ExpandablePanel>
-      ) : undefined}
+      ) : (
+        <MessageContent contents={normalizedContent} context={context} />
+      )}
     </div>
   );
 };
