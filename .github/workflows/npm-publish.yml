@@ -45,12 +45,12 @@ jobs:
 
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}
-        run: npm publish --dry-run --access public
+        run: npm publish --dry-run --access public --tag beta
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to NPM
         if: ${{ !inputs.dry-run }}
-        run: npm publish --access public
+        run: npm publish --access public --tag beta
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
