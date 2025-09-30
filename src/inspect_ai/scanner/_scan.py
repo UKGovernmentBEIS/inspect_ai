@@ -30,7 +30,7 @@ from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanStatus
 from ._scancontext import ScanContext, create_scan, resume_scan
 from ._scanjob import ScanJob
-from ._scanner.result import Result, ResultReport
+from ._scanner.result import ResultReport
 from ._scanner.scanner import Scanner, config_for_scanner
 from ._scanspec import ScanConfig, ScanSpec
 from ._transcript.transcripts import Transcripts
