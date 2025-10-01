@@ -15,7 +15,6 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.platform import platform_init
-from inspect_ai._util.registry import registry_info
 from inspect_ai._util.rich import rich_traceback
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, resolve_models
@@ -23,7 +22,7 @@ from inspect_ai.model._model_config import (
     model_config_to_model,
     model_roles_config_to_model_roles,
 )
-from inspect_ai.scanner._concurrency.common import WorkItem
+from inspect_ai.scanner._concurrency.common import ParseJob, ScannerJob
 from inspect_ai.scanner._concurrency.multi_process import multi_process_strategy
 from inspect_ai.scanner._concurrency.single_process import single_process_strategy
 from inspect_ai.scanner._scanner.types import ScannerInput
@@ -245,38 +244,48 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                 def bump_progress() -> None:
                     progress.update(task_id, advance=1)
 
-                async def _execute_work_item(
-                    item: WorkItem,
-                ) -> dict[str, list[ResultReport]]:
-                    # Load transcript once for all scanners in this work item
-                    transcript = await transcripts.read(
-                        item.transcript_info, item.union_content
-                    )
+                # Build scanner list and union content for index resolution
+                scanners_list = list(scan.scanners.values())
+                union_content = union_transcript_contents(
+                    [
+                        config_for_scanner(scanner).content
+                        for scanner in scan.scanners.values()
+                    ]
+                )
 
-                    # Execute each scanner with the loaded transcript
-                    return {
-                        registry_info(scanner).name: (
-                            # TODO: For now, scanners return a single Result, but
-                            # it probably will allow multiple in the future
-                            [
-                                ResultReport(
-                                    input_type="transcript",
-                                    input_id=transcript.id,
-                                    result=result,
-                                )
-                            ]
-                            if (
-                                result := await scanner(
-                                    filter_transcript(
-                                        transcript,
-                                        config_for_scanner(scanner).content,
-                                    )
+                async def _parse_function(job: ParseJob) -> list[ScannerJob]:
+                    union_transcript = await transcripts.read(
+                        job.transcript_info, union_content
+                    )
+                    return [
+                        ScannerJob(
+                            union_transcript=union_transcript,
+                            scanner=scanners_list[idx],
+                        )
+                        for idx in job.scanner_indices
+                    ]
+
+                async def _scan_function(job: ScannerJob) -> list[ResultReport]:
+                    return (
+                        # TODO: For now, scanners return a single Result, but we'll
+                        # probably will allow multiple in the future
+                        [
+                            ResultReport(
+                                input_type="transcript",
+                                input_id=job.union_transcript.id,
+                                result=result,
+                            )
+                        ]
+                        if (
+                            result := await job.scanner(
+                                filter_transcript(
+                                    job.union_transcript,
+                                    config_for_scanner(job.scanner).content,
                                 )
                             )
-                            else []
                         )
-                        for scanner in item.scanners
-                    }
+                        else []
+                    )
 
                 # TODO: Plumb this
                 multi_testing = False
@@ -291,10 +300,15 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                     )
                 )
 
+                # For multi-process strategy, set context (scanners + union_content)
+                if hasattr(strategy, "set_context"):
+                    strategy.set_context(scanners_list, union_content)
+
                 await strategy(
-                    work_items=work_items(scan, recorder, transcripts, bump_progress),
+                    parse_jobs=_parse_jobs(scan, recorder, transcripts, bump_progress),
+                    parse_function=_parse_function,
+                    scan_function=_scan_function,
                     recorder=recorder,
-                    item_processor=_execute_work_item,
                     bump_progress=bump_progress,
                 )
 
@@ -369,34 +383,33 @@ async def handle_scan_interruped(
     )
 
 
-async def work_items(
+async def _parse_jobs(
     context: ScanContext,
     recorder: ScanRecorder,
     transcripts: Transcripts,
     bump_progress: Callable[[], None],
-) -> AsyncIterator[WorkItem]:
-    """Yield `WorkItem` objects for transcripts needing scanning.
+) -> AsyncIterator[ParseJob]:
+    """Yield `ParseJob` objects for transcripts needing scanning.
 
     This encapsulates the logic for:
     - Determining union content once
     - Skipping already recorded (per-scanner) work while still reporting progress
     - Grouping scanners per transcript
     """
-    union_content = union_transcript_contents(
-        [config_for_scanner(scanner).content for scanner in context.scanners.values()]
-    )
+    # Build name->index mapping for scanners
+    scanner_names = list(context.scanners.keys())
+    name_to_index = {name: idx for idx, name in enumerate(scanner_names)}
 
     for transcript_info in await transcripts.index():
-        scanners_for_transcript: list[Scanner[ScannerInput]] = []
-        for name, scanner in context.scanners.items():
+        scanner_indices_for_transcript: list[int] = []
+        for name in scanner_names:
             if await recorder.is_recorded(transcript_info, name):
                 bump_progress()
                 continue
-            scanners_for_transcript.append(scanner)
-        if not scanners_for_transcript:
+            scanner_indices_for_transcript.append(name_to_index[name])
+        if not scanner_indices_for_transcript:
             continue
-        yield WorkItem(
+        yield ParseJob(
             transcript_info=transcript_info,
-            union_content=union_content,
-            scanners=scanners_for_transcript,
+            scanner_indices=frozenset(scanner_indices_for_transcript),
         )

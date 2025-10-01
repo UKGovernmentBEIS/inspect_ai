@@ -14,14 +14,13 @@ from typing import AsyncIterator, Awaitable, Callable
 import anyio
 from anyio import create_task_group
 from anyio.abc import TaskGroup
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
 from inspect_ai._util.registry import registry_info
 from inspect_ai.util._anyio import inner_exception
 
 from .._recorder.recorder import ScanRecorder
 from .._scanner.result import ResultReport
-from .common import ConcurrencyStrategy, WorkItem
+from .common import ConcurrencyStrategy, ParseJob, ScannerJob
 
 
 @dataclass
@@ -49,20 +48,18 @@ def single_process_strategy(
     async def the_func(
         *,
         recorder: ScanRecorder,
-        work_items: AsyncIterator[WorkItem],
-        item_processor: Callable[[WorkItem], Awaitable[dict[str, list[ResultReport]]]],
+        parse_jobs: AsyncIterator[ParseJob],
+        parse_function: Callable[[ParseJob], Awaitable[list[ScannerJob]]],
+        scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]],
         bump_progress: Callable[[], None],
     ) -> None:
         metrics = WorkerMetrics()
         overall_start_time = time.time()
         work_queue_size = max_queue_size if max_queue_size is not None else max_tasks
 
-        work_item_send_stream: MemoryObjectSendStream[WorkItem]
-        work_item_receive_stream: MemoryObjectReceiveStream[WorkItem]
-        (
-            work_item_send_stream,
-            work_item_receive_stream,
-        ) = anyio.create_memory_object_stream[WorkItem](work_queue_size)
+        (scanner_job_send_stream, scanner_job_receive_stream) = (
+            anyio.create_memory_object_stream[ScannerJob](work_queue_size)
+        )
 
         def _running_time() -> str:
             return f"+{time.time() - overall_start_time:.3f}s"
@@ -72,40 +69,26 @@ def single_process_strategy(
                 f"workers: {metrics.worker_count} "
                 f"(scanning: {metrics.workers_scanning}, "
                 f"stalled: {metrics.workers_waiting}) "
-                f"queue size: {work_item_receive_stream.statistics().current_buffer_used} "
+                f"queue size: {scanner_job_receive_stream.statistics().current_buffer_used} "
             )
 
-        def _work_item_info(item: WorkItem) -> str:
-            scanner_names = ", ".join(
-                registry_info(scanner).name for scanner in item.scanners
-            )
-            return f"({item.transcript_info.id}, [{scanner_names}])"
+        def _scanner_job_info(item: ScannerJob) -> str:
+            return f"{item.union_transcript.id, registry_info(item.scanner).name}"
 
-        async def _execute_work_item(item: WorkItem) -> None:
-            try:
-                metrics.workers_scanning += 1
-                for name, results in (await item_processor(item)).items():
-                    await recorder.record(item.transcript_info, name, results)
-                    bump_progress()
-            finally:
-                metrics.workers_scanning -= 1
-
-        async def _worker_task(
-            work_item_stream: MemoryObjectReceiveStream[WorkItem], worker_id: int
-        ) -> None:
+        async def _worker_task(worker_id: int) -> None:
             items_processed = 0
             try:
                 while True:
                     queue_was_empty_start_time = (
                         time.time()
-                        if work_item_receive_stream.statistics().current_buffer_used
+                        if scanner_job_receive_stream.statistics().current_buffer_used
                         == 0
                         else None
                     )
                     try:
                         metrics.workers_waiting += 1
                         with anyio.move_on_after(2.0) as timeout_scope:
-                            item = await work_item_stream.receive()
+                            scanner_job = await scanner_job_receive_stream.receive()
                     finally:
                         metrics.workers_waiting -= 1
                     if timeout_scope.cancelled_caught:
@@ -116,12 +99,21 @@ def single_process_strategy(
                         else ""
                     )
                     print_diagnostics(
-                        f"{_running_time()} Worker #{worker_id} starting on {_work_item_info(item)} item{stall_phrase}\n\t{_metrics_info()}"
+                        f"{_running_time()} Worker #{worker_id} starting on {_scanner_job_info(scanner_job)} item{stall_phrase}\n\t{_metrics_info()}"
                     )
                     exec_start_time = time.time()
-                    await _execute_work_item(item)
+                    try:
+                        metrics.workers_scanning += 1
+                        await recorder.record(
+                            scanner_job.union_transcript,
+                            registry_info(scanner_job.scanner).name,
+                            await scan_function(scanner_job),
+                        )
+                        bump_progress()
+                    finally:
+                        metrics.workers_scanning -= 1
                     print_diagnostics(
-                        f"{_running_time()} Worker #{worker_id} completed {_work_item_info(item)} in {(time.time() - exec_start_time):.3f}s"
+                        f"{_running_time()} Worker #{worker_id} completed {_scanner_job_info(scanner_job)} in {(time.time() - exec_start_time):.3f}s"
                     )
                     items_processed += 1
                 print_diagnostics(
@@ -131,28 +123,29 @@ def single_process_strategy(
                 metrics.worker_count -= 1
 
         async def _producer(tg: TaskGroup) -> None:
-            async for new_item in work_items:
-                backpressure = (
-                    work_item_receive_stream.statistics().current_buffer_used
-                    >= work_queue_size
-                )
-                await work_item_send_stream.send(new_item)
+            async for parse_job in parse_jobs:
+                scanner_jobs = await parse_function(parse_job)
                 print_diagnostics(
-                    f"{_running_time()} Producer: Added work item {_work_item_info(new_item)} "
-                    f"{' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
+                    f"{_running_time()} Producer: Parsed {parse_job.transcript_info.id}"
                 )
-                if metrics.worker_count < max_tasks:
-                    metrics.worker_count += 1
-                    metrics.worker_id_counter += 1
-                    tg.start_soon(
-                        _worker_task,
-                        work_item_receive_stream,
-                        metrics.worker_id_counter,
+                for scanner_job in scanner_jobs:
+                    backpressure = (
+                        scanner_job_receive_stream.statistics().current_buffer_used
+                        >= work_queue_size
                     )
+                    await scanner_job_send_stream.send(scanner_job)
                     print_diagnostics(
-                        f"{_running_time()} Producer: Spawned worker #{metrics.worker_id_counter}\n\t{_metrics_info()}"
+                        f"{_running_time()} Producer: Added scanner job {_scanner_job_info(scanner_job)} "
+                        f"{' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
                     )
-                await anyio.sleep(0)
+                    if metrics.worker_count < max_tasks:
+                        metrics.worker_count += 1
+                        metrics.worker_id_counter += 1
+                        tg.start_soon(_worker_task, metrics.worker_id_counter)
+                        print_diagnostics(
+                            f"{_running_time()} Producer: Spawned worker #{metrics.worker_id_counter}\n\t{_metrics_info()}"
+                        )
+                    await anyio.sleep(0)
             print_diagnostics(
                 f"{_running_time()} Producer: FINISHED PRODUCING ALL WORK"
             )
