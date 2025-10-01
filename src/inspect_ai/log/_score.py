@@ -1,7 +1,7 @@
 """Score editing functionality."""
 
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.event._tree import SpanNode, event_tree, walk_node_spans
+from inspect_ai.event._tree import EventTree, SpanNode, event_tree, walk_node_spans
 from inspect_ai.scorer._metric import ScoreEdit
 
 from ._log import EvalLog
@@ -67,11 +67,7 @@ def edit_score(
     score.history.append(edit)
 
     # Find the last scorers span
-    final_scorers_node: SpanNode | None = None
-    sample_event_tree = event_tree(sample.events)
-    for node in walk_node_spans(sample_event_tree):
-        if node.type == "scorers" and node.name == "scorers":
-            final_scorers_node = node
+    final_scorers_node = _find_scorers_span(event_tree(sample.events))
 
     # create the event
     score_edit_event = ScoreEditEvent(score_name=score_name, edit=edit)
@@ -96,3 +92,11 @@ def edit_score(
     # recompute metrics
     if recompute_metrics:
         _recompute_metrics(log)
+
+
+def _find_scorers_span(tree: EventTree) -> SpanNode | None:
+    last_scorers_node = None
+    for node in walk_node_spans(tree):
+        if node.type == "scorers" and node.name == "scorers":
+            last_scorers_node = node
+    return last_scorers_node
