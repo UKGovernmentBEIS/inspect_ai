@@ -1,3 +1,13 @@
+## Unreleased
+
+- Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
+
+## 0.3.135 (29 September 2025)
+
+- OpenAI: Capture reasoning summaries even when there is encrypted reasoning content.
+- Anthropic: Update text editor tool detection to support latest text editor tool for Claude Sonnet 4.5.
+- Inspect View: Improve rendering for Codex CLI shell tool output.
+
 ## 0.3.134 (27 September 2025)
 
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).

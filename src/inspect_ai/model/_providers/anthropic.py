@@ -72,6 +72,7 @@ from anthropic.types.beta import (
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
+    BetaToolTextEditor20250728Param,
 )
 from anthropic.types.document_block_param import Source
 from anthropic.types.web_search_tool_result_block_param_content_param import (
@@ -485,7 +486,10 @@ class AnthropicAPI(ModelAPI):
         return "claude-3-7-" in self.service_model_name()
 
     def is_claude_4(self) -> bool:
-        return re.search(r"claude-4-[a-zA-Z]", self.service_model_name()) is not None
+        return re.search(r"claude-[a-zA-Z]+-4", self.service_model_name()) is not None
+
+    def is_claude_4_5(self) -> bool:
+        return re.search(r"claude-[a-zA-Z]+-4-5", self.service_model_name()) is not None
 
     @override
     def connection_key(self) -> str:
@@ -773,6 +777,7 @@ class AnthropicAPI(ModelAPI):
         ToolTextEditor20250124Param
         | BetaToolTextEditor20241022Param
         | BetaToolTextEditor20250429Param
+        | BetaToolTextEditor20250728Param
         | None
     ):
         # See: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool#before-using-the-text-editor-tool
@@ -796,7 +801,11 @@ class AnthropicAPI(ModelAPI):
             )
         ):
             return (
-                BetaToolTextEditor20250429Param(
+                BetaToolTextEditor20250728Param(
+                    type="text_editor_20250728", name="str_replace_based_edit_tool"
+                )
+                if self.is_claude_4_5()
+                else BetaToolTextEditor20250429Param(
                     type="text_editor_20250429", name="str_replace_based_edit_tool"
                 )
                 if self.is_claude_4()
@@ -873,6 +882,7 @@ ToolParamDef = (
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param
+    | BetaToolTextEditor20250728Param
     | WebSearchTool20250305Param
 )
 
@@ -887,6 +897,7 @@ def is_text_editor_tool(
     ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param
+    | BetaToolTextEditor20250728Param
 ]:
     type = param.get("type", None)
     if type is not None:
@@ -912,6 +923,7 @@ def add_cache_control(
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param
+    | BetaToolTextEditor20250728Param
     | WebSearchTool20250305Param
     | dict[str, Any],
 ) -> None:

@@ -41,6 +41,9 @@ class ContentReasoning(ContentBase):
     reasoning: str
     """Reasoning content."""
 
+    summary: str | None = Field(default=None)
+    """Reasoning summary."""
+
     signature: str | None = Field(default=None)
     """Signature for reasoning content (used by some models to ensure that reasoning content is not modified for replay)"""
 

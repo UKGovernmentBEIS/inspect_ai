@@ -1072,6 +1072,18 @@
           "title": "Reasoning",
           "type": "string"
         },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
         "signature": {
           "anyOf": [
             {
@@ -1094,6 +1106,7 @@
         "internal",
         "type",
         "reasoning",
+        "summary",
         "signature",
         "redacted"
       ],

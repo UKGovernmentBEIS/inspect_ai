@@ -309,7 +309,7 @@ def start_local_server(
         for key, value in server_args.items():
             # Convert Python style args (underscore) to CLI style (dash)
             cli_key = key.replace("_", "-")
-            if value == "":
+            if value is None:
                 # If the value is empty, just add the flag
                 full_command.extend([f"--{cli_key}"])
             else:
