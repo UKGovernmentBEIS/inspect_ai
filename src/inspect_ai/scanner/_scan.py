@@ -291,12 +291,16 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                 multi_testing = False
                 strategy = (
                     multi_process_strategy(
-                        max_processes=4, max_tasks=max_transcripts, max_queue_size=None
+                        max_processes=4,
+                        max_tasks=max_transcripts,
+                        max_queue_size=None,
+                        diagnostics=True,
                     )
                     if multi_testing
                     else single_process_strategy(
                         max_tasks=max_transcripts,
                         max_queue_size=int(max_transcripts * LOOKAHEAD_BUFFER_MULTIPLE),
+                        diagnostics=True,
                     )
                 )
 

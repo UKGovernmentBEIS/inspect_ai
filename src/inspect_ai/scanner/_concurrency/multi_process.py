@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import multiprocessing
 import time
+from collections.abc import Sequence
 from collections.abc import Set as AbstractSet
 from concurrent.futures import ProcessPoolExecutor
 from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable
@@ -16,16 +17,19 @@ from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable
 if TYPE_CHECKING:
     from multiprocessing.queues import Queue as MPQueue
 
+    from .._recorder.recorder import ScanResults, ScanStatus
+    from .._scanspec import ScanSpec
+
 import anyio
 from anyio import create_task_group
 
-from inspect_ai._util.registry import registry_info
 from inspect_ai.util._anyio import inner_exception
 
 from .._recorder.recorder import ScanRecorder
 from .._scanner.result import ResultReport
 from .._transcript.types import TranscriptInfo
 from .common import ParseJob, ScannerJob
+from .single_process import single_process_strategy
 
 # Module-level storage for invariant data (accessible after fork)
 _PARSE_FUNCTION: Callable[[ParseJob], Awaitable[list[ScannerJob]]] | None = None
@@ -37,24 +41,92 @@ _RESULT_QUEUE: (
 ) = None
 
 
-class MultiProcessStrategy:
-    """Multi-process execution strategy with nested async concurrency."""
+class _QueueBasedRecorder(ScanRecorder):
+    """Recorder that sends results to a multiprocessing queue instead of writing to disk.
+
+    This is a minimal implementation that only implements the `record` method,
+    which is the only method called by single_process_strategy.
+    """
 
     def __init__(
         self,
-        *,
-        max_tasks: int,
-        max_processes: int,
-        max_queue_size: int | None,
-        diagnostics: bool = True,
+        result_queue: "MPQueue[tuple[TranscriptInfo, str, list[ResultReport]] | Exception | None]",
     ) -> None:
-        self.max_tasks = max_tasks
-        self.max_processes = max_processes
-        self.max_queue_size = max_queue_size
-        self.diagnostics = diagnostics
+        self.result_queue = result_queue
 
-    async def __call__(
+    async def init(self, spec: "ScanSpec", scans_location: str) -> None:
+        """Not used in worker processes."""
+        pass
+
+    async def resume(self, scan_location: str) -> "ScanSpec":
+        """Not used in worker processes."""
+        raise NotImplementedError("resume not supported in worker processes")
+
+    async def location(self) -> str:
+        """Not used in worker processes."""
+        return ""
+
+    async def is_recorded(self, transcript: TranscriptInfo, scanner: str) -> bool:
+        """Not used in worker processes."""
+        return False
+
+    async def record(
         self,
+        transcript: TranscriptInfo,
+        scanner: str,
+        results: Sequence[ResultReport],
+    ) -> None:
+        """Send results to the result queue for the main process to handle."""
+        await anyio.to_thread.run_sync(
+            self.result_queue.put,
+            (transcript, scanner, list(results)),
+        )
+
+    async def flush(self) -> None:
+        """Not used in worker processes."""
+        pass
+
+    async def complete(self) -> "ScanStatus":
+        """Not used in worker processes."""
+        raise NotImplementedError("complete not supported in worker processes")
+
+    @staticmethod
+    async def status(scan_location: str) -> "ScanStatus":
+        """Not used in worker processes."""
+        raise NotImplementedError("status not supported in worker processes")
+
+    @staticmethod
+    async def results(scan_location: str, scanner: str | None = None) -> "ScanResults":
+        """Not used in worker processes."""
+        raise NotImplementedError("results not supported in worker processes")
+
+
+def multi_process_strategy(
+    *,
+    max_tasks: int,
+    max_processes: int,
+    max_queue_size: int | None,
+    diagnostics: bool = True,
+) -> Callable[
+    [
+        ScanRecorder,
+        AsyncIterator[ParseJob],
+        Callable[[ParseJob], Awaitable[list[ScannerJob]]],
+        Callable[[ScannerJob], Awaitable[list[ResultReport]]],
+        Callable[[], None],
+    ],
+    Awaitable[None],
+]:
+    """Multi-process execution strategy with nested async concurrency.
+
+    Args:
+        max_tasks: Target total scanner concurrency across all processes
+        max_processes: Number of worker processes to spawn
+        max_queue_size: Maximum work queue size for backpressure
+        diagnostics: Whether to print diagnostic information
+    """
+
+    async def the_func(
         *,
         recorder: ScanRecorder,
         parse_jobs: AsyncIterator[ParseJob],
@@ -81,27 +153,28 @@ class MultiProcessStrategy:
         # Calculate how many WorkItems to process concurrently
         # Since each WorkItem runs scanners_per_item scanners concurrently,
         # we need: max_concurrent_work_items = max_tasks / scanners_per_item
-        max_concurrent_work_items = max(1, self.max_tasks // scanners_per_item)
-        tasks_per_process = max(1, max_concurrent_work_items // self.max_processes)
+        max_concurrent_work_items = max(1, max_tasks // scanners_per_item)
+        tasks_per_process = max(1, max_concurrent_work_items // max_processes)
 
         # Adjust max_processes if needed to match desired concurrency
-        actual_max_processes = min(self.max_processes, max_concurrent_work_items)
-
-        def print_diagnostics(*values: object) -> None:
-            if self.diagnostics:
-                print(*values)
-
-        print_diagnostics(
-            f"Multi-process strategy: {actual_max_processes} processes × "
-            f"{tasks_per_process} tasks = {actual_max_processes * tasks_per_process} concurrent WorkItems "
-            f"({scanners_per_item} scanners/item = ~{actual_max_processes * tasks_per_process * scanners_per_item} total concurrency)"
-        )
+        actual_max_processes = min(max_processes, max_concurrent_work_items)
 
         overall_start_time = time.time()
+
+        def print_diagnostics(actor_name: str, *message_parts: object) -> None:
+            if diagnostics:
+                running_time = f"+{time.time() - overall_start_time:.3f}s"
+                print(running_time, f"{actor_name}:", *message_parts)
+
+        print_diagnostics(
+            "Setup",
+            f"Multi-process strategy: {actual_max_processes} processes × "
+            f"{tasks_per_process} tasks = {actual_max_processes * tasks_per_process} concurrent WorkItems "
+            f"({scanners_per_item} scanners/item = ~{actual_max_processes * tasks_per_process * scanners_per_item} total concurrency)",
+        )
+
         work_queue_size = (
-            self.max_queue_size
-            if self.max_queue_size is not None
-            else max_concurrent_work_items
+            max_queue_size if max_queue_size is not None else max_concurrent_work_items
         )
 
         # Create queues and store globally so forked processes inherit them directly.
@@ -115,9 +188,6 @@ class MultiProcessStrategy:
         work_queue = _WORK_QUEUE
         result_queue = _RESULT_QUEUE
 
-        def _running_time() -> str:
-            return f"+{time.time() - overall_start_time:.3f}s"
-
         def _work_item_info(transcript_info: TranscriptInfo) -> str:
             return f"({transcript_info.id})"
 
@@ -130,7 +200,8 @@ class MultiProcessStrategy:
                     (first_item.transcript_info, first_item.scanner_indices),
                 )
                 print_diagnostics(
-                    f"{_running_time()} Producer: Added work item {_work_item_info(first_item.transcript_info)}"
+                    "MP Producer",
+                    f"Added work item {_work_item_info(first_item.transcript_info)}",
                 )
 
             # Then send remaining items
@@ -140,7 +211,8 @@ class MultiProcessStrategy:
                     (item.transcript_info, item.scanner_indices),
                 )
                 print_diagnostics(
-                    f"{_running_time()} Producer: Added work item {_work_item_info(item.transcript_info)}"
+                    "Producer",
+                    f"Added work item {_work_item_info(item.transcript_info)}",
                 )
 
             # Send sentinel values to signal worker TASKS to stop (one per task)
@@ -148,9 +220,7 @@ class MultiProcessStrategy:
             for _ in range(sentinel_count):
                 await anyio.to_thread.run_sync(work_queue.put, None)
 
-            print_diagnostics(
-                f"{_running_time()} Producer: FINISHED PRODUCING ALL WORK"
-            )
+            print_diagnostics("Producer", "FINISHED PRODUCING ALL WORK")
 
         async def _result_collector() -> None:
             """Collector task that receives results and records them."""
@@ -164,8 +234,8 @@ class MultiProcessStrategy:
                     # Sentinel from a worker process indicating it's done
                     workers_finished += 1
                     print_diagnostics(
-                        f"{_running_time()} Collector: Worker finished "
-                        f"({workers_finished}/{actual_max_processes})"
+                        "Collector",
+                        f"Worker finished ({workers_finished}/{actual_max_processes})",
                     )
                     continue
 
@@ -178,8 +248,8 @@ class MultiProcessStrategy:
 
                 items_processed += 1
                 print_diagnostics(
-                    f"{_running_time()} Collector: Recorded results for {_work_item_info(transcript_info)} "
-                    f"(total: {items_processed})"
+                    "Collector",
+                    f"Recorded results for {_work_item_info(transcript_info)} (total: {items_processed})",
                 )
 
         try:
@@ -196,12 +266,12 @@ class MultiProcessStrategy:
                             _worker_process_main,
                             tasks_per_process,
                             worker_id,
-                            self.diagnostics,
+                            diagnostics,
                             overall_start_time,
                         )
                         futures.append(future)
                         print_diagnostics(
-                            f"{_running_time()} Main: Spawned worker process #{worker_id}"
+                            "Main", f"Spawned worker process #{worker_id}"
                         )
                     except Exception as ex:
                         print(ex)
@@ -216,9 +286,7 @@ class MultiProcessStrategy:
                 for future in futures:
                     await anyio.to_thread.run_sync(future.result)
 
-                print_diagnostics(
-                    f"{_running_time()} Main: All worker processes completed"
-                )
+                print_diagnostics("Main", "All worker processes completed")
 
         except Exception as ex:
             raise inner_exception(ex)
@@ -229,40 +297,19 @@ class MultiProcessStrategy:
             _PARSE_FUNCTION = None
             _SCAN_FUNCTION = None
 
-
-def multi_process_strategy(
-    *,
-    max_tasks: int,
-    max_processes: int,
-    max_queue_size: int | None,
-    diagnostics: bool = True,
-) -> MultiProcessStrategy:
-    """Multi-process execution strategy with nested async concurrency.
-
-    Args:
-        max_tasks: Target total scanner concurrency across all processes
-        max_processes: Number of worker processes to spawn
-        max_queue_size: Maximum work queue size for backpressure
-        diagnostics: Whether to print diagnostic information
-    """
-    return MultiProcessStrategy(
-        max_tasks=max_tasks,
-        max_processes=max_processes,
-        max_queue_size=max_queue_size,
-        diagnostics=diagnostics,
-    )
+    return the_func
 
 
 def _worker_process_main(
     max_tasks: int,
     worker_id: int,
     diagnostics: bool,
-    start_time: float,
+    overall_start_time: float,
 ) -> None:
     """Worker process main function.
 
     Runs in a forked subprocess with access to parent's memory.
-    Creates an async event loop and spawns multiple concurrent tasks.
+    Uses single_process_strategy internally to coordinate async tasks.
     """
     global _PARSE_FUNCTION, _SCAN_FUNCTION, _WORK_QUEUE, _RESULT_QUEUE
     assert _PARSE_FUNCTION is not None, "parse_function not initialized"
@@ -272,93 +319,75 @@ def _worker_process_main(
     parse_function = _PARSE_FUNCTION
     scan_function = _SCAN_FUNCTION
 
-    def print_diagnostics_worker(*values: object) -> None:
-        if diagnostics:
-            print(*values)
-
-    def _running_time() -> str:
-        return f"+{time.time() - start_time:.3f}s"
-
     def _work_item_info(transcript_info: TranscriptInfo) -> str:
         return f"({transcript_info.id})"
 
-    async def _worker_task(task_id: int) -> None:
-        """Async task that pulls work items and processes them."""
-        items_processed = 0
-        try:
+    async def _worker_main() -> None:
+        """Main async function for worker process."""
+
+        def print_diagnostics(actor_name: str, *message_parts: object) -> None:
+            if diagnostics:
+                running_time = f"+{time.time() - overall_start_time:.3f}s"
+                print(running_time, f"P{worker_id} ", f"{actor_name}:", *message_parts)
+
+        print_diagnostics(
+            f"Worker P{worker_id}", f"Starting with {max_tasks} concurrent tasks"
+        )
+
+        # Create an async iterator that pulls ParseJob items from the work queue
+        async def _parse_job_iterator() -> AsyncIterator[ParseJob]:
+            """Yields ParseJob items from the work queue until sentinel is received."""
+            items_pulled = 0
             while True:
-                # Get work item data from queue (blocking, but run in thread to not block event loop)
                 work_item_data: (
                     tuple[TranscriptInfo, AbstractSet[int]] | None
                 ) = await anyio.to_thread.run_sync(_WORK_QUEUE.get)
 
                 if work_item_data is None:
-                    # Sentinel value - time to stop (one per worker task; do NOT requeue)
-                    print_diagnostics_worker(
-                        f"{_running_time()} Worker P{worker_id}:T{task_id}: Received stop signal, "
-                        f"processed {items_processed} items"
+                    # Sentinel value - time to stop
+                    print_diagnostics(
+                        f"Worker P{worker_id}",
+                        f"Received stop signal after pulling {items_pulled} items",
                     )
                     break
 
                 transcript_info, scanner_indices = work_item_data
+                items_pulled += 1
+                print_diagnostics(
+                    f"Worker P{worker_id}", f"Pulled {_work_item_info(transcript_info)}"
+                )
 
-                # Reconstruct WorkItem from globals + received data
-                item = ParseJob(
+                yield ParseJob(
                     transcript_info=transcript_info,
                     scanner_indices=scanner_indices,
                 )
 
-                print_diagnostics_worker(
-                    f"{_running_time()} Worker P{worker_id}:T{task_id}: Starting {_work_item_info(transcript_info)}"
-                )
-                exec_start_time = time.time()
+        # Create a queue-based recorder that sends results back to main process
+        recorder = _QueueBasedRecorder(_RESULT_QUEUE)
 
-                try:
-                    # Step 1: Parse the transcript to get scanner jobs
-                    scanner_jobs = await parse_function(item)
+        # Use single_process_strategy to coordinate the async tasks
+        strategy = single_process_strategy(
+            max_tasks=max_tasks,
+            max_queue_size=None,  # Let single_process_strategy use its default
+            diagnostics=diagnostics,
+            diag_prefix=f"P{worker_id}",
+            overall_start_time=overall_start_time,
+        )
 
-                    # Step 2: Execute each scanner job and send results
-                    for scanner_job in scanner_jobs:
-                        scanner_name = registry_info(scanner_job.scanner).name
-                        results = await scan_function(scanner_job)
-
-                        # Send results back to main process (one result per scanner)
-                        await anyio.to_thread.run_sync(
-                            _RESULT_QUEUE.put,
-                            (transcript_info, scanner_name, results),
-                        )
-
-                    print_diagnostics_worker(
-                        f"{_running_time()} Worker P{worker_id}:T{task_id}: Completed {_work_item_info(transcript_info)} "
-                        f"in {time.time() - exec_start_time:.3f}s"
-                    )
-                    items_processed += 1
-
-                except Exception as ex:
-                    # Send exception back to main process
-                    await anyio.to_thread.run_sync(_RESULT_QUEUE.put, ex)
-                    break
-
+        try:
+            await strategy(
+                recorder=recorder,
+                parse_jobs=_parse_job_iterator(),
+                parse_function=parse_function,
+                scan_function=scan_function,
+                bump_progress=lambda: None,  # Progress is bumped in main process
+            )
         except Exception as ex:
             # Send exception back to main process
-            try:
-                await anyio.to_thread.run_sync(_RESULT_QUEUE.put, ex)
-            except Exception:
-                pass  # Best effort
+            await anyio.to_thread.run_sync(_RESULT_QUEUE.put, ex)
+            raise
 
-    async def _worker_main() -> None:
-        """Main async function for worker process."""
-        print_diagnostics_worker(
-            f"{_running_time()} Worker P{worker_id}: Starting with {max_tasks} concurrent tasks"
-        )
-
-        async with create_task_group() as tg:
-            for task_id in range(max_tasks):
-                tg.start_soon(_worker_task, task_id)
-
-        print_diagnostics_worker(
-            f"{_running_time()} Worker P{worker_id}: All tasks completed"
-        )
+        print_diagnostics("All tasks completed")
 
         # Send completion sentinel to result collector
         await anyio.to_thread.run_sync(_RESULT_QUEUE.put, None)

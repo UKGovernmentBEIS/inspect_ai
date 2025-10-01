@@ -38,12 +38,11 @@ def single_process_strategy(
     max_tasks: int,
     max_queue_size: int | None,
     diagnostics: bool = False,
+    diag_prefix: str | None = None,
+    overall_start_time: float | None = None,
 ) -> ConcurrencyStrategy:
     """In-process asynchronous task-based execution strategy (function form)."""
-
-    def print_diagnostics(*values: object) -> None:
-        if diagnostics:
-            print(*values)
+    diag_prefix = f"{diag_prefix} " if diag_prefix else ""
 
     async def the_func(
         *,
@@ -54,15 +53,19 @@ def single_process_strategy(
         bump_progress: Callable[[], None],
     ) -> None:
         metrics = WorkerMetrics()
-        overall_start_time = time.time()
+        nonlocal overall_start_time
+        if not overall_start_time:
+            overall_start_time = time.time()
         work_queue_size = max_queue_size if max_queue_size is not None else max_tasks
 
         (scanner_job_send_stream, scanner_job_receive_stream) = (
             anyio.create_memory_object_stream[ScannerJob](work_queue_size)
         )
 
-        def _running_time() -> str:
-            return f"+{time.time() - overall_start_time:.3f}s"
+        def print_diagnostics(actor_name: str, *message_parts: object) -> None:
+            if diagnostics:
+                running_time = f"+{time.time() - overall_start_time:.3f}s"
+                print(running_time, diag_prefix, f"{actor_name}:", *message_parts)
 
         def _metrics_info() -> str:
             return (
@@ -99,7 +102,8 @@ def single_process_strategy(
                         else ""
                     )
                     print_diagnostics(
-                        f"{_running_time()} Worker #{worker_id} starting on {_scanner_job_info(scanner_job)} item{stall_phrase}\n\t{_metrics_info()}"
+                        f"Worker #{worker_id}",
+                        f"starting on {_scanner_job_info(scanner_job)} item{stall_phrase}\n\t{_metrics_info()}",
                     )
                     exec_start_time = time.time()
                     try:
@@ -113,11 +117,13 @@ def single_process_strategy(
                     finally:
                         metrics.workers_scanning -= 1
                     print_diagnostics(
-                        f"{_running_time()} Worker #{worker_id} completed {_scanner_job_info(scanner_job)} in {(time.time() - exec_start_time):.3f}s"
+                        f"Worker #{worker_id}",
+                        f"completed {_scanner_job_info(scanner_job)} in {(time.time() - exec_start_time):.3f}s",
                     )
                     items_processed += 1
                 print_diagnostics(
-                    f"{_running_time()} Worker #{worker_id} finished after processing {items_processed} items.\n\t{_metrics_info()}"
+                    f"Worker #{worker_id}",
+                    f"finished after processing {items_processed} items.\n\t{_metrics_info()}",
                 )
             finally:
                 metrics.worker_count -= 1
@@ -125,9 +131,7 @@ def single_process_strategy(
         async def _producer(tg: TaskGroup) -> None:
             async for parse_job in parse_jobs:
                 scanner_jobs = await parse_function(parse_job)
-                print_diagnostics(
-                    f"{_running_time()} Producer: Parsed {parse_job.transcript_info.id}"
-                )
+                print_diagnostics("Producer", f"Parsed {parse_job.transcript_info.id}")
                 for scanner_job in scanner_jobs:
                     backpressure = (
                         scanner_job_receive_stream.statistics().current_buffer_used
@@ -135,20 +139,20 @@ def single_process_strategy(
                     )
                     await scanner_job_send_stream.send(scanner_job)
                     print_diagnostics(
-                        f"{_running_time()} Producer: Added scanner job {_scanner_job_info(scanner_job)} "
-                        f"{' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}"
+                        "Producer",
+                        f"Added scanner job {_scanner_job_info(scanner_job)} "
+                        f"{' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}",
                     )
                     if metrics.worker_count < max_tasks:
                         metrics.worker_count += 1
                         metrics.worker_id_counter += 1
                         tg.start_soon(_worker_task, metrics.worker_id_counter)
                         print_diagnostics(
-                            f"{_running_time()} Producer: Spawned worker #{metrics.worker_id_counter}\n\t{_metrics_info()}"
+                            "Producer",
+                            f"Spawned worker #{metrics.worker_id_counter}\n\t{_metrics_info()}",
                         )
                     await anyio.sleep(0)
-            print_diagnostics(
-                f"{_running_time()} Producer: FINISHED PRODUCING ALL WORK"
-            )
+            print_diagnostics("Producer", "FINISHED PRODUCING ALL WORK")
 
         try:
             async with create_task_group() as tg:
