@@ -3,6 +3,12 @@
 This module provides a process-based concurrency strategy using fork-based
 ProcessPoolExecutor. Each worker process runs its own async event loop with
 multiple concurrent tasks, allowing efficient parallel execution of scanner work.
+
+Note: multiprocessing.Queue.get() is blocking with no async support, so we use
+anyio.to_thread.run_sync to wrap .get() calls to prevent blocking the event loop.
+Queue.put() on unbounded queues (our case) only blocks briefly for lock contention,
+so threading is unnecessary.
+See: https://stackoverflow.com/questions/75270606
 """
 
 from __future__ import annotations
@@ -11,7 +17,6 @@ import multiprocessing
 import time
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable
 
 if TYPE_CHECKING:
@@ -34,6 +39,9 @@ from .single_process import single_process_strategy
 # Module-level storage for invariant data (accessible after fork)
 _PARSE_FUNCTION: Callable[[ParseJob], Awaitable[list[ScannerJob]]] | None = None
 _SCAN_FUNCTION: Callable[[ScannerJob], Awaitable[list[ResultReport]]] | None = None
+_BUFFER_MULTIPLE: float | None = None
+_DIAGNOSTICS: bool = False
+_OVERALL_START_TIME: float = 0.0
 # Module-level queues (avoid passing through ProcessPoolExecutor which attempts to pickle)
 _WORK_QUEUE: "MPQueue[ParseJob | None]" | None = None
 _RESULT_QUEUE: (
@@ -77,10 +85,7 @@ class _QueueBasedRecorder(ScanRecorder):
         results: Sequence[ResultReport],
     ) -> None:
         """Send results to the result queue for the main process to handle."""
-        await anyio.to_thread.run_sync(
-            self.result_queue.put,
-            (transcript, scanner, list(results)),
-        )
+        self.result_queue.put((transcript, scanner, list(results)))
 
     async def flush(self) -> None:
         """Not used in worker processes."""
@@ -133,9 +138,17 @@ def multi_process_strategy(
         scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]],
         bump_progress: Callable[[], None],
     ) -> None:
-        global _PARSE_FUNCTION, _SCAN_FUNCTION
+        global \
+            _PARSE_FUNCTION, \
+            _SCAN_FUNCTION, \
+            _BUFFER_MULTIPLE, \
+            _DIAGNOSTICS, \
+            _OVERALL_START_TIME
         _PARSE_FUNCTION = parse_function
         _SCAN_FUNCTION = scan_function
+        _BUFFER_MULTIPLE = buffer_multiple
+        _DIAGNOSTICS = diagnostics
+        _OVERALL_START_TIME = time.time()
 
         # Auto-detect number of processes if not specified
         actual_max_processes = (
@@ -144,21 +157,19 @@ def multi_process_strategy(
 
         # Calculate scans per process
         hack_factor = 3
-        scans_per_process = hack_factor * max(
+        concurrent_scans_per_process = hack_factor * max(
             1, max_concurrent_scans // actual_max_processes
         )
 
-        overall_start_time = time.time()
-
         def print_diagnostics(actor_name: str, *message_parts: object) -> None:
             if diagnostics:
-                running_time = f"+{time.time() - overall_start_time:.3f}s"
+                running_time = f"+{time.time() - _OVERALL_START_TIME:.3f}s"
                 print(running_time, f"{actor_name}:", *message_parts)
 
         print_diagnostics(
             "Setup",
             f"Multi-process strategy: {actual_max_processes} processes × "
-            f"{scans_per_process} scans = {actual_max_processes * scans_per_process} total concurrency",
+            f"{concurrent_scans_per_process} scans = {actual_max_processes * concurrent_scans_per_process} total concurrency",
         )
 
         # Create queues and store globally so forked processes inherit them directly.
@@ -177,16 +188,16 @@ def multi_process_strategy(
         async def _producer() -> None:
             """Producer task that feeds work items into the queue."""
             async for item in parse_jobs:
-                await anyio.to_thread.run_sync(partial(work_queue.put, item))
+                work_queue.put(item)
                 print_diagnostics(
                     "MP Producer",
                     f"Added ParseJob {_parse_job_info(item)}",
                 )
 
             # Send sentinel values to signal worker tasks to stop (one per task)
-            sentinel_count = actual_max_processes * scans_per_process
+            sentinel_count = actual_max_processes * concurrent_scans_per_process
             for _ in range(sentinel_count):
-                await anyio.to_thread.run_sync(work_queue.put, None)
+                work_queue.put(None)
 
             print_diagnostics("MP Producer", "FINISHED PRODUCING ALL WORK")
 
@@ -232,11 +243,8 @@ def multi_process_strategy(
                     try:
                         future = executor.submit(
                             _worker_process_main,
-                            scans_per_process,
+                            concurrent_scans_per_process,
                             worker_id,
-                            buffer_multiple,
-                            diagnostics,
-                            overall_start_time,
                         )
                         futures.append(future)
                         print_diagnostics(
@@ -265,6 +273,9 @@ def multi_process_strategy(
             _RESULT_QUEUE = None
             _PARSE_FUNCTION = None
             _SCAN_FUNCTION = None
+            _BUFFER_MULTIPLE = None
+            _DIAGNOSTICS = False
+            _OVERALL_START_TIME = 0.0
 
     return the_func
 
@@ -272,16 +283,20 @@ def multi_process_strategy(
 def _worker_process_main(
     max_concurrent_scans: int,
     worker_id: int,
-    buffer_multiple: float | None,
-    diagnostics: bool,
-    overall_start_time: float,
 ) -> None:
     """Worker process main function.
 
     Runs in a forked subprocess with access to parent's memory.
     Uses single_process_strategy internally to coordinate async tasks.
     """
-    global _PARSE_FUNCTION, _SCAN_FUNCTION, _WORK_QUEUE, _RESULT_QUEUE
+    global \
+        _PARSE_FUNCTION, \
+        _SCAN_FUNCTION, \
+        _WORK_QUEUE, \
+        _RESULT_QUEUE, \
+        _BUFFER_MULTIPLE, \
+        _DIAGNOSTICS, \
+        _OVERALL_START_TIME
     assert _PARSE_FUNCTION is not None, "parse_function not initialized"
     assert _SCAN_FUNCTION is not None, "scan_function not initialized"
     assert _WORK_QUEUE is not None, "work_queue not initialized"
@@ -293,8 +308,8 @@ def _worker_process_main(
         """Main async function for worker process."""
 
         def print_diagnostics(actor_name: str, *message_parts: object) -> None:
-            if diagnostics:
-                running_time = f"+{time.time() - overall_start_time:.3f}s"
+            if _DIAGNOSTICS:
+                running_time = f"+{time.time() - _OVERALL_START_TIME:.3f}s"
                 print(running_time, f"P{worker_id} ", f"{actor_name}:", *message_parts)
 
         print_diagnostics(
@@ -333,10 +348,10 @@ def _worker_process_main(
         # Use single_process_strategy to coordinate the async tasks
         strategy = single_process_strategy(
             max_concurrent_scans=max_concurrent_scans,
-            buffer_multiple=buffer_multiple,
-            diagnostics=diagnostics,
+            buffer_multiple=_BUFFER_MULTIPLE,
+            diagnostics=_DIAGNOSTICS,
             diag_prefix=f"P{worker_id}",
-            overall_start_time=overall_start_time,
+            overall_start_time=_OVERALL_START_TIME,
         )
 
         try:
@@ -349,13 +364,13 @@ def _worker_process_main(
             )
         except Exception as ex:
             # Send exception back to main process
-            await anyio.to_thread.run_sync(_RESULT_QUEUE.put, ex)
+            _RESULT_QUEUE.put(ex)
             raise
 
         print_diagnostics("All tasks completed")
 
         # Send completion sentinel to result collector
-        await anyio.to_thread.run_sync(_RESULT_QUEUE.put, None)
+        _RESULT_QUEUE.put(None)
 
     # Run the async event loop in this worker process
     anyio.run(_worker_main)
