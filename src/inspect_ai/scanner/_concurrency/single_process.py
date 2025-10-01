@@ -35,13 +35,27 @@ class WorkerMetrics:
 
 def single_process_strategy(
     *,
-    max_tasks: int,
-    max_queue_size: int | None,
+    max_concurrent_scans: int,
+    buffer_multiple: float | None = 1.0,
     diagnostics: bool = False,
     diag_prefix: str | None = None,
     overall_start_time: float | None = None,
 ) -> ConcurrencyStrategy:
-    """In-process asynchronous task-based execution strategy (function form)."""
+    """Single-process execution strategy with async concurrency.
+
+    The strategy greedily parses and loads transcripts to fill the work buffer, keeping
+    scan tasks saturated and preventing stalls.
+
+    Args:
+        max_concurrent_scans: Number of scanner executions to run concurrently
+        buffer_multiple: Buffer size as multiple of max_concurrent_scans. Higher
+            values reduce worker stalls when all scans complete simultaneously (benefit)
+            at the cost of increased memory usage (cost). Default 1.0 = buffer one
+            item per scan.
+        diagnostics: Whether to print diagnostic information
+        diag_prefix: Prefix for diagnostic messages (internal use)
+        overall_start_time: Start time for diagnostics (internal use)
+    """
     diag_prefix = f"{diag_prefix} " if diag_prefix else ""
 
     async def the_func(
@@ -56,10 +70,13 @@ def single_process_strategy(
         nonlocal overall_start_time
         if not overall_start_time:
             overall_start_time = time.time()
-        work_queue_size = max_queue_size if max_queue_size is not None else max_tasks
+        queue_size = int(
+            max_concurrent_scans
+            * (buffer_multiple if buffer_multiple is not None else 1.0)
+        )
 
         (scanner_job_send_stream, scanner_job_receive_stream) = (
-            anyio.create_memory_object_stream[ScannerJob](work_queue_size)
+            anyio.create_memory_object_stream[ScannerJob](queue_size)
         )
 
         def print_diagnostics(actor_name: str, *message_parts: object) -> None:
@@ -135,7 +152,7 @@ def single_process_strategy(
                 for scanner_job in scanner_jobs:
                     backpressure = (
                         scanner_job_receive_stream.statistics().current_buffer_used
-                        >= work_queue_size
+                        >= queue_size
                     )
                     await scanner_job_send_stream.send(scanner_job)
                     print_diagnostics(
@@ -143,7 +160,7 @@ def single_process_strategy(
                         f"Added scanner job {_scanner_job_info(scanner_job)} "
                         f"{' after backpressure relieved' if backpressure else ''}\n\t{_metrics_info()}",
                     )
-                    if metrics.worker_count < max_tasks:
+                    if metrics.worker_count < max_concurrent_scans:
                         metrics.worker_count += 1
                         metrics.worker_id_counter += 1
                         tg.start_soon(_worker_task, metrics.worker_id_counter)

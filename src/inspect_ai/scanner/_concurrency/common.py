@@ -1,5 +1,5 @@
-from collections.abc import Set as AbstractSet
 from typing import (
+    AbstractSet,
     AsyncIterator,
     Awaitable,
     Callable,

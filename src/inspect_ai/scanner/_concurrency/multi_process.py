@@ -10,8 +10,8 @@ from __future__ import annotations
 import multiprocessing
 import time
 from collections.abc import Sequence
-from collections.abc import Set as AbstractSet
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable
 
 if TYPE_CHECKING:
@@ -28,14 +28,14 @@ from inspect_ai.util._anyio import inner_exception
 from .._recorder.recorder import ScanRecorder
 from .._scanner.result import ResultReport
 from .._transcript.types import TranscriptInfo
-from .common import ParseJob, ScannerJob
+from .common import ConcurrencyStrategy, ParseJob, ScannerJob
 from .single_process import single_process_strategy
 
 # Module-level storage for invariant data (accessible after fork)
 _PARSE_FUNCTION: Callable[[ParseJob], Awaitable[list[ScannerJob]]] | None = None
 _SCAN_FUNCTION: Callable[[ScannerJob], Awaitable[list[ResultReport]]] | None = None
 # Module-level queues (avoid passing through ProcessPoolExecutor which attempts to pickle)
-_WORK_QUEUE: "MPQueue[tuple[TranscriptInfo, AbstractSet[int]] | None]" | None = None
+_WORK_QUEUE: "MPQueue[ParseJob | None]" | None = None
 _RESULT_QUEUE: (
     "MPQueue[tuple[TranscriptInfo, str, list[ResultReport]] | Exception | None]" | None
 ) = None
@@ -101,28 +101,27 @@ class _QueueBasedRecorder(ScanRecorder):
         raise NotImplementedError("results not supported in worker processes")
 
 
+def _parse_job_info(job: ParseJob) -> str:
+    return f"{job.transcript_info.id, job.scanner_indices}"
+
+
 def multi_process_strategy(
     *,
-    max_tasks: int,
-    max_processes: int,
-    max_queue_size: int | None,
-    diagnostics: bool = True,
-) -> Callable[
-    [
-        ScanRecorder,
-        AsyncIterator[ParseJob],
-        Callable[[ParseJob], Awaitable[list[ScannerJob]]],
-        Callable[[ScannerJob], Awaitable[list[ResultReport]]],
-        Callable[[], None],
-    ],
-    Awaitable[None],
-]:
+    max_concurrent_scans: int,
+    max_processes: int | None = None,
+    buffer_multiple: float | None = None,
+    diagnostics: bool = False,
+) -> ConcurrencyStrategy:
     """Multi-process execution strategy with nested async concurrency.
 
+    Distributes ParseJob work items across multiple worker processes. Each worker
+    uses single-process strategy internally to control scan concurrency and buffering.
+    The ParseJob queue is unbounded since ParseJobs are lightweight metadata objects.
+
     Args:
-        max_tasks: Target total scanner concurrency across all processes
-        max_processes: Number of worker processes to spawn
-        max_queue_size: Maximum work queue size for backpressure
+        max_concurrent_scans: Target total scanner concurrency across all processes
+        max_processes: Number of worker processes to spawn (None = auto-detect from CPU count)
+        buffer_multiple: Buffer size multiple passed to each worker's single-process strategy
         diagnostics: Whether to print diagnostic information
     """
 
@@ -138,26 +137,16 @@ def multi_process_strategy(
         _PARSE_FUNCTION = parse_function
         _SCAN_FUNCTION = scan_function
 
-        # Peek at first work item to determine scanner count and calculate concurrency
-        first_item: ParseJob | None = None
-        try:
-            first_item = await parse_jobs.__anext__()
-        except StopAsyncIteration:
-            # No work items, nothing to do
-            return
+        # Auto-detect number of processes if not specified
+        actual_max_processes = (
+            max_processes if max_processes is not None else multiprocessing.cpu_count()
+        )
 
-        scanners_per_item = len(first_item.scanner_indices)
-        if scanners_per_item == 0:
-            return
-
-        # Calculate how many WorkItems to process concurrently
-        # Since each WorkItem runs scanners_per_item scanners concurrently,
-        # we need: max_concurrent_work_items = max_tasks / scanners_per_item
-        max_concurrent_work_items = max(1, max_tasks // scanners_per_item)
-        tasks_per_process = max(1, max_concurrent_work_items // max_processes)
-
-        # Adjust max_processes if needed to match desired concurrency
-        actual_max_processes = min(max_processes, max_concurrent_work_items)
+        # Calculate scans per process
+        hack_factor = 3
+        scans_per_process = hack_factor * max(
+            1, max_concurrent_scans // actual_max_processes
+        )
 
         overall_start_time = time.time()
 
@@ -169,17 +158,14 @@ def multi_process_strategy(
         print_diagnostics(
             "Setup",
             f"Multi-process strategy: {actual_max_processes} processes × "
-            f"{tasks_per_process} tasks = {actual_max_processes * tasks_per_process} concurrent WorkItems "
-            f"({scanners_per_item} scanners/item = ~{actual_max_processes * tasks_per_process * scanners_per_item} total concurrency)",
-        )
-
-        work_queue_size = (
-            max_queue_size if max_queue_size is not None else max_concurrent_work_items
+            f"{scans_per_process} scans = {actual_max_processes * scans_per_process} total concurrency",
         )
 
         # Create queues and store globally so forked processes inherit them directly.
+        # ParseJob queue is unbounded - ParseJobs are tiny metadata objects with no backpressure needed.
+        # Real backpressure happens inside each worker via single-process strategy's ScannerJob buffer.
         global _WORK_QUEUE, _RESULT_QUEUE
-        _WORK_QUEUE = multiprocessing.Queue(work_queue_size)
+        _WORK_QUEUE = multiprocessing.Queue()
         _RESULT_QUEUE = multiprocessing.Queue()
 
         # Non-None local aliases for type checking clarity
@@ -188,39 +174,21 @@ def multi_process_strategy(
         work_queue = _WORK_QUEUE
         result_queue = _RESULT_QUEUE
 
-        def _work_item_info(transcript_info: TranscriptInfo) -> str:
-            return f"({transcript_info.id})"
-
         async def _producer() -> None:
             """Producer task that feeds work items into the queue."""
-            # First, send the item we peeked at
-            if first_item is not None:
-                await anyio.to_thread.run_sync(
-                    work_queue.put,
-                    (first_item.transcript_info, first_item.scanner_indices),
-                )
+            async for item in parse_jobs:
+                await anyio.to_thread.run_sync(partial(work_queue.put, item))
                 print_diagnostics(
                     "MP Producer",
-                    f"Added work item {_work_item_info(first_item.transcript_info)}",
+                    f"Added ParseJob {_parse_job_info(item)}",
                 )
 
-            # Then send remaining items
-            async for item in parse_jobs:
-                await anyio.to_thread.run_sync(
-                    work_queue.put,
-                    (item.transcript_info, item.scanner_indices),
-                )
-                print_diagnostics(
-                    "Producer",
-                    f"Added work item {_work_item_info(item.transcript_info)}",
-                )
-
-            # Send sentinel values to signal worker TASKS to stop (one per task)
-            sentinel_count = actual_max_processes * tasks_per_process
+            # Send sentinel values to signal worker tasks to stop (one per task)
+            sentinel_count = actual_max_processes * scans_per_process
             for _ in range(sentinel_count):
                 await anyio.to_thread.run_sync(work_queue.put, None)
 
-            print_diagnostics("Producer", "FINISHED PRODUCING ALL WORK")
+            print_diagnostics("MP Producer", "FINISHED PRODUCING ALL WORK")
 
         async def _result_collector() -> None:
             """Collector task that receives results and records them."""
@@ -234,7 +202,7 @@ def multi_process_strategy(
                     # Sentinel from a worker process indicating it's done
                     workers_finished += 1
                     print_diagnostics(
-                        "Collector",
+                        "MP Collector",
                         f"Worker finished ({workers_finished}/{actual_max_processes})",
                     )
                     continue
@@ -248,8 +216,8 @@ def multi_process_strategy(
 
                 items_processed += 1
                 print_diagnostics(
-                    "Collector",
-                    f"Recorded results for {_work_item_info(transcript_info)} (total: {items_processed})",
+                    "MP Collector",
+                    f"Recorded results for {transcript_info.id} (total: {items_processed})",
                 )
 
         try:
@@ -264,8 +232,9 @@ def multi_process_strategy(
                     try:
                         future = executor.submit(
                             _worker_process_main,
-                            tasks_per_process,
+                            scans_per_process,
                             worker_id,
+                            buffer_multiple,
                             diagnostics,
                             overall_start_time,
                         )
@@ -286,7 +255,7 @@ def multi_process_strategy(
                 for future in futures:
                     await anyio.to_thread.run_sync(future.result)
 
-                print_diagnostics("Main", "All worker processes completed")
+                print_diagnostics("MP Main", "All worker processes completed")
 
         except Exception as ex:
             raise inner_exception(ex)
@@ -301,8 +270,9 @@ def multi_process_strategy(
 
 
 def _worker_process_main(
-    max_tasks: int,
+    max_concurrent_scans: int,
     worker_id: int,
+    buffer_multiple: float | None,
     diagnostics: bool,
     overall_start_time: float,
 ) -> None:
@@ -319,9 +289,6 @@ def _worker_process_main(
     parse_function = _PARSE_FUNCTION
     scan_function = _SCAN_FUNCTION
 
-    def _work_item_info(transcript_info: TranscriptInfo) -> str:
-        return f"({transcript_info.id})"
-
     async def _worker_main() -> None:
         """Main async function for worker process."""
 
@@ -331,7 +298,8 @@ def _worker_process_main(
                 print(running_time, f"P{worker_id} ", f"{actor_name}:", *message_parts)
 
         print_diagnostics(
-            f"Worker P{worker_id}", f"Starting with {max_tasks} concurrent tasks"
+            "worker main",
+            f"Starting with {max_concurrent_scans} max concurrent scans",
         )
 
         # Create an async iterator that pulls ParseJob items from the work queue
@@ -339,36 +307,33 @@ def _worker_process_main(
             """Yields ParseJob items from the work queue until sentinel is received."""
             items_pulled = 0
             while True:
-                work_item_data: (
-                    tuple[TranscriptInfo, AbstractSet[int]] | None
-                ) = await anyio.to_thread.run_sync(_WORK_QUEUE.get)
+                work_item_data: ParseJob | None = await anyio.to_thread.run_sync(
+                    _WORK_QUEUE.get
+                )
 
                 if work_item_data is None:
                     # Sentinel value - time to stop
                     print_diagnostics(
-                        f"Worker P{worker_id}",
+                        "parse job iterator",
                         f"Received stop signal after pulling {items_pulled} items",
                     )
                     break
 
-                transcript_info, scanner_indices = work_item_data
                 items_pulled += 1
                 print_diagnostics(
-                    f"Worker P{worker_id}", f"Pulled {_work_item_info(transcript_info)}"
+                    "parse job iterator",
+                    f"Pulled {_parse_job_info(work_item_data)}",
                 )
 
-                yield ParseJob(
-                    transcript_info=transcript_info,
-                    scanner_indices=scanner_indices,
-                )
+                yield work_item_data
 
         # Create a queue-based recorder that sends results back to main process
         recorder = _QueueBasedRecorder(_RESULT_QUEUE)
 
         # Use single_process_strategy to coordinate the async tasks
         strategy = single_process_strategy(
-            max_tasks=max_tasks,
-            max_queue_size=None,  # Let single_process_strategy use its default
+            max_concurrent_scans=max_concurrent_scans,
+            buffer_multiple=buffer_multiple,
             diagnostics=diagnostics,
             diag_prefix=f"P{worker_id}",
             overall_start_time=overall_start_time,

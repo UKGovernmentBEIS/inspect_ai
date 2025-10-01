@@ -56,13 +56,17 @@ if __name__ == "__main__":
 
     # otherwise normal flow
     else:
-        LOGS_DIR = Path(__file__).parent / "logs"
+        LOGS = Path(__file__).parent / "logs"
         SCANS_DIR = Path(__file__).parent / "scans"
-        # LOGS_DIR = Path("/Users/ericpatey/code/parsing/logs")
+        # LOGS = Path("/Users/ericpatey/code/parsing/logs/swe_bench.eval")
+        # LOGS = Path("/Users/ericpatey/code/parsing/logs")
 
         status = scan(
-            scanners=[dummy_scanner(), llm_scanner()],
-            transcripts=transcripts(LOGS_DIR),
+            scanners=[
+                dummy_scanner(),  # FAST NON-BLOCKING
+                llm_scanner(),  # SLOWISH - BLOCKING ON IO
+            ],
+            transcripts=transcripts(LOGS),
             max_transcripts=50,
             results=SCANS_DIR.as_posix(),
         )

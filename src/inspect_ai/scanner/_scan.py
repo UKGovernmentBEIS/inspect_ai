@@ -214,8 +214,6 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
         ScanStatus indicating completion status, spec, and location for resumption
     """
     try:
-        LOOKAHEAD_BUFFER_MULTIPLE: float = 1.0
-
         # establish max_transcripts
         max_transcripts = scan.spec.config.max_transcripts or DEFAULT_MAX_TRANSCRIPTS
 
@@ -288,19 +286,17 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                     )
 
                 # TODO: Plumb this
-                multi_testing = False
+                multi_testing = True
                 strategy = (
                     multi_process_strategy(
-                        max_processes=4,
-                        max_tasks=max_transcripts,
-                        max_queue_size=None,
-                        diagnostics=True,
+                        # max_processes=2,
+                        max_concurrent_scans=max_transcripts,
+                        diagnostics=False,
                     )
                     if multi_testing
                     else single_process_strategy(
-                        max_tasks=max_transcripts,
-                        max_queue_size=int(max_transcripts * LOOKAHEAD_BUFFER_MULTIPLE),
-                        diagnostics=True,
+                        max_concurrent_scans=max_transcripts,
+                        diagnostics=False,
                     )
                 )
 
@@ -415,5 +411,5 @@ async def _parse_jobs(
             continue
         yield ParseJob(
             transcript_info=transcript_info,
-            scanner_indices=frozenset(scanner_indices_for_transcript),
+            scanner_indices=set(scanner_indices_for_transcript),
         )
