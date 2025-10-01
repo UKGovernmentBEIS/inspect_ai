@@ -14,6 +14,7 @@ interface ChatViewProps {
   indented?: boolean;
   numbered?: boolean;
   className?: string | string[];
+  allowLinking?: boolean;
 }
 
 /**
@@ -27,6 +28,7 @@ export const ChatView: FC<ChatViewProps> = ({
   indented,
   numbered = true,
   className,
+  allowLinking = true,
 }) => {
   const collapsedMessages = resolveToolCallsIntoPreviousMessage
     ? resolveMessages(messages)
@@ -49,6 +51,7 @@ export const ChatView: FC<ChatViewProps> = ({
             resolvedMessage={msg}
             indented={indented}
             toolCallStyle={toolCallStyle}
+            allowLinking={allowLinking}
           />
         );
       })}

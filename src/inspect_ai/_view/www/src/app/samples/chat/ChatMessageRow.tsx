@@ -14,6 +14,7 @@ interface ChatMessageRowProps {
   indented?: boolean;
   padded?: boolean;
   highlightUserMessage?: boolean;
+  allowLinking?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
   toolCallStyle,
   indented,
   highlightUserMessage,
+  allowLinking = true,
 }) => {
   if (number) {
     return (
@@ -54,6 +56,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
             toolMessages={resolvedMessage.toolMessages}
             indented={indented}
             toolCallStyle={toolCallStyle}
+            allowLinking={allowLinking}
           />
         </div>
 
@@ -79,6 +82,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
           toolMessages={resolvedMessage.toolMessages}
           indented={indented}
           toolCallStyle={toolCallStyle}
+          allowLinking={allowLinking}
         />
         {resolvedMessage.message.role === "user" ? (
           <div style={{ height: "10px" }}></div>

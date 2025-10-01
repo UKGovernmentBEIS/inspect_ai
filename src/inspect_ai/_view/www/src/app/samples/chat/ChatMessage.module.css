@@ -37,9 +37,13 @@
 }
 
 .copyLink:hover {
-  opacity: 1;
+  opacity: 0.75;
 }
 
 .metadataLabel {
   padding-top: 1em;
+}
+
+.hover .copyLink {
+  opacity: 0.75;
 }

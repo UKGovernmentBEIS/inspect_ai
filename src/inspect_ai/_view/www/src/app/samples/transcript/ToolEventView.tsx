@@ -82,6 +82,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
             messages={lastModelNode.event.output.choices.map((m) => m.message)}
             numbered={false}
             toolCallStyle="compact"
+            allowLinking={false}
           />
         ) : undefined}
 
