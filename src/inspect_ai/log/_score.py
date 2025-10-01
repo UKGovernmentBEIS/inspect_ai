@@ -1,7 +1,7 @@
 """Score editing functionality."""
 
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+from inspect_ai.event._tree import SpanNode, event_tree, walk_node_spans
 from inspect_ai.scorer._metric import ScoreEdit
 
 from ._log import EvalLog
@@ -63,39 +63,34 @@ def edit_score(
     if edit.metadata != "UNCHANGED":
         score.metadata = edit.metadata
 
+    # Add the edit to the history
     score.history.append(edit)
 
-    score_edit_event = ScoreEditEvent(score_name=score_name, edit=edit)
-
-    # Build a map of span_id -> (begin_idx, end_idx) for scorers spans
-    span_indexes = {}
-    for i, event in enumerate(sample.events):
-        if (
-            isinstance(event, SpanBeginEvent)
-            and event.type == "scorers"
-            and event.name == "scorers"
-            and event.id
-        ):
-            span_indexes[event.id] = [i, None]
-        elif isinstance(event, SpanEndEvent) and event.id in span_indexes:
-            span_indexes[event.id][1] = i
-
     # Find the last scorers span
-    span_id = None
-    end_index = None
-    if span_indexes:
-        last_span_id = max(span_indexes.keys(), key=lambda k: span_indexes[k][1] or -1)
-        if span_indexes[last_span_id][1] is not None:
-            span_id = last_span_id
-            end_index = span_indexes[last_span_id][1]
+    final_scorers_node: SpanNode | None = None
+    sample_event_tree = event_tree(sample.events)
+    for node in walk_node_spans(sample_event_tree):
+        if node.type == "scorers" and node.name == "scorers":
+            final_scorers_node = node
 
-    score_edit_event.span_id = span_id
+    # create the event
+    score_edit_event = ScoreEditEvent(score_name=score_name, edit=edit)
+    if final_scorers_node:
+        score_edit_event.span_id = final_scorers_node.begin.id
 
-    if end_index is not None:
-        # Insert before the span end to keep it structurally inside the span
-        sample.events.insert(end_index, score_edit_event)
-    else:
-        sample.events.append(score_edit_event)
+    # Find the index to insert the ScoreEditEvent (just before the end of
+    # the final scorers span, or at the end if no such span exists)
+    end_index = len(sample.events)
+    if final_scorers_node:
+        # Find the span end index
+        for i, ev in enumerate(reversed(sample.events)):
+            if ev == final_scorers_node.end if final_scorers_node else None:
+                end_index = len(sample.events) - 1 - i
+                break
 
+    # Insert the event
+    sample.events.insert(end_index, score_edit_event)
+
+    # recompute metrics
     if recompute_metrics:
         _recompute_metrics(log)
