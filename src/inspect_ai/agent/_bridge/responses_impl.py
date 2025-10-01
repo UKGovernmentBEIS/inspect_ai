@@ -530,7 +530,7 @@ def messages_from_responses_input(
                 ChatMessageTool(
                     tool_call_id=item["call_id"],
                     function=function_calls_by_id.get(item["call_id"]),
-                    content=[ContentText(text=item["output"])],
+                    content=[ContentText(text=cast(str, item["output"]))],
                 )
             )
         elif is_computer_call_output(item):
