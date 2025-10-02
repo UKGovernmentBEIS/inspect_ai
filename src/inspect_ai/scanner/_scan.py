@@ -308,7 +308,7 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                     parse_jobs=_parse_jobs(scan, recorder, transcripts, bump_progress),
                     parse_function=_parse_function,
                     scan_function=_scan_function,
-                    recorder=recorder,
+                    record_results=recorder.record,
                     bump_progress=bump_progress,
                 )
 

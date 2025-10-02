@@ -18,8 +18,8 @@ from anyio.abc import TaskGroup
 from inspect_ai._util.registry import registry_info
 from inspect_ai.util._anyio import inner_exception
 
-from .._recorder.recorder import ScanRecorder
 from .._scanner.result import ResultReport
+from .._transcript.types import TranscriptInfo
 from .common import ConcurrencyStrategy, ParseJob, ScannerJob
 
 
@@ -60,7 +60,9 @@ def single_process_strategy(
 
     async def the_func(
         *,
-        recorder: ScanRecorder,
+        record_results: Callable[
+            [TranscriptInfo, str, list[ResultReport]], Awaitable[None]
+        ],
         parse_jobs: AsyncIterator[ParseJob],
         parse_function: Callable[[ParseJob], Awaitable[list[ScannerJob]]],
         scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]],
@@ -125,7 +127,7 @@ def single_process_strategy(
                     exec_start_time = time.time()
                     try:
                         metrics.workers_scanning += 1
-                        await recorder.record(
+                        await record_results(
                             scanner_job.union_transcript,
                             registry_info(scanner_job.scanner).name,
                             await scan_function(scanner_job),

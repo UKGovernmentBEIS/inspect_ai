@@ -7,7 +7,6 @@ from typing import (
     Protocol,
 )
 
-from .._recorder.recorder import ScanRecorder
 from .._scanner.result import ResultReport
 from .._scanner.scanner import Scanner
 from .._scanner.types import ScannerInput
@@ -55,6 +54,8 @@ class ConcurrencyStrategy(Protocol):
         parse_jobs: AsyncIterator[ParseJob],
         parse_function: Callable[[ParseJob], Awaitable[list[ScannerJob]]],
         scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]],
-        recorder: ScanRecorder,
+        record_results: Callable[
+            [TranscriptInfo, str, list[ResultReport]], Awaitable[None]
+        ],
         bump_progress: Callable[[], None],
     ) -> None: ...
