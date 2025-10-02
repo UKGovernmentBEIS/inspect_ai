@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Google: Manage Google client lifetime to scope of call to `generate()`.
 - Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
 
 ## 0.3.135 (29 September 2025)
