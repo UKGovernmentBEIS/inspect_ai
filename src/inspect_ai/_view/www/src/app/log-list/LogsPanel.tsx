@@ -5,7 +5,6 @@ import { useNavigate } from "react-router-dom";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
 import { useDocumentTitle, useLogs, usePagination } from "../../state/hooks";
-import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
@@ -48,14 +47,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const filterRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-
-  // Unload the load when this is mounted. This prevents the old log
-  // data from being displayed when navigating back to the logs panel
-  // and also ensures that we reload logs when freshly navigating to them.
-  const { unloadLog } = useUnloadLog();
-  useEffect(() => {
-    unloadLog();
-  }, []);
 
   const { logPath } = useLogRouteParams();
 

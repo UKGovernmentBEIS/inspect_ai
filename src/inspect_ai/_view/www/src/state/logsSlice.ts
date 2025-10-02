@@ -231,15 +231,14 @@ export const createLogsSlice = (
       refreshLogs: async () => {
         log.debug("REFRESH LOGS");
         const state = get();
-        const refreshedLogs = await state.logsActions.loadLogs();
-
         // Preserve the selected log even if new logs appear
         const currentLog =
-          state.logs.logs.files[
-            state.logs.selectedLogIndex > -1 ? state.logs.selectedLogIndex : 0
-          ];
+          state.logs.selectedLogIndex > -1
+            ? state.logs.logs.files[state.logs.selectedLogIndex]
+            : undefined;
 
         // Set the logs first
+        const refreshedLogs = await state.logsActions.loadLogs();
         state.logsActions.setLogs(refreshedLogs || kEmptyLogs);
 
         if (currentLog) {
