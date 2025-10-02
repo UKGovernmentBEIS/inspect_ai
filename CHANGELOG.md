@@ -2,6 +2,7 @@
 
 - Google: Manage Google client lifetime to scope of call to `generate()`.
 - Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
+- Inspect View: Preserve query parameters in log viewer URLs when copying links.
 
 ## 0.3.135 (29 September 2025)
 
