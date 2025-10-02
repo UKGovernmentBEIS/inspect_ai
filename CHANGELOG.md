@@ -6,6 +6,7 @@
 - Inspect View: Make message and event link affordances slightly more discoverable.
 - Inspect View: Preserve query parameters in log viewer URLs when copying links.
 - Inspect View: Fix issue where sometimes the incorrect log is displayed when new logs are added to a log directory while viewing a log.
+- Scoring: Fix regression in `inspect score` command (and `inspect_score` function) when scoring log files on S3.
 
 ## 0.3.135 (29 September 2025)
 
