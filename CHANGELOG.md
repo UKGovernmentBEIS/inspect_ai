@@ -1,3 +1,7 @@
+## Unreleased
+
+- Dependencies: Update to fsspec 2025.9.0 to match upper bound of HF datasets.
+
 ## 0.3.136 (02 October 2025)
 
 - Google: Manage Google client lifetime to scope of call to `generate()`.
