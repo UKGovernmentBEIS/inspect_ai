@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.136 (02 October 2025)
 
 - Google: Manage Google client lifetime to scope of call to `generate()`.
 - Eval logs: Add message count tracking to evaluation logs for quick analysis without loading full samples.
