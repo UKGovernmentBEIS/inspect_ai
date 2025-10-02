@@ -36,6 +36,7 @@ from ._log import (
 )
 from ._message import LoggingLevel, LoggingMessage
 from ._retry import retryable_eval_logs
+from ._stats import active_eval_stats, set_active_eval_stats
 from ._transcript import (
     ApprovalEvent,
     ErrorEvent,
@@ -122,4 +123,6 @@ __all__ = [
     "EventTree",
     "EventNode",
     "SpanNode",
+    "active_eval_stats",
+    "set_active_eval_stats",
 ]

@@ -938,6 +938,9 @@ class EvalStats(BaseModel):
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
 
+    in_flight_batches: dict[str, Any] = Field(default_factory=dict)
+    """Batches that were being processed when the eval stopped."""
+
 
 class EvalLog(BaseModel):
     """Evaluation log."""

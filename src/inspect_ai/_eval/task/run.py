@@ -58,6 +58,7 @@ from inspect_ai.log._log import (
 from inspect_ai.log._samples import (
     active_sample,
 )
+from inspect_ai.log._stats import set_active_eval_stats
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -179,6 +180,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
     stats = EvalStats(started_at=iso_now())
+
+    set_active_eval_stats(stats)
 
     # handle sample errors (raise as required)
     sample_error_handler = SampleErrorHandler(
