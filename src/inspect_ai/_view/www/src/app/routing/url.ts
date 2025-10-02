@@ -364,5 +364,5 @@ export const supportsLinking = () => {
 };
 
 export const toFullUrl = (path: string) => {
-  return `${window.location.origin}${window.location.pathname}#${path}`;
+  return `${window.location.origin}${window.location.pathname}${window.location.search}#${path}`;
 };
