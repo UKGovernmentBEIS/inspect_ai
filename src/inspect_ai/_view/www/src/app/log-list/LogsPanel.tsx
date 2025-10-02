@@ -2,10 +2,10 @@ import clsx from "clsx";
 import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
+import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
 import { useDocumentTitle, useLogs, usePagination } from "../../state/hooks";
-import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
@@ -48,14 +48,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const filterRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-
-  // Unload the load when this is mounted. This prevents the old log
-  // data from being displayed when navigating back to the logs panel
-  // and also ensures that we reload logs when freshly navigating to them.
-  const { unloadLog } = useUnloadLog();
-  useEffect(() => {
-    unloadLog();
-  }, []);
 
   const { logPath } = useLogRouteParams();
 
@@ -202,6 +194,26 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       return logItems;
     }, [logPath, logs.files, logHeaders, evalSet]);
 
+  const progress = useMemo(() => {
+    let pending = 0;
+    let total = 0;
+    for (const item of logItems) {
+      if (item.type === "file" || item.type === "pending-task") {
+        total += 1;
+        if (
+          item.type === "pending-task" ||
+          item.logOverview?.status === "started"
+        ) {
+          pending += 1;
+        }
+      }
+    }
+    return {
+      complete: total - pending,
+      total,
+    };
+  }, [logItems]);
+
   useEffect(() => {
     const exec = async () => {
       await loadLogs(logPath);
@@ -242,7 +254,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         <LogsFilterInput ref={filterRef} />
       </Navbar>
 
-      <ProgressBar animating={loading || headersLoading} />
+      <ActivityBar animating={loading || headersLoading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
         <LogListGrid items={logItems} />
       </div>
@@ -251,6 +263,16 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         itemCount={logItems.length}
         progressText={
           loading ? "Loading logs" : headersLoading ? "Loading data" : undefined
+        }
+        progressBar={
+          progress.total !== progress.complete ? (
+            <ProgressBar
+              min={0}
+              max={progress.total}
+              value={progress.complete}
+              width="100px"
+            />
+          ) : undefined
         }
       />
     </div>

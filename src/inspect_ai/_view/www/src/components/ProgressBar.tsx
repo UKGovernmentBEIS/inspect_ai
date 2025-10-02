@@ -3,21 +3,28 @@ import { FC } from "react";
 import styles from "./ProgressBar.module.css";
 
 interface ProgressBarProps {
-  animating: boolean;
+  min: number;
+  max: number;
+  value: number;
+  width?: string;
 }
 
-export const ProgressBar: FC<ProgressBarProps> = ({ animating }) => {
+export const ProgressBar: FC<ProgressBarProps> = ({
+  min,
+  max,
+  value,
+  width = "100px",
+}) => {
   return (
-    <div className={clsx(styles.wrapper)}>
-      <div
-        className={clsx(styles.container)}
-        role="progressbar"
-        aria-label="Basic example"
-        aria-valuenow={25}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        {animating && <div className={styles.animate} />}
+    <div className={clsx(styles.container)}>
+      <div className={clsx(styles.outer)} style={{ width }}>
+        <div
+          className={clsx(styles.inner)}
+          style={{ width: `${((value - min) / (max - min)) * 100}%` }}
+        ></div>
+      </div>
+      <div className={clsx(styles.label, "text-size-smallest")}>
+        {value} / {max}
       </div>
     </div>
   );
