@@ -255,6 +255,6 @@ def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction
             choices=["overwrite", "append", "o", "a"],
             default="append",
         )
-        return "overwrite" if user_action in ["ovewrite", "o"] else "append"
+        return "overwrite" if user_action in ["overwrite", "o"] else "append"
     else:
         return "overwrite"
