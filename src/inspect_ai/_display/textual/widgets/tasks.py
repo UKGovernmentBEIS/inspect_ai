@@ -4,7 +4,6 @@ from typing import Iterator, cast
 
 from rich.console import RenderableType
 from rich.text import Text
-from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, ScrollableContainer
 from textual.css.query import NoMatches
@@ -15,13 +14,9 @@ from typing_extensions import override
 
 from inspect_ai._display.core.results import task_metric
 from inspect_ai._display.textual.widgets.clock import Clock
-from inspect_ai._display.textual.widgets.task_detail import TaskDetail
-from inspect_ai._display.textual.widgets.toggle import Toggle
 from inspect_ai._display.textual.widgets.vscode import conditional_vscode_link
 from inspect_ai._util.file import to_uri
-from inspect_ai._util.vscode import (
-    VSCodeCommand,
-)
+from inspect_ai._util.vscode import VSCodeCommand
 
 from ...core.display import (
     Progress,
@@ -154,13 +149,16 @@ class TaskProgressView(Widget):
     DEFAULT_CSS = """
     TaskProgressView {
         height: auto;
-        width: 1fr;
-        layout: grid;
-        grid-size: 9 2;
-        grid-columns: auto auto auto auto 1fr auto auto auto;
-        grid-rows: auto auto;
-        grid-gutter: 0 1;
+        layout: horizontal;
     }
+    TaskProgressView > * {
+        width: auto;
+        padding-left: 1;
+    }
+    #progress-bar {
+        width: 1fr;
+    }
+
     TaskProgressView Bar {
         width: 1fr;
         &> .bar--bar {
@@ -172,12 +170,6 @@ class TaskProgressView(Widget):
     }
     #task-metrics {
         color:$text-secondary;
-    }
-    #task-detail {
-        column-span: 9;
-    }
-    .hidden {
-        display: none;
     }
     """
 
@@ -195,14 +187,12 @@ class TaskProgressView(Widget):
         self.description_width = description_width
         self.model_name_width = model_name_width
 
-        self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
+        self.progress_bar = ProgressBar(
+            id="progress-bar", total=task.profile.steps, show_eta=False
+        )
         self.count_display = Static(markup=False)
         self.metrics_display = Static(id="task-metrics", markup=False)
         self.task_progress = TaskProgress(self.progress_bar)
-
-        self.toggle = Toggle()
-        self.task_detail = TaskDetail(id="task-detail", classes="hidden")
-
         self.sample_count_width: int = sample_count_width
         self.display_metrics = display_metrics
         self.view_log_link = conditional_vscode_link(
@@ -222,7 +212,6 @@ class TaskProgressView(Widget):
     samples_total: reactive[int] = reactive(0)
 
     def compose(self) -> ComposeResult:
-        yield (self.toggle if self.display_metrics else Static())
         yield TaskStatusIcon()
         yield Static(
             progress_description(self.t.profile, self.description_width, pad=True),
@@ -237,13 +226,6 @@ class TaskProgressView(Widget):
         yield self.metrics_display
         yield Clock()
         yield self.view_log_link
-
-        yield self.task_detail
-
-    @on(Toggle.Toggled)
-    def handle_title_toggle(self, event: Toggle.Toggled) -> None:
-        self.task_detail.hidden = not self.toggle.toggled
-        event.stop()
 
     def on_mount(self) -> None:
         self.query_one(Clock).start(datetime.now().timestamp())
@@ -290,9 +272,6 @@ class TaskProgressView(Widget):
         if metrics is not None and len(metrics) > 0:
             # update label
             self.update_metrics_label()
-
-            # update details
-            self.task_detail.update_metrics(metrics)
 
     def refresh_count(self) -> None:
         progress_label = progress_count(
