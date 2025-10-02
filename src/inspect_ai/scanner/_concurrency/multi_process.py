@@ -166,12 +166,7 @@ def multi_process_strategy(
                         # The only arguments passed to subprocess_main via this
                         # .submit should be subprocess specific. All subprocess invariant
                         # data used by the subprocess should be in the IPCContext
-                        future = executor.submit(
-                            subprocess_main,
-                            concurrent_scans_per_process,
-                            worker_id,
-                        )
-                        futures.append(future)
+                        futures.append(executor.submit(subprocess_main, worker_id))
                         print_diagnostics(
                             "Main", f"Spawned worker process #{worker_id}"
                         )

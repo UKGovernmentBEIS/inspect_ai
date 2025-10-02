@@ -21,7 +21,6 @@ from .single_process import single_process_strategy
 
 
 def subprocess_main(
-    max_concurrent_scans: int,
     worker_id: int,
 ) -> None:
     """Worker subprocess main function.
@@ -30,7 +29,6 @@ def subprocess_main(
     Uses single_process_strategy internally to coordinate async tasks.
 
     Args:
-        max_concurrent_scans: Number of concurrent scans this worker should run
         worker_id: Unique identifier for this worker process
     """
     # Access IPC context inherited from parent process via fork
@@ -46,7 +44,7 @@ def subprocess_main(
 
         print_diagnostics(
             "worker main",
-            f"Starting with {max_concurrent_scans} max concurrent scans",
+            f"Starting with {ctx.concurrent_scans_per_process} max concurrent scans",
         )
 
         # Create an async iterator that pulls ParseJob items from the work queue
@@ -74,7 +72,7 @@ def subprocess_main(
 
         # Use single_process_strategy to coordinate the async tasks
         strategy = single_process_strategy(
-            max_concurrent_scans=max_concurrent_scans,
+            max_concurrent_scans=ctx.concurrent_scans_per_process,
             buffer_multiple=ctx.buffer_multiple,
             diagnostics=ctx.diagnostics,
             diag_prefix=f"P{worker_id}",
