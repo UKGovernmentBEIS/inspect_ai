@@ -23,10 +23,17 @@ ResultQueueItem: TypeAlias = ResultItem | Exception | None
 
 @dataclass
 class IPCContext:
-    """Shared state for IPC between main process and forked workers."""
+    """
+    Shared state for IPC between main process and forked workers.
+
+    For consistency, it should contain ALL data used by subprocesses that is invariant
+    across subprocesses. The `executor.submit` should only pass subprocess specific
+    arguments.
+    """
 
     parse_function: Callable[[ParseJob], Awaitable[list[ScannerJob]]]
     scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]]
+    concurrent_scans_per_process: int
     buffer_multiple: float | None
     diagnostics: bool
     overall_start_time: float

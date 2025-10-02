@@ -20,11 +20,11 @@ from .common import ParseJob
 from .single_process import single_process_strategy
 
 
-def worker_process_main(
+def subprocess_main(
     max_concurrent_scans: int,
     worker_id: int,
 ) -> None:
-    """Worker process main function.
+    """Worker subprocess main function.
 
     Runs in a forked subprocess with access to parent's memory.
     Uses single_process_strategy internally to coordinate async tasks.

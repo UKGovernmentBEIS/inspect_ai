@@ -27,7 +27,7 @@ from .._scanner.result import ResultReport
 from .._transcript.types import TranscriptInfo
 from . import _mp_common
 from ._mp_common import run_sync_on_thread
-from ._mp_subprocess import worker_process_main
+from ._mp_subprocess import subprocess_main
 from .common import ConcurrencyStrategy, ParseJob, ScannerJob
 
 
@@ -50,6 +50,8 @@ def multi_process_strategy(
         buffer_multiple: Buffer size multiple passed to each worker's single-process strategy
         diagnostics: Whether to print diagnostic information
     """
+    if max_processes is None:
+        max_processes = multiprocessing.cpu_count()
 
     async def the_func(
         *,
@@ -69,26 +71,21 @@ def multi_process_strategy(
                 "Only one instance can be active at a time."
             )
 
+        # TODO: Obviously, hack_factor is just for exploration for now
+        hack_factor = 3
+        concurrent_scans_per_process = hack_factor * max(
+            1, max_concurrent_scans // max_processes
+        )
         # Initialize shared IPC context that will be inherited by forked workers
         _mp_common.ipc_context = _mp_common.IPCContext(
             parse_function=parse_function,
             scan_function=scan_function,
+            concurrent_scans_per_process=concurrent_scans_per_process,
             buffer_multiple=buffer_multiple,
             diagnostics=diagnostics,
             overall_start_time=time.time(),
             parse_job_queue=multiprocessing.Queue(),
             result_queue=multiprocessing.Queue(),
-        )
-
-        # Auto-detect number of processes if not specified
-        actual_max_processes = (
-            max_processes if max_processes is not None else multiprocessing.cpu_count()
-        )
-
-        # Calculate scans per process
-        hack_factor = 3
-        concurrent_scans_per_process = hack_factor * max(
-            1, max_concurrent_scans // actual_max_processes
         )
 
         def print_diagnostics(actor_name: str, *message_parts: object) -> None:
@@ -100,8 +97,8 @@ def multi_process_strategy(
 
         print_diagnostics(
             "Setup",
-            f"Multi-process strategy: {actual_max_processes} processes × "
-            f"{concurrent_scans_per_process} scans = {actual_max_processes * concurrent_scans_per_process} total concurrency",
+            f"Multi-process strategy: {max_processes} processes × "
+            f"{concurrent_scans_per_process} scans = {max_processes * concurrent_scans_per_process} total concurrency",
         )
 
         # Queues are part of IPC context and inherited by forked processes.
@@ -120,7 +117,7 @@ def multi_process_strategy(
                 )
 
             # Send sentinel values to signal worker tasks to stop (one per task)
-            sentinel_count = actual_max_processes * concurrent_scans_per_process
+            sentinel_count = max_processes * concurrent_scans_per_process
             for _ in range(sentinel_count):
                 work_queue.put(None)
 
@@ -131,7 +128,7 @@ def multi_process_strategy(
             items_processed = 0
             workers_finished = 0
 
-            while workers_finished < actual_max_processes:
+            while workers_finished < max_processes:
                 result = await run_sync_on_thread(result_queue.get)
 
                 if result is None:
@@ -139,7 +136,7 @@ def multi_process_strategy(
                     workers_finished += 1
                     print_diagnostics(
                         "MP Collector",
-                        f"Worker finished ({workers_finished}/{actual_max_processes})",
+                        f"Worker finished ({workers_finished}/{max_processes})",
                     )
                     continue
 
@@ -160,14 +157,17 @@ def multi_process_strategy(
             # Start worker processes
             ctx = multiprocessing.get_context("fork")
             with ProcessPoolExecutor(
-                max_workers=actual_max_processes, mp_context=ctx
+                max_workers=max_processes, mp_context=ctx
             ) as executor:
                 # Submit worker processes
                 futures = []
-                for worker_id in range(actual_max_processes):
+                for worker_id in range(max_processes):
                     try:
+                        # The only arguments passed to subprocess_main via this
+                        # .submit should be subprocess specific. All subprocess invariant
+                        # data used by the subprocess should be in the IPCContext
                         future = executor.submit(
-                            worker_process_main,
+                            subprocess_main,
                             concurrent_scans_per_process,
                             worker_id,
                         )
@@ -194,7 +194,8 @@ def multi_process_strategy(
             raise inner_exception(ex)
         finally:
             # Reset IPC context to None to indicate no strategy is active
-            # This also prevents leakage between runs and releases the implicit lock
+            # This also prevents leakage between runs and releases the implicit
+            # lock. See comment in _mp_common.py for the need for/value of the cast.
             _mp_common.ipc_context = cast(_mp_common.IPCContext, None)
 
     return the_func
