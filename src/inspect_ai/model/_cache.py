@@ -161,7 +161,10 @@ def _cache_key(entry: CacheEntry) -> str:
             )
         ),
         ",".join(
-            [str(message.model_dump(exclude=set(["id"]))) for message in entry.input]
+            [
+                str(message.model_dump(exclude=set(["id", "source"])))
+                for message in entry.input
+            ]
         ),
         entry.base_url,
         entry.tool_choice,
