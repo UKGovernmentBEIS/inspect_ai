@@ -1,3 +1,7 @@
+## Unreleased
+
+- Dependencies: Allow any version of `rich` > 13.3.3 save for 14.0.0 (which had an infinite recursion bug affecting stack traces with exception groups).
+
 ## 0.3.136 (02 October 2025)
 
 - Google: Manage Google client lifetime to scope of call to `generate()`.
