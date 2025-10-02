@@ -155,11 +155,16 @@ class ModelAPI(abc.ABC):
         """
         self.model_name = model_name
         self.base_url = base_url
+        self.api_key = api_key
+        self.api_key_vars = api_key_vars
+        self._apply_api_key_overrides()
 
+    def _apply_api_key_overrides(self):
         from inspect_ai.hooks._hooks import override_api_key
 
         # apply api key override
-        for key in api_key_vars:
+        api_key = self.api_key
+        for key in self.api_key_vars:
             # if there is an explicit api_key passed then it
             # overrides anything in the environment so use it
             if api_key is not None:
@@ -177,6 +182,13 @@ class ModelAPI(abc.ABC):
 
         # set any explicitly specified api key
         self.api_key = api_key
+
+    def initialize(self) -> None:
+        """Reinitialize the model API client.
+
+        This can be used to reinitialize the API keys.
+        """
+        self._apply_api_key_overrides()
 
     async def aclose(self) -> None:
         """Async close method for closing any client allocated for the model."""
@@ -620,6 +632,7 @@ class Model:
                 config.max_retries,
                 config.timeout,
                 self.should_retry,
+                self.before_retry,
                 log_model_retry,
             )
         )
@@ -774,6 +787,10 @@ class Model:
 
         # no retry
         return False
+
+    async def before_retry(self, ex: BaseException) -> None:
+        # TODO: Check if ex is a authentication error
+        self.api.initialize()
 
     # function to verify that its okay to call model apis
     def verify_model_apis(self) -> None:
@@ -1031,10 +1048,7 @@ def get_model(
         )
         cached = cached_model(model_cache_key)
         if cached is not None:
-            from ..hooks._hooks import invalidate_model_cache
-
-            if not invalidate_model_cache(cached):
-                return cached
+            return cached
 
     # split model into api name and model name if necessary
     api_name = None

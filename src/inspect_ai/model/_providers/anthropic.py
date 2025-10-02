@@ -169,10 +169,19 @@ class AnthropicAPI(ModelAPI):
             config=config,
         )
 
+        self.model_args = model_args
+        self.client = self._create_client()
+        self._http_hooks = HttpxHooks(self.client._client)
+        self._batcher: AnthropicBatcher | None = None
+
+    def _create_client(
+        self,
+    ) -> AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex:
         # create client
         if self.is_bedrock():
             base_url = model_base_url(
-                base_url, ["ANTHROPIC_BEDROCK_BASE_URL", "BEDROCK_ANTHROPIC_BASE_URL"]
+                self.base_url,
+                ["ANTHROPIC_BEDROCK_BASE_URL", "BEDROCK_ANTHROPIC_BASE_URL"],
             )
 
             # resolve the default region
@@ -181,24 +190,23 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            self.client: (
-                AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex
-            ) = AsyncAnthropicBedrock(
+            return AsyncAnthropicBedrock(
                 base_url=base_url,
                 aws_region=aws_region,
-                **model_args,
+                **self.model_args,
             )
         elif self.is_vertex():
             base_url = model_base_url(
-                base_url, ["ANTHROPIC_VERTEX_BASE_URL", "VERTEX_ANTHROPIC_BASE_URL"]
+                self.base_url,
+                ["ANTHROPIC_VERTEX_BASE_URL", "VERTEX_ANTHROPIC_BASE_URL"],
             )
             region = os.environ.get("ANTHROPIC_VERTEX_REGION", NotGiven())
             project_id = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", NotGiven())
-            self.client = AsyncAnthropicVertex(
+            return AsyncAnthropicVertex(
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
-                **model_args,
+                **self.model_args,
             )
         else:
             # resolve api_key
@@ -206,17 +214,19 @@ class AnthropicAPI(ModelAPI):
                 self.api_key = os.environ.get(ANTHROPIC_API_KEY, None)
             if self.api_key is None:
                 raise environment_prerequisite_error("Anthropic", ANTHROPIC_API_KEY)
-            base_url = model_base_url(base_url, "ANTHROPIC_BASE_URL")
-            self.client = AsyncAnthropic(
+            base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
+            return AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
-                **model_args,
+                **self.model_args,
             )
 
-        self._batcher: AnthropicBatcher | None = None
-
-        # create time tracker
+    @override()
+    def initialize(self) -> None:
+        super().initialize()
+        self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
+        self._batcher = None
 
     @override
     async def aclose(self) -> None:

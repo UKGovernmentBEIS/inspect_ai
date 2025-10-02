@@ -163,13 +163,40 @@ class OpenAIAPI(ModelAPI):
                 )
 
         # create async http client
-        http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
+        self.http_client = (
+            self.model_args.pop("http_client") or OpenAIAsyncHttpxClient()
+        )
+        if self.is_azure():
+            # resolve version
+            if self.model_args.get("api_version") is not None:
+                self.api_version = model_args.pop("api_version")
+            else:
+                self.api_version = os.environ.get(
+                    "AZUREAI_OPENAI_API_VERSION",
+                    os.environ.get("OPENAI_API_VERSION", "2025-03-01-preview"),
+                )
+        self.model_args = model_args
 
+        self.client = self._create_client()
+
+        # TODO: Although we could enhance OpenAIBatcher to support requests with
+        # homogenous endpoints (e.g. some going to completions and some going to
+        # responses), the code would have to be more complex to retain type safety.
+        # We'd have to track the endpoint and ResultCls for each request and also
+        # cast? the result when resolving the generate promise. For now, we'll
+        # side step that complexity and just use two different batchers.
+        self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
+        self._responses_batcher: OpenAIBatcher[Response] | None = None
+
+        # create time tracker
+        self._http_hooks = HttpxHooks(self.client._client)
+
+    def _create_client(self) -> AsyncAzureOpenAI | AsyncOpenAI:
         # azure client
         if self.is_azure():
             # resolve base_url
             base_url = model_base_url(
-                base_url,
+                self.base_url,
                 [
                     "AZUREAI_OPENAI_BASE_URL",
                     "AZURE_OPENAI_BASE_URL",
@@ -182,49 +209,34 @@ class OpenAIAPI(ModelAPI):
                     + "environment variable or the --model-base-url CLI flag to set the base URL."
                 )
 
-            # resolve version
-            if model_args.get("api_version") is not None:
-                # use slightly complicated logic to allow for "api_version" to be removed
-                api_version = model_args.pop("api_version")
-            else:
-                api_version = os.environ.get(
-                    "AZUREAI_OPENAI_API_VERSION",
-                    os.environ.get("OPENAI_API_VERSION", "2025-03-01-preview"),
-                )
-
             # use managed identity if available, otherwise API key
-            self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
+            return AsyncAzureOpenAI(
                 api_key=self.api_key,
                 azure_ad_token_provider=self.token_provider,
-                api_version=api_version,
+                api_version=self.api_version,
                 azure_endpoint=base_url,
-                http_client=http_client,
+                http_client=self.http_client,
                 timeout=self.client_timeout
                 if self.client_timeout is not None
                 else NOT_GIVEN,
-                **model_args,
+                **self.model_args,
             )
         else:
-            self.client = AsyncOpenAI(
+            return AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
-                http_client=http_client,
+                http_client=self.http_client,
                 timeout=self.client_timeout
                 if self.client_timeout is not None
                 else NOT_GIVEN,
-                **model_args,
+                **self.model_args,
             )
 
-        # TODO: Although we could enhance OpenAIBatcher to support requests with
-        # homogenous endpoints (e.g. some going to completions and some going to
-        # responses), the code would have to be more complex to retain type safety.
-        # We'd have to track the endpoint and ResultCls for each request and also
-        # cast? the result when resolving the generate promise. For now, we'll
-        # side step that complexity and just use two different batchers.
+    def initialize(self) -> None:
+        super().initialize()
+        self.client = self._create_client()
         self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
         self._responses_batcher: OpenAIBatcher[Response] | None = None
-
-        # create time tracker
         self._http_hooks = HttpxHooks(self.client._client)
 
     def is_azure(self) -> bool:
