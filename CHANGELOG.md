@@ -2,6 +2,7 @@
 
 - Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
 - Inspect View: Preserve query parameters in log viewer URLs when copying links.
+- Inspect View: Fix issue where sometimes the incorrect log is displayed when new logs are added to a log directory while viewing a log.
 
 ## 0.3.135 (29 September 2025)
 
