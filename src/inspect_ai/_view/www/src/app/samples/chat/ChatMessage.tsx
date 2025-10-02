@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, memo } from "react";
+import { FC, memo, useState } from "react";
 import {
   ChatMessageAssistant,
   ChatMessageSystem,
@@ -30,13 +30,24 @@ interface ChatMessageProps {
   toolMessages: ChatMessageTool[];
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
+  allowLinking?: boolean;
 }
 
 export const ChatMessage: FC<ChatMessageProps> = memo(
-  ({ id, message, toolMessages, indented, toolCallStyle }) => {
+  ({
+    id,
+    message,
+    toolMessages,
+    indented,
+    toolCallStyle,
+    allowLinking = true,
+  }) => {
     const messageUrl = useSampleMessageUrl(message.id);
 
     const collapse = message.role === "system" || message.role === "user";
+
+    const [mouseOver, setMouseOver] = useState(false);
+
     return (
       <div
         className={clsx(
@@ -45,7 +56,10 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
           styles.message,
           message.role === "system" ? styles.systemRole : undefined,
           message.role === "user" ? styles.userRole : undefined,
+          mouseOver ? styles.hover : undefined,
         )}
+        onMouseEnter={() => setMouseOver(true)}
+        onMouseLeave={() => setMouseOver(false)}
       >
         <div
           className={clsx(
@@ -56,7 +70,7 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
         >
           {message.role}
           {message.role === "tool" ? `: ${message.function}` : ""}
-          {supportsLinking() && messageUrl ? (
+          {supportsLinking() && messageUrl && allowLinking ? (
             <CopyButton
               icon={ApplicationIcons.link}
               value={toFullUrl(messageUrl)}

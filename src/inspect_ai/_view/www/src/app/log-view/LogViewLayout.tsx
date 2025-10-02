@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import { FC, useEffect, useRef } from "react";
+import { ActivityBar } from "../../components/ActivityBar";
 import { ErrorPanel } from "../../components/ErrorPanel";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
-import { ProgressBar } from "../../components/ProgressBar";
 import { useStore } from "../../state/store";
 import { Navbar } from "../navbar/Navbar";
 import { LogView } from "./LogView";
@@ -67,7 +67,7 @@ export const LogViewLayout: FC = () => {
       >
         {showFind ? <FindBand /> : ""}
         {!singleFileMode ? <Navbar /> : ""}
-        <ProgressBar animating={appStatus.loading} />
+        <ActivityBar animating={appStatus.loading} />
         {appStatus.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."

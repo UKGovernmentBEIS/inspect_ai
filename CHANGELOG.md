@@ -1,8 +1,11 @@
 ## Unreleased
 
 - Google: Manage Google client lifetime to scope of call to `generate()`.
-- Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
 - Eval logs: Add message count tracking to evaluation logs for quick analysis without loading full samples.
+- Scoring: Fix regression in `inspect score` command (and `inspect_score` function) when scoring log files on S3.
+- Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
+- Inspect View: Display eval set progress in the lower right corner of the log list.
+- Inspect View: Make message and event link affordances slightly more discoverable.
 - Inspect View: Preserve query parameters in log viewer URLs when copying links.
 - Inspect View: Fix issue where sometimes the incorrect log is displayed when new logs are added to a log directory while viewing a log.
 
