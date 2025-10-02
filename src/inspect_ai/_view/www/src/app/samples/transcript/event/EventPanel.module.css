@@ -39,7 +39,7 @@
 }
 
 .hover .copyLink {
-  opacity: 1;
+  opacity: 0.75;
 }
 
 .root {

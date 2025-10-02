@@ -95,6 +95,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           numbered={false}
           toolCallStyle={showToolCalls ? "complete" : "omit"}
           resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
+          allowLinking={false}
         />
         {event.pending ? (
           <div className={clsx(styles.progress)}>
@@ -136,6 +137,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
             resolveToolCallsIntoPreviousMessage={
               context?.hasToolEvents !== false
             }
+            allowLinking={false}
           />
         </EventSection>
       </div>

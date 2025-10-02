@@ -32,6 +32,7 @@ interface ChatViewVirtualListProps {
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
   getMessageUrl?: (id: string) => string | undefined;
+  allowLinking?: boolean;
 }
 
 interface ChatViewVirtualListComponentProps extends ChatViewVirtualListProps {
@@ -50,6 +51,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     numbered = true,
     scrollRef,
     running,
+    allowLinking = true,
   }) => {
     const listHandle = useRef<VirtuosoHandle>(null);
 
@@ -106,6 +108,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
         indented={indented}
         numbered={numbered}
         running={running}
+        allowLinking={allowLinking}
       />
     );
   },
@@ -128,6 +131,7 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
       numbered = true,
       scrollRef,
       running,
+      allowLinking = true,
     }) => {
       const collapsedMessages = useMemo(() => {
         return resolveMessages(messages);
@@ -163,6 +167,7 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
               indented={indented}
               toolCallStyle={toolCallStyle}
               highlightUserMessage={true}
+              allowLinking={allowLinking}
             />
           );
         },
