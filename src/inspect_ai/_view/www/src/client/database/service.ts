@@ -69,7 +69,7 @@ export class DatabaseService {
   async getCachedLogFiles(): Promise<LogRoot | null> {
     try {
       const db = this.getDb();
-      const files = await db.log_files.orderBy("cached_at").toArray();
+      const files = await db.log_files.orderBy("id").toArray();
 
       if (files.length === 0) {
         log.debug("No cached log files found");
