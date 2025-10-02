@@ -15,6 +15,7 @@ from inspect_ai._util._async import run_in_background, tg_collect
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.notgiven import sanitize_notgiven
+from inspect_ai.log._stats import active_eval_stats
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
@@ -236,6 +237,12 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 id=batch_id,
                 requests={request.custom_id: request for request in batch_requests},
             )
+
+            # add the inflight batch to the log
+            stats = active_eval_stats()
+            if stats and stats.in_flight_batches is not None:
+                stats.in_flight_batches[batch_id] = self._inflight_batches[batch_id]
+
             return True
 
         return False
@@ -342,6 +349,10 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             await self._fail_and_cleanup_inflight_batch("sending results", batch, e)
         finally:
             del self._inflight_batches[batch.id]
+            # remove the completed batch from the log
+            stats = active_eval_stats()
+            if stats and stats.in_flight_batches is not None:
+                del stats.in_flight_batches[batch.id]
 
     @abstractmethod
     async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
