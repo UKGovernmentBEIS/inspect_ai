@@ -7,8 +7,9 @@ values, and forked workers inherit them through copy-on-write memory.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from multiprocessing.queues import Queue as MPQueue
-from typing import Awaitable, Callable, TypeAlias, TypeVar
+from typing import Awaitable, Callable, TypeAlias, TypeVar, cast
 
 import anyio
 
@@ -16,18 +17,27 @@ from .._scanner.result import ResultReport
 from .._transcript.types import TranscriptInfo
 from .common import ParseJob, ScannerJob
 
-# Module-level storage for invariant data (accessible after fork)
-PARSE_FUNCTION: Callable[[ParseJob], Awaitable[list[ScannerJob]]] | None = None
-SCAN_FUNCTION: Callable[[ScannerJob], Awaitable[list[ResultReport]]] | None = None
-BUFFER_MULTIPLE: float | None = None
-DIAGNOSTICS: bool = False
-OVERALL_START_TIME: float = 0.0
-
-# Module-level queues (avoid passing through ProcessPoolExecutor which attempts to pickle)
-WORK_QUEUE: MPQueue[ParseJob | None] | None = None
 ResultItem: TypeAlias = tuple[TranscriptInfo, str, list[ResultReport]]
 ResultQueueItem: TypeAlias = ResultItem | Exception | None
-RESULT_QUEUE: MPQueue[ResultQueueItem] | None = None
+
+
+@dataclass
+class IPCContext:
+    """Shared state for IPC between main process and forked workers."""
+
+    parse_function: Callable[[ParseJob], Awaitable[list[ScannerJob]]]
+    scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]]
+    buffer_multiple: float | None
+    diagnostics: bool
+    overall_start_time: float
+    parse_job_queue: MPQueue[ParseJob | None]
+    result_queue: MPQueue[ResultQueueItem]
+
+
+# Global IPC context shared between main process and forked subprocesses.
+# Initialized by multi_process strategy, inherited by workers via fork.
+# Type is non-None but runtime starts as None (cast) to avoid | None everywhere.
+ipc_context = cast(IPCContext, None)
 
 
 def parse_job_info(job: "ParseJob") -> str:

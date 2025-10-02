@@ -16,7 +16,7 @@ from __future__ import annotations
 import multiprocessing
 import time
 from concurrent.futures import ProcessPoolExecutor
-from typing import AsyncIterator, Awaitable, Callable
+from typing import AsyncIterator, Awaitable, Callable, cast
 
 import anyio
 from anyio import create_task_group
@@ -61,12 +61,24 @@ def multi_process_strategy(
         scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]],
         bump_progress: Callable[[], None],
     ) -> None:
-        # Initialize shared context that will be inherited by forked workers
-        _mp_common.PARSE_FUNCTION = parse_function
-        _mp_common.SCAN_FUNCTION = scan_function
-        _mp_common.BUFFER_MULTIPLE = buffer_multiple
-        _mp_common.DIAGNOSTICS = diagnostics
-        _mp_common.OVERALL_START_TIME = time.time()
+        # Enforce single active instance - check if ipc_context is already set
+        # (ipc_context is cast(IPCContext, None) initially, so we check truthiness)
+        if _mp_common.ipc_context is not None:
+            raise RuntimeError(
+                "Another multi_process_strategy is already running. "
+                "Only one instance can be active at a time."
+            )
+
+        # Initialize shared IPC context that will be inherited by forked workers
+        _mp_common.ipc_context = _mp_common.IPCContext(
+            parse_function=parse_function,
+            scan_function=scan_function,
+            buffer_multiple=buffer_multiple,
+            diagnostics=diagnostics,
+            overall_start_time=time.time(),
+            parse_job_queue=multiprocessing.Queue(),
+            result_queue=multiprocessing.Queue(),
+        )
 
         # Auto-detect number of processes if not specified
         actual_max_processes = (
@@ -81,7 +93,9 @@ def multi_process_strategy(
 
         def print_diagnostics(actor_name: str, *message_parts: object) -> None:
             if diagnostics:
-                running_time = f"+{time.time() - _mp_common.OVERALL_START_TIME:.3f}s"
+                running_time = (
+                    f"+{time.time() - _mp_common.ipc_context.overall_start_time:.3f}s"
+                )
                 print(running_time, f"{actor_name}:", *message_parts)
 
         print_diagnostics(
@@ -90,15 +104,11 @@ def multi_process_strategy(
             f"{concurrent_scans_per_process} scans = {actual_max_processes * concurrent_scans_per_process} total concurrency",
         )
 
-        # Create queues and store in shared context so forked processes inherit them.
+        # Queues are part of IPC context and inherited by forked processes.
         # ParseJob queue is unbounded - ParseJobs are tiny metadata objects with no backpressure needed.
         # Real backpressure happens inside each worker via single-process strategy's ScannerJob buffer.
-        _mp_common.WORK_QUEUE = multiprocessing.Queue()
-        _mp_common.RESULT_QUEUE = multiprocessing.Queue()
-
-        # Non-None local aliases for convenience
-        work_queue = _mp_common.WORK_QUEUE
-        result_queue = _mp_common.RESULT_QUEUE
+        work_queue = _mp_common.ipc_context.parse_job_queue
+        result_queue = _mp_common.ipc_context.result_queue
 
         async def _producer() -> None:
             """Producer task that feeds work items into the queue."""
@@ -183,13 +193,8 @@ def multi_process_strategy(
         except Exception as ex:
             raise inner_exception(ex)
         finally:
-            # Cleanup shared context to prevent leakage between runs
-            _mp_common.WORK_QUEUE = None
-            _mp_common.RESULT_QUEUE = None
-            _mp_common.PARSE_FUNCTION = None
-            _mp_common.SCAN_FUNCTION = None
-            _mp_common.BUFFER_MULTIPLE = None
-            _mp_common.DIAGNOSTICS = False
-            _mp_common.OVERALL_START_TIME = 0.0
+            # Reset IPC context to None to indicate no strategy is active
+            # This also prevents leakage between runs and releases the implicit lock
+            _mp_common.ipc_context = cast(_mp_common.IPCContext, None)
 
     return the_func

@@ -33,18 +33,15 @@ def worker_process_main(
         max_concurrent_scans: Number of concurrent scans this worker should run
         worker_id: Unique identifier for this worker process
     """
-    # Verify globals were initialized by parent process
-    assert _mp_common.PARSE_FUNCTION is not None, "parse_function not initialized"
-    assert _mp_common.SCAN_FUNCTION is not None, "scan_function not initialized"
-    assert _mp_common.WORK_QUEUE is not None, "work_queue not initialized"
-    assert _mp_common.RESULT_QUEUE is not None, "result_queue not initialized"
+    # Access IPC context inherited from parent process via fork
+    ctx = _mp_common.ipc_context
 
     async def _worker_main() -> None:
         """Main async function for worker process."""
 
         def print_diagnostics(actor_name: str, *message_parts: object) -> None:
-            if _mp_common.DIAGNOSTICS:
-                running_time = f"+{time.time() - _mp_common.OVERALL_START_TIME:.3f}s"
+            if ctx.diagnostics:
+                running_time = f"+{time.time() - ctx.overall_start_time:.3f}s"
                 print(running_time, f"P{worker_id} ", f"{actor_name}:", *message_parts)
 
         print_diagnostics(
@@ -57,7 +54,7 @@ def worker_process_main(
             """Yields ParseJob items from the work queue until sentinel is received."""
             items_pulled = 0
             while True:
-                work_item_data = await run_sync_on_thread(_mp_common.WORK_QUEUE.get)
+                work_item_data = await run_sync_on_thread(ctx.parse_job_queue.get)
 
                 if work_item_data is None:
                     # Sentinel value - time to stop
@@ -78,35 +75,35 @@ def worker_process_main(
         # Use single_process_strategy to coordinate the async tasks
         strategy = single_process_strategy(
             max_concurrent_scans=max_concurrent_scans,
-            buffer_multiple=_mp_common.BUFFER_MULTIPLE,
-            diagnostics=_mp_common.DIAGNOSTICS,
+            buffer_multiple=ctx.buffer_multiple,
+            diagnostics=ctx.diagnostics,
             diag_prefix=f"P{worker_id}",
-            overall_start_time=_mp_common.OVERALL_START_TIME,
+            overall_start_time=ctx.overall_start_time,
         )
 
         # Define callback to send results back to main process via queue
         async def _record_to_queue(
             transcript: TranscriptInfo, scanner: str, results: list[ResultReport]
         ) -> None:
-            _mp_common.RESULT_QUEUE.put((transcript, scanner, results))
+            ctx.result_queue.put((transcript, scanner, results))
 
         try:
             await strategy(
                 record_results=_record_to_queue,
                 parse_jobs=_parse_job_iterator(),
-                parse_function=_mp_common.PARSE_FUNCTION,
-                scan_function=_mp_common.SCAN_FUNCTION,
+                parse_function=ctx.parse_function,
+                scan_function=ctx.scan_function,
                 bump_progress=lambda: None,  # Progress is bumped in main process
             )
         except Exception as ex:
             # Send exception back to main process
-            _mp_common.RESULT_QUEUE.put(ex)
+            ctx.result_queue.put(ex)
             raise
 
         print_diagnostics("All tasks completed")
 
         # Send completion sentinel to result collector
-        _mp_common.RESULT_QUEUE.put(None)
+        ctx.result_queue.put(None)
 
     # Run the async event loop in this worker process
     anyio.run(_worker_main)
