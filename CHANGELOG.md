@@ -1,7 +1,6 @@
 ## Unreleased
 
 - Google: Manage Google client lifetime to scope of call to `generate()`.
-- Task display: Temporarily disable showing scores in realtime (require for textual update).
 - Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
 - Inspect View: Display eval set progress in the lower right corner of the log list.
 - Inspect View: Make message and event link affordances slightly more discoverable.
