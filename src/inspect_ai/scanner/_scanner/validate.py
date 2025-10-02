@@ -234,12 +234,14 @@ def _validate_message_type(
     Validate scanner type against message filter.
 
     Scanner must be able to handle ALL message types in the filter.
+    Scanner can accept Transcript (which will contain filtered messages).
     """
-    if _is_compatible_with_type(scanner_type, Transcript):
-        return
-
     # Get the core type (unwrap list if needed)
     is_list, core_type = _unwrap_list_type(scanner_type)
+
+    # Accept Transcript as a valid input type (messages will be filtered)
+    if _is_compatible_with_type(core_type, Transcript):
+        return
 
     # If it's the base ChatMessage type, it's always valid
     if _is_compatible_with_type(core_type, ChatMessage):
@@ -275,9 +277,14 @@ def _validate_event_type(
     Validate scanner type against event filter.
 
     Scanner must be able to handle ALL event types in the filter.
+    Scanner can accept Transcript (which will contain filtered events).
     """
     # Get the core type (unwrap list if needed)
     is_list, core_type = _unwrap_list_type(scanner_type)
+
+    # Accept Transcript as a valid input type (events will be filtered)
+    if _is_compatible_with_type(core_type, Transcript):
+        return
 
     # If it's the base Event type, it's always valid
     if _is_compatible_with_type(core_type, Event):

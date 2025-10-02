@@ -16,11 +16,11 @@ from inspect_ai.scanner import (
 from inspect_ai.scanner._scan import scan_resume
 
 
-@scanner(messages="all")
+@scanner(messages=["assistant"])
 def dummy_scanner() -> Scanner:
     async def execute(transcript: Transcript) -> Result:
         await asyncio.sleep(0)
-        return Result(value=1, explanation="I did the scan")
+        return Result(value=1, explanation=transcript.id)
 
     return execute
 

@@ -100,7 +100,7 @@ def scanner(
 ) -> Callable[[ScannerFactory[P, Transcript]], ScannerFactory[P, Transcript]]: ...
 
 
-# overloads for type lists: scanner can take T or list[T]
+# overloads for type lists: scanner can take T or list[T] or Transcript
 @overload
 def scanner(
     *,
@@ -108,7 +108,7 @@ def scanner(
     events: None = ...,
     loader: Loader[list[ChatMessage]] | None = ...,
     name: str | None = ...,
-) -> Callable[[ScannerFactory[P, Any]], ScannerFactory[P, TMessage]]: ...
+) -> Callable[[ScannerFactory[P, Any]], ScannerFactory[P, ScannerInput]]: ...
 @overload
 def scanner(
     *,
@@ -116,10 +116,10 @@ def scanner(
     messages: None = ...,
     loader: Loader[list[Event]] | None = ...,
     name: str | None = ...,
-) -> Callable[[ScannerFactory[P, Any]], ScannerFactory[P, TEvent]]: ...
+) -> Callable[[ScannerFactory[P, Any]], ScannerFactory[P, ScannerInput]]: ...
 
 
-# overloads for "all": scanner can take T or list[T]
+# overloads for "all": scanner can take T or list[T] or Transcript
 @overload
 def scanner(
     *,
@@ -127,7 +127,7 @@ def scanner(
     events: None = ...,
     loader: Loader[ChatMessage] | None = ...,
     name: str | None = ...,
-) -> Callable[[ScannerFactory[P, TMessage]], ScannerFactory[P, TMessage]]: ...
+) -> Callable[[ScannerFactory[P, TMessage]], ScannerFactory[P, ScannerInput]]: ...
 @overload
 def scanner(
     *,
@@ -135,7 +135,7 @@ def scanner(
     messages: None = ...,
     loader: Loader[Event] | None = ...,
     name: str | None = ...,
-) -> Callable[[ScannerFactory[P, TEvent]], ScannerFactory[P, TEvent]]: ...
+) -> Callable[[ScannerFactory[P, TEvent]], ScannerFactory[P, ScannerInput]]: ...
 
 
 # overload for direct decoration without parentheses (will infer from types)
