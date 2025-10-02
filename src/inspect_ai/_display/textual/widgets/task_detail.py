@@ -189,7 +189,6 @@ class TaskMetrics(Widget):
         yield Grid(id=self.grid_id())
 
     def update(self, metrics: list[TaskMetric]) -> None:
-        return
         self.metrics = metrics
 
         # We assume that generally the initial metric names will
@@ -211,11 +210,9 @@ class TaskMetrics(Widget):
             self.recompute_grid()
 
     def on_mount(self) -> None:
-        pass
-        # self.call_after_refresh(self.recompute_grid)
+        self.call_after_refresh(self.recompute_grid)
 
     def recompute_grid(self) -> None:
-        return
         if not self.is_mounted:
             return
 

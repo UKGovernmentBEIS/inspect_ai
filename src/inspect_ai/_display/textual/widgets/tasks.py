@@ -245,11 +245,8 @@ class TaskProgressView(Widget):
         self.task_detail.hidden = not self.toggle.toggled
         event.stop()
 
-    # textual run --dev -c  inspect eval-set examples/popularity.py examples/theory_of_mind.py examples/biology_qa.py --epochs 5 --model openai/gpt-4o-mini,google/gemini-2.5-flash --log-dir logs-mynewset
-
     def on_mount(self) -> None:
-        pass
-        # self.query_one(Clock).start(datetime.now().timestamp())
+        self.query_one(Clock).start(datetime.now().timestamp())
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
