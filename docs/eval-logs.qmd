@@ -297,13 +297,13 @@ Note you will most typically *not* want to resolve attachments. The two cases th
 We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on [Eval Sets](eval-sets.qmd)
 
 
-## Eval Log Modification {#sec-eval-log-modification}
+## Editing Logs {#sec-eval-log-modification}
 
 After running an evaluation, you may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails.
 
 ### Score Editing
 
-Use the `edit_score()` function to modify scores for individual samples:
+Use the `edit_score()` function to modify scores for individual samples. For example, this example will modify the score for the first sample, preserving its previous value in the score history, while also tracking the author and reason for the change:
 
 ``` python
 from inspect_ai.log import read_eval_log, write_eval_log, edit_score
@@ -333,6 +333,9 @@ edit_score(
 # Write back to the log file
 write_eval_log(log)
 ```
+
+Note that using `edit_score` modifies the log loaded into memory but doesn't modify the written log file. Be sure to use `write_eval_log` to save the changes to the eval file (or a copy).
+
 
 ### Score History
 
@@ -366,6 +369,9 @@ edit_score(log, sample_id_2, "accuracy", edit2, recompute_metrics=False)
 
 # Recompute metrics once after all edits
 recompute_metrics(log)
+
+# Write back to the log file
+write_eval_log(log)
 ```
 
 ### Score Edit Events
