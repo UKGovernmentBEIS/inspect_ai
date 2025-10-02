@@ -12,6 +12,15 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.log._model import model_roles_config_to_model_roles
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
+from inspect_ai.model._providers.openai import OpenAIAPI
+from inspect_ai.model._providers.util.batch import Batch, BatchRequest
 from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):
@@ -1065,6 +1074,14 @@ async def eval_retry_async(
         config.timeout = timeout or config.timeout
         config.max_connections = max_connections or config.max_connections
 
+        # load any in-flight batches from the previous log
+        # and add them to the cache if done
+        in_flight_batches = eval_log.stats.in_flight_batches or {}
+        # TODO: this should also check if the useer wants to use the cache
+        if len(in_flight_batches) > 0:
+            for batch_id, batch in in_flight_batches.items():
+                await batch_to_cache(batch_id, batch, eval_log)
+
         # run the eval
         log = (
             await eval_async(
@@ -1235,3 +1252,236 @@ class EvalLogs(list[EvalLog]):
 
     def __repr__(self) -> str:
         return ""
+
+
+async def batch_to_cache(batch_id: str, batch: Any, eval_log: EvalLog) -> None:
+    """Check if a batch is complete and cache its results.
+
+    Args:
+        batch_id: The ID of the batch to check
+        batch: The Batch object containing requests
+        eval_log: The eval log containing model and config information
+    """
+    from openai.types.chat import ChatCompletion
+
+    from inspect_ai.model._cache import (
+        CacheEntry,
+        CachePolicy,
+        _cache_key,
+        cache_store,
+        epoch,
+    )
+    from inspect_ai.model._model import get_model
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.model._openai import (
+        chat_choices_from_openai,
+        model_output_from_openai,
+    )
+    from inspect_ai.tool import ToolInfo
+
+    # Reconstruct the model
+    model = get_model(
+        model=eval_log.eval.model,
+        config=eval_log.eval.model_generate_config,
+        base_url=eval_log.eval.model_base_url,
+        **eval_log.eval.model_args,
+    )
+
+    # Get the batcher from the model
+    # For OpenAI models, check both completions and responses batchers
+    batcher = None
+    if isinstance(model.api, OpenAIAPI):
+        model.api._resolve_batcher(
+            config=eval_log.eval.model_generate_config,
+            for_responses_api=model.api.responses_api,
+        )
+        if model.api.responses_api:
+            batcher = model.api._responses_batcher
+        else:
+            batcher = model.api._completions_batcher
+    elif hasattr(model.api, "_batcher") and model.api._batcher:
+        batcher = model.api._batcher
+
+    if not batcher:
+        print(f"No batcher found for model {model.name}, skipping batch {batch_id}")
+        print(f"API class: {type(model.api)}")
+        print(f"Attributes: {dir(model.api)}")
+        print(
+            f"model.api._completions_batcher: {hasattr(model.api, '_completions_batcher')}"
+        )
+        print(f"model.api.completions_batcher: {model.api._completions_batcher}")
+        print(
+            f"model.api._responses_batcher: {hasattr(model.api, '_responses_batcher')}"
+        )
+        print(f"model.api.completions_batcher: {model.api._responses_batcher}")
+        # No batcher available or batch mode not being used
+        return
+
+    # Check if batch is complete
+    try:
+        request_objects = {}
+        for req in batch["requests"].values():
+            request_objects[req["custom_id"]] = BatchRequest(
+                request=req["request"],
+                result_stream=req["result_stream"],
+                custom_id=req["custom_id"],
+            )
+        batch_object = Batch(
+            id=batch["id"],
+            requests=request_objects,
+            consecutive_check_failure_count=batch["consecutive_check_failure_count"],
+            completed_count=batch["completed_count"],
+            failed_count=batch["failed_count"],
+            age=batch["age"],
+        )
+        check_result = await batcher._check_batch(batch_object)
+        completed_count, failed_count, age, completion_info = check_result
+
+        if completion_info is None:
+            # Batch not complete yet
+            log.warning(f"Batch {batch_id} not complete yet")
+            # TODO: in progress batches should probably be inserted back into the
+            # inflight batches although Im not sure how to match up specific batches
+            # to the specific generate calls
+            return
+    except Exception as e:
+        log.warning(f"Failed to check batch {batch_id}: {e}")
+        return
+
+    # Get the results for all requests in the batch
+    try:
+        results = await batcher._handle_batch_result(batch_object, completion_info)
+    except Exception as e:
+        log.warning(f"Failed to retrieve batch {batch_id} results: {e}")
+        return
+
+    # Cache each successful result
+    for custom_id, result in results.items():
+        if isinstance(result, Exception):
+            # Skip failed requests
+            continue
+
+        try:
+            log.warning(f"Parsing result for batch request {custom_id}")
+            # Get original request data
+            batch_request = batch_object.requests[custom_id]
+            request_data = batch_request.request
+
+            # Reconstruct ChatMessage objects from stored dicts
+            messages: list[ChatMessage] = []
+            for message in request_data["messages"]:
+                if message["role"] == "system":
+                    messages.append(
+                        ChatMessageSystem(
+                            id=message.get("id"),
+                            content=message["content"],
+                            source=message.get("source"),
+                            metadata=message.get("metadata"),
+                        )
+                    )
+                elif message["role"] == "user":
+                    messages.append(
+                        ChatMessageUser(
+                            id=message.get("id"),
+                            content=message["content"],
+                            source=message.get("source"),
+                            metadata=message.get("metadata"),
+                        )
+                    )
+                elif message["role"] == "assistant":
+                    messages.append(
+                        ChatMessageAssistant(
+                            id=message.get("id"),
+                            content=message["content"],
+                            source=message.get("source"),
+                            metadata=message.get("metadata"),
+                        )
+                    )
+                else:
+                    raise ValueError(f"Unknown message role: {message['role']}")
+
+            # Reconstruct tools if present
+            tools_data = request_data.get("tools")
+            tools: list[ToolInfo] = []
+            if tools_data:
+                for tool_dict in tools_data:
+                    if tool_dict.get("type") == "function":
+                        func = tool_dict["function"]
+                        tools.append(
+                            ToolInfo(
+                                name=func["name"],
+                                description=func.get("description", ""),
+                                parameters=func.get("parameters", {}),
+                            )
+                        )
+
+            # Convert response to ModelOutput based on provider
+            result_type_name = type(result).__name__
+
+            if isinstance(result, ChatCompletion):
+                # OpenAI response
+                choices = chat_choices_from_openai(result, tools)
+                model_output = model_output_from_openai(result, choices)
+            elif result_type_name == "Message":
+                # Anthropic response
+                from inspect_ai.model._providers.anthropic import (
+                    model_output_from_message,
+                )
+
+                model_output, _ = await model_output_from_message(
+                    model.api.client,  # type: ignore[attr-defined]
+                    eval_log.eval.model,
+                    result,
+                    tools,
+                )
+            elif result_type_name == "GenerateContentResponse":
+                # Google response
+                from inspect_ai.model._providers.google import (
+                    completion_choices_from_candidates,
+                    usage_metadata_to_model_usage,
+                )
+
+                model_name = result.model_version or eval_log.eval.model
+                model_output = ModelOutput(
+                    model=model_name,
+                    choices=completion_choices_from_candidates(model_name, result),
+                    usage=usage_metadata_to_model_usage(result.usage_metadata),
+                )
+            elif isinstance(result, ModelOutput):
+                # Already a ModelOutput
+                model_output = result
+            else:
+                # Skip unknown response types
+                log.warning(
+                    f"Unknown result type {result_type_name} for batch request {custom_id}"
+                )
+                continue
+
+            # Create cache entry
+            tool_choice = request_data.get("tool_choice") or "none"
+            cache_entry = CacheEntry(
+                base_url=eval_log.eval.model_base_url,
+                config=eval_log.eval.model_generate_config,
+                input=messages,
+                model=eval_log.eval.model,
+                policy=CachePolicy(),
+                tool_choice=tool_choice,
+                tools=tools,
+            )
+
+            # Set what epoch the batch was from
+            # TODO: This should be recorded in the batch data but currently isn't so just assume epoch 1 for now
+            epoch.set(eval_log.model_config.get("epoch", 1))
+            log.warning(
+                f"Caching result for batch request {custom_id} (model: {cache_entry.model})\n messages: {messages}\ncache_key: {_cache_key(cache_entry)}\nmodel_output: {model_output}"
+            )
+            log.warning(
+                f"cache_entry:\nbase_url: {cache_entry.base_url}\nconfig: {cache_entry.config}\ninput: {cache_entry.input}\nmodel: {cache_entry.model}\npolicy_expiry: {cache_entry.policy.expiry}\npolicy_per_epoch: {cache_entry.policy.per_epoch}\npolicy_scopes: {cache_entry.policy.scopes}\ntool_choice {cache_entry.tool_choice}\ntools: {cache_entry.tools}"
+            )
+
+            # Store in cache
+            cache_store(cache_entry, model_output)
+        except Exception as e:
+            log.warning(f"Failed to cache result for request {custom_id}: {e}")
+            raise e
+            continue
