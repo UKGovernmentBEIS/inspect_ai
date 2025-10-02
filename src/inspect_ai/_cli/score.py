@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import contextlib
-import pathlib
-from typing import TYPE_CHECKING, AsyncGenerator
+from typing import AsyncGenerator
 
 import anyio
 import click
@@ -23,14 +22,12 @@ from inspect_ai._eval.score import (
     score_async,
 )
 from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
 
 from .common import CommonOptions, common_options, process_common_options
-
-if TYPE_CHECKING:
-    from _typeshed import StrPath
 
 
 @click.command("score")
@@ -219,12 +216,14 @@ def print_results(output_file: str, eval_log: EvalLog) -> None:
 
 
 def _resolve_output_file(
-    log_file: str, output_file: StrPath | None, overwrite: bool
+    log_file: str, output_file: str | None, overwrite: bool
 ) -> str:
     # resolve the output file (we may overwrite, use the passed file name, or suggest a new name)
-    output_file = pathlib.Path(output_file or log_file)
-    if not output_file.exists() or overwrite:
-        return str(output_file)
+    output_file = output_file or log_file
+    output_fs = filesystem(output_file or log_file)
+
+    if not output_fs.exists(output_file) or overwrite:
+        return output_file
 
     # Ask if we should overwrite
     file_action = Prompt.ask(
@@ -233,16 +232,27 @@ def _resolve_output_file(
         default="create",
     )
     if file_action in ["overwrite", "o"]:
-        return str(output_file)
+        return output_file
 
-    new_output_file = output_file.with_stem(f"{output_file.stem}-scored")
+    # parse the file path, which could be a local file path
+    # or an S3 url.
+    dir_name = output_fs.sep.join(output_file.split(output_fs.sep)[:-1])
+    file_name = output_file.split(output_fs.sep)[-1]
+    file_stem = file_name.split(".")[0]
+    file_ext = ".".join(file_name.split(".")[1:])
+
+    # suggest a new file name
+    new_output_file = f"{dir_name}{output_fs.sep}{file_stem}-scored.{file_ext}"
     count = 0
-    while new_output_file.exists():
+    while output_fs.exists(new_output_file):
         count = count + 1
-        new_output_file = output_file.with_stem(f"{output_file.stem}-scored-{count}")
+        new_output_file = (
+            f"{dir_name}{output_fs.sep}{file_stem}-scored-{count}.{file_ext}"
+        )
 
-    user_file = Prompt.ask("Output file name?", default=new_output_file.name)
-    return str(output_file.parent / user_file)
+    # confirm the file name
+    user_file = Prompt.ask("Output file name?", default=new_output_file)
+    return user_file
 
 
 def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction:
