@@ -3,21 +3,18 @@ import { LogInfo, LogSummary } from "../api/types";
 
 // Log Files Table - Basic file listing from get_log_root()
 export interface LogFileRecord {
-  // (primary key)
+  // Auto-incrementing primary key for insertion order
+  id?: number;
   file_path: string;
   file_name: string;
   task?: string;
   task_id?: string;
-
-  // TODO: Remove cached_at
-  cached_at: string;
 }
 
 // Log Summaries Table - Stores results from get_log_summaries()
 export interface LogSummaryRecord {
   // Primary key
   file_path: string;
-  cached_at: string;
 
   // The complete log summary object
   summary: LogSummary;
@@ -28,14 +25,13 @@ export interface LogSummaryRecord {
 export interface LogInfoRecord {
   // Primary key
   file_path: string;
-  cached_at: string;
 
   // The complete log info object (includes sample summaries)
   info: LogInfo;
 }
 
 // Current database schema version
-export const DB_VERSION = 3;
+export const DB_VERSION = 5;
 
 // Resolves a log dir into a database name
 function resolveDBName(logDir: string): string {
@@ -87,7 +83,7 @@ export class AppDatabase extends Dexie {
 
     this.version(DB_VERSION).stores({
       // Basic file listing - indexes for querying and sorting
-      log_files: "file_path, task, task_id, cached_at",
+      log_files: "++id, &file_path, task, task_id, cached_at",
 
       // Log summaries from get_log_summaries() - indexes for common queries
       log_summaries:
