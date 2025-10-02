@@ -1,3 +1,7 @@
+## Unreleased
+
+- Dependencies: Unpin textual dependency (was <= 4.0.0 is now >=2.1.0) as we have mitigated layout issue we saw in 4.0.0.
+
 ## 0.3.136 (02 October 2025)
 
 - Google: Manage Google client lifetime to scope of call to `generate()`.
