@@ -61,6 +61,8 @@ class ChatMessageBase(BaseModel):
             return self
         cache: dict[str, ChatMessageBase] = info.context.get("message_cache")
         message_id = self.id
+        if message_id is None:
+            return self
         hit = cache.get(message_id)
         if hit is not None:
             return hit
