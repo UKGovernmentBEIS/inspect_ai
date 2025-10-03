@@ -8,7 +8,6 @@ execution without altering the public API.
 """
 
 import time
-from dataclasses import dataclass
 from typing import AsyncIterator, Awaitable, Callable
 
 import anyio
@@ -20,17 +19,10 @@ from inspect_ai.util._anyio import inner_exception
 
 from .._scanner.result import ResultReport
 from .._transcript.types import TranscriptInfo
-from .common import ConcurrencyStrategy, ParseJob, ScannerJob
+from .common import ConcurrencyStrategy, ParseJob, ScannerJob, WorkerMetrics
 
-
-@dataclass
-class WorkerMetrics:
-    """Encapsulates all worker-related metrics."""
-
-    worker_count: int = 0
-    workers_waiting: int = 0
-    workers_scanning: int = 0
-    worker_id_counter: int = 0
+# Module-level counter for assigning unique worker IDs
+worker_id_counter: int = 0
 
 
 def single_process_strategy(
@@ -67,6 +59,7 @@ def single_process_strategy(
         parse_function: Callable[[ParseJob], Awaitable[list[ScannerJob]]],
         scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]],
         bump_progress: Callable[[], None],
+        update_metrics: Callable[[WorkerMetrics], None] | None = None,
     ) -> None:
         metrics = WorkerMetrics()
         nonlocal overall_start_time
@@ -96,6 +89,13 @@ def single_process_strategy(
 
         def _scanner_job_info(item: ScannerJob) -> str:
             return f"{item.union_transcript.id, registry_info(item.scanner).name}"
+
+        def _update_utilization() -> None:
+            if update_utilization:
+                metrics.buffered_jobs = (
+                    scanner_job_receive_stream.statistics().current_buffer_used
+                )
+                update_utilization(metrics)
 
         async def _worker_task(worker_id: int) -> None:
             items_processed = 0
@@ -127,6 +127,7 @@ def single_process_strategy(
                     exec_start_time = time.time()
                     try:
                         metrics.workers_scanning += 1
+                        _update_utilization()
                         await record_results(
                             scanner_job.union_transcript,
                             registry_info(scanner_job.scanner).name,
@@ -135,6 +136,7 @@ def single_process_strategy(
                         bump_progress()
                     finally:
                         metrics.workers_scanning -= 1
+                        _update_utilization()
                     print_diagnostics(
                         f"Worker #{worker_id}",
                         f"completed {_scanner_job_info(scanner_job)} in {(time.time() - exec_start_time):.3f}s",
@@ -146,6 +148,7 @@ def single_process_strategy(
                 )
             finally:
                 metrics.worker_count -= 1
+                _update_utilization()
 
         async def _producer(tg: TaskGroup) -> None:
             async for parse_job in parse_jobs:
@@ -157,6 +160,7 @@ def single_process_strategy(
                         >= queue_size
                     )
                     await scanner_job_send_stream.send(scanner_job)
+                    _update_utilization()
                     print_diagnostics(
                         "Producer",
                         f"Added scanner job {_scanner_job_info(scanner_job)} "
@@ -164,18 +168,39 @@ def single_process_strategy(
                     )
                     if metrics.worker_count < max_concurrent_scans:
                         metrics.worker_count += 1
-                        metrics.worker_id_counter += 1
-                        tg.start_soon(_worker_task, metrics.worker_id_counter)
+                        _update_utilization()
+                        global worker_id_counter
+                        worker_id_counter += 1
+                        tg.start_soon(_worker_task, worker_id_counter)
                         print_diagnostics(
                             "Producer",
-                            f"Spawned worker #{metrics.worker_id_counter}\n\t{_metrics_info()}",
+                            f"Spawned worker #{worker_id_counter}\n\t{_metrics_info()}",
                         )
                     await anyio.sleep(0)
             print_diagnostics("Producer", "FINISHED PRODUCING ALL WORK")
 
         try:
-            async with create_task_group() as tg:
-                await _producer(tg)
+            async with create_task_group() as outer_tg:
+                progress_cancel_scope = None
+
+                async def progress_task() -> None:
+                    nonlocal progress_cancel_scope
+                    with anyio.CancelScope() as cancel_scope:
+                        progress_cancel_scope = cancel_scope
+                        while True:
+                            print_diagnostics(
+                                "HelloTask",
+                                f"hello at {time.time()} {scanner_job_receive_stream.statistics().current_buffer_used}",
+                            )
+                            await anyio.sleep(2)
+
+                outer_tg.start_soon(progress_task)
+
+                async with create_task_group() as tg:
+                    await _producer(tg)
+
+                if progress_cancel_scope:
+                    progress_cancel_scope.cancel()
         except Exception as ex:
             raise inner_exception(ex)
 

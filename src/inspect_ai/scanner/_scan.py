@@ -1,12 +1,18 @@
 import os
 import sys
+from functools import partial
 from typing import Any, AsyncIterator, Callable, Mapping, Sequence
 
 import anyio
 from dotenv import find_dotenv, load_dotenv
 from rich import print
 from rich.console import RenderableType
-from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_model_context
@@ -15,6 +21,7 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.platform import platform_init
+from inspect_ai._util.registry import registry_info
 from inspect_ai._util.rich import rich_traceback
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, resolve_models
@@ -22,11 +29,12 @@ from inspect_ai.model._model_config import (
     model_config_to_model,
     model_roles_config_to_model_roles,
 )
-from inspect_ai.scanner._concurrency.common import ParseJob, ScannerJob
+from inspect_ai.scanner._concurrency.common import ParseJob, ScannerJob, WorkerMetrics
 from inspect_ai.scanner._concurrency.multi_process import multi_process_strategy
 from inspect_ai.scanner._concurrency.single_process import single_process_strategy
+from inspect_ai.scanner._progress_utils import UtilizationColumn
 from inspect_ai.scanner._scanner.types import ScannerInput
-from inspect_ai.scanner._util.contstants import DEFAULT_MAX_TRANSCRIPTS
+from inspect_ai.scanner._util.constants import DEFAULT_MAX_TRANSCRIPTS
 
 from ._recorder.factory import scan_recorder_for_location
 from ._recorder.recorder import ScanRecorder, ScanStatus
@@ -233,10 +241,14 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
             with Progress(
                 TextColumn("Scanning"),
                 BarColumn(),
+                TextColumn("{task.total}"),
+                TextColumn("Scans (active/waiting/total) (buffered)"),
+                UtilizationColumn(),
                 TimeElapsedColumn(),
                 transient=True,
             ) as progress:
-                total_ticks = (await transcripts.count()) * len(scan.scanners)
+                scans_per_transcript = len(scan.scanners)
+                total_ticks = (await transcripts.count()) * scans_per_transcript
                 task_id = progress.add_task("Scan", total=total_ticks)
 
                 def bump_progress() -> None:
@@ -285,18 +297,31 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                         else []
                     )
 
+                # transform knobs
+                # For now, let's say that:
+                # - max_transcripts is limit of how many parsed transcripts we'll keep in memory
+                # - we want a buffer multiple of 1.0 so that we could feed all active tasks at once if they all finished at the same time.
+
+                buffer_multiple = 1.0
+                max_concurrent_scans = int(
+                    (max_transcripts * scans_per_transcript) / (1 + buffer_multiple)
+                )
+
                 # TODO: Plumb this
-                multi_testing = True
+                multi_testing = False
+                diagnostics = True
                 strategy = (
                     multi_process_strategy(
                         # max_processes=2,
-                        max_concurrent_scans=max_transcripts,
-                        diagnostics=False,
+                        max_concurrent_scans=max_concurrent_scans,
+                        buffer_multiple=buffer_multiple,
+                        diagnostics=diagnostics,
                     )
                     if multi_testing
                     else single_process_strategy(
-                        max_concurrent_scans=max_transcripts,
-                        diagnostics=False,
+                        max_concurrent_scans=max_concurrent_scans,
+                        buffer_multiple=buffer_multiple,
+                        diagnostics=diagnostics,
                     )
                 )
 
@@ -304,12 +329,16 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
                 if hasattr(strategy, "set_context"):
                     strategy.set_context(scanners_list, union_content)
 
+                def update_metrics(metrics: WorkerMetrics) -> None:
+                    progress.update(task_id, metrics=metrics)
+
                 await strategy(
                     parse_jobs=_parse_jobs(scan, recorder, transcripts, bump_progress),
                     parse_function=_parse_function,
                     scan_function=_scan_function,
                     record_results=recorder.record,
                     bump_progress=bump_progress,
+                    update_metrics=update_metrics,
                 )
 
                 scan_info = await recorder.complete()

@@ -28,7 +28,7 @@ from .._transcript.types import TranscriptInfo
 from . import _mp_common
 from ._mp_common import run_sync_on_thread
 from ._mp_subprocess import subprocess_main
-from .common import ConcurrencyStrategy, ParseJob, ScannerJob
+from .common import ConcurrencyStrategy, ParseJob, ScannerJob, WorkerMetrics
 
 
 def multi_process_strategy(
@@ -62,6 +62,7 @@ def multi_process_strategy(
         parse_function: Callable[[ParseJob], Awaitable[list[ScannerJob]]],
         scan_function: Callable[[ScannerJob], Awaitable[list[ResultReport]]],
         bump_progress: Callable[[], None],
+        update_metrics: Callable[[WorkerMetrics], None] | None = None,
     ) -> None:
         # Enforce single active instance - check if ipc_context is already set
         # (ipc_context is cast(IPCContext, None) initially, so we check truthiness)
