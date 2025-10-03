@@ -225,17 +225,16 @@ async def _scan_async(*, scan: ScanContext, recorder: ScanRecorder) -> ScanStatu
         # establish max_transcripts
         max_transcripts = scan.spec.config.max_transcripts or DEFAULT_MAX_TRANSCRIPTS
 
+        transcripts = scan.transcripts
         # apply limits/shuffle
         if scan.spec.config.limit is not None:
-            transcripts = scan.transcripts.limit(scan.spec.config.limit)
+            transcripts = transcripts.limit(scan.spec.config.limit)
         if scan.spec.config.shuffle is not None:
             transcripts = transcripts.shuffle(
                 scan.spec.config.shuffle
                 if isinstance(scan.spec.config.shuffle, int)
                 else None
             )
-        else:
-            transcripts = scan.transcripts
 
         async with transcripts:
             with Progress(
