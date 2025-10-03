@@ -44,4 +44,7 @@ MODEL_NONE = "none/none"
 DEFAULT_BATCH_SIZE = 100
 
 DESERIALIZING = "deserializing"
-DESERIALIZING_CONTEXT = {DESERIALIZING: True}
+
+
+def get_deserializing_context():
+    return {DESERIALIZING: True, "message_cache": {}}

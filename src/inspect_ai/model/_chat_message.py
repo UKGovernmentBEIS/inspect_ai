@@ -1,7 +1,8 @@
 from logging import getLogger
-from typing import Any, Literal, Type, Union
+from typing import Annotated, Any, Literal, Type, Union
 
 from pydantic import BaseModel, Field, model_validator
+from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
@@ -53,6 +54,18 @@ class ChatMessageBase(BaseModel):
         # Generate ID if needed and not deserializing
         if self.id is None and not is_deserializing:
             self.id = uuid()
+
+    @model_validator(mode="after")
+    def _after(self, info: ValidationInfo):
+        if info.context is None:
+            return self
+        cache = info.context.get("message_cache")
+        message_id = self.id
+        hit = cache.get(message_id)
+        if hit is not None:
+            return hit
+        cache[message_id] = self
+        return self
 
     @property
     def text(self) -> str:
@@ -207,7 +220,8 @@ class ChatMessageTool(ChatMessageBase):
         return values
 
 
-ChatMessage = Union[
-    ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool
+ChatMessage = Annotated[
+    Union[ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool],
+    Field(discriminator="role"),
 ]
 """Message in a chat conversation"""

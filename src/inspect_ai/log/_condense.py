@@ -1,5 +1,6 @@
 from logging import getLogger
 from typing import (
+    Any,
     Callable,
 )
 
@@ -93,11 +94,12 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
         else:
             return text
 
+    context = {"message_cache": {}}
     return sample.model_copy(
         update={
-            "input": walk_input(sample.input, messages_fn),
-            "messages": walk_chat_messages(sample.messages, messages_fn),
-            "events": walk_events(sample.events, events_fn),
+            "input": walk_input(sample.input, messages_fn, context),
+            "messages": walk_chat_messages(sample.messages, messages_fn, context),
+            "events": walk_events(sample.events, events_fn, context),
             "attachments": attachments,
         }
     )
@@ -129,11 +131,12 @@ def resolve_sample_attachments(sample: EvalSample) -> EvalSample:
         else:
             return text
 
+    context = {"message_cache": {}}
     return sample.model_copy(
         update={
-            "input": walk_input(sample.input, content_fn),
-            "messages": walk_chat_messages(sample.messages, content_fn),
-            "events": walk_events(sample.events, content_fn),
+            "input": walk_input(sample.input, content_fn, context),
+            "messages": walk_chat_messages(sample.messages, content_fn, context),
+            "events": walk_events(sample.events, content_fn, context),
             "attachments": {},
         }
     )
@@ -158,36 +161,42 @@ def attachments_content_fn(
     return content_fn
 
 
-def walk_events(events: list[Event], content_fn: Callable[[str], str]) -> list[Event]:
-    return [walk_event(event, content_fn) for event in events]
+def walk_events(
+    events: list[Event], content_fn: Callable[[str], str], context: dict[str, Any]
+) -> list[Event]:
+    return [walk_event(event, content_fn, context) for event in events]
 
 
-def walk_event(event: Event, content_fn: Callable[[str], str]) -> Event:
+def walk_event(
+    event: Event, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> Event:
     if isinstance(event, SampleInitEvent):
-        return walk_sample_init_event(event, content_fn)
+        return walk_sample_init_event(event, content_fn, context)
     elif isinstance(event, ModelEvent):
-        return walk_model_event(event, content_fn)
+        return walk_model_event(event, content_fn, context)
     elif isinstance(event, StateEvent):
-        return walk_state_event(event, content_fn)
+        return walk_state_event(event, content_fn, context)
     elif isinstance(event, StoreEvent):
-        return walk_store_event(event, content_fn)
+        return walk_store_event(event, content_fn, context)
     elif isinstance(event, SubtaskEvent):
-        return walk_subtask_event(event, content_fn)
+        return walk_subtask_event(event, content_fn, context)
     elif isinstance(event, ToolEvent):
-        return walk_tool_event(event, content_fn)
+        return walk_tool_event(event, content_fn, context)
     elif isinstance(event, InfoEvent):
-        return walk_info_event(event, content_fn)
+        return walk_info_event(event, content_fn, context)
     else:
         return event
 
 
 def walk_subtask_event(
-    event: SubtaskEvent, content_fn: Callable[[str], str]
+    event: SubtaskEvent, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> SubtaskEvent:
     return event.model_copy(update=dict(events=walk_events(event.events, content_fn)))
 
 
-def walk_tool_event(event: ToolEvent, content_fn: Callable[[str], str]) -> ToolEvent:
+def walk_tool_event(
+    event: ToolEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> ToolEvent:
     return event.model_copy(
         update=dict(
             arguments=walk_json_dict(event.arguments, content_fn),
@@ -196,51 +205,59 @@ def walk_tool_event(event: ToolEvent, content_fn: Callable[[str], str]) -> ToolE
     )
 
 
-def walk_info_event(event: InfoEvent, content_fn: Callable[[str], str]) -> InfoEvent:
+def walk_info_event(
+    event: InfoEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> InfoEvent:
     return event.model_copy(update=dict(data=walk_json_value(event.data, content_fn)))
 
 
 def walk_sample_init_event(
-    event: SampleInitEvent, content_fn: Callable[[str], str]
+    event: SampleInitEvent, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> SampleInitEvent:
     return event.model_copy(
         update=dict(
-            sample=walk_sample(event.sample, content_fn),
-            state=walk_json_value(event.state, content_fn),
+            sample=walk_sample(event.sample, content_fn, context),
+            state=walk_json_value(event.state, content_fn, context),
         )
     )
 
 
-def walk_sample(sample: Sample, content_fn: Callable[[str], str]) -> Sample:
+def walk_sample(
+    sample: Sample, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> Sample:
     if isinstance(sample.input, str):
         return sample.model_copy(
-            update=dict(input=walk_json_value(sample.input, content_fn))
+            update=dict(input=walk_json_value(sample.input, content_fn, context))
         )
     else:
         return sample.model_copy(
-            update=dict(input=walk_chat_messages(sample.input, content_fn))
+            update=dict(input=walk_chat_messages(sample.input, content_fn, context))
         )
 
 
-def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> ModelEvent:
+def walk_model_event(
+    event: ModelEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> ModelEvent:
     return event.model_copy(
         update=dict(
-            tools=walk_tools(event.tools, content_fn),
-            input=walk_chat_messages(event.input, content_fn),
-            output=walk_model_output(event.output, content_fn),
-            call=walk_model_call(event.call, content_fn),
+            tools=walk_tools(event.tools, content_fn, context),
+            input=walk_chat_messages(event.input, content_fn, context),
+            output=walk_model_output(event.output, content_fn, context),
+            call=walk_model_call(event.call, content_fn, context),
         ),
     )
 
 
 def walk_model_output(
-    output: ModelOutput, content_fn: Callable[[str], str]
+    output: ModelOutput, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> ModelOutput:
     return output.model_copy(
         update=dict(
             choices=[
                 choice.model_copy(
-                    update=dict(message=walk_chat_message(choice.message, content_fn))
+                    update=dict(
+                        message=walk_chat_message(choice.message, content_fn, context)
+                    )
                 )
                 for choice in output.choices
             ]
@@ -249,34 +266,40 @@ def walk_model_output(
 
 
 def walk_model_call(
-    call: ModelCall | None, content_fn: Callable[[str], str]
+    call: ModelCall | None, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> ModelCall | None:
     if call:
         return ModelCall(
-            request=walk_json_dict(call.request, content_fn),
-            response=walk_json_dict(call.response, content_fn),
+            request=walk_json_dict(call.request, content_fn, context),
+            response=walk_json_dict(call.response, content_fn, context),
             time=call.time,
         )
     else:
         return None
 
 
-def walk_state_event(event: StateEvent, content_fn: Callable[[str], str]) -> StateEvent:
+def walk_state_event(
+    event: StateEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> StateEvent:
     event = event.model_copy(
         update=dict(
             changes=[
-                walk_state_json_change(change, content_fn) for change in event.changes
+                walk_state_json_change(change, content_fn, context)
+                for change in event.changes
             ]
         )
     )
     return event
 
 
-def walk_store_event(event: StoreEvent, content_fn: Callable[[str], str]) -> StoreEvent:
+def walk_store_event(
+    event: StoreEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> StoreEvent:
     event = event.model_copy(
         update=dict(
             changes=[
-                walk_state_json_change(change, content_fn) for change in event.changes
+                walk_state_json_change(change, content_fn, context)
+                for change in event.changes
             ]
         )
     )
@@ -284,30 +307,34 @@ def walk_store_event(event: StoreEvent, content_fn: Callable[[str], str]) -> Sto
 
 
 def walk_state_json_change(
-    change: JsonChange, content_fn: Callable[[str], str]
+    change: JsonChange, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> JsonChange:
     return change.model_copy(
-        update=dict(value=walk_json_value(change.value, content_fn))
+        update=dict(value=walk_json_value(change.value, content_fn, context))
     )
 
 
-def walk_json_value(value: JsonValue, content_fn: Callable[[str], str]) -> JsonValue:
+def walk_json_value(
+    value: JsonValue, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> JsonValue:
     if isinstance(value, str):
         return content_fn(value)
     elif isinstance(value, list):
-        return [walk_json_value(v, content_fn) for v in value]
+        return [walk_json_value(v, content_fn, context) for v in value]
     elif isinstance(value, dict):
-        return walk_json_dict(value, content_fn)
+        return walk_json_dict(value, content_fn, context)
     else:
         return value
 
 
 def walk_json_dict(
-    value: dict[str, JsonValue], content_fn: Callable[[str], str]
+    value: dict[str, JsonValue],
+    content_fn: Callable[[str], str],
+    context: dict[str, Any],
 ) -> dict[str, JsonValue]:
     updates: dict[str, JsonValue] = {}
     for k, v in value.items():
-        updates[k] = walk_json_value(v, content_fn)
+        updates[k] = walk_json_value(v, content_fn, context)
     if updates:
         value = value.copy()
         value.update(updates)
@@ -315,42 +342,55 @@ def walk_json_dict(
 
 
 def walk_input(
-    input: str | list[ChatMessage], content_fn: Callable[[str], str]
+    input: str | list[ChatMessage],
+    content_fn: Callable[[str], str],
+    context: dict[str, Any],
 ) -> str | list[ChatMessage]:
     if isinstance(input, str):
         return input
     else:
-        return walk_chat_messages(input, content_fn)
+        return walk_chat_messages(input, content_fn, context)
 
 
 def walk_chat_messages(
-    messages: list[ChatMessage], content_fn: Callable[[str], str]
+    messages: list[ChatMessage],
+    content_fn: Callable[[str], str],
+    context: dict[str, Any],
 ) -> list[ChatMessage]:
-    return [walk_chat_message(message, content_fn) for message in messages]
+    return [walk_chat_message(message, content_fn, context) for message in messages]
 
 
 def walk_chat_message(
-    message: ChatMessage, content_fn: Callable[[str], str]
+    message: ChatMessage, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> ChatMessage:
+    cache = context.get("message_cache", {})
+    hit = cache.get(message.id)
+    if hit is not None:
+        return hit
     if isinstance(message.content, str):
-        return message.model_copy(update=dict(content=content_fn(message.content)))
+        res = message.model_copy(update=dict(content=content_fn(message.content)))
     else:
-        return message.model_copy(
+        res = message.model_copy(
             update=dict(
                 tool_calls=[
-                    walk_tool_call(tool_call, content_fn)
+                    walk_tool_call(tool_call, content_fn, context)
                     for tool_call in message.tool_calls
                 ]
                 if isinstance(message, ChatMessageAssistant) and message.tool_calls
                 else None,
                 content=[
-                    walk_content(content, content_fn) for content in message.content
+                    walk_content(content, content_fn, context)
+                    for content in message.content
                 ],
             )
         )
+    cache[message.id] = res
+    return res
 
 
-def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
+def walk_content(
+    content: Content, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> Content:
     if isinstance(content, ContentText):
         return content.model_copy(update=dict(text=content_fn(content.text)))
     elif isinstance(content, ContentImage):
@@ -364,21 +404,21 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
     elif isinstance(content, ContentToolUse):
         return content.model_copy(
             update=dict(
-                arguments=walk_json_value(content.arguments, content_fn),
-                result=walk_json_value(content.result, content_fn),
+                arguments=walk_json_value(content.arguments, content_fn, context),
+                result=walk_json_value(content.result, content_fn, context),
                 error=content_fn(content.error) if content.error else content.error,
             )
         )
     elif isinstance(content, ContentData):
         return content.model_copy(
-            update=dict(data=walk_json_value(content.data, content_fn))
+            update=dict(data=walk_json_value(content.data, content_fn, context))
         )
     elif isinstance(content, ContentDocument):
         return content.model_copy(update=dict(document=content_fn(content.document)))
 
 
 def walk_tools(
-    tools: list[ToolInfo], content_fn: Callable[[str], str]
+    tools: list[ToolInfo], content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> list[ToolInfo]:
     return [
         tool.model_copy(
@@ -390,7 +430,9 @@ def walk_tools(
     ]
 
 
-def walk_tool_call(tool_call: ToolCall, content_fn: Callable[[str], str]) -> ToolCall:
+def walk_tool_call(
+    tool_call: ToolCall, content_fn: Callable[[str], str], context: dict[str, Any]
+) -> ToolCall:
     return ToolCall(
         id=tool_call.id,
         function=tool_call.function,
