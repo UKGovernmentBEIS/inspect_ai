@@ -22,7 +22,7 @@ psutil
 pydantic>=2.11.4
 python-dotenv>=0.16.0
 pyyaml
-rich>=13.3.3,<14.0.0 # https://github.com/Textualize/rich/issues/3682
+rich>=13.3.3,!=14.0.0
 s3fs>=2023
 semver>=3.0.0
 shortuuid
