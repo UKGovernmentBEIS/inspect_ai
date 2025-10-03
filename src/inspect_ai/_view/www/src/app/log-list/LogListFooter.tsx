@@ -1,19 +1,21 @@
-interface LogListFooterProps {
-  logDir: string;
-  itemCount: number;
-  progressText?: string;
-}
-
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, ReactNode } from "react";
 import { useLogsListing, usePagination } from "../../state/hooks";
 import styles from "./LogListFooter.module.css";
 import { LogPager } from "./LogPager";
 import { kDefaultPageSize, kLogsPaginationId } from "./LogsPanel";
 
+interface LogListFooterProps {
+  logDir: string;
+  itemCount: number;
+  progressText?: string;
+  progressBar?: ReactNode;
+}
+
 export const LogListFooter: FC<LogListFooterProps> = ({
   itemCount,
   progressText,
+  progressBar,
 }) => {
   // Get pagination info from the store
   const { page, itemsPerPage } = usePagination(
@@ -54,13 +56,15 @@ export const LogListFooter: FC<LogListFooterProps> = ({
         <LogPager itemCount={effectiveItemCount} />
       </div>
       <div className={clsx(styles.right)}>
-        <div>
-          {effectiveItemCount === 0
-            ? ""
-            : filteredCount !== undefined && filteredCount !== itemCount
-              ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)`
-              : `${startItem} - ${endItem} / ${effectiveItemCount}`}
-        </div>
+        {progressBar || (
+          <div>
+            {effectiveItemCount === 0
+              ? ""
+              : filteredCount !== undefined && filteredCount !== itemCount
+                ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)`
+                : `${startItem} - ${endItem} / ${effectiveItemCount}`}
+          </div>
+        )}
       </div>
     </div>
   );

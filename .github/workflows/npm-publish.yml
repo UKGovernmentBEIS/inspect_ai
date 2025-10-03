@@ -38,19 +38,19 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Sync version from git tag
-        run: npm version from-git
+        run: npm version from-git --no-git-tag-version
 
       - name: Run quality checks
         run: yarn check-all
 
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}
-        run: npm publish --dry-run
+        run: npm publish --dry-run --access public --tag beta
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to NPM
         if: ${{ !inputs.dry-run }}
-        run: npm publish
+        run: npm publish --access public --tag beta
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

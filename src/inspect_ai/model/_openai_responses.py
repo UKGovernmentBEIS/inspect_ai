@@ -10,6 +10,7 @@ from openai.types.responses import (
     FunctionToolParam,
     ResponseComputerToolCall,
     ResponseComputerToolCallParam,
+    ResponseFunctionCallOutputItemListParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
     ResponseFunctionWebSearch,
@@ -43,6 +44,9 @@ from openai.types.responses.response_function_web_search_param import (
     Action,
     ActionSearch,
 )
+from openai.types.responses.response_input_image_content_param import (
+    ResponseInputImageContentParam,
+)
 from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
     FunctionCallOutput,
@@ -54,6 +58,9 @@ from openai.types.responses.response_input_item_param import (
 )
 from openai.types.responses.response_input_item_param import (
     McpListToolsTool as McpListToolsToolParam,
+)
+from openai.types.responses.response_input_text_content_param import (
+    ResponseInputTextContentParam,
 )
 from openai.types.responses.response_output_item import (
     McpCall,
@@ -71,6 +78,7 @@ from openai.types.responses.response_output_text import (
 from openai.types.responses.response_output_text_param import (
     Annotation as AnnotationParam,
 )
+from openai.types.responses.response_reasoning_item_param import Content as ContentParam
 from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
 from openai.types.responses.response_usage import (
     InputTokensDetails,
@@ -97,6 +105,7 @@ from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelUsage, StopReason
@@ -176,12 +185,39 @@ async def _openai_input_item_from_chat_message(
                 call_id=message.tool_call_id or str(message.function),
                 output=message.error.message
                 if message.error is not None
-                else message.text,
+                else await _openai_responses_function_call_output(message),
             )
         ]
 
     else:
         raise ValueError(f"Unexpected message role '{message.role}'")
+
+
+async def _openai_responses_function_call_output(
+    message: ChatMessageTool,
+) -> str | ResponseFunctionCallOutputItemListParam:
+    if isinstance(message.content, str):
+        return message.content
+    else:
+        outputs: ResponseFunctionCallOutputItemListParam = []
+        for c in message.content:
+            if isinstance(c, ContentText):
+                outputs.append(
+                    ResponseInputTextContentParam(type="input_text", text=c.text)
+                )
+            elif isinstance(c, ContentImage):
+                outputs.append(
+                    ResponseInputImageContentParam(
+                        type="input_image",
+                        detail=c.detail,
+                        image_url=(
+                            c.image
+                            if is_http_url(c.image)
+                            else await file_as_data_uri(c.image)
+                        ),
+                    )
+                )
+        return outputs
 
 
 async def _openai_responses_content_list_param(
@@ -346,9 +382,8 @@ def content_from_response_input_content_param(
     if is_input_text(input):
         return ContentText(text=input["text"])
     elif is_input_image(input):
-        assert input["image_url"]
         return ContentImage(
-            image=input["image_url"], detail=input.get("detail", "auto")
+            image=input.get("image_url", "") or "", detail=input.get("detail", "auto")
         )
     elif is_input_file(input):
         return ContentDocument(document=input["file_data"], filename=input["filename"])
@@ -507,12 +542,21 @@ def reasoning_from_responses_reasoning(
         reasoning = item.encrypted_content
         redacted = True
     else:
-        reasoning = "\n".join([s.text for s in item.summary])
-        if item.content is not None:
-            reasoning = f"{reasoning}\n" + "\n".join([s.text for s in item.content])
+        reasoning = (
+            "\n".join([s.text for s in item.content])
+            if item.content is not None
+            else ""
+        )
         redacted = False
 
-    return ContentReasoning(reasoning=reasoning, signature=item.id, redacted=redacted)
+    if item.summary:
+        summary: str | None = "\n\n".join([s.text for s in item.summary])
+    else:
+        summary = None
+
+    return ContentReasoning(
+        reasoning=reasoning, summary=summary, signature=item.id, redacted=redacted
+    )
 
 
 # two issues addressed here:
@@ -534,19 +578,26 @@ def read_reasoning_item_param(
 def responses_reasoning_from_reasoning(
     content: ContentReasoning,
 ) -> ResponseReasoningItemParam:
-    summary: list[SummaryParam] = []
+    content_params: list[ContentParam] = []
     if content.redacted:
         encrypted_content: str | None = content.reasoning
     else:
         encrypted_content = None
         if content.reasoning:
-            summary.append(SummaryParam(type="summary_text", text=content.reasoning))
+            content_params.append(
+                ContentParam(type="reasoning_text", text=content.reasoning)
+            )
+
+    summary_params: list[SummaryParam] = []
+    if content.summary:
+        summary_params.append(SummaryParam(type="summary_text", text=content.summary))
 
     return ResponseReasoningItemParam(
         type="reasoning",
         # OpenAI returns 'None' when store=False even though the schema requires the id
         id=content.signature,  # type: ignore[typeddict-item]
-        summary=summary,
+        content=content_params,
+        summary=summary_params,
         encrypted_content=encrypted_content,
     )
 

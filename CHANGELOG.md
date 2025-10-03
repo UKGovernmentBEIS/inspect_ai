@@ -1,5 +1,30 @@
 ## Unreleased
 
+- OpenAI: Support for tool calls returning images (requires v2.0 of `openai` package, which is now required).
+- Agents: Improve overload return value typing for agent `run()` function.
+- Dependencies: Update to fsspec 2025.9.0 to match upper bound of HF datasets.
+- Dependencies: Allow any version of `rich` > 13.3.3 save for 14.0.0 (which had an infinite recursion bug affecting stack traces with exception groups).
+- Dependencies: Unpin textual dependency (was <= 4.0.0 is now >=2.1.0) as we have mitigated layout issue we saw in 4.0.0.
+
+## 0.3.136 (02 October 2025)
+
+- Google: Manage Google client lifetime to scope of call to `generate()`.
+- Eval logs: Add message count tracking to evaluation logs for quick analysis without loading full samples.
+- Scoring: Fix regression in `inspect score` command (and `inspect_score` function) when scoring log files on S3.
+- Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.
+- Inspect View: Display eval set progress in the lower right corner of the log list.
+- Inspect View: Make message and event link affordances slightly more discoverable.
+- Inspect View: Preserve query parameters in log viewer URLs when copying links.
+- Inspect View: Fix issue where sometimes the incorrect log is displayed when new logs are added to a log directory while viewing a log.
+
+## 0.3.135 (29 September 2025)
+
+- OpenAI: Capture reasoning summaries even when there is encrypted reasoning content.
+- Anthropic: Update text editor tool detection to support latest text editor tool for Claude Sonnet 4.5.
+- Inspect View: Improve rendering for Codex CLI shell tool output.
+
+## 0.3.134 (27 September 2025)
+
 - Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).
 - Agent bridge: Ensure that bridge filters also take advantage of `retry_refusals` loop.
 - Agent bridge: Workaround Codex CLI not passing `detail` along with images.

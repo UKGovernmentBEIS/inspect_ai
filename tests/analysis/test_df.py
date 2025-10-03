@@ -1,6 +1,8 @@
 import tempfile
 from pathlib import Path
 
+import pandas as pd
+
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai.analysis import (
@@ -133,3 +135,12 @@ def test_samples_df_with_sample_scores():
     # Check that score columns are present
     score_columns = [col for col in df.columns if col.startswith("score_")]
     assert len(score_columns) > 0
+
+
+def test_samples_df_message_count():
+    """Test that message_count column is available in samples dataframe."""
+    df = samples_df(LOGS_DIR, columns=SampleSummary)
+
+    assert "message_count" in df.columns
+    assert all(pd.isna(df["message_count"]) | (df["message_count"] >= 0))
+    assert any(df["message_count"] > 0)

@@ -17,6 +17,10 @@
   margin-bottom: 0.3em;
 }
 
+.toolMessageGrid {
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
 .messageContents {
   margin-left: 0;
   padding-bottom: 0;
@@ -33,9 +37,13 @@
 }
 
 .copyLink:hover {
-  opacity: 1;
+  opacity: 0.75;
 }
 
 .metadataLabel {
   padding-top: 1em;
+}
+
+.hover .copyLink {
+  opacity: 0.75;
 }

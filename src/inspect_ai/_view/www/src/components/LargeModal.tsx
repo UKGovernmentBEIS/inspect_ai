@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ProgressBar } from "./ProgressBar";
+import { ActivityBar } from "./ActivityBar";
 
 import { FC, ReactNode, RefObject, useEffect, useRef } from "react";
 import styles from "./LargeModal.module.css";
@@ -130,7 +130,7 @@ export const LargeModal: FC<LargeModalProps> = ({
               <HtmlEntity html={"&times;"} />
             </button>
           </div>
-          <ProgressBar animating={showProgress} />
+          <ActivityBar animating={showProgress} />
           <div className={clsx("modal-body", classNames?.body)} ref={scrollRef}>
             {children}
           </div>
