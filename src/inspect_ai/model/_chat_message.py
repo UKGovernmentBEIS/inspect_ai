@@ -59,7 +59,7 @@ class ChatMessageBase(BaseModel):
     def _after(self, info: ValidationInfo) -> "ChatMessageBase":
         if info.context is None:
             return self
-        cache = info.context.get("message_cache")
+        cache: dict[str, ChatMessageBase] = info.context.get("message_cache")
         message_id = self.id
         hit = cache.get(message_id)
         if hit is not None:
