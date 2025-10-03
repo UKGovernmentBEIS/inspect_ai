@@ -6,7 +6,7 @@ from rich.console import RenderableType
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Container, ScrollableContainer
+from textual.containers import Container, Horizontal, ScrollableContainer
 from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -155,11 +155,17 @@ class TaskProgressView(Widget):
     TaskProgressView {
         height: auto;
         width: 1fr;
-        layout: grid;
-        grid-size: 9 2;
-        grid-columns: auto auto auto auto 1fr auto auto auto;
-        grid-rows: auto auto;
-        grid-gutter: 0 1;
+        layout: vertical;
+    }
+    #task-progress-panel {
+        height: auto;
+    }
+    #task-progress-panel > * {
+        width: auto;
+        padding-left: 1;
+    }
+    #task-progress-bar {
+        width: 1fr;
     }
     TaskProgressView Bar {
         width: 1fr;
@@ -172,9 +178,6 @@ class TaskProgressView(Widget):
     }
     #task-metrics {
         color:$text-secondary;
-    }
-    #task-detail {
-        column-span: 9;
     }
     .hidden {
         display: none;
@@ -195,7 +198,9 @@ class TaskProgressView(Widget):
         self.description_width = description_width
         self.model_name_width = model_name_width
 
-        self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
+        self.progress_bar = ProgressBar(
+            id="task-progress-bar", total=task.profile.steps, show_eta=False
+        )
         self.count_display = Static(markup=False)
         self.metrics_display = Static(id="task-metrics", markup=False)
         self.task_progress = TaskProgress(self.progress_bar)
@@ -222,21 +227,24 @@ class TaskProgressView(Widget):
     samples_total: reactive[int] = reactive(0)
 
     def compose(self) -> ComposeResult:
-        yield (self.toggle if self.display_metrics else Static())
-        yield TaskStatusIcon()
-        yield Static(
-            progress_description(self.t.profile, self.description_width, pad=True),
-            markup=False,
-        )
-        yield Static(
-            progress_model_name(self.t.profile.model, self.model_name_width, pad=True),
-            markup=False,
-        )
-        yield self.progress_bar
-        yield self.count_display
-        yield self.metrics_display
-        yield Clock()
-        yield self.view_log_link
+        with Horizontal(id="task-progress-panel"):
+            yield (self.toggle if self.display_metrics else Static())
+            yield TaskStatusIcon()
+            yield Static(
+                progress_description(self.t.profile, self.description_width, pad=True),
+                markup=False,
+            )
+            yield Static(
+                progress_model_name(
+                    self.t.profile.model, self.model_name_width, pad=True
+                ),
+                markup=False,
+            )
+            yield self.progress_bar
+            yield self.count_display
+            yield self.metrics_display
+            yield Clock()
+            yield self.view_log_link
 
         yield self.task_detail
 
