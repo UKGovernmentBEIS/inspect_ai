@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Dependencies: Allow any version of `rich` > 13.3.3 save for 14.0.0 (which had an infinite recursion bug affecting stack traces with exception groups).
+- Dependencies: Unpin textual dependency (was <= 4.0.0 is now >=2.1.0) as we have mitigated layout issue we saw in 4.0.0.
 
 ## 0.3.136 (02 October 2025)
 
