@@ -90,12 +90,12 @@ def single_process_strategy(
         def _scanner_job_info(item: ScannerJob) -> str:
             return f"{item.union_transcript.id, registry_info(item.scanner).name}"
 
-        def _update_utilization() -> None:
-            if update_utilization:
+        def _update_metrics() -> None:
+            if update_metrics:
                 metrics.buffered_jobs = (
                     scanner_job_receive_stream.statistics().current_buffer_used
                 )
-                update_utilization(metrics)
+                update_metrics(metrics)
 
         async def _worker_task(worker_id: int) -> None:
             items_processed = 0
@@ -127,7 +127,7 @@ def single_process_strategy(
                     exec_start_time = time.time()
                     try:
                         metrics.workers_scanning += 1
-                        _update_utilization()
+                        _update_metrics()
                         await record_results(
                             scanner_job.union_transcript,
                             registry_info(scanner_job.scanner).name,
@@ -136,7 +136,7 @@ def single_process_strategy(
                         bump_progress()
                     finally:
                         metrics.workers_scanning -= 1
-                        _update_utilization()
+                        _update_metrics()
                     print_diagnostics(
                         f"Worker #{worker_id}",
                         f"completed {_scanner_job_info(scanner_job)} in {(time.time() - exec_start_time):.3f}s",
@@ -148,7 +148,7 @@ def single_process_strategy(
                 )
             finally:
                 metrics.worker_count -= 1
-                _update_utilization()
+                _update_metrics()
 
         async def _producer(tg: TaskGroup) -> None:
             async for parse_job in parse_jobs:
@@ -160,7 +160,7 @@ def single_process_strategy(
                         >= queue_size
                     )
                     await scanner_job_send_stream.send(scanner_job)
-                    _update_utilization()
+                    _update_metrics()
                     print_diagnostics(
                         "Producer",
                         f"Added scanner job {_scanner_job_info(scanner_job)} "
@@ -168,7 +168,7 @@ def single_process_strategy(
                     )
                     if metrics.worker_count < max_concurrent_scans:
                         metrics.worker_count += 1
-                        _update_utilization()
+                        _update_metrics()
                         global worker_id_counter
                         worker_id_counter += 1
                         tg.start_soon(_worker_task, worker_id_counter)
