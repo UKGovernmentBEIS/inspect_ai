@@ -483,7 +483,7 @@ class SampleBufferDatabase(SampleBuffer):
         sample = sample.model_copy(
             update={
                 "input": walk_input(
-                    sample.input, self._create_attachments_content_fn(attachments)
+                    sample.input, self._create_attachments_content_fn(attachments), {}
                 )
             }
         )
@@ -500,7 +500,7 @@ class SampleBufferDatabase(SampleBuffer):
         return sample.model_copy(
             update={
                 "input": walk_input(
-                    sample.input, self._resolve_attachments_content_fn(conn)
+                    sample.input, self._resolve_attachments_content_fn(conn), {}
                 )
             }
         )
@@ -509,7 +509,7 @@ class SampleBufferDatabase(SampleBuffer):
         # alias attachments
         attachments: dict[str, str] = {}
         event.event = walk_events(
-            [event.event], self._create_attachments_content_fn(attachments)
+            [event.event], self._create_attachments_content_fn(attachments), {}
         )[0]
 
         # insert attachments
@@ -519,7 +519,7 @@ class SampleBufferDatabase(SampleBuffer):
         return event
 
     def _resolve_event_attachments(self, conn: Connection, event: JsonData) -> JsonData:
-        return walk_json_dict(event, self._resolve_attachments_content_fn(conn))
+        return walk_json_dict(event, self._resolve_attachments_content_fn(conn), {})
 
     def _create_attachments_content_fn(
         self, attachments: dict[str, str]

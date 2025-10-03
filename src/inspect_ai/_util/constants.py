@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 PKG_AUTHOR = "UK AI Security Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
@@ -46,5 +46,5 @@ DEFAULT_BATCH_SIZE = 100
 DESERIALIZING = "deserializing"
 
 
-def get_deserializing_context():
+def get_deserializing_context() -> dict[str, Any]:
     return {DESERIALIZING: True, "message_cache": {}}

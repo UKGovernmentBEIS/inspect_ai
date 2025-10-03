@@ -56,7 +56,7 @@ class ChatMessageBase(BaseModel):
             self.id = uuid()
 
     @model_validator(mode="after")
-    def _after(self, info: ValidationInfo):
+    def _after(self, info: ValidationInfo) -> "ChatMessageBase":
         if info.context is None:
             return self
         cache = info.context.get("message_cache")

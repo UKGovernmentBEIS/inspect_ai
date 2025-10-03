@@ -94,7 +94,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
         else:
             return text
 
-    context = {"message_cache": {}}
+    context: dict[str, Any] = {"message_cache": {}}
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, messages_fn, context),
@@ -131,7 +131,7 @@ def resolve_sample_attachments(sample: EvalSample) -> EvalSample:
         else:
             return text
 
-    context = {"message_cache": {}}
+    context: dict[str, Any] = {"message_cache": {}}
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
@@ -191,7 +191,9 @@ def walk_event(
 def walk_subtask_event(
     event: SubtaskEvent, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> SubtaskEvent:
-    return event.model_copy(update=dict(events=walk_events(event.events, content_fn)))
+    return event.model_copy(
+        update=dict(events=walk_events(event.events, content_fn, context))
+    )
 
 
 def walk_tool_event(
@@ -199,8 +201,8 @@ def walk_tool_event(
 ) -> ToolEvent:
     return event.model_copy(
         update=dict(
-            arguments=walk_json_dict(event.arguments, content_fn),
-            events=walk_events(event.events, content_fn),
+            arguments=walk_json_dict(event.arguments, content_fn, context),
+            events=walk_events(event.events, content_fn, context),
         )
     )
 
@@ -208,7 +210,9 @@ def walk_tool_event(
 def walk_info_event(
     event: InfoEvent, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> InfoEvent:
-    return event.model_copy(update=dict(data=walk_json_value(event.data, content_fn)))
+    return event.model_copy(
+        update=dict(data=walk_json_value(event.data, content_fn, context))
+    )
 
 
 def walk_sample_init_event(
@@ -363,10 +367,11 @@ def walk_chat_messages(
 def walk_chat_message(
     message: ChatMessage, content_fn: Callable[[str], str], context: dict[str, Any]
 ) -> ChatMessage:
-    cache = context.get("message_cache", {})
-    hit = cache.get(message.id)
-    if hit is not None:
-        return hit
+    cache: dict[str, ChatMessage] = context.get("message_cache", {})
+    if cache is not None and message.id is not None:
+        hit = cache.get(message.id)
+        if hit is not None:
+            return hit
     if isinstance(message.content, str):
         res = message.model_copy(update=dict(content=content_fn(message.content)))
     else:
@@ -384,7 +389,8 @@ def walk_chat_message(
                 ],
             )
         )
-    cache[message.id] = res
+    if cache is not None and message.id is not None:
+        cache[message.id] = res
     return res
 
 
@@ -436,7 +442,7 @@ def walk_tool_call(
     return ToolCall(
         id=tool_call.id,
         function=tool_call.function,
-        arguments=walk_json_dict(tool_call.arguments, content_fn),
+        arguments=walk_json_dict(tool_call.arguments, content_fn, context),
         parse_error=tool_call.parse_error,
         view=tool_call.view.model_copy(
             update=dict(
