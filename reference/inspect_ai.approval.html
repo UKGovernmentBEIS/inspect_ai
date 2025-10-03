@@ -2436,7 +2436,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="auto_approver">auto_approver</h3>
 <p>Automatically apply a decision to tool calls.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/approval/_auto.py#L9">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6972b246300552b02c7098fe3bf10873ec77d451/src/inspect_ai/approval/_auto.py#L9">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@approver</span>(name<span class="op">=</span><span class="st">"auto"</span>)</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> auto_approver(decision: ApprovalDecision <span class="op">=</span> <span class="st">"approve"</span>) <span class="op">-&gt;</span> Approver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2451,7 +2451,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="human_approver">human_approver</h3>
 <p>Interactive human approver.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/approval/_human/approver.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6972b246300552b02c7098fe3bf10873ec77d451/src/inspect_ai/approval/_human/approver.py#L11">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@approver</span>(name<span class="op">=</span><span class="st">"human"</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> human_approver(</span>
@@ -2471,7 +2471,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="approver">Approver</h3>
 <p>Approve or reject a tool call.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/approval/_approver.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6972b246300552b02c7098fe3bf10873ec77d451/src/inspect_ai/approval/_approver.py#L12">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Approver(Protocol):</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -2504,7 +2504,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="approval">Approval</h3>
 <p>Approval details (decision, explanation, etc.)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/approval/_approval.py#L19">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6972b246300552b02c7098fe3bf10873ec77d451/src/inspect_ai/approval/_approval.py#L19">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Approval(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2529,7 +2529,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="approvaldecision">ApprovalDecision</h3>
 <p>Represents the possible decisions in an approval.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/approval/_approval.py#L7">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6972b246300552b02c7098fe3bf10873ec77d451/src/inspect_ai/approval/_approval.py#L7">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>ApprovalDecision <span class="op">=</span> Literal[<span class="st">"approve"</span>, <span class="st">"modify"</span>, <span class="st">"reject"</span>, <span class="st">"terminate"</span>, <span class="st">"escalate"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -2537,7 +2537,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="approvalpolicy">ApprovalPolicy</h3>
 <p>Policy mapping approvers to tools.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/approval/_policy.py#L21">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6972b246300552b02c7098fe3bf10873ec77d451/src/inspect_ai/approval/_policy.py#L21">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApprovalPolicy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2562,7 +2562,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="approver-1">approver</h3>
 <p>Decorator for registering approvers.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/37b74c6a146e6e70d12119c8457d749c43d8f4f1/src/inspect_ai/approval/_registry.py#L28">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6972b246300552b02c7098fe3bf10873ec77d451/src/inspect_ai/approval/_registry.py#L28">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> approver(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>

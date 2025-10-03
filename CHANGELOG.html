@@ -147,15 +147,18 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#september-2025" id="toc-september-2025" class="nav-link active" data-scroll-target="#september-2025">0.3.134 (27 September 2025)</a></li>
-  <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.133 (22 September 2025)</a></li>
-  <li><a href="#september-2025-2" id="toc-september-2025-2" class="nav-link" data-scroll-target="#september-2025-2">0.3.132 (12 September 2025)</a></li>
-  <li><a href="#september-2025-3" id="toc-september-2025-3" class="nav-link" data-scroll-target="#september-2025-3">0.3.131 (08 September 2025)</a></li>
-  <li><a href="#september-2025-4" id="toc-september-2025-4" class="nav-link" data-scroll-target="#september-2025-4">0.3.130 (06 September 2025)</a></li>
-  <li><a href="#september-2025-5" id="toc-september-2025-5" class="nav-link" data-scroll-target="#september-2025-5">0.3.129 (03 September 2025)</a></li>
-  <li><a href="#september-2025-6" id="toc-september-2025-6" class="nav-link" data-scroll-target="#september-2025-6">0.3.128 (02 September 2025)</a></li>
-  <li><a href="#september-2025-7" id="toc-september-2025-7" class="nav-link" data-scroll-target="#september-2025-7">0.3.127 (01 September 2025)</a></li>
-  <li><a href="#september-2025-8" id="toc-september-2025-8" class="nav-link" data-scroll-target="#september-2025-8">0.3.126 (01 September 2025)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#october-2025" id="toc-october-2025" class="nav-link" data-scroll-target="#october-2025">0.3.136 (02 October 2025)</a></li>
+  <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.135 (29 September 2025)</a></li>
+  <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.134 (27 September 2025)</a></li>
+  <li><a href="#september-2025-2" id="toc-september-2025-2" class="nav-link" data-scroll-target="#september-2025-2">0.3.133 (22 September 2025)</a></li>
+  <li><a href="#september-2025-3" id="toc-september-2025-3" class="nav-link" data-scroll-target="#september-2025-3">0.3.132 (12 September 2025)</a></li>
+  <li><a href="#september-2025-4" id="toc-september-2025-4" class="nav-link" data-scroll-target="#september-2025-4">0.3.131 (08 September 2025)</a></li>
+  <li><a href="#september-2025-5" id="toc-september-2025-5" class="nav-link" data-scroll-target="#september-2025-5">0.3.130 (06 September 2025)</a></li>
+  <li><a href="#september-2025-6" id="toc-september-2025-6" class="nav-link" data-scroll-target="#september-2025-6">0.3.129 (03 September 2025)</a></li>
+  <li><a href="#september-2025-7" id="toc-september-2025-7" class="nav-link" data-scroll-target="#september-2025-7">0.3.128 (02 September 2025)</a></li>
+  <li><a href="#september-2025-8" id="toc-september-2025-8" class="nav-link" data-scroll-target="#september-2025-8">0.3.127 (01 September 2025)</a></li>
+  <li><a href="#september-2025-9" id="toc-september-2025-9" class="nav-link" data-scroll-target="#september-2025-9">0.3.126 (01 September 2025)</a></li>
   <li><a href="#august-2025" id="toc-august-2025" class="nav-link" data-scroll-target="#august-2025">0.3.125 (25 August 2025)</a></li>
   <li><a href="#august-2025-1" id="toc-august-2025-1" class="nav-link" data-scroll-target="#august-2025-1">0.3.124 (24 August 2025)</a></li>
   <li><a href="#august-2025-2" id="toc-august-2025-2" class="nav-link" data-scroll-target="#august-2025-2">0.3.123 (16 August 2025)</a></li>
@@ -289,8 +292,39 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>OpenAI: Support for tool calls returning images (requires v2.0 of <code>openai</code> package, which is now required).</li>
+<li>Agents: Improve overload return value typing for agent <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> function.</li>
+<li>Dependencies: Update to fsspec 2025.9.0 to match upper bound of HF datasets.</li>
+<li>Dependencies: Allow any version of <code>rich</code> &gt; 13.3.3 save for 14.0.0 (which had an infinite recursion bug affecting stack traces with exception groups).</li>
+<li>Dependencies: Unpin textual dependency (was &lt;= 4.0.0 is now &gt;=2.1.0) as we have mitigated layout issue we saw in 4.0.0.</li>
+</ul>
+</section>
+<section id="october-2025" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025">0.3.136 (02 October 2025)</h2>
+<ul>
+<li>Google: Manage Google client lifetime to scope of call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
+<li>Eval logs: Add message count tracking to evaluation logs for quick analysis without loading full samples.</li>
+<li>Scoring: Fix regression in <code>inspect score</code> command (and <code>inspect_score</code> function) when scoring log files on S3.</li>
+<li>Inspect View: Improve display of OpenAI Codex tool calls in transcript and messages.</li>
+<li>Inspect View: Display eval set progress in the lower right corner of the log list.</li>
+<li>Inspect View: Make message and event link affordances slightly more discoverable.</li>
+<li>Inspect View: Preserve query parameters in log viewer URLs when copying links.</li>
+<li>Inspect View: Fix issue where sometimes the incorrect log is displayed when new logs are added to a log directory while viewing a log.</li>
+</ul>
+</section>
 <section id="september-2025" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025">0.3.134 (27 September 2025)</h2>
+<h2 class="anchored" data-anchor-id="september-2025">0.3.135 (29 September 2025)</h2>
+<ul>
+<li>OpenAI: Capture reasoning summaries even when there is encrypted reasoning content.</li>
+<li>Anthropic: Update text editor tool detection to support latest text editor tool for Claude Sonnet 4.5.</li>
+<li>Inspect View: Improve rendering for Codex CLI shell tool output.</li>
+</ul>
+</section>
+<section id="september-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-1">0.3.134 (27 September 2025)</h2>
 <ul>
 <li>Agent bridge: Enable bridge filters to modify generation inputs (messages, tools, config, etc.).</li>
 <li>Agent bridge: Ensure that bridge filters also take advantage of <code>retry_refusals</code> loop.</li>
@@ -311,8 +345,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Update various tests to react to Google’s deprecation of old models.</li>
 </ul>
 </section>
-<section id="september-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-1">0.3.133 (22 September 2025)</h2>
+<section id="september-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-2">0.3.133 (22 September 2025)</h2>
 <ul>
 <li>Sandbox tools: bash_session, text_editor, and sandbox MCP servers no longer require a separate pipx install (they are now automatically injected into sandbox as a static binary with no Python dependencies).</li>
 <li>Agent bridge: Python is no longer required within containers using the sandbox agent bridge.</li>
@@ -339,8 +373,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Handle non-contiguous task sequences in task batching.</li>
 </ul>
 </section>
-<section id="september-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-2">0.3.132 (12 September 2025)</h2>
+<section id="september-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-3">0.3.132 (12 September 2025)</h2>
 <ul>
 <li>Anthropic: Support for images with mime type image/bmp.</li>
 <li>Sandbox Service: Specify instance externally so a single script can service multiple instances.</li>
@@ -362,14 +396,14 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure that assistant content without reasoning is always passed to responses API.</li>
 </ul>
 </section>
-<section id="september-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-3">0.3.131 (08 September 2025)</h2>
+<section id="september-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-4">0.3.131 (08 September 2025)</h2>
 <ul>
 <li>OpenAI: Correct serialization of web search tool calls (prevent 400 errors).</li>
 </ul>
 </section>
-<section id="september-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-4">0.3.130 (06 September 2025)</h2>
+<section id="september-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-5">0.3.130 (06 September 2025)</h2>
 <ul>
 <li>Agent Bridge: Option to force the sandbox agent bridge to use a specific model.</li>
 <li>Agent Bridge: New <code>filter</code> option to enable bridge to filter model generate calls.</li>
@@ -395,15 +429,15 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure ETags always match content when reading S3 logs to prevent write conflicts.</li>
 </ul>
 </section>
-<section id="september-2025-5" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-5">0.3.129 (03 September 2025)</h2>
+<section id="september-2025-6" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-6">0.3.129 (03 September 2025)</h2>
 <ul>
 <li>Agent Bridge: Don’t use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#concurrency">concurrency()</a></span> for agent bridge interactions (not required for long-running proxy server or cheap polling requests).</li>
 <li>Sandboxes: Add <code>concurrency</code> parameter to <code>exec()</code> to advise whether the execution should be subject to local process concurrency limits.</li>
 </ul>
 </section>
-<section id="september-2025-6" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-6">0.3.128 (02 September 2025)</h2>
+<section id="september-2025-7" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-7">0.3.128 (02 September 2025)</h2>
 <ul>
 <li>Agent Bridge: Correctly dispatch LimitExceededError which occurs during proxied model calls.</li>
 <li>Agent Bridge: Respect reference vs.&nbsp;value semantics of agent caller (enables preservation of messages when agent is run via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span>).</li>
@@ -414,14 +448,14 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Work around OpenAI breaking change that renamed “find” web search action to “find_in_page” (bump required version of <code>openai</code> package to v1.104.0).</li>
 </ul>
 </section>
-<section id="september-2025-7" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-7">0.3.127 (01 September 2025)</h2>
+<section id="september-2025-8" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-8">0.3.127 (01 September 2025)</h2>
 <ul>
 <li>Bugfix: Preserve sample list state (e.g.&nbsp;scroll position, selection) across sample open/close.</li>
 </ul>
 </section>
-<section id="september-2025-8" class="level2">
-<h2 class="anchored" data-anchor-id="september-2025-8">0.3.126 (01 September 2025)</h2>
+<section id="september-2025-9" class="level2">
+<h2 class="anchored" data-anchor-id="september-2025-9">0.3.126 (01 September 2025)</h2>
 <ul>
 <li>Agent Bridge: OpenAI Responses API and Anthropic API are now supported alongside the OpenAI Completions API for both in-process and sandbox-based agent bridges.</li>
 <li>Agent Bridge: Bridge can now automatically keep track of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span> changes via inspecting model traffic running over the bridge.</li>
