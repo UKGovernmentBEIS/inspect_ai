@@ -1649,7 +1649,7 @@ requires-dist = [
     { name = "debugpy" },
     { name = "docstring-parser", specifier = ">=0.16" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'", specifier = ">=1.0.2" },
-    { name = "fsspec", specifier = ">=2023.1.0,<=2025.3.0" },
+    { name = "fsspec", specifier = ">=2023.1.0,<=2025.9.0" },
     { name = "google-genai", marker = "extra == 'dev'" },
     { name = "griffe", marker = "extra == 'dev'" },
     { name = "griffe", marker = "extra == 'doc'" },
