@@ -52,7 +52,6 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
-from inspect_ai.event._model import ModelEvent
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -821,6 +820,7 @@ class Model:
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
     ) -> tuple[Callable[[ModelOutput | Exception, ModelCall | None], None], BaseModel]:
+        from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
         # create event and add it to the transcript

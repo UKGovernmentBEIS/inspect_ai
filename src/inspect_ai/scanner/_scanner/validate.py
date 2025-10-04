@@ -326,7 +326,7 @@ def _get_event_types_from_filter(
     event_filter: list[EventType],
 ) -> set[Type[Event]]:
     """Map event filter strings to concrete Event types."""
-    type_map: dict[EventType, Type[Event]] = {
+    type_map: dict[str, Type[Event]] = {
         "model": ModelEvent,
         "tool": ToolEvent,
         "sample_init": SampleInitEvent,

@@ -5,8 +5,6 @@ from logging import getLogger
 from typing import AsyncIterator
 from uuid import uuid4
 
-from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
-
 logger = getLogger(__name__)
 
 
@@ -18,6 +16,7 @@ async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
         name (str): Step name.
         type (str | None): Optional span type.
     """
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
     from inspect_ai.log._transcript import (
         track_store_changes,
         transcript,

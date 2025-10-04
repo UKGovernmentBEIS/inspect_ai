@@ -3,8 +3,6 @@ from typing import Awaitable, TypeVar, cast
 
 import anyio
 
-from ._span import span
-
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
@@ -30,6 +28,8 @@ async def collect(*tasks: Awaitable[T]) -> list[T]:
     Returns:
         List of task results.
     """
+    from ._span import span
+
     results: list[None | T] = [None] * len(tasks)
 
     try:

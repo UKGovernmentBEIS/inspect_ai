@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Iterator, Literal, Protocol, TypeAlias
+from typing import Iterator, Literal, Protocol, Sequence, TypeAlias
 
 from pydantic import BaseModel, Field, JsonValue
 
@@ -10,25 +10,19 @@ from .metadata import Condition
 
 MessageType = Literal["system", "user", "assistant", "tool"]
 EventType = Literal[
-    "sample_init",
-    "sample_limit",
-    "sandbox",
-    "state",
-    "store",
     "model",
     "tool",
     "approval",
-    "input",
-    "score",
-    "error",
-    "logger",
+    "sandbox",
     "info",
+    "logger",
+    "error",
     "span_begin",
     "span_end",
 ]
 
-MessageFilter: TypeAlias = Literal["all"] | list[MessageType] | None
-EventFilter: TypeAlias = Literal["all"] | list[EventType] | None
+MessageFilter: TypeAlias = Literal["all"] | Sequence[MessageType] | None
+EventFilter: TypeAlias = Literal["all"] | Sequence[EventType | str] | None
 
 
 @dataclass
