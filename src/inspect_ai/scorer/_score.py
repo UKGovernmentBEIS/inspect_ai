@@ -28,7 +28,8 @@ async def score(conversation: ModelConversation) -> list[Score]:
         a task that does not have a scorer.
 
     """
-    from inspect_ai.log._transcript import ScoreEvent, transcript
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.log._transcript import transcript
 
     # get TaskState (if the `conversation` is a `TaskState` use it directly,
     # otherwise synthesize one)

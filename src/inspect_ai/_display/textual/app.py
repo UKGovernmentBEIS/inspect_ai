@@ -27,8 +27,9 @@ from typing_extensions import override
 
 from inspect_ai._display.core.textual import textual_enable_mouse_support
 from inspect_ai._util.html import as_html_id
+from inspect_ai.event._input import InputEvent
 from inspect_ai.log._samples import active_samples
-from inspect_ai.log._transcript import InputEvent, transcript
+from inspect_ai.log._transcript import transcript
 
 from ...util._panel import InputPanel
 from ..core.config import task_config

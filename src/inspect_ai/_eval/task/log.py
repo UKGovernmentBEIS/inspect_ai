@@ -14,6 +14,7 @@ from inspect_ai._util.registry import (
     registry_params,
 )
 from inspect_ai.dataset import Dataset
+from inspect_ai.event._event import Event
 from inspect_ai.log import (
     EvalConfig,
     EvalDataset,
@@ -37,7 +38,6 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.log._transcript import Event
 from inspect_ai.model import (
     GenerateConfig,
     Model,

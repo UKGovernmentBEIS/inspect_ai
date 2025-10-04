@@ -9,6 +9,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import override
 
 from inspect_ai._util.text import truncate_lines
+from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import (
@@ -37,7 +38,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         timeout_retry: bool = True,
         concurrency: bool = True,
     ) -> ExecResult[str]:
-        from inspect_ai.log._transcript import SandboxEvent, transcript
+        from inspect_ai.log._transcript import transcript
 
         # started
         timestamp = datetime.now()
@@ -100,7 +101,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
-        from inspect_ai.log._transcript import SandboxEvent, transcript
+        from inspect_ai.log._transcript import transcript
 
         timestamp = datetime.now()
 
@@ -127,7 +128,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
 
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
-        from inspect_ai.log._transcript import SandboxEvent, transcript
+        from inspect_ai.log._transcript import transcript
 
         timestamp = datetime.now()
 

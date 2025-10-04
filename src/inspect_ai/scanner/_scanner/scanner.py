@@ -23,7 +23,7 @@ from inspect_ai._util.registry import (
     registry_info,
     registry_tag,
 )
-from inspect_ai.log._transcript import Event
+from inspect_ai.event._event import Event
 from inspect_ai.model._chat_message import ChatMessage
 
 from .._transcript.types import (

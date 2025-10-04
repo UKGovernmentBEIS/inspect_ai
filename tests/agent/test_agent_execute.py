@@ -8,7 +8,8 @@ from inspect_ai._eval.task.task import Task
 from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._run import run
-from inspect_ai.log._transcript import SpanBeginEvent, transcript
+from inspect_ai.event._span import SpanBeginEvent
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._model import get_model

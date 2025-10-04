@@ -27,17 +27,17 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
-from ._log import EvalSample
-from ._transcript import (
+from ..event._event import (
     Event,
-    InfoEvent,
-    ModelEvent,
-    SampleInitEvent,
-    StateEvent,
-    StoreEvent,
-    SubtaskEvent,
-    ToolEvent,
 )
+from ..event._info import InfoEvent
+from ..event._model import ModelEvent
+from ..event._sample_init import SampleInitEvent
+from ..event._state import StateEvent
+from ..event._store import StoreEvent
+from ..event._subtask import SubtaskEvent
+from ..event._tool import ToolEvent
+from ._log import EvalSample
 
 logger = getLogger(__name__)
 

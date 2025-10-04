@@ -1,3 +1,4 @@
+from inspect_ai._util.deprecation import relocated_module_attribute
 from inspect_ai._util.error import EvalError, WriteConflictError
 
 from ._bundle import bundle_log_dir
@@ -33,31 +34,11 @@ from ._log import (
     EvalSpec,
     EvalStats,
 )
-from ._message import LoggingLevel, LoggingMessage
 from ._retry import retryable_eval_logs
 from ._transcript import (
-    ApprovalEvent,
-    ErrorEvent,
-    Event,
-    InfoEvent,
-    InputEvent,
-    LoggerEvent,
-    ModelEvent,
-    SampleInitEvent,
-    SampleLimitEvent,
-    SandboxEvent,
-    ScoreEvent,
-    SpanBeginEvent,
-    SpanEndEvent,
-    StateEvent,
-    StepEvent,
-    StoreEvent,
-    SubtaskEvent,
-    ToolEvent,
     Transcript,
     transcript,
 )
-from ._tree import EventNode, EventTree, SpanNode, event_sequence, event_tree
 
 __all__ = [
     "WriteConflictError",
@@ -79,28 +60,8 @@ __all__ = [
     "EvalSpec",
     "EvalStats",
     "EvalLogInfo",
-    "LoggingLevel",
-    "LoggingMessage",
     "Transcript",
     "transcript",
-    "Event",
-    "ApprovalEvent",
-    "ErrorEvent",
-    "InfoEvent",
-    "InputEvent",
-    "LoggerEvent",
-    "ModelEvent",
-    "SampleInitEvent",
-    "SampleLimitEvent",
-    "SandboxEvent",
-    "ScoreEvent",
-    "SpanBeginEvent",
-    "SpanEndEvent",
-    "StateEvent",
-    "StepEvent",
-    "StoreEvent",
-    "SubtaskEvent",
-    "ToolEvent",
     "convert_eval_logs",
     "list_eval_logs",
     "read_eval_log",
@@ -115,9 +76,158 @@ __all__ = [
     "write_log_dir_manifest",
     "retryable_eval_logs",
     "bundle_log_dir",
-    "event_tree",
-    "event_sequence",
-    "EventTree",
-    "EventNode",
-    "SpanNode",
 ]
+
+
+_EVENT_MODULE_VERSION_3_137 = "0.3.137"
+_REMOVED_IN = "0.4"
+relocated_module_attribute(
+    "ApprovalEvent",
+    "inspect_ai.event.ApprovalEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "ErrorEvent",
+    "inspect_ai.event.ErrorEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "Event",
+    "inspect_ai.event.Event",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "InfoEvent",
+    "inspect_ai.event.InfoEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "InputEvent",
+    "inspect_ai.event.InputEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "LoggerEvent",
+    "inspect_ai.event.LoggerEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "LoggingLevel",
+    "inspect_ai.event.LoggingLevel",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "LoggingMessage",
+    "inspect_ai.event.LoggingMessage",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "ModelEvent",
+    "inspect_ai.event.ModelEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "SampleInitEvent",
+    "inspect_ai.event.SampleInitEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "SampleLimitEvent",
+    "inspect_ai.event.SampleLimitEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "SandboxEvent",
+    "inspect_ai.event.SandboxEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "ScoreEvent",
+    "inspect_ai.event.ScoreEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "SpanBeginEvent",
+    "inspect_ai.event.SpanBeginEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "SpanEndEvent",
+    "inspect_ai.event.SpanEndEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "StateEvent",
+    "inspect_ai.event.StateEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "StepEvent",
+    "inspect_ai.event.StepEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "StoreEvent",
+    "inspect_ai.event.StoreEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "SubtaskEvent",
+    "inspect_ai.event.SubtaskEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "ToolEvent",
+    "inspect_ai.event.ToolEvent",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "EventNode",
+    "inspect_ai.event.EventNode",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "EventTree",
+    "inspect_ai.event.EventTree",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "SpanNode",
+    "inspect_ai.event.SpanNode",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "event_sequence",
+    "inspect_ai.event.event_sequence",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "event_tree",
+    "inspect_ai.event.event_tree",
+    _EVENT_MODULE_VERSION_3_137,
+    _REMOVED_IN,
+)

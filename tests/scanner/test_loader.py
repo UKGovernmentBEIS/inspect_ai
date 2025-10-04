@@ -55,7 +55,7 @@ def test_loader_with_message_filter():
 
 def test_loader_with_event_filter():
     """Loader can have event filters."""
-    from inspect_ai.log._transcript import Event
+    from inspect_ai.event._event import Event
 
     @loader(events=["model", "tool"])
     def test_loader():
@@ -142,7 +142,7 @@ def test_scanner_with_custom_loader():
 
 def test_loader_type_transformation():
     """Loader can transform transcript data types."""
-    from inspect_ai.log._transcript import Event
+    from inspect_ai.event._event import Event
 
     @loader(name="event_extractor")
     def event_loader():

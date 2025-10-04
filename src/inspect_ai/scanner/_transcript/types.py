@@ -3,7 +3,7 @@ from typing import Iterator, Literal, Protocol, TypeAlias
 
 from pydantic import BaseModel, Field, JsonValue
 
-from inspect_ai.log._transcript import Event
+from inspect_ai.event._event import Event
 from inspect_ai.model._chat_message import ChatMessage
 
 from .metadata import Condition

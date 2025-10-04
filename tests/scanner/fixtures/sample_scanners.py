@@ -1,7 +1,7 @@
 """Sample scanner implementations for testing."""
 
-from inspect_ai.log._transcript import (
-    ModelEvent,
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._tool import (
     ToolEvent,
 )
 from inspect_ai.model._chat_message import (

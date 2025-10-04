@@ -1,7 +1,7 @@
 from functools import reduce
 from typing import Iterable, TypeVar
 
-from inspect_ai.log._transcript import Event
+from inspect_ai.event._event import Event
 from inspect_ai.model._chat_message import ChatMessage
 
 from .types import (

@@ -3,7 +3,8 @@
 import pytest
 
 from inspect_ai._util.registry import registry_info
-from inspect_ai.log._transcript import ModelEvent, ToolEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,

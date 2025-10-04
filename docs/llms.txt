@@ -58,6 +58,7 @@
 - [inspect_ai.dataset](https://inspect.aisi.org.uk/reference/inspect_ai.dataset.html.md) describes the types used to read and manipulate datasets and samples.
 - [inspect_ai.approval](https://inspect.aisi.org.uk/reference/inspect_ai.approval.html.md) covers using built in approvers as well as the types used to create custom approvers and approval policies.
 - [inspect_ai.log](https://inspect.aisi.org.uk/reference/inspect_ai.log.html.md) describes the types used to list, read, write, and traverse the contents of eval log files.
+- [inspect_ai.log](https://inspect.aisi.org.uk/reference/inspect_ai.event.html.md) Events recorded during execution of transcripts.
 - [inspect_ai.analysis](https://inspect.aisi.org.uk/reference/inspect_ai.analysis.html.md) covers the Python API for reading logs into dataframes for analysis.
 - [inspect_ai.util](https://inspect.aisi.org.uk/reference/inspect_ai.util.html.md) covers various utility functions for concurrency, sandboxes, the store, and more.
 

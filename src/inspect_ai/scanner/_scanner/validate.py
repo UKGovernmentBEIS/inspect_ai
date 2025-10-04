@@ -11,24 +11,23 @@ from typing import (
     get_type_hints,
 )
 
-from inspect_ai.log._transcript import (
-    ApprovalEvent,
-    ErrorEvent,
+from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._error import ErrorEvent
+from inspect_ai.event._event import (
     Event,
-    InfoEvent,
-    InputEvent,
-    LoggerEvent,
-    ModelEvent,
-    SampleInitEvent,
-    SampleLimitEvent,
-    SandboxEvent,
-    ScoreEvent,
-    SpanBeginEvent,
-    SpanEndEvent,
-    StateEvent,
-    StoreEvent,
-    ToolEvent,
 )
+from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._input import InputEvent
+from inspect_ai.event._logger import LoggerEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._sandbox import SandboxEvent
+from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+from inspect_ai.event._state import StateEvent
+from inspect_ai.event._store import StoreEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,

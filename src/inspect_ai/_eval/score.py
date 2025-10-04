@@ -20,13 +20,14 @@ from inspect_ai._eval.task.task import resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
+from inspect_ai.event._event import Event
+from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._tree import SpanNode, event_sequence, event_tree, walk_node_spans
 from inspect_ai.log import (
     EvalLog,
-    ScoreEvent,
 )
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
-from inspect_ai.log._transcript import Event, Transcript, init_transcript, transcript
-from inspect_ai.log._tree import SpanNode, event_sequence, event_tree, walk_node_spans
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_config import model_roles_config_to_model_roles

@@ -3,7 +3,7 @@ from test_helpers.utils import skip_if_no_anthropic, skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.log._transcript import ModelEvent
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import think
 

@@ -28,7 +28,7 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
-from ._transcript import Event
+from ..event._event import Event
 from ._util import thin_input, thin_metadata, thin_text
 
 logger = getLogger(__name__)

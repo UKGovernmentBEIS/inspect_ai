@@ -1,10 +1,10 @@
-from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import (
-    BaseEvent,
-    SampleLimitEvent,
+from inspect_ai.event._base import BaseEvent
+from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._subtask import (
     SubtaskEvent,
-    ToolEvent,
 )
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log._log import EvalLog
 
 
 def check_limit_event(log: EvalLog, type: str) -> None:

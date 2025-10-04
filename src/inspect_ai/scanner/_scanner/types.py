@@ -2,7 +2,7 @@
 
 from typing import Sequence, TypeVar, Union
 
-from inspect_ai.log._transcript import Event
+from inspect_ai.event._event import Event
 from inspect_ai.model._chat_message import ChatMessage
 
 from .._transcript.types import Transcript

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
@@ -11,7 +12,6 @@ from inspect_ai.log._recorders.buffer.database import (
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.log._transcript import InfoEvent
 
 
 @pytest.fixture

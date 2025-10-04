@@ -40,7 +40,7 @@ def test_scanner_with_custom_name():
 
 def test_scanner_with_events():
     """Scanner decorator should handle event filters."""
-    from inspect_ai.log._transcript import Event
+    from inspect_ai.event._event import Event
 
     @scanner(events=["model", "tool"])
     def test_scanner() -> Scanner[Event]:

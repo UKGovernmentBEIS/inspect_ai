@@ -11,7 +11,7 @@ def test_mypy_scanner_and_loader_types():
     # Create a single file with all test cases
     test_code = textwrap.dedent("""
         from typing import AsyncGenerator, Sequence, Union
-        from inspect_ai.log._transcript import Event, ModelEvent, ToolEvent
+        from inspect_ai.event import Event, ModelEvent, ToolEvent
         from inspect_ai.model._chat_message import (
             ChatMessage,
             ChatMessageAssistant,
