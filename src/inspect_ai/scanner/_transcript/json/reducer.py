@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Generator, Literal
+from typing import Any, Generator, Literal, cast
 
 from ijson import ObjectBuilder  # type: ignore
 from ijson.utils import coroutine as _ijson_coroutine  # type: ignore
@@ -53,7 +53,7 @@ EventTuple = tuple[str, str, Any]
 CoroutineGen = Generator[None, EventTuple, None]
 
 
-@_ijson_coroutine
+@_ijson_coroutine  # type: ignore[misc]
 def _item_coroutine(
     target_list: list[dict[str, Any]],
     attachment_refs: set[str],
@@ -108,16 +108,20 @@ def _item_coroutine(
 def message_item_coroutine(
     state: ParseState, config: ListProcessingConfig
 ) -> CoroutineGen:
-    return _item_coroutine(state.messages, state.attachment_refs, config)
+    return cast(
+        CoroutineGen, _item_coroutine(state.messages, state.attachment_refs, config)
+    )
 
 
 def event_item_coroutine(
     state: ParseState, config: ListProcessingConfig
 ) -> CoroutineGen:
-    return _item_coroutine(state.events, state.attachment_refs, config)
+    return cast(
+        CoroutineGen, _item_coroutine(state.events, state.attachment_refs, config)
+    )
 
 
-@_ijson_coroutine
+@_ijson_coroutine  # type: ignore[misc]
 def attachments_coroutine(state: ParseState) -> CoroutineGen:  # pragma: no cover
     attachments_prefix_len = len(ATTACHMENTS_PREFIX)
     while True:
