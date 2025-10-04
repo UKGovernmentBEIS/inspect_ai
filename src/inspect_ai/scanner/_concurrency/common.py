@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import (
     AbstractSet,
     AsyncIterator,
@@ -11,6 +12,16 @@ from .._scanner.result import ResultReport
 from .._scanner.scanner import Scanner
 from .._scanner.types import ScannerInput
 from .._transcript.types import Transcript, TranscriptInfo
+
+
+@dataclass
+class WorkerMetrics:
+    """Encapsulates all worker-related metrics."""
+
+    worker_count: int = 0
+    workers_waiting: int = 0
+    workers_scanning: int = 0
+    buffered_jobs: int = 0
 
 
 class ParseJob(NamedTuple):
@@ -58,4 +69,5 @@ class ConcurrencyStrategy(Protocol):
             [TranscriptInfo, str, list[ResultReport]], Awaitable[None]
         ],
         bump_progress: Callable[[], None],
+        update_metrics: Callable[[WorkerMetrics], None] | None = None,
     ) -> None: ...
