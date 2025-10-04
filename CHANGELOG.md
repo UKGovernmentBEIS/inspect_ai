@@ -2,6 +2,7 @@
 
 - OpenAI: Support for tool calls returning images (requires v2.0 of `openai` package, which is now required).
 - Agents: Improve overload return value typing for agent `run()` function.
+- Task display: Improved reporting of errors that occur during log initialization.
 - Dependencies: Update to fsspec 2025.9.0 to match upper bound of HF datasets.
 - Dependencies: Allow any version of `rich` > 13.3.3 save for 14.0.0 (which had an infinite recursion bug affecting stack traces with exception groups).
 - Dependencies: Unpin textual dependency (was <= 4.0.0 is now >=2.1.0) as we have mitigated layout issue we saw in 4.0.0.
