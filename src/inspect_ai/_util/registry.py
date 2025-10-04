@@ -28,9 +28,6 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.hooks._hooks import Hooks
     from inspect_ai.model import ModelAPI
-    from inspect_ai.scanner._scanjob import ScanJob
-    from inspect_ai.scanner._scanner.loader import Loader
-    from inspect_ai.scanner._scanner.scanner import Scanner
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer
     from inspect_ai.solver import Plan, Solver
     from inspect_ai.tool import Tool
@@ -293,19 +290,15 @@ def registry_create(type: Literal["tool"], name: str, **kwargs: Any) -> Tool: ..
 
 
 @overload
-def registry_create(
-    type: Literal["loader"], name: str, **kwargs: Any
-) -> Loader[Any]: ...
+def registry_create(type: Literal["loader"], name: str, **kwargs: Any) -> Any: ...
 
 
 @overload
-def registry_create(
-    type: Literal["scanner"], name: str, **kwargs: Any
-) -> Scanner[Any]: ...
+def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: ...
 
 
 @overload
-def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> ScanJob: ...
+def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
