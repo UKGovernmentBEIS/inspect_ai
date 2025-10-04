@@ -715,6 +715,10 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
     if key == "output" and isinstance(value, dict) and "image_url" in value:
         value = copy(value)
         value.update(image_url=BASE_64_DATA_REMOVED)
+    if key == "output" and isinstance(value, list):
+        for v in value:
+            if isinstance(v, dict) and "image_url" in v:
+                v.update(image_url=BASE_64_DATA_REMOVED)
     if key == "image_url" and isinstance(value, dict) and "url" in value:
         url = str(value.get("url"))
         if url.startswith("data:"):

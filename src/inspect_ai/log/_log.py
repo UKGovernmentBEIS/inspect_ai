@@ -223,6 +223,9 @@ class EvalSampleSummary(BaseModel):
     completed: bool = Field(default=False)
     """Is the sample complete."""
 
+    message_count: int | None = Field(default=None)
+    """Number of messages in the sample conversation."""
+
     @model_validator(mode="after")
     def thin_data(self) -> "EvalSampleSummary":
         # thin input
@@ -391,6 +394,7 @@ class EvalSample(BaseModel):
             limit=f"{self.limit.type}" if self.limit is not None else None,
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
+            message_count=len(self.messages),
         )
 
     # deprecated properties

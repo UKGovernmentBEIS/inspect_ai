@@ -6,6 +6,7 @@ from typing import Any, Set, cast
 from openai.types.responses import (
     Response,
     ResponseComputerToolCall,
+    ResponseFunctionCallOutputItemListParam,
     ResponseFunctionToolCall,
     ResponseFunctionWebSearch,
     ResponseInputContentParam,
@@ -530,7 +531,7 @@ def messages_from_responses_input(
                 ChatMessageTool(
                     tool_call_id=item["call_id"],
                     function=function_calls_by_id.get(item["call_id"]),
-                    content=[ContentText(text=cast(str, item["output"]))],
+                    content=_tool_content_from_openai_tool_output(item["output"]),
                 )
             )
         elif is_computer_call_output(item):
@@ -560,6 +561,27 @@ def messages_from_responses_input(
     collect_pending_assistant_message()
 
     return messages
+
+
+def _tool_content_from_openai_tool_output(
+    output: str | ResponseFunctionCallOutputItemListParam,
+) -> str | list[Content]:
+    if isinstance(output, str):
+        return output
+    else:
+        content: list[Content] = []
+        for o in output:
+            if o["type"] == "input_text":
+                content.append(ContentText(text=o["text"]))
+            elif o["type"] == "input_image" and "image_url" in o:
+                content.append(
+                    ContentImage(
+                        image=o.get("image_url", "") or "",
+                        detail=o.get("detail", "auto") or "auto",
+                    )
+                )
+
+        return content
 
 
 # some scaffolds (e.g. codex) can present duplciate assistant messages

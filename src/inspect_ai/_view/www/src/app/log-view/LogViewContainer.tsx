@@ -8,6 +8,7 @@ import {
   useSampleSummaries,
   useTotalSampleCount,
 } from "../../state/hooks";
+import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
 import { baseUrl, sampleUrl, useLogRouteParams } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
@@ -51,6 +52,16 @@ export const LogViewContainer: FC = () => {
   const navigate = useNavigate();
   const sampleSummaries = useSampleSummaries();
   const [searchParams] = useSearchParams();
+
+  // Unload the log when this is mounted. This prevents the old log
+  // data from being displayed when navigating back to the logs panel
+  // and also ensures that we reload logs when freshly navigating to them.
+  const { unloadLog } = useUnloadLog();
+  useEffect(() => {
+    return () => {
+      unloadLog();
+    };
+  }, []);
 
   useEffect(() => {
     // Redirect to an id/epoch url if a sampleUuid is provided

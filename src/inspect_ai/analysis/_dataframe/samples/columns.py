@@ -67,6 +67,7 @@ SampleSummary: list[Column] = [
     SampleColumn("total_tokens", path=sample_total_tokens),
     SampleColumn("total_time", path="total_time"),
     SampleColumn("working_time", path="total_time"),
+    SampleColumn("message_count", path="message_count", default=None),
     SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
     SampleColumn("retries", path="retries"),

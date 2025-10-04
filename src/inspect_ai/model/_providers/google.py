@@ -259,93 +259,97 @@ class GoogleGenAIAPI(ModelAPI):
         if config.timeout:
             http_options.timeout = config.timeout * 1000
 
-        # create client
+        # resolve batcher as required
+        self._resolve_batcher(config, http_options)
+
+        # create client and manage its lifetime to this call
         client = Client(
             vertexai=self.is_vertex(),
             api_key=self.api_key,
             http_options=http_options,
             **self.model_args,
         )
+        async with client.aio:
+            # create hooks and allocate request
+            http_hooks = HttpxHooks(client._api_client._async_httpx_client)
+            request_id = http_hooks.start_request()
 
-        self._resolve_batcher(config, client)
-        # create hooks and allocate request
-        http_hooks = HttpxHooks(client._api_client._async_httpx_client)
-        request_id = http_hooks.start_request()
-
-        # Create google-genai types.
-        gemini_contents = await as_chat_messages(client, input)
-        has_native_search, gemini_tools = (
-            self.chat_tools(tools) if len(tools) > 0 else (False, None)
-        )
-        gemini_tool_config = (
-            chat_tool_config(tool_choice)
-            if not has_native_search and len(tools) > 0
-            else None
-        )
-        parameters = GenerateContentConfig(
-            http_options=HttpOptions(headers={HttpHooks.REQUEST_ID_HEADER: request_id}),
-            temperature=config.temperature,
-            top_p=config.top_p,
-            top_k=config.top_k,
-            max_output_tokens=config.max_tokens,
-            stop_sequences=config.stop_seqs,
-            candidate_count=config.num_choices,
-            presence_penalty=config.presence_penalty,
-            frequency_penalty=config.frequency_penalty,
-            safety_settings=safety_settings_to_list(self.safety_settings),
-            tools=gemini_tools,
-            tool_config=gemini_tool_config,
-            system_instruction=await extract_system_message_as_parts(client, input),  # type: ignore[arg-type]
-            thinking_config=self.chat_thinking_config(config),
-        )
-        if config.response_schema is not None:
-            parameters.response_mime_type = "application/json"
-            parameters.response_schema = schema_from_param(
-                config.response_schema.json_schema, nullable=None
+            # Create google-genai types.
+            gemini_contents = await as_chat_messages(client, input)
+            has_native_search, gemini_tools = (
+                self.chat_tools(tools) if len(tools) > 0 else (False, None)
             )
-
-        response: GenerateContentResponse | None = None
-
-        def model_call() -> ModelCall:
-            return build_model_call(
-                contents=gemini_contents,  # type: ignore[arg-type]
-                safety_settings=self.safety_settings,
-                generation_config=parameters,
+            gemini_tool_config = (
+                chat_tool_config(tool_choice)
+                if not has_native_search and len(tools) > 0
+                else None
+            )
+            parameters = GenerateContentConfig(
+                http_options=HttpOptions(
+                    headers={HttpHooks.REQUEST_ID_HEADER: request_id}
+                ),
+                temperature=config.temperature,
+                top_p=config.top_p,
+                top_k=config.top_k,
+                max_output_tokens=config.max_tokens,
+                stop_sequences=config.stop_seqs,
+                candidate_count=config.num_choices,
+                presence_penalty=config.presence_penalty,
+                frequency_penalty=config.frequency_penalty,
+                safety_settings=safety_settings_to_list(self.safety_settings),
                 tools=gemini_tools,
                 tool_config=gemini_tool_config,
-                response=response,
-                time=http_hooks.end_request(request_id),
+                system_instruction=await extract_system_message_as_parts(client, input),  # type: ignore[arg-type]
+                thinking_config=self.chat_thinking_config(config),
             )
-
-        try:
-            response = await (
-                self._batcher.generate_for_request(
-                    {
-                        "contents": [
-                            content.model_dump(exclude_none=True)
-                            for content in gemini_contents
-                        ],
-                        **parameters.model_dump(exclude_none=True),
-                    }
+            if config.response_schema is not None:
+                parameters.response_mime_type = "application/json"
+                parameters.response_schema = schema_from_param(
+                    config.response_schema.json_schema, nullable=None
                 )
-                if self._batcher
-                else client.aio.models.generate_content(
-                    model=self.service_model_name(),
+
+            response: GenerateContentResponse | None = None
+
+            def model_call() -> ModelCall:
+                return build_model_call(
                     contents=gemini_contents,  # type: ignore[arg-type]
-                    config=parameters,
+                    safety_settings=self.safety_settings,
+                    generation_config=parameters,
+                    tools=gemini_tools,
+                    tool_config=gemini_tool_config,
+                    response=response,
+                    time=http_hooks.end_request(request_id),
                 )
+
+            try:
+                response = await (
+                    self._batcher.generate_for_request(
+                        {
+                            "contents": [
+                                content.model_dump(exclude_none=True)
+                                for content in gemini_contents
+                            ],
+                            **parameters.model_dump(exclude_none=True),
+                        }
+                    )
+                    if self._batcher
+                    else client.aio.models.generate_content(
+                        model=self.service_model_name(),
+                        contents=gemini_contents,  # type: ignore[arg-type]
+                        config=parameters,
+                    )
+                )
+            except ClientError as ex:
+                return self.handle_client_error(ex), model_call()
+
+            model_name = response.model_version or self.service_model_name()
+            output = ModelOutput(
+                model=model_name,
+                choices=completion_choices_from_candidates(model_name, response),
+                usage=usage_metadata_to_model_usage(response.usage_metadata),
             )
-        except ClientError as ex:
-            return self.handle_client_error(ex), model_call()
 
-        model_name = response.model_version or self.service_model_name()
-        output = ModelOutput(
-            model=model_name,
-            choices=completion_choices_from_candidates(model_name, response),
-            usage=usage_metadata_to_model_usage(response.usage_metadata),
-        )
-
-        return output, model_call()
+            return output, model_call()
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -477,9 +481,20 @@ class GoogleGenAIAPI(ModelAPI):
             else (False, [Tool(function_declarations=function_declarations)])
         )
 
-    def _resolve_batcher(self, config: GenerateConfig, client: Client) -> None:
+    def _resolve_batcher(
+        self, config: GenerateConfig, http_options: HttpOptions
+    ) -> None:
         if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
             return
+
+        # create a dedicated client instance for the batcher
+        client = Client(
+            vertexai=self.is_vertex(),
+            api_key=self.api_key,
+            http_options=http_options,
+            **self.model_args,
+        )
+
         self._batcher = GoogleBatcher(
             client,
             batch_config,

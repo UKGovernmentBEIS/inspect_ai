@@ -3,7 +3,7 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { SampleDisplay } from "./SampleDisplay";
 
 import clsx from "clsx";
-import { ProgressBar } from "../../components/ProgressBar";
+import { ActivityBar } from "../../components/ActivityBar";
 import { useLogSelection, usePrevious, useSampleData } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import styles from "./InlineSampleDisplay.module.css";
@@ -68,7 +68,7 @@ export const InlineSampleDisplay: FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div className={styles.container}>
-      <ProgressBar
+      <ActivityBar
         animating={
           sampleData.status === "loading" || sampleData.status === "streaming"
         }
