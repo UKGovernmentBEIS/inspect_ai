@@ -252,10 +252,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     with display().task(
         profile,
     ) as td:
-        try:
-            # start the log
-            await log_start(logger, plan, generate_config)
+        # start the log (do this outside fo the try b/c the try/except assumes
+        # that the log is initialized)
+        await log_start(logger, plan, generate_config)
 
+        try:
             # return immediately if we are not running samples
             if not options.run_samples:
                 return await logger.log_finish("started", stats)
