@@ -48,6 +48,9 @@ RegistryType = Literal[
     "solver",
     "task",
     "tool",
+    "loader",
+    "scanner",
+    "scanjob",
 ]
 """Enumeration of registry object types.
 
@@ -286,6 +289,18 @@ def registry_create(type: Literal["task"], name: str, **kwargs: Any) -> Task: ..
 def registry_create(type: Literal["tool"], name: str, **kwargs: Any) -> Tool: ...
 
 
+@overload
+def registry_create(type: Literal["loader"], name: str, **kwargs: Any) -> Any: ...
+
+
+@overload
+def registry_create(type: Literal["scanner"], name: str, **kwargs: Any) -> Any: ...
+
+
+@overload
+def registry_create(type: Literal["scanjob"], name: str, **kwargs: Any) -> Any: ...
+
+
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
     r"""Create a registry object.
 
@@ -320,14 +335,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         return set_registry_info(o, registry_info(obj))
 
     # instantiate registry and model objects
-    for param in kwargs.keys():
-        value = kwargs[param]
-        if is_registry_dict(value):
-            kwargs[param] = registry_create(
-                value["type"], value["name"], **value["params"]
-            )
-        elif is_model_dict(value):
-            kwargs[param] = model_create_from_dict(value)
+    kwargs = registry_kwargs(**kwargs)
 
     if isclass(obj):
         return with_registry_info(obj(**kwargs))
@@ -529,6 +537,20 @@ def registry_value(o: object) -> Any:
         )
     else:
         return o
+
+
+# resolve embedded registry objects and models
+def registry_kwargs(**kwargs: Any) -> dict[str, Any]:
+    kwargs = kwargs.copy()
+    for param in kwargs.keys():
+        value = kwargs[param]
+        if is_registry_dict(value):
+            kwargs[param] = registry_create(
+                value["type"], value["name"], **value["params"]
+            )
+        elif is_model_dict(value):
+            kwargs[param] = model_create_from_dict(value)
+    return kwargs
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:

@@ -19,10 +19,11 @@ def running_in_notebook() -> bool:
     return True
 
 
-def platform_init() -> None:
-    from inspect_ai.hooks._startup import init_hooks
+def platform_init(hooks: bool = True) -> None:
+    if hooks:
+        from inspect_ai.hooks._startup import init_hooks
 
-    init_hooks()
+        init_hooks()
 
     # set exception hook if we haven't already
     set_exception_hook()

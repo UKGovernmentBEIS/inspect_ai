@@ -4,8 +4,8 @@ from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
 from inspect_ai.approval import ApprovalDecision, ApprovalPolicy, auto_approver
 from inspect_ai.dataset import Sample
+from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import ApprovalEvent
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools

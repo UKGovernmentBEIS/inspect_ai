@@ -21,7 +21,7 @@
   },
   "mypy-type-checker.ignorePatterns": [
     "**/_resources/*.py",
-    "${workspaceFolder}/examples/bridge/*.py",
+    "${workspaceFolder}/examples/bridge/*.py"
   ],
   "mypy-type-checker.args": [
     "--config-file",
@@ -30,10 +30,9 @@
   "python.analysis.diagnosticSeverityOverrides": {
     "reportMissingImports": "none"
   },
-  "python.testing.pytestArgs": [
-    "tests"
-  ],
+  "python.testing.pytestArgs": ["tests"],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "quarto.render.renderOnSave": true
+  "quarto.render.renderOnSave": true,
+  "cSpell.words": ["backpressure", "scandef", "scanjob", "scanspec"]
 }

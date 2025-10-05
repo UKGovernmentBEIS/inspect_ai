@@ -5,7 +5,7 @@ from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai.log._transcript import Event
+from inspect_ai.event._event import Event
 
 from ..columns import Column, ColumnType
 from .extract import (

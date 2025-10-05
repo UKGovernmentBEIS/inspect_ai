@@ -39,6 +39,10 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.working import init_sample_working_time, sample_waiting_time
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
+from inspect_ai.event._error import ErrorEvent
+from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._score import ScoreEvent
 from inspect_ai.log import (
     EvalConfig,
     EvalError,
@@ -59,10 +63,6 @@ from inspect_ai.log._samples import (
     active_sample,
 )
 from inspect_ai.log._transcript import (
-    ErrorEvent,
-    SampleInitEvent,
-    SampleLimitEvent,
-    ScoreEvent,
     Transcript,
     init_transcript,
     transcript,
@@ -173,7 +173,12 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
     # init task context
-    init_task_context(model, model_roles, options.task.approval, generate_config)
+    init_task_context(
+        model,
+        model_roles,
+        generate_config,
+        options.task.approval,
+    )
 
     # track stats and error
     results: EvalResults | None = None

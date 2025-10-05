@@ -11,7 +11,8 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
 from inspect_ai.util._sandbox.context import sandbox_connections
 
-from ._transcript import ModelEvent, Transcript
+from ..event._model import ModelEvent
+from ._transcript import Transcript
 
 
 class ActiveSample:

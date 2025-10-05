@@ -9,15 +9,15 @@ from pydantic_core import PydanticSerializationError
 from inspect_ai import Task, eval
 from inspect_ai._util.file import filesystem
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sandbox import SandboxEvent
+from inspect_ai.event._subtask import (
+    SubtaskEvent,
+)
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import read_eval_log
 from inspect_ai.log._file import read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import (
-    ModelEvent,
-    SandboxEvent,
-    SubtaskEvent,
-    ToolEvent,
-)
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput

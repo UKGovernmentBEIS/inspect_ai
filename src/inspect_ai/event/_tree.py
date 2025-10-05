@@ -2,7 +2,8 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Iterable, Sequence, TypeAlias
 
-from ._transcript import Event, SpanBeginEvent, SpanEndEvent
+from ._event import Event
+from ._span import SpanBeginEvent, SpanEndEvent
 
 logger = getLogger(__name__)
 

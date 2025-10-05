@@ -4,7 +4,8 @@ from test_helpers.utils import run_example
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalSample, ModelEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.log import EvalSample
 from inspect_ai.solver import generate
 
 

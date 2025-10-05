@@ -2085,44 +2085,6 @@
       "type": "object",
       "additionalProperties": false
     },
-    "EvalModelConfig": {
-      "description": "Model config.",
-      "properties": {
-        "model": {
-          "title": "Model",
-          "type": "string"
-        },
-        "config": {
-          "$ref": "#/$defs/GenerateConfig"
-        },
-        "base_url": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Base Url"
-        },
-        "args": {
-          "additionalProperties": true,
-          "title": "Args",
-          "type": "object"
-        }
-      },
-      "required": [
-        "model",
-        "config",
-        "base_url",
-        "args"
-      ],
-      "title": "EvalModelConfig",
-      "type": "object",
-      "additionalProperties": false
-    },
     "EvalPlan": {
       "description": "Plan (solvers) used in evaluation.",
       "properties": {
@@ -3158,7 +3120,7 @@
           "anyOf": [
             {
               "additionalProperties": {
-                "$ref": "#/$defs/EvalModelConfig"
+                "$ref": "#/$defs/ModelConfig"
               },
               "type": "object"
             },
@@ -4377,6 +4339,44 @@
         "time"
       ],
       "title": "ModelCall",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ModelConfig": {
+      "description": "Model config.",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Url"
+        },
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        }
+      },
+      "required": [
+        "model",
+        "config",
+        "base_url",
+        "args"
+      ],
+      "title": "ModelConfig",
       "type": "object",
       "additionalProperties": false
     },
@@ -6157,61 +6157,7 @@
           "title": "Result"
         },
         "events": {
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/SampleInitEvent"
-              },
-              {
-                "$ref": "#/$defs/SampleLimitEvent"
-              },
-              {
-                "$ref": "#/$defs/SandboxEvent"
-              },
-              {
-                "$ref": "#/$defs/StateEvent"
-              },
-              {
-                "$ref": "#/$defs/StoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ModelEvent"
-              },
-              {
-                "$ref": "#/$defs/ToolEvent"
-              },
-              {
-                "$ref": "#/$defs/ApprovalEvent"
-              },
-              {
-                "$ref": "#/$defs/InputEvent"
-              },
-              {
-                "$ref": "#/$defs/ScoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ErrorEvent"
-              },
-              {
-                "$ref": "#/$defs/LoggerEvent"
-              },
-              {
-                "$ref": "#/$defs/InfoEvent"
-              },
-              {
-                "$ref": "#/$defs/SpanBeginEvent"
-              },
-              {
-                "$ref": "#/$defs/SpanEndEvent"
-              },
-              {
-                "$ref": "#/$defs/StepEvent"
-              },
-              {
-                "$ref": "#/$defs/SubtaskEvent"
-              }
-            ]
-          },
+          "items": {},
           "title": "Events",
           "type": "array"
         },
@@ -6607,61 +6553,7 @@
           "default": null
         },
         "events": {
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/SampleInitEvent"
-              },
-              {
-                "$ref": "#/$defs/SampleLimitEvent"
-              },
-              {
-                "$ref": "#/$defs/SandboxEvent"
-              },
-              {
-                "$ref": "#/$defs/StateEvent"
-              },
-              {
-                "$ref": "#/$defs/StoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ModelEvent"
-              },
-              {
-                "$ref": "#/$defs/ToolEvent"
-              },
-              {
-                "$ref": "#/$defs/ApprovalEvent"
-              },
-              {
-                "$ref": "#/$defs/InputEvent"
-              },
-              {
-                "$ref": "#/$defs/ScoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ErrorEvent"
-              },
-              {
-                "$ref": "#/$defs/LoggerEvent"
-              },
-              {
-                "$ref": "#/$defs/InfoEvent"
-              },
-              {
-                "$ref": "#/$defs/SpanBeginEvent"
-              },
-              {
-                "$ref": "#/$defs/SpanEndEvent"
-              },
-              {
-                "$ref": "#/$defs/StepEvent"
-              },
-              {
-                "$ref": "#/$defs/SubtaskEvent"
-              }
-            ]
-          },
+          "items": {},
           "title": "Events",
           "type": "array"
         },

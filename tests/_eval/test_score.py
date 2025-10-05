@@ -15,13 +15,13 @@ from inspect_ai._eval.score import (
     score_async,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.event._event import Event
+from inspect_ai.event._input import InputEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._score import ScoreEvent
 from inspect_ai.log import (
     EvalSample,
-    Event,
-    InputEvent,
-    ModelEvent,
-    SampleInitEvent,
-    ScoreEvent,
     Transcript,
 )
 from inspect_ai.log._file import read_eval_log_async

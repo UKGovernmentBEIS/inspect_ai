@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Any, Awaitable, Callable, Sequence, cast
+from typing import Any, Awaitable, Callable, Mapping, Sequence, cast
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
@@ -406,7 +406,7 @@ def resolve_model(model: str | Model | None) -> Model | None:
 
 
 def resolve_model_roles(
-    model_roles: dict[str, str | Model] | None,
+    model_roles: Mapping[str, str | Model] | None,
 ) -> dict[str, Model] | None:
     if model_roles is not None:
         resolved_model_roles = {

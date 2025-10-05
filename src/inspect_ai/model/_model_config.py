@@ -1,13 +1,31 @@
 from inspect import isgenerator
 from typing import Any, Iterator
 
-from inspect_ai.log._log import EvalModelConfig
+from pydantic import BaseModel, Field
+
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, get_model
+
+
+class ModelConfig(BaseModel):
+    """Model config."""
+
+    model: str
+    """Model name."""
+
+    config: GenerateConfig = Field(default_factory=GenerateConfig)
+    """Generate config"""
+
+    base_url: str | None = Field(default=None)
+    """Model base url."""
+
+    args: dict[str, Any] = Field(default_factory=dict)
+    """Model specific arguments."""
 
 
 def model_roles_to_model_roles_config(
     model_roles: dict[str, Model] | None,
-) -> dict[str, EvalModelConfig] | None:
+) -> dict[str, ModelConfig] | None:
     if model_roles is not None:
         return {k: model_to_model_config(v) for k, v in model_roles.items()}
     else:
@@ -15,7 +33,7 @@ def model_roles_to_model_roles_config(
 
 
 def model_roles_config_to_model_roles(
-    model_config: dict[str, EvalModelConfig] | None,
+    model_config: dict[str, ModelConfig] | None,
 ) -> dict[str, Model] | None:
     if model_config is not None:
         return {k: model_config_to_model(v) for k, v in model_config.items()}
@@ -23,8 +41,8 @@ def model_roles_config_to_model_roles(
         return None
 
 
-def model_to_model_config(model: Model) -> EvalModelConfig:
-    return EvalModelConfig(
+def model_to_model_config(model: Model) -> ModelConfig:
+    return ModelConfig(
         model=str(model),
         config=model.config,
         base_url=model.api.base_url,
@@ -32,7 +50,7 @@ def model_to_model_config(model: Model) -> EvalModelConfig:
     )
 
 
-def model_config_to_model(model_config: EvalModelConfig) -> Model:
+def model_config_to_model(model_config: ModelConfig) -> Model:
     return get_model(
         model=model_config.model,
         config=model_config.config,

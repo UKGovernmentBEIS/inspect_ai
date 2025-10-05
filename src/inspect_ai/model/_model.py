@@ -457,7 +457,7 @@ class Model:
             # created _after_ the call to _generate, potentially in response
             # to retries, so they need their timestamp updated so it accurately
             # reflects the full start/end time which we know here)
-            from inspect_ai.log._transcript import ModelEvent
+            from inspect_ai.event._model import ModelEvent
 
             assert isinstance(event, ModelEvent)
             event.timestamp = start_time
@@ -530,10 +530,10 @@ class Model:
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
     ) -> tuple[ModelOutput, BaseModel]:
+        from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import emit_model_cache_usage, emit_model_usage
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._samples import track_active_model_event
-        from inspect_ai.log._transcript import ModelEvent
 
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
@@ -820,7 +820,8 @@ class Model:
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
     ) -> tuple[Callable[[ModelOutput | Exception, ModelCall | None], None], BaseModel]:
-        from inspect_ai.log._transcript import ModelEvent, transcript
+        from inspect_ai.event._model import ModelEvent
+        from inspect_ai.log._transcript import transcript
 
         # create event and add it to the transcript
         model = str(self)

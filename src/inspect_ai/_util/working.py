@@ -2,8 +2,6 @@ import time
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from inspect_ai.util._limit import record_waiting_time
-
 
 @dataclass
 class SampleTiming:
@@ -26,6 +24,8 @@ def sample_working_time() -> float:
 
 def report_sample_waiting_time(waiting_time: float) -> None:
     # record waiting time
+    from inspect_ai.util._limit import record_waiting_time
+
     record_waiting_time(waiting_time)
 
     # record sample-level limits

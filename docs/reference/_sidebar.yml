@@ -274,6 +274,8 @@ website:
           href: reference/inspect_ai.model.qmd#responseschema
         - text: ModelOutput
           href: reference/inspect_ai.model.qmd#modeloutput
+        - text: ModelConfig
+          href: reference/inspect_ai.model.qmd#modelconfig
         - text: ModelCall
           href: reference/inspect_ai.model.qmd#modelcall
         - text: ModelConversation
@@ -431,8 +433,6 @@ website:
           href: reference/inspect_ai.log.qmd#evaldataset
         - text: EvalConfig
           href: reference/inspect_ai.log.qmd#evalconfig
-        - text: EvalModelConfig
-          href: reference/inspect_ai.log.qmd#evalmodelconfig
         - text: EvalRevision
           href: reference/inspect_ai.log.qmd#evalrevision
         - text: EvalPlan
@@ -467,52 +467,6 @@ website:
           href: reference/inspect_ai.log.qmd#transcript
         - text: Transcript
           href: reference/inspect_ai.log.qmd#transcript
-        - text: Event
-          href: reference/inspect_ai.log.qmd#event
-        - text: event_tree
-          href: reference/inspect_ai.log.qmd#event_tree
-        - text: event_sequence
-          href: reference/inspect_ai.log.qmd#event_sequence
-        - text: EventTree
-          href: reference/inspect_ai.log.qmd#eventtree
-        - text: EventNode
-          href: reference/inspect_ai.log.qmd#eventnode
-        - text: SpanNode
-          href: reference/inspect_ai.log.qmd#spannode
-        - text: SampleInitEvent
-          href: reference/inspect_ai.log.qmd#sampleinitevent
-        - text: SampleLimitEvent
-          href: reference/inspect_ai.log.qmd#samplelimitevent
-        - text: StateEvent
-          href: reference/inspect_ai.log.qmd#stateevent
-        - text: StoreEvent
-          href: reference/inspect_ai.log.qmd#storeevent
-        - text: ModelEvent
-          href: reference/inspect_ai.log.qmd#modelevent
-        - text: ToolEvent
-          href: reference/inspect_ai.log.qmd#toolevent
-        - text: SandboxEvent
-          href: reference/inspect_ai.log.qmd#sandboxevent
-        - text: ApprovalEvent
-          href: reference/inspect_ai.log.qmd#approvalevent
-        - text: InputEvent
-          href: reference/inspect_ai.log.qmd#inputevent
-        - text: ErrorEvent
-          href: reference/inspect_ai.log.qmd#errorevent
-        - text: LoggerEvent
-          href: reference/inspect_ai.log.qmd#loggerevent
-        - text: LoggingLevel
-          href: reference/inspect_ai.log.qmd#logginglevel
-        - text: LoggingMessage
-          href: reference/inspect_ai.log.qmd#loggingmessage
-        - text: InfoEvent
-          href: reference/inspect_ai.log.qmd#infoevent
-        - text: SpanBeginEvent
-          href: reference/inspect_ai.log.qmd#spanbeginevent
-        - text: SpanEndEvent
-          href: reference/inspect_ai.log.qmd#spanendevent
-        - text: SubtaskEvent
-          href: reference/inspect_ai.log.qmd#subtaskevent
       - section: inspect_ai.analysis
         href: reference/inspect_ai.analysis.qmd
         contents:
@@ -590,6 +544,53 @@ website:
           href: reference/inspect_ai.analysis.qmd#columntype
         - text: ColumnError
           href: reference/inspect_ai.analysis.qmd#columnerror
+      - section: inspect_ai.event
+        href: reference/inspect_ai.event.qmd
+        contents:
+        - text: ModelEvent
+          href: reference/inspect_ai.event.qmd#modelevent
+        - text: ToolEvent
+          href: reference/inspect_ai.event.qmd#toolevent
+        - text: ApprovalEvent
+          href: reference/inspect_ai.event.qmd#approvalevent
+        - text: SandboxEvent
+          href: reference/inspect_ai.event.qmd#sandboxevent
+        - text: InfoEvent
+          href: reference/inspect_ai.event.qmd#infoevent
+        - text: LoggerEvent
+          href: reference/inspect_ai.event.qmd#loggerevent
+        - text: ErrorEvent
+          href: reference/inspect_ai.event.qmd#errorevent
+        - text: SpanBeginEvent
+          href: reference/inspect_ai.event.qmd#spanbeginevent
+        - text: SpanEndEvent
+          href: reference/inspect_ai.event.qmd#spanendevent
+        - text: event_tree
+          href: reference/inspect_ai.event.qmd#event_tree
+        - text: event_sequence
+          href: reference/inspect_ai.event.qmd#event_sequence
+        - text: EventTree
+          href: reference/inspect_ai.event.qmd#eventtree
+        - text: EventNode
+          href: reference/inspect_ai.event.qmd#eventnode
+        - text: SpanNode
+          href: reference/inspect_ai.event.qmd#spannode
+        - text: SampleInitEvent
+          href: reference/inspect_ai.event.qmd#sampleinitevent
+        - text: SampleLimitEvent
+          href: reference/inspect_ai.event.qmd#samplelimitevent
+        - text: StateEvent
+          href: reference/inspect_ai.event.qmd#stateevent
+        - text: StoreEvent
+          href: reference/inspect_ai.event.qmd#storeevent
+        - text: InputEvent
+          href: reference/inspect_ai.event.qmd#inputevent
+        - text: ScoreEvent
+          href: reference/inspect_ai.event.qmd#scoreevent
+        - text: LoggingLevel
+          href: reference/inspect_ai.event.qmd#logginglevel
+        - text: LoggingMessage
+          href: reference/inspect_ai.event.qmd#loggingmessage
       - section: inspect_ai.util
         href: reference/inspect_ai.util.qmd
         contents:

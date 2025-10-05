@@ -13,6 +13,7 @@ from .extract import (
     sample_input_as_str,
     sample_messages_as_str,
     sample_path_requires_full,
+    sample_total_tokens,
 )
 
 
@@ -63,6 +64,7 @@ SampleSummary: list[Column] = [
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
     SampleColumn("model_usage", path="model_usage"),
+    SampleColumn("total_tokens", path=sample_total_tokens),
     SampleColumn("total_time", path="total_time"),
     SampleColumn("working_time", path="total_time"),
     SampleColumn("message_count", path="message_count", default=None),

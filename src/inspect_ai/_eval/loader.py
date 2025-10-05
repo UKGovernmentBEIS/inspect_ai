@@ -2,21 +2,18 @@ import ast
 import contextlib
 import inspect
 import os
-from importlib.machinery import SourceFileLoader
-from importlib.util import module_from_spec, spec_from_loader
 from logging import getLogger
 from pathlib import Path
-from types import ModuleType
 from typing import Any, Callable, Tuple, cast
 
 from shortuuid import uuid
-from typing_extensions import overload
 
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import task_file, task_run_dir
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.module import load_module
 from inspect_ai._util.path import chdir_python, cwd_relative_path
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -333,54 +330,6 @@ def split_spec(spec: str) -> tuple[str, str | None]:
         return parts[0], parts[1]
     else:
         return spec, None
-
-
-@overload
-def load_module(
-    module_path: Path, filter: Callable[[str], bool]
-) -> ModuleType | None: ...
-
-
-@overload
-def load_module(module_path: Path, filter: None = None) -> ModuleType: ...
-
-
-def load_module(
-    module_path: Path, filter: Callable[[str], bool] | None = None
-) -> ModuleType | None:
-    if module_path.suffix == ".py":
-        # bail if the code doesn't pass the filter
-        with open(module_path, "r", encoding="utf-8") as file:
-            if filter and not filter(file.read()):
-                return None
-
-        module_name = module_path.as_posix()
-        loader = SourceFileLoader(module_name, module_path.absolute().as_posix())
-        spec = spec_from_loader(loader.name, loader)
-        if not spec:
-            raise ModuleNotFoundError(f"Module {module_name} not found")
-        module = module_from_spec(spec)
-        loader.exec_module(module)
-        return module
-
-    elif module_path.suffix == ".ipynb":
-        try:
-            from inspect_ai._util.notebook import NotebookLoader
-        except ImportError:
-            return None
-
-        # bail if the code doesn't pass the filter
-        def exec_filter(cells: list[str]) -> bool:
-            code = "\n\n".join(cells)
-            return not filter or filter(code)
-
-        notebook_loader = NotebookLoader(exec_filter)
-        return notebook_loader.load_module(module_path.as_posix())
-
-    else:
-        raise ModuleNotFoundError(
-            f"Invalid extension for task file: {module_path.suffix}"
-        )
 
 
 def code_has_decorator(code: str, decorator: str) -> bool:

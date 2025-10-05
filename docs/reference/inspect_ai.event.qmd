@@ -1,0 +1,38 @@
+---
+title: "inspect_ai.event"
+---
+
+## Core Events
+
+### ModelEvent
+### ToolEvent
+### ApprovalEvent
+### SandboxEvent
+### InfoEvent
+### LoggerEvent
+### ErrorEvent
+### SpanBeginEvent
+### SpanEndEvent
+
+## Event Tree
+
+### event_tree
+### event_sequence
+### EventTree
+### EventNode
+### SpanNode
+
+## Eval Events
+
+### SampleInitEvent
+### SampleLimitEvent
+### StateEvent
+### StoreEvent
+### InputEvent
+### ScoreEvent
+
+## Types
+
+### LoggingLevel
+### LoggingMessage
+

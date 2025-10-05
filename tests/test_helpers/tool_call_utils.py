@@ -1,5 +1,5 @@
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import ToolEvent
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,

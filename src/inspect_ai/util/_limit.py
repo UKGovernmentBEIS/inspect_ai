@@ -365,7 +365,8 @@ def record_waiting_time(waiting_time: float) -> None:
 
 
 def check_working_limit() -> None:
-    from inspect_ai.log._transcript import SampleLimitEvent, transcript
+    from inspect_ai.event._sample_limit import SampleLimitEvent
+    from inspect_ai.log._transcript import transcript
 
     error = working_limit_exceeded()
     if error is not None:
@@ -534,7 +535,8 @@ class _TokenLimit(Limit, _Node):
             )
 
     def _check_self(self) -> None:
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+        from inspect_ai.event._sample_limit import SampleLimitEvent
+        from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
             return
@@ -598,7 +600,8 @@ class _MessageLimit(Limit, _Node):
 
         Does not check ancestors.
         """
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+        from inspect_ai.event._sample_limit import SampleLimitEvent
+        from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
             return
@@ -644,7 +647,8 @@ class _TimeLimit(Limit, _Node):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+        from inspect_ai.event._sample_limit import SampleLimitEvent
+        from inspect_ai.log._transcript import transcript
 
         self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         self._end_time = anyio.current_time()

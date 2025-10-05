@@ -12,6 +12,13 @@ def sample_input_as_str(sample: EvalSample) -> str:
     return messages_as_str(sample.input)
 
 
+def sample_total_tokens(sample: EvalSampleSummary) -> int:
+    total_tokens = 0
+    for usage in sample.model_usage.values():
+        total_tokens += usage.total_tokens
+    return total_tokens
+
+
 def sample_messages_as_str(sample: EvalSample) -> str:
     return messages_as_str(sample.messages)
 

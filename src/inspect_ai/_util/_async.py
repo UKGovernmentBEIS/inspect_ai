@@ -24,8 +24,12 @@ PosArgsT = TypeVarTuple("PosArgsT")
 def is_callable_coroutine(func_or_cls: Any) -> bool:
     if inspect.iscoroutinefunction(func_or_cls):
         return True
+    elif inspect.isasyncgenfunction(func_or_cls):
+        return True
     elif callable(func_or_cls):
-        return inspect.iscoroutinefunction(func_or_cls.__call__)
+        return inspect.iscoroutinefunction(
+            func_or_cls.__call__
+        ) or inspect.isasyncgenfunction(func_or_cls.__call__)
     return False
 
 

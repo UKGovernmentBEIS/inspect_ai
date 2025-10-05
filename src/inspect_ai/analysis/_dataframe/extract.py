@@ -37,6 +37,11 @@ def score_values(x: JsonValue) -> dict[str, JsonValue]:
     return {k: v["value"] for k, v in scores.items()}
 
 
+def score_value(x: JsonValue) -> JsonValue:
+    scores = cast(dict[str, Any], x)
+    return next(iter(scores.values()), None)
+
+
 def score_details(x: JsonValue) -> dict[str, JsonValue]:
     if not isinstance(x, dict):
         return {}
