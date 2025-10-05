@@ -1,10 +1,4 @@
-import {
-  Events,
-  SpanBeginEvent,
-  SpanEndEvent,
-  SubtaskEvent,
-  ToolEvent,
-} from "../../../../@types/log";
+import { Events, SpanBeginEvent, SpanEndEvent } from "../../../../@types/log";
 import { EventNode, EventType } from "../types";
 import { transformTree } from "./transform";
 import {
@@ -12,12 +6,8 @@ import {
   SPAN_BEGIN,
   SPAN_END,
   STEP,
-  SUBTASK,
-  TOOL,
   TYPE_SCORER,
   TYPE_SCORERS,
-  TYPE_SUBTASK,
-  TYPE_TOOL,
   hasSpans,
 } from "./utils";
 
@@ -68,20 +58,6 @@ const treeifyWithSpans = (events: Events, depth: number): EventNode[] => {
         spanNodes.set(spanId, node);
       }
     }
-
-    if (event.event === TOOL) {
-      if (shouldExpandToolChildren(event)) {
-        for (const child of event.events) {
-          processEvent(child, node);
-        }
-      }
-    } else if (event.event === SUBTASK) {
-      if (shouldExpandSubtaskChildren(event)) {
-        for (const child of event.events) {
-          processEvent(child, node);
-        }
-      }
-    }
   };
 
   events.forEach((event) => processEvent(event));
@@ -123,28 +99,6 @@ const treeifyWithSteps = (events: Events, depth: number): EventNode[] => {
       case SPAN_END:
         popStack();
         break;
-      case TOOL: {
-        const node = createNode(event, parent);
-        if (shouldExpandToolChildren(event)) {
-          pushStack(node);
-          for (const child of event.events) {
-            processEvent(child);
-          }
-          popStack();
-        }
-        break;
-      }
-      case SUBTASK: {
-        const node = createNode(event, parent);
-        if (shouldExpandSubtaskChildren(event)) {
-          pushStack(node);
-          for (const child of event.events) {
-            processEvent(child);
-          }
-          popStack();
-        }
-        break;
-      }
       default:
         createNode(event, parent);
         break;
@@ -219,21 +173,6 @@ const resolveParentForEvent = (
 const getEventSpanId = (event: EventType): string | null => {
   const spanId = (event as { span_id?: string | null }).span_id;
   return spanId ?? null;
-};
-
-const shouldExpandToolChildren = (event: ToolEvent): boolean => {
-  return (
-    event.events.length > 0 &&
-    (event.events[0].event !== SPAN_BEGIN || event.events[0].type !== TYPE_TOOL)
-  );
-};
-
-const shouldExpandSubtaskChildren = (event: SubtaskEvent): boolean => {
-  return (
-    event.events.length > 0 &&
-    (event.events[0].event !== SPAN_BEGIN ||
-      event.events[0].type !== TYPE_SUBTASK)
-  );
 };
 
 // This injects a scorer span around top level scorer events if one

@@ -34,13 +34,13 @@ from inspect_ai.log._file import (
     write_log_dir_manifest,
 )
 from inspect_ai.log._log import EvalConfig
-from inspect_ai.log._model import model_roles_to_model_roles_config
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
+from inspect_ai.model._model_config import model_roles_to_model_roles_config
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._display import (

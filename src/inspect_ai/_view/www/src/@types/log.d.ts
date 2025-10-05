@@ -83,7 +83,7 @@ export type MaxBatches = number | null;
 export type MaxConsecutiveCheckFailures = number | null;
 export type ModelBaseUrl = string | null;
 export type ModelRoles = {
-  [k: string]: EvalModelConfig;
+  [k: string]: ModelConfig;
 } | null;
 export type Model1 = string;
 export type BaseUrl = string | null;
@@ -547,6 +547,12 @@ export type Result2 =
   | ContentVideo
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Truncated = [unknown, unknown] | null;
+export type Events1 = unknown[];
+export type Completed2 = string | null;
+export type WorkingTime1 = number | null;
+export type Agent = string | null;
+export type Failed = boolean | null;
+export type MessageId = string | null;
 export type Uuid7 = string | null;
 export type SpanId7 = string | null;
 export type Timestamp7 = string;
@@ -676,51 +682,9 @@ export type Pending16 = boolean | null;
 export type Event16 = "subtask";
 export type Name14 = string;
 export type Type22 = string | null;
-export type Events2 = (
-  | SampleInitEvent
-  | SampleLimitEvent
-  | SandboxEvent
-  | StateEvent
-  | StoreEvent
-  | ModelEvent
-  | ToolEvent
-  | ApprovalEvent
-  | InputEvent
-  | ScoreEvent
-  | ErrorEvent
-  | LoggerEvent
-  | InfoEvent
-  | SpanBeginEvent
-  | SpanEndEvent
-  | StepEvent
-  | SubtaskEvent
-)[];
-export type Completed2 = string | null;
-export type WorkingTime1 = number | null;
-export type Events1 = (
-  | SampleInitEvent
-  | SampleLimitEvent
-  | SandboxEvent
-  | StateEvent
-  | StoreEvent
-  | ModelEvent
-  | ToolEvent
-  | ApprovalEvent
-  | InputEvent
-  | ScoreEvent
-  | ErrorEvent
-  | LoggerEvent
-  | InfoEvent
-  | SpanBeginEvent
-  | SpanEndEvent
-  | StepEvent
-  | SubtaskEvent
-)[];
+export type Events2 = unknown[];
 export type Completed3 = string | null;
 export type WorkingTime2 = number | null;
-export type Agent = string | null;
-export type Failed = boolean | null;
-export type MessageId = string | null;
 export type Events = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -941,7 +905,7 @@ export interface ModelArgs {
 /**
  * Model config.
  */
-export interface EvalModelConfig {
+export interface ModelConfig {
   model: Model1;
   config: GenerateConfig;
   base_url: BaseUrl;
@@ -1633,8 +1597,8 @@ export interface ToolEvent {
   truncated: Truncated;
   error: ToolCallError | null;
   events: Events1;
-  completed: Completed3;
-  working_time: WorkingTime2;
+  completed: Completed2;
+  working_time: WorkingTime1;
   agent: Agent;
   failed: Failed;
   message_id: MessageId;
@@ -1815,8 +1779,8 @@ export interface SubtaskEvent {
   input: Input5;
   result: Result3;
   events: Events2;
-  completed: Completed2;
-  working_time: WorkingTime1;
+  completed: Completed3;
+  working_time: WorkingTime2;
 }
 export interface Input5 {
   [k: string]: unknown;

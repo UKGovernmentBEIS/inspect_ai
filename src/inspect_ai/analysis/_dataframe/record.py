@@ -9,8 +9,9 @@ from pydantic import JsonValue
 from inspect_ai.analysis._dataframe.events.columns import EventColumn
 from inspect_ai.analysis._dataframe.messages.columns import MessageColumn
 from inspect_ai.analysis._dataframe.samples.columns import SampleColumn
+from inspect_ai.event._base import BaseEvent
+from inspect_ai.event._event import Event
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
-from inspect_ai.log._transcript import BaseEvent, Event
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageBase
 
 from .columns import Column, ColumnError, ColumnType

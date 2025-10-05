@@ -2,12 +2,18 @@
 hooks:
 	pre-commit install
 
-.PHONY: check
-check:
+.PHONY: ruff
+ruff:
 	ruff check --fix
 	ruff format
-	pylint src
+
+.PHONY: mypy
+mypy:
 	mypy --exclude tests/test_package src tests
+
+.PHONY: check
+check: ruff mypy
+	pylint src
 
 .PHONY: test
 test:

@@ -112,7 +112,8 @@ async def execute_tools(
     """
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
-        from inspect_ai.log._transcript import ToolEvent, transcript
+        from inspect_ai.event._tool import ToolEvent
+        from inspect_ai.log._transcript import transcript
 
         tdefs = await tool_defs(tools)
 
@@ -343,7 +344,8 @@ async def call_tool(
     conversation: list[ChatMessage],
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
-    from inspect_ai.log._transcript import ToolEvent, transcript
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import transcript
 
     # dodge circular import
     assert isinstance(event, ToolEvent)

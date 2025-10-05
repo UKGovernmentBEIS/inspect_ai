@@ -6,8 +6,9 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
+from inspect_ai._util.rich import rich_traceback
 from inspect_ai.log import EvalStats
-from inspect_ai.log._log import EvalScore, rich_traceback
+from inspect_ai.log._log import EvalScore
 
 from .config import task_config, task_dict
 from .display import (

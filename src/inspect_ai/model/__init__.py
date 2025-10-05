@@ -53,6 +53,7 @@ from ._model import (
     get_model,
 )
 from ._model_call import ModelCall
+from ._model_config import ModelConfig
 from ._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -104,6 +105,7 @@ __all__ = [
     "Model",
     "ModelAPI",
     "ModelName",
+    "ModelConfig",
     "ModelUsage",
     "StopReason",
     "call_tools",

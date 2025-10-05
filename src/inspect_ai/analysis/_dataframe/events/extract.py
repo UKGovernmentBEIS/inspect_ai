@@ -1,4 +1,5 @@
-from inspect_ai.log._transcript import ModelEvent, ToolEvent
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._tool import ToolEvent
 
 from ..extract import messages_as_str
 

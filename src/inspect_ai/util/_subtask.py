@@ -85,8 +85,8 @@ def subtask(
     """
 
     def create_subtask_wrapper(func: Subtask, name: str | None = None) -> Subtask:
+        from inspect_ai.event._subtask import SubtaskEvent
         from inspect_ai.log._transcript import (
-            SubtaskEvent,
             transcript,
         )
 

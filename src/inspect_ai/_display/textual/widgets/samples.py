@@ -33,8 +33,8 @@ from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.port_names import get_service_by_port
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.vscode import EXTENSION_COMMAND_OPEN_SAMPLE, VSCodeCommand
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import ActiveSample
-from inspect_ai.log._transcript import ToolEvent
 
 from .clock import Clock
 from .sandbox import SandboxView
@@ -549,7 +549,7 @@ class SampleToolbar(Horizontal):
                 cancel_with_error.tooltip = self.CANCEL_DISABLED
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        from inspect_ai.log._transcript import ModelEvent
+        from inspect_ai.event._model import ModelEvent
 
         # is it a new sample?
         new_sample = sample != self.sample

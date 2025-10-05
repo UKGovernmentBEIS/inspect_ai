@@ -175,8 +175,8 @@ _logHandler: LogHandler | None = None
 
 
 def log_to_transcript(record: LogRecord) -> None:
-    from inspect_ai.log._message import LoggingMessage
-    from inspect_ai.log._transcript import LoggerEvent, transcript
+    from inspect_ai.event._logger import LoggerEvent, LoggingMessage
+    from inspect_ai.log._transcript import transcript
 
     transcript()._event(LoggerEvent(message=LoggingMessage._from_log_record(record)))
 
