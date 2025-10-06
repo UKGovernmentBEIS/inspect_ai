@@ -6,7 +6,7 @@ import anyio
 import pytest
 
 from inspect_ai._util.background import (
-    _background_task_group,
+    background_task_group,
     run_in_background,
     set_background_task_group,
 )
@@ -19,7 +19,7 @@ class TestRunInBackground:
     async def test_with_task_group(self):
         """Test run_in_background when task group is set."""
         # Save original state
-        original_tg = _background_task_group
+        original_tg = background_task_group()
 
         try:
             result = []
@@ -42,7 +42,7 @@ class TestRunInBackground:
     async def test_without_task_group_fallback_to_asyncio(self):
         """Test run_in_background falls back to asyncio when no task group is set."""
         # Save original state
-        original_tg = _background_task_group
+        original_tg = background_task_group()
 
         try:
             # Clear task group
@@ -70,7 +70,7 @@ class TestRunInBackground:
         from unittest.mock import patch
 
         # Save original state
-        original_tg = _background_task_group
+        original_tg = background_task_group()
 
         try:
             set_background_task_group(None)
@@ -94,7 +94,7 @@ class TestRunInBackground:
         from unittest.mock import patch
 
         # Save original state
-        original_tg = _background_task_group
+        original_tg = background_task_group()
 
         try:
             set_background_task_group(None)
@@ -117,7 +117,7 @@ class TestRunInBackground:
     @pytest.mark.asyncio
     async def test_argument_passing(self):
         """Test that arguments are passed correctly to the background function."""
-        original_tg = _background_task_group
+        original_tg = background_task_group()
 
         try:
             set_background_task_group(None)
