@@ -6,6 +6,7 @@
 - Event API: Created new `inspect_ai.event` module with event related tyeps and functions.
 - Model API: Use context var for managing background task group.
 - Model API: Add canonical model naming for consistent querying across service routing prefixes (vertex/, azure/, bedrock/).
+- Inspect View: Properly truncate sample input and and target (in sample header) even when it contains large pre-formatted text blocks.
 - Dependencies: Update to fsspec 2025.9.0 to match upper bound of HF datasets.
 - Dependencies: Allow any version of `rich` > 13.3.3 save for 14.0.0 (which had an infinite recursion bug affecting stack traces with exception groups).
 - Dependencies: Unpin textual dependency (was <= 4.0.0 is now >=2.1.0) as we have mitigated layout issue we saw in 4.0.0.
