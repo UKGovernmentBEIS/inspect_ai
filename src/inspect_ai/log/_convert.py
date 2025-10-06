@@ -6,6 +6,7 @@ import anyio
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import exists, filesystem
+from inspect_ai.log import resolve_sample_attachments
 from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log,
@@ -128,9 +129,12 @@ async def _stream_convert_file(
 
     async def _convert_sample(sample_id: str | int, epoch: int) -> None:
         async with semaphore:
+            sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
+            if resolve_attachments:
+                sample = resolve_sample_attachments(sample)
             await output_recorder.log_sample(
                 log_header.eval,
-                await input_recorder.read_log_sample(input_file, sample_id, epoch),
+                sample,
             )
 
     log_header = await read_eval_log_async(

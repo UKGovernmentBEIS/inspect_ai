@@ -136,14 +136,14 @@ class TestBatcher:
 
     async def _run_with_task_group(self, test_func):
         """Helper to run test logic within a TaskGroup context."""
-        from inspect_ai._util.eval_task_group import init_eval_task_group
+        from inspect_ai._util.background import set_background_task_group
 
         async with anyio.create_task_group() as tg:
-            init_eval_task_group(tg)
+            set_background_task_group(tg)
             try:
                 await test_func()
             finally:
-                init_eval_task_group(None)
+                set_background_task_group(None)
 
     async def test_successful_single_request(self):
         """Test that a single request gets processed successfully."""
