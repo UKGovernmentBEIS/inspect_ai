@@ -76,7 +76,7 @@ class TestRunInBackground:
             set_background_task_group(None)
 
             with patch(
-                "inspect_ai._util._async.current_async_backend", return_value="trio"
+                "inspect_ai._util.background.current_async_backend", return_value="trio"
             ):
 
                 async def test_func() -> None:
@@ -100,7 +100,7 @@ class TestRunInBackground:
             set_background_task_group(None)
 
             with patch(
-                "inspect_ai._util._async.current_async_backend", return_value=None
+                "inspect_ai._util.background.current_async_backend", return_value=None
             ):
 
                 async def test_func() -> None:
