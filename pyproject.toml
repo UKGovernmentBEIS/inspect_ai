@@ -152,6 +152,7 @@ dev = [
   "anthropic>=0.52.0",
   "azure-identity",
   "azure-ai-inference",
+  "fastapi",
   "google-genai",
   "griffe",
   "groq",

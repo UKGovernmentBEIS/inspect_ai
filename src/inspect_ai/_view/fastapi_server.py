@@ -1,0 +1,224 @@
+import json
+import logging
+import urllib.parse
+from logging import getLogger
+from typing import Any, Awaitable, Callable, Literal, override
+
+import anyio
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from pydantic_core import to_jsonable_python
+from starlette.responses import JSONResponse
+from starlette.status import (
+    HTTP_204_NO_CONTENT,
+    HTTP_304_NOT_MODIFIED,
+    HTTP_403_FORBIDDEN,
+    HTTP_404_NOT_FOUND,
+)
+
+from inspect_ai._eval.evalset import read_eval_set_info
+from inspect_ai._view import notify
+from inspect_ai._view.common import (
+    delete_log,
+    get_log_bytes,
+    get_log_file,
+    get_log_size,
+    get_logs,
+    normalize_uri,
+)
+from inspect_ai.log._file import read_eval_log_headers_async
+from inspect_ai.log._recorders.buffer import sample_buffer
+
+logger = getLogger(__name__)
+
+AccessPolicy = Callable[
+    [Request, str, Literal["read", "list", "delete"]], Awaitable[bool]
+]
+
+FileMappingPolicy = Callable[[Request, str], Awaitable[str]]
+
+
+class InspectJsonResponse(JSONResponse):
+    """Like the standard starlette JSON, but allows NaN."""
+
+    @override
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=True,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+
+def view_server_app(
+    mapping_policy: FileMappingPolicy | None = None,
+    access_policy: AccessPolicy | None = None,
+    recursive: bool = True,
+    fs_options: dict[str, Any] = {},
+) -> FastAPI:
+    app = FastAPI()
+
+    async def _map_file(request: Request, file: str) -> str:
+        if mapping_policy is not None:
+            return await mapping_policy(request, file)
+        return file
+
+    async def _validate_log_file_request(
+        request: Request,
+        file: str,
+        operation: Literal["read", "list", "delete"] = "read",
+    ) -> None:
+        if access_policy is not None:
+            if not await access_policy(request, file, operation):
+                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+    @app.get("/logs/{log:path}")
+    async def api_log(
+        request: Request,
+        log: str,
+        header_only: str | None = Query(None, alias="header-only"),
+    ) -> Response:
+        file = normalize_uri(log)
+        await _validate_log_file_request(request, file)
+        body = await get_log_file(await _map_file(request, file), header_only)
+        return Response(content=body, media_type="application/json")
+
+    @app.get("/log-size/{log:path}")
+    async def api_log_size(request: Request, log: str) -> Response:
+        file = normalize_uri(log)
+        await _validate_log_file_request(request, file)
+        size = await get_log_size(await _map_file(request, file))
+        return InspectJsonResponse(content=size)
+
+    @app.get("/log-delete/{log:path}")
+    async def api_log_delete(request: Request, log: str) -> Response:
+        file = normalize_uri(log)
+        await _validate_log_file_request(request, file, "delete")
+        await delete_log(await _map_file(request, file))
+
+        return InspectJsonResponse(content=True)
+
+    @app.get("/log-bytes/{log:path}")
+    async def api_log_bytes(
+        request: Request,
+        log: str,
+        start: int = Query(...),
+        end: int = Query(...),
+    ) -> Response:
+        file = normalize_uri(log)
+        await _validate_log_file_request(request, file)
+        response = await get_log_bytes(await _map_file(request, file), start, end)
+        return Response(
+            content=response,
+            headers={"Content-Length": str(end - start + 1)},
+            media_type="application/octet-stream",
+        )
+
+    @app.get("/logs")
+    async def api_logs(
+        request: Request,
+        log_dir: str = Query("", alias="log_dir"),
+    ) -> Response:
+        await _validate_log_file_request(request, log_dir, "list")
+        listing = await get_logs(
+            await _map_file(request, log_dir),
+            recursive=recursive,
+            fs_options=fs_options,
+        )
+        return InspectJsonResponse(content=listing)
+
+    @app.get("/eval-set")
+    async def eval_set(
+        request: Request, log_dir: str = Query("", alias="dir")
+    ) -> Response:
+        await _validate_log_file_request(request, log_dir)
+
+        eval_set = read_eval_set_info(
+            await _map_file(request, log_dir), fs_options=fs_options
+        )
+        return InspectJsonResponse(
+            content=eval_set.model_dump(exclude_none=True) if eval_set else None
+        )
+
+    @app.get("/log-headers")
+    async def api_log_headers(
+        request: Request, file: list[str] = Query([])
+    ) -> Response:
+        files = [normalize_uri(f) for f in file]
+        async with anyio.create_task_group() as tg:
+            for f in files:
+                tg.start_soon(_validate_log_file_request, request, f)
+        headers = await read_eval_log_headers_async(
+            [await _map_file(request, file) for file in files]
+        )
+        return InspectJsonResponse(to_jsonable_python(headers, exclude_none=True))
+
+    @app.get("/events")
+    async def api_events(
+        last_eval_time: str | None = None,
+    ) -> Response:
+        actions = (
+            ["refresh-evals"]
+            if last_eval_time and notify.view_last_eval_time() > int(last_eval_time)
+            else []
+        )
+        return InspectJsonResponse(actions)
+
+    @app.get("/pending-samples")
+    async def api_pending_samples(request: Request, log: str = Query(...)) -> Response:
+        file = urllib.parse.unquote(log)
+        await _validate_log_file_request(request, file)
+
+        client_etag = request.headers.get("If-None-Match")
+
+        buffer = sample_buffer(await _map_file(request, file))
+        samples = buffer.get_samples(client_etag)
+        if samples == "NotModified":
+            return Response(status_code=HTTP_304_NOT_MODIFIED)
+        elif samples is None:
+            return Response(status_code=HTTP_404_NOT_FOUND)
+        else:
+            return InspectJsonResponse(
+                content=samples.model_dump(),
+                headers={"ETag": samples.etag},
+            )
+
+    @app.get("/log-message")
+    async def api_log_message(
+        request: Request, log_file: str, message: str
+    ) -> Response:
+        file = urllib.parse.unquote(log_file)
+        await _validate_log_file_request(request, file)
+
+        logger = logging.getLogger(__name__)
+        logger.warning(f"[CLIENT MESSAGE] ({file}): {message}")
+
+        return Response(status_code=HTTP_204_NO_CONTENT)
+
+    @app.get("/pending-sample-data")
+    async def api_sample_events(
+        request: Request,
+        log: str,
+        id: str,
+        epoch: int,
+        last_event_id: int | None = Query(None, alias="last-event-id"),
+        after_attachment_id: int | None = Query(None, alias="after-attachment-id"),
+    ) -> Response:
+        file = urllib.parse.unquote(log)
+        await _validate_log_file_request(request, file)
+
+        buffer = sample_buffer(await _map_file(request, file))
+        sample_data = buffer.get_sample_data(
+            id=id,
+            epoch=epoch,
+            after_event_id=last_event_id,
+            after_attachment_id=after_attachment_id,
+        )
+
+        if sample_data is None:
+            return Response(status_code=HTTP_404_NOT_FOUND)
+        else:
+            return InspectJsonResponse(content=sample_data.model_dump())
+
+    return app
