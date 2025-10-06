@@ -126,7 +126,7 @@ class OpenAIAPI(ModelAPI):
         # resolve api_key or managed identity (for Azure)
         self.token_provider = None
         if not self.api_key:
-            if self.service == "azure":
+            if self.is_azure():
                 self.api_key = os.environ.get(
                     AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
                 )
@@ -360,6 +360,9 @@ class OpenAIAPI(ModelAPI):
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
+
+    def canonical_name(self) -> str:
+        return self.service_model_name()
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
