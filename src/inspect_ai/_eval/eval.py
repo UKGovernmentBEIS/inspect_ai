@@ -1316,6 +1316,7 @@ async def batch_to_cache(batch_id: str, batch: Any, eval_log: EvalLog) -> None:
                 request=req["request"],
                 result_stream=req["result_stream"],
                 custom_id=req["custom_id"],
+                epoch=req["epoch"],
             )
         batch_object = Batch(
             id=batch["id"],
