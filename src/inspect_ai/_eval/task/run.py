@@ -845,7 +845,7 @@ async def task_run_sample(
                     state = sample_state() or state
                     limit = EvalSampleLimit(type="operator", limit=1)
 
-                except BaseException as ex:
+                except Exception as ex:
                     error, raise_error = handle_error(ex)
 
                 # mark completed
@@ -931,7 +931,7 @@ async def task_run_sample(
 
                     raise
 
-                except BaseException as ex:
+                except Exception as ex:
                     # handle error
                     error, raise_error = handle_error(ex)
 
