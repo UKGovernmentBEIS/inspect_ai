@@ -1244,6 +1244,14 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
     help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
 )
+@click.option(
+    "--resume-batches",
+    type=bool,
+    default=False,
+    is_flag=True,
+    help="Resume any old inflight batches. Completed batches are added to the cache.",
+    envvar="INSPECT_EVAL_RESUME_BATCHES",
+)
 @common_options
 def eval_retry_command(
     log_files: tuple[str, ...],
@@ -1268,6 +1276,7 @@ def eval_retry_command(
     max_retries: int | None,
     timeout: int | None,
     log_level_transcript: str,
+    resume_batches: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
@@ -1323,4 +1332,5 @@ def eval_retry_command(
         max_retries=max_retries,
         timeout=timeout,
         max_connections=max_connections,
+        resume_batches=resume_batches,
     )

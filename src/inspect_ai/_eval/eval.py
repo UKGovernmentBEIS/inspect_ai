@@ -770,6 +770,7 @@ def eval_retry(
     max_retries: int | None = None,
     timeout: int | None = None,
     max_connections: int | None = None,
+    resume_batches: bool = False,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -858,6 +859,7 @@ def eval_retry(
             max_retries=max_retries,
             timeout=timeout,
             max_connections=max_connections,
+            resume_batches=resume_batches,
         )
 
     return task_display().run_task_app(run_task_app)
@@ -888,6 +890,7 @@ async def eval_retry_async(
     max_retries: int | None = None,
     timeout: int | None = None,
     max_connections: int | None = None,
+    resume_batches: bool = False,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1077,8 +1080,7 @@ async def eval_retry_async(
         # load any in-flight batches from the previous log
         # and add them to the cache if done
         in_flight_batches = eval_log.stats.in_flight_batches or {}
-        # TODO: this should also check if the useer wants to use the cache
-        if len(in_flight_batches) > 0:
+        if resume_batches and len(in_flight_batches) > 0:
             for batch_id, batch in in_flight_batches.items():
                 await batch_to_cache(batch_id, batch, eval_log)
 
