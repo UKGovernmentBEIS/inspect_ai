@@ -46,6 +46,13 @@ def normalize_uri(uri: str) -> str:
         return f"file://{path}"
 
 
+def get_log_dir(log_dir: str) -> dict[str, Any]:
+    response = dict(
+        log_dir=aliased_path(log_dir),
+    )
+    return response
+
+
 async def get_log_file(file: str, header_only_param: str | None) -> bytes:
     # resolve header_only
     header_only_mb = int(header_only_param) if header_only_param is not None else None

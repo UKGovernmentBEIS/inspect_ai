@@ -28,6 +28,7 @@ from inspect_ai._view import notify
 from inspect_ai._view.common import (
     delete_log,
     get_log_bytes,
+    get_log_dir,
     get_log_file,
     get_log_size,
     get_logs,
@@ -142,6 +143,19 @@ def view_server_app(
             headers={"Content-Length": str(end - start + 1)},
             media_type="application/octet-stream",
         )
+
+    @app.get("/log-dir")
+    async def api_log_dir(
+        request: Request,
+        log_dir: str | None = Query(None, alias="log_dir"),
+    ) -> Response:
+        if log_dir is None:
+            log_dir = default_dir
+        await _validate_list(request, log_dir)
+        log_dir_response = get_log_dir(log_dir)
+        if log_dir_response is None:
+            return Response(status_code=HTTP_404_NOT_FOUND)
+        return InspectJsonResponse(content=log_dir_response)
 
     @app.get("/logs")
     async def api_logs(

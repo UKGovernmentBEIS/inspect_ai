@@ -173,7 +173,7 @@ export const createLogSlice = (
 
         // OPTIONAL: Try cache first (non-blocking, fail silently)
         const dbService = state.databaseService;
-        if (dbService) {
+        if (dbService && dbService.opened()) {
           try {
             const cachedInfo = await dbService.getCachedLogInfo(logFileName);
             if (cachedInfo) {

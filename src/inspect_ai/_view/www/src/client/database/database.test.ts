@@ -3,12 +3,12 @@
  * Uses fake-indexeddb for testing IndexedDB operations in Jest
  *
  * Schema v3 structure:
- * - log_files: stores results from get_log_root()
+ * - log_files: stores results from get_log_files()
  * - log_summaries: stores results from get_log_summaries()
  * - log_info: stores complete results from get_log_info() including samples
  */
 
-import { LogRoot, LogSummary, LogInfo, SampleSummary } from "../api/types";
+import { LogInfo, LogRoot, LogSummary, SampleSummary } from "../api/types";
 import { createDatabaseService, DatabaseService } from "./service";
 
 // Helper function to create test LogSummary

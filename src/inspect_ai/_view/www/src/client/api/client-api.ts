@@ -9,6 +9,7 @@ import { FileSizeLimitError } from "../remote/remoteZipFile";
 import {
   ClientAPI,
   LogContents,
+  LogFile,
   LogInfo,
   LogRoot,
   LogSummary,
@@ -56,7 +57,11 @@ interface LoadedLogFile {
  * to a webserver without inspect or the ability to enumerate log
  * files
  */
-export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
+export const clientApi = (
+  api: LogViewAPI,
+  log_file?: string,
+  debug = false,
+): ClientAPI => {
   let current_log: LogContents | undefined = undefined;
   let current_path: string | undefined = undefined;
 
@@ -272,6 +277,24 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     return orderedSummaries.map(({ summary }) => summary);
   };
 
+  const get_log_dir = async (): Promise<string | undefined> => {
+    if (api.get_log_dir) {
+      return await api.get_log_dir();
+    } else {
+      const logRoot = await api.get_log_root();
+      return logRoot?.log_dir;
+    }
+  };
+
+  const get_log_files = async (): Promise<LogFile[]> => {
+    if (api.get_log_files) {
+      return await api.get_log_files();
+    } else {
+      const logRoot = await api.get_log_root();
+      return logRoot?.files || [];
+    }
+  };
+
   const get_log_root = async (): Promise<LogRoot> => {
     const logFiles = await api.get_log_root();
     if (logFiles) {
@@ -323,34 +346,99 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     );
   };
 
+  const middleware = debug
+    ? createMiddlewareWrapper([debugMiddleware])
+    : <T extends (...args: any[]) => any>(_name: string, fn: T): T => fn;
+
   return {
-    client_events: () => {
+    client_events: middleware("client_events", () => {
       return api.client_events();
-    },
-    get_log_root,
-    get_eval_set: (dir?: string) => {
+    }),
+    get_log_dir: middleware("get_log_dir", get_log_dir),
+    get_log_files: middleware("get_log_files", get_log_files),
+    get_log_root: middleware("get_log_root", get_log_root),
+    get_eval_set: middleware("get_eval_set", (dir?: string) => {
       return api.get_eval_set(dir);
-    },
-    get_log_summaries,
-    get_log_info,
-    get_log_sample,
-    open_log_file: (log_file, log_dir) => {
+    }),
+    get_log_summaries: middleware("get_log_summaries", get_log_summaries),
+    get_log_info: middleware("get_log_info", get_log_info),
+    get_log_sample: middleware("get_log_sample", get_log_sample),
+    open_log_file: middleware("open_log_file", (log_file, log_dir) => {
       return api.open_log_file(log_file, log_dir);
-    },
-    download_file: (
-      download_file: string,
-      file_contents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
-    ) => {
-      return api.download_file(download_file, file_contents);
-    },
-    log_message: (log_file: string, message: string) => {
-      return api.log_message(log_file, message);
-    },
+    }),
+    download_file: middleware(
+      "download_file",
+      (
+        download_file: string,
+        file_contents:
+          | string
+          | Blob
+          | ArrayBuffer
+          | ArrayBufferView<ArrayBuffer>,
+      ) => {
+        return api.download_file(download_file, file_contents);
+      },
+    ),
+    log_message: middleware(
+      "log_message",
+      (log_file: string, message: string) => {
+        return api.log_message(log_file, message);
+      },
+    ),
     get_log_pending_samples: api.eval_pending_samples
-      ? get_log_pending_samples
+      ? middleware("get_log_pending_samples", get_log_pending_samples)
       : undefined,
     get_log_sample_data: api.eval_log_sample_data
-      ? get_log_sample_data
+      ? middleware("get_log_sample_data", get_log_sample_data)
       : undefined,
+  };
+};
+
+type Middleware<T extends (...args: any[]) => any> = (
+  name: string,
+  fn: T,
+  args: Parameters<T>,
+  result: ReturnType<T>,
+) => ReturnType<T>;
+
+const debugMiddleware: Middleware<any> = (name, _fn, args, result) => {
+  if (result instanceof Promise) {
+    const startTime = performance.now();
+    return result.then((returned) => {
+      const duration = performance.now() - startTime;
+      console.log(`[ClientAPI] ${name}`, {
+        args,
+        returned,
+        duration: `${duration.toFixed(2)}ms`,
+      });
+      return returned;
+    });
+  } else {
+    console.log(`[ClientAPI] ${name}`, { args, returned: result });
+    return result;
+  }
+};
+
+const applyMiddleware = <T extends (...args: any[]) => any>(
+  name: string,
+  fn: T,
+  middlewares: Middleware<T>[],
+): T => {
+  if (middlewares.length === 0) return fn;
+
+  return ((...args: Parameters<T>) => {
+    let result = fn(...args);
+
+    for (const middleware of middlewares) {
+      result = middleware(name, fn, args, result);
+    }
+
+    return result;
+  }) as T;
+};
+
+const createMiddlewareWrapper = (middlewares: Middleware<any>[]) => {
+  return <T extends (...args: any[]) => any>(name: string, fn: T): T => {
+    return applyMiddleware(name, fn, middlewares);
   };
 };
