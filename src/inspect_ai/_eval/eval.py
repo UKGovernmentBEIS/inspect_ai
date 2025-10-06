@@ -1303,17 +1303,6 @@ async def batch_to_cache(batch_id: str, batch: Any, eval_log: EvalLog) -> None:
         batcher = model.api._batcher
 
     if not batcher:
-        print(f"No batcher found for model {model.name}, skipping batch {batch_id}")
-        print(f"API class: {type(model.api)}")
-        print(f"Attributes: {dir(model.api)}")
-        print(
-            f"model.api._completions_batcher: {hasattr(model.api, '_completions_batcher')}"
-        )
-        print(f"model.api.completions_batcher: {model.api._completions_batcher}")
-        print(
-            f"model.api._responses_batcher: {hasattr(model.api, '_responses_batcher')}"
-        )
-        print(f"model.api.completions_batcher: {model.api._responses_batcher}")
         # No batcher available or batch mode not being used
         return
 
@@ -1471,12 +1460,7 @@ async def batch_to_cache(batch_id: str, batch: Any, eval_log: EvalLog) -> None:
 
             # Set what epoch the batch was from
             epoch.set(batch_request.epoch)
-            log.warning(
-                f"Caching result for batch request {custom_id} (model: {cache_entry.model})\n messages: {messages}\ncache_key: {_cache_key(cache_entry)}\nmodel_output: {model_output}"
-            )
-            log.warning(
-                f"cache_entry:\nbase_url: {cache_entry.base_url}\nconfig: {cache_entry.config}\ninput: {cache_entry.input}\nmodel: {cache_entry.model}\npolicy_expiry: {cache_entry.policy.expiry}\npolicy_per_epoch: {cache_entry.policy.per_epoch}\npolicy_scopes: {cache_entry.policy.scopes}\ntool_choice {cache_entry.tool_choice}\ntools: {cache_entry.tools}"
-            )
+            log.warning(f"Caching result for batch request {custom_id}")
 
             # Store in cache
             cache_store(cache_entry, model_output)
