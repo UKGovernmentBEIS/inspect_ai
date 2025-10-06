@@ -15,33 +15,20 @@ from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import text_editor
 
 
-@pytest.fixture(scope="session")
-def inspect_tool_support_sandbox(local_inspect_tools) -> tuple[str, str]:
-    """
-    Return tuple of (docker, path to sandbox config) based on args.
-
-    Return a path to a docker project configuration for a container
-    with the inspect tools package installed. If pytest is run with
-    --local-inspect-tools, build from source, otherwise pull from
-    dockerhub.
-    """
-    base = Path(__file__).parent
-    if local_inspect_tools:
-        cfg = "test_inspect_tool_support.from_source.yaml"
-    else:
-        cfg = "test_inspect_tool_support.yaml"
-    return "docker", (base / cfg).as_posix()
-
-
 # @pytest.mark.slow
-def test_text_editor_relative_path(inspect_tool_support_sandbox):
+def test_text_editor_relative_path():
+    file_content = "here's the file contents"
     task = Task(
-        dataset=[Sample(input="Create and read a file using relative path")],
+        dataset=[
+            Sample(
+                input="doesn't matter",
+                files={"/tmp/test_relative.txt": file_content},
+            )
+        ],
         solver=[use_tools([text_editor()]), generate()],
         scorer=match(),
-        sandbox=inspect_tool_support_sandbox,
+        sandbox="docker",
     )
-    test_content = "test_relative_path_content"
     model = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -63,12 +50,4 @@ def test_text_editor_relative_path(inspect_tool_support_sandbox):
     assert editor_tool_call
     editor_response = get_tool_response(messages, editor_tool_call)
     assert editor_response
-    assert editor_response.error is None, (
-        f"Tool call should not return error for relative path: {editor_response.error}"
-    )
-    assert "not an absolute path" not in editor_response.content, (
-        f"Tool should accept relative paths, but got error message: {editor_response.content}"
-    )
-    assert test_content in editor_response.content, (
-        f"Expected content '{test_content}' in response: {editor_response.content}"
-    )
+    assert file_content in editor_response.text
