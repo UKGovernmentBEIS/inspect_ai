@@ -823,6 +823,8 @@ def eval_retry(
             Request timeout (in seconds)
         max_connections:
             Maximum number of concurrent connections to Model API (default is per Model API)
+        resume_batches:
+            Resume batches in progress rather than starting from the beginning (defaults to False).
 
     Returns:
         List of EvalLog (one for each task)
@@ -932,6 +934,7 @@ async def eval_retry_async(
         max_retries: Maximum number of times to retry request.
         timeout: Request timeout (in seconds)
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
+        resume_batches: Resume batches in progress rather than starting from the beginning (defaults to False).
 
     Returns:
         List of EvalLog (one for each task)
