@@ -6,6 +6,7 @@ import {
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
 import { EvalHeader, LogFile, LogRoot, LogSummary } from "../client/api/types";
+import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
 
@@ -274,63 +275,73 @@ export const createLogsSlice = (
           return kEmptyLogs;
         }
 
-        // Get log files from API to initialize database with log_dir
-        let logFiles: LogRoot;
-        try {
-          log.debug("LOADING LOG FILES FROM API");
-          logFiles = await api.get_log_root();
-
-          // Initialize database with log directory
-          const databaseService = get().databaseService;
-          if (databaseService && logFiles.log_dir) {
-            try {
-              await databaseService.openDatabase(logFiles.log_dir);
-            } catch (e) {
-              // Silently ignore database initialization errors
-            }
-          }
-        } catch (e) {
-          console.log(e);
-          get().appActions.setStatus({ loading: false, error: e as Error });
-          return kEmptyLogs;
-        }
-
-        // OPTIONAL: Try cache after DB is initialized (non-blocking, fail silently)
-        const dbService = get().databaseService;
-        if (dbService) {
+        // Determine the log directory
+        const loadLogDir = async () => {
           try {
-            const cached = await dbService.getCachedLogFiles();
-            if (cached) {
+            return await api.get_log_dir();
+          } catch (e) {
+            console.log(e);
+            get().appActions.setStatus({ loading: false, error: e as Error });
+            return undefined;
+          }
+        };
+        const logDir = await loadLogDir();
+
+        // Initialize the database
+        const initializeDatabase = async (
+          logDir?: string,
+        ): Promise<DatabaseService | undefined> => {
+          if (!logDir) {
+            // No database service available
+            return undefined;
+          }
+
+          try {
+            const databaseService = get().databaseService;
+            if (!databaseService) {
+              return undefined;
+            }
+            await databaseService.openDatabase(logDir);
+            return databaseService;
+          } catch (e) {
+            console.log(e);
+            get().appActions.setStatus({ loading: false, error: e as Error });
+          }
+        };
+
+        const databaseService = await initializeDatabase(logDir);
+        if (databaseService) {
+          try {
+            const cached = await databaseService.getCachedLogFiles();
+            if (cached && cached.length > 0) {
               log.debug("LOADED LOG FILES FROM CACHE");
-
-              // Still cache the fresh data in background (non-blocking)
-              setTimeout(() => {
-                const dbSvc = get().databaseService;
-                if (dbSvc) {
-                  dbSvc.cacheLogFiles(logFiles).catch(() => {
-                    // Silently ignore cache errors
-                  });
-                }
-              }, 0);
-
-              return cached;
+              return {
+                log_dir: logDir || "",
+                files: cached,
+              };
             }
           } catch (e) {
             // Cache read failed, use API results we already have
           }
         }
 
+        // We missed the cache, so load the files
+        log.debug("LOADING LOG FILES FROM API");
+        const files = await api.get_log_files();
+
         // Cache the result we got from API (completely non-blocking)
         setTimeout(() => {
-          const dbService = get().databaseService;
-          if (dbService) {
-            dbService.cacheLogFiles(logFiles).catch(() => {
+          if (databaseService) {
+            databaseService.cacheLogFiles(files).catch(() => {
               // Silently ignore cache errors
             });
           }
         }, 0);
 
-        return logFiles;
+        return {
+          log_dir: logDir || "",
+          files: files || [],
+        };
       },
       refreshLogs: async () => {
         log.debug("REFRESH LOGS");

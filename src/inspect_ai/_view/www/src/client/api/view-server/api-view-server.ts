@@ -46,6 +46,11 @@ export function viewServerApi(
     return result.parsed;
   };
 
+  const get_log_dir = async () => {
+    const obj = (await requestApi.fetchString("GET", "/log-dir")).parsed;
+    return obj.log_dir as string | undefined;
+  };
+
   const get_log_root = async () => {
     const path = logDir
       ? `/logs?log_dir=${encodeURIComponent(logDir)}`
@@ -267,6 +272,7 @@ export function viewServerApi(
   return {
     client_events,
     get_log_root,
+    get_log_dir,
     get_eval_set,
     get_log_contents,
     get_log_size,

@@ -1,5 +1,5 @@
 import { createLogger } from "../../utils/logger";
-import { LogInfo, LogRoot, LogSummary, SampleSummary } from "../api/types";
+import { LogFile, LogInfo, LogSummary, SampleSummary } from "../api/types";
 import { DatabaseManager } from "./manager";
 import { AppDatabase } from "./schema";
 
@@ -28,6 +28,10 @@ export class DatabaseService {
     return db;
   }
 
+  opened(): boolean {
+    return this.manager.getDatabase() !== null;
+  }
+
   /**
    * Open a database for the specified log directory.
    */
@@ -50,11 +54,11 @@ export class DatabaseService {
   }
 
   // === LOG FILES ===
-  async cacheLogFiles(logFiles: LogRoot): Promise<void> {
+  async cacheLogFiles(logFiles: LogFile[]): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
-    const records = logFiles.files.map((file) => ({
+    const records = logFiles.map((file) => ({
       file_path: file.name,
       file_name: file.name.split("/").pop() || file.name,
       task: file.task,
@@ -66,30 +70,22 @@ export class DatabaseService {
     await db.log_files.bulkPut(records);
   }
 
-  async getCachedLogFiles(): Promise<LogRoot | null> {
+  async getCachedLogFiles(): Promise<LogFile[] | null> {
     try {
       const db = this.getDb();
       const files = await db.log_files.orderBy("id").toArray();
 
       if (files.length === 0) {
         log.debug("No cached log files found");
-        const logDir = this.manager.getLogDir() || "";
-        return {
-          log_dir: logDir,
-          files: [],
-        };
+        return [];
       }
 
       log.debug(`Retrieved ${files.length} cached log files`);
-      const logDir = this.manager.getLogDir() || "";
-      return {
-        log_dir: logDir,
-        files: files.map((file) => ({
-          name: file.file_path,
-          task: file.task,
-          task_id: file.task_id,
-        })),
-      };
+      return files.map((file) => ({
+        name: file.file_path,
+        task: file.task,
+        task_id: file.task_id,
+      }));
     } catch (error) {
       log.error("Error retrieving cached log files:", error);
       return null;

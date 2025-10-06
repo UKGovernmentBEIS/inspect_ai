@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
@@ -23,6 +24,7 @@ from .common import (
     async_connection,
     delete_log,
     get_log_bytes,
+    get_log_dir,
     get_log_file,
     get_log_size,
     get_logs,
@@ -106,6 +108,20 @@ def view_server(
         return web.Response(
             body=body, headers=headers, content_type="application/octet-stream"
         )
+
+    @routes.get("/api/log-dir")
+    async def api_log_dir(request: web.Request) -> web.Response:
+        # log dir can optionally be overridden by the request
+        if authorization:
+            request_log_dir = request.query.getone("log_dir", None)
+            if request_log_dir:
+                request_log_dir = normalize_uri(request_log_dir)
+            else:
+                request_log_dir = log_dir
+        else:
+            request_log_dir = log_dir
+
+        return web.json_response(get_log_dir(request_log_dir))
 
     @routes.get("/api/logs")
     async def api_logs(request: web.Request) -> web.Response:

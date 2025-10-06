@@ -11,9 +11,10 @@ import vscodeApi from "./vscode/api-vscode";
  * Resolves the client API
  */
 const resolveApi = (): ClientAPI => {
+  const debug = true;
   if (getVscodeApi()) {
     // This is VSCode
-    return clientApi(vscodeApi);
+    return clientApi(vscodeApi, undefined, debug);
   } else {
     // See if there is an log_file, log_dir embedded in the
     // document or passed via URL (could be hosted)
@@ -26,7 +27,7 @@ const resolveApi = (): ClientAPI => {
         if (data.log_dir || data.log_file) {
           const log_dir = data.log_dir || dirname(data.log_file);
           const api = staticHttpApi(log_dir, data.log_file);
-          return clientApi(api, data.log_file);
+          return clientApi(api, data.log_file, debug);
         }
       }
     }
@@ -44,6 +45,7 @@ const resolveApi = (): ClientAPI => {
       return clientApi(
         viewServerApi({ logDir: resolved_log_dir }),
         resolved_log_file,
+        debug,
       );
     }
 
@@ -51,12 +53,13 @@ const resolveApi = (): ClientAPI => {
       return clientApi(
         staticHttpApi(resolved_log_dir, resolved_log_file),
         resolved_log_file,
+        debug,
       );
     }
 
     // No signal information so use the standard
     // view server API (inspect view)
-    return clientApi(viewServerApi());
+    return clientApi(viewServerApi(), undefined, debug);
   }
 };
 
