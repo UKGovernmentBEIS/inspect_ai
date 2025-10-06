@@ -16,14 +16,14 @@ _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 @pytest.mark.parametrize("to", ["eval", "json"])
 @pytest.mark.parametrize(
     "resolve_attachments",
-    [True, False],
-    ids=["resolve-attachments", "no-resolve-attachments"],
+    [True, False, "core"],
+    ids=["resolve-attachments", "no-resolve-attachments", "resolve-core-attachments"],
 )
 def test_convert_eval_logs(
     tmp_path: pathlib.Path,
     stream: bool | int,
     to: Literal["eval", "json"],
-    resolve_attachments: bool,
+    resolve_attachments: bool | Literal["full"] | Literal["core"],
 ):
     input_file = (
         _TESTS_DIR

@@ -44,7 +44,8 @@ MODEL_NONE = "none/none"
 DEFAULT_BATCH_SIZE = 100
 
 DESERIALIZING = "deserializing"
+MESSAGE_CACHE = "message_cache"
 
 
 def get_deserializing_context() -> dict[str, Any]:
-    return {DESERIALIZING: True, "message_cache": {}}
+    return {DESERIALIZING: True, MESSAGE_CACHE: {}}

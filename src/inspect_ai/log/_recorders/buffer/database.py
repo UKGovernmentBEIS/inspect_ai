@@ -21,9 +21,11 @@ from inspect_ai._util.dateutil import is_file_older_than
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai.model import ChatMessage
 
 from ..._condense import (
     ATTACHMENT_PROTOCOL,
+    WalkContext,
     attachments_content_fn,
     walk_events,
     walk_input,
@@ -148,7 +150,7 @@ class SampleBufferDatabase(SampleBuffer):
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
-            sample = self._consense_sample(conn, sample)
+            sample = self._condense_sample(conn, sample)
             conn.execute(
                 """
                 INSERT INTO samples (id, epoch, data)
@@ -162,7 +164,7 @@ class SampleBufferDatabase(SampleBuffer):
             # collect the values for all events
             values: list[str | int] = []
             for event in events:
-                event = self._consense_event(conn, event)
+                event = self._condense_event(conn, event)
                 values.extend(
                     (
                         event.event.uuid or uuid(),
@@ -184,7 +186,7 @@ class SampleBufferDatabase(SampleBuffer):
 
     def complete_sample(self, summary: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
-            summary = self._consense_sample(conn, summary)
+            summary = self._condense_sample(conn, summary)
             conn.execute(
                 """
                 UPDATE samples SET data = ? WHERE id = ? and epoch = ?
@@ -397,7 +399,9 @@ class SampleBufferDatabase(SampleBuffer):
         return TaskData(**task_data)
 
     def _get_samples(
-        self, conn: Connection, resolve_attachments: bool = False
+        self,
+        conn: Connection,
+        resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
     ) -> Iterator[EvalSampleSummary]:
         cursor = conn.execute(
             """
@@ -419,7 +423,7 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         after_event_id: int | None = None,
-        resolve_attachments: bool = False,
+        resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
     ) -> Iterator[EventData]:
         query = """
             SELECT id, event_id, data
@@ -435,10 +439,12 @@ class SampleBufferDatabase(SampleBuffer):
 
         cursor = conn.execute(query, params)
 
+        message_cache: dict[str, ChatMessage] = {}
+
         for row in cursor:
             event = json.loads(row["data"])
-            if resolve_attachments:
-                event = self._resolve_event_attachments(conn, event)
+            if resolve_attachments is True or resolve_attachments == "full":
+                event = self._resolve_event_attachments(conn, event, message_cache)
             yield EventData(
                 id=row["id"],
                 event_id=row["event_id"],
@@ -475,7 +481,7 @@ class SampleBufferDatabase(SampleBuffer):
                 content=row["content"],
             )
 
-    def _consense_sample(
+    def _condense_sample(
         self, conn: Connection, sample: EvalSampleSummary
     ) -> EvalSampleSummary:
         # alias attachments
@@ -483,7 +489,9 @@ class SampleBufferDatabase(SampleBuffer):
         sample = sample.model_copy(
             update={
                 "input": walk_input(
-                    sample.input, self._create_attachments_content_fn(attachments), {}
+                    sample.input,
+                    self._create_attachments_content_fn(attachments),
+                    WalkContext(message_cache={}),
                 )
             }
         )
@@ -500,16 +508,20 @@ class SampleBufferDatabase(SampleBuffer):
         return sample.model_copy(
             update={
                 "input": walk_input(
-                    sample.input, self._resolve_attachments_content_fn(conn), {}
+                    sample.input,
+                    self._resolve_attachments_content_fn(conn),
+                    WalkContext(message_cache={}),
                 )
             }
         )
 
-    def _consense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
+    def _condense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
         # alias attachments
         attachments: dict[str, str] = {}
         event.event = walk_events(
-            [event.event], self._create_attachments_content_fn(attachments), {}
+            [event.event],
+            self._create_attachments_content_fn(attachments),
+            WalkContext(message_cache={}),
         )[0]
 
         # insert attachments
@@ -518,8 +530,14 @@ class SampleBufferDatabase(SampleBuffer):
         # return events with aliases
         return event
 
-    def _resolve_event_attachments(self, conn: Connection, event: JsonData) -> JsonData:
-        return walk_json_dict(event, self._resolve_attachments_content_fn(conn), {})
+    def _resolve_event_attachments(
+        self, conn: Connection, event: JsonData, message_cache: dict[str, ChatMessage]
+    ) -> JsonData:
+        return walk_json_dict(
+            event,
+            self._resolve_attachments_content_fn(conn),
+            WalkContext(message_cache=message_cache),
+        )
 
     def _create_attachments_content_fn(
         self, attachments: dict[str, str]

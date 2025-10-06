@@ -1,7 +1,8 @@
 from logging import getLogger
 from typing import (
-    Any,
     Callable,
+    Literal,
+    TypedDict,
 )
 
 from pydantic import JsonValue
@@ -44,6 +45,10 @@ logger = getLogger(__name__)
 
 
 ATTACHMENT_PROTOCOL = "attachment://"
+
+
+class WalkContext(TypedDict):
+    message_cache: dict[str, ChatMessage]
 
 
 def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
@@ -94,7 +99,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
         else:
             return text
 
-    context: dict[str, Any] = {"message_cache": {}}
+    context = WalkContext(message_cache={})
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, messages_fn, context),
@@ -105,7 +110,10 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     )
 
 
-def resolve_sample_attachments(sample: EvalSample) -> EvalSample:
+def resolve_sample_attachments(
+    sample: EvalSample,
+    resolve_attachments: bool | Literal["full"] | Literal["core"] = True,
+) -> EvalSample:
     """Resolve content attachments (typically images) in sample.
 
     Take 'attachment://*` references and resolve them to their
@@ -113,17 +121,20 @@ def resolve_sample_attachments(sample: EvalSample) -> EvalSample:
 
     Args:
        sample (EvalSample): Eval sample with attachments.
+       resolve_attachments: Should attachments be resolved. "core" means only resolving attachments in the core fields.
 
     Returns:
        EvalSample: Sample with attachment content resolved.
     """
+    if resolve_attachments is False:
+        return sample
 
     def content_fn(text: str) -> str:
         # migrate previous flavor of content reference
         CONTENT_PROTOCOL = "tc://"
         if text.startswith(CONTENT_PROTOCOL):
             text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
-        # resovle attachment
+        # resolve attachment
         if text.startswith(ATTACHMENT_PROTOCOL):
             return sample.attachments.get(
                 text.replace(ATTACHMENT_PROTOCOL, "", 1), text
@@ -131,12 +142,14 @@ def resolve_sample_attachments(sample: EvalSample) -> EvalSample:
         else:
             return text
 
-    context: dict[str, Any] = {"message_cache": {}}
+    context: WalkContext = {"message_cache": {}}
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
             "messages": walk_chat_messages(sample.messages, content_fn, context),
-            "events": walk_events(sample.events, content_fn, context),
+            "events": walk_events(sample.events, content_fn, context)
+            if resolve_attachments is True or resolve_attachments == "full"
+            else sample.events,
             "attachments": {},
         }
     )
@@ -162,13 +175,13 @@ def attachments_content_fn(
 
 
 def walk_events(
-    events: list[Event], content_fn: Callable[[str], str], context: dict[str, Any]
+    events: list[Event], content_fn: Callable[[str], str], context: WalkContext
 ) -> list[Event]:
     return [walk_event(event, content_fn, context) for event in events]
 
 
 def walk_event(
-    event: Event, content_fn: Callable[[str], str], context: dict[str, Any]
+    event: Event, content_fn: Callable[[str], str], context: WalkContext
 ) -> Event:
     if isinstance(event, SampleInitEvent):
         return walk_sample_init_event(event, content_fn, context)
@@ -189,7 +202,7 @@ def walk_event(
 
 
 def walk_subtask_event(
-    event: SubtaskEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+    event: SubtaskEvent, content_fn: Callable[[str], str], context: WalkContext
 ) -> SubtaskEvent:
     return event.model_copy(
         update=dict(events=walk_events(event.events, content_fn, context))
@@ -197,7 +210,7 @@ def walk_subtask_event(
 
 
 def walk_tool_event(
-    event: ToolEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+    event: ToolEvent, content_fn: Callable[[str], str], context: WalkContext
 ) -> ToolEvent:
     return event.model_copy(
         update=dict(
@@ -208,7 +221,7 @@ def walk_tool_event(
 
 
 def walk_info_event(
-    event: InfoEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+    event: InfoEvent, content_fn: Callable[[str], str], context: WalkContext
 ) -> InfoEvent:
     return event.model_copy(
         update=dict(data=walk_json_value(event.data, content_fn, context))
@@ -216,7 +229,7 @@ def walk_info_event(
 
 
 def walk_sample_init_event(
-    event: SampleInitEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+    event: SampleInitEvent, content_fn: Callable[[str], str], context: WalkContext
 ) -> SampleInitEvent:
     return event.model_copy(
         update=dict(
@@ -227,7 +240,7 @@ def walk_sample_init_event(
 
 
 def walk_sample(
-    sample: Sample, content_fn: Callable[[str], str], context: dict[str, Any]
+    sample: Sample, content_fn: Callable[[str], str], context: WalkContext
 ) -> Sample:
     if isinstance(sample.input, str):
         return sample.model_copy(
@@ -240,7 +253,7 @@ def walk_sample(
 
 
 def walk_model_event(
-    event: ModelEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+    event: ModelEvent, content_fn: Callable[[str], str], context: WalkContext
 ) -> ModelEvent:
     return event.model_copy(
         update=dict(
@@ -253,7 +266,7 @@ def walk_model_event(
 
 
 def walk_model_output(
-    output: ModelOutput, content_fn: Callable[[str], str], context: dict[str, Any]
+    output: ModelOutput, content_fn: Callable[[str], str], context: WalkContext
 ) -> ModelOutput:
     return output.model_copy(
         update=dict(
@@ -270,7 +283,7 @@ def walk_model_output(
 
 
 def walk_model_call(
-    call: ModelCall | None, content_fn: Callable[[str], str], context: dict[str, Any]
+    call: ModelCall | None, content_fn: Callable[[str], str], context: WalkContext
 ) -> ModelCall | None:
     if call:
         return ModelCall(
@@ -283,7 +296,7 @@ def walk_model_call(
 
 
 def walk_state_event(
-    event: StateEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+    event: StateEvent, content_fn: Callable[[str], str], context: WalkContext
 ) -> StateEvent:
     event = event.model_copy(
         update=dict(
@@ -297,7 +310,7 @@ def walk_state_event(
 
 
 def walk_store_event(
-    event: StoreEvent, content_fn: Callable[[str], str], context: dict[str, Any]
+    event: StoreEvent, content_fn: Callable[[str], str], context: WalkContext
 ) -> StoreEvent:
     event = event.model_copy(
         update=dict(
@@ -311,7 +324,7 @@ def walk_store_event(
 
 
 def walk_state_json_change(
-    change: JsonChange, content_fn: Callable[[str], str], context: dict[str, Any]
+    change: JsonChange, content_fn: Callable[[str], str], context: WalkContext
 ) -> JsonChange:
     return change.model_copy(
         update=dict(value=walk_json_value(change.value, content_fn, context))
@@ -319,7 +332,7 @@ def walk_state_json_change(
 
 
 def walk_json_value(
-    value: JsonValue, content_fn: Callable[[str], str], context: dict[str, Any]
+    value: JsonValue, content_fn: Callable[[str], str], context: WalkContext
 ) -> JsonValue:
     if isinstance(value, str):
         return content_fn(value)
@@ -334,7 +347,7 @@ def walk_json_value(
 def walk_json_dict(
     value: dict[str, JsonValue],
     content_fn: Callable[[str], str],
-    context: dict[str, Any],
+    context: WalkContext,
 ) -> dict[str, JsonValue]:
     updates: dict[str, JsonValue] = {}
     for k, v in value.items():
@@ -348,7 +361,7 @@ def walk_json_dict(
 def walk_input(
     input: str | list[ChatMessage],
     content_fn: Callable[[str], str],
-    context: dict[str, Any],
+    context: WalkContext,
 ) -> str | list[ChatMessage]:
     if isinstance(input, str):
         return input
@@ -359,18 +372,18 @@ def walk_input(
 def walk_chat_messages(
     messages: list[ChatMessage],
     content_fn: Callable[[str], str],
-    context: dict[str, Any],
+    context: WalkContext,
 ) -> list[ChatMessage]:
     return [walk_chat_message(message, content_fn, context) for message in messages]
 
 
 def walk_chat_message(
-    message: ChatMessage, content_fn: Callable[[str], str], context: dict[str, Any]
+    message: ChatMessage, content_fn: Callable[[str], str], context: WalkContext
 ) -> ChatMessage:
-    cache: dict[str, ChatMessage] = context.get("message_cache", {})
+    cache = context.get("message_cache")
     if cache is not None and message.id is not None:
         hit = cache.get(message.id)
-        if hit is not None:
+        if hit is not None and hit == message:
             return hit
     if isinstance(message.content, str):
         res = message.model_copy(update=dict(content=content_fn(message.content)))
@@ -395,7 +408,7 @@ def walk_chat_message(
 
 
 def walk_content(
-    content: Content, content_fn: Callable[[str], str], context: dict[str, Any]
+    content: Content, content_fn: Callable[[str], str], context: WalkContext
 ) -> Content:
     if isinstance(content, ContentText):
         return content.model_copy(update=dict(text=content_fn(content.text)))
@@ -424,7 +437,7 @@ def walk_content(
 
 
 def walk_tools(
-    tools: list[ToolInfo], content_fn: Callable[[str], str], context: dict[str, Any]
+    tools: list[ToolInfo], content_fn: Callable[[str], str], context: WalkContext
 ) -> list[ToolInfo]:
     return [
         tool.model_copy(
@@ -437,7 +450,7 @@ def walk_tools(
 
 
 def walk_tool_call(
-    tool_call: ToolCall, content_fn: Callable[[str], str], context: dict[str, Any]
+    tool_call: ToolCall, content_fn: Callable[[str], str], context: WalkContext
 ) -> ToolCall:
     return ToolCall(
         id=tool_call.id,

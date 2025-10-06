@@ -129,15 +129,29 @@ def list_command(
 )
 @click.option(
     "--resolve-attachments",
+    "resolve_flag",
     type=bool,
     is_flag=True,
     default=False,
     help="Resolve attachments (duplicated content blocks) to their full content.",
 )
-def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> None:
+@click.option(
+    "--resolve-attachments-mode",
+    type=click.Choice(["full", "core"]),
+    default="core",
+    help="How to resolve attachments.",
+)
+def dump_command(
+    path: str,
+    header_only: bool,
+    resolve_flag: bool,
+    resolve_attachments_mode: Literal["full"] | Literal["core"],
+) -> None:
     """Print log file contents as JSON."""
     log = read_eval_log(
-        path, header_only=header_only, resolve_attachments=resolve_attachments
+        path,
+        header_only=header_only,
+        resolve_attachments=resolve_attachments_mode if resolve_flag else False,
     )
     print(eval_log_json_str(log))
 
@@ -164,10 +178,17 @@ def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> Non
 )
 @click.option(
     "--resolve-attachments",
+    "resolve_flag",
     type=bool,
     is_flag=True,
     default=False,
     help="Resolve attachments (duplicated content blocks) to their full content.",
+)
+@click.option(
+    "--resolve-attachments-mode",
+    type=click.Choice(["full", "core"]),
+    default="core",
+    help="How to resolve attachments.",
 )
 @click.option(
     "--stream",
@@ -183,7 +204,8 @@ def convert_command(
     to: Literal["eval", "json"],
     output_dir: str,
     overwrite: bool,
-    resolve_attachments: bool,
+    resolve_flag: bool,
+    resolve_attachments_mode: Literal["full"] | Literal["core"],
     stream: int | bool = False,
 ) -> None:
     """Convert between log file formats."""
@@ -192,7 +214,7 @@ def convert_command(
         to,
         output_dir,
         overwrite,
-        resolve_attachments=resolve_attachments,
+        resolve_attachments=resolve_attachments_mode if resolve_flag else False,
         stream=stream,
     )
 

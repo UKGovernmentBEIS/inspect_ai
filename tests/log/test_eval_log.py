@@ -2,6 +2,7 @@ import math
 import os
 import tempfile
 from datetime import datetime, timezone
+from typing import Literal
 
 import pytest
 from pydantic_core import PydanticSerializationError
@@ -282,20 +283,30 @@ def test_unicode_surrogates_are_escaped():
     assert sample.scores["exact"].answer == "\\udc00\\udc00\\udc00"
 
 
-def test_message_deduplication():
-    log_file = os.path.join("tests", "log", "test_eval_log", "log_read_sample.json")
+@pytest.mark.parametrize("resolve_attachments", [True, False, "full", "core"])
+def test_message_deduplication(
+    resolve_attachments: bool | Literal["full"] | Literal["core"],
+):
+    log_file = os.path.join(
+        "tests", "log", "test_eval_log", "log_message_deduplication.eval"
+    )
 
-    sample = read_eval_log_sample(log_file, id=1, epoch=1, resolve_attachments=True)
+    sample = read_eval_log_sample(
+        log_file, id=0, epoch=1, resolve_attachments=resolve_attachments
+    )
 
     messages_by_id = {}
-    for message in sample.messages:
-        if message.id not in messages_by_id:
-            messages_by_id[message.id] = message
-        else:
-            assert message is messages_by_id[message.id]
+    if resolve_attachments != "core":
+        for message in sample.messages:
+            if message.id not in messages_by_id:
+                messages_by_id[message.id] = message
+            else:
+                assert message is messages_by_id[message.id]
     for event in sample.events:
         if isinstance(event, ModelEvent):
             for message in event.input:
+                if message.id is None:
+                    continue
                 if message.id not in messages_by_id:
                     messages_by_id[message.id] = message
                 else:

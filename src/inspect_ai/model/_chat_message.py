@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
-from inspect_ai._util.constants import DESERIALIZING
+from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
@@ -59,12 +59,12 @@ class ChatMessageBase(BaseModel):
     def _after(self, info: ValidationInfo) -> "ChatMessageBase":
         if info.context is None:
             return self
-        cache: dict[str, ChatMessageBase] = info.context.get("message_cache")
+        cache: dict[str, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
         message_id = self.id
         if message_id is None:
             return self
         hit = cache.get(message_id)
-        if hit is not None:
+        if hit is not None and hit == self:
             return hit
         cache[message_id] = self
         return self
