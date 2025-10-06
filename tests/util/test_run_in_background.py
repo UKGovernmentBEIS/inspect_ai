@@ -5,8 +5,11 @@ import asyncio
 import anyio
 import pytest
 
-from inspect_ai._util._async import run_in_background
-from inspect_ai._util.eval_task_group import _eval_task_group, init_eval_task_group
+from inspect_ai._util.background import (
+    background_task_group,
+    run_in_background,
+    set_background_task_group,
+)
 
 
 class TestRunInBackground:
@@ -16,7 +19,7 @@ class TestRunInBackground:
     async def test_with_task_group(self):
         """Test run_in_background when task group is set."""
         # Save original state
-        original_tg = _eval_task_group
+        original_tg = background_task_group()
 
         try:
             result = []
@@ -26,24 +29,24 @@ class TestRunInBackground:
 
             # Test with a real task group
             async with anyio.create_task_group() as tg:
-                init_eval_task_group(tg)
+                set_background_task_group(tg)
                 run_in_background(background_task, "with_tg")
                 # Task group waits for completion when exiting
 
             assert result == ["with_tg"]
 
         finally:
-            init_eval_task_group(original_tg)
+            set_background_task_group(original_tg)
 
     @pytest.mark.asyncio
     async def test_without_task_group_fallback_to_asyncio(self):
         """Test run_in_background falls back to asyncio when no task group is set."""
         # Save original state
-        original_tg = _eval_task_group
+        original_tg = background_task_group()
 
         try:
             # Clear task group
-            init_eval_task_group(None)
+            set_background_task_group(None)
 
             result = []
 
@@ -60,20 +63,20 @@ class TestRunInBackground:
             assert result == ["asyncio_fallback"]
 
         finally:
-            init_eval_task_group(original_tg)
+            set_background_task_group(original_tg)
 
     def test_trio_backend_raises_error(self):
         """Test that trio backend raises RuntimeError."""
         from unittest.mock import patch
 
         # Save original state
-        original_tg = _eval_task_group
+        original_tg = background_task_group()
 
         try:
-            init_eval_task_group(None)
+            set_background_task_group(None)
 
             with patch(
-                "inspect_ai._util._async.current_async_backend", return_value="trio"
+                "inspect_ai._util.background.current_async_backend", return_value="trio"
             ):
 
                 async def test_func() -> None:
@@ -84,20 +87,20 @@ class TestRunInBackground:
                 ):
                     run_in_background(test_func)
         finally:
-            init_eval_task_group(original_tg)
+            set_background_task_group(original_tg)
 
     def test_no_async_context_raises_error(self):
         """Test that running outside async context raises RuntimeError."""
         from unittest.mock import patch
 
         # Save original state
-        original_tg = _eval_task_group
+        original_tg = background_task_group()
 
         try:
-            init_eval_task_group(None)
+            set_background_task_group(None)
 
             with patch(
-                "inspect_ai._util._async.current_async_backend", return_value=None
+                "inspect_ai._util.background.current_async_backend", return_value=None
             ):
 
                 async def test_func() -> None:
@@ -109,15 +112,15 @@ class TestRunInBackground:
                 ):
                     run_in_background(test_func)
         finally:
-            init_eval_task_group(original_tg)
+            set_background_task_group(original_tg)
 
     @pytest.mark.asyncio
     async def test_argument_passing(self):
         """Test that arguments are passed correctly to the background function."""
-        original_tg = _eval_task_group
+        original_tg = background_task_group()
 
         try:
-            init_eval_task_group(None)
+            set_background_task_group(None)
             result = []
 
             async def background_task(a: int, b: str, c: bool) -> None:
@@ -129,4 +132,4 @@ class TestRunInBackground:
             assert result == [(42, "hello", True)]
 
         finally:
-            init_eval_task_group(original_tg)
+            set_background_task_group(original_tg)
