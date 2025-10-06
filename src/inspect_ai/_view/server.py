@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import time
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
@@ -105,6 +106,21 @@ def view_server(
 
         return await log_bytes_response(file, int(start), int(end))
 
+    @routes.get("/api/log-dir")
+    async def api_log_dir(request: web.Request) -> web.Response:
+        # log dir can optionally be overridden by the request
+        if authorization:
+            request_log_dir = request.query.getone("log_dir", None)
+            if request_log_dir:
+                request_log_dir = normalize_uri(request_log_dir)
+            else:
+                request_log_dir = log_dir
+        else:
+            request_log_dir = log_dir
+
+        result = log_dir_response(request_log_dir)
+        return result
+
     @routes.get("/api/logs")
     async def api_logs(request: web.Request) -> web.Response:
         # log dir can optionally be overridden by the request
@@ -122,9 +138,10 @@ def view_server(
         if is_log_file(request_log_dir, [".json"]):
             file_info = await eval_log_info_async(request_log_dir)
             if file_info is not None:
-                return log_listing_response(
+                result = log_listing_response(
                     logs=[file_info], log_dir=dirname(request_log_dir)
                 )
+                return result
             else:
                 return web.Response(status=404, reason="File not found")
 
@@ -132,7 +149,8 @@ def view_server(
         logs = await list_eval_logs_async(
             log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
         )
-        return log_listing_response(logs, request_log_dir)
+        result = log_listing_response(logs, request_log_dir)
+        return result
 
     @routes.get("/api/eval-set")
     async def eval_set(request: web.Request) -> web.Response:
@@ -302,6 +320,13 @@ def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
             )
             for log in logs
         ],
+    )
+    return web.json_response(response)
+
+
+def log_dir_response(log_dir: str) -> web.Response:
+    response = dict(
+        log_dir=aliased_path(log_dir),
     )
     return web.json_response(response)
 

@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import { LogInfo, LogSummary } from "../api/types";
 
-// Log Files Table - Basic file listing from get_log_root()
+// Log Files Table - Basic file listing
 export interface LogFileRecord {
   // Auto-incrementing primary key for insertion order
   id?: number;

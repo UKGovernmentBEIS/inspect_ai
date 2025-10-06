@@ -138,6 +138,8 @@ export interface Capabilities {
 export interface LogViewAPI {
   client_events: () => Promise<any[]>;
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
+  get_log_dir?: () => Promise<string | undefined>;
+  get_log_files?: () => Promise<LogFile[]>;
   get_log_root: () => Promise<LogRoot | undefined>;
   get_log_contents: (
     log_file: string,
@@ -173,8 +175,17 @@ export interface LogViewAPI {
 }
 
 export interface ClientAPI {
+  // Basic initialization
+  get_log_dir: () => Promise<string | undefined>;
+
+  // List of files
+  get_log_files: () => Promise<LogFile[]>;
+
   // Log files retrieval
+  // Legacy: Read the files and log directory in a single request
   get_log_root: () => Promise<LogRoot>;
+
+  // Read eval set
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
   get_log_summaries: (log_files: string[]) => Promise<LogSummary[]>;
   get_log_info: (log_file: string) => Promise<LogInfo>;
