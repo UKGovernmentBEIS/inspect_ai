@@ -40,7 +40,12 @@ def test_convert_eval_logs(
 
     output_file = (tmp_path / input_file.name).with_suffix(f".{to}")
     assert output_file.exists()
+    log = read_eval_log(str(output_file))
     assert isinstance(
-        read_eval_log(str(output_file), resolve_attachments=resolve_attachments),
+        log,
         EvalLog,
     )
+    if resolve_attachments:
+        assert not log.samples[0].events[0].sample.input.startswith("attachment:")
+    else:
+        assert log.samples[0].events[0].sample.input.startswith("attachment:")
