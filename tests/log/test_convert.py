@@ -3,6 +3,7 @@ from typing import Literal
 
 import pytest
 
+from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
@@ -45,7 +46,12 @@ def test_convert_eval_logs(
         log,
         EvalLog,
     )
+    assert log.samples
+    assert log.samples[0].events
+    sample_init_event = log.samples[0].events[0]
+    assert isinstance(sample_init_event, SampleInitEvent)
+    assert isinstance(sample_init_event.sample.input, str)
     if resolve_attachments:
-        assert not log.samples[0].events[0].sample.input.startswith("attachment:")
+        assert not sample_init_event.sample.input.startswith("attachment:")
     else:
-        assert log.samples[0].events[0].sample.input.startswith("attachment:")
+        assert sample_init_event.sample.input.startswith("attachment:")
