@@ -193,6 +193,10 @@ class ModelAPI(abc.ABC):
                 f"{self.__class__.__name__} models require an async close / context manager."
             )
 
+    def canonical_name(self) -> str:
+        """Canonical model name for querying results."""
+        return self.model_name
+
     @abc.abstractmethod
     async def generate(
         self,
