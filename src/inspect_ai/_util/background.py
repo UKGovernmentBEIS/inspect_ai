@@ -1,8 +1,9 @@
 import asyncio
 from contextvars import ContextVar
-from typing import Awaitable, Callable, Unpack
+from typing import Awaitable, Callable
 
 from anyio.abc import TaskGroup
+from typing_extensions import Unpack
 
 from ._async import PosArgsT, current_async_backend
 
