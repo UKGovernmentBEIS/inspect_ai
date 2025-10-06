@@ -18,6 +18,7 @@ from inspect_ai._util.notgiven import sanitize_notgiven
 from inspect_ai.log._stats import active_eval_stats
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
+from inspect_ai.model._cache import epoch
 
 from .batch_log import log_batch
 
@@ -43,6 +44,7 @@ class BatchRequest(Generic[ResponseT]):
 
     request: dict[str, Any]
     result_stream: anyio.abc.ObjectSendStream[ResponseT | Exception]
+    epoch: int
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
 
 
@@ -97,7 +99,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             ResponseT | Exception
         ](1)
         batch_request = BatchRequest[ResponseT](
-            request=request, result_stream=send_stream
+            request=request, result_stream=send_stream, epoch=epoch.get(1)
         )
         self._intake_queue.append(batch_request)
 

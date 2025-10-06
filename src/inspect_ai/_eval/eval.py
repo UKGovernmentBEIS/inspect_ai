@@ -1470,8 +1470,7 @@ async def batch_to_cache(batch_id: str, batch: Any, eval_log: EvalLog) -> None:
             )
 
             # Set what epoch the batch was from
-            # TODO: This should be recorded in the batch data but currently isn't so just assume epoch 1 for now
-            epoch.set(eval_log.model_config.get("epoch", 1))
+            epoch.set(batch_request.epoch)
             log.warning(
                 f"Caching result for batch request {custom_id} (model: {cache_entry.model})\n messages: {messages}\ncache_key: {_cache_key(cache_entry)}\nmodel_output: {model_output}"
             )
