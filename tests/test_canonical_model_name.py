@@ -1,9 +1,13 @@
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_bedrock,
     skip_if_no_google,
     skip_if_no_mistral,
+    skip_if_no_mistral_azure,
     skip_if_no_openai,
+    skip_if_no_openai_azure,
+    skip_if_no_vertex,
 )
 
 from inspect_ai import Task, eval
@@ -19,6 +23,7 @@ from inspect_ai.scorer import match
     ],
 )
 @skip_if_no_google
+@skip_if_no_vertex
 def test_google_canonical_name_in_eval_log(model):
     """Test that vertex and direct google models store same canonical name in logs"""
     log = eval(
@@ -41,6 +46,8 @@ def test_google_canonical_name_in_eval_log(model):
     ],
 )
 @skip_if_no_anthropic
+@skip_if_no_vertex
+@skip_if_no_bedrock
 def test_anthropic_canonical_name_in_eval_log(model):
     """Test that bedrock/vertex and direct anthropic models store same canonical name in logs"""
     log = eval(
@@ -62,6 +69,7 @@ def test_anthropic_canonical_name_in_eval_log(model):
     ],
 )
 @skip_if_no_openai
+@skip_if_no_openai_azure
 def test_openai_canonical_name_in_eval_log(model):
     """Test that azure and direct openai models store same canonical name in logs"""
     log = eval(
@@ -83,6 +91,7 @@ def test_openai_canonical_name_in_eval_log(model):
     ],
 )
 @skip_if_no_mistral
+@skip_if_no_mistral_azure
 def test_mistral_canonical_name_in_eval_log(model):
     """Test that azure and direct mistral models store same canonical name in logs"""
     log = eval(

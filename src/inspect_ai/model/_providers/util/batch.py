@@ -11,7 +11,8 @@ import anyio
 import anyio.abc
 from tenacity import RetryCallState, retry
 
-from inspect_ai._util._async import run_in_background, tg_collect
+from inspect_ai._util._async import tg_collect
+from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.notgiven import sanitize_notgiven

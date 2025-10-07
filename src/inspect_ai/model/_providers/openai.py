@@ -158,7 +158,7 @@ class OpenAIAPI(ModelAPI):
                     [
                         OPENAI_API_KEY,
                         AZUREAI_OPENAI_API_KEY,
-                        "or managed identity (Entra ID)",
+                        "managed identity (Entra ID)",
                     ],
                 )
 

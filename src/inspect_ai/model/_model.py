@@ -1011,7 +1011,9 @@ def get_model(
         if model is not None:
             model = model.split(",")[0]
         else:
-            raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
+            raise ValueError(
+                "No model specified (and no model environment varible defined)"
+            )
 
     # see if we can return a memoized model instance
     # (exclude mockllm since custom_outputs is an infinite generator)
