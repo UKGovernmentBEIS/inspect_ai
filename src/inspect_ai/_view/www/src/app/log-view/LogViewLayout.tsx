@@ -22,14 +22,15 @@ export const LogViewLayout: FC = () => {
   const singleFileMode = useStore((state) => state.app.singleFileMode);
 
   // Logs Data
-  const logs = useStore((state) => state.logs.logs);
+  const logDir = useStore((state) => state.logs.logDir);
+  const logFiles = useStore((state) => state.logs.logFiles);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
-  const fullScreen = logs.files.length === 1 && !logs.log_dir;
+  const fullScreen = logFiles.length === 1 && !logDir;
 
   // Global keydown handler for keyboard shortcuts
   useEffect(() => {

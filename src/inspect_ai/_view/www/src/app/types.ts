@@ -29,7 +29,6 @@ import {
   EventData,
   LogFile,
   LogInfo,
-  LogRoot,
   LogSummary,
   PendingSamples,
   SampleSummary,
@@ -67,7 +66,8 @@ export interface AppState {
 }
 
 export interface LogsState {
-  logs: LogRoot;
+  logDir?: string;
+  logFiles: LogFile[];
   evalSet?: EvalSet;
   logOverviews: Record<string, LogSummary>;
   logOverviewsLoading: boolean;
