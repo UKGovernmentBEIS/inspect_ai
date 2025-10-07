@@ -137,6 +137,7 @@ a:hover {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  max-height: calc(3em * var(--bs-body-line-height));
 }
 
 body[class^="vscode-"] {
