@@ -506,7 +506,7 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIStatusError):
             # when streaming, anthropic does not set status_code == 529
-            # for overloaded or internal server errors so we check for it explicitly
+            # for overloaded or internal server errors so we check for them explicitly
             if isinstance(ex.body, dict):
                 body_str = str(ex.body).lower()
                 if "overloaded" in body_str or "internal server error" in body_str:
