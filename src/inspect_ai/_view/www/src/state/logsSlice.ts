@@ -310,8 +310,6 @@ export const createLogsSlice = (
         // Activate the database for this log directory
         const databaseService = await initializeDatabase(logDir);
 
-        // TODO: Preserve the selected log even if new logs appear
-
         // Read the cached values
         if (databaseService) {
           try {
@@ -336,7 +334,23 @@ export const createLogsSlice = (
             databaseService.cacheLogFiles(files).catch(() => {
               // Silently ignore cache errors
             });
+            const state = get();
+            const currentLog =
+              state.logs.selectedLogIndex > -1
+                ? state.logs.logFiles[state.logs.selectedLogIndex]
+                : undefined;
+
             get().logsActions.setLogFiles(files);
+
+            if (currentLog) {
+              const newIndex = files.findIndex((file) =>
+                currentLog.name.endsWith(file.name),
+              );
+
+              if (newIndex !== undefined && newIndex !== -1) {
+                state.logsActions.setSelectedLogIndex(newIndex);
+              }
+            }
           }
         }, 0);
       },
