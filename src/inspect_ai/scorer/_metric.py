@@ -14,7 +14,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
@@ -77,8 +77,6 @@ class ProvenanceData(BaseModel):
 
 class ScoreEdit(BaseModel):
     """A single edit to a score."""
-
-    model_config = ConfigDict(validate_assignment=True)
 
     value: Value | Literal["UNCHANGED"] = "UNCHANGED"
     """New value for the score, or UNCHANGED to keep current value."""
