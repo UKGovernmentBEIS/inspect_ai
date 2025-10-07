@@ -184,7 +184,9 @@ def dump_command(
 @click.option(
     "--resolve-attachments",
     type=click.Choice(["full", "core"]),
-    default=False,
+    flag_value="core",
+    is_flag=False,
+    default=None,
     callback=resolve_attachments_callback,
     help="Resolve attachments (duplicated content blocks) to their full content.",
 )
