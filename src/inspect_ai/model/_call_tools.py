@@ -1,6 +1,7 @@
 import inspect
 import json
 import types
+import typing
 from copy import copy, deepcopy
 from dataclasses import is_dataclass
 from datetime import date, datetime, time
@@ -657,7 +658,9 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
     args = get_args(type_hint)
 
     if origin is None:
-        if type_hint in [int, str, float, bool]:
+        if type_hint == typing.Any:
+            return input
+        elif type_hint in [int, str, float, bool]:
             try:
                 return type_hint(input)
             except (ValueError, TypeError):

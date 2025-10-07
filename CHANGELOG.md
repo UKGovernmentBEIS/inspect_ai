@@ -13,6 +13,7 @@
 - Bugfix: Honor `resolve_attachments` in score command when `stream=True`.
 - Bugfix: Allow cancellation errors to propagate when `fail_on_error=False`.
 - Bugfix: text_editor tool now supports relative file paths.
+- Bugfix: Fix crash when determining tool_param based on type hint of Any in Python 3.10 w/Pydantic 2.12.0.
 
 ## 0.3.136 (02 October 2025)
 
