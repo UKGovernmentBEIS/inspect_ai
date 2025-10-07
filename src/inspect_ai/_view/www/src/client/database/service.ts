@@ -70,6 +70,7 @@ export class DatabaseService {
       file_name: file.name.split("/").pop() || file.name,
       task: file.task,
       task_id: file.task_id,
+      mtime: file.mtime,
       cached_at: now,
     }));
 
@@ -97,6 +98,7 @@ export class DatabaseService {
         name: file.file_path,
         task: file.task,
         task_id: file.task_id,
+        mtime: file.mtime,
       }));
     } catch (error) {
       log.error("Error retrieving cached log files:", error);
