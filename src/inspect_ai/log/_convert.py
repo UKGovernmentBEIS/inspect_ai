@@ -22,7 +22,7 @@ def convert_eval_logs(
     to: Literal["eval", "json"],
     output_dir: str,
     overwrite: bool = False,
-    resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     stream: int | bool = False,
 ) -> None:
     """Convert between log file formats.
@@ -118,7 +118,7 @@ async def _stream_convert_file(
     input_file: str,
     output_file: str,
     output_dir: str,
-    resolve_attachments: bool | Literal["full"] | Literal["core"],
+    resolve_attachments: bool | Literal["full", "core"],
     stream: int | bool,
 ) -> None:
     input_recorder = recorder_type_for_location(input_file)

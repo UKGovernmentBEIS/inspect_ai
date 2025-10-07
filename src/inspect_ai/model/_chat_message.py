@@ -1,7 +1,8 @@
 from logging import getLogger
 from typing import Annotated, Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, model_validator
+from frozendict import deepfreeze
+from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
@@ -55,19 +56,29 @@ class ChatMessageBase(BaseModel):
         if self.id is None and not is_deserializing:
             self.id = uuid()
 
-    @model_validator(mode="after")
-    def _after(self, info: ValidationInfo) -> "ChatMessageBase":
+    @model_validator(mode="wrap")
+    @classmethod
+    def _wrap(
+        cls,
+        data: dict[str, Any],
+        handler: ModelWrapValidatorHandler["ChatMessageBase"],
+        info: ValidationInfo,
+    ) -> "ChatMessageBase":
+        # Some parts of the eval log can be very repetitive. A sequence of model events will often
+        # duplicate the same ChatMessage many times. When the log is initially generated, this is not
+        # an issue, since the data structure will just contain a reference to the same object.
+        # When deserializing, however, we want to avoid creating a new ChatMessage object for each
+        # instance of the same message.
         if info.context is None:
-            return self
-        cache: dict[str, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
-        message_id = self.id
-        if message_id is None:
-            return self
-        hit = cache.get(message_id)
-        if hit is not None and hit == self:
+            return handler(data)
+        cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
+        frozen = deepfreeze(data)
+        hit = cache.get(frozen)
+        if hit is not None:
             return hit
-        cache[message_id] = self
-        return self
+        res = handler(data)
+        cache[frozen] = res
+        return res
 
     @property
     def text(self) -> str:

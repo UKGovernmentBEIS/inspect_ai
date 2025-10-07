@@ -285,7 +285,7 @@ def test_unicode_surrogates_are_escaped():
 
 @pytest.mark.parametrize("resolve_attachments", [True, False, "full", "core"])
 def test_message_deduplication(
-    resolve_attachments: bool | Literal["full"] | Literal["core"],
+    resolve_attachments: bool | Literal["full", "core"],
 ):
     log_file = os.path.join(
         "tests", "log", "test_eval_log", "log_message_deduplication.eval"

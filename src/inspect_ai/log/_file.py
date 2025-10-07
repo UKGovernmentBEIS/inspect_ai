@@ -242,7 +242,7 @@ def write_log_dir_manifest(
 def read_eval_log(
     log_file: str | Path | EvalLogInfo,
     header_only: bool = False,
-    resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalLog:
     """Read an evaluation log.
@@ -280,7 +280,7 @@ def read_eval_log(
 async def read_eval_log_async(
     log_file: str | Path | EvalLogInfo,
     header_only: bool = False,
-    resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalLog:
     """Read an evaluation log.
@@ -355,7 +355,7 @@ def read_eval_log_sample(
     id: int | str | None = None,
     epoch: int = 1,
     uuid: str | None = None,
-    resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
     """Read a sample from an evaluation log.
@@ -398,7 +398,7 @@ async def read_eval_log_sample_async(
     id: int | str | None = None,
     epoch: int = 1,
     uuid: str | None = None,
-    resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
     """Read a sample from an evaluation log.
@@ -504,7 +504,7 @@ async def read_eval_log_sample_summaries_async(
 def read_eval_log_samples(
     log_file: str | Path | EvalLogInfo,
     all_samples_required: bool = True,
-    resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> Generator[EvalSample, None, None]:
     """Read all samples from an evaluation log incrementally.

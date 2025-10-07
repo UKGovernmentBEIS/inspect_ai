@@ -112,7 +112,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 
 def resolve_sample_attachments(
     sample: EvalSample,
-    resolve_attachments: bool | Literal["full"] | Literal["core"] = True,
+    resolve_attachments: bool | Literal["full", "core"] = "core",
 ) -> EvalSample:
     """Resolve content attachments (typically images) in sample.
 

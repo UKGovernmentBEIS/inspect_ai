@@ -24,7 +24,7 @@ def test_convert_eval_logs(
     tmp_path: pathlib.Path,
     stream: bool | int,
     to: Literal["eval", "json"],
-    resolve_attachments: bool | Literal["full"] | Literal["core"],
+    resolve_attachments: bool | Literal["full", "core"],
 ):
     input_file = (
         _TESTS_DIR

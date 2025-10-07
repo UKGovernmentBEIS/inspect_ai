@@ -105,6 +105,23 @@ def log_list(
             print(log.name)
 
 
+def resolve_attachments_callback(
+    ctx: click.Context, param: click.Parameter, value: str
+) -> bool | Literal["full", "core"]:
+    source = ctx.get_parameter_source(param.name) if param.name else ""
+    if source == click.core.ParameterSource.DEFAULT:
+        return False
+
+    if value is None:
+        return False
+    elif value == "full":
+        return "full"
+    elif value == "core":
+        return "core"
+    else:
+        raise click.BadParameter(f"Expected 'full', or 'core'. Got: {value}")
+
+
 @log_command.command("list")
 @list_logs_options
 def list_command(
@@ -129,29 +146,17 @@ def list_command(
 )
 @click.option(
     "--resolve-attachments",
-    "resolve_flag",
-    type=bool,
-    is_flag=True,
+    type=click.Choice(["full", "core"]),
     default=False,
+    callback=resolve_attachments_callback,
     help="Resolve attachments (duplicated content blocks) to their full content.",
 )
-@click.option(
-    "--resolve-attachments-mode",
-    type=click.Choice(["full", "core"]),
-    default="core",
-    help="How to resolve attachments.",
-)
 def dump_command(
-    path: str,
-    header_only: bool,
-    resolve_flag: bool,
-    resolve_attachments_mode: Literal["full"] | Literal["core"],
+    path: str, header_only: bool, resolve_attachments: bool | Literal["full", "core"]
 ) -> None:
     """Print log file contents as JSON."""
     log = read_eval_log(
-        path,
-        header_only=header_only,
-        resolve_attachments=resolve_attachments_mode if resolve_flag else False,
+        path, header_only=header_only, resolve_attachments=resolve_attachments
     )
     print(eval_log_json_str(log))
 
@@ -178,17 +183,10 @@ def dump_command(
 )
 @click.option(
     "--resolve-attachments",
-    "resolve_flag",
-    type=bool,
-    is_flag=True,
-    default=False,
-    help="Resolve attachments (duplicated content blocks) to their full content.",
-)
-@click.option(
-    "--resolve-attachments-mode",
     type=click.Choice(["full", "core"]),
-    default="core",
-    help="How to resolve attachments.",
+    default=False,
+    callback=resolve_attachments_callback,
+    help="Resolve attachments (duplicated content blocks) to their full content.",
 )
 @click.option(
     "--stream",
@@ -204,8 +202,7 @@ def convert_command(
     to: Literal["eval", "json"],
     output_dir: str,
     overwrite: bool,
-    resolve_flag: bool,
-    resolve_attachments_mode: Literal["full"] | Literal["core"],
+    resolve_attachments: bool | Literal["full", "core"],
     stream: int | bool = False,
 ) -> None:
     """Convert between log file formats."""
@@ -214,7 +211,7 @@ def convert_command(
         to,
         output_dir,
         overwrite,
-        resolve_attachments=resolve_attachments_mode if resolve_flag else False,
+        resolve_attachments=resolve_attachments,
         stream=stream,
     )
 

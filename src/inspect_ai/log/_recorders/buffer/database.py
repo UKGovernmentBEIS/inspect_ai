@@ -401,7 +401,7 @@ class SampleBufferDatabase(SampleBuffer):
     def _get_samples(
         self,
         conn: Connection,
-        resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
+        resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> Iterator[EvalSampleSummary]:
         cursor = conn.execute(
             """
@@ -423,7 +423,7 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         after_event_id: int | None = None,
-        resolve_attachments: bool | Literal["full"] | Literal["core"] = False,
+        resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> Iterator[EventData]:
         query = """
             SELECT id, event_id, data
