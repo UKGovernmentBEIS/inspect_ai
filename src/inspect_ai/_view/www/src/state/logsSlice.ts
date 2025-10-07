@@ -18,10 +18,12 @@ export interface LogsSlice {
     // Update State
     setLogDir: (logDir?: string) => void;
     setLogFiles: (logFiles: LogFile[]) => void;
-    setLogOverviews: (overviews: Record<string, LogSummary>) => void;
-    loadLogOverviews: (logs: LogFile[]) => Promise<LogSummary[]>;
-    updateLogOverviews: (overviews: Record<string, LogSummary>) => void;
+
+    updateLogOverview: (overviews: Record<string, LogSummary>) => void;
+
+    syncLogOverviews: (logs: LogFile[]) => Promise<LogSummary[]>;
     setLogOverviewsLoading: (loading: boolean) => void;
+
     setSelectedLogIndex: (index: number) => void;
     setSelectedLogFile: (logUrl: string) => void;
 
@@ -87,11 +89,7 @@ export const createLogsSlice = (
               ? logFiles[state.logs.selectedLogIndex]?.name
               : undefined;
         }),
-      setLogOverviews: (overviews: Record<string, LogSummary>) =>
-        set((state) => {
-          state.logs.logOverviews = overviews;
-        }),
-      loadLogOverviews: async (logs: LogFile[]) => {
+      syncLogOverviews: async (logs: LogFile[]) => {
         const state = get();
         const api = state.api;
         if (!api) {
@@ -243,8 +241,9 @@ export const createLogsSlice = (
           state.logs.selectedLogFile = file ? file.name : undefined;
         });
       },
-      updateLogOverviews: (overviews: Record<string, LogSummary>) =>
+      updateLogOverview: (overviews: Record<string, LogSummary>) =>
         set((state) => {
+          // TODO: write through to the database
           state.logs.logOverviews = {
             ...get().logs.logOverviews,
             ...overviews,

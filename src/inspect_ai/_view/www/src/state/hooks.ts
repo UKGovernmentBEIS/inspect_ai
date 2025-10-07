@@ -602,17 +602,17 @@ export const useLogs = () => {
   );
 
   // Loading headers
-  const storeLoadHeaders = useStore(
-    (state) => state.logsActions.loadLogOverviews,
+  const loadLogOverviews = useStore(
+    (state) => state.logsActions.syncLogOverviews,
   );
   const existingHeaders = useStore((state) => state.logs.logOverviews);
   const allLogFiles = useStore((state) => state.logs.logFiles);
 
   const loadHeaders = useCallback(
     async (logFiles: LogFile[] = allLogFiles) => {
-      await storeLoadHeaders(logFiles);
+      await loadLogOverviews(logFiles);
     },
-    [storeLoadHeaders, allLogFiles],
+    [loadLogOverviews, allLogFiles],
   );
 
   const loadAllHeaders = useCallback(async () => {
@@ -622,9 +622,9 @@ export const useLogs = () => {
     });
 
     if (logsToLoad.length > 0) {
-      await storeLoadHeaders(logsToLoad);
+      await loadLogOverviews(logsToLoad);
     }
-  }, [storeLoadHeaders, allLogFiles, existingHeaders]);
+  }, [loadLogOverviews, allLogFiles, existingHeaders]);
 
   return { loadLogs, loadHeaders, loadAllHeaders };
 };
