@@ -2,7 +2,7 @@ import json
 import logging
 import urllib.parse
 from logging import getLogger
-from typing import Any, Awaitable, Callable, Literal, override
+from typing import Any, Awaitable, Callable, Literal
 
 import anyio
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -14,6 +14,7 @@ from starlette.status import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
 )
+from typing_extensions import override
 
 from inspect_ai._eval.evalset import read_eval_set_info
 from inspect_ai._view import notify
