@@ -6,7 +6,7 @@ import { logUrl, logUrlRaw } from "./url";
 export const useLogNavigation = () => {
   const navigate = useNavigate();
   const { logPath } = useParams<{ logPath: string }>();
-  const logs = useStore((state) => state.logs.logs);
+  const logDir = useStore((state) => state.logs.logDir);
   const loadedLog = useStore((state) => state.log.loadedLog);
 
   const selectTab = useCallback(
@@ -18,11 +18,11 @@ export const useLogNavigation = () => {
         navigate(url);
       } else if (loadedLog) {
         // Fallback to constructing the path if needed
-        const url = logUrl(loadedLog, logs.log_dir, tabId);
+        const url = logUrl(loadedLog, logDir, tabId);
         navigate(url);
       }
     },
-    [loadedLog, logPath, logs.log_dir, navigate],
+    [loadedLog, logPath, logDir, navigate],
   );
 
   return {

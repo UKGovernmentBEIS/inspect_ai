@@ -8,7 +8,7 @@ import { useStore } from "./store";
 const log = createLogger("Client-Events");
 
 export function useClientEvents() {
-  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
   const logHeaders = useStore((state) => state.logs.logOverviews);
   const api = useStore((state) => state.api);
   const { loadHeaders } = useLogs();
@@ -18,7 +18,7 @@ export function useClientEvents() {
     async (logFiles: LogFile[]) => {
       // Refresh the list of log files
       log.debug("Refresh Log Files");
-      await refreshLogs();
+      await syncLogs();
 
       const toRefresh: LogFile[] = [];
       for (const logFile of logFiles) {
@@ -34,7 +34,7 @@ export function useClientEvents() {
         await loadHeaders(toRefresh);
       }
     },
-    [logHeaders, refreshLogs, loadHeaders],
+    [logHeaders, syncLogs, loadHeaders],
   );
 
   // Update the service's refresh callback when dependencies change

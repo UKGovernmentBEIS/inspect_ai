@@ -267,7 +267,7 @@ export const useSampleMessageUrl = (
   } = useLogRouteParams();
 
   const log_file = useStore((state) => state.logs.selectedLogFile);
-  const log_dir = useStore((state) => state.logs.logs.log_dir);
+  const log_dir = useStore((state) => state.logs.logDir);
 
   let targetLogPath = urlLogPath;
   if (!targetLogPath && log_file) {
@@ -299,7 +299,7 @@ export const useSampleEventUrl = (
   } = useLogRouteParams();
 
   const log_file = useStore((state) => state.logs.selectedLogFile);
-  const log_dir = useStore((state) => state.logs.logs.log_dir);
+  const log_dir = useStore((state) => state.logs.logDir);
 
   let targetLogPath = urlLogPath;
   if (!targetLogPath && log_file) {

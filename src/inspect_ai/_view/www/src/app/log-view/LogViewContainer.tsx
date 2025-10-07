@@ -32,7 +32,6 @@ export const LogViewContainer: FC = () => {
   const setStatus = useStore((state) => state.appActions.setStatus);
   const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
 
-  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
   const selectSample = useStore((state) => state.logActions.selectSample);
   const setSelectedLogIndex = useStore(
@@ -121,7 +120,6 @@ export const LogViewContainer: FC = () => {
     logPath,
     tabId,
     selectLogFile,
-    refreshLogs,
     setWorkspaceTab,
     setSelectedLogIndex,
     setStatus,

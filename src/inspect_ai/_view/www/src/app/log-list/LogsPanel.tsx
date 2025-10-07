@@ -39,7 +39,8 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const loading = useStore((state) => state.app.status.loading);
 
   const { loadLogs } = useLogs();
-  const logs = useStore((state) => state.logs.logs);
+  const logDir = useStore((state) => state.logs.logDir);
+  const logFiles = useStore((state) => state.logs.logFiles);
   const evalSet = useStore((state) => state.logs.evalSet);
   const logHeaders = useStore((state) => state.logs.logOverviews);
   const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
@@ -59,7 +60,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const { logPath } = useLogRouteParams();
 
-  const currentDir = join(logPath || "", logs.log_dir);
+  const currentDir = join(logPath || "", logDir);
 
   // Polling for client events
   const { startPolling, stopPolling } = useClientEvents();
@@ -67,9 +68,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const { setDocumentTitle } = useDocumentTitle();
   useEffect(() => {
     setDocumentTitle({
-      logDir: logs.log_dir,
+      logDir: logDir,
     });
-  }, [setDocumentTitle, logs.log_dir]);
+  }, [setDocumentTitle, logDir]);
 
   const previousWatchedLogs = useRef<typeof watchedLogs>(undefined);
 
@@ -117,7 +118,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       const processedFolders = new Set<string>();
       const runningOrFinishedTasks = new Set<string>();
 
-      for (const logFile of logs.files) {
+      for (const logFile of logFiles) {
         // Note that this task is running or complete
         if (logFile.task_id) {
           runningOrFinishedTasks.add(logFile.task_id);
@@ -137,7 +138,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
         if (isInDirectory(name, cleanDir)) {
           // This is a file within the current directory
-          const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
+          const dirName = directoryRelativeUrl(currentDir, logDir);
           const relativePath = directoryRelativeUrl(name, currentDir);
 
           const fileOrFolderName = decodeURIComponent(rootName(relativePath));
@@ -150,7 +151,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             id: fileOrFolderName,
             name: fileOrFolderName,
             type: "file",
-            url: logUrl(path, logs.log_dir),
+            url: logUrl(path, logDir),
             logFile: logFile,
             logOverview: logHeaders[logFile.name],
           });
@@ -161,18 +162,15 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           const relativePath = directoryRelativeUrl(name, currentDir);
 
           const dirName = decodeURIComponent(rootName(relativePath));
-          const currentDirRelative = directoryRelativeUrl(
-            currentDir,
-            logs.log_dir,
-          );
+          const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
           const url = join(dirName, decodeURIComponent(currentDirRelative));
           if (!processedFolders.has(dirName)) {
             logItems.push({
               id: dirName,
               name: dirName,
               type: "folder",
-              url: logUrl(url, logs.log_dir),
-              itemCount: logs.files.filter((file) =>
+              url: logUrl(url, logDir),
+              itemCount: logFiles.filter((file) =>
                 file.name.startsWith(dirname(name)),
               ).length,
             });
@@ -200,7 +198,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       logItems.push(...pendingTasks);
 
       return logItems;
-    }, [logPath, logs.files, logHeaders, evalSet]);
+    }, [logPath, logFiles, logHeaders, evalSet]);
 
   const progress = useMemo(() => {
     let pending = 0;
