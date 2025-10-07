@@ -48,7 +48,7 @@ export interface LogSlice {
     resetFiltering: () => void;
 
     // Load log
-    loadLog: (logFileName: string) => Promise<void>;
+    syncLog: (logFileName: string) => Promise<void>;
 
     // Refresh the current log
     refreshLog: () => Promise<void>;
@@ -160,7 +160,7 @@ export const createLogSlice = (
           state.log.score = undefined;
         }),
 
-      loadLog: async (logFileName: string) => {
+      syncLog: async (logFileName: string) => {
         const state = get();
         const api = state.api;
 
