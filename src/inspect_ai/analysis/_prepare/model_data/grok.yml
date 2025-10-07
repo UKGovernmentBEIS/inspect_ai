@@ -1,4 +1,4 @@
-xAI:
+grok:
   display_name: xAI
   models:
     grok-4:
@@ -11,6 +11,26 @@ xAI:
         grok-4-0709:
           snapshot: "0709"
         grok-4-latest:
+          snapshot: latest
+    grok-4-fast-reasoning:
+      display_name: "Grok 4 Fast Reasoning"
+      release_date: 2025-09-19
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 2000000
+      reasoning: True
+      aliases:
+        - grok-4-fast
+      versions:
+        grok-4-fast-reasoning-latest:
+          snapshot: latest
+    grok-4-fast-non-reasoning:
+      display_name: "Grok 4 Fast Non-Reasoning"
+      release_date: 2025-09-19
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 2000000
+      reasoning: False
+      versions:
+        grok-4-fast-non-reasoning-latest:
           snapshot: latest
     grok-3:
       display_name: "Grok 3"
