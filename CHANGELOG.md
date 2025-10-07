@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Support for tool calls returning images (requires v2.0 of `openai` package, which is now required).
+- Anthropic: Retry requests that get an error body payload with 'internal server error'
 - Agents: Improve overload return value typing for agent `run()` function.
 - Task display: Improved reporting of errors that occur during log initialization.
 - Event API: Created new `inspect_ai.event` module with event related tyeps and functions.
