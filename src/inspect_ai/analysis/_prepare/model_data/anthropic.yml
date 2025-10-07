@@ -1,6 +1,19 @@
 anthropic:
   display_name: Anthropic
   models:
+    claude-sonnet-4-5:
+      display_name: Claude Sonnet 4.5
+      release_date: 2024-09-29
+      knowledge_cutoff_date: 2025-01-01
+      context_length: 200000
+      output_tokens: 64000
+      reasoning: True
+      versions:
+        claude-sonnet-4-5-20250929:
+          snapshot: "20250929"
+          aliases:
+            - anthropic.claude-sonnet-4-5-20250929-v1:0
+            - claude-sonnet-4-5@20250929
     claude-opus-4-1:
       display_name: Claude Opus 4.1
       release_date: 2024-08-05
