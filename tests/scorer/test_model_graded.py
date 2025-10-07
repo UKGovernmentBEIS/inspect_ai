@@ -76,7 +76,7 @@ def test_model_graded_multimodal():
     log = eval(task, model=model)[0]
 
     # confirm that the image was presented to the model for scoring
-    sample = resolve_sample_attachments(log.samples[0])
+    sample = resolve_sample_attachments(log.samples[0], "full")
     model_event = next(
         (event for event in reversed(sample.events) if event.event == "model")
     )

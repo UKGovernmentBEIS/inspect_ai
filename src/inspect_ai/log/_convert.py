@@ -131,7 +131,7 @@ async def _stream_convert_file(
         async with semaphore:
             sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
             if resolve_attachments:
-                sample = resolve_sample_attachments(sample)
+                sample = resolve_sample_attachments(sample, resolve_attachments)
             await output_recorder.log_sample(
                 log_header.eval,
                 sample,

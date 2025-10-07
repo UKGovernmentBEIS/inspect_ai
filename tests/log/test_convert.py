@@ -17,8 +17,8 @@ _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 @pytest.mark.parametrize("to", ["eval", "json"])
 @pytest.mark.parametrize(
     "resolve_attachments",
-    [True, False, "core"],
-    ids=["resolve-attachments", "no-resolve-attachments", "resolve-core-attachments"],
+    ["full", "core", False],
+    ids=["resolve-attachments", "resolve-core-attachments", "no-resolve-attachments"],
 )
 def test_convert_eval_logs(
     tmp_path: pathlib.Path,
@@ -51,7 +51,7 @@ def test_convert_eval_logs(
     sample_init_event = log.samples[0].events[0]
     assert isinstance(sample_init_event, SampleInitEvent)
     assert isinstance(sample_init_event.sample.input, str)
-    if resolve_attachments:
+    if resolve_attachments == "full":
         assert not sample_init_event.sample.input.startswith("attachment:")
     else:
         assert sample_init_event.sample.input.startswith("attachment:")
