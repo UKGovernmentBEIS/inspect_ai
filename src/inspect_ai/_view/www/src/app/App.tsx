@@ -43,7 +43,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const setLogFiles = useStore((state) => state.logsActions.setLogFiles);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
 
-  const loadLog = useStore((state) => state.logActions.loadLog);
+  const loadLog = useStore((state) => state.logActions.syncLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
 
   const setSingleFileMode = useStore(
