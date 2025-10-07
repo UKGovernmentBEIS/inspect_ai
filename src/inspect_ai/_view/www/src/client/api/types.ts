@@ -272,6 +272,7 @@ export interface LogFile {
   name: string;
   task?: string;
   task_id?: string;
+  mtime?: number;
 }
 
 export interface LogContents {
