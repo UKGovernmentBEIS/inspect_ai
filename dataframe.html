@@ -589,7 +589,8 @@ table a {
 </tr>
 </tbody>
 </table>
-<p>Each function extracts a default set of columns, however you can tailor column reading to work in whatever way you need for your analysis. Extracted dataframes can either be denormalized (e.g.&nbsp;if you want to immediately summarise or plot them) or normalised (e.g.&nbsp;if you are importing them into a SQL database).</p>
+<p>Each function extracts a default set of columns, with id fields (e.g.&nbsp;<code>eval_id</code>, <code>sample_id</code>) automatically included. Additionally, a <code>log</code> field which includes the URI of the log file read from is included.</p>
+<p>You can further tailor column reading to work in whatever way you need for your analysis. Extracted dataframes can either be denormalized (e.g.&nbsp;if you want to immediately summarise or plot them) or normalised (e.g.&nbsp;if you are importing them into a SQL database).</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -743,23 +744,23 @@ Inspect Viz
 <dl>
 <dt><code>model_organization_name</code></dt>
 <dd>
-Displayable model organization (e.g.&nbsp;OpenAI, Anthropic, etc.)
+<p>Displayable model organization (e.g.&nbsp;OpenAI, Anthropic, etc.)</p>
 </dd>
 <dt><code>model_display_name</code></dt>
 <dd>
-Displayable model name (e.g.&nbsp;Gemini Flash 2.5)
+<p>Displayable model name (e.g.&nbsp;Gemini Flash 2.5)</p>
 </dd>
 <dt><code>model_snapshot</code></dt>
 <dd>
-A snapshot (version) string, if available (e.g.&nbsp;“latest” or “20240229”)
+<p>A snapshot (version) string, if available (e.g.&nbsp;“latest” or “20240229”)</p>
 </dd>
 <dt><code>model_release_date</code></dt>
 <dd>
-The model’s release date
+<p>The model’s release date</p>
 </dd>
 <dt><code>model_knowledge_cutoff_date</code></dt>
 <dd>
-The model’s knowledge cutoff date
+<p>The model’s knowledge cutoff date</p>
 </dd>
 </dl>
 <p>Inspect includes built in support for many models (based upon the <code>model</code> string in the dataframe). If you are using models for which Inspect does not include model metadata, you may include your own model metadata (see the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> reference for additional details).</p>
@@ -786,7 +787,7 @@ The model’s knowledge cutoff date
 <h3 class="anchored" data-anchor-id="frontier">frontier()</h3>
 <p>Adds a “frontier” column to each task. The value of the “frontier” column will be <code>True</code> if for the task, the model was the top-scoring model among all models available at the moment the model was released; otherwise it will be <code>False</code>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#frontier">frontier()</a></span> requires scores and model release dates, so must be run after the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#model_info">model_info()</a></span> operation.</p>
-<div id="21fda0ad" class="cell">
+<div id="acc42d0c" class="cell">
 <div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    evals_df, frontier, log_viewer, model_info, prepare</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -802,7 +803,7 @@ The model’s knowledge cutoff date
 <h3 class="anchored" data-anchor-id="score_to_float">score_to_float()</h3>
 <p>Converts one or more score columns to a float representation of the score.</p>
 <p>For each column specified, this operation will convert the values to floats using the provided <code>value_to_float</code> function. The column value will be replaced with the float value.</p>
-<div id="fa634f95" class="cell">
+<div id="450e5f3d" class="cell">
 <div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    samples_df, frontier, model_info, prepare, score_to_float</span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -946,6 +947,7 @@ The model’s knowledge cutoff date
 </tr>
 </tbody>
 </table>
+<p>The <code>eval_id</code> field is automatically included in all eval data frames. Additionally, a <code>log</code> field which includes the URI of the log file read from is included.</p>
 <section id="multi-columns" class="level4">
 <h4 class="anchored" data-anchor-id="multi-columns">Multi-Columns</h4>
 <p>The <code>task_args</code> dictionary and eval scores data structure are both expanded into multiple columns by default:</p>
@@ -1003,6 +1005,7 @@ The model’s knowledge cutoff date
 <span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"limit"</span>, path<span class="op">=</span><span class="st">"limit"</span>),</span>
 <span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"retries"</span>, path<span class="op">=</span><span class="st">"retries"</span>),</span>
 <span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>eval_id</code> and <code>sample_id</code> fields are automatically included in all sample data frames. Additionally, a <code>log</code> field which includes the URI of the log file read from is included.</p>
 <p>By default, only score values are included in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span> columns. If you want to additional read the score answer, metadata, and explanation then use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplescores">SampleScores</a></span> column group. For example:</p>
 <div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis <span class="im">import</span> (</span>
 <span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    SampleScores, SampleSummary, samples_df</span>
@@ -1098,6 +1101,7 @@ The model’s knowledge cutoff date
 <span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>,</span>
 <span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EvalModel <span class="op">+</span> MessageColumns             </span>
 <span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Additionally, a <code>log</code> field which includes the URI of the log file read from is included.</p>
 </section>
 <section id="custom-extraction-2" class="level4">
 <h4 class="anchored" data-anchor-id="custom-extraction-2">Custom Extraction</h4>
@@ -1150,6 +1154,7 @@ The model’s knowledge cutoff date
 </tr>
 </tbody>
 </table>
+<p>The <code>eval_id</code>, <code>sample_id</code>, and <code>event_id</code> fields are automatically included in all event data frames. Additionally, a <code>log</code> field which includes the URI of the log file read from is included.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#events_df">events_df()</a></span> function also takes a <code>filter</code> parameter which can provide a function that performs filtering. For example, to read all model events:</p>
 <div class="sourceCode" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_event_filter(event: Event) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
 <span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> event.event <span class="op">==</span> <span class="st">"model"</span></span>

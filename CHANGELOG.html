@@ -147,8 +147,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#october-2025" id="toc-october-2025" class="nav-link" data-scroll-target="#october-2025">0.3.136 (02 October 2025)</a></li>
+  <li><a href="#october-2025" id="toc-october-2025" class="nav-link active" data-scroll-target="#october-2025">0.3.137 (07 October 2025)</a></li>
+  <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.136 (02 October 2025)</a></li>
   <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.135 (29 September 2025)</a></li>
   <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.134 (27 September 2025)</a></li>
   <li><a href="#september-2025-2" id="toc-september-2025-2" class="nav-link" data-scroll-target="#september-2025-2">0.3.133 (22 September 2025)</a></li>
@@ -292,18 +292,28 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="october-2025" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025">0.3.137 (07 October 2025)</h2>
 <ul>
 <li>OpenAI: Support for tool calls returning images (requires v2.0 of <code>openai</code> package, which is now required).</li>
+<li>Anthropic: Retry requests that get an error body payload with ‘internal server error’</li>
 <li>Agents: Improve overload return value typing for agent <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> function.</li>
+<li>Task display: Improved reporting of errors that occur during log initialization.</li>
+<li>Event API: Created new <code>inspect_ai.event</code> module with event related tyeps and functions.</li>
+<li>Model API: Use context var for managing background task group.</li>
+<li>Model API: Add canonical model naming for consistent querying across service routing prefixes (vertex/, azure/, bedrock/).</li>
+<li>Inspect View: Properly truncate sample input and and target (in sample header) even when it contains large pre-formatted text blocks.</li>
 <li>Dependencies: Update to fsspec 2025.9.0 to match upper bound of HF datasets.</li>
 <li>Dependencies: Allow any version of <code>rich</code> &gt; 13.3.3 save for 14.0.0 (which had an infinite recursion bug affecting stack traces with exception groups).</li>
 <li>Dependencies: Unpin textual dependency (was &lt;= 4.0.0 is now &gt;=2.1.0) as we have mitigated layout issue we saw in 4.0.0.</li>
+<li>Bugfix: Honor <code>resolve_attachments</code> in score command when <code>stream=True</code>.</li>
+<li>Bugfix: Allow cancellation errors to propagate when <code>fail_on_error=False</code>.</li>
+<li>Bugfix: text_editor tool now supports relative file paths.</li>
+<li>Bugfix: Fix crash when determining tool_param based on type hint of Any in Python 3.10 w/Pydantic 2.12.0.</li>
 </ul>
 </section>
-<section id="october-2025" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025">0.3.136 (02 October 2025)</h2>
+<section id="october-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-1">0.3.136 (02 October 2025)</h2>
 <ul>
 <li>Google: Manage Google client lifetime to scope of call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
 <li>Eval logs: Add message count tracking to evaluation logs for quick analysis without loading full samples.</li>
@@ -672,8 +682,8 @@ ul.task-list li input[type="checkbox"] {
 <li><a href="https://inspect.aisi.org.uk/providers.html#transformer-lens">TransformerLens</a> model provider enabling use of <code>HookedTransformer</code> models with Inspect.</li>
 <li>Web search: Added support for Grok as an internal search provider.</li>
 <li>Google: Set <code>thought=True</code> on content when replaying <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentreasoning">ContentReasoning</a></span> back to the model.</li>
-<li>Transcript: Add globally unique <code>uuid</code> field and <code>metadata</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#event">Event</a></span>.</li>
-<li>Transcript: Add <code>message_id</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#toolevent">ToolEvent</a></span> for corresponding <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span>.</li>
+<li>Transcript: Add globally unique <code>uuid</code> field and <code>metadata</code> field to <code>Event</code>.</li>
+<li>Transcript: Add <code>message_id</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#toolevent">ToolEvent</a></span> for corresponding <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span>.</li>
 <li>Eval log: Add option to select sample by <code>uuid</code> in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_sample">read_eval_log_sample()</a></span>.</li>
 <li>ReAct agent: Add <code>keep_in_messages</code> option to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentsubmit">AgentSubmit</a></span> to preserve calls to <code>submit()</code> in message history.</li>
 <li>Scoring: Change <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#value">Value</a></span> type to use covariant types (<code>Mapping</code> and <code>Sequence</code>).</li>
@@ -1301,7 +1311,7 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="v0.3.70-25-february-2025">v0.3.70 (25 February 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/errors_and_limits.html#working-limit">working_limit</a> option for specifying a maximum working time (e.g.&nbsp;model generation, tool calls, etc.) for samples.</li>
-<li>Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#sandboxevent">SandboxEvent</a></span> to transcript for recording sandbox execution and I/O.</li>
+<li>Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#sandboxevent">SandboxEvent</a></span> to transcript for recording sandbox execution and I/O.</li>
 <li>Sandboxes: <code>as_type()</code> function for checked downcasting of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span></li>
 <li>Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).</li>
 <li>Only explicitly set <code>state.completed=True</code> when entering scoring (<code>basic_agent()</code> no longer sets <code>completed</code> so can be used in longer compositions of solvers).</li>
@@ -1380,8 +1390,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Use a sample adjustment for the <code>var()</code> metric.</li>
 <li>Google: Speculative fix for completion candidates not being returned as a list.</li>
 <li>Python and Bash tools: Add <code>sandbox</code> argument for running in non-default sandboxes.</li>
-<li>Transcript: Log <code>ScoreEvent</code> (with <code>intermediate=True</code>) when the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">score()</a></span> function is called.</li>
-<li>Transcript: Add <code>source</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#infoevent">InfoEvent</a></span> and use it for events logged by the human agent.</li>
+<li>Transcript: Log <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#scoreevent">ScoreEvent</a></span> (with <code>intermediate=True</code>) when the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">score()</a></span> function is called.</li>
+<li>Transcript: Add <code>source</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#infoevent">InfoEvent</a></span> and use it for events logged by the human agent.</li>
 <li>Docker: Support Dockerfiles with <code>.Dockerfile</code> extension.</li>
 <li>Docker: Raise error when there is an explicitly configured <code>container_name</code> (incompatible with epochs &gt; 1).</li>
 <li>Docker: Dynamically set <code>compose up</code> timeout when there are <code>healthcheck</code> entries for services.</li>
@@ -1912,7 +1922,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Improve scorer names imported from modules by not including the the module names.</li>
 <li>Don’t mark messages read from cache with source=“cache” (as this breaks the cache key)</li>
 <li>Add <code>cache</code> argument to <code>basic_agent()</code> for specifying cache policy for the agent.</li>
-<li>Add <code>cache</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#modelevent">ModelEvent</a></span> to track cache reads and writes.</li>
+<li>Add <code>cache</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#modelevent">ModelEvent</a></span> to track cache reads and writes.</li>
 <li>Compatibility with Mistral v1.1 client (now required for Mistral).</li>
 <li>Catch and propagate Anthropic content filter exceptions as normal “content_filter” responses.</li>
 <li>Fix issue with failure to report metrics if all samples had a score value of 0.</li>

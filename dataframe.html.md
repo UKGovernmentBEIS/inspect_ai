@@ -30,11 +30,15 @@ including:
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
 | [events_df()](#events) | Event level data (type, timing, content, etc.). One row per event, where each sample contains many events. |
 
-Each function extracts a default set of columns, however you can tailor
-column reading to work in whatever way you need for your analysis.
-Extracted dataframes can either be denormalized (e.g. if you want to
-immediately summarise or plot them) or normalised (e.g. if you are
-importing them into a SQL database).
+Each function extracts a default set of columns, with id fields
+(e.g. `eval_id`, `sample_id`) automatically included. Additionally, a
+`log` field which includes the URI of the log file read from is
+included.
+
+You can further tailor column reading to work in whatever way you need
+for your analysis. Extracted dataframes can either be denormalized
+(e.g. if you want to immediately summarise or plot them) or normalised
+(e.g. if you are importing them into a SQL database).
 
 > [!NOTE]
 >
@@ -503,6 +507,10 @@ these include:
 | `EvalResults` | Status, errors, samples completed, headline metric. |
 | `EvalScores` | All scores and metrics broken into separate columns. |
 
+The `eval_id` field is automatically included in all eval data frames.
+Additionally, a `log` field which includes the URI of the log file read
+from is included.
+
 #### Multi-Columns
 
 The `task_args` dictionary and eval scores data structure are both
@@ -589,6 +597,10 @@ SampleSummary: list[Column] = [
     SampleColumn("retries", path="retries"),
 ]
 ```
+
+The `eval_id` and `sample_id` fields are automatically included in all
+sample data frames. Additionally, a `log` field which includes the URI
+of the log file read from is included.
 
 By default, only score values are included in the `SampleSummary`
 columns. If you want to additional read the score answer, metadata, and
@@ -761,6 +773,9 @@ messages = messages_df(
 )
 ```
 
+Additionally, a `log` field which includes the URI of the log file read
+from is included.
+
 #### Custom Extraction
 
 Two of the fields above are resolved using custom extraction functions
@@ -802,6 +817,10 @@ columns from the following pre-built groups:
 | `EventTiming` | Start and end times (both clock time and working time) |
 | `ModelEventColumns` | Read data from model events. |
 | `ToolEventColumns` | Read data from tool events. |
+
+The `eval_id`, `sample_id`, and `event_id` fields are automatically
+included in all event data frames. Additionally, a `log` field which
+includes the URI of the log file read from is included.
 
 The `events_df()` function also takes a `filter` parameter which can
 provide a function that performs filtering. For example, to read all

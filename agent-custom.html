@@ -741,7 +741,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>            state.messages, tools<span class="op">=</span>web_browser(instance<span class="op">=</span>instance)</span>
 <span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>        )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Then, pass a unique id as the <code>instance</code>:</p>
-<div id="ff565ed0" class="cell">
+<div id="17e33235" class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>react(..., tools<span class="op">=</span>[web_surfer(instance<span class="op">=</span>uuid())])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -868,7 +868,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>This information is provided within the Inspect log viewer in the <strong>Transcript</strong> tab (which sits alongside the Messages, Scoring, and Metadata tabs in the per-sample display).</p>
 <section id="custom-info" class="level3">
 <h3 class="anchored" data-anchor-id="custom-info">Custom Info</h3>
-<p>You can insert custom entries into the transcript via the Transcript <code>info()</code> method (which creates an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#infoevent">InfoEvent</a></span>). Access the transcript for the current sample using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#transcript">transcript()</a></span> function, for example:</p>
+<p>You can insert custom entries into the transcript via the Transcript <code>info()</code> method (which creates an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#infoevent">InfoEvent</a></span>). Access the transcript for the current sample using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#transcript">transcript()</a></span> function, for example:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"here is some custom info"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -883,7 +883,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>There are two reasons that you might want to create spans:</p>
 <ol type="1">
-<li>Any changes to the store which occur during a span will be collected into a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#storeevent">StoreEvent</a></span> that records the changes (in <a href="https://jsonpatch.com/">JSON Patch</a> format) that occurred.</li>
+<li>Any changes to the store which occur during a span will be collected into a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#storeevent">StoreEvent</a></span> that records the changes (in <a href="https://jsonpatch.com/">JSON Patch</a> format) that occurred.</li>
 <li>The Inspect log viewer will create a visual delineation for the span, which will make it easier to see the flow of activity within the transcript.</li>
 </ol>
 <p>Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.</p>

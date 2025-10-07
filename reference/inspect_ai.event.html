@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>inspect_ai.solver – Inspect</title>
+<title>inspect_ai.event – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -65,8 +65,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../reference/inspect_ai.solver.qmd#generate" rel="next">
-<link href="../reference/inspect_ai.qmd#view" rel="prev">
+<link href="../reference/inspect_ai.event.qmd#modelevent" rel="next">
+<link href="../reference/inspect_ai.analysis.qmd#columnerror" rel="prev">
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -179,7 +179,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.solver.html">inspect_ai.solver</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.event.html">inspect_ai.event</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -285,13 +285,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link active">
+            <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.solver</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 show">  
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
@@ -1836,13 +1836,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.event.html" class="sidebar-item-text sidebar-link">
+            <a href="../reference/inspect_ai.event.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">inspect_ai.event</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.event.html#modelevent" class="sidebar-item-text sidebar-link">
@@ -2394,36 +2394,39 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#generation" id="toc-generation" class="nav-link active" data-scroll-target="#generation">Generation</a>
+  <li><a href="#core-events" id="toc-core-events" class="nav-link active" data-scroll-target="#core-events">Core Events</a>
   <ul class="collapse">
-  <li><a href="#generate" id="toc-generate" class="nav-link" data-scroll-target="#generate">generate</a></li>
-  <li><a href="#use_tools" id="toc-use_tools" class="nav-link" data-scroll-target="#use_tools">use_tools</a></li>
+  <li><a href="#modelevent" id="toc-modelevent" class="nav-link" data-scroll-target="#modelevent">ModelEvent</a></li>
+  <li><a href="#toolevent" id="toc-toolevent" class="nav-link" data-scroll-target="#toolevent">ToolEvent</a></li>
+  <li><a href="#approvalevent" id="toc-approvalevent" class="nav-link" data-scroll-target="#approvalevent">ApprovalEvent</a></li>
+  <li><a href="#sandboxevent" id="toc-sandboxevent" class="nav-link" data-scroll-target="#sandboxevent">SandboxEvent</a></li>
+  <li><a href="#infoevent" id="toc-infoevent" class="nav-link" data-scroll-target="#infoevent">InfoEvent</a></li>
+  <li><a href="#loggerevent" id="toc-loggerevent" class="nav-link" data-scroll-target="#loggerevent">LoggerEvent</a></li>
+  <li><a href="#errorevent" id="toc-errorevent" class="nav-link" data-scroll-target="#errorevent">ErrorEvent</a></li>
+  <li><a href="#spanbeginevent" id="toc-spanbeginevent" class="nav-link" data-scroll-target="#spanbeginevent">SpanBeginEvent</a></li>
+  <li><a href="#spanendevent" id="toc-spanendevent" class="nav-link" data-scroll-target="#spanendevent">SpanEndEvent</a></li>
   </ul></li>
-  <li><a href="#prompting" id="toc-prompting" class="nav-link" data-scroll-target="#prompting">Prompting</a>
+  <li><a href="#event-tree" id="toc-event-tree" class="nav-link" data-scroll-target="#event-tree">Event Tree</a>
   <ul class="collapse">
-  <li><a href="#prompt_template" id="toc-prompt_template" class="nav-link" data-scroll-target="#prompt_template">prompt_template</a></li>
-  <li><a href="#system_message" id="toc-system_message" class="nav-link" data-scroll-target="#system_message">system_message</a></li>
-  <li><a href="#user_message" id="toc-user_message" class="nav-link" data-scroll-target="#user_message">user_message</a></li>
-  <li><a href="#assistant_message" id="toc-assistant_message" class="nav-link" data-scroll-target="#assistant_message">assistant_message</a></li>
-  <li><a href="#chain_of_thought" id="toc-chain_of_thought" class="nav-link" data-scroll-target="#chain_of_thought">chain_of_thought</a></li>
-  <li><a href="#self_critique" id="toc-self_critique" class="nav-link" data-scroll-target="#self_critique">self_critique</a></li>
-  <li><a href="#multiple_choice" id="toc-multiple_choice" class="nav-link" data-scroll-target="#multiple_choice">multiple_choice</a></li>
+  <li><a href="#event_tree" id="toc-event_tree" class="nav-link" data-scroll-target="#event_tree">event_tree</a></li>
+  <li><a href="#event_sequence" id="toc-event_sequence" class="nav-link" data-scroll-target="#event_sequence">event_sequence</a></li>
+  <li><a href="#eventtree" id="toc-eventtree" class="nav-link" data-scroll-target="#eventtree">EventTree</a></li>
+  <li><a href="#eventnode" id="toc-eventnode" class="nav-link" data-scroll-target="#eventnode">EventNode</a></li>
+  <li><a href="#spannode" id="toc-spannode" class="nav-link" data-scroll-target="#spannode">SpanNode</a></li>
   </ul></li>
-  <li><a href="#composition" id="toc-composition" class="nav-link" data-scroll-target="#composition">Composition</a>
+  <li><a href="#eval-events" id="toc-eval-events" class="nav-link" data-scroll-target="#eval-events">Eval Events</a>
   <ul class="collapse">
-  <li><a href="#chain" id="toc-chain" class="nav-link" data-scroll-target="#chain">chain</a></li>
-  <li><a href="#fork" id="toc-fork" class="nav-link" data-scroll-target="#fork">fork</a></li>
+  <li><a href="#sampleinitevent" id="toc-sampleinitevent" class="nav-link" data-scroll-target="#sampleinitevent">SampleInitEvent</a></li>
+  <li><a href="#samplelimitevent" id="toc-samplelimitevent" class="nav-link" data-scroll-target="#samplelimitevent">SampleLimitEvent</a></li>
+  <li><a href="#stateevent" id="toc-stateevent" class="nav-link" data-scroll-target="#stateevent">StateEvent</a></li>
+  <li><a href="#storeevent" id="toc-storeevent" class="nav-link" data-scroll-target="#storeevent">StoreEvent</a></li>
+  <li><a href="#inputevent" id="toc-inputevent" class="nav-link" data-scroll-target="#inputevent">InputEvent</a></li>
+  <li><a href="#scoreevent" id="toc-scoreevent" class="nav-link" data-scroll-target="#scoreevent">ScoreEvent</a></li>
   </ul></li>
   <li><a href="#types" id="toc-types" class="nav-link" data-scroll-target="#types">Types</a>
   <ul class="collapse">
-  <li><a href="#solver" id="toc-solver" class="nav-link" data-scroll-target="#solver">Solver</a></li>
-  <li><a href="#solverspec" id="toc-solverspec" class="nav-link" data-scroll-target="#solverspec">SolverSpec</a></li>
-  <li><a href="#taskstate" id="toc-taskstate" class="nav-link" data-scroll-target="#taskstate">TaskState</a></li>
-  <li><a href="#generate-1" id="toc-generate-1" class="nav-link" data-scroll-target="#generate-1">Generate</a></li>
-  </ul></li>
-  <li><a href="#decorators" id="toc-decorators" class="nav-link" data-scroll-target="#decorators">Decorators</a>
-  <ul class="collapse">
-  <li><a href="#solver-1" id="toc-solver-1" class="nav-link" data-scroll-target="#solver-1">solver</a></li>
+  <li><a href="#logginglevel" id="toc-logginglevel" class="nav-link" data-scroll-target="#logginglevel">LoggingLevel</a></li>
+  <li><a href="#loggingmessage" id="toc-loggingmessage" class="nav-link" data-scroll-target="#loggingmessage">LoggingMessage</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -2431,9 +2434,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.solver.html">inspect_ai.solver</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.event.html">inspect_ai.event</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">inspect_ai.solver</h1>
+<h1 class="title">inspect_ai.event</h1>
 </div>
 
 
@@ -2450,536 +2453,661 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="generation" class="level2">
-<h2 class="anchored" data-anchor-id="generation">Generation</h2>
-<section id="generate" class="level3">
-<h3 class="anchored" data-anchor-id="generate">generate</h3>
-<p>Generate output from the model and append it to task message history.</p>
-<p>generate() is the default solver if none is specified for a given task.</p>
+<section id="core-events" class="level2">
+<h2 class="anchored" data-anchor-id="core-events">Core Events</h2>
+<section id="modelevent" class="level3">
+<h3 class="anchored" data-anchor-id="modelevent">ModelEvent</h3>
+<p>Call to a language model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_solver.py#L261">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_model.py#L16">Source</a>
 </div>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate(</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    tool_calls: Literal[<span class="st">"loop"</span>, <span class="st">"single"</span>, <span class="st">"none"</span>] <span class="op">=</span> <span class="st">"loop"</span>,</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code class="ref-definition">tool_calls</code> <span class="element-type"><span class="element-type-name">Literal</span>['loop', 'single', 'none']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['model']</span></dt>
 <dd>
-<p>Resolve tool calls: - <code>"loop"</code> resolves tools calls and then invokes <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span>, proceeding in a loop which terminates when there are no more tool calls or <code>message_limit</code> or <code>token_limit</code> is exceeded. This is the default behavior. - <code>"single"</code> resolves at most a single set of tool calls and then returns. - <code>"none"</code> does not resolve tool calls at all (in this case you will need to invoke <code>call_tools()</code> directly).</p>
+<p>Event type.</p>
 </dd>
-<dt><code class="ref-definition">cache</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name"><a href="../reference/inspect_ai.model.html#cachepolicy">CachePolicy</a></span></span></dt>
+<dt><code class="ref-definition">model</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
-<p>(bool | CachePolicy): Caching behaviour for generate responses (defaults to no caching).</p>
+<p>Model name.</p>
 </dd>
-<dt><code class="ref-definition">**kwargs</code> <span class="element-type"><span class="element-type-name">Unpack</span>[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfigargs">GenerateConfigArgs</a></span>]</span></dt>
+<dt><code class="ref-definition">role</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Optional generation config arguments.</p>
+<p>Model role.</p>
 </dd>
-</dl>
-</section>
-<section id="use_tools" class="level3">
-<h3 class="anchored" data-anchor-id="use_tools">use_tools</h3>
-<p>Inject tools into the task state to be used in generate().</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_use_tools.py#L11">Source</a>
-</div>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> use_tools(</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>tools: Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolSource <span class="op">|</span> Sequence[Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolSource],</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    tool_choice: ToolChoice <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="st">"auto"</span>,</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    append: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">*tools</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#tool">Tool</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.tool.html#tooldef">ToolDef</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolsource">ToolSource</a></span> | <span class="element-type-name">Sequence</span>[<span class="element-type-name"><a href="../reference/inspect_ai.tool.html#tool">Tool</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.tool.html#tooldef">ToolDef</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolsource">ToolSource</a></span>]</span></dt>
+<dt><code class="ref-definition">input</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
-<p>One or more tools or lists of tools to make available to the model. If no tools are passed, then no change to the currently available set of <code>tools</code> is made.</p>
+<p>Model input (list of messages).</p>
 </dd>
-<dt><code class="ref-definition">tool_choice</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolchoice">ToolChoice</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">tools</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolinfo">ToolInfo</a></span>]</span></dt>
 <dd>
-<p>Directive indicating which tools the model should use. If <code>None</code> is passed, then no change to <code>tool_choice</code> is made.</p>
+<p>Tools available to the model.</p>
 </dd>
-<dt><code class="ref-definition">append</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">tool_choice</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolchoice">ToolChoice</a></span></span></dt>
 <dd>
-<p>If <code>True</code>, then the passed-in tools are appended to the existing tools; otherwise any existing tools are replaced (the default)</p>
+<p>Directive to the model which tools to prefer.</p>
 </dd>
-</dl>
-</section>
-</section>
-<section id="prompting" class="level2">
-<h2 class="anchored" data-anchor-id="prompting">Prompting</h2>
-<section id="prompt_template" class="level3">
-<h3 class="anchored" data-anchor-id="prompt_template">prompt_template</h3>
-<p>Parameterized prompt template.</p>
-<p>Prompt template containing a <code>{prompt}</code> placeholder and any number of additional <code>params</code>. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_prompt.py#L17">Source</a>
-</div>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_template(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">template</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">config</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span></span></dt>
 <dd>
-<p>Template for prompt.</p>
+<p>Generate config used for call to model.</p>
 </dd>
-<dt><code class="ref-definition">**params</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dt><code class="ref-definition">output</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span></span></dt>
 <dd>
-<p>Parameters to fill into the template.</p>
+<p>Output from model.</p>
 </dd>
-</dl>
-</section>
-<section id="system_message" class="level3">
-<h3 class="anchored" data-anchor-id="system_message">system_message</h3>
-<p>Solver which inserts a system message into the conversation.</p>
-<p>System message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
-<p>The new message will go after other system messages (if there are none it will be inserted at the beginning of the conversation).</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_prompt.py#L45">Source</a>
-</div>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> system_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">template</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">retries</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Template for system message.</p>
+<p>Retries for the model API request.</p>
 </dd>
-<dt><code class="ref-definition">**params</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dt><code class="ref-definition">error</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Parameters to fill into the template.</p>
+<p>Error which occurred during model call.</p>
 </dd>
-</dl>
-</section>
-<section id="user_message" class="level3">
-<h3 class="anchored" data-anchor-id="user_message">user_message</h3>
-<p>Solver which inserts a user message into the conversation.</p>
-<p>User message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_prompt.py#L77">Source</a>
-</div>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> user_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">template</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">cache</code> <span class="element-type"><span class="element-type-name">Literal</span>['read', 'write'] | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Template for user message.</p>
+<p>Was this a cache read or write.</p>
 </dd>
-<dt><code class="ref-definition">**params</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dt><code class="ref-definition">call</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#modelcall">ModelCall</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Parameters to fill into the template.</p>
+<p>Raw call made to model API.</p>
 </dd>
-</dl>
-</section>
-<section id="assistant_message" class="level3">
-<h3 class="anchored" data-anchor-id="assistant_message">assistant_message</h3>
-<p>Solver which inserts an assistant message into the conversation.</p>
-<p>Assistant message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_prompt.py#L104">Source</a>
-</div>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> assistant_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">template</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">completed</code> <span class="element-type">datetime | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Template for assistant message.</p>
+<p>Time that model call completed (see <code>timestamp</code> for started)</p>
 </dd>
-<dt><code class="ref-definition">**params</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dt><code class="ref-definition">working_time</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Parameters to fill into the template.</p>
-</dd>
-</dl>
-</section>
-<section id="chain_of_thought" class="level3">
-<h3 class="anchored" data-anchor-id="chain_of_thought">chain_of_thought</h3>
-<p>Solver which modifies the user prompt to encourage chain of thought.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_prompt.py#L142">Source</a>
-</div>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain_of_thought(template: <span class="bu">str</span> <span class="op">=</span> DEFAULT_COT_TEMPLATE) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">template</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
-<dd>
-<p>String or path to file containing CoT template. The template uses a single variable: <code>prompt</code>.</p>
-</dd>
-</dl>
-</section>
-<section id="self_critique" class="level3">
-<h3 class="anchored" data-anchor-id="self_critique">self_critique</h3>
-<p>Solver which uses a model to critique the original answer.</p>
-<p>The <code>critique_template</code> is used to generate a critique and the <code>completion_template</code> is used to play that critique back to the model for an improved response. Note that you can specify an alternate <code>model</code> for critique (you don’t need to use the model being evaluated).</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_critique.py#L13">Source</a>
-</div>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> self_critique(</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    critique_template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    completion_template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">critique_template</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>String or path to file containing critique template. The template uses two variables: <code>question</code> and <code>completion</code>. Variables from sample <code>metadata</code> are also available in the template.</p>
-</dd>
-<dt><code class="ref-definition">completion_template</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>String or path to file containing completion template. The template uses three variables: <code>question</code>, <code>completion</code>, and <code>critique</code></p>
-</dd>
-<dt><code class="ref-definition">model</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.model.html#model">Model</a></span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Alternate model to be used for critique (by default the model being evaluated is used).</p>
-</dd>
-</dl>
-</section>
-<section id="multiple_choice" class="level3">
-<h3 class="anchored" data-anchor-id="multiple_choice">multiple_choice</h3>
-<p>Multiple choice question solver. Formats a multiple choice question prompt, then calls <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span>.</p>
-<p>Note that due to the way this solver works, it has some constraints:</p>
-<ol type="1">
-<li>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> must have the <code>choices</code> attribute set.</li>
-<li>The only built-in compatible scorer is the <code>choice</code> scorer.</li>
-<li>It calls <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span> internally, so you don’t need to call it again</li>
-</ol>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_multiple_choice.py#L235">Source</a>
-</div>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multiple_choice(</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    cot: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    multiple_correct: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    max_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[DeprecatedArgs],</span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">template</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Template to use for the multiple choice question. The defaults vary based on the options and are taken from the <code>MultipleChoiceTemplate</code> enum. The template will have questions and possible answers substituted into it before being sent to the model. Consequently it requires three specific template variables:</p>
-<ul>
-<li><code>{question}</code>: The question to be asked.</li>
-<li><code>{choices}</code>: The choices available, which will be formatted as a list of A) … B) … etc. before sending to the model.</li>
-<li><code>{letters}</code>: (optional) A string of letters representing the choices, e.g. “A,B,C”. Used to be explicit to the model about the possible answers.</li>
-</ul>
-</dd>
-<dt><code class="ref-definition">cot</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
-<dd>
-<p>Default <code>False</code>. Whether the solver should perform chain-of-thought reasoning before answering. NOTE: this has no effect if you provide a custom template.</p>
-</dd>
-<dt><code class="ref-definition">multiple_correct</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
-<dd>
-<p>Default <code>False</code>. Whether to allow multiple answers to the multiple choice question. For example, “What numbers are squares? A) 3, B) 4, C) 9” has multiple correct answers, B and C. Leave as <code>False</code> if there’s exactly one correct answer from the choices available. NOTE: this has no effect if you provide a custom template.</p>
-</dd>
-<dt><code class="ref-definition">max_tokens</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Default <code>None</code>. Controls the number of tokens generated through the call to generate().</p>
-</dd>
-<dt><code class="ref-definition">**kwargs</code> <span class="element-type"><span class="element-type-name">Unpack</span>[<span class="element-type-name">DeprecatedArgs</span>]</span></dt>
-<dd>
-<p>Deprecated arguments for backward compatibility.</p>
+<p>working time for model call that succeeded (i.e.&nbsp;was not retried).</p>
 </dd>
 </dl>
 </section>
 </section>
-<section id="composition" class="level2">
-<h2 class="anchored" data-anchor-id="composition">Composition</h2>
-<section id="chain" class="level3">
-<h3 class="anchored" data-anchor-id="chain">chain</h3>
-<p>Compose a solver from multiple other solvers and/or agents.</p>
-<p>Solvers are executed in turn, and a solver step event is added to the transcript for each. If a solver returns a state with <code>completed=True</code>, the chain is terminated early.</p>
+<section id="toolevent" class="level3">
+<h3 class="anchored" data-anchor-id="toolevent">ToolEvent</h3>
+<p>Call to a tool.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_chain.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_tool.py#L12">Source</a>
 </div>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain(</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>solvers: Solver <span class="op">|</span> Agent <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> <span class="bu">list</span>[Solver <span class="op">|</span> Agent],</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code class="ref-definition">*solvers</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.solver.html#solver">Solver</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.agent.html#agent">Agent</a></span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.solver.html#solver">Solver</a></span>] | list[<span class="element-type-name"><a href="../reference/inspect_ai.solver.html#solver">Solver</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.agent.html#agent">Agent</a></span>]</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['tool']</span></dt>
 <dd>
-<p>One or more solvers or agents to chain together.</p>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">Literal</span>['function']</span></dt>
+<dd>
+<p>Type of tool call (currently only ‘function’)</p>
+</dd>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Unique identifier for tool call.</p>
+</dd>
+<dt><code class="ref-definition">function</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Function called.</p>
+</dd>
+<dt><code class="ref-definition">arguments</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">JsonValue</span>]</span></dt>
+<dd>
+<p>Arguments to function.</p>
+</dd>
+<dt><code class="ref-definition">view</code> <span class="element-type"><span class="element-type-name">ToolCallContent</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Custom view of tool call input.</p>
+</dd>
+<dt><code class="ref-definition">result</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolresult">ToolResult</a></span></span></dt>
+<dd>
+<p>Function return value.</p>
+</dd>
+<dt><code class="ref-definition">truncated</code> <span class="element-type">tuple[<span class="element-type-name">int</span>, <span class="element-type-name">int</span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Bytes truncated (from,to) if truncation occurred</p>
+</dd>
+<dt><code class="ref-definition">error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolcallerror">ToolCallError</a></span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Error that occurred during tool call.</p>
+</dd>
+<dt><code class="ref-definition">completed</code> <span class="element-type">datetime | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Time that tool call completed (see <code>timestamp</code> for started)</p>
+</dd>
+<dt><code class="ref-definition">working_time</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Working time for tool call (i.e.&nbsp;time not spent waiting on semaphores).</p>
+</dd>
+<dt><code class="ref-definition">agent</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Name of agent if the tool call was an agent handoff.</p>
+</dd>
+<dt><code class="ref-definition">failed</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Did the tool call fail with a hard error?.</p>
+</dd>
+<dt><code class="ref-definition">message_id</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Id of ChatMessageTool associated with this event.</p>
+</dd>
+<dt><code class="ref-definition">cancelled</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dd>
+<p>Was the task cancelled?</p>
 </dd>
 </dl>
 </section>
-<section id="fork" class="level3">
-<h3 class="anchored" data-anchor-id="fork">fork</h3>
-<p>Fork the TaskState and evaluate it against multiple solvers in parallel.</p>
-<p>Run several solvers against independent copies of a TaskState. Each Solver gets its own copy of the TaskState and is run (in parallel) in an independent Subtask (meaning that is also has its own independent Store that doesn’t affect the Store of other subtasks or the parent).</p>
+</section>
+<section id="approvalevent" class="level3">
+<h3 class="anchored" data-anchor-id="approvalevent">ApprovalEvent</h3>
+<p>Tool approval.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_fork.py#L25">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_approval.py#L9">Source</a>
 </div>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> fork(</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    state: TaskState, solvers: Solver <span class="op">|</span> <span class="bu">list</span>[Solver]</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> TaskState <span class="op">|</span> <span class="bu">list</span>[TaskState]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApprovalEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code class="ref-definition">state</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['approval']</span></dt>
 <dd>
-<p>Beginning TaskState</p>
+<p>Event type</p>
 </dd>
-<dt><code class="ref-definition">solvers</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.solver.html#solver">Solver</a></span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.solver.html#solver">Solver</a></span>]</span></dt>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
-<p>Solvers to apply on the TaskState. Each Solver will get a standalone copy of the TaskState.</p>
+<p>Message generated by model along with tool call.</p>
+</dd>
+<dt><code class="ref-definition">call</code> <span class="element-type"><span class="element-type-name">ToolCall</span></span></dt>
+<dd>
+<p>Tool call being approved.</p>
+</dd>
+<dt><code class="ref-definition">view</code> <span class="element-type"><span class="element-type-name">ToolCallView</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>View presented for approval.</p>
+</dd>
+<dt><code class="ref-definition">approver</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Aprover name.</p>
+</dd>
+<dt><code class="ref-definition">decision</code> <span class="element-type"><span class="element-type-name">Literal</span>['approve', 'modify', 'reject', 'escalate', 'terminate']</span></dt>
+<dd>
+<p>Decision of approver.</p>
+</dd>
+<dt><code class="ref-definition">modified</code> <span class="element-type"><span class="element-type-name">ToolCall</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Modified tool call for decision ‘modify’.</p>
+</dd>
+<dt><code class="ref-definition">explanation</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Explanation for decision.</p>
 </dd>
 </dl>
+</section>
+</section>
+<section id="sandboxevent" class="level3">
+<h3 class="anchored" data-anchor-id="sandboxevent">SandboxEvent</h3>
+<p>Sandbox execution or I/O</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_sandbox.py#L9">Source</a>
+</div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['sandbox']</span></dt>
+<dd>
+<p>Event type</p>
+</dd>
+<dt><code class="ref-definition">action</code> <span class="element-type"><span class="element-type-name">Literal</span>['exec', 'read_file', 'write_file']</span></dt>
+<dd>
+<p>Sandbox action</p>
+</dd>
+<dt><code class="ref-definition">cmd</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Command (for exec)</p>
+</dd>
+<dt><code class="ref-definition">options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">JsonValue</span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Options (for exec)</p>
+</dd>
+<dt><code class="ref-definition">file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>File (for read_file and write_file)</p>
+</dd>
+<dt><code class="ref-definition">input</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Input (for cmd and write_file). Truncated to 100 lines.</p>
+</dd>
+<dt><code class="ref-definition">result</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Result (for exec)</p>
+</dd>
+<dt><code class="ref-definition">output</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Output (for exec and read_file). Truncated to 100 lines.</p>
+</dd>
+<dt><code class="ref-definition">completed</code> <span class="element-type">datetime | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Time that sandbox action completed (see <code>timestamp</code> for started)</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="infoevent" class="level3">
+<h3 class="anchored" data-anchor-id="infoevent">InfoEvent</h3>
+<p>Event with custom info/data.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_info.py#L8">Source</a>
+</div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InfoEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['info']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">source</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Optional source for info event.</p>
+</dd>
+<dt><code class="ref-definition">data</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
+<dd>
+<p>Data provided with event.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="loggerevent" class="level3">
+<h3 class="anchored" data-anchor-id="loggerevent">LoggerEvent</h3>
+<p>Log message recorded with Python logger.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_logger.py#L77">Source</a>
+</div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LoggerEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['logger']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.event.html#loggingmessage">LoggingMessage</a></span></span></dt>
+<dd>
+<p>Logging message</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="errorevent" class="level3">
+<h3 class="anchored" data-anchor-id="errorevent">ErrorEvent</h3>
+<p>Event with sample error.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_error.py#L9">Source</a>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ErrorEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['error']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalerror">EvalError</a></span></span></dt>
+<dd>
+<p>Sample error</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="spanbeginevent" class="level3">
+<h3 class="anchored" data-anchor-id="spanbeginevent">SpanBeginEvent</h3>
+<p>Mark the beginning of a transcript span.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_span.py#L8">Source</a>
+</div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SpanBeginEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['span_begin']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Unique identifier for span.</p>
+</dd>
+<dt><code class="ref-definition">parent_id</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Identifier for parent span.</p>
+</dd>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Optional ‘type’ field for span.</p>
+</dd>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Span name.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="spanendevent" class="level3">
+<h3 class="anchored" data-anchor-id="spanendevent">SpanEndEvent</h3>
+<p>Mark the end of a transcript span.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_span.py#L27">Source</a>
+</div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SpanEndEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['span_end']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Unique identifier for span.</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+<section id="event-tree" class="level2">
+<h2 class="anchored" data-anchor-id="event-tree">Event Tree</h2>
+<section id="event_tree" class="level3">
+<h3 class="anchored" data-anchor-id="event_tree">event_tree</h3>
+<p>Build a tree representation of a sequence of events.</p>
+<p>Organize events heirarchially into event spans.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_tree.py#L43">Source</a>
+</div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> event_tree(events: Sequence[Event]) <span class="op">-&gt;</span> EventTree</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code class="ref-definition">events</code> <span class="element-type"><span class="element-type-name">Sequence</span>[<span class="element-type-name">Event</span>]</span></dt>
+<dd>
+<p>Sequence of <code>Event</code>.</p>
+</dd>
+</dl>
+</section>
+<section id="event_sequence" class="level3">
+<h3 class="anchored" data-anchor-id="event_sequence">event_sequence</h3>
+<p>Flatten a span forest back into a properly ordered seqeunce.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_tree.py#L94">Source</a>
+</div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> event_sequence(tree: EventTree) <span class="op">-&gt;</span> Iterable[Event]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code class="ref-definition">tree</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.event.html#eventtree">EventTree</a></span></span></dt>
+<dd>
+<p>Event tree</p>
+</dd>
+</dl>
+</section>
+<section id="eventtree" class="level3">
+<h3 class="anchored" data-anchor-id="eventtree">EventTree</h3>
+<p>Tree of events (has invividual events and event spans).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_tree.py#L13">Source</a>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>EventTree: TypeAlias <span class="op">=</span> <span class="bu">list</span>[EventNode]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="eventnode" class="level3">
+<h3 class="anchored" data-anchor-id="eventnode">EventNode</h3>
+<p>Node in an event tree.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_tree.py#L10">Source</a>
+</div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>EventNode: TypeAlias <span class="op">=</span> <span class="st">"SpanNode"</span> <span class="op">|</span> Event</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="spannode" class="level3">
+<h3 class="anchored" data-anchor-id="spannode">SpanNode</h3>
+<p>Event tree node representing a span of events.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_tree.py#L17">Source</a>
+</div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SpanNode</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Span id.</p>
+</dd>
+<dt><code class="ref-definition">parent_id</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Parent span id.</p>
+</dd>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Optional ‘type’ field for span.</p>
+</dd>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Span name.</p>
+</dd>
+<dt><code class="ref-definition">begin</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.event.html#spanbeginevent">SpanBeginEvent</a></span></span></dt>
+<dd>
+<p>Span begin event.</p>
+</dd>
+<dt><code class="ref-definition">end</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.event.html#spanendevent">SpanEndEvent</a></span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Span end event (if any).</p>
+</dd>
+<dt><code class="ref-definition">children</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.event.html#eventnode">EventNode</a></span>]</span></dt>
+<dd>
+<p>Children in the span.</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+<section id="eval-events" class="level2">
+<h2 class="anchored" data-anchor-id="eval-events">Eval Events</h2>
+<section id="sampleinitevent" class="level3">
+<h3 class="anchored" data-anchor-id="sampleinitevent">SampleInitEvent</h3>
+<p>Beginning of processing a Sample.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_sample_init.py#L9">Source</a>
+</div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleInitEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['sample_init']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">sample</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span></span></dt>
+<dd>
+<p>Sample.</p>
+</dd>
+<dt><code class="ref-definition">state</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
+<dd>
+<p>Initial state.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="samplelimitevent" class="level3">
+<h3 class="anchored" data-anchor-id="samplelimitevent">SampleLimitEvent</h3>
+<p>The sample was unable to finish processing due to a limit</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_sample_limit.py#L8">Source</a>
+</div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleLimitEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['sample_limit']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">Literal</span>['message', 'time', 'working', 'token', 'operator', 'custom']</span></dt>
+<dd>
+<p>Type of limit that halted processing</p>
+</dd>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>A message associated with this limit</p>
+</dd>
+<dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>The limit value (if any)</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="stateevent" class="level3">
+<h3 class="anchored" data-anchor-id="stateevent">StateEvent</h3>
+<p>Change to the current <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_state.py#L9">Source</a>
+</div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StateEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['state']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">changes</code> <span class="element-type">list[<span class="element-type-name">JsonChange</span>]</span></dt>
+<dd>
+<p>List of changes to the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="storeevent" class="level3">
+<h3 class="anchored" data-anchor-id="storeevent">StoreEvent</h3>
+<p>Change to data within the current <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_store.py#L10">Source</a>
+</div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StoreEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['store']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">changes</code> <span class="element-type">list[<span class="element-type-name">JsonChange</span>]</span></dt>
+<dd>
+<p>List of changes to the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span>.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="inputevent" class="level3">
+<h3 class="anchored" data-anchor-id="inputevent">InputEvent</h3>
+<p>Input screen interaction.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_input.py#L8">Source</a>
+</div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['input']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">input</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Input interaction (plain text).</p>
+</dd>
+<dt><code class="ref-definition">input_ansi</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Input interaction (ANSI).</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="scoreevent" class="level3">
+<h3 class="anchored" data-anchor-id="scoreevent">ScoreEvent</h3>
+<p>Event with score.</p>
+<p>Can be the final score for a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>, or can be an intermediate score resulting from a call to <code>score</code>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_score.py#L9">Source</a>
+</div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScoreEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['score']</span></dt>
+<dd>
+<p>Event type.</p>
+</dd>
+<dt><code class="ref-definition">score</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#score">Score</a></span></span></dt>
+<dd>
+<p>Score value.</p>
+</dd>
+<dt><code class="ref-definition">target</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>“Sample target.</p>
+</dd>
+<dt><code class="ref-definition">intermediate</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dd>
+<p>Was this an intermediate scoring?</p>
+</dd>
+</dl>
+</section>
 </section>
 </section>
 <section id="types" class="level2">
 <h2 class="anchored" data-anchor-id="types">Types</h2>
-<section id="solver" class="level3">
-<h3 class="anchored" data-anchor-id="solver">Solver</h3>
-<p>Contribute to solving an evaluation task.</p>
-<p>Transform a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span>, returning the new state. Solvers may optionally call the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span> function to create a new state resulting from model generation. Solvers may also do prompt engineering or other types of elicitation.</p>
+<section id="logginglevel" class="level3">
+<h3 class="anchored" data-anchor-id="logginglevel">LoggingLevel</h3>
+<p>Logging level.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_solver.py#L76">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_logger.py#L9">Source</a>
 </div>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Solver(Protocol):</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>        state: TaskState,</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        generate: Generate,</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> TaskState</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">state</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></span></dt>
-<dd>
-<p>State for tasks being evaluated.</p>
-</dd>
-<dt><code class="ref-definition">generate</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.solver.html#generate">Generate</a></span></span></dt>
-<dd>
-<p>Function for generating outputs.</p>
-</dd>
-</dl>
-<section class="level4">
-<h4 class="anchored" data-anchor-id="">Examples</h4>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_cot(template: <span class="bu">str</span>) <span class="op">-&gt;</span> Solver:</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># insert chain of thought prompt</span></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>LoggingLevel <span class="op">=</span> Literal[</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"debug"</span>, <span class="st">"trace"</span>, <span class="st">"http"</span>, <span class="st">"sandbox"</span>, <span class="st">"info"</span>, <span class="st">"warning"</span>, <span class="st">"error"</span>, <span class="st">"critical"</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-</section>
-<section id="solverspec" class="level3">
-<h3 class="anchored" data-anchor-id="solverspec">SolverSpec</h3>
-<p>Solver specification used to (re-)create solvers.</p>
+<section id="loggingmessage" class="level3">
+<h3 class="anchored" data-anchor-id="loggingmessage">LoggingMessage</h3>
+<p>Message written to Python log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_solver.py#L63">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/event/_logger.py#L15">Source</a>
 </div>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SolverSpec</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LoggingMessage(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code class="ref-definition">solver</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
-<p>Solver name (simple name or <a href="mailto:file.py@name" class="email">file.py@name</a>).</p>
+<p>Logger name (e.g.&nbsp;‘httpx’)</p>
 </dd>
-<dt><code class="ref-definition">args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">level</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.event.html#logginglevel">LoggingLevel</a></span></span></dt>
 <dd>
-<p>Solver arguments.</p>
+<p>Logging level.</p>
 </dd>
-</dl>
-</section>
-</section>
-<section id="taskstate" class="level3">
-<h3 class="anchored" data-anchor-id="taskstate">TaskState</h3>
-<p>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> represents the internal state of the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task">Task</a></span> being run for a single <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>.</p>
-<p>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> is passed to and returned from each solver during a sample’s evaluation. It allows us to maintain the manipulated message history, the tools available to the model, the final output of the model, and whether the task is completed or has hit a limit.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_task_state.py#L137">Source</a>
-</div>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskState</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section class="level4">
-<h4 class="anchored" data-anchor-id="">Attributes</h4>
-<dl>
-<dt><code class="ref-definition">model</code> <span class="element-type"><span class="element-type-name">ModelName</span></span></dt>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
-<p>Name of model being evaluated.</p>
+<p>Log message.</p>
 </dd>
-<dt><code class="ref-definition">sample_id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">created</code> <span class="element-type"><span class="element-type-name">float</span></span></dt>
 <dd>
-<p>Unique id for sample.</p>
+<p>Message created time.</p>
 </dd>
-<dt><code class="ref-definition">epoch</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">filename</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
-<p>Epoch number for sample.</p>
+<p>Logged from filename.</p>
 </dd>
-<dt><code class="ref-definition">input</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
+<dt><code class="ref-definition">module</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
-<p>Input from the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>, should be considered immutable.</p>
+<p>Logged from module.</p>
 </dd>
-<dt><code class="ref-definition">input_text</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">lineno</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
-<p>Convenience function for accessing the initial input from the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> as a string.</p>
-<p>If the <code>input</code> is a <code>list[ChatMessage]</code>, this will return the text from the last chat message</p>
-</dd>
-<dt><code class="ref-definition">user_prompt</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessageuser">ChatMessageUser</a></span></span></dt>
-<dd>
-<p>User prompt for this state.</p>
-<p>Tasks are very general and can have may types of inputs. However, in many cases solvers assume they can interact with the state as a “chat” in a predictable fashion (e.g.&nbsp;prompt engineering solvers). This property enables easy read and write access to the user chat prompt. Raises an exception if there is no user prompt</p>
-</dd>
-<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
-<dd>
-<p>Metadata from the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> for this <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></p>
-</dd>
-<dt><code class="ref-definition">messages</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
-<dd>
-<p>Chat conversation history for sample.</p>
-<p>This will generally get appended to every time a <code>generate</code> call is made to the model. Useful for both debug and for solvers/scorers to assess model performance or choose the next step.</p>
-</dd>
-<dt><code class="ref-definition">output</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span></span></dt>
-<dd>
-<p>The ‘final’ model output once we’ve completed all solving.</p>
-<p>For simple evals this may just be the last <code>message</code> from the conversation history, but more complex solvers may set this directly.</p>
-</dd>
-<dt><code class="ref-definition">store</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.util.html#store">Store</a></span></span></dt>
-<dd>
-<p>Store for shared data</p>
-</dd>
-<dt><code class="ref-definition">tools</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.tool.html#tool">Tool</a></span>]</span></dt>
-<dd>
-<p>Tools available to the model.</p>
-</dd>
-<dt><code class="ref-definition">tool_choice</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolchoice">ToolChoice</a></span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Tool choice directive.</p>
-</dd>
-<dt><code class="ref-definition">message_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Limit on total messages allowed per conversation.</p>
-</dd>
-<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Limit on total tokens allowed per conversation.</p>
-</dd>
-<dt><code class="ref-definition">token_usage</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
-<dd>
-<p>Total tokens used for the current sample.</p>
-</dd>
-<dt><code class="ref-definition">completed</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
-<dd>
-<p>Is the task completed.</p>
-<p>Additionally, checks for an operator interrupt of the sample.</p>
-</dd>
-<dt><code class="ref-definition">target</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#target">Target</a></span></span></dt>
-<dd>
-<p>The scoring target for this <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>.</p>
-</dd>
-<dt><code class="ref-definition">scores</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#score">Score</a></span>] | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Scores yielded by running task.</p>
-</dd>
-<dt><code class="ref-definition">uuid</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
-<dd>
-<p>Globally unique identifier for sample run.</p>
+<p>Logged from line number.</p>
 </dd>
 </dl>
-</section>
-<section class="level4 class-methods">
-<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
-<dl>
-<dt>metadata_as</dt>
-<dd>
-<p>Pydantic model interface to metadata.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_task_state.py#L392">Source</a>
-</div>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">metadata_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">MT</span>]</span></dt>
-<dd>
-<p>Pydantic model type</p>
-</dd>
-</dl>
-</dd>
-<dt>store_as</dt>
-<dd>
-<p>Pydantic model interface to the store.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_task_state.py#L406">Source</a>
-</div>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store_as(<span class="va">self</span>, model_cls: Type[SMT], instance: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SMT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">model_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">SMT</span>]</span></dt>
-<dd>
-<p>Pydantic model type (must derive from StoreModel)</p>
-</dd>
-<dt><code class="ref-definition">instance</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Optional instances name for store (enables multiple instances of a given StoreModel type within a single sample)</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</section>
-</section>
-<section id="generate-1" class="level3">
-<h3 class="anchored" data-anchor-id="generate-1">Generate</h3>
-<p>Generate using the model and add the assistant message to the task state.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_solver.py#L35">Source</a>
-</div>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Generate(Protocol):</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>        state: TaskState,</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>        tool_calls: Literal[<span class="st">"loop"</span>, <span class="st">"single"</span>, <span class="st">"none"</span>] <span class="op">=</span> <span class="st">"loop"</span>,</span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>        cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
-<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> TaskState</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">state</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></span></dt>
-<dd>
-<p>Beginning task state.</p>
-</dd>
-<dt><code class="ref-definition">tool_calls</code> <span class="element-type"><span class="element-type-name">Literal</span>['loop', 'single', 'none']</span></dt>
-<dd>
-<ul>
-<li><code>"loop"</code> resolves tools calls and then invokes <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span>, proceeding in a loop which terminates when there are no more tool calls, or <code>message_limit</code> or <code>token_limit</code> is exceeded. This is the default behavior.</li>
-<li><code>"single"</code> resolves at most a single set of tool calls and then returns.</li>
-<li><code>"none"</code> does not resolve tool calls at all (in this case you will need to invoke <code>call_tools()</code> directly).</li>
-</ul>
-</dd>
-<dt><code class="ref-definition">cache</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name"><a href="../reference/inspect_ai.model.html#cachepolicy">CachePolicy</a></span></span></dt>
-<dd>
-<p>Caching behaviour for generate responses (defaults to no caching).</p>
-</dd>
-<dt><code class="ref-definition">**kwargs</code> <span class="element-type"><span class="element-type-name">Unpack</span>[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfigargs">GenerateConfigArgs</a></span>]</span></dt>
-<dd>
-<p>Optional generation config arguments.</p>
-</dd>
-</dl>
-</section>
-</section>
-<section id="decorators" class="level2">
-<h2 class="anchored" data-anchor-id="decorators">Decorators</h2>
-<section id="solver-1" class="level3">
-<h3 class="anchored" data-anchor-id="solver-1">solver</h3>
-<p>Decorator for registering solvers.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f98ffbb543e38b790a15f9209d1271e28c27b805/src/inspect_ai/solver/_solver.py#L153">Source</a>
-</div>
-<div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solver(</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> Callable[P, SolverType],</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[[Callable[P, Solver]], Callable[P, Solver]] <span class="op">|</span> Callable[P, Solver]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">Callable</span>[<span class="element-type-name">P</span>, <span class="element-type-name">SolverType</span>]</span></dt>
-<dd>
-<p>Optional name for solver. If the decorator has no name argument then the name of the underlying Callable[P, SolverType] object will be used to automatically assign a name.</p>
-</dd>
-</dl>
-<section class="level4">
-<h4 class="anchored" data-anchor-id="">Examples</h4>
-<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_cot(template: <span class="bu">str</span>) <span class="op">-&gt;</span> Solver:</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># insert chain of thought prompt</span></span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
@@ -3429,13 +3557,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../reference/inspect_ai.html#view" class="pagination-link" aria-label="view">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">view</span>
+      <a href="../reference/inspect_ai.analysis.html#columnerror" class="pagination-link" aria-label="ColumnError">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ColumnError</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../reference/inspect_ai.solver.html#generate" class="pagination-link" aria-label="generate">
-        <span class="nav-page-text">generate</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../reference/inspect_ai.event.html#modelevent" class="pagination-link" aria-label="ModelEvent">
+        <span class="nav-page-text">ModelEvent</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
