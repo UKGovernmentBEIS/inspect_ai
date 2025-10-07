@@ -569,10 +569,9 @@ export const useLogs = () => {
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
 
   // Loading eval set info
-  const loadEvalSetInfo = useStore(
-    (state) => state.logsActions.loadEvalSetInfo,
+  const syncEvalSetInfo = useStore(
+    (state) => state.logsActions.syncEvalSetInfo,
   );
-  const setEvalSetInfo = useStore((state) => state.logsActions.setEvalSetInfo);
 
   // Status
   const setStatus = useStore((state) => state.appActions.setStatus);
@@ -581,10 +580,12 @@ export const useLogs = () => {
     async (logPath?: string) => {
       const exec = async () => {
         setStatus({ loading: true, error: undefined });
+
+        // Sync logs
         await syncLogs();
 
-        const setInfo = await loadEvalSetInfo(logPath);
-        setEvalSetInfo(setInfo);
+        // Sync eval set info
+        await syncEvalSetInfo(logPath);
 
         setStatus({ loading: false, error: undefined });
       };
@@ -593,7 +594,7 @@ export const useLogs = () => {
         setStatus({ loading: false, error: e });
       });
     },
-    [syncLogs, setStatus],
+    [syncLogs, setStatus, syncEvalSetInfo],
   );
 
   // Loading headers
