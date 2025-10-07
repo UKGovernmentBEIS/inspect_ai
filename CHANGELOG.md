@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.137 (07 October 2025)
 
 - OpenAI: Support for tool calls returning images (requires v2.0 of `openai` package, which is now required).
 - Anthropic: Retry requests that get an error body payload with 'internal server error'
