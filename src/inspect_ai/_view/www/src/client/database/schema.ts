@@ -9,6 +9,7 @@ export interface LogFileRecord {
   file_name: string;
   task?: string;
   task_id?: string;
+  mtime?: number;
 }
 
 // Log Summaries Table - Stores results from get_log_summaries()
@@ -31,7 +32,7 @@ export interface LogInfoRecord {
 }
 
 // Current database schema version
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 // Resolves a log dir into a database name
 function resolveDBName(logDir: string): string {
