@@ -882,6 +882,32 @@ The following environment variables are supported by the OpenRouter AI provider
 | `OPENROUTER_API_KEY` | API key credentials (required). |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
 
+## Hugging Face Inference Providers
+
+To use [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers), install the `openai` package (which provides the compatibility layer), set your Hugging Face token, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export HF_TOKEN=your-huggingface-token
+inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b
+```
+
+The above will automatically select the provider for you. If you want to use a specific provider you can append `:` followed by the provider name. To use cerebras for example, you would do the following:
+
+``` bash
+pip install openai
+export HF_TOKEN=your-huggingface-token
+inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b:cerebras
+```
+
+HF Inference Providers provides unified access to hundreds of machine learning models through multiple world-class inference providers (Cerebras, Groq, Together AI, etc.) with automatic provider routing and failover.
+
+The following environment variables are supported by the HF Inference Providers:
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `HF_TOKEN` | Hugging Face token with appropriate permissions (required). |
+
 ## Custom Models
 
 If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.qmd#sec-model-api-extensions) for additional details.

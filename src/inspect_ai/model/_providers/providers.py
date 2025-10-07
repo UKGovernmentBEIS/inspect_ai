@@ -307,6 +307,17 @@ def goodfire() -> type[ModelAPI]:
     return GoodfireAPI  # type: ignore[no-any-return]
 
 
+@modelapi(name="hf-inference-providers")
+def hf_inference_providers() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("HF Inference Providers API")
+
+    # in the clear
+    from .hf_inference_providers import HFInferenceProvidersAPI
+
+    return HFInferenceProvidersAPI
+
+
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
