@@ -5,23 +5,19 @@ import {
 } from "@tanstack/react-table";
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
-import { EvalHeader, LogFile, LogRoot, LogSummary } from "../client/api/types";
+import { EvalHeader, LogFile, LogSummary } from "../client/api/types";
 import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
 
-const kEmptyLogs: LogRoot = {
-  log_dir: "",
-  files: [],
-};
-
 export interface LogsSlice {
   logs: LogsState;
   logsActions: {
     // Update State
-    setLogs: (logs: LogRoot) => void;
+    setLogDir: (logDir?: string) => void;
+    setLogFiles: (logFiles: LogFile[]) => void;
     setLogOverviews: (overviews: Record<string, LogSummary>) => void;
     loadLogOverviews: (logs: LogFile[]) => Promise<LogSummary[]>;
     updateLogOverviews: (overviews: Record<string, LogSummary>) => void;
@@ -30,9 +26,8 @@ export interface LogsSlice {
     setSelectedLogFile: (logUrl: string) => void;
 
     // Fetch or update logs
-    refreshLogs: () => Promise<void>;
+    syncLogs: () => Promise<void>;
     selectLogFile: (logUrl: string) => Promise<void>;
-    loadLogs: () => Promise<LogRoot>;
 
     // Cross-file sample operations
     getAllCachedSamples: () => Promise<any[]>;
@@ -60,7 +55,8 @@ export interface LogsSlice {
 }
 
 const initialState: LogsState = {
-  logs: kEmptyLogs,
+  logDir: undefined,
+  logFiles: [],
   logOverviews: {},
   logOverviewsLoading: false,
   selectedLogIndex: -1,
@@ -81,15 +77,18 @@ export const createLogsSlice = (
 
     // Actions
     logsActions: {
-      setLogs: (logs: LogRoot) => {
+      setLogDir: (logDir?: string) =>
         set((state) => {
-          state.logs.logs = logs;
+          state.logs.logDir = logDir;
+        }),
+      setLogFiles: (logFiles: LogFile[]) =>
+        set((state) => {
+          state.logs.logFiles = logFiles;
           state.logs.selectedLogFile =
             state.logs.selectedLogIndex > -1
-              ? logs.files[state.logs.selectedLogIndex]?.name
+              ? logFiles[state.logs.selectedLogIndex]?.name
               : undefined;
-        });
-      },
+        }),
       setLogOverviews: (overviews: Record<string, LogSummary>) =>
         set((state) => {
           state.logs.logOverviews = overviews;
@@ -242,7 +241,7 @@ export const createLogsSlice = (
       setSelectedLogIndex: (selectedLogIndex: number) => {
         set((state) => {
           state.logs.selectedLogIndex = selectedLogIndex;
-          const file = state.logs.logs.files[selectedLogIndex];
+          const file = state.logs.logFiles[selectedLogIndex];
           state.logs.selectedLogFile = file ? file.name : undefined;
         });
       },
@@ -256,23 +255,21 @@ export const createLogsSlice = (
 
       setSelectedLogFile: (logUrl: string) => {
         const state = get();
-        const index = state.logs.logs.files.findIndex((val: { name: string }) =>
+        const index = state.logs.logFiles.findIndex((val: { name: string }) =>
           logUrl.endsWith(val.name),
         );
 
         if (index > -1) {
           state.logsActions.setSelectedLogIndex(index);
           state.logs.selectedLogFile =
-            state.logs.logs.files[index]?.name ?? undefined;
+            state.logs.logFiles[index]?.name ?? undefined;
         }
       },
-
-      // Helper function to load logs
-      loadLogs: async () => {
+      syncLogs: async () => {
         const api = get().api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return kEmptyLogs;
+          return;
         }
 
         // Determine the log directory
@@ -286,6 +283,7 @@ export const createLogsSlice = (
           }
         };
         const logDir = await loadLogDir();
+        get().logsActions.setLogDir(logDir);
 
         // Initialize the database
         const initializeDatabase = async (
@@ -309,62 +307,38 @@ export const createLogsSlice = (
           }
         };
 
+        // Activate the database for this log directory
         const databaseService = await initializeDatabase(logDir);
+
+        // TODO: Preserve the selected log even if new logs appear
+
+        // Read the cached values
         if (databaseService) {
           try {
             const cached = await databaseService.getCachedLogFiles();
             if (cached && cached.length > 0) {
               log.debug("LOADED LOG FILES FROM CACHE");
-              return {
-                log_dir: logDir || "",
-                files: cached,
-              };
+              // Activate the current log files
+              get().logsActions.setLogFiles(cached);
             }
           } catch (e) {
             // Cache read failed, use API results we already have
           }
         }
 
-        // We missed the cache, so load the files
+        // Now query the server and update the store with fresh data
         log.debug("LOADING LOG FILES FROM API");
         const files = await api.get_log_files();
 
-        // Cache the result we got from API (completely non-blocking)
+        // Cache the result we got from API
         setTimeout(() => {
           if (databaseService) {
             databaseService.cacheLogFiles(files).catch(() => {
               // Silently ignore cache errors
             });
+            get().logsActions.setLogFiles(files);
           }
         }, 0);
-
-        return {
-          log_dir: logDir || "",
-          files: files || [],
-        };
-      },
-      refreshLogs: async () => {
-        log.debug("REFRESH LOGS");
-        const state = get();
-        // Preserve the selected log even if new logs appear
-        const currentLog =
-          state.logs.selectedLogIndex > -1
-            ? state.logs.logs.files[state.logs.selectedLogIndex]
-            : undefined;
-
-        // Set the logs first
-        const refreshedLogs = await state.logsActions.loadLogs();
-        state.logsActions.setLogs(refreshedLogs || kEmptyLogs);
-
-        if (currentLog) {
-          const newIndex = refreshedLogs?.files.findIndex((file) =>
-            currentLog.name.endsWith(file.name),
-          );
-
-          if (newIndex !== undefined && newIndex !== -1) {
-            state.logsActions.setSelectedLogIndex(newIndex);
-          }
-        }
       },
       loadEvalSetInfo: async (logPath?: string) => {
         const api = get().api;
@@ -389,24 +363,13 @@ export const createLogsSlice = (
       // Select a specific log file
       selectLogFile: async (logUrl: string) => {
         const state = get();
-        const index = state.logs.logs.files.findIndex((val: { name: string }) =>
+        const index = state.logs.logFiles.findIndex((val: { name: string }) =>
           val.name.endsWith(logUrl),
         );
 
         // It is already loaded
         if (index > -1) {
           state.logsActions.setSelectedLogIndex(index);
-        } else {
-          // It isn't yet loaded, so refresh the logs and try to load it from there
-          const result = await state.logsActions.loadLogs();
-          const idx = result?.files.findIndex((file) =>
-            file.name.endsWith(logUrl),
-          );
-
-          state.logsActions.setLogs(result || kEmptyLogs);
-          state.logsActions.setSelectedLogIndex(
-            idx !== undefined && idx > -1 ? idx : 0,
-          );
         }
       },
       setSorting: (sorting: SortingState) => {

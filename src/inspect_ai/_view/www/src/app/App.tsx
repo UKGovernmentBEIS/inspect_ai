@@ -1,5 +1,5 @@
-import "bootstrap/dist/css/bootstrap.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
+import "bootstrap/dist/css/bootstrap.css";
 import JSON5 from "json5";
 
 import "prismjs";
@@ -29,7 +29,8 @@ export const App: FC<AppProps> = ({ api }) => {
   // Whether the app was rehydrated
   const rehydrated = useStore((state) => state.app.rehydrated);
 
-  const logs = useStore((state) => state.logs.logs);
+  const logDir = useStore((state) => state.logs.logDir);
+  const logFiles = useStore((state) => state.logs.logFiles);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const loadedLogFile = useStore((state) => state.log.loadedLog);
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
@@ -37,8 +38,9 @@ export const App: FC<AppProps> = ({ api }) => {
   const setIntialState = useStore((state) => state.appActions.setInitialState);
   const setAppStatus = useStore((state) => state.appActions.setStatus);
 
-  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
-  const setLogs = useStore((state) => state.logsActions.setLogs);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
+  const setLogDir = useStore((state) => state.logsActions.setLogDir);
+  const setLogFiles = useStore((state) => state.logsActions.setLogFiles);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
 
   const loadLog = useStore((state) => state.logActions.loadLog);
@@ -97,15 +99,15 @@ export const App: FC<AppProps> = ({ api }) => {
   }, [pollLog, selectedLogSummary?.status]);
 
   useEffect(() => {
-    if (logs.log_dir && logs.files.length === 0) {
+    if (logDir && logFiles.length === 0) {
       setAppStatus({
         loading: false,
         error: new Error(
-          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
+          `No log files to display in the directory ${logDir}. Are you sure this is the correct log directory?`,
         ),
       });
     }
-  }, [logs.log_dir, logs.files.length, setAppStatus]);
+  }, [logDir, logFiles, setAppStatus]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
@@ -122,19 +124,19 @@ export const App: FC<AppProps> = ({ api }) => {
           const log_dir = e.data.log_dir;
           const isFocused = document.hasFocus();
           if (!isFocused) {
-            if (log_dir === logs.log_dir) {
+            if (log_dir === logDir) {
               selectLogFile(decodedUrl);
             } else {
               api.open_log_file(e.data.url, e.data.log_dir);
             }
           } else {
-            refreshLogs();
+            syncLogs();
           }
           break;
         }
       }
     },
-    [logs, selectLogFile, refreshLogs, api],
+    [logDir, selectLogFile, syncLogs, api],
   );
 
   // listen for updateState messages from vscode
@@ -164,11 +166,10 @@ export const App: FC<AppProps> = ({ api }) => {
         const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
 
         if (resolvedLogPath) {
-          // Load only this file
-          setLogs({
-            log_dir: "",
-            files: [{ name: resolvedLogPath }],
-          });
+          // Clear any log dir
+          setLogDir(undefined);
+          // Load just the passed file
+          setLogFiles([{ name: resolvedLogPath }]);
           setSingleFileMode(true);
         } else {
           // If a log file was passed, select it
@@ -185,7 +186,7 @@ export const App: FC<AppProps> = ({ api }) => {
     };
 
     loadLogsAndState();
-  }, [setLogs, selectLogFile, refreshLogs, onMessage]);
+  }, [setLogDir, setLogFiles, selectLogFile, syncLogs, onMessage]);
 
   return <RouterProvider router={AppRouter} />;
 };

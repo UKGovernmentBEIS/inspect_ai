@@ -8,7 +8,7 @@
  * - log_info: stores complete results from get_log_info() including samples
  */
 
-import { LogInfo, LogRoot, LogSummary, SampleSummary } from "../api/types";
+import { LogFile, LogInfo, LogSummary, SampleSummary } from "../api/types";
 import { createDatabaseService, DatabaseService } from "./service";
 
 // Helper function to create test LogSummary
@@ -117,61 +117,51 @@ describe("Database Service", () => {
 
   describe("Log Files Caching", () => {
     test("should cache and retrieve log files", async () => {
-      const testLogRoot: LogRoot = {
-        log_dir: "/test/logs",
-        files: [
-          {
-            name: "/test/logs/eval1.json",
-            task: "test-task-1",
-            task_id: "task1",
-          },
-          {
-            name: "/test/logs/eval2.json",
-            task: "test-task-2",
-            task_id: "task2",
-          },
-        ],
-      };
+      const testLogRoot: LogFile[] = [
+        {
+          name: "/test/logs/eval1.json",
+          task: "test-task-1",
+          task_id: "task1",
+        },
+        {
+          name: "/test/logs/eval2.json",
+          task: "test-task-2",
+          task_id: "task2",
+        },
+      ];
 
       // Cache the log files
       await databaseService.cacheLogFiles(testLogRoot);
 
       // Retrieve cached files
-      const cached = await databaseService.getCachedLogFiles();
+      const files = await databaseService.getCachedLogFiles();
 
-      expect(cached).not.toBeNull();
-      expect(cached?.files).toHaveLength(2);
-      expect(cached?.files[0].name).toBe("/test/logs/eval1.json");
-      expect(cached?.files[0].task).toBe("test-task-1");
+      expect(files).not.toBeNull();
+      expect(files).toHaveLength(2);
+      expect(files?.[0].name).toBe("/test/logs/eval1.json");
+      expect(files?.[0].task).toBe("test-task-1");
     });
 
     test("should update existing cached log files", async () => {
-      const initialLogRoot: LogRoot = {
-        log_dir: "/test/logs",
-        files: [{ name: "/test/logs/eval1.json", task: "initial-task" }],
-      };
-
-      await databaseService.cacheLogFiles(initialLogRoot);
+      const initialFiles = [
+        { name: "/test/logs/eval1.json", task: "initial-task" },
+      ];
+      await databaseService.cacheLogFiles(initialFiles);
 
       // Update with new data
-      const updatedLogRoot: LogRoot = {
-        log_dir: "/test/logs",
-        files: [
-          { name: "/test/logs/eval1.json", task: "updated-task" },
-          { name: "/test/logs/eval2.json", task: "additional-task" },
-        ],
-      };
-
-      await databaseService.cacheLogFiles(updatedLogRoot);
-
-      const cached = await databaseService.getCachedLogFiles();
-      expect(cached?.files).toHaveLength(2);
-      expect(
-        cached?.files.find((f) => f.name === "/test/logs/eval1.json")?.task,
-      ).toBe("updated-task");
-      expect(
-        cached?.files.find((f) => f.name === "/test/logs/eval2.json")?.task,
-      ).toBe("additional-task");
+      const updatedFiles = [
+        { name: "/test/logs/eval1.json", task: "updated-task" },
+        { name: "/test/logs/eval2.json", task: "additional-task" },
+      ];
+      await databaseService.cacheLogFiles(updatedFiles);
+      const files = await databaseService.getCachedLogFiles();
+      expect(files).toHaveLength(2);
+      expect(files?.find((f) => f.name === "/test/logs/eval1.json")?.task).toBe(
+        "updated-task",
+      );
+      expect(files?.find((f) => f.name === "/test/logs/eval2.json")?.task).toBe(
+        "additional-task",
+      );
     });
   });
 
@@ -230,7 +220,6 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
-              history: [],
             },
           },
         }),
@@ -326,7 +315,6 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
-              history: [],
             },
           },
         }),
@@ -340,7 +328,6 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
-              history: [],
             },
           },
         }),
@@ -353,7 +340,6 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
-              history: [],
             },
           },
         }),
@@ -397,12 +383,9 @@ describe("Database Service", () => {
 
     test("should clear all caches", async () => {
       // Cache data in all tables
-      await databaseService.cacheLogFiles({
-        log_dir: "/test/logs",
-        files: [
-          { name: "/test/logs/eval1.json", task: "task-1", task_id: "task1" },
-        ],
-      });
+      await databaseService.cacheLogFiles([
+        { name: "/test/logs/eval1.json", task: "task-1", task_id: "task1" },
+      ]);
 
       await databaseService.cacheLogSummaries(
         [createTestLogSummary()],

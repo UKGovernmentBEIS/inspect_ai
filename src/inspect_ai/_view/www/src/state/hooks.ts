@@ -570,8 +570,7 @@ export const useSamplePopover = (id: string) => {
 
 export const useLogs = () => {
   // Loading logs
-  const load = useStore((state) => state.logsActions.loadLogs);
-  const setLogs = useStore((state) => state.logsActions.setLogs);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
 
   // Loading eval set info
   const loadEvalSetInfo = useStore(
@@ -586,8 +585,7 @@ export const useLogs = () => {
     async (logPath?: string) => {
       const exec = async () => {
         setStatus({ loading: true, error: undefined });
-        const logs = await load();
-        setLogs(logs);
+        await syncLogs();
 
         const setInfo = await loadEvalSetInfo(logPath);
         setEvalSetInfo(setInfo);
@@ -599,7 +597,7 @@ export const useLogs = () => {
         setStatus({ loading: false, error: e });
       });
     },
-    [load, setLogs, setStatus],
+    [syncLogs, setStatus],
   );
 
   // Loading headers
@@ -607,7 +605,7 @@ export const useLogs = () => {
     (state) => state.logsActions.loadLogOverviews,
   );
   const existingHeaders = useStore((state) => state.logs.logOverviews);
-  const allLogFiles = useStore((state) => state.logs.logs.files);
+  const allLogFiles = useStore((state) => state.logs.logFiles);
 
   const loadHeaders = useCallback(
     async (logFiles: LogFile[] = allLogFiles) => {

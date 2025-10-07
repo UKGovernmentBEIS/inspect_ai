@@ -8,7 +8,7 @@ import { logUrl, logUrlRaw, sampleUrl, useLogRouteParams } from "./url";
 export const useLogNavigation = () => {
   const navigate = useNavigate();
   const { logPath } = useLogRouteParams();
-  const logs = useStore((state) => state.logs.logs);
+  const logDir = useStore((state) => state.logs.logDir);
   const loadedLog = useStore((state) => state.log.loadedLog);
 
   const selectTab = useCallback(
@@ -20,11 +20,11 @@ export const useLogNavigation = () => {
         navigate(url);
       } else if (loadedLog) {
         // Fallback to constructing the path if needed
-        const url = logUrl(loadedLog, logs.log_dir, tabId);
+        const url = logUrl(loadedLog, logDir, tabId);
         navigate(url);
       }
     },
-    [loadedLog, logPath, logs.log_dir, navigate],
+    [loadedLog, logPath, logDir, navigate],
   );
 
   return {
@@ -35,7 +35,7 @@ export const useLogNavigation = () => {
 export const useSampleUrl = () => {
   const { logPath, tabId, sampleTabId } = useLogRouteParams();
 
-  const logDirectory = useStore((state) => state.logs.logs.log_dir);
+  const logDirectory = useStore((state) => state.logs.logDir);
 
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 
@@ -86,7 +86,7 @@ export const useSampleNavigation = () => {
   const navigate = useNavigate();
 
   // The log directory
-  const logDirectory = useStore((state) => state.logs.logs.log_dir);
+  const logDirectory = useStore((state) => state.logs.logDir);
 
   // The log
   const { logPath, tabId, sampleTabId } = useLogRouteParams();

@@ -58,7 +58,14 @@ export class DatabaseService {
     const db = this.getDb();
     const now = new Date().toISOString();
 
+    // Get existing records to preserve their IDs
+    const existingRecords = await db.log_files.toArray();
+    const existingByPath = new Map(
+      existingRecords.map((r) => [r.file_path, r.id]),
+    );
+
     const records = logFiles.map((file) => ({
+      id: existingByPath.get(file.name),
       file_path: file.name,
       file_name: file.name.split("/").pop() || file.name,
       task: file.task,
@@ -72,6 +79,11 @@ export class DatabaseService {
 
   async getCachedLogFiles(): Promise<LogFile[] | null> {
     try {
+      if (!this.opened()) {
+        log.debug("Database not open");
+        return null;
+      }
+
       const db = this.getDb();
       const files = await db.log_files.orderBy("id").toArray();
 
