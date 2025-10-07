@@ -311,9 +311,10 @@ export const createLogsSlice = (
         const databaseService = await initializeDatabase(logDir);
 
         // Read the cached values
+        let cached;
         if (databaseService) {
           try {
-            const cached = await databaseService.getCachedLogFiles();
+            cached = await databaseService.getCachedLogFiles();
             if (cached && cached.length > 0) {
               log.debug("LOADED LOG FILES FROM CACHE");
               // Activate the current log files
@@ -324,9 +325,15 @@ export const createLogsSlice = (
           }
         }
 
+        // What is our most recent known log file and total count?
+        let mtime = 0;
+        if (cached && cached.length > 0) {
+          mtime = Math.max(...cached.map((file) => file.mtime || 0));
+        }
+
         // Now query the server and update the store with fresh data
         log.debug("LOADING LOG FILES FROM API");
-        const files = await api.get_log_files();
+        const files = await api.get_log_files(mtime);
 
         // Cache the result we got from API
         setTimeout(() => {
