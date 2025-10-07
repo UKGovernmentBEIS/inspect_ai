@@ -190,7 +190,7 @@ export const createLogSlice = (
               const header = {
                 [logFileName]: toBasicInfo(cachedInfo),
               };
-              state.logsActions.updateLogOverviews(header);
+              state.logsActions.updateLogOverview(header);
               set((state) => {
                 state.log.loadedLog = logFileName;
               });
@@ -219,7 +219,7 @@ export const createLogSlice = (
             [logFileName]: toBasicInfo(logContents),
           };
 
-          state.logsActions.updateLogOverviews(header);
+          state.logsActions.updateLogOverview(header);
           set((state) => {
             state.log.loadedLog = logFileName;
           });
