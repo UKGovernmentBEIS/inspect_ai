@@ -1,7 +1,7 @@
 import { EvalSet } from "../../../@types/log";
 import { fetchRange, fetchSize } from "../../remote/remoteZipFile";
 import { download_file } from "../shared/api-shared";
-import { Capabilities, LogRoot, LogSummary, LogViewAPI } from "../types";
+import { Capabilities, LogPreview, LogRoot, LogViewAPI } from "../types";
 import { fetchJsonFile, fetchLogFile, fetchManifest, joinURI } from "./fetch";
 
 /**
@@ -30,11 +30,11 @@ function staticHttpApiForLog(logInfo: {
   log_file?: string;
 }): LogViewAPI {
   const log_dir = logInfo.log_dir;
-  let manifest: Record<string, LogSummary> | undefined = undefined;
-  let manifestPromise: Promise<Record<string, LogSummary>> | undefined =
+  let manifest: Record<string, LogPreview> | undefined = undefined;
+  let manifestPromise: Promise<Record<string, LogPreview>> | undefined =
     undefined;
 
-  const getManifest = async (): Promise<Record<string, LogSummary>> => {
+  const getManifest = async (): Promise<Record<string, LogPreview>> => {
     if (!manifest && log_dir) {
       if (!manifestPromise) {
         manifestPromise = fetchManifest(log_dir).then((manifestRaw) => {
@@ -113,7 +113,7 @@ function staticHttpApiForLog(logInfo: {
     get_log_summary: async (log_file: string) => {
       const manifest = await getManifest();
       if (manifest) {
-        const manifestAbs: Record<string, LogSummary> = {};
+        const manifestAbs: Record<string, LogPreview> = {};
         Object.keys(manifest).forEach((key) => {
           manifestAbs[joinURI(log_dir || "", key)] = manifest[key];
         });
@@ -133,7 +133,7 @@ function staticHttpApiForLog(logInfo: {
         const manifest = await getManifest();
         if (manifest) {
           const keys = Object.keys(manifest);
-          const result: LogSummary[] = [];
+          const result: LogPreview[] = [];
           files.forEach((file) => {
             const fileKey = keys.find((key) => {
               return file.endsWith(key);

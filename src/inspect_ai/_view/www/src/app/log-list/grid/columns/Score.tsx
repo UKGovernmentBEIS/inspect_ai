@@ -55,5 +55,5 @@ const itemMetric = (item: FileLogItem | FolderLogItem | PendingTaskItem) => {
     return undefined;
   }
 
-  return item.logOverview?.primary_metric;
+  return item.logPreview?.primary_metric;
 };

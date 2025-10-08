@@ -5,7 +5,7 @@ import {
   Capabilities,
   EvalHeader,
   LogContents,
-  LogSummary,
+  LogPreview,
   LogViewAPI,
   PendingSampleResponse,
   SampleDataResponse,
@@ -124,7 +124,7 @@ export function viewServerApi(
     return result.parsed;
   };
 
-  const toLogSummary = (header: EvalHeader): LogSummary => {
+  const toLogSummary = (header: EvalHeader): LogPreview => {
     console.log({ a: header.results?.scores });
     const scores: Scores = Object.values(header.results?.scores || {});
     const metric = scores.length > 0 ? scores[0].metrics : undefined;

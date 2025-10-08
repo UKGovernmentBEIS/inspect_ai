@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-table";
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
-import { EvalHeader, LogHandle, LogSummary } from "../client/api/types";
+import { EvalHeader, LogHandle, LogPreview } from "../client/api/types";
 import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
@@ -19,9 +19,9 @@ export interface LogsSlice {
     setLogDir: (logDir?: string) => void;
     setLogHandles: (logHandles: LogHandle[]) => void;
 
-    updateLogOverview: (overviews: Record<string, LogSummary>) => void;
+    updateLogOverview: (overviews: Record<string, LogPreview>) => void;
 
-    syncLogOverviews: (logs: LogHandle[]) => Promise<LogSummary[]>;
+    syncLogOverviews: (logs: LogHandle[]) => Promise<LogPreview[]>;
     setLogOverviewsLoading: (loading: boolean) => void;
 
     setSelectedLogIndex: (index: number) => void;
@@ -100,7 +100,7 @@ export const createLogsSlice = (
         const filePaths = logs.map((log) => log.name);
 
         // OPTIONAL: Try cache first (non-blocking, fail silently)
-        let cached: Record<string, LogSummary> = {};
+        let cached: Record<string, LogPreview> = {};
         const databaseService = get().databaseService;
         if (databaseService) {
           try {
@@ -172,12 +172,12 @@ export const createLogsSlice = (
           );
 
           // Process results and update store
-          const headerMap: Record<string, LogSummary> = {};
+          const headerMap: Record<string, LogPreview> = {};
           for (let i = 0; i < filesToLoad.length; i++) {
             const logFile = filesToLoad[i];
             const header = headers[i];
             if (header) {
-              headerMap[logFile.name] = header as LogSummary;
+              headerMap[logFile.name] = header as LogPreview;
             }
           }
 
@@ -241,7 +241,7 @@ export const createLogsSlice = (
           state.logs.selectedLogFile = file ? file.name : undefined;
         });
       },
-      updateLogOverview: (overviews: Record<string, LogSummary>) =>
+      updateLogOverview: (overviews: Record<string, LogPreview>) =>
         set((state) => {
           // TODO: write through to the database
           state.logs.logOverviews = {

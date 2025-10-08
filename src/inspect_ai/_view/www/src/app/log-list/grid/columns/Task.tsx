@@ -53,7 +53,7 @@ export const taskColumn = () => {
 const itemName = (item: FileLogItem | FolderLogItem | PendingTaskItem) => {
   let value = item.name;
   if (item.type === "file") {
-    return item.logOverview?.task || parseLogFileName(item.name).name;
+    return item.logPreview?.task || parseLogFileName(item.name).name;
   }
   return value;
 };

@@ -153,8 +153,8 @@ export interface LogViewAPI {
     start: number,
     end: number,
   ) => Promise<Uint8Array>;
-  get_log_summary?: (log_file: string) => Promise<LogSummary>;
-  get_log_summaries: (log_files: string[]) => Promise<LogSummary[]>;
+  get_log_summary?: (log_file: string) => Promise<LogPreview>;
+  get_log_summaries: (log_files: string[]) => Promise<LogPreview[]>;
   log_message: (log_file: string, message: string) => Promise<void>;
   download_file: (
     filename: string,
@@ -187,7 +187,7 @@ export interface ClientAPI {
 
   // Read eval set
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
-  get_log_summaries: (log_files: string[]) => Promise<LogSummary[]>;
+  get_log_summaries: (log_files: string[]) => Promise<LogPreview[]>;
   get_log_info: (log_file: string) => Promise<LogInfo>;
 
   // Sample retrieval
@@ -243,7 +243,7 @@ export interface EvalHeader {
   error?: EvalError | null;
 }
 
-export interface LogSummary {
+export interface LogPreview {
   eval_id: EvalId;
   run_id: RunId;
 
@@ -282,7 +282,7 @@ export interface LogContents {
 
 export interface LogFilesFetchResponse {
   raw: string;
-  parsed: Record<string, LogSummary>;
+  parsed: Record<string, LogPreview>;
 }
 
 export interface UpdateStateMessage {

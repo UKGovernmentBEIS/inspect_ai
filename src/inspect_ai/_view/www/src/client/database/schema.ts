@@ -1,5 +1,5 @@
 import Dexie from "dexie";
-import { LogInfo, LogSummary } from "../api/types";
+import { LogInfo, LogPreview } from "../api/types";
 
 // Log Files Table - Basic file listing
 export interface LogHandleRecord {
@@ -18,7 +18,7 @@ export interface LogPreviewRecord {
   file_path: string;
 
   // The complete log summary object
-  preview: LogSummary;
+  preview: LogPreview;
 }
 
 // Log Info Table - Stores complete results from get_log_info()

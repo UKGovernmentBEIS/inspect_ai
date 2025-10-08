@@ -29,7 +29,7 @@ import {
   EventData,
   LogHandle,
   LogInfo,
-  LogSummary,
+  LogPreview,
   PendingSamples,
   SampleSummary,
 } from "../client/api/types";
@@ -68,7 +68,7 @@ export interface LogsState {
   logDir?: string;
   logs: LogHandle[];
   evalSet?: EvalSet;
-  logOverviews: Record<string, LogSummary>;
+  logOverviews: Record<string, LogPreview>;
   logOverviewsLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;

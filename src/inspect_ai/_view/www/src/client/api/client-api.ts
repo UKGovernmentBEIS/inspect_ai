@@ -11,8 +11,8 @@ import {
   LogContents,
   LogHandle,
   LogInfo,
+  LogPreview,
   LogRoot,
-  LogSummary,
   LogViewAPI,
   PendingSampleResponse,
   SampleDataResponse,
@@ -231,7 +231,7 @@ export const clientApi = (
    */
   const get_log_summaries = async (
     log_files: string[],
-  ): Promise<LogSummary[]> => {
+  ): Promise<LogPreview[]> => {
     const eval_files: Record<string, number> = {};
     const json_files: Record<string, number> = {};
     let index = 0;

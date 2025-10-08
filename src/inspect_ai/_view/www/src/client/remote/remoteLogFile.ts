@@ -4,11 +4,11 @@ import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
   LogInfo,
-  LogSummary,
+  LogPreview,
   LogViewAPI,
   SampleSummary,
 } from "../api/types";
-import { toBasicInfo } from "../utils/type-utils";
+import { toLogPreview } from "../utils/type-utils";
 import {
   CentralDirectoryEntry,
   FileSizeLimitError,
@@ -33,7 +33,7 @@ export class SampleNotFoundError extends Error {
   }
 }
 export interface RemoteLogFile {
-  readEvalBasicInfo: () => Promise<LogSummary>;
+  readEvalBasicInfo: () => Promise<LogPreview>;
   readLogSummary: () => Promise<LogInfo>;
   readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
   readCompleteLog: () => Promise<EvalLog>;
@@ -165,9 +165,9 @@ export const openRemoteLogFile = async (
     }
   };
 
-  const readEvalBasicInfo = async (): Promise<LogSummary> => {
+  const readEvalBasicInfo = async (): Promise<LogPreview> => {
     const header = await readHeader();
-    return toBasicInfo(header);
+    return toLogPreview(header);
   };
 
   /**

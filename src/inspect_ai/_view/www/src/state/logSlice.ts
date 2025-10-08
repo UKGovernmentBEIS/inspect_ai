@@ -1,6 +1,6 @@
 import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { LogInfo, PendingSamples } from "../client/api/types";
-import { toBasicInfo } from "../client/utils/type-utils";
+import { toLogPreview } from "../client/utils/type-utils";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
 import { createLogPolling } from "./logPolling";
@@ -188,7 +188,7 @@ export const createLogSlice = (
               });
               // Continue with rest of the function using cached data
               const header = {
-                [logFileName]: toBasicInfo(cachedInfo),
+                [logFileName]: toLogPreview(cachedInfo),
               };
               state.logsActions.updateLogOverview(header);
               set((state) => {
@@ -216,7 +216,7 @@ export const createLogSlice = (
 
           // Push the updated header information up
           const header = {
-            [logFileName]: toBasicInfo(logContents),
+            [logFileName]: toLogPreview(logContents),
           };
 
           state.logsActions.updateLogOverview(header);

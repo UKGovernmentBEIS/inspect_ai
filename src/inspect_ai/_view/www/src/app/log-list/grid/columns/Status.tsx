@@ -83,7 +83,7 @@ const itemStatus = (item: FileLogItem | FolderLogItem | PendingTaskItem) => {
   if (item.type !== "file") {
     return undefined;
   }
-  const header = item.logOverview;
+  const header = item.logPreview;
   return header?.status;
 };
 
