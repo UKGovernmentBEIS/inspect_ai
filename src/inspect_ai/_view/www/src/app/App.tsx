@@ -30,7 +30,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const rehydrated = useStore((state) => state.app.rehydrated);
 
   const logDir = useStore((state) => state.logs.logDir);
-  const logFiles = useStore((state) => state.logs.logFiles);
+  const logFiles = useStore((state) => state.logs.logs);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const loadedLogFile = useStore((state) => state.log.loadedLog);
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
@@ -40,7 +40,7 @@ export const App: FC<AppProps> = ({ api }) => {
 
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
   const setLogDir = useStore((state) => state.logsActions.setLogDir);
-  const setLogFiles = useStore((state) => state.logsActions.setLogFiles);
+  const setLogFiles = useStore((state) => state.logsActions.setLogHandles);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
 
   const loadLog = useStore((state) => state.logActions.syncLog);

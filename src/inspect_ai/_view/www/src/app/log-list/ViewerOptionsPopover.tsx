@@ -96,11 +96,11 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
       showArrow={false}
     >
       <div className={clsx(styles.container, "text-size-smaller")}>
-        <b>Viewer Options</b>
+        <b>Inspect Viewer</b>
         <div className={styles.content}>
           <div className={styles.statsSection}>
             <div className={styles.statRow}>
-              <strong>Viewer Version:</strong> {__VIEWER_VERSION__}
+              <strong>Version:</strong> {__VIEWER_VERSION__}
             </div>
             <div className={styles.statRow}>
               <strong>Database Version:</strong> {DB_VERSION}

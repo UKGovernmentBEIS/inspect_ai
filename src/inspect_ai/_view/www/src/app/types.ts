@@ -27,7 +27,7 @@ import {
   AttachmentData,
   EvalHeader,
   EventData,
-  LogFile,
+  LogHandle,
   LogInfo,
   LogSummary,
   PendingSamples,
@@ -67,7 +67,7 @@ export interface AppState {
 
 export interface LogsState {
   logDir?: string;
-  logFiles: LogFile[];
+  logs: LogHandle[];
   evalSet?: EvalSet;
   logOverviews: Record<string, LogSummary>;
   logOverviewsLoading: boolean;
@@ -85,7 +85,7 @@ export interface LogsListing {
   columnResizeMode?: ColumnResizeMode;
   columnSizes?: Record<string, number>;
   filteredCount?: number;
-  watchedLogs?: LogFile[];
+  watchedLogs?: LogHandle[];
 }
 
 export interface LogState {
