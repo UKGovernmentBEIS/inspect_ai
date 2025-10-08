@@ -1,5 +1,9 @@
 import pytest
-from test_helpers.utils import skip_if_no_openai_package, skip_if_trio
+from test_helpers.utils import (
+    skip_if_no_hf_token,
+    skip_if_no_openai_package,
+    skip_if_trio,
+)
 
 from inspect_ai.model import GenerateConfig, get_model
 
@@ -7,6 +11,7 @@ from inspect_ai.model import GenerateConfig, get_model
 @pytest.mark.anyio
 @skip_if_no_openai_package
 @skip_if_trio
+@skip_if_no_hf_token
 async def test_hf_inference_providers_model_creation():
     """Test that HF Inference Providers models can be created."""
     model = get_model("hf-inference-providers/openai/gpt-oss-20b")
@@ -19,6 +24,7 @@ async def test_hf_inference_providers_model_creation():
 @pytest.mark.anyio
 @skip_if_no_openai_package
 @skip_if_trio
+@skip_if_no_hf_token
 async def test_hf_inference_providers_with_config():
     """Test HF Inference Providers model with custom config."""
     config = GenerateConfig(temperature=0.7, max_tokens=100)
@@ -31,6 +37,7 @@ async def test_hf_inference_providers_with_config():
 @pytest.mark.anyio
 @skip_if_no_openai_package
 @skip_if_trio
+@skip_if_no_hf_token
 async def test_hf_inference_providers_caching():
     """Test that HF Inference Providers models are cached properly."""
     model1 = get_model("hf-inference-providers/openai/gpt-oss-20b")
