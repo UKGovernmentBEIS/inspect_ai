@@ -39,7 +39,7 @@ export function createLogPolling(
 
       set((state) => {
         // Set the log summary
-        state.log.selectedLogSummary = logContents;
+        state.log.selectedLogDetails = logContents;
         log.debug(
           `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
           logContents,
@@ -135,7 +135,7 @@ export function createLogPolling(
           // Clear pending summaries and refresh in one transaction
           if (
             loadedPendingSamples ||
-            state.log.selectedLogSummary?.status === "started"
+            state.log.selectedLogDetails?.status === "started"
           ) {
             log.debug(`Refresh log: ${logFileName}`);
             await refreshLog(logFileName, true);

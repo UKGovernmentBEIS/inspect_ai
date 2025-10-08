@@ -3,7 +3,7 @@ import { useStore } from "./store";
 
 export const useUnloadLog = () => {
   const clearSelectedLogSummary = useStore(
-    (state) => state.logActions.clearSelectedLogSummary,
+    (state) => state.logActions.clearSelectedLogDetails,
   );
   const setSelectedLogIndex = useStore(
     (state) => state.logsActions.setSelectedLogIndex,

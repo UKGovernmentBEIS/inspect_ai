@@ -29,7 +29,7 @@ export const LogView: FC = () => {
   const refreshLog = useRefreshLog();
   const navigation = useLogNavigation();
 
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
   const evalSpec = useEvalSpec();
   const runningMetrics = useStore(
     (state) => state.log.pendingSampleSummaries?.metrics,

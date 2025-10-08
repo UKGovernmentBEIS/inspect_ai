@@ -36,7 +36,7 @@ import {
   Version,
 } from "../../@types/log";
 
-export interface LogInfo {
+export interface LogDetails {
   version?: Version;
   status?: Status;
   eval: EvalSpec;
@@ -188,7 +188,7 @@ export interface ClientAPI {
   // Read eval set
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
   get_log_summaries: (log_files: string[]) => Promise<LogPreview[]>;
-  get_log_info: (log_file: string) => Promise<LogInfo>;
+  get_log_info: (log_file: string) => Promise<LogDetails>;
 
   // Sample retrieval
   get_log_sample: (

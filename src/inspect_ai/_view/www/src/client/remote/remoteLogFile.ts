@@ -3,7 +3,7 @@ import { asyncJsonParse } from "../../utils/json-worker";
 import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
-  LogInfo,
+  LogDetails,
   LogPreview,
   LogViewAPI,
   SampleSummary,
@@ -34,7 +34,7 @@ export class SampleNotFoundError extends Error {
 }
 export interface RemoteLogFile {
   readEvalBasicInfo: () => Promise<LogPreview>;
-  readLogSummary: () => Promise<LogInfo>;
+  readLogSummary: () => Promise<LogDetails>;
   readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
   readCompleteLog: () => Promise<EvalLog>;
 }
