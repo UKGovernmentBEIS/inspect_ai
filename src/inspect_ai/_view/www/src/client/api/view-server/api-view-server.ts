@@ -297,7 +297,7 @@ export function viewServerApi(
   return {
     client_events,
     get_log_root,
-    get_log_files,
+    get_logs: get_log_files,
     get_log_dir,
     get_eval_set,
     get_log_contents,

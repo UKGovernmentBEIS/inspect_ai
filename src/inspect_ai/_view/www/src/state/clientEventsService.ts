@@ -1,4 +1,4 @@
-import { LogFile } from "../client/api/types";
+import { LogHandle } from "../client/api/types";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
 
@@ -12,11 +12,11 @@ class ClientEventsService {
   private currentPolling: ReturnType<typeof createPolling> | null = null;
   private abortController: AbortController | null = null;
   private isRefreshing = false;
-  private pendingLogFiles = new Set<LogFile>();
-  private onRefreshCallback: ((logFiles: LogFile[]) => Promise<void>) | null =
+  private pendingLogs = new Set<LogHandle>();
+  private onRefreshCallback: ((logs: LogHandle[]) => Promise<void>) | null =
     null;
 
-  setRefreshCallback(callback: (logFiles: LogFile[]) => Promise<void>) {
+  setRefreshCallback(callback: (logs: LogHandle[]) => Promise<void>) {
     this.onRefreshCallback = callback;
   }
 
@@ -27,8 +27,8 @@ class ClientEventsService {
 
     do {
       try {
-        const logFiles = [...this.pendingLogFiles];
-        this.pendingLogFiles.clear();
+        const logFiles = [...this.pendingLogs];
+        this.pendingLogs.clear();
         this.isRefreshing = true;
 
         // Call the refresh callback
@@ -36,15 +36,15 @@ class ClientEventsService {
       } finally {
         this.isRefreshing = false;
       }
-    } while (this.pendingLogFiles.size > 0);
+    } while (this.pendingLogs.size > 0);
   }
 
-  private async refreshLogFiles(logFiles: LogFile[]) {
-    logFiles.forEach((file) => this.pendingLogFiles.add(file));
+  private async refreshLogFiles(logs: LogHandle[]) {
+    logs.forEach((file) => this.pendingLogs.add(file));
     await this.refreshPendingLogFiles();
   }
 
-  startPolling(logFiles: LogFile[], api: any) {
+  startPolling(logs: LogHandle[], api: any) {
     // Stop any existing polling
     this.stopPolling();
 
@@ -68,7 +68,7 @@ class ClientEventsService {
         }
 
         if ((events || []).includes(kRefreshEvent)) {
-          await this.refreshLogFiles(logFiles);
+          await this.refreshLogFiles(logs);
         }
 
         return true;
@@ -96,7 +96,7 @@ class ClientEventsService {
   cleanup() {
     log.debug(`Cleanup`);
     this.stopPolling();
-    this.pendingLogFiles.clear();
+    this.pendingLogs.clear();
     this.onRefreshCallback = null;
   }
 }

@@ -11,7 +11,7 @@ import {
   bySample,
   sortSamples,
 } from "../app/samples/sample-tools/SortFilter";
-import { LogFile, SampleSummary } from "../client/api/types";
+import { LogHandle, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { prettyDirUri } from "../utils/uri";
@@ -606,11 +606,11 @@ export const useLogs = () => {
     (state) => state.logsActions.syncLogOverviews,
   );
   const existingHeaders = useStore((state) => state.logs.logOverviews);
-  const allLogFiles = useStore((state) => state.logs.logFiles);
+  const allLogFiles = useStore((state) => state.logs.logs);
 
   const loadLogOverviews = useCallback(
-    async (logFiles: LogFile[] = allLogFiles) => {
-      await syncLogOverviews(logFiles);
+    async (logs: LogHandle[] = allLogFiles) => {
+      await syncLogOverviews(logs);
     },
     [syncLogOverviews, allLogFiles],
   );

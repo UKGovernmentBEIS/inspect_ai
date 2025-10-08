@@ -23,7 +23,7 @@ export const LogViewLayout: FC = () => {
 
   // Logs Data
   const logDir = useStore((state) => state.logs.logDir);
-  const logFiles = useStore((state) => state.logs.logFiles);
+  const logFiles = useStore((state) => state.logs.logs);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { LogFile } from "../client/api/types";
+import { LogHandle } from "../client/api/types";
 import { createLogger } from "../utils/logger";
 import { clientEventsService } from "./clientEventsService";
 import { useLogs } from "./hooks";
@@ -15,16 +15,16 @@ export function useClientEvents() {
 
   // Set up the refresh callback for the service
   const refreshCallback = useCallback(
-    async (logFiles: LogFile[]) => {
+    async (logs: LogHandle[]) => {
       // Refresh the list of log files
       log.debug("Refresh Log Files");
       await syncLogs();
 
-      const toRefresh: LogFile[] = [];
-      for (const logFile of logFiles) {
-        const header = logHeaders[logFile.name];
+      const toRefresh: LogHandle[] = [];
+      for (const log of logs) {
+        const header = logHeaders[log.name];
         if (!header || header.status === "started") {
-          toRefresh.push(logFile);
+          toRefresh.push(log);
         }
       }
 
@@ -44,8 +44,8 @@ export function useClientEvents() {
 
   // Wrapper functions that call the service
   const startPolling = useCallback(
-    (logFiles: LogFile[]) => {
-      clientEventsService.startPolling(logFiles, api);
+    (logs: LogHandle[]) => {
+      clientEventsService.startPolling(logs, api);
     },
     [api],
   );

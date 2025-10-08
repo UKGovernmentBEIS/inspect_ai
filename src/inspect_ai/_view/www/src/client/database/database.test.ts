@@ -8,7 +8,7 @@
  * - log_info: stores complete results from get_log_info() including samples
  */
 
-import { LogFile, LogInfo, LogSummary, SampleSummary } from "../api/types";
+import { LogHandle, LogInfo, LogSummary, SampleSummary } from "../api/types";
 import { createDatabaseService, DatabaseService } from "./service";
 
 // Helper function to create test LogSummary
@@ -117,7 +117,7 @@ describe("Database Service", () => {
 
   describe("Log Files Caching", () => {
     test("should cache and retrieve log files", async () => {
-      const testLogRoot: LogFile[] = [
+      const testLogRoot: LogHandle[] = [
         {
           name: "/test/logs/eval1.json",
           task: "test-task-1",
@@ -220,6 +220,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
         }),
@@ -315,6 +316,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
         }),
@@ -328,6 +330,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
         }),
@@ -340,6 +343,7 @@ describe("Database Service", () => {
               answer: null,
               explanation: null,
               metadata: {},
+              history: [],
             },
           },
         }),

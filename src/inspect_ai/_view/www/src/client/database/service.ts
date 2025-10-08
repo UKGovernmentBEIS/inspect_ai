@@ -1,5 +1,5 @@
 import { createLogger } from "../../utils/logger";
-import { LogFile, LogInfo, LogSummary, SampleSummary } from "../api/types";
+import { LogHandle, LogInfo, LogSummary, SampleSummary } from "../api/types";
 import { DatabaseManager } from "./manager";
 import { AppDatabase } from "./schema";
 
@@ -54,7 +54,7 @@ export class DatabaseService {
   }
 
   // === LOG FILES ===
-  async cacheLogFiles(logFiles: LogFile[]): Promise<void> {
+  async cacheLogFiles(logs: LogHandle[]): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
@@ -64,7 +64,7 @@ export class DatabaseService {
       existingRecords.map((r) => [r.file_path, r.id]),
     );
 
-    const records = logFiles.map((file) => ({
+    const records = logs.map((file) => ({
       id: existingByPath.get(file.name),
       file_path: file.name,
       file_name: file.name.split("/").pop() || file.name,
@@ -78,7 +78,7 @@ export class DatabaseService {
     await db.log_files.bulkPut(records);
   }
 
-  async getCachedLogFiles(): Promise<LogFile[] | null> {
+  async getCachedLogFiles(): Promise<LogHandle[] | null> {
     try {
       if (!this.opened()) {
         log.debug("Database not open");

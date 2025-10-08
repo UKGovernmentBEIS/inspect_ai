@@ -69,7 +69,7 @@ function staticHttpApiForLog(logInfo: {
             };
           });
           return Promise.resolve({
-            files: logs,
+            logs: logs,
             log_dir,
           });
         }

@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-table";
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
-import { EvalHeader, LogFile, LogSummary } from "../client/api/types";
+import { EvalHeader, LogHandle, LogSummary } from "../client/api/types";
 import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
@@ -17,11 +17,11 @@ export interface LogsSlice {
   logsActions: {
     // Update State
     setLogDir: (logDir?: string) => void;
-    setLogFiles: (logFiles: LogFile[]) => void;
+    setLogHandles: (logHandles: LogHandle[]) => void;
 
     updateLogOverview: (overviews: Record<string, LogSummary>) => void;
 
-    syncLogOverviews: (logs: LogFile[]) => Promise<LogSummary[]>;
+    syncLogOverviews: (logs: LogHandle[]) => Promise<LogSummary[]>;
     setLogOverviewsLoading: (loading: boolean) => void;
 
     setSelectedLogIndex: (index: number) => void;
@@ -48,7 +48,7 @@ export interface LogsSlice {
     setColumnResizeMode: (mode: ColumnResizeMode) => void;
     setColumnSize: (columnId: string, size: number) => void;
     setFilteredCount: (count: number) => void;
-    setWatchedLogs: (logs: LogFile[]) => void;
+    setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
     setSelectedRowIndex: (index: number | null) => void;
   };
@@ -56,7 +56,7 @@ export interface LogsSlice {
 
 const initialState: LogsState = {
   logDir: undefined,
-  logFiles: [],
+  logs: [],
   logOverviews: {},
   logOverviewsLoading: false,
   selectedLogIndex: -1,
@@ -81,15 +81,15 @@ export const createLogsSlice = (
         set((state) => {
           state.logs.logDir = logDir;
         }),
-      setLogFiles: (logFiles: LogFile[]) =>
+      setLogHandles: (logs: LogHandle[]) =>
         set((state) => {
-          state.logs.logFiles = logFiles;
+          state.logs.logs = logs;
           state.logs.selectedLogFile =
             state.logs.selectedLogIndex > -1
-              ? logFiles[state.logs.selectedLogIndex]?.name
+              ? logs[state.logs.selectedLogIndex]?.name
               : undefined;
         }),
-      syncLogOverviews: async (logs: LogFile[]) => {
+      syncLogOverviews: async (logs: LogHandle[]) => {
         const state = get();
         const api = state.api;
         if (!api) {
@@ -237,7 +237,7 @@ export const createLogsSlice = (
       setSelectedLogIndex: (selectedLogIndex: number) => {
         set((state) => {
           state.logs.selectedLogIndex = selectedLogIndex;
-          const file = state.logs.logFiles[selectedLogIndex];
+          const file = state.logs.logs[selectedLogIndex];
           state.logs.selectedLogFile = file ? file.name : undefined;
         });
       },
@@ -252,14 +252,14 @@ export const createLogsSlice = (
 
       setSelectedLogFile: (logUrl: string) => {
         const state = get();
-        const index = state.logs.logFiles.findIndex((val: { name: string }) =>
+        const index = state.logs.logs.findIndex((val: { name: string }) =>
           logUrl.endsWith(val.name),
         );
 
         if (index > -1) {
           state.logsActions.setSelectedLogIndex(index);
           state.logs.selectedLogFile =
-            state.logs.logFiles[index]?.name ?? undefined;
+            state.logs.logs[index]?.name ?? undefined;
         }
       },
       syncLogs: async () => {
@@ -315,7 +315,7 @@ export const createLogsSlice = (
             if (cached && cached.length > 0) {
               log.debug("LOADED LOG FILES FROM CACHE");
               // Activate the current log files
-              get().logsActions.setLogFiles(cached);
+              get().logsActions.setLogHandles(cached);
             }
           } catch (e) {
             // Cache read failed, use API results we already have
@@ -332,13 +332,13 @@ export const createLogsSlice = (
 
         // Now query the server and update the store with fresh data
         log.debug("LOADING LOG FILES FROM API");
-        const files = await api.get_log_files(mtime, clientFileCount);
+        const files = await api.get_logs(mtime, clientFileCount);
 
         if (files.length > 0) {
           if (databaseService) {
             // Diff the current list with the new list to see which files (if any)
             // should have data invalidated.
-            const currentFiles = get().logs.logFiles;
+            const currentFiles = get().logs.logs;
 
             // Make a list of the files in current files that are missing
             // from the files we just loaded or which have a lower mtime
@@ -364,11 +364,11 @@ export const createLogsSlice = (
             const state = get();
             const currentLog =
               state.logs.selectedLogIndex > -1
-                ? state.logs.logFiles[state.logs.selectedLogIndex]
+                ? state.logs.logs[state.logs.selectedLogIndex]
                 : undefined;
 
             const logFiles = await databaseService.getCachedLogFiles();
-            get().logsActions.setLogFiles(logFiles || []);
+            get().logsActions.setLogHandles(logFiles || []);
 
             if (currentLog) {
               const newIndex = files.findIndex((file) =>
@@ -396,7 +396,7 @@ export const createLogsSlice = (
       // Select a specific log file
       selectLogFile: async (logUrl: string) => {
         const state = get();
-        const index = state.logs.logFiles.findIndex((val: { name: string }) =>
+        const index = state.logs.logs.findIndex((val: { name: string }) =>
           val.name.endsWith(logUrl),
         );
 
@@ -438,7 +438,7 @@ export const createLogsSlice = (
           state.logs.listing.filteredCount = count;
         });
       },
-      setWatchedLogs: (logs: LogFile[]) => {
+      setWatchedLogs: (logs: LogHandle[]) => {
         set((state) => {
           state.logs.listing.watchedLogs = logs;
         });

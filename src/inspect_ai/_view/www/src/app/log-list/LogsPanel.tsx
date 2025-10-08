@@ -41,7 +41,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const { loadLogs } = useLogs();
   const logDir = useStore((state) => state.logs.logDir);
-  const logFiles = useStore((state) => state.logs.logFiles);
+  const logFiles = useStore((state) => state.logs.logs);
   const evalSet = useStore((state) => state.logs.evalSet);
   const logHeaders = useStore((state) => state.logs.logOverviews);
   const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
@@ -146,7 +146,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             name: fileOrFolderName,
             type: "file",
             url: logUrl(path, logDir),
-            logFile: logFile,
+            log: logFile,
             logOverview: logHeaders[logFile.name],
           });
         } else if (name.startsWith(dirWithSlash)) {
@@ -295,8 +295,8 @@ export const collapseLogItems = (
 
   // Group file items by task_id
   for (const item of logItems) {
-    if (item.type === "file" && item.logFile.task_id) {
-      const taskId = item.logFile.task_id;
+    if (item.type === "file" && item.log.task_id) {
+      const taskId = item.log.task_id;
       if (!taskIdToItems.has(taskId)) {
         taskIdToItems.set(taskId, []);
       }
@@ -341,8 +341,8 @@ export const collapseLogItems = (
   const processedTaskIds = new Set<string>();
 
   for (const item of logItems) {
-    if (item.type === "file" && item.logFile.task_id) {
-      const taskId = item.logFile.task_id;
+    if (item.type === "file" && item.log.task_id) {
+      const taskId = item.log.task_id;
       if (!processedTaskIds.has(taskId)) {
         const selectedItem = selectedItems.get(taskId);
         if (selectedItem) {
