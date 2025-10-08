@@ -16,7 +16,7 @@ import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._view import fastapi_server
-from inspect_ai._view.fastapi_server import FileMappingPolicy
+from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 
 
 @pytest.fixture
@@ -125,17 +125,20 @@ def test_client_with_restrictive_access() -> Generator[TestClient, Any, None]:
         async def unmap(self, request: Request, file: str) -> str:
             return file.removeprefix("memory://")
 
-    async def access_policy(_: Request, file: str, operation: str) -> bool:
-        if operation == "delete":
+    class access_policy(AccessPolicy):
+        async def can_read(self, request: Request, file: str) -> bool:
+            return True
+
+        async def can_delete(self, request: Request, file: str) -> bool:
             return False
-        if not file or file == "/":
-            return False
-        return True
+
+        async def can_list(self, request: Request, dir: str) -> bool:
+            return dir is not None and dir != "" and dir != "/"
 
     with fastapi.testclient.TestClient(
         fastapi_server.view_server_app(
             mapping_policy=mapping_policy(),
-            access_policy=access_policy,
+            access_policy=access_policy(),
         )
     ) as client:
         yield client

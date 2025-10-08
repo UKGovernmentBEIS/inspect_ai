@@ -2,7 +2,7 @@ import json
 import logging
 import urllib.parse
 from logging import getLogger
-from typing import Any, Awaitable, Callable, Literal, Protocol
+from typing import Any, Protocol
 
 import anyio
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -31,9 +31,13 @@ from inspect_ai.log._recorders.buffer import sample_buffer
 
 logger = getLogger(__name__)
 
-AccessPolicy = Callable[
-    [Request, str, Literal["read", "list", "delete"]], Awaitable[bool]
-]
+
+class AccessPolicy(Protocol):
+    async def can_read(self, request: Request, file: str) -> bool: ...
+
+    async def can_delete(self, request: Request, file: str) -> bool: ...
+
+    async def can_list(self, request: Request, dir: str) -> bool: ...
 
 
 class FileMappingPolicy(Protocol):
@@ -74,13 +78,19 @@ def view_server_app(
             return await mapping_policy.unmap(request, file)
         return file
 
-    async def _validate_log_file_request(
-        request: Request,
-        file: str,
-        operation: Literal["read", "list", "delete"] = "read",
-    ) -> None:
+    async def _validate_read(request: Request, file: str) -> None:
         if access_policy is not None:
-            if not await access_policy(request, file, operation):
+            if not await access_policy.can_read(request, file):
+                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+    async def _validate_delete(request: Request, file: str) -> None:
+        if access_policy is not None:
+            if not await access_policy.can_delete(request, file):
+                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+    async def _validate_list(request: Request, file: str) -> None:
+        if access_policy is not None:
+            if not await access_policy.can_list(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
     @app.get("/logs/{log:path}")
@@ -90,21 +100,21 @@ def view_server_app(
         header_only: str | None = Query(None, alias="header-only"),
     ) -> Response:
         file = normalize_uri(log)
-        await _validate_log_file_request(request, file)
+        await _validate_read(request, file)
         body = await get_log_file(await _map_file(request, file), header_only)
         return Response(content=body, media_type="application/json")
 
     @app.get("/log-size/{log:path}")
     async def api_log_size(request: Request, log: str) -> Response:
         file = normalize_uri(log)
-        await _validate_log_file_request(request, file)
+        await _validate_read(request, file)
         size = await get_log_size(await _map_file(request, file))
         return InspectJsonResponse(content=size)
 
     @app.get("/log-delete/{log:path}")
     async def api_log_delete(request: Request, log: str) -> Response:
         file = normalize_uri(log)
-        await _validate_log_file_request(request, file, "delete")
+        await _validate_delete(request, file)
         await delete_log(await _map_file(request, file))
 
         return InspectJsonResponse(content=True)
@@ -117,7 +127,7 @@ def view_server_app(
         end: int = Query(...),
     ) -> Response:
         file = normalize_uri(log)
-        await _validate_log_file_request(request, file)
+        await _validate_read(request, file)
         response = await get_log_bytes(await _map_file(request, file), start, end)
         return Response(
             content=response,
@@ -130,12 +140,14 @@ def view_server_app(
         request: Request,
         log_dir: str = Query("", alias="log_dir"),
     ) -> Response:
-        await _validate_log_file_request(request, log_dir, "list")
+        await _validate_list(request, log_dir)
         listing = await get_logs(
             await _map_file(request, log_dir),
             recursive=recursive,
             fs_options=fs_options,
         )
+        if listing is None:
+            return Response(status_code=HTTP_404_NOT_FOUND)
         for file in listing["files"]:
             file["name"] = await _unmap_file(request, file["name"])
         return InspectJsonResponse(content=listing)
@@ -144,7 +156,7 @@ def view_server_app(
     async def eval_set(
         request: Request, log_dir: str = Query("", alias="dir")
     ) -> Response:
-        await _validate_log_file_request(request, log_dir)
+        await _validate_read(request, log_dir)
 
         eval_set = read_eval_set_info(
             await _map_file(request, log_dir), fs_options=fs_options
@@ -160,7 +172,7 @@ def view_server_app(
         files = [normalize_uri(f) for f in file]
         async with anyio.create_task_group() as tg:
             for f in files:
-                tg.start_soon(_validate_log_file_request, request, f)
+                tg.start_soon(_validate_read, request, f)
         headers = await read_eval_log_headers_async(
             [await _map_file(request, file) for file in files]
         )
@@ -180,7 +192,7 @@ def view_server_app(
     @app.get("/pending-samples")
     async def api_pending_samples(request: Request, log: str = Query(...)) -> Response:
         file = urllib.parse.unquote(log)
-        await _validate_log_file_request(request, file)
+        await _validate_read(request, file)
 
         client_etag = request.headers.get("If-None-Match")
 
@@ -201,7 +213,7 @@ def view_server_app(
         request: Request, log_file: str, message: str
     ) -> Response:
         file = urllib.parse.unquote(log_file)
-        await _validate_log_file_request(request, file)
+        await _validate_read(request, file)
 
         logger = logging.getLogger(__name__)
         logger.warning(f"[CLIENT MESSAGE] ({file}): {message}")
@@ -218,7 +230,7 @@ def view_server_app(
         after_attachment_id: int | None = Query(None, alias="after-attachment-id"),
     ) -> Response:
         file = urllib.parse.unquote(log)
-        await _validate_log_file_request(request, file)
+        await _validate_read(request, file)
 
         buffer = sample_buffer(await _map_file(request, file))
         sample_data = buffer.get_sample_data(
