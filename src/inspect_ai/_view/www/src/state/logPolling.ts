@@ -35,14 +35,14 @@ export function createLogPolling(
     log.debug(`refresh: ${selectedLogFile}`);
 
     try {
-      const logContents = await api.get_log_info(selectedLogFile);
+      const logDetails = await api.get_log_details(selectedLogFile);
 
       set((state) => {
         // Set the log summary
-        state.log.selectedLogDetails = logContents;
+        state.log.selectedLogDetails = logDetails;
         log.debug(
-          `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
-          logContents,
+          `Setting refreshed summary ${logDetails.sampleSummaries.length} samples`,
+          logDetails,
         );
 
         // Clear pending summaries if requested
