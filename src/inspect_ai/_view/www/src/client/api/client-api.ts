@@ -120,7 +120,7 @@ export const clientApi = (
   /**
    * Gets a log summary
    */
-  const get_log_info = async (log_file: string): Promise<LogDetails> => {
+  const get_log_details = async (log_file: string): Promise<LogDetails> => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
       if (remoteLogFile) {
@@ -304,7 +304,7 @@ export const clientApi = (
       return logFiles!;
     } else if (log_file) {
       // Is there an explicitly passed log file?
-      const summary = await get_log_info(log_file);
+      const summary = await get_log_details(log_file);
       if (summary) {
         return {
           logs: [
@@ -364,7 +364,7 @@ export const clientApi = (
       return api.get_eval_set(dir);
     }),
     get_log_summaries: middleware("get_log_summaries", get_log_summaries),
-    get_log_info: middleware("get_log_info", get_log_info),
+    get_log_details: middleware("get_log_details", get_log_details),
     get_log_sample: middleware("get_log_sample", get_log_sample),
     open_log_file: middleware("open_log_file", (log_file, log_dir) => {
       return api.open_log_file(log_file, log_dir);
