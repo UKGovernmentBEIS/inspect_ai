@@ -6,6 +6,10 @@ import { DB_VERSION } from "../../client/database/schema";
 import clsx from "clsx";
 import styles from "./ViewerOptionsPopover.module.css";
 
+// Version info injected at build time
+declare const __VIEWER_VERSION__: string;
+declare const __VIEWER_COMMIT__: string;
+
 export interface ViewerOptionsPopoverProps {
   showing: boolean;
   setShowing: (showing: boolean) => void;
@@ -92,9 +96,12 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
       showArrow={false}
     >
       <div className={clsx(styles.container, "text-size-smaller")}>
-        <b>Database Options</b>
+        <b>Viewer Options</b>
         <div className={styles.content}>
           <div className={styles.statsSection}>
+            <div className={styles.statRow}>
+              <strong>Viewer Version:</strong> {__VIEWER_VERSION__}
+            </div>
             <div className={styles.statRow}>
               <strong>Database Version:</strong> {DB_VERSION}
             </div>
