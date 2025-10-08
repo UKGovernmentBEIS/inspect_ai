@@ -55,7 +55,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
       setSelectedRowIndex,
     } = useLogsListing();
 
-    const { loadHeaders } = useLogs();
+    const { loadLogOverviews, loadAllLogOverviews } = useLogs();
 
     const { page, itemsPerPage, setPage } = usePagination(
       kLogsPaginationId,
@@ -88,10 +88,10 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
     // Load all headers when needed (store handles deduplication)
     const loadAllHeadersForItems = useCallback(
       async (files: LogFile[]) => {
-        await loadHeaders(files);
+        await loadAllLogOverviews();
         setWatchedLogs(files);
       },
-      [loadHeaders, setWatchedLogs],
+      [loadAllLogOverviews, setWatchedLogs],
     );
 
     // Keep ref updated
@@ -217,13 +217,20 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
         const filesToLoad = logFiles.filter((file) => !logHeaders[file.name]);
 
         if (filesToLoad.length > 0) {
-          await loadHeaders(filesToLoad);
+          await loadLogOverviews(filesToLoad);
         }
 
         setWatchedLogs(logFiles);
       };
       exec();
-    }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs, logHeaders]);
+    }, [
+      page,
+      itemsPerPage,
+      items,
+      loadLogOverviews,
+      setWatchedLogs,
+      logHeaders,
+    ]);
 
     const placeholderText = useMemo(() => {
       if (headersLoading || loading) {

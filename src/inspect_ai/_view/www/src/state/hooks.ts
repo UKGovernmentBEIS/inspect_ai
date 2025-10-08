@@ -601,21 +601,21 @@ export const useLogs = () => {
     [syncLogs, setStatus, syncEvalSetInfo],
   );
 
-  // Loading headers
-  const loadLogOverviews = useStore(
+  // Loading overviews
+  const syncLogOverviews = useStore(
     (state) => state.logsActions.syncLogOverviews,
   );
   const existingHeaders = useStore((state) => state.logs.logOverviews);
   const allLogFiles = useStore((state) => state.logs.logFiles);
 
-  const loadHeaders = useCallback(
+  const loadLogOverviews = useCallback(
     async (logFiles: LogFile[] = allLogFiles) => {
-      await loadLogOverviews(logFiles);
+      await syncLogOverviews(logFiles);
     },
-    [loadLogOverviews, allLogFiles],
+    [syncLogOverviews, allLogFiles],
   );
 
-  const loadAllHeaders = useCallback(async () => {
+  const loadAllLogOverviews = useCallback(async () => {
     const logsToLoad = allLogFiles.filter((logFile) => {
       const existingHeader = existingHeaders[logFile.name];
       return !existingHeader || existingHeader.status === "started";
@@ -626,7 +626,7 @@ export const useLogs = () => {
     }
   }, [loadLogOverviews, allLogFiles, existingHeaders]);
 
-  return { loadLogs, loadHeaders, loadAllHeaders };
+  return { loadLogs, loadLogOverviews, loadAllLogOverviews };
 };
 
 export const usePagination = (name: string, defaultPageSize: number) => {
