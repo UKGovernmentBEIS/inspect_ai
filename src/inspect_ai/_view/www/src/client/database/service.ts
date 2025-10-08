@@ -59,7 +59,7 @@ export class DatabaseService {
     const now = new Date().toISOString();
 
     // Get existing records to preserve their IDs
-    const existingRecords = await db.log_files.toArray();
+    const existingRecords = await db.logs.toArray();
     const existingByPath = new Map(
       existingRecords.map((r) => [r.file_path, r.id]),
     );
@@ -75,7 +75,7 @@ export class DatabaseService {
     }));
 
     log.debug(`Caching ${records.length} log files`);
-    await db.log_files.bulkPut(records);
+    await db.logs.bulkPut(records);
   }
 
   async getCachedLogFiles(): Promise<LogHandle[] | null> {
@@ -86,7 +86,7 @@ export class DatabaseService {
       }
 
       const db = this.getDb();
-      const files = await db.log_files.orderBy("id").toArray();
+      const files = await db.logs.orderBy("id").toArray();
 
       if (files.length === 0) {
         log.debug("No cached log files found");
@@ -117,11 +117,11 @@ export class DatabaseService {
     const records = summaries.map((summary, index) => ({
       file_path: filePaths[index],
       cached_at: now,
-      summary: summary,
+      preview: summary,
     }));
 
     log.debug(`Caching ${records.length} log summaries`);
-    await db.log_summaries.bulkPut(records);
+    await db.log_previews.bulkPut(records);
   }
 
   async getCachedLogSummaries(
@@ -129,7 +129,7 @@ export class DatabaseService {
   ): Promise<Record<string, LogSummary>> {
     try {
       const db = this.getDb();
-      const records = await db.log_summaries
+      const records = await db.log_previews
         .where("file_path")
         .anyOf(filePaths)
         .toArray();
@@ -140,7 +140,7 @@ export class DatabaseService {
 
       const result: Record<string, LogSummary> = {};
       for (const record of records) {
-        result[record.file_path] = record.summary;
+        result[record.file_path] = record.preview;
       }
 
       return result;
@@ -158,17 +158,17 @@ export class DatabaseService {
     const record = {
       file_path: filePath,
       cached_at: now,
-      info: info,
+      details: info,
     };
 
     log.debug(`Caching log info for: ${filePath}`);
-    await db.log_info.put(record);
+    await db.log_details.put(record);
   }
 
   async getCachedLogInfo(filePath: string): Promise<LogInfo | null> {
     try {
       const db = this.getDb();
-      const record = await db.log_info.get(filePath);
+      const record = await db.log_details.get(filePath);
 
       if (!record) {
         log.debug(`No cached log info found for: ${filePath}`);
@@ -176,7 +176,7 @@ export class DatabaseService {
       }
 
       log.debug(`Retrieved cached log info for: ${filePath}`);
-      return record.info;
+      return record.details;
     } catch (error) {
       log.error(`Error retrieving cached log info for ${filePath}:`, error);
       return null;
@@ -186,12 +186,12 @@ export class DatabaseService {
   // === SAMPLE SUMMARIES (extracted from LogInfo) ===
   async getAllSampleSummaries(): Promise<SampleSummary[]> {
     const db = this.getDb();
-    const records = await db.log_info.toArray();
+    const records = await db.log_details.toArray();
 
     const allSummaries: SampleSummary[] = [];
     for (const record of records) {
-      if (record.info.sampleSummaries) {
-        allSummaries.push(...record.info.sampleSummaries);
+      if (record.details.sampleSummaries) {
+        allSummaries.push(...record.details.sampleSummaries);
       }
     }
 
@@ -276,9 +276,9 @@ export class DatabaseService {
 
     log.debug("Clearing all caches");
     await Promise.all([
-      db.log_files.clear(),
-      db.log_summaries.clear(),
-      db.log_info.clear(),
+      db.logs.clear(),
+      db.log_previews.clear(),
+      db.log_details.clear(),
     ]);
   }
 
@@ -290,9 +290,9 @@ export class DatabaseService {
     log.debug(`Clearing cache for file: ${filePath}`);
 
     await Promise.all([
-      db.log_files.where("file_path").equals(filePath).delete(),
-      db.log_summaries.where("file_path").equals(filePath).delete(),
-      db.log_info.where("file_path").equals(filePath).delete(),
+      db.logs.where("file_path").equals(filePath).delete(),
+      db.log_previews.where("file_path").equals(filePath).delete(),
+      db.log_details.where("file_path").equals(filePath).delete(),
     ]);
   }
 
@@ -309,17 +309,17 @@ export class DatabaseService {
     const db = this.getDb();
 
     const [logFiles, logSummaries, logInfo] = await Promise.all([
-      db.log_files.count(),
-      db.log_summaries.count(),
-      db.log_info.count(),
+      db.logs.count(),
+      db.log_previews.count(),
+      db.log_details.count(),
     ]);
 
     // Count sample summaries from log info
     let sampleSummaries = 0;
-    const logInfoRecords = await db.log_info.toArray();
+    const logInfoRecords = await db.log_details.toArray();
     for (const record of logInfoRecords) {
-      if (record.info.sampleSummaries) {
-        sampleSummaries += record.info.sampleSummaries.length;
+      if (record.details.sampleSummaries) {
+        sampleSummaries += record.details.sampleSummaries.length;
       }
     }
 
