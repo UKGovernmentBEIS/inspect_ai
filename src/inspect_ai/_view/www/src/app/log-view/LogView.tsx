@@ -29,7 +29,7 @@ export const LogView: FC = () => {
   const refreshLog = useRefreshLog();
   const navigation = useLogNavigation();
 
-  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const evalSpec = useEvalSpec();
   const runningMetrics = useStore(
     (state) => state.log.pendingSampleSummaries?.metrics,
@@ -37,36 +37,36 @@ export const LogView: FC = () => {
 
   // Use individual tab config hooks
   const samplesTabConfig = useSamplesTabConfig(
-    selectedLogSummary?.status,
+    selectedLogDetails?.status,
     refreshLog,
   );
 
   const intoTabConfig = useInfoTabConfig(
     evalSpec,
-    selectedLogSummary?.plan,
-    selectedLogSummary?.error,
-    selectedLogSummary?.results,
-    selectedLogSummary?.status,
+    selectedLogDetails?.plan,
+    selectedLogDetails?.error,
+    selectedLogDetails?.results,
+    selectedLogDetails?.status,
   );
 
-  const errorTabConfig = useErrorTabConfig(selectedLogSummary?.error);
+  const errorTabConfig = useErrorTabConfig(selectedLogDetails?.error);
 
-  const taskTabConfig = useTaskTabConfig(evalSpec, selectedLogSummary?.stats);
+  const taskTabConfig = useTaskTabConfig(evalSpec, selectedLogDetails?.stats);
 
   const modelsTabConfig = useModelsTab(
     evalSpec,
-    selectedLogSummary?.stats,
-    selectedLogSummary?.status,
+    selectedLogDetails?.stats,
+    selectedLogDetails?.status,
   );
 
   const jsonTabConfig = useJsonTabConfig(
-    selectedLogSummary?.version,
-    selectedLogSummary?.status,
+    selectedLogDetails?.version,
+    selectedLogDetails?.status,
     evalSpec,
-    selectedLogSummary?.plan,
-    selectedLogSummary?.error,
-    selectedLogSummary?.results,
-    selectedLogSummary?.stats,
+    selectedLogDetails?.plan,
+    selectedLogDetails?.error,
+    selectedLogDetails?.results,
+    selectedLogDetails?.stats,
   );
 
   const tabs: Record<string, TabDescriptor<any>> = {
@@ -74,7 +74,7 @@ export const LogView: FC = () => {
     task: taskTabConfig,
     model: modelsTabConfig,
     config: intoTabConfig,
-    ...(selectedLogSummary?.error ? { error: errorTabConfig } : {}),
+    ...(selectedLogDetails?.error ? { error: errorTabConfig } : {}),
     json: jsonTabConfig,
   };
 
@@ -116,11 +116,11 @@ export const LogView: FC = () => {
       <Fragment>
         <TitleView
           evalSpec={evalSpec}
-          evalPlan={selectedLogSummary?.plan}
-          evalResults={selectedLogSummary?.results}
+          evalPlan={selectedLogDetails?.plan}
+          evalResults={selectedLogDetails?.results}
           runningMetrics={runningMetrics}
-          evalStats={selectedLogSummary?.stats}
-          status={selectedLogSummary?.status}
+          evalStats={selectedLogDetails?.stats}
+          status={selectedLogDetails?.status}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
           <div className={clsx("log-detail", styles.tabContainer)}>

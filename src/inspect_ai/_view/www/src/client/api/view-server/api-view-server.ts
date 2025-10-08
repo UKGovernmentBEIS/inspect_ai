@@ -124,8 +124,7 @@ export function viewServerApi(
     return result.parsed;
   };
 
-  const toLogSummary = (header: EvalHeader): LogPreview => {
-    console.log({ a: header.results?.scores });
+  const toLogPreview = (header: EvalHeader): LogPreview => {
     const scores: Scores = Object.values(header.results?.scores || {});
     const metric = scores.length > 0 ? scores[0].metrics : undefined;
     const evalMetrics = Object.values(metric || {});
@@ -172,7 +171,7 @@ export function viewServerApi(
       `/log-headers?${params.toString()}`,
     );
     const logHeaders: EvalHeader[] = result.parsed;
-    return logHeaders.map(toLogSummary);
+    return logHeaders.map(toLogPreview);
   };
 
   const log_message = async (

@@ -10,7 +10,7 @@ import { SortFilter } from "./sample-tools/SortFilter";
 interface SampleToolsProps {}
 
 export const SampleTools: FC<SampleToolsProps> = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
 
   const scores = useScores();
   const selectedScores = useSelectedScores();
@@ -22,7 +22,7 @@ export const SampleTools: FC<SampleToolsProps> = () => {
   const sort = useStore((state) => state.log.sort);
   const setSort = useStore((state) => state.logActions.setSort);
 
-  const epochs = selectedLogSummary?.eval.config.epochs || 1;
+  const epochs = selectedLogDetails?.eval.config.epochs || 1;
   return (
     <Fragment>
       <SampleFilter />
