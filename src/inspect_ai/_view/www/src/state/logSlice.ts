@@ -175,14 +175,14 @@ export const createLogSlice = (
         const dbService = state.databaseService;
         if (dbService && dbService.opened()) {
           try {
-            const cachedInfo = await dbService.getCachedLogInfo(logFileName);
+            const cachedInfo = await dbService.readLogDetails(logFileName);
             if (cachedInfo) {
               log.debug(`Using cached log info for: ${logFileName}`);
               state.logActions.setSelectedLogSummary(cachedInfo);
               // Still fetch fresh data in background to update cache
               api.get_log_info(logFileName).then((freshInfo) => {
                 state.logActions.setSelectedLogSummary(freshInfo);
-                dbService.cacheLogInfo(logFileName, freshInfo).catch(() => {
+                dbService.writeLogDetails(logFileName, freshInfo).catch(() => {
                   // Silently ignore cache errors
                 });
               });
@@ -208,7 +208,7 @@ export const createLogSlice = (
           // OPTIONAL: Cache log info (completely non-blocking)
           if (dbService) {
             setTimeout(() => {
-              dbService.cacheLogInfo(logFileName, logContents).catch(() => {
+              dbService.writeLogDetails(logFileName, logContents).catch(() => {
                 // Silently ignore cache errors
               });
             }, 0);

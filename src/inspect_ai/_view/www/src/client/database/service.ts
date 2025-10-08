@@ -54,7 +54,7 @@ export class DatabaseService {
   }
 
   // === LOG FILES ===
-  async cacheLogFiles(logs: LogHandle[]): Promise<void> {
+  async writeLogs(logs: LogHandle[]): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
@@ -78,7 +78,7 @@ export class DatabaseService {
     await db.logs.bulkPut(records);
   }
 
-  async getCachedLogFiles(): Promise<LogHandle[] | null> {
+  async readLogs(): Promise<LogHandle[] | null> {
     try {
       if (!this.opened()) {
         log.debug("Database not open");
@@ -106,28 +106,29 @@ export class DatabaseService {
     }
   }
 
-  // === LOG SUMMARIES ===
-  async cacheLogSummaries(
-    summaries: LogPreview[],
+  // === LOG PREVIEWS ===
+  async writeLogPreviews(
+    previews: LogPreview[],
     filePaths: string[],
   ): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
-    const records = summaries.map((summary, index) => ({
+    const records = previews.map((summary, index) => ({
       file_path: filePaths[index],
       cached_at: now,
       preview: summary,
     }));
 
-    log.debug(`Caching ${records.length} log summaries`);
+    log.debug(`Caching ${records.length} log previews`);
     await db.log_previews.bulkPut(records);
   }
 
-  async getCachedLogSummaries(
-    filePaths: string[],
+  async readLogPreviews(
+    logs: LogHandle[],
   ): Promise<Record<string, LogPreview>> {
     try {
+      const filePaths = logs.map((log) => log.name);
       const db = this.getDb();
       const records = await db.log_previews
         .where("file_path")
@@ -135,7 +136,7 @@ export class DatabaseService {
         .toArray();
 
       log.debug(
-        `Retrieved ${records.length} cached log summaries out of ${filePaths.length} requested`,
+        `Retrieved ${records.length} cached log previews out of ${filePaths.length} requested`,
       );
 
       const result: Record<string, LogPreview> = {};
@@ -150,8 +151,8 @@ export class DatabaseService {
     }
   }
 
-  // === LOG INFO ===
-  async cacheLogInfo(filePath: string, info: LogInfo): Promise<void> {
+  // === LOG DETAILS ===
+  async writeLogDetails(filePath: string, info: LogInfo): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
@@ -165,7 +166,7 @@ export class DatabaseService {
     await db.log_details.put(record);
   }
 
-  async getCachedLogInfo(filePath: string): Promise<LogInfo | null> {
+  async readLogDetails(filePath: string): Promise<LogInfo | null> {
     try {
       const db = this.getDb();
       const record = await db.log_details.get(filePath);
@@ -183,8 +184,8 @@ export class DatabaseService {
     }
   }
 
-  // === SAMPLE SUMMARIES (extracted from LogInfo) ===
-  async getAllSampleSummaries(): Promise<SampleSummary[]> {
+  // === SAMPLE SUMMARIES (extracted from LogDetails) ===
+  async readAllSampleSummaries(): Promise<SampleSummary[]> {
     const db = this.getDb();
     const records = await db.log_details.toArray();
 
@@ -201,8 +202,8 @@ export class DatabaseService {
     return allSummaries;
   }
 
-  async getSampleSummariesForFile(filePath: string): Promise<SampleSummary[]> {
-    const logInfo = await this.getCachedLogInfo(filePath);
+  async readSampleSummariesForFile(filePath: string): Promise<SampleSummary[]> {
+    const logInfo = await this.readLogDetails(filePath);
     if (!logInfo || !logInfo.sampleSummaries) {
       return [];
     }
@@ -214,7 +215,7 @@ export class DatabaseService {
     hasError?: boolean;
     scoreRange?: { min: number; max: number; scoreName?: string };
   }): Promise<SampleSummary[]> {
-    const allSummaries = await this.getAllSampleSummaries();
+    const allSummaries = await this.readAllSampleSummaries();
 
     let filtered = allSummaries;
 

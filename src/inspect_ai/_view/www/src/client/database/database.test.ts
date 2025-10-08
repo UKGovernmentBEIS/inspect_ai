@@ -131,10 +131,10 @@ describe("Database Service", () => {
       ];
 
       // Cache the log files
-      await databaseService.cacheLogFiles(testLogRoot);
+      await databaseService.writeLogs(testLogRoot);
 
       // Retrieve cached files
-      const files = await databaseService.getCachedLogFiles();
+      const files = await databaseService.readLogs();
 
       expect(files).not.toBeNull();
       expect(files).toHaveLength(2);
@@ -146,15 +146,15 @@ describe("Database Service", () => {
       const initialFiles = [
         { name: "/test/logs/eval1.json", task: "initial-task" },
       ];
-      await databaseService.cacheLogFiles(initialFiles);
+      await databaseService.writeLogs(initialFiles);
 
       // Update with new data
       const updatedFiles = [
         { name: "/test/logs/eval1.json", task: "updated-task" },
         { name: "/test/logs/eval2.json", task: "additional-task" },
       ];
-      await databaseService.cacheLogFiles(updatedFiles);
-      const files = await databaseService.getCachedLogFiles();
+      await databaseService.writeLogs(updatedFiles);
+      const files = await databaseService.readLogs();
       expect(files).toHaveLength(2);
       expect(files?.find((f) => f.name === "/test/logs/eval1.json")?.task).toBe(
         "updated-task",
@@ -171,13 +171,19 @@ describe("Database Service", () => {
         createTestLogSummary({ eval_id: "eval-1", task: "task-1" }),
         createTestLogSummary({ eval_id: "eval-2", task: "task-2" }),
       ];
-      const filePaths = ["/test/logs/eval1.json", "/test/logs/eval2.json"];
+      const logHandles = [
+        { name: "/test/logs/eval1.json" },
+        { name: "/test/logs/eval2.json" },
+      ];
 
       // Cache the summaries
-      await databaseService.cacheLogSummaries(summaries, filePaths);
+      await databaseService.writeLogPreviews(
+        summaries,
+        logHandles.map((logHandle) => logHandle.name),
+      );
 
       // Retrieve cached summaries
-      const cached = await databaseService.getCachedLogSummaries(filePaths);
+      const cached = await databaseService.readLogPreviews(logHandles);
 
       expect(Object.keys(cached)).toHaveLength(2);
       expect(cached["/test/logs/eval1.json"]).toBeDefined();
@@ -189,16 +195,16 @@ describe("Database Service", () => {
       const summary = createTestLogSummary({ eval_id: "eval-1" });
 
       // Cache only one summary
-      await databaseService.cacheLogSummaries(
+      await databaseService.writeLogPreviews(
         [summary],
         ["/test/logs/eval1.json"],
       );
 
       // Request multiple summaries
-      const cached = await databaseService.getCachedLogSummaries([
-        "/test/logs/eval1.json",
-        "/test/logs/eval2.json",
-        "/test/logs/eval3.json",
+      const cached = await databaseService.readLogPreviews([
+        { name: "/test/logs/eval1.json" },
+        { name: "/test/logs/eval2.json" },
+        { name: "/test/logs/eval3.json" },
       ]);
 
       // Should only return the cached one
@@ -231,10 +237,10 @@ describe("Database Service", () => {
       });
 
       // Cache the log info
-      await databaseService.cacheLogInfo("/test/logs/eval1.json", logInfo);
+      await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo);
 
       // Retrieve cached log info
-      const cached = await databaseService.getCachedLogInfo(
+      const cached = await databaseService.readLogDetails(
         "/test/logs/eval1.json",
       );
 
@@ -245,7 +251,7 @@ describe("Database Service", () => {
     });
 
     test("should return null for non-cached log info", async () => {
-      const cached = await databaseService.getCachedLogInfo(
+      const cached = await databaseService.readLogDetails(
         "/test/logs/nonexistent.json",
       );
       expect(cached).toBeNull();
@@ -265,10 +271,10 @@ describe("Database Service", () => {
       });
 
       // Cache the log info
-      await databaseService.cacheLogInfo("/test/logs/eval1.json", logInfo);
+      await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo);
 
       // Get samples for the file
-      const retrievedSamples = await databaseService.getSampleSummariesForFile(
+      const retrievedSamples = await databaseService.readSampleSummariesForFile(
         "/test/logs/eval1.json",
       );
 
@@ -279,7 +285,7 @@ describe("Database Service", () => {
     });
 
     test("should return empty array for file without cached info", async () => {
-      const samples = await databaseService.getSampleSummariesForFile(
+      const samples = await databaseService.readSampleSummariesForFile(
         "/test/logs/nonexistent.json",
       );
       expect(samples).toEqual([]);
@@ -297,10 +303,10 @@ describe("Database Service", () => {
         sampleSummaries: [createTestSampleSummary({ id: 3 })],
       });
 
-      await databaseService.cacheLogInfo("/test/logs/eval1.json", logInfo1);
-      await databaseService.cacheLogInfo("/test/logs/eval2.json", logInfo2);
+      await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo1);
+      await databaseService.writeLogDetails("/test/logs/eval2.json", logInfo2);
 
-      const allSamples = await databaseService.getAllSampleSummaries();
+      const allSamples = await databaseService.readAllSampleSummaries();
       expect(allSamples).toHaveLength(3);
     });
 
@@ -350,7 +356,7 @@ describe("Database Service", () => {
       ];
 
       const logInfo = createTestLogInfo({ sampleSummaries: samples });
-      await databaseService.cacheLogInfo("/test/logs/eval1.json", logInfo);
+      await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo);
 
       // Test completed filter
       const completedSamples = await databaseService.querySampleSummaries({
@@ -387,16 +393,16 @@ describe("Database Service", () => {
 
     test("should clear all caches", async () => {
       // Cache data in all tables
-      await databaseService.cacheLogFiles([
+      await databaseService.writeLogs([
         { name: "/test/logs/eval1.json", task: "task-1", task_id: "task1" },
       ]);
 
-      await databaseService.cacheLogSummaries(
+      await databaseService.writeLogPreviews(
         [createTestLogSummary()],
         ["/test/logs/eval1.json"],
       );
 
-      await databaseService.cacheLogInfo(
+      await databaseService.writeLogDetails(
         "/test/logs/eval1.json",
         createTestLogInfo({
           sampleSummaries: [createTestSampleSummary()],
@@ -419,7 +425,7 @@ describe("Database Service", () => {
 
     test("should count sample summaries correctly", async () => {
       // Cache multiple log info with different number of samples
-      await databaseService.cacheLogInfo(
+      await databaseService.writeLogDetails(
         "/test/logs/eval1.json",
         createTestLogInfo({
           sampleSummaries: [
@@ -429,7 +435,7 @@ describe("Database Service", () => {
         }),
       );
 
-      await databaseService.cacheLogInfo(
+      await databaseService.writeLogDetails(
         "/test/logs/eval2.json",
         createTestLogInfo({
           sampleSummaries: [
@@ -451,7 +457,7 @@ describe("Database Service", () => {
       await databaseService.closeDatabase();
 
       // Should return null when database is closed (graceful error handling)
-      const result = await databaseService.getCachedLogFiles();
+      const result = await databaseService.readLogs();
       expect(result).toBeNull();
     });
   });
