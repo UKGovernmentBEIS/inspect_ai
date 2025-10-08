@@ -603,7 +603,7 @@ export const useLogs = () => {
 
   // Loading overviews
   const syncLogOverviews = useStore(
-    (state) => state.logsActions.syncLogOverviews,
+    (state) => state.logsActions.syncLogPreviews,
   );
   const existingHeaders = useStore((state) => state.logs.logOverviews);
   const allLogFiles = useStore((state) => state.logs.logs);

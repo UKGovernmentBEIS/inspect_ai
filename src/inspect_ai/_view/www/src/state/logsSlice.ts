@@ -19,10 +19,10 @@ export interface LogsSlice {
     setLogDir: (logDir?: string) => void;
     setLogHandles: (logHandles: LogHandle[]) => void;
 
-    updateLogOverview: (overviews: Record<string, LogPreview>) => void;
+    updateLogPreviews: (previews: Record<string, LogPreview>) => void;
 
-    syncLogOverviews: (logs: LogHandle[]) => Promise<LogPreview[]>;
-    setLogOverviewsLoading: (loading: boolean) => void;
+    syncLogPreviews: (logs: LogHandle[]) => Promise<LogPreview[]>;
+    setLogPreviewsLoading: (loading: boolean) => void;
 
     setSelectedLogIndex: (index: number) => void;
     setSelectedLogFile: (logUrl: string) => void;
@@ -89,7 +89,7 @@ export const createLogsSlice = (
               ? logs[state.logs.selectedLogIndex]?.name
               : undefined;
         }),
-      syncLogOverviews: async (logs: LogHandle[]) => {
+      syncLogPreviews: async (logs: LogHandle[]) => {
         const state = get();
         const api = state.api;
         if (!api) {
@@ -228,7 +228,16 @@ export const createLogsSlice = (
           return [];
         }
       },
-      setLogOverviewsLoading: (loading: boolean) =>
+      updateLogPreviews: (previews: Record<string, LogPreview>) =>
+        set((state) => {
+          // TODO: write through to the database
+          state.logs.logOverviews = {
+            ...get().logs.logOverviews,
+            ...previews,
+          };
+        }),
+
+      setLogPreviewsLoading: (loading: boolean) =>
         set((state) => {
           state.logs.logOverviewsLoading = loading;
         }),
@@ -239,14 +248,6 @@ export const createLogsSlice = (
           state.logs.selectedLogFile = file ? file.name : undefined;
         });
       },
-      updateLogOverview: (overviews: Record<string, LogPreview>) =>
-        set((state) => {
-          // TODO: write through to the database
-          state.logs.logOverviews = {
-            ...get().logs.logOverviews,
-            ...overviews,
-          };
-        }),
 
       setSelectedLogFile: (logUrl: string) => {
         const state = get();

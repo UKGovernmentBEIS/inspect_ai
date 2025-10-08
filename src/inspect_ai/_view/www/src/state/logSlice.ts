@@ -190,7 +190,7 @@ export const createLogSlice = (
               const header = {
                 [logFileName]: toLogPreview(cachedInfo),
               };
-              state.logsActions.updateLogOverview(header);
+              state.logsActions.updateLogPreviews(header);
               set((state) => {
                 state.log.loadedLog = logFileName;
               });
@@ -219,7 +219,7 @@ export const createLogSlice = (
             [logFileName]: toLogPreview(logContents),
           };
 
-          state.logsActions.updateLogOverview(header);
+          state.logsActions.updateLogPreviews(header);
           set((state) => {
             state.log.loadedLog = logFileName;
           });
