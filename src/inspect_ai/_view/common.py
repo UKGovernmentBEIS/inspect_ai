@@ -3,7 +3,7 @@ import contextlib
 import os
 import urllib.parse
 from logging import getLogger
-from typing import Any, AsyncIterator, Literal, cast
+from typing import Any, AsyncIterator, Literal, Tuple, cast
 
 import fsspec  # type: ignore
 from fsspec.asyn import AsyncFileSystem  # type: ignore
@@ -49,6 +49,57 @@ def normalize_uri(uri: str) -> str:
 def get_log_dir(log_dir: str) -> dict[str, Any]:
     response = dict(
         log_dir=aliased_path(log_dir),
+    )
+    return response
+
+
+async def get_log_files(
+    request_log_dir: str,
+    recursive: bool,
+    fs_options: dict[str, Any],
+    mtime: float,
+    file_count: int,
+) -> dict[str, Any]:
+    # list logs
+    logs = await list_eval_logs_async(
+        log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
+    )
+
+    if len(logs) != file_count:
+        # have the number of files changed? could be a delete
+        # so send a complete list
+        return log_files_response(logs)
+    else:
+        # send only the changed files (captures edits)
+        logs = [log for log in logs if (log.mtime is None or log.mtime > mtime)]
+        return log_files_response(logs)
+
+
+def _parse_log_token(log_token: str) -> Tuple[float, int]:
+    # validate basic format
+    if log_token.find("-") == -1:
+        raise RuntimeError(f"Invalid log token: {log_token}")
+
+    # strip weak etag markers if present
+    if log_token.startswith('W/"') and log_token.endswith('"'):
+        log_token = log_token[3:-1]
+
+    parts = log_token.split("-", 1)
+    return float(parts[0]), int(parts[1])
+
+
+def log_files_response(logs: list[EvalLogInfo]) -> dict[str, Any]:
+    response = dict(
+        files=[
+            dict(
+                name=log.name,
+                size=log.size,
+                mtime=log.mtime,
+                task=log.task,
+                task_id=log.task_id,
+            )
+            for log in logs
+        ],
     )
     return response
 

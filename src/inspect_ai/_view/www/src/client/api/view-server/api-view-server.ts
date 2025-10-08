@@ -63,6 +63,27 @@ export function viewServerApi(
     return logs.parsed;
   };
 
+  const get_log_files = async (mtime: number, clientFileCount: number) => {
+    const path = logDir
+      ? `/log-files?log_dir=${encodeURIComponent(logDir)}`
+      : "/log-files";
+
+    const headers: Record<string, string> = {};
+    const token = log_file_token(mtime, clientFileCount);
+    if (token) {
+      headers["If-None-Match"] = token;
+    }
+
+    const envelope = await requestApi.fetchString("GET", path, headers);
+    return envelope.parsed.files || [];
+  };
+
+  const log_file_token = (mtime: number, fileCount: number) => {
+    // Use a weak etag as the mtime and file count may not
+    // uniquely identify the state of the log directory
+    return `W/"${mtime}-${fileCount}"`;
+  };
+
   const get_eval_set = async (dir?: string) => {
     if (logDir) dir ??= logDir;
     const path = dir ? `/eval-set?dir=${encodeURIComponent(dir)}` : "/eval-set";
@@ -272,6 +293,7 @@ export function viewServerApi(
   return {
     client_events,
     get_log_root,
+    get_log_files,
     get_log_dir,
     get_eval_set,
     get_log_contents,

@@ -324,18 +324,19 @@ export const createLogsSlice = (
 
         // What is our most recent known log file and total count?
         let mtime = 0;
+        let clientFileCount = 0;
         if (cached && cached.length > 0) {
           mtime = Math.max(...cached.map((file) => file.mtime || 0));
+          clientFileCount = cached.length;
         }
 
         // Now query the server and update the store with fresh data
         log.debug("LOADING LOG FILES FROM API");
-        const files = await api.get_log_files(mtime);
+        const files = await api.get_log_files(mtime, clientFileCount);
 
-        // Cache the result we got from API
-        setTimeout(() => {
+        if (files.length > 0) {
           if (databaseService) {
-            databaseService.cacheLogFiles(files).catch(() => {
+            await databaseService.cacheLogFiles(files).catch(() => {
               // Silently ignore cache errors
             });
             const state = get();
@@ -344,7 +345,8 @@ export const createLogsSlice = (
                 ? state.logs.logFiles[state.logs.selectedLogIndex]
                 : undefined;
 
-            get().logsActions.setLogFiles(files);
+            const logFiles = await databaseService.getCachedLogFiles();
+            get().logsActions.setLogFiles(logFiles || []);
 
             if (currentLog) {
               const newIndex = files.findIndex((file) =>
@@ -356,7 +358,7 @@ export const createLogsSlice = (
               }
             }
           }
-        }, 0);
+        }
       },
       syncEvalSetInfo: async (logPath?: string) => {
         const api = get().api;

@@ -26,10 +26,12 @@ from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import filesystem
 from inspect_ai._view import notify
 from inspect_ai._view.common import (
+    _parse_log_token,
     delete_log,
     get_log_bytes,
     get_log_dir,
     get_log_file,
+    get_log_files,
     get_log_size,
     get_logs,
     normalize_uri,
@@ -156,6 +158,29 @@ def view_server_app(
         if log_dir_response is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         return InspectJsonResponse(content=log_dir_response)
+
+    @app.get("/log-files")
+    async def api_log_files(
+        request: Request,
+        log_dir: str | None = Query(None, alias="log_dir"),
+    ) -> Response:
+        if log_dir is None:
+            log_dir = default_dir
+        await _validate_list(request, log_dir)
+
+        client_etag = request.headers.get("If-None-Match")
+        mtime = 0.0
+        file_count = 0
+        if client_etag is not None:
+            mtime, file_count = _parse_log_token(client_etag)
+        log_files_response: dict[str, Any] = await get_log_files(
+            log_dir,
+            recursive=recursive,
+            fs_options=fs_options,
+            mtime=mtime,
+            file_count=file_count,
+        )
+        return InspectJsonResponse(content=log_files_response)
 
     @app.get("/logs")
     async def api_logs(
