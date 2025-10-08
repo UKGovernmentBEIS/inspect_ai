@@ -2,9 +2,11 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { resolve } from "path";
 import dts from "vite-plugin-dts";
+import getVersionInfo from "./scripts/get-version.js";
 
 export default defineConfig(({ mode }) => {
   const isLibrary = mode === "library";
+  const versionInfo = getVersionInfo();
 
   const baseConfig = {
     plugins: [
@@ -24,6 +26,8 @@ export default defineConfig(({ mode }) => {
       __VIEW_SERVER_API_URL__: JSON.stringify(
         process.env.VIEW_SERVER_API_URL || "/api",
       ),
+      __VIEWER_VERSION__: JSON.stringify(versionInfo.version),
+      __VIEWER_COMMIT__: JSON.stringify(versionInfo.commitHash),
     },
   };
 
