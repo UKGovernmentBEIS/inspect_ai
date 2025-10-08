@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import { LogDetails, LogPreview } from "../api/types";
 
-// Log Files Table - Basic file listing
+// Logs Table - Basic file listing
 export interface LogHandleRecord {
   // Auto-incrementing primary key for insertion order
   id?: number;
@@ -12,7 +12,7 @@ export interface LogHandleRecord {
   mtime?: number;
 }
 
-// Log Summaries Table - Stores results from get_log_summaries()
+// Log Previews Table - Stores results from get_log_summaries()
 export interface LogPreviewRecord {
   // Primary key
   file_path: string;
@@ -21,7 +21,7 @@ export interface LogPreviewRecord {
   preview: LogPreview;
 }
 
-// Log Info Table - Stores complete results from get_log_info()
+// Log Details Table - Stores complete results from get_log_info()
 // This includes the full header and sample summaries
 export interface LogDetailsRecord {
   // Primary key

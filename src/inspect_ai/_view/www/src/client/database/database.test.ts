@@ -3,9 +3,9 @@
  * Uses fake-indexeddb for testing IndexedDB operations in Jest
  *
  * Schema v3 structure:
- * - log_files: stores results from get_log_files()
- * - log_summaries: stores results from get_log_summaries()
- * - log_info: stores complete results from get_log_info() including samples
+ * - logs: stores results from get_log_files() (LogHandles)
+ * - log_previews: stores results from get_log_summaries() (LogPreviews)
+ * - log_details: stores complete results from get_log_info() including samples (LogDetails)
  */
 
 import { LogDetails, LogHandle, LogPreview, SampleSummary } from "../api/types";
