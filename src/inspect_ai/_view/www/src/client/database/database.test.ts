@@ -8,7 +8,7 @@
  * - log_info: stores complete results from get_log_info() including samples
  */
 
-import { LogHandle, LogInfo, LogPreview, SampleSummary } from "../api/types";
+import { LogDetails, LogHandle, LogPreview, SampleSummary } from "../api/types";
 import { createDatabaseService, DatabaseService } from "./service";
 
 // Helper function to create test LogSummary
@@ -30,7 +30,7 @@ function createTestLogSummary(overrides: Partial<LogPreview> = {}): LogPreview {
 }
 
 // Helper function to create test LogInfo
-function createTestLogInfo(overrides: Partial<LogInfo> = {}): LogInfo {
+function createTestLogInfo(overrides: Partial<LogDetails> = {}): LogDetails {
   return {
     version: 1,
     status: "success",
