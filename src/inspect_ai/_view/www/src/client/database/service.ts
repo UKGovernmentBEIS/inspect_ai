@@ -1,5 +1,5 @@
 import { createLogger } from "../../utils/logger";
-import { LogHandle, LogInfo, LogSummary, SampleSummary } from "../api/types";
+import { LogHandle, LogInfo, LogPreview, SampleSummary } from "../api/types";
 import { DatabaseManager } from "./manager";
 import { AppDatabase } from "./schema";
 
@@ -108,7 +108,7 @@ export class DatabaseService {
 
   // === LOG SUMMARIES ===
   async cacheLogSummaries(
-    summaries: LogSummary[],
+    summaries: LogPreview[],
     filePaths: string[],
   ): Promise<void> {
     const db = this.getDb();
@@ -126,7 +126,7 @@ export class DatabaseService {
 
   async getCachedLogSummaries(
     filePaths: string[],
-  ): Promise<Record<string, LogSummary>> {
+  ): Promise<Record<string, LogPreview>> {
     try {
       const db = this.getDb();
       const records = await db.log_previews
@@ -138,7 +138,7 @@ export class DatabaseService {
         `Retrieved ${records.length} cached log summaries out of ${filePaths.length} requested`,
       );
 
-      const result: Record<string, LogSummary> = {};
+      const result: Record<string, LogPreview> = {};
       for (const record of records) {
         result[record.file_path] = record.preview;
       }

@@ -154,7 +154,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             type: "file",
             url: logUrl(path, logDir),
             log: logFile,
-            logOverview: logHeaders[logFile.name],
+            logPreview: logHeaders[logFile.name],
           });
         } else if (name.startsWith(dirWithSlash)) {
           // This is file that is next level (or deeper) child
@@ -198,7 +198,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         total += 1;
         if (
           item.type === "pending-task" ||
-          item.logOverview?.status === "started"
+          item.logPreview?.status === "started"
         ) {
           pending += 1;
         }
