@@ -11,7 +11,7 @@ export function useClientEvents() {
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
   const logHeaders = useStore((state) => state.logs.logOverviews);
   const api = useStore((state) => state.api);
-  const { loadHeaders } = useLogs();
+  const { loadLogOverviews } = useLogs();
 
   // Set up the refresh callback for the service
   const refreshCallback = useCallback(
@@ -31,10 +31,10 @@ export function useClientEvents() {
       // Refresh any logFiles that are currently being watched
       if (toRefresh.length > 0) {
         log.debug(`Refreshing ${toRefresh.length} log files`, toRefresh);
-        await loadHeaders(toRefresh);
+        await loadLogOverviews(toRefresh);
       }
     },
-    [logHeaders, syncLogs, loadHeaders],
+    [logHeaders, syncLogs, loadLogOverviews],
   );
 
   // Update the service's refresh callback when dependencies change
