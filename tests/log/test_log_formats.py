@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.log import read_eval_log, write_eval_log
+from inspect_ai.scorer._metric import ProvenanceData, ScoreEdit
 
 
 @pytest.fixture
@@ -16,7 +17,10 @@ def original_log():
     log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     log = read_eval_log(log_file)
     log.location = None
-    return log
+    # Return a deep copy to avoid test pollution
+    import copy
+
+    return copy.deepcopy(log)
 
 
 @pytest.fixture
@@ -184,6 +188,40 @@ def test_log_format_eval_zip_roundtrip(original_log, temp_dir):
     assert original_log.model_dump_json() == new_json_log.model_dump_json(), (
         "JSON content changed after roundtrip through EVAL format"
     )
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_score_editing_round_trip(original_log, temp_dir, format):
+    """Test that logs with edited scores survive round-trip."""
+    from inspect_ai.log._score import edit_score
+
+    if original_log.samples and len(original_log.samples) > 0:
+        sample = original_log.samples[0]
+        if sample.scores:
+            score_name = list(sample.scores.keys())[0]
+            provenance = ProvenanceData(author="test_user", reason="Test edit")
+            edit = ScoreEdit(value="edited_value", provenance=provenance)
+            edit_score(
+                original_log, sample.id, score_name, edit, recompute_metrics=False
+            )
+
+    log_path = temp_dir / f"edited_log.{format}"
+    write_eval_log(original_log, log_path, format=format)
+
+    new_log = read_eval_log(log_path, format=format)
+    new_log.location = None
+
+    # Check that the edit survived
+    if new_log.samples and len(new_log.samples) > 0:
+        new_sample = new_log.samples[0]
+        if new_sample.scores:
+            new_score_name = list(new_sample.scores.keys())[0]
+            new_score = new_sample.scores[new_score_name]
+
+            assert new_score.value == "edited_value"
+            assert len(new_score.history) == 2  # original + edit
+            assert new_score.history[0].provenance is None  # original has no provenance
+            assert new_score.history[1].provenance.author == "test_user"
 
 
 def compare_zip_contents(zip_file1: Path, zip_file2: Path) -> bool:

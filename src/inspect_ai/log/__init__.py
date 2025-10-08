@@ -34,7 +34,9 @@ from ._log import (
     EvalSpec,
     EvalStats,
 )
+from ._metric import recompute_metrics
 from ._retry import retryable_eval_logs
+from ._score import edit_score
 from ._transcript import (
     Transcript,
     transcript,
@@ -76,6 +78,8 @@ __all__ = [
     "write_log_dir_manifest",
     "retryable_eval_logs",
     "bundle_log_dir",
+    "edit_score",
+    "recompute_metrics",
 ]
 
 

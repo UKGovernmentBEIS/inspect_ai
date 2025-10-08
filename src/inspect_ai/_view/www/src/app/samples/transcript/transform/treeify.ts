@@ -33,10 +33,6 @@ const treeifyWithSpans = (events: Events, depth: number): EventNode[] => {
     parentOverride?: EventNode | null,
   ) => {
     if (event.event === SPAN_END) {
-      const spanId = getEventSpanId(event);
-      if (spanId !== null) {
-        spanNodes.delete(spanId);
-      }
       return;
     }
 

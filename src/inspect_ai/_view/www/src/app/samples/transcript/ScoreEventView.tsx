@@ -81,7 +81,7 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
   );
 };
 
-const renderScore = (value: Value1) => {
+export const renderScore = (value: Value1) => {
   if (Array.isArray(value)) {
     return value.join(" ");
   } else if (typeof value === "object") {

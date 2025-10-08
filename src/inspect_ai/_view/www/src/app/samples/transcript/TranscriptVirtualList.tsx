@@ -9,6 +9,7 @@ import {
   SampleInitEvent,
   SampleLimitEvent,
   SandboxEvent,
+  ScoreEditEvent,
   ScoreEvent,
   SpanBeginEvent,
   StateEvent,
@@ -34,6 +35,7 @@ import { ToolEventView } from "./ToolEventView";
 import { EventNode } from "./types";
 
 import { VirtuosoHandle } from "react-virtuoso";
+import { ScoreEditEventView } from "./ScoreEditEventView";
 import { SpanEventView } from "./SpanEventView";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
 
@@ -141,6 +143,14 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
         return (
           <ScoreEventView
             eventNode={node as EventNode<ScoreEvent>}
+            className={className}
+          />
+        );
+
+      case "score_edit":
+        return (
+          <ScoreEditEventView
+            eventNode={node as EventNode<ScoreEditEvent>}
             className={className}
           />
         );
