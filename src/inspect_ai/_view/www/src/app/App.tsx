@@ -33,7 +33,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const logFiles = useStore((state) => state.logs.logs);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const loadedLogFile = useStore((state) => state.log.loadedLog);
-  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
 
   const setIntialState = useStore((state) => state.appActions.setInitialState);
   const setAppStatus = useStore((state) => state.appActions.setStatus);
@@ -58,7 +58,7 @@ export const App: FC<AppProps> = ({ api }) => {
         return;
       }
 
-      if (selectedLogFile === loadedLogFile && selectedLogSummary) {
+      if (selectedLogFile === loadedLogFile && selectedLogDetails) {
         // The load is already loaded and we have the data
         return;
       }
@@ -82,7 +82,7 @@ export const App: FC<AppProps> = ({ api }) => {
   }, [
     selectedLogFile,
     loadedLogFile,
-    selectedLogSummary,
+    selectedLogDetails,
     loadLog,
     setAppStatus,
   ]);
@@ -93,10 +93,10 @@ export const App: FC<AppProps> = ({ api }) => {
     const doPoll = async () => {
       await pollLog();
     };
-    if (selectedLogSummary?.status === "started") {
+    if (selectedLogDetails?.status === "started") {
       doPoll();
     }
-  }, [pollLog, selectedLogSummary?.status]);
+  }, [pollLog, selectedLogDetails?.status]);
 
   useEffect(() => {
     if (logDir && logFiles.length === 0) {
