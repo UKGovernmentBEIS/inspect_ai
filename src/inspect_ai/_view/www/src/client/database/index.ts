@@ -1,5 +1,9 @@
 export { AppDatabase } from "./schema";
-export type { LogFileRecord, LogSummaryRecord, LogInfoRecord } from "./schema";
+export type {
+  LogHandleRecord as LogFileRecord,
+  LogDetailsRecord as LogInfoRecord,
+  LogPreviewRecord as LogSummaryRecord,
+} from "./schema";
 
 export { DatabaseManager } from "./manager";
-export { DatabaseService, createDatabaseService } from "./service";
+export { createDatabaseService, DatabaseService } from "./service";

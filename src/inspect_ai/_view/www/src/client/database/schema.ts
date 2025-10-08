@@ -2,7 +2,7 @@ import Dexie from "dexie";
 import { LogInfo, LogSummary } from "../api/types";
 
 // Log Files Table - Basic file listing
-export interface LogFileRecord {
+export interface LogHandleRecord {
   // Auto-incrementing primary key for insertion order
   id?: number;
   file_path: string;
@@ -13,22 +13,22 @@ export interface LogFileRecord {
 }
 
 // Log Summaries Table - Stores results from get_log_summaries()
-export interface LogSummaryRecord {
+export interface LogPreviewRecord {
   // Primary key
   file_path: string;
 
   // The complete log summary object
-  summary: LogSummary;
+  preview: LogSummary;
 }
 
 // Log Info Table - Stores complete results from get_log_info()
 // This includes the full header and sample summaries
-export interface LogInfoRecord {
+export interface LogDetailsRecord {
   // Primary key
   file_path: string;
 
   // The complete log info object (includes sample summaries)
-  info: LogInfo;
+  details: LogInfo;
 }
 
 // Current database schema version
@@ -42,9 +42,9 @@ function resolveDBName(logDir: string): string {
 }
 
 export class AppDatabase extends Dexie {
-  log_files!: Dexie.Table<LogFileRecord, string>;
-  log_summaries!: Dexie.Table<LogSummaryRecord, string>;
-  log_info!: Dexie.Table<LogInfoRecord, string>;
+  logs!: Dexie.Table<LogHandleRecord, string>;
+  log_previews!: Dexie.Table<LogPreviewRecord, string>;
+  log_details!: Dexie.Table<LogDetailsRecord, string>;
 
   /**
    * Check if an existing database needs to be recreated due to version mismatch.
@@ -84,14 +84,14 @@ export class AppDatabase extends Dexie {
 
     this.version(DB_VERSION).stores({
       // Basic file listing - indexes for querying and sorting
-      log_files: "++id, &file_path, task, task_id, cached_at",
+      logs: "++id, &file_path, task, task_id, cached_at",
 
       // Log summaries from get_log_summaries() - indexes for common queries
-      log_summaries:
-        "file_path, summary.status, summary.task_id, summary.model, cached_at",
+      log_previews:
+        "file_path, preview.status, preview.task_id, preview.model, cached_at",
 
       // Complete log info from get_log_info() - includes samples
-      log_info: "file_path, info.status, cached_at",
+      log_details: "file_path, details.status, cached_at",
     });
   }
 }
