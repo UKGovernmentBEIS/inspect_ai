@@ -286,9 +286,12 @@ export const clientApi = (
     }
   };
 
-  const get_log_files = async (mtime?: number): Promise<LogFile[]> => {
+  const get_log_files = async (
+    mtime: number,
+    clientFileCount: number,
+  ): Promise<LogFile[]> => {
     if (api.get_log_files) {
-      return await api.get_log_files(mtime);
+      return await api.get_log_files(mtime, clientFileCount);
     } else {
       const logRoot = await api.get_log_root();
       return logRoot?.files || [];
