@@ -90,7 +90,7 @@ export class AppDatabase extends Dexie {
       log_previews:
         "file_path, preview.status, preview.task_id, preview.model, cached_at",
 
-      // Complete log info from get_log_info() - includes samples
+      // Complete log info from get_log_details() - includes samples
       log_details: "file_path, details.status, cached_at",
     });
   }

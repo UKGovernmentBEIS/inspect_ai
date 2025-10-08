@@ -180,9 +180,9 @@ export const createLogSlice = (
               log.debug(`Using cached log info for: ${logFileName}`);
               state.logActions.setSelectedLogDetails(cachedInfo);
               // Still fetch fresh data in background to update cache
-              api.get_log_info(logFileName).then((freshInfo) => {
-                state.logActions.setSelectedLogDetails(freshInfo);
-                dbService.writeLogDetails(logFileName, freshInfo).catch(() => {
+              api.get_log_details(logFileName).then((logDetails) => {
+                state.logActions.setSelectedLogDetails(logDetails);
+                dbService.writeLogDetails(logFileName, logDetails).catch(() => {
                   // Silently ignore cache errors
                 });
               });
@@ -202,13 +202,13 @@ export const createLogSlice = (
         }
 
         try {
-          const logContents = await api.get_log_info(logFileName);
-          state.logActions.setSelectedLogDetails(logContents);
+          const logDetails = await api.get_log_details(logFileName);
+          state.logActions.setSelectedLogDetails(logDetails);
 
           // OPTIONAL: Cache log info (completely non-blocking)
           if (dbService) {
             setTimeout(() => {
-              dbService.writeLogDetails(logFileName, logContents).catch(() => {
+              dbService.writeLogDetails(logFileName, logDetails).catch(() => {
                 // Silently ignore cache errors
               });
             }, 0);
@@ -216,7 +216,7 @@ export const createLogSlice = (
 
           // Push the updated header information up
           const header = {
-            [logFileName]: toLogPreview(logContents),
+            [logFileName]: toLogPreview(logDetails),
           };
 
           state.logsActions.updateLogPreviews(header);
@@ -256,8 +256,8 @@ export const createLogSlice = (
 
         log.debug(`refresh: ${selectedLogFile}`);
         try {
-          const logContents = await api.get_log_info(selectedLogFile);
-          state.logActions.setSelectedLogDetails(logContents);
+          const logDetails = await api.get_log_details(selectedLogFile);
+          state.logActions.setSelectedLogDetails(logDetails);
         } catch (error) {
           log.error("Error refreshing log:", error);
           throw error;
