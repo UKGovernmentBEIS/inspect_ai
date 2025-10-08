@@ -1,4 +1,4 @@
-import { LogFile, LogSummary } from "../../client/api/types";
+import { LogHandle, LogSummary } from "../../client/api/types";
 
 export interface LogItem {
   id: string;
@@ -13,7 +13,7 @@ export interface FolderLogItem extends LogItem {
 
 export interface FileLogItem extends LogItem {
   type: "file";
-  logFile: LogFile;
+  log: LogHandle;
   logOverview?: LogSummary;
 }
 

@@ -13,7 +13,7 @@ import {
 import clsx from "clsx";
 import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { LogFile } from "../../../client/api/types";
+import { LogHandle } from "../../../client/api/types";
 import { useLogs, useLogsListing, usePagination } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
@@ -55,15 +55,15 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const logFiles = useMemo(() => {
     return items
       .filter((item) => item.type === "file")
-      .map((item) => item.logFile)
+      .map((item) => item.log)
       .filter((file) => file !== undefined);
   }, [items]);
 
   // Load all headers when needed (store handles deduplication)
   const loadAllHeadersForItems = useCallback(
-    async (files: LogFile[]) => {
+    async (logs: LogHandle[]) => {
       await loadAllLogOverviews();
-      setWatchedLogs(files);
+      setWatchedLogs(logs);
     },
     [loadLogOverviews, setWatchedLogs],
   );
@@ -182,7 +182,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
       const fileItems = currentPageItems.filter((item) => item.type === "file");
       const logFiles = fileItems
-        .map((item) => item.logFile)
+        .map((item) => item.log)
         .filter((file) => file !== undefined);
 
       // Only load headers for files that don't already have headers loaded

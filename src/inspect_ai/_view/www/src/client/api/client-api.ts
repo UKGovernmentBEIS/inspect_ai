@@ -9,7 +9,7 @@ import { FileSizeLimitError } from "../remote/remoteZipFile";
 import {
   ClientAPI,
   LogContents,
-  LogFile,
+  LogHandle,
   LogInfo,
   LogRoot,
   LogSummary,
@@ -286,15 +286,15 @@ export const clientApi = (
     }
   };
 
-  const get_log_files = async (
+  const get_logs = async (
     mtime: number,
     clientFileCount: number,
-  ): Promise<LogFile[]> => {
-    if (api.get_log_files) {
-      return await api.get_log_files(mtime, clientFileCount);
+  ): Promise<LogHandle[]> => {
+    if (api.get_logs) {
+      return await api.get_logs(mtime, clientFileCount);
     } else {
       const logRoot = await api.get_log_root();
-      return logRoot?.files || [];
+      return logRoot?.logs || [];
     }
   };
 
@@ -307,7 +307,7 @@ export const clientApi = (
       const summary = await get_log_info(log_file);
       if (summary) {
         return {
-          files: [
+          logs: [
             {
               name: log_file,
               task: summary.eval.task,
@@ -358,7 +358,7 @@ export const clientApi = (
       return api.client_events();
     }),
     get_log_dir: middleware("get_log_dir", get_log_dir),
-    get_log_files: middleware("get_log_files", get_log_files),
+    get_logs: middleware("get_log_files", get_logs),
     get_log_root: middleware("get_log_root", get_log_root),
     get_eval_set: middleware("get_eval_set", (dir?: string) => {
       return api.get_eval_set(dir);
