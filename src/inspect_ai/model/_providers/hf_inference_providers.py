@@ -1,6 +1,5 @@
 import os
 from typing import Any
-from typing_extensions import override
 
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
@@ -26,7 +25,7 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
                     "HF Inference Providers",
                     [HF_TOKEN],
                 )
-        
+
         super().__init__(
             model_name=model_name,
             base_url=base_url or "https://router.huggingface.co/v1",
