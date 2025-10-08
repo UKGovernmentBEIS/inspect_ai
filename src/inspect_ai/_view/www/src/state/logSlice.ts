@@ -65,7 +65,7 @@ export interface LogSlice {
 const initialState = {
   // Log state
   selectedSampleIndex: -1,
-  selectedLogSummary: undefined,
+  selectedLogDetails: undefined,
   pendingSampleSummaries: undefined,
   loadedLog: undefined,
 
