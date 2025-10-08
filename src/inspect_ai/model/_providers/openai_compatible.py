@@ -111,16 +111,27 @@ class OpenAICompatibleAPI(ModelAPI):
                 "emulate_tools is not compatible with using the responses_api"
             )
 
-        # create async http client
-        http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
-        self.client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            http_client=http_client,
-            **model_args,
-        )
+        # store http_client and model_args for reinitialization
+        self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
+        self.model_args = model_args
+
+        # create client
+        self.client = self._create_client()
 
         # create time tracker
+        self._http_hooks = HttpxHooks(self.client._client)
+
+    def _create_client(self) -> AsyncOpenAI:
+        return AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            http_client=self.http_client,
+            **self.model_args,
+        )
+
+    def initialize(self) -> None:
+        super().initialize()
+        self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
 
     @override
@@ -252,6 +263,12 @@ class OpenAICompatibleAPI(ModelAPI):
     def connection_key(self) -> str:
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
+
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, APIStatusError):
+            return ex.status_code == 401
+        return False
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         return openai_completion_params(

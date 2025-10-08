@@ -177,7 +177,6 @@ class AnthropicAPI(ModelAPI):
     def _create_client(
         self,
     ) -> AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex:
-        # create client
         if self.is_bedrock():
             base_url = model_base_url(
                 self.base_url,
@@ -221,7 +220,7 @@ class AnthropicAPI(ModelAPI):
                 **self.model_args,
             )
 
-    @override()
+    @override
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
@@ -370,6 +369,7 @@ class AnthropicAPI(ModelAPI):
                         config.max_retries,
                         config.timeout,
                         self.should_retry,
+                        lambda ex: None,
                         log_model_retry,
                     ),
                 )
@@ -530,6 +530,12 @@ class AnthropicAPI(ModelAPI):
             return True
         else:
             return False
+
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, APIStatusError):
+            return ex.status_code == 401
+        return False
 
     @override
     def collapse_user_messages(self) -> bool:

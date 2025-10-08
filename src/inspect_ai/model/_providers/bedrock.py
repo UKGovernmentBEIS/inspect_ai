@@ -338,6 +338,19 @@ class BedrockAPI(ModelAPI):
         # an error from claude indicating the signature was missing)
         return self.is_claude()
 
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        from botocore.exceptions import ClientError
+
+        if isinstance(ex, ClientError):
+            error_code = ex.response.get("Error", {}).get("Code", "")
+            return error_code in [
+                "UnrecognizedClientException",
+                "ExpiredTokenException",
+                "InvalidSignatureException",
+            ]
+        return False
+
     def is_gpt_oss(self) -> bool:
         return "gpt-oss" in self.model_name
 

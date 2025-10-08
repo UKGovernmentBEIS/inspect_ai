@@ -159,7 +159,7 @@ class ModelAPI(abc.ABC):
         self.api_key_vars = api_key_vars
         self._apply_api_key_overrides()
 
-    def _apply_api_key_overrides(self):
+    def _apply_api_key_overrides(self) -> None:
         from inspect_ai.hooks._hooks import override_api_key
 
         # apply api key override
@@ -260,6 +260,17 @@ class ModelAPI(abc.ABC):
 
         Args:
            ex: Exception to check for retry
+        """
+        return False
+
+    def is_auth_failure(self, ex: Exception) -> bool:
+        """Check if this exception indicates an authentication failure.
+
+        Args:
+           ex: Exception to check for authentication failure
+
+        Returns:
+           True if this is an authentication error (e.g., 401 Unauthorized)
         """
         return False
 
@@ -789,8 +800,8 @@ class Model:
         return False
 
     async def before_retry(self, ex: BaseException) -> None:
-        # TODO: Check if ex is a authentication error
-        self.api.initialize()
+        if isinstance(ex, Exception) and self.api.is_auth_failure(ex):
+            self.api.initialize()
 
     # function to verify that its okay to call model apis
     def verify_model_apis(self) -> None:

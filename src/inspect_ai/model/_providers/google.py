@@ -385,6 +385,12 @@ class GoogleGenAIAPI(ModelAPI):
         """Scope for enforcing max_connections."""
         return str(self.api_key)
 
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, APIError):
+            return ex.code == 401
+        return False
+
     def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
         if (
             ex.code == 400
@@ -506,6 +512,7 @@ class GoogleGenAIAPI(ModelAPI):
                 config.max_retries,
                 config.timeout,
                 self.should_retry,
+                lambda ex: None,
                 log_model_retry,
             ),
             self.service_model_name(),

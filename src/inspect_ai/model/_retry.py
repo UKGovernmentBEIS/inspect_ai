@@ -38,9 +38,12 @@ def model_retry_config(
         res = log_model_retry(model_name, rs)
         if res is not None:
             await res
-        res = before_retry(rs.outcome.exception())
-        if res is not None:
-            await res
+        if rs.outcome:
+            ex = rs.outcome.exception()
+            if ex is not None:
+                res = before_retry(ex)
+                if res is not None:
+                    await res
 
     return {
         "wait": wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3),

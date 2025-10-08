@@ -4,6 +4,7 @@ from logging import getLogger
 from typing import Any
 
 from openai import (
+    APIStatusError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     NotGiven,
@@ -162,21 +163,22 @@ class OpenAIAPI(ModelAPI):
                     ],
                 )
 
-        # create async http client
+        # extract http_client and api_version before storing model_args
         self.http_client = (
-            self.model_args.pop("http_client") or OpenAIAsyncHttpxClient()
+            model_args.pop("http_client", None) or OpenAIAsyncHttpxClient()
         )
         if self.is_azure():
             # resolve version
-            if self.model_args.get("api_version") is not None:
+            if model_args.get("api_version") is not None:
                 self.api_version = model_args.pop("api_version")
             else:
                 self.api_version = os.environ.get(
                     "AZUREAI_OPENAI_API_VERSION",
                     os.environ.get("OPENAI_API_VERSION", "2025-03-01-preview"),
                 )
-        self.model_args = model_args
 
+        # store remaining model_args after extraction
+        self.model_args = model_args
         self.client = self._create_client()
 
         # TODO: Although we could enhance OpenAIBatcher to support requests with
@@ -224,7 +226,7 @@ class OpenAIAPI(ModelAPI):
         else:
             return AsyncOpenAI(
                 api_key=self.api_key,
-                base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
+                base_url=model_base_url(self.base_url, "OPENAI_BASE_URL"),
                 http_client=self.http_client,
                 timeout=self.client_timeout
                 if self.client_timeout is not None
@@ -235,8 +237,8 @@ class OpenAIAPI(ModelAPI):
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
-        self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
-        self._responses_batcher: OpenAIBatcher[Response] | None = None
+        self._completions_batcher = None
+        self._responses_batcher = None
         self._http_hooks = HttpxHooks(self.client._client)
 
     def is_azure(self) -> bool:
@@ -390,6 +392,12 @@ class OpenAIAPI(ModelAPI):
             return openai_should_retry(ex)
 
     @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, APIStatusError):
+            return ex.status_code == 401
+        return False
+
+    @override
     def connection_key(self) -> str:
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
@@ -401,6 +409,7 @@ class OpenAIAPI(ModelAPI):
                 config.max_retries,
                 config.timeout,
                 self.should_retry,
+                lambda ex: None,
                 log_model_retry,
             )
 

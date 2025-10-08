@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import cache
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
 
@@ -500,7 +499,6 @@ def override_api_key(env_var_name: str, value: str) -> str | None:
     return override_api_key_legacy(env_var_name, value)
 
 
-@cache
 def get_all_hooks() -> list[Hooks]:
     """Get all registered hooks."""
     results = registry_find(lambda info: info.type == "hooks")
