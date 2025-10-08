@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
 - Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 
 ## 0.3.137 (07 October 2025)
