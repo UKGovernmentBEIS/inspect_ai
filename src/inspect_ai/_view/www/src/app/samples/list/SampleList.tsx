@@ -73,7 +73,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     },
   );
 
-  const evalSpec = useStore((state) => state.log.selectedLogSummary?.eval);
+  const evalSpec = useStore((state) => state.log.selectedLogDetails?.eval);
   const { setDocumentTitle } = useDocumentTitle();
   useEffect(() => {
     setDocumentTitle({ evalSpec });

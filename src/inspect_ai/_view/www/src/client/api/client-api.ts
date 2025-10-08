@@ -9,8 +9,8 @@ import { FileSizeLimitError } from "../remote/remoteZipFile";
 import {
   ClientAPI,
   LogContents,
+  LogDetails,
   LogHandle,
-  LogInfo,
   LogPreview,
   LogRoot,
   LogViewAPI,
@@ -120,7 +120,7 @@ export const clientApi = (
   /**
    * Gets a log summary
    */
-  const get_log_info = async (log_file: string): Promise<LogInfo> => {
+  const get_log_info = async (log_file: string): Promise<LogDetails> => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
       if (remoteLogFile) {

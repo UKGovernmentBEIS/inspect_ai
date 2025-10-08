@@ -33,7 +33,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const logFiles = useStore((state) => state.logs.logs);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const loadedLogFile = useStore((state) => state.log.loadedLog);
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
 
   const setIntialState = useStore((state) => state.appActions.setInitialState);
   const setAppStatus = useStore((state) => state.appActions.setStatus);

@@ -81,7 +81,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   );
 
   const sampleSummaries = useFilteredSamples();
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
 
   // Compute the limit to apply to the sample count (this is so)
   // we can provide a total expected sample count for this evaluation

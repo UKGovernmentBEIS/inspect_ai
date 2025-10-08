@@ -39,7 +39,7 @@ export const LogViewContainer: FC = () => {
   );
 
   const clearSelectedLogSummary = useStore(
-    (state) => state.logActions.clearSelectedLogSummary,
+    (state) => state.logActions.clearSelectedLogDetails,
   );
 
   const clearSelectedSample = useStore(

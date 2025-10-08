@@ -1,6 +1,6 @@
 import { EvalResults } from "../@types/log";
 import { ScoreLabel } from "../app/types";
-import { LogInfo, SampleSummary } from "../client/api/types";
+import { LogDetails, SampleSummary } from "../client/api/types";
 
 /**
  * Extracts scorer information from evaluation results
@@ -46,7 +46,7 @@ const getScorersFromSamples = (samples: SampleSummary[]): ScoreLabel[] => {
  * Gets all available scorers for a log, prioritizing results over samples
  */
 export const getAvailableScorers = (
-  log: LogInfo,
+  log: LogDetails,
   sampleSummaries: SampleSummary[],
 ): ScoreLabel[] | undefined => {
   const resultScorers = log.results ? getScorersFromResults(log.results) : [];
@@ -67,7 +67,7 @@ export const getAvailableScorers = (
  * or falling back to the first scorer from samples
  */
 export const getDefaultScorer = (
-  log: LogInfo,
+  log: LogDetails,
   sampleSummaries: SampleSummary[],
 ): ScoreLabel | undefined => {
   if (sampleSummaries.length === 0) {

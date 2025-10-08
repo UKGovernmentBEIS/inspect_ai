@@ -154,7 +154,7 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
   const filter = useStore((state) => state.log.filter);
   const filterError = useStore((state) => state.log.filterError);
   const samples = useStore(
-    (state) => state.log.selectedLogSummary?.sampleSummaries,
+    (state) => state.log.selectedLogDetails?.sampleSummaries,
   );
   const setFilter = useStore((state) => state.logActions.setFilter);
 

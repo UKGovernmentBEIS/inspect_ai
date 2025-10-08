@@ -10,7 +10,7 @@ import { SortFilter } from "./sample-tools/SortFilter";
 interface SampleToolsProps {}
 
 export const SampleTools: FC<SampleToolsProps> = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
 
   const scores = useScores();
   const selectedScores = useSelectedScores();

@@ -1,5 +1,5 @@
 import Dexie from "dexie";
-import { LogInfo, LogPreview } from "../api/types";
+import { LogDetails, LogPreview } from "../api/types";
 
 // Log Files Table - Basic file listing
 export interface LogHandleRecord {
@@ -28,7 +28,7 @@ export interface LogDetailsRecord {
   file_path: string;
 
   // The complete log info object (includes sample summaries)
-  details: LogInfo;
+  details: LogDetails;
 }
 
 // Current database schema version

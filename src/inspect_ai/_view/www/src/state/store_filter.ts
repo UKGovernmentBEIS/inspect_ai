@@ -8,7 +8,7 @@ export function filterState(state: PersistedState) {
   }
 
   // When saving state, we can't store vast amounts of data (like a large sample)
-  const filters = [filterLargeLogSummary];
+  const filters = [filterLargeLogDetails];
   return filters.reduce(
     (filteredState, filter) => filter(filteredState),
     state,
@@ -65,20 +65,20 @@ function countKeys(obj: unknown, options = { countArrayIndices: false }) {
 }
 
 // Filters the selectedlog if it is too large
-function filterLargeLogSummary(state: PersistedState): PersistedState {
-  if (!state || !state.log || !state.log.selectedLogSummary) {
+function filterLargeLogDetails(state: PersistedState): PersistedState {
+  if (!state || !state.log || !state.log.selectedLogDetails) {
     return state;
   }
 
   const estimatedSize = estimateSize(
-    state.log.selectedLogSummary.sampleSummaries,
+    state.log.selectedLogDetails.sampleSummaries,
   );
   if (estimatedSize > 250000) {
     return {
       ...state,
       log: {
         ...state.log,
-        selectedLogSummary: undefined,
+        selectedLogDetails: undefined,
       },
     };
   } else {

@@ -27,8 +27,8 @@ import {
   AttachmentData,
   EvalHeader,
   EventData,
+  LogDetails,
   LogHandle,
-  LogInfo,
   LogPreview,
   PendingSamples,
   SampleSummary,
@@ -92,7 +92,7 @@ export interface LogState {
   loadedLog?: string;
 
   selectedSampleIndex: number;
-  selectedLogSummary?: LogInfo;
+  selectedLogDetails?: LogDetails;
   pendingSampleSummaries?: PendingSamples;
 
   filter: string;
@@ -159,7 +159,7 @@ export interface AppStatus {
 
 export interface CurrentLog {
   name: string;
-  contents: LogInfo;
+  contents: LogDetails;
 }
 
 export interface Logs {

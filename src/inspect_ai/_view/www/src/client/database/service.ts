@@ -1,5 +1,5 @@
 import { createLogger } from "../../utils/logger";
-import { LogHandle, LogInfo, LogPreview, SampleSummary } from "../api/types";
+import { LogDetails, LogHandle, LogPreview, SampleSummary } from "../api/types";
 import { DatabaseManager } from "./manager";
 import { AppDatabase } from "./schema";
 
@@ -152,7 +152,7 @@ export class DatabaseService {
   }
 
   // === LOG DETAILS ===
-  async writeLogDetails(filePath: string, info: LogInfo): Promise<void> {
+  async writeLogDetails(filePath: string, info: LogDetails): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
@@ -166,7 +166,7 @@ export class DatabaseService {
     await db.log_details.put(record);
   }
 
-  async readLogDetails(filePath: string): Promise<LogInfo | null> {
+  async readLogDetails(filePath: string): Promise<LogDetails | null> {
     try {
       const db = this.getDb();
       const record = await db.log_details.get(filePath);

@@ -22,7 +22,7 @@ import { mergeSampleSummaries } from "./utils";
 const log = createLogger("hooks");
 
 export const useEvalSpec = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
   return selectedLogSummary?.eval;
 };
 
@@ -50,7 +50,7 @@ export const useRefreshLog = () => {
 // Fetches all samples summaries (both completed and incomplete)
 // without applying any filtering
 export const useSampleSummaries = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
   const pendingSampleSummaries = useStore(
     (state) => state.log.pendingSampleSummaries,
   );
@@ -75,7 +75,7 @@ export const useTotalSampleCount = () => {
 // based upon the configuration (eval + summaries) if no scorer has been
 // selected
 export const useSelectedScores = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
   const sampleSummaries = useSampleSummaries();
   const selected = useStore((state) => state.log.selectedScores);
   return useMemo(() => {
@@ -98,7 +98,7 @@ export const useSelectedScores = () => {
 // to determine scores (even for in progress evals that don't yet have final
 // metrics)
 export const useScores = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
   const sampleSummaries = useSampleSummaries();
   return useMemo(() => {
     if (!selectedLogSummary) {
@@ -190,7 +190,7 @@ export const useFilteredSamples = () => {
 
 // Computes the group by to use given a particular sort
 export const useGroupBy = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogDetails);
   const sort = useStore((state) => state.log.sort);
   const epoch = useStore((state) => state.log.epoch);
   return useMemo(() => {
@@ -490,7 +490,7 @@ export const useSetSelectedLogIndex = () => {
     (state) => state.sampleActions.clearSelectedSample,
   );
   const clearSelectedLogSummary = useStore(
-    (state) => state.logActions.clearSelectedLogSummary,
+    (state) => state.logActions.clearSelectedLogDetails,
   );
   const clearCollapsedEvents = useStore(
     (state) => state.sampleActions.clearCollapsedEvents,

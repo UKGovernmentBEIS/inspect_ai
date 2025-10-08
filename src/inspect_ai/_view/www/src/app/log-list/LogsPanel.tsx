@@ -313,8 +313,8 @@ export const collapseLogItems = (
     // If same priority, take the last one
     let bestItem = items[0];
     for (const item of items) {
-      const currentStatus = item.logOverview?.status;
-      const bestStatus = bestItem.logOverview?.status;
+      const currentStatus = item.logPreview?.status;
+      const bestStatus = bestItem.logPreview?.status;
 
       // Prefer started over everything
       if (currentStatus === "started" && bestStatus !== "started") {
