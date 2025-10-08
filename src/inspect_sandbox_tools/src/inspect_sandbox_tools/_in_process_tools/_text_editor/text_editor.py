@@ -181,13 +181,8 @@ async def undo_edit(path_str: str) -> str:
 
 def _validated_path(path_str: str, command: str) -> Path:
     """Check that the path/command combination is valid."""
-    path = Path(path_str)
+    path = Path(path_str).resolve()
 
-    # Check if its an absolute path
-    if not path.is_absolute():
-        raise ToolException(
-            f"The path {path} is not an absolute path, it should start with `/`. Maybe you meant {Path('') / path}?"
-        )
     # Check if path exists
     if not path.exists() and command != "create":
         raise ToolException(

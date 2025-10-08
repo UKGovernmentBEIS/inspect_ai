@@ -355,6 +355,9 @@ class GoogleGenAIAPI(ModelAPI):
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
+    def canonical_name(self) -> str:
+        return self.service_model_name()
+
     def is_gemini(self) -> bool:
         return "gemini-" in self.service_model_name()
 

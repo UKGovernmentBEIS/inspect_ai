@@ -27,5 +27,5 @@ class NoModel(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput:
         raise PrerequisiteError(
-            "No model specified (and no INSPECT_EVAL_MODEL defined)"
+            "No model specified (and no model environment varible defined)"
         )
