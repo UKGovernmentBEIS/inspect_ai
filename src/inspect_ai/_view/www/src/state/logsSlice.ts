@@ -403,6 +403,17 @@ export const createLogsSlice = (
         // It is already loaded
         if (index > -1) {
           state.logsActions.setSelectedLogIndex(index);
+        } else {
+          // It isn't yet loaded, so refresh the logs and try to load it from there
+          await state.logsActions.syncLogs();
+
+          const idx = state.logs.logs.findIndex((file) =>
+            file.name.endsWith(logUrl),
+          );
+
+          state.logsActions.setSelectedLogIndex(
+            idx !== undefined && idx > -1 ? idx : 0,
+          );
         }
       },
       setSorting: (sorting: SortingState) => {
