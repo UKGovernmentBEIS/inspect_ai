@@ -2,7 +2,7 @@ import json
 import logging
 import urllib.parse
 from logging import getLogger
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal, Protocol
 
 import anyio
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -35,7 +35,11 @@ AccessPolicy = Callable[
     [Request, str, Literal["read", "list", "delete"]], Awaitable[bool]
 ]
 
-FileMappingPolicy = Callable[[Request, str], Awaitable[str]]
+
+class FileMappingPolicy(Protocol):
+    async def map(self, request: Request, file: str) -> str: ...
+
+    async def unmap(self, request: Request, file: str) -> str: ...
 
 
 class InspectJsonResponse(JSONResponse):
@@ -62,7 +66,12 @@ def view_server_app(
 
     async def _map_file(request: Request, file: str) -> str:
         if mapping_policy is not None:
-            return await mapping_policy(request, file)
+            return await mapping_policy.map(request, file)
+        return file
+
+    async def _unmap_file(request: Request, file: str) -> str:
+        if mapping_policy is not None:
+            return await mapping_policy.unmap(request, file)
         return file
 
     async def _validate_log_file_request(
@@ -127,6 +136,8 @@ def view_server_app(
             recursive=recursive,
             fs_options=fs_options,
         )
+        for file in listing["files"]:
+            file["name"] = await _unmap_file(request, file["name"])
         return InspectJsonResponse(content=listing)
 
     @app.get("/eval-set")

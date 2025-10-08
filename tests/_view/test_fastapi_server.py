@@ -16,6 +16,7 @@ import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._view import fastapi_server
+from inspect_ai._view.fastapi_server import FileMappingPolicy
 
 
 @pytest.fixture
@@ -100,12 +101,16 @@ def write_fake_eval_log_buffer(
 
 @pytest.fixture
 def test_client() -> Generator[TestClient, Any, None]:
-    async def mapping_policy(_: Request, file: str) -> str:
-        return f"memory://{file}"
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"memory://{file}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix("memory://")
 
     with fastapi.testclient.TestClient(
         fastapi_server.view_server_app(
-            mapping_policy=mapping_policy,
+            mapping_policy=mapping_policy(),
         )
     ) as client:
         yield client
@@ -113,8 +118,12 @@ def test_client() -> Generator[TestClient, Any, None]:
 
 @pytest.fixture
 def test_client_with_restrictive_access() -> Generator[TestClient, Any, None]:
-    async def mapping_policy(_: Request, file: str) -> str:
-        return f"memory://{file}"
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"memory://{file}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix("memory://")
 
     async def access_policy(_: Request, file: str, operation: str) -> bool:
         if operation == "delete":
@@ -125,7 +134,7 @@ def test_client_with_restrictive_access() -> Generator[TestClient, Any, None]:
 
     with fastapi.testclient.TestClient(
         fastapi_server.view_server_app(
-            mapping_policy=mapping_policy,
+            mapping_policy=mapping_policy(),
             access_policy=access_policy,
         )
     ) as client:
