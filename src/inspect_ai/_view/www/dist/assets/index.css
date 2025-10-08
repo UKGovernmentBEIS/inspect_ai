@@ -14429,6 +14429,7 @@ a:hover {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  max-height: calc(3em * var(--bs-body-line-height));
 }
 
 body[class^="vscode-"] {
@@ -20352,6 +20353,43 @@ span.ap-marker-container:hover span.ap-marker {
 
 ._progress_1qsnv_12 {
   margin-left: 0.5em;
+}
+._container_io1r0_1 {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 1em;
+  margin: 0;
+}
+
+._wrappingContent_io1r0_8 {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+._separator_io1r0_13 {
+  grid-column: 1 / -1;
+  border-bottom: solid 1px var(--bs-light-border-subtle);
+}
+
+._metadata_io1r0_18 {
+  margin: 0.5em 0;
+}
+
+._unchanged_io1r0_22 {
+  margin-top: 0.2em;
+  margin-bottom: 0;
+}
+
+._section_io1r0_27 {
+  font-weight: 600;
+}
+
+._spacer_io1r0_31 {
+  height: 2em;
+}
+
+._section_io1r0_27 {
+  margin-top: 1em;
 }
 ._node_1r858_1 {
   padding-top: 0.8rem;
