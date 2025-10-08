@@ -96,14 +96,12 @@ export const createLogsSlice = (
           return [];
         }
 
-        const filePaths = logs.map((log) => log.name);
-
         // OPTIONAL: Try cache first (non-blocking, fail silently)
         let cached: Record<string, LogPreview> = {};
         const databaseService = get().databaseService;
         if (databaseService) {
           try {
-            cached = await databaseService.getCachedLogSummaries(filePaths);
+            cached = await databaseService.readLogPreviews(logs);
           } catch (e) {
             // Cache read failed, continue with normal flow
           }
@@ -198,7 +196,7 @@ export const createLogsSlice = (
           if (databaseService && Object.keys(headerMap).length > 0) {
             setTimeout(() => {
               databaseService
-                .cacheLogSummaries(
+                .writeLogPreviews(
                   Object.values(headerMap),
                   Object.keys(headerMap),
                 )
@@ -310,7 +308,7 @@ export const createLogsSlice = (
         let cached;
         if (databaseService) {
           try {
-            cached = await databaseService.getCachedLogFiles();
+            cached = await databaseService.readLogs();
             if (cached && cached.length > 0) {
               log.debug("LOADED LOG FILES FROM CACHE");
               // Activate the current log files
@@ -351,7 +349,7 @@ export const createLogsSlice = (
             });
 
             // Cache the current list of files
-            await databaseService.cacheLogFiles(files).catch(() => {
+            await databaseService.writeLogs(files).catch(() => {
               // Silently ignore cache errors
             });
 
@@ -366,7 +364,7 @@ export const createLogsSlice = (
                 ? state.logs.logs[state.logs.selectedLogIndex]
                 : undefined;
 
-            const logFiles = await databaseService.getCachedLogFiles();
+            const logFiles = await databaseService.readLogs();
             get().logsActions.setLogHandles(logFiles || []);
 
             if (currentLog) {
@@ -467,7 +465,7 @@ export const createLogsSlice = (
           if (!dbService) {
             throw new Error("Database service not initialized");
           }
-          const samples = await dbService.getAllSampleSummaries();
+          const samples = await dbService.readAllSampleSummaries();
           log.debug(`Retrieved ${samples.length} cached samples`);
           return samples;
         } catch (e) {
