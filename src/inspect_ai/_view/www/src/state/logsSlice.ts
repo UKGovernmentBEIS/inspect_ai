@@ -336,9 +336,31 @@ export const createLogsSlice = (
 
         if (files.length > 0) {
           if (databaseService) {
+            // Diff the current list with the new list to see which files (if any)
+            // should have data invalidated.
+            const currentFiles = get().logs.logFiles;
+
+            // Make a list of the files in current files that are missing
+            // from the files we just loaded or which have a lower mtime
+            // than the file in the files list.
+            const toInvalidate = currentFiles.filter((current) => {
+              const match = files.find((f) => f.name === current.name);
+              return (
+                !match ||
+                (current.mtime && match.mtime && current.mtime < match.mtime)
+              );
+            });
+
+            // Cache the current list of files
             await databaseService.cacheLogFiles(files).catch(() => {
               // Silently ignore cache errors
             });
+
+            // Invalidate summaries and overviews for deleted or updated files
+            toInvalidate
+              .map((file) => file.name)
+              .map((name) => databaseService.clearCacheForFile(name));
+
             const state = get();
             const currentLog =
               state.logs.selectedLogIndex > -1

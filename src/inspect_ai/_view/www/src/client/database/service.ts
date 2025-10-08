@@ -283,6 +283,20 @@ export class DatabaseService {
   }
 
   /**
+   * Clear cache for a specific log file
+   */
+  async clearCacheForFile(filePath: string): Promise<void> {
+    const db = this.getDb();
+    log.debug(`Clearing cache for file: ${filePath}`);
+
+    await Promise.all([
+      db.log_files.where("file_path").equals(filePath).delete(),
+      db.log_summaries.where("file_path").equals(filePath).delete(),
+      db.log_info.where("file_path").equals(filePath).delete(),
+    ]);
+  }
+
+  /**
    * Get cache statistics.
    */
   async getCacheStats(): Promise<{

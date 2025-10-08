@@ -74,6 +74,10 @@ export function viewServerApi(
       headers["If-None-Match"] = token;
     }
 
+    // Note the last request time so we can get events
+    // since the last request
+    lastEvalTime = Date.now();
+
     const envelope = await requestApi.fetchString("GET", path, headers);
     return envelope.parsed.files || [];
   };
