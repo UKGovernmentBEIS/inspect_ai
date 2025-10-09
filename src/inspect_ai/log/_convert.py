@@ -147,7 +147,7 @@ async def _stream_convert_file(
     semaphore = anyio.Semaphore(concurrent_limit)
     samples_processed = 0
 
-    async def _bounded_convert_sample(sample_id: str | int, epoch: int) -> None:
+    async def _convert_sample(sample_id: str | int, epoch: int) -> None:
         nonlocal samples_processed
         async with semaphore:
             await _convert_sample(sample_id, epoch)
@@ -158,11 +158,7 @@ async def _stream_convert_file(
 
     async with anyio.create_task_group() as tg:
         for sample_id, epoch in sample_map:
-            tg.start_soon(_bounded_convert_sample, sample_id, epoch)
-
-    # Final flush for any remaining samples
-    if samples_processed % concurrent_limit != 0:
-        await output_recorder.flush(log_header.eval)
+            tg.start_soon(_convert_sample, sample_id, epoch)
 
     await output_recorder.log_finish(
         log_header.eval,
