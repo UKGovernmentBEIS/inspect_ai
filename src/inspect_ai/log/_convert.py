@@ -127,7 +127,6 @@ async def _stream_convert_file(
     sample_map = await input_recorder.read_log_sample_ids(input_file)
 
     concurrent_limit = len(sample_map) if stream is True else stream
-    # Use a semaphore to limit concurrent tasks
     semaphore = anyio.Semaphore(concurrent_limit)
     samples_processed = 0
 
