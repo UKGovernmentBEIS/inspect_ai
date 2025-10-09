@@ -4,6 +4,7 @@
 - Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Inspect View: Properly display task error when a task error is present in the log file.
 - Adjust terminal progress display to accommodate longer task names.
+- Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
 
 ## 0.3.137 (07 October 2025)
 
