@@ -160,6 +160,7 @@ class TaskState:
         metadata: dict[str, Any] = {},
         store: dict[str, Any] | None = None,
         scores: dict[str, Score] | None = None,
+        sample_uuid: str | None = None,
     ) -> None:
         self._model = model
         self._sample_id = sample_id
@@ -174,7 +175,7 @@ class TaskState:
         self._token_limit = create_token_limit(token_limit)
         self._completed = completed
         self._store = Store(store)
-        self._uuid = uuid()
+        self._uuid = sample_uuid or uuid()
         self._scores = scores
 
         if choices:
