@@ -7,6 +7,7 @@ export const kLogViewJsonTabId = "json";
 export const kLogViewInfoTabId = "info";
 export const kLogViewModelsTabId = "models";
 export const kLogViewTaskTabId = "task";
+export const kLogViewErrorTabId = "error";
 
 export const kWorkspaceTabs = [
   kLogViewSamplesTabId,
@@ -14,6 +15,7 @@ export const kWorkspaceTabs = [
   kLogViewInfoTabId,
   kLogViewModelsTabId,
   kLogViewTaskTabId,
+  kLogViewErrorTabId,
 ];
 
 // Sample tab constants
