@@ -2,12 +2,16 @@ import json
 import logging
 import urllib.parse
 from logging import getLogger
+from pathlib import Path
 from typing import Any, Protocol
 
 import anyio
+import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from pydantic_core import to_jsonable_python
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+from starlette.staticfiles import StaticFiles
 from starlette.status import (
     HTTP_204_NO_CONTENT,
     HTTP_304_NOT_MODIFIED,
@@ -16,7 +20,10 @@ from starlette.status import (
 )
 from typing_extensions import override
 
+from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import read_eval_set_info
+from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
+from inspect_ai._util.file import filesystem
 from inspect_ai._view import notify
 from inspect_ai._view.common import (
     delete_log,
@@ -63,6 +70,7 @@ class InspectJsonResponse(JSONResponse):
 def view_server_app(
     mapping_policy: FileMappingPolicy | None = None,
     access_policy: AccessPolicy | None = None,
+    default_dir: str = "",
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
 ) -> FastAPI:
@@ -138,8 +146,10 @@ def view_server_app(
     @app.get("/logs")
     async def api_logs(
         request: Request,
-        log_dir: str = Query("", alias="log_dir"),
+        log_dir: str | None = Query(None, alias="log_dir"),
     ) -> Response:
+        if log_dir is None:
+            log_dir = default_dir
         await _validate_list(request, log_dir)
         listing = await get_logs(
             await _map_file(request, log_dir),
@@ -154,8 +164,10 @@ def view_server_app(
 
     @app.get("/eval-set")
     async def eval_set(
-        request: Request, log_dir: str = Query("", alias="dir")
+        request: Request, log_dir: str = Query(None, alias="dir")
     ) -> Response:
+        if log_dir is None:
+            log_dir = default_dir
         await _validate_read(request, log_dir)
 
         eval_set = read_eval_set_info(
@@ -246,3 +258,92 @@ def view_server_app(
             return InspectJsonResponse(content=sample_data.model_dump())
 
     return app
+
+
+def filter_fastapi_log() -> None:
+    #  filter overly chatty /api/events messages
+    class RequestFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            if record.args and len(record.args) >= 4:
+                if record.args[4] == "200":
+                    return False
+
+    # don't add if we already have
+    access_logger = getLogger("uvicorn.access")
+    for existing_filter in access_logger.filters:
+        if isinstance(existing_filter, RequestFilter):
+            return
+
+    # add the filter
+    access_logger.addFilter(RequestFilter())
+
+
+def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
+    class AuthorizationMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            auth_header = request.headers.get("authorization", None)
+            if auth_header != authorization:
+                return Response("Unauthorized", status_code=401)
+            return await call_next(request)
+
+    return AuthorizationMiddleware
+
+
+class OnlyLogDirAccessPolicy(AccessPolicy):
+    def __init__(self, log_dir: str) -> None:
+        super().__init__()
+        self.log_dir = log_dir
+
+    def _validate_log_dir(self, file: str) -> bool:
+        return file.startswith(self.log_dir) and ".." not in file
+
+    async def can_read(self, request: Request, file: str) -> bool:
+        return self._validate_log_dir(file)
+
+    async def can_delete(self, request: Request, file: str) -> bool:
+        return self._validate_log_dir(file)
+
+    async def can_list(self, request: Request, dir: str) -> bool:
+        return self._validate_log_dir(dir)
+
+
+def view_server(
+    log_dir: str,
+    recursive: bool = True,
+    host: str = DEFAULT_SERVER_HOST,
+    port: int = DEFAULT_VIEW_PORT,
+    authorization: str | None = None,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    # get filesystem and resolve log_dir to full path
+    fs = filesystem(log_dir)
+    if not fs.exists(log_dir):
+        fs.mkdir(log_dir, True)
+    log_dir = fs.info(log_dir).name
+
+    # setup server
+    api = view_server_app(
+        mapping_policy=authorization_middleware(authorization)
+        if authorization
+        else None,
+        access_policy=OnlyLogDirAccessPolicy(log_dir) if not authorization else None,
+        default_dir=log_dir,
+        recursive=recursive,
+        fs_options=fs_options,
+    )
+
+    app = FastAPI()
+    app.mount("/api", api)
+
+    dist = Path(__file__).parent / "www" / "dist"
+    app.mount("/", StaticFiles(directory=dist.as_posix(), html=True), name="static")
+
+    if authorization:
+        app.add_middleware(authorization_middleware(authorization))
+
+    # filter request log (remove /api/events)
+    filter_fastapi_log()
+
+    # run app
+    display().print(f"Inspect View: {log_dir}")
+    uvicorn.run(app, host=host, port=port)

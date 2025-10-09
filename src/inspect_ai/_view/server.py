@@ -102,7 +102,7 @@ def view_server(
         headers = {
             "Content-Length": str(end - start + 1),
         }
-        body = get_log_bytes(file, start, end)
+        body = await get_log_bytes(file, start, end)
         return web.Response(
             body=body, headers=headers, content_type="application/octet-stream"
         )
@@ -119,7 +119,9 @@ def view_server(
         else:
             request_log_dir = log_dir
 
-        listing = get_logs(request_log_dir, recursive=recursive, fs_options=fs_options)
+        listing = await get_logs(
+            request_log_dir, recursive=recursive, fs_options=fs_options
+        )
         if listing is None:
             return web.Response(status=404, reason="File not found")
         return web.json_response(listing)

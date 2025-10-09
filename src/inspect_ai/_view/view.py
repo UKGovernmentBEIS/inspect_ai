@@ -54,14 +54,26 @@ def view(
     view_acquire_port(port)
 
     # run server
-    view_server(
-        log_dir=log_dir,
-        recursive=recursive,
-        host=host,
-        port=port,
-        authorization=authorization,
-        fs_options=fs_options,
-    )
+    if os.getenv("INSPECT_VIEW_FASTAPI_SERVER"):
+        from .fastapi_server import view_server as fastapi_view_server
+
+        fastapi_view_server(
+            log_dir=log_dir,
+            recursive=recursive,
+            host=host,
+            port=port,
+            authorization=authorization,
+            fs_options=fs_options,
+        )
+    else:
+        view_server(
+            log_dir=log_dir,
+            recursive=recursive,
+            host=host,
+            port=port,
+            authorization=authorization,
+            fs_options=fs_options,
+        )
 
 
 def view_port_pid_file(port: int) -> Path:
