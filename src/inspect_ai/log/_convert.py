@@ -125,17 +125,17 @@ async def _stream_convert_file(
     output_recorder = create_recorder_for_location(output_file, output_dir)
 
     sample_map = await input_recorder.read_log_sample_ids(input_file)
-    semaphore = anyio.Semaphore(len(sample_map) if stream is True else stream)
+
+    concurrent_limit = len(sample_map) if stream is True else stream
 
     async def _convert_sample(sample_id: str | int, epoch: int) -> None:
-        async with semaphore:
-            sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
-            if resolve_attachments:
-                sample = resolve_sample_attachments(sample)
-            await output_recorder.log_sample(
-                log_header.eval,
-                sample,
-            )
+        sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
+        if resolve_attachments:
+            sample = resolve_sample_attachments(sample)
+        await output_recorder.log_sample(
+            log_header.eval,
+            sample,
+        )
 
     log_header = await read_eval_log_async(
         input_file, header_only=True, resolve_attachments=resolve_attachments
@@ -143,9 +143,14 @@ async def _stream_convert_file(
     await output_recorder.log_init(log_header.eval, location=output_file)
     await output_recorder.log_start(log_header.eval, log_header.plan)
 
-    async with anyio.create_task_group() as tg:
-        for sample_id, epoch in sample_map:
-            tg.start_soon(_convert_sample, sample_id, epoch)
+    for i in range(0, len(sample_map), concurrent_limit):
+        batch = sample_map[i : i + concurrent_limit]
+
+        async with anyio.create_task_group() as tg:
+            for sample_id, epoch in batch:
+                tg.start_soon(_convert_sample, sample_id, epoch)
+
+        await output_recorder.flush(log_header.eval)
 
     await output_recorder.log_finish(
         log_header.eval,
