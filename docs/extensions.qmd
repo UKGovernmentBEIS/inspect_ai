@@ -195,7 +195,7 @@ The layer of indirection (creating a function that returns a SandboxEnvironment 
 The class methods take care of various stages of initialisation, setup, and teardown:
 
 | Method                  | Lifecycle                                                                                                                                | Purpose                                                                               |
-|-------------------|-------------------|----------------------------------|                                                                               |
+|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
 | `task_init()`           | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run.                                    | Expensive initialisation operations (e.g. pulling or building images)                 |
 | `sample_init()`         | Called at the beginning of each `Sample`.                                                                                                | Create `SandboxEnvironment` instances for the sample.                                 |
 | `sample_cleanup()`      | Called at the end of each `Sample`                                                                                                       | Cleanup `SandboxEnvironment` instances for the sample.                                |
