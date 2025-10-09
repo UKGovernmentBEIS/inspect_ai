@@ -9,7 +9,7 @@ import anyio
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from pydantic_core import to_jsonable_python
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 from starlette.staticfiles import StaticFiles
 from starlette.status import (
@@ -264,9 +264,7 @@ def filter_fastapi_log() -> None:
     #  filter overly chatty /api/events messages
     class RequestFilter(logging.Filter):
         def filter(self, record: logging.LogRecord) -> bool:
-            if record.args and len(record.args) >= 4:
-                if record.args[4] == "200":
-                    return False
+            return "/api/events" not in record.getMessage()
 
     # don't add if we already have
     access_logger = getLogger("uvicorn.access")
@@ -280,7 +278,9 @@ def filter_fastapi_log() -> None:
 
 def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     class AuthorizationMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request, call_next):
+        async def dispatch(
+            self, request: Request, call_next: RequestResponseEndpoint
+        ) -> Response:
             auth_header = request.headers.get("authorization", None)
             if auth_header != authorization:
                 return Response("Unauthorized", status_code=401)
@@ -323,9 +323,7 @@ def view_server(
 
     # setup server
     api = view_server_app(
-        mapping_policy=authorization_middleware(authorization)
-        if authorization
-        else None,
+        mapping_policy=None,
         access_policy=OnlyLogDirAccessPolicy(log_dir) if not authorization else None,
         default_dir=log_dir,
         recursive=recursive,
@@ -346,4 +344,4 @@ def view_server(
 
     # run app
     display().print(f"Inspect View: {log_dir}")
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(app, host=host, port=port, log_config=None)
