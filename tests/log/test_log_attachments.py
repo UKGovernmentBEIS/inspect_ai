@@ -13,7 +13,7 @@ def test_log_attachments_condense():
     log_file = log_path("log_images.json")
     log = read_eval_log(log_file)
     assert log.samples
-    log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
+    log.samples = [resolve_sample_attachments(sample, "full") for sample in log.samples]
 
     # confirm there are no attachment refs
     assert len(log.samples[0].attachments) == 0

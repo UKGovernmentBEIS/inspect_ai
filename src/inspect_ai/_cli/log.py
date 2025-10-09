@@ -105,6 +105,23 @@ def log_list(
             print(log.name)
 
 
+def resolve_attachments_callback(
+    ctx: click.Context, param: click.Parameter, value: str
+) -> bool | Literal["full", "core"]:
+    source = ctx.get_parameter_source(param.name) if param.name else ""
+    if source == click.core.ParameterSource.DEFAULT:
+        return False
+
+    if value is None:
+        return False
+    elif value == "full":
+        return "full"
+    elif value == "core":
+        return "core"
+    else:
+        raise click.BadParameter(f"Expected 'full', or 'core'. Got: {value}")
+
+
 @log_command.command("list")
 @list_logs_options
 def list_command(
@@ -129,12 +146,16 @@ def list_command(
 )
 @click.option(
     "--resolve-attachments",
-    type=bool,
-    is_flag=True,
-    default=False,
+    type=click.Choice(["full", "core"]),
+    flag_value="core",
+    is_flag=False,
+    default=None,
+    callback=resolve_attachments_callback,
     help="Resolve attachments (duplicated content blocks) to their full content.",
 )
-def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> None:
+def dump_command(
+    path: str, header_only: bool, resolve_attachments: bool | Literal["full", "core"]
+) -> None:
     """Print log file contents as JSON."""
     log = read_eval_log(
         path, header_only=header_only, resolve_attachments=resolve_attachments
@@ -164,9 +185,11 @@ def dump_command(path: str, header_only: bool, resolve_attachments: bool) -> Non
 )
 @click.option(
     "--resolve-attachments",
-    type=bool,
-    is_flag=True,
-    default=False,
+    type=click.Choice(["full", "core"]),
+    flag_value="core",
+    is_flag=False,
+    default=None,
+    callback=resolve_attachments_callback,
     help="Resolve attachments (duplicated content blocks) to their full content.",
 )
 @click.option(
@@ -183,7 +206,7 @@ def convert_command(
     to: Literal["eval", "json"],
     output_dir: str,
     overwrite: bool,
-    resolve_attachments: bool,
+    resolve_attachments: bool | Literal["full", "core"],
     stream: int | bool = False,
 ) -> None:
     """Convert between log file formats."""
