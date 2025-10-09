@@ -14,6 +14,7 @@ import { useEvalSpec, useRefreshLog } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { useLogNavigation } from "../routing/logNavigation";
 import styles from "./LogView.module.css";
+import { useErrorTabConfig } from "./tabs/ErrorTab";
 import { useInfoTabConfig } from "./tabs/InfoTab";
 import { useJsonTabConfig } from "./tabs/JsonTab";
 import { useModelsTab } from "./tabs/ModelsTab";
@@ -40,12 +41,15 @@ export const LogView: FC = () => {
     refreshLog,
   );
 
-  const configTabConfig = useInfoTabConfig(
+  const intoTabConfig = useInfoTabConfig(
     evalSpec,
     selectedLogSummary?.plan,
     selectedLogSummary?.error,
     selectedLogSummary?.results,
+    selectedLogSummary?.status,
   );
+
+  const errorTabConfig = useErrorTabConfig(selectedLogSummary?.error);
 
   const taskTabConfig = useTaskTabConfig(evalSpec, selectedLogSummary?.stats);
 
@@ -69,7 +73,8 @@ export const LogView: FC = () => {
     ...(samplesTabConfig ? { samples: samplesTabConfig } : {}),
     task: taskTabConfig,
     model: modelsTabConfig,
-    config: configTabConfig,
+    config: intoTabConfig,
+    ...(selectedLogSummary?.error ? { error: errorTabConfig } : {}),
     json: jsonTabConfig,
   };
 

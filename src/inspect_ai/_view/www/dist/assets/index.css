@@ -16717,49 +16717,6 @@ a._citationLink_t2k1z_9:hover {
   overflow-y: hidden;
   display: flex;
 }
-.message-band {
-  grid-template-columns: max-content auto max-content;
-  align-items: center;
-  column-gap: 0.5em;
-  font-size: var(--inspect-font-size-small);
-  border-bottom: solid 1px var(--bs-light-border-subtle);
-  padding: 0.3em 1em;
-  display: grid;
-}
-
-.message-band.hidden {
-  display: none;
-}
-
-.message-band.info {
-  background-color: var(--bs-light);
-}
-
-.message-band.warning {
-  background-color: var(--bs-warning-bg-subtle);
-  color: var(--bs-warning-text-emphasis);
-}
-
-.message-band.error {
-  background-color: var(--bs-error-bg-subtle);
-  color: var(--bs-error-text-emphasis);
-}
-
-.message-band-btn {
-  font-size: var(--inspect-font-size-title-secondary);
-  margin: 0;
-  padding: 0;
-  height: var(--inspect-font-size-title-secondary);
-  line-height: var(--inspect-font-size-title-secondary);
-}
-
-.message-band-btn.error {
-  color: var(--bs-error-text-emphasis);
-}
-
-.message-band-btn.warning {
-  color: var(--bs-warning-text-emphasis);
-}
 .card-header-container {
   display: grid;
   grid-template-columns: max-content auto;
@@ -16821,6 +16778,56 @@ a._citationLink_t2k1z_9:hover {
 
 .card-body.card-no-padding {
   padding: 0;
+}
+._task-error-display_1gb2h_1 {
+  font-size: clamp(0.2rem, calc(0.2em + 0.93vw), 0.9rem);
+}
+
+._message_1gb2h_5 {
+  margin-bottom: 1em;
+}
+.message-band {
+  grid-template-columns: max-content auto max-content;
+  align-items: center;
+  column-gap: 0.5em;
+  font-size: var(--inspect-font-size-small);
+  border-bottom: solid 1px var(--bs-light-border-subtle);
+  padding: 0.3em 1em;
+  display: grid;
+}
+
+.message-band.hidden {
+  display: none;
+}
+
+.message-band.info {
+  background-color: var(--bs-light);
+}
+
+.message-band.warning {
+  background-color: var(--bs-warning-bg-subtle);
+  color: var(--bs-warning-text-emphasis);
+}
+
+.message-band.error {
+  background-color: var(--bs-error-bg-subtle);
+  color: var(--bs-error-text-emphasis);
+}
+
+.message-band-btn {
+  font-size: var(--inspect-font-size-title-secondary);
+  margin: 0;
+  padding: 0;
+  height: var(--inspect-font-size-title-secondary);
+  line-height: var(--inspect-font-size-title-secondary);
+}
+
+.message-band-btn.error {
+  color: var(--bs-error-text-emphasis);
+}
+
+.message-band-btn.warning {
+  color: var(--bs-warning-text-emphasis);
 }
 ._item_1uzhd_1 {
   margin-bottom: 0em;
@@ -16905,9 +16912,6 @@ a._citationLink_t2k1z_9:hover {
   grid-template-rows: auto;
   margin-left: 0.5em;
   gap: 1em;
-}
-._task-error-display_1624b_1 {
-  font-size: clamp(0.2rem, calc(0.2em + 0.93vw), 0.9rem);
 }
 .download-button {
   margin-top: 3em;
