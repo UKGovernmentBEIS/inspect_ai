@@ -126,35 +126,32 @@ async def _stream_convert_file(
 
     sample_map = await input_recorder.read_log_sample_ids(input_file)
 
+    concurrent_limit = len(sample_map) if stream is True else stream
+    # Use a semaphore to limit concurrent tasks
+    semaphore = anyio.Semaphore(concurrent_limit)
+    samples_processed = 0
+
     async def _convert_sample(sample_id: str | int, epoch: int) -> None:
-        sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
-        if resolve_attachments:
-            sample = resolve_sample_attachments(sample)
-        await output_recorder.log_sample(
-            log_header.eval,
-            sample,
-        )
+        async with semaphore:
+            sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
+            if resolve_attachments:
+                sample = resolve_sample_attachments(sample)
+            await output_recorder.log_sample(
+                log_header.eval,
+                sample,
+            )
+
+            nonlocal samples_processed
+            samples_processed += 1
+            # Flush periodically to avoid too much buffering
+            if samples_processed % concurrent_limit == 0:
+                await output_recorder.flush(log_header.eval)
 
     log_header = await read_eval_log_async(
         input_file, header_only=True, resolve_attachments=resolve_attachments
     )
     await output_recorder.log_init(log_header.eval, location=output_file)
     await output_recorder.log_start(log_header.eval, log_header.plan)
-
-    concurrent_limit = len(sample_map) if stream is True else stream
-
-    # Use a semaphore to limit concurrent tasks
-    semaphore = anyio.Semaphore(concurrent_limit)
-    samples_processed = 0
-
-    async def _convert_sample(sample_id: str | int, epoch: int) -> None:
-        nonlocal samples_processed
-        async with semaphore:
-            await _convert_sample(sample_id, epoch)
-            samples_processed += 1
-            # Flush every concurrent_limit samples
-            if samples_processed % concurrent_limit == 0:
-                await output_recorder.flush(log_header.eval)
 
     async with anyio.create_task_group() as tg:
         for sample_id, epoch in sample_map:
