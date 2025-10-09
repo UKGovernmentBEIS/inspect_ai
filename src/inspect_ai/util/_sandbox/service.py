@@ -1,4 +1,5 @@
 import json
+import traceback
 from logging import getLogger
 from pathlib import PurePosixPath
 from textwrap import dedent
@@ -318,7 +319,10 @@ class SandboxService:
                         f"Limit exceeded calling method {method_name}: {ex.message}"
                     )
             except Exception as err:
-                await write_error_response(f"Error calling method {method_name}: {err}")
+                err_traceback = traceback.format_exc()
+                await write_error_response(
+                    f"Error calling method {method_name}: {err}: {err_traceback}"
+                )
 
     async def _create_rpc_dir(self, name: str) -> str:
         rpc_dir = PurePosixPath(self._service_dir, name).as_posix()
