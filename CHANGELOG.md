@@ -2,7 +2,7 @@
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
 - Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
-- Adjust terminal progress display to accomodate longer task names.
+- Adjust terminal progress display to accommodate longer task names.
 
 ## 0.3.137 (07 October 2025)
 
