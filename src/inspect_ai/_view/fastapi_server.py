@@ -73,7 +73,7 @@ def view_server_app(
     default_dir: str = "",
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
-) -> FastAPI:
+) -> "FastAPI":
     app = FastAPI()
 
     async def _map_file(request: Request, file: str) -> str:

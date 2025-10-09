@@ -16,6 +16,7 @@ from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import init_logger
 from inspect_ai._view.server import view_server
 
+from .fastapi_prereqs import verify_fastapi_prerequisites
 from .notify import view_data_dir
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ def view(
 
     # run server
     if os.getenv("INSPECT_VIEW_FASTAPI_SERVER"):
+        verify_fastapi_prerequisites()
         from .fastapi_server import view_server as fastapi_view_server
 
         fastapi_view_server(

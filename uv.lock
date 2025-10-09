@@ -1633,6 +1633,7 @@ dev = [
     { name = "types-psutil" },
     { name = "types-python-dateutil" },
     { name = "types-pyyaml" },
+    { name = "uvicorn" },
 ]
 dev-mcp-tests = [
     { name = "mcp-server-fetch" },
@@ -1742,6 +1743,7 @@ requires-dist = [
     { name = "types-pyyaml", marker = "extra == 'dev'" },
     { name = "typing-extensions", specifier = ">=4.9.0" },
     { name = "universal-pathlib", specifier = ">=0.2.6" },
+    { name = "uvicorn", marker = "extra == 'dev'" },
     { name = "zipp", specifier = ">=3.19.1" },
 ]
 provides-extras = ["dev", "dev-mcp-tests", "doc", "dist"]
