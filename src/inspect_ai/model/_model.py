@@ -22,6 +22,7 @@ from typing import (
     cast,
 )
 
+import anyio
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from tenacity import (
@@ -40,6 +41,7 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
+from inspect_ai._util.dateutil import seconds_since_epoch
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -614,6 +616,9 @@ class Model:
         if self.api.collapse_assistant_messages():
             input = collapse_consecutive_assistant_messages(input)
 
+        # record overall start time
+        start_time = anyio.current_time()
+
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -675,16 +680,32 @@ class Model:
                 cache="write" if cache else None,
             )
 
+            # if we have a timeout then create a timeout context manager
+            timeout_cm = (
+                anyio.move_on_after(
+                    config.timeout - (anyio.current_time() - start_time)
+                )
+                if config.timeout is not None
+                else contextlib.nullcontext()
+            )
+
             with trace_action(logger, "Model", f"generate ({str(self)})"):
                 time_start = time.monotonic()
                 try:
                     assert isinstance(event, ModelEvent)
-                    with track_active_model_event(event):
+                    with track_active_model_event(event), timeout_cm:
                         result = await self.api.generate(
                             input=input,
                             tools=tools_info,
                             tool_choice=tool_choice,
                             config=config,
+                        )
+                    if (
+                        isinstance(timeout_cm, anyio.CancelScope)
+                        and timeout_cm.cancel_called
+                    ):
+                        raise RuntimeError(
+                            f"Model generate timeout of {config.timeout} seconds exceeded."
                         )
                 finally:
                     time_elapsed = time.monotonic() - time_start
