@@ -3,7 +3,7 @@ from typing import Literal
 
 import anyio
 
-from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import exists, filesystem
 from inspect_ai.log import resolve_sample_attachments
@@ -84,14 +84,14 @@ def convert_eval_logs(
 
         # do a full read/write (normalized deprecated constructs and adds sample summaries)
         if stream:
-            anyio.run(
-                _stream_convert_file,
-                input_file,
-                output_file,
-                output_dir,
-                resolve_attachments,
-                stream,
-                backend=configured_async_backend(),
+            run_coroutine(
+                _stream_convert_file(
+                    input_file,
+                    output_file,
+                    output_dir,
+                    resolve_attachments,
+                    stream,
+                )
             )
         else:
             write_eval_log(
