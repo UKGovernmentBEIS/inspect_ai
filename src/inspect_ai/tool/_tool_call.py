@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from inspect_ai._util.content import Content
 
@@ -33,7 +34,7 @@ class ToolCallView(BaseModel):
     """Custom representation of tool call."""
 
 
-@dataclass
+@pydantic_dataclass
 class ToolCall:
     id: str
     """Unique identifier for tool call."""
@@ -50,8 +51,16 @@ class ToolCall:
     view: ToolCallContent | None = field(default=None)
     """Custom view of tool call input."""
 
-    type: str | None = field(default=None)
-    """Tool call type (deprecated)."""
+    type: Literal["function", "custom"] = field(default="function")
+    """Type of tool call."""
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def migrate_type(cls, v: Any) -> Any:
+        """Migrate None values from deprecated type field to 'function'."""
+        if v is None:
+            return "function"
+        return v
 
 
 @dataclass
