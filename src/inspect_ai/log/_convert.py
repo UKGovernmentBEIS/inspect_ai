@@ -3,7 +3,7 @@ from typing import Literal
 
 import anyio
 
-from inspect_ai._util._async import configured_async_backend, run_coroutine
+from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import exists, filesystem
 from inspect_ai.log import resolve_sample_attachments
