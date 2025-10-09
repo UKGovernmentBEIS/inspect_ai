@@ -126,8 +126,6 @@ async def _stream_convert_file(
 
     sample_map = await input_recorder.read_log_sample_ids(input_file)
 
-    concurrent_limit = len(sample_map) if stream is True else stream
-
     async def _convert_sample(sample_id: str | int, epoch: int) -> None:
         sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
         if resolve_attachments:
@@ -143,6 +141,7 @@ async def _stream_convert_file(
     await output_recorder.log_init(log_header.eval, location=output_file)
     await output_recorder.log_start(log_header.eval, log_header.plan)
 
+    concurrent_limit = len(sample_map) if stream is True else stream
     for i in range(0, len(sample_map), concurrent_limit):
         batch = sample_map[i : i + concurrent_limit]
 
