@@ -59,7 +59,6 @@ class _StreamingBodyByteReceiveStream(ByteReceiveStream):
 
     async def receive(self, max_bytes: int = 65536) -> bytes:
         """Receive up to max_bytes from the S3 body stream."""
-
         # TODO: It's kind of lame that we're forced to provide an arbitrary max_bytes
         # It would be preferable if we could just read whatever is naturally in
         # the http response buffer
