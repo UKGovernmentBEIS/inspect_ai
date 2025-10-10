@@ -7,9 +7,10 @@
 - Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.
 - Scoring: Periodically flush samples when scoring with streaming enabled.
+- Adjust terminal progress display to accommodate longer task names.
 - Inspect View: Properly display task error when a task error is present in the log file.
 - Inspect View: Improve display of running eval sets (correct duplicate files and incorrect progress display).
-- Adjust terminal progress display to accommodate longer task names.
+- Inspect View: Provide option to run `inspect view` server using uvicorn / fastapi.
 - Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
 - Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
 - Bugfix: Ensure that calls to generate always sync the cache state to the current sample's epoch.
