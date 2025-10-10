@@ -14,6 +14,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Literal,
     NamedTuple,
     Optional,
     Sequence,
@@ -783,7 +784,11 @@ def tool_parse_error_message(arguments: str, ex: Exception) -> str:
 
 
 def parse_tool_call(
-    id: str, function: str, arguments: str, tools: list[ToolInfo] | None = None
+    id: str,
+    function: str,
+    arguments: str,
+    tools: list[ToolInfo] | None = None,
+    type: Literal["function", "custom"] = "function",
 ) -> ToolCall:
     """Parse a tool call from a JSON payload.
 
@@ -830,10 +835,7 @@ def parse_tool_call(
 
     # return ToolCall with error payload
     return ToolCall(
-        id=id,
-        function=function,
-        arguments=arguments_dict,
-        parse_error=error,
+        id=id, function=function, arguments=arguments_dict, parse_error=error, type=type
     )
 
 

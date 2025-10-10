@@ -8,6 +8,7 @@ from test_helpers.tool_call_utils import (
 )
 from test_helpers.tools import addition, raise_error, read_file
 from test_helpers.utils import (
+    flaky_retry,
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_mistral,
@@ -191,6 +192,9 @@ def test_mistral_tools():
 
 
 @skip_if_no_google
+# Rarely, but reproducibly, gemini will respond with '' after the tool call returns '2'?!?
+# In my testing, it failed on the order of a couple times per 100 attempts
+@flaky_retry(max_retries=3)
 def test_google_tools():
     check_tools("google/gemini-2.5-pro")
 

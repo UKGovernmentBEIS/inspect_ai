@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import socket
 import sys
 from pathlib import Path
 
@@ -44,9 +45,12 @@ def main():
     # allowing any user to connect regardless of who created the socket
     old_umask = os.umask(0o111)
     try:
-        run_app(app, path=str(SOCKET_PATH))
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.bind(str(SOCKET_PATH))
     finally:
         os.umask(old_umask)
+
+    run_app(app, sock=sock)
 
 
 if __name__ == "__main__":

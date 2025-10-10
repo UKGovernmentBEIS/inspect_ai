@@ -1,11 +1,12 @@
 import json
 from logging import getLogger
 from time import time
-from typing import Any, Set, cast
+from typing import Any, Iterable, Set, cast
 
 from openai.types.responses import (
     Response,
     ResponseComputerToolCall,
+    ResponseCustomToolCall,
     ResponseFunctionCallOutputItemListParam,
     ResponseFunctionToolCall,
     ResponseFunctionWebSearch,
@@ -33,6 +34,9 @@ from openai.types.responses.response import (
 )
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
+)
+from openai.types.responses.response_custom_tool_call_output_param import (
+    OutputOutputContentList,
 )
 from openai.types.responses.response_function_web_search import (
     Action,
@@ -76,16 +80,20 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
+from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
     content_from_response_input_content_param,
     is_assistant_message_param,
     is_computer_call_output,
     is_computer_tool_param,
+    is_custom_tool_call_output,
+    is_custom_tool_param,
     is_function_call_output,
     is_function_tool_param,
     is_mcp_tool_param,
     is_response_computer_tool_call,
+    is_response_custom_tool_call,
     is_response_function_tool_call,
     is_response_input_message,
     is_response_mcp_call,
@@ -147,13 +155,20 @@ async def inspect_responses_api_request_impl(
     bridge_model_name = str(json_data["model"])
     model = resolve_inspect_model(bridge_model_name)
     model_name = model.api.model_name
+    is_openai = ModelName(model).api == "openai"
 
     # record parallel tool calls
     parallel_tool_calls = json_data.get("parallel_tool_calls", True)
 
-    # convert openai tools to inspect tools
+    # convert openai tools to inspect tools (don't pass custom tools on to
+    # non openai models as they don't know how to handle them)
     responses_tools: list[ToolParam] = json_data.get("tools", [])
-    tools = [tool_from_responses_tool(tool, web_search) for tool in responses_tools]
+    tools = [
+        tool_from_responses_tool(tool, web_search)
+        for tool in responses_tools
+        if is_openai or tool["type"] != "custom"
+    ]
+    tools = [tool for tool in tools if tool]
     responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
         "tool_choice", None
     )
@@ -262,6 +277,16 @@ def tool_from_responses_tool(
             name=tool_param["name"],
             description=tool_param["description"] or tool_param["name"],
             parameters=ToolParams.model_validate(tool_param["parameters"]),
+        )
+    elif is_custom_tool_param(tool_param):
+        return ToolInfo(
+            name=tool_param["name"],
+            description=tool_param["description"] or tool_param["name"],
+            parameters=ToolParams(
+                properties={"input": JSONSchema(type="string", description="Input.")},
+                required=["input"],
+            ),
+            options={"custom_format": tool_param["format"]},
         )
     elif is_web_search_tool_param(tool_param):
         return web_search(
@@ -450,6 +475,15 @@ def messages_from_responses_input(
                             tools=tools_info,
                         )
                     )
+                elif is_response_custom_tool_call(param):
+                    function_calls_by_id[param["call_id"]] = param["name"]
+                    tool_call = ToolCall(
+                        id=param["call_id"],
+                        function=param["name"],
+                        arguments={"input": param["input"]},
+                        type="custom",
+                    )
+                    tool_calls.append(tool_call)
                 elif is_response_computer_tool_call(param):
                     computer_call = ResponseComputerToolCall.model_validate(param)
                     tool_calls.append(
@@ -534,6 +568,14 @@ def messages_from_responses_input(
                     content=_tool_content_from_openai_tool_output(item["output"]),
                 )
             )
+        elif is_custom_tool_call_output(item):
+            messages.append(
+                ChatMessageTool(
+                    tool_call_id=item["call_id"],
+                    function=function_calls_by_id.get(item["call_id"]),
+                    content=_tool_content_from_openai_tool_output(item["output"]),
+                )
+            )
         elif is_computer_call_output(item):
             messages.append(
                 ChatMessageTool(
@@ -547,7 +589,6 @@ def messages_from_responses_input(
             # ResponseCodeInterpreterToolCallParam
             # McpApprovalRequest
             # McpApprovalResponse
-            # ResponseCustomToolCallOutputParam
             # ResponseCustomToolCallParam
             # LocalShellCall
             # LocalShellCallOutput
@@ -564,7 +605,9 @@ def messages_from_responses_input(
 
 
 def _tool_content_from_openai_tool_output(
-    output: str | ResponseFunctionCallOutputItemListParam,
+    output: str
+    | ResponseFunctionCallOutputItemListParam
+    | Iterable[OutputOutputContentList],
 ) -> str | list[Content]:
     if isinstance(output, str):
         return output
@@ -684,6 +727,15 @@ def responses_output_items_from_assistant_message(
                     call_id=tool_call.id,
                     pending_safety_checks=[],
                     status="completed",
+                )
+            )
+        elif tool_call.type == "custom":
+            output.append(
+                ResponseCustomToolCall(
+                    type="custom_tool_call",
+                    call_id=tool_call.id,
+                    name=tool_call.function,
+                    input=next(iter(tool_call.arguments.values())),
                 )
             )
         else:

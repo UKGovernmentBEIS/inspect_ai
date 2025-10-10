@@ -6530,16 +6530,13 @@
           "default": null
         },
         "type": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "default": "function",
+          "enum": [
+            "function",
+            "custom"
           ],
-          "default": null,
-          "title": "Type"
+          "title": "Type",
+          "type": "string"
         }
       },
       "required": [
