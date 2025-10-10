@@ -12,6 +12,7 @@
 - Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
 - Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
 - Bugfix: Ensure that calls to generate always sync the cache state to the current sample's epoch.
+- Bugfix: Don't use default values for `list` and `dict` parameters (rather use `None` and initialize on use).
 
 ## 0.3.137 (07 October 2025)
 
