@@ -330,6 +330,7 @@ def test_api_eval_set(test_client: TestClient):
                 sequence=0,
             )
         ],
+        all_logs=[],
     )
 
     response = test_client.request("GET", f"/eval-set?dir={eval_set_id}")
