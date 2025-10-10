@@ -2117,6 +2117,7 @@
           "default": {
             "max_retries": null,
             "timeout": null,
+            "attempt_timeout": null,
             "max_connections": null,
             "system_message": null,
             "max_tokens": null,
@@ -3319,6 +3320,18 @@
           "default": null,
           "title": "Timeout"
         },
+        "attempt_timeout": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt Timeout"
+        },
         "max_connections": {
           "anyOf": [
             {
@@ -3670,6 +3683,7 @@
       "required": [
         "max_retries",
         "timeout",
+        "attempt_timeout",
         "max_connections",
         "system_message",
         "max_tokens",
