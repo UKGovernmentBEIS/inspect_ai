@@ -1,7 +1,7 @@
-import { FC, useState, useEffect } from "react";
+import { FC, useEffect, useState } from "react";
+import { DB_VERSION } from "../../client/database/schema";
 import { PopOver } from "../../components/PopOver";
 import { useStore } from "../../state/store";
-import { DB_VERSION } from "../../client/database/schema";
 
 import clsx from "clsx";
 import styles from "./ViewerOptionsPopover.module.css";
@@ -118,9 +118,9 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
                 <div className={styles.statRow}>
                   <strong>Cached Items:</strong>
                   <ul className={styles.cachedItemsList}>
-                    <li>Log Files: {dbStats.logFiles}</li>
-                    <li>Log Summaries: {dbStats.logSummaries}</li>
-                    <li>Log Info: {dbStats.logInfo}</li>
+                    <li>Log Handles: {dbStats.logFiles}</li>
+                    <li>Log Previews: {dbStats.logSummaries}</li>
+                    <li>Log Details: {dbStats.logInfo}</li>
                   </ul>
                 </div>
               </>
