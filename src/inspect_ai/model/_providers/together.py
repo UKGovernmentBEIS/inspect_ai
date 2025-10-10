@@ -198,8 +198,8 @@ class TogetherRESTAPI(ModelAPI):
             config=config,
         )
 
-        self.client = self._create_client()
         self.model_args = model_args
+        self.initialize()
 
     def _create_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient()
