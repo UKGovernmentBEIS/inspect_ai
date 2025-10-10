@@ -3,10 +3,13 @@
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
 - Agent bridge: Support for OpenAI 'custom' tools (required by Codex apply_patch tool).
 - OpenAI: Use background processing for `gpt-5-pro` by default.
+- Anthropic: Support `parallel_tool_calls` option for tool choice.
 - Google: Enable support for `logprobs` and `top_logprobs`.
+- Groq: Update "model_length" stop reason detection for latest way of reporting bad requests.
 - Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.
 - Scoring: Periodically flush samples when scoring with streaming enabled.
+- Model API: Added `attempt_timeout` to `GenerateConfig` (governs timeout for individual attempts and still retries if timeout is exceeded).
 - Adjust terminal progress display to accommodate longer task names.
 - Inspect View: Properly display task error when a task error is present in the log file.
 - Inspect View: Improve display of running eval sets (correct duplicate files and incorrect progress display).
