@@ -8,6 +8,7 @@
 - Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.
 - Scoring: Periodically flush samples when scoring with streaming enabled.
 - Inspect View: Properly display task error when a task error is present in the log file.
+- Inspect View: Improve display of running eval sets (correct duplicate files and incorrect progress display).
 - Adjust terminal progress display to accommodate longer task names.
 - Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
 - Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
