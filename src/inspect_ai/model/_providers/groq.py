@@ -83,10 +83,7 @@ class GroqAPI(ModelAPI):
             raise environment_prerequisite_error("Groq", GROQ_API_KEY)
 
         self.model_args = model_args
-        self.client = self._create_client()
-
-        # create time tracker
-        self._http_hooks = HttpxHooks(self.client._client)
+        self.initialize()
 
     def _create_client(self) -> AsyncGroq:
         return AsyncGroq(
