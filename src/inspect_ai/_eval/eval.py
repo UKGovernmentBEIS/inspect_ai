@@ -760,6 +760,7 @@ def eval_retry(
     score_display: bool | None = None,
     max_retries: int | None = None,
     timeout: int | None = None,
+    attempt_timeout: int | None = None,
     max_connections: int | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
@@ -811,6 +812,8 @@ def eval_retry(
             Maximum number of times to retry request.
         timeout:
             Request timeout (in seconds)
+        attempt_timeout:
+            Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections:
             Maximum number of concurrent connections to Model API (default is per Model API)
 
@@ -848,6 +851,7 @@ def eval_retry(
             score_display=score_display,
             max_retries=max_retries,
             timeout=timeout,
+            attempt_timeout=attempt_timeout,
             max_connections=max_connections,
         )
 
@@ -878,6 +882,7 @@ async def eval_retry_async(
     score_display: bool | None = None,
     max_retries: int | None = None,
     timeout: int | None = None,
+    attempt_timeout: int | None = None,
     max_connections: int | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
@@ -919,6 +924,7 @@ async def eval_retry_async(
         score_display: Show scoring metrics in realtime (defaults to True)
         max_retries: Maximum number of times to retry request.
         timeout: Request timeout (in seconds)
+        attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
 
     Returns:
@@ -1063,6 +1069,7 @@ async def eval_retry_async(
         config = eval_log.plan.config
         config.max_retries = max_retries or config.max_retries
         config.timeout = timeout or config.timeout
+        config.attempt_timeout = attempt_timeout or config.attempt_timeout
         config.max_connections = max_connections or config.max_connections
 
         # run the eval

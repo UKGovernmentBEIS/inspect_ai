@@ -67,6 +67,7 @@ MAX_RETRIES_HELP = (
     "Maximum number of times to retry model API requests (defaults to unlimited)"
 )
 TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
+ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
 
 
@@ -230,6 +231,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--timeout", type=int, help=TIMEOUT_HELP, envvar="INSPECT_EVAL_TIMEOUT"
+    )
+    @click.option(
+        "--attempt-timeout",
+        type=int,
+        help=ATTEMPT_TIMEOUT_HELP,
+        envvar="INSPECT_EVAL_ATTEMPT_TIMEOUT",
     )
     @click.option(
         "--max-samples",
@@ -561,6 +568,7 @@ def eval_command(
     sample_shuffle: int | None,
     max_retries: int | None,
     timeout: int | None,
+    attempt_timeout: int | None,
     max_connections: int | None,
     max_tokens: int | None,
     system_message: str | None,
@@ -750,6 +758,7 @@ def eval_set_command(
     sample_shuffle: int | None,
     max_retries: int | None,
     timeout: int | None,
+    attempt_timeout: int | None,
     max_connections: int | None,
     max_tokens: int | None,
     system_message: str | None,
@@ -1235,6 +1244,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 )
 @click.option("--timeout", type=int, help=TIMEOUT_HELP, envvar="INSPECT_EVAL_TIMEOUT")
 @click.option(
+    "--attempt-timeout",
+    type=int,
+    help=ATTEMPT_TIMEOUT_HELP,
+    envvar="INSPECT_EVAL_ATTEMPT_TIMEOUT",
+)
+@click.option(
     "--log-level-transcript",
     type=click.Choice(
         [level.lower() for level in ALL_LOG_LEVELS],
@@ -1267,6 +1282,7 @@ def eval_retry_command(
     max_connections: int | None,
     max_retries: int | None,
     timeout: int | None,
+    attempt_timeout: int | None,
     log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> None:
@@ -1322,5 +1338,6 @@ def eval_retry_command(
         score_display=score_display,
         max_retries=max_retries,
         timeout=timeout,
+        attempt_timeout=attempt_timeout,
         max_connections=max_connections,
     )
