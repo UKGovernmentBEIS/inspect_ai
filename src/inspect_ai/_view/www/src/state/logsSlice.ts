@@ -326,6 +326,10 @@ export const createLogsSlice = (
             const state = get();
             state.logsActions.setSelectedLogIndex(index);
           },
+          updateLogPreviews: (previews: Record<string, LogPreview>) => {
+            const state = get();
+            state.logsActions.updateLogPreviews(previews);
+          },
         });
 
         // Sync

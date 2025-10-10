@@ -1,16 +1,63 @@
-import { ClientAPI, LogHandle } from "../../client/api/types";
+import { ClientAPI, LogHandle, LogPreview } from "../../client/api/types";
 import { DatabaseService } from "../../client/database";
+import { WorkQueue } from "../../utils/workQueue";
 
 export interface ApplicationContext {
   setLogHandles: (logs: LogHandle[]) => void;
   getSelectedLog: () => LogHandle | undefined;
   setSelectedLogIndex: (index: number) => void;
+  updateLogPreviews: (previews: Record<string, LogPreview>) => void;
 }
 
 export class ReplicationService {
   private _database: DatabaseService | undefined = undefined;
   private _api: ClientAPI | undefined = undefined;
   private _applicationContext: ApplicationContext | undefined = undefined;
+  private _previewQueue: WorkQueue<LogHandle, LogPreview>;
+
+  constructor() {
+    this._previewQueue = new WorkQueue<LogHandle, LogPreview>({
+      batchSize: 10,
+      processingDelay: 100,
+    });
+
+    // Set up the worker function
+    this._previewQueue.setWorker(async (logHandles: LogHandle[]) => {
+      if (!this._api) throw new Error("API not available");
+
+      const previews = await this._api.get_log_summaries(
+        logHandles.map((log) => log.name),
+      );
+
+      return previews;
+    });
+
+    // Set up completion callback
+    this._previewQueue.setOnComplete(
+      (previews: LogPreview[], inputs: LogHandle[]) => {
+        // Build preview map
+        const previewMap: Record<string, LogPreview> = {};
+        inputs.forEach((log, i) => {
+          if (previews[i]) {
+            previewMap[log.name] = previews[i];
+          }
+        });
+
+        // Update store
+        this._applicationContext?.updateLogPreviews(previewMap);
+
+        // Optionally cache to database
+        if (this._database && Object.keys(previewMap).length > 0) {
+          this._database
+            .writeLogPreviews(
+              Object.values(previewMap),
+              Object.keys(previewMap),
+            )
+            .catch(() => {});
+        }
+      },
+    );
+  }
 
   public startReplication(
     database: DatabaseService,
@@ -76,7 +123,6 @@ export class ReplicationService {
 
     // Update the log handles in the application state
     const refreshedLogFiles = (await this._database.readLogs()) || [];
-    console.log({ refreshedLogFiles });
     this._applicationContext?.setLogHandles(refreshedLogFiles);
 
     // Preserve the current selection
@@ -90,7 +136,15 @@ export class ReplicationService {
       }
     }
 
+    // Schedule preview fetching for new logs
+    this.syncLogPreviews(refreshedLogFiles);
+
     // TODO: Add previews and detail fetching to list of work
     // for the sync manager
+  }
+
+  syncLogPreviews(logs: LogHandle[]) {
+    // Add to queue (deduplicated by name)
+    this._previewQueue.enqueue(logs, (log) => log.name);
   }
 }
