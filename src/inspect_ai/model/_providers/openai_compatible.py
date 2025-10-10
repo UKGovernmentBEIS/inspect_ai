@@ -116,10 +116,7 @@ class OpenAICompatibleAPI(ModelAPI):
         self.model_args = model_args
 
         # create client
-        self.client = self._create_client()
-
-        # create time tracker
-        self._http_hooks = HttpxHooks(self.client._client)
+        self.initialize()
 
     def _create_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(
