@@ -344,4 +344,23 @@ def view_server(
 
     # run app
     display().print(f"Inspect View: {log_dir}")
-    uvicorn.run(app, host=host, port=port, log_config=None)
+    display().print("FASTAPI")
+
+    async def run_server() -> None:
+        config = uvicorn.Config(app, host=host, port=port, log_config=None)
+        server = uvicorn.Server(config)
+
+        async def announce_when_ready() -> None:
+            while not server.started:
+                await anyio.sleep(0.05)
+            # Print this for compatibility with the Inspect VSCode plugin:
+            display().print(
+                f"======== Running on http://{host}:{port} ========\n"
+                "(Press CTRL+C to quit)"
+            )
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(announce_when_ready)
+            await server.serve()
+
+    anyio.run(run_server)
