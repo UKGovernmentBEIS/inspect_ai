@@ -94,7 +94,7 @@ class OpenAIAPI(ModelAPI):
         )
 
         # set background bit (automatically use background for deep research)
-        if background is None and self.is_deep_research():
+        if background is None and (self.is_deep_research() or self.is_gpt_5_pro()):
             background = True
         self.background = background
 
@@ -250,6 +250,10 @@ class OpenAIAPI(ModelAPI):
     def is_gpt_5(self) -> bool:
         name = self.service_model_name()
         return "gpt-5" in name
+
+    def is_gpt_5_pro(self) -> bool:
+        name = self.service_model_name()
+        return self.is_gpt_5() and "-pro" in name
 
     def is_o1(self) -> bool:
         name = self.service_model_name()
