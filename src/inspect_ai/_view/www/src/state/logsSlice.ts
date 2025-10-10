@@ -305,81 +305,31 @@ export const createLogsSlice = (
 
         // Activate the database for this log directory
         const databaseService = await initializeDatabase(logDir);
-
-        // Read the cached values
-        let cached;
-        if (databaseService) {
-          try {
-            cached = await databaseService.readLogs();
-            if (cached && cached.length > 0) {
-              log.debug("LOADED LOG FILES FROM CACHE");
-              // Activate the current log files
-              get().logsActions.setLogHandles(cached);
-            }
-          } catch (e) {
-            // Cache read failed, use API results we already have
-          }
+        if (!databaseService) {
+          // No database service available
+          throw new Error("Database service not available");
         }
 
-        // What is our most recent known log file and total count?
-        let mtime = 0;
-        let clientFileCount = 0;
-        if (cached && cached.length > 0) {
-          mtime = Math.max(...cached.map((file) => file.mtime || 0));
-          clientFileCount = cached.length;
-        }
-
-        // Now query the server and update the store with fresh data
-        log.debug("LOADING LOG FILES FROM API");
-        const files = await api.get_logs(mtime, clientFileCount);
-
-        if (files.length > 0) {
-          if (databaseService) {
-            // Diff the current list with the new list to see which files (if any)
-            // should have data invalidated.
-            const currentFiles = get().logs.logs;
-
-            // Make a list of the files in current files that are missing
-            // from the files we just loaded or which have a lower mtime
-            // than the file in the files list.
-            const toInvalidate = currentFiles.filter((current) => {
-              const match = files.find((f) => f.name === current.name);
-              return (
-                !match ||
-                (current.mtime && match.mtime && current.mtime < match.mtime)
-              );
-            });
-
-            // Cache the current list of files
-            await databaseService.writeLogs(files).catch(() => {
-              // Silently ignore cache errors
-            });
-
-            // Invalidate summaries and overviews for deleted or updated files
-            toInvalidate
-              .map((file) => file.name)
-              .map((name) => databaseService.clearCacheForFile(name));
-
+        // Activate replication for this database
+        get().replicationService?.startReplication(databaseService, api, {
+          setLogHandles: (logs: LogHandle[]) => {
             const state = get();
-            const currentLog =
-              state.logs.selectedLogIndex > -1
-                ? state.logs.logs[state.logs.selectedLogIndex]
-                : undefined;
+            state.logsActions.setLogHandles(logs);
+          },
+          getSelectedLog: () => {
+            const state = get();
+            return state.logs.selectedLogIndex > -1
+              ? state.logs.logs[state.logs.selectedLogIndex]
+              : undefined;
+          },
+          setSelectedLogIndex: (index: number) => {
+            const state = get();
+            state.logsActions.setSelectedLogIndex(index);
+          },
+        });
 
-            const logFiles = await databaseService.readLogs();
-            get().logsActions.setLogHandles(logFiles || []);
-
-            if (currentLog) {
-              const newIndex = files.findIndex((file) =>
-                currentLog.name.endsWith(file.name),
-              );
-
-              if (newIndex !== undefined && newIndex !== -1) {
-                state.logsActions.setSelectedLogIndex(newIndex);
-              }
-            }
-          }
-        }
+        // Sync
+        get().replicationService?.sync();
       },
       syncEvalSetInfo: async (logPath?: string) => {
         const api = get().api;
