@@ -121,15 +121,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     Call close() when finished with the filesystem (or use it as a context manager)
     """
 
-    def __init__(self, anonymous_s3: bool = False):
-        """Initialize the async filesystem.
-
-        Args:
-            anonymous_s3: If True, use anonymous S3 access (no credentials required)
-        """
-        self._anonymous_s3 = anonymous_s3
-        self._s3_client: Any | None = None
-        self._s3_client_async: Any | None = None
+    _s3_client: Any | None = None
+    _s3_client_async: Any | None = None
 
     async def get_size(self, filename: str) -> int:
         if is_s3_filename(filename):
@@ -226,20 +219,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     def s3_client(self) -> Any:
         if self._s3_client is None:
-            from botocore import UNSIGNED
-
-            if self._anonymous_s3:
-                config = Config(
-                    max_pool_connections=50,
-                    retries={"max_attempts": 10, "mode": "adaptive"},
-                    signature_version=UNSIGNED,
-                )
-            else:
-                config = Config(
-                    max_pool_connections=50,
-                    retries={"max_attempts": 10, "mode": "adaptive"},
-                )
-
+            config = Config(
+                max_pool_connections=50,
+                retries={"max_attempts": 10, "mode": "adaptive"},
+            )
             self._s3_client = boto3.client("s3", config=config)
 
         return self._s3_client
@@ -247,26 +230,15 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def s3_client_async(self) -> Any:
         if self._s3_client_async is None:
             import aioboto3
-            from botocore import UNSIGNED
 
             session = aioboto3.Session()
-            if self._anonymous_s3:
-                config = AioConfig(
-                    max_pool_connections=50,
-                    retries={"max_attempts": 10, "mode": "adaptive"},
-                    signature_version=UNSIGNED,
-                )
-                self._s3_client_async = await session.client(
-                    "s3", config=config
-                ).__aenter__()
-            else:
-                config = AioConfig(
-                    max_pool_connections=50,
-                    retries={"max_attempts": 10, "mode": "adaptive"},
-                )
-                self._s3_client_async = await session.client(
-                    "s3", config=config
-                ).__aenter__()
+            config = AioConfig(
+                max_pool_connections=50,
+                retries={"max_attempts": 10, "mode": "adaptive"},
+            )
+            self._s3_client_async = await session.client(
+                "s3", config=config
+            ).__aenter__()
 
         return self._s3_client_async
 
