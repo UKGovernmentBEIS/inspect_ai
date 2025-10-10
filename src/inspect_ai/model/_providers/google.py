@@ -296,6 +296,8 @@ class GoogleGenAIAPI(ModelAPI):
                 candidate_count=config.num_choices,
                 presence_penalty=config.presence_penalty,
                 frequency_penalty=config.frequency_penalty,
+                response_logprobs=config.logprobs,
+                logprobs=config.top_logprobs,
                 safety_settings=safety_settings_to_list(self.safety_settings),
                 tools=gemini_tools,
                 tool_config=gemini_tool_config,

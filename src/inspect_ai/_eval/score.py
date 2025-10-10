@@ -290,6 +290,7 @@ async def _run_score_task(
         metadata=sample.metadata,
         store=sample.store,
         scores=(sample.scores or {}).copy() if action == "append" else {},
+        sample_uuid=sample.uuid,
     )
 
     # get the model then initialize the async context

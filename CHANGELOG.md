@@ -1,8 +1,18 @@
 ## Unreleased
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
-- Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Model API: Support for refreshing API keys during long-running evaluations via the `override_api_key()` hook.
+- Agent bridge: Support for OpenAI 'custom' tools (required by Codex apply_patch tool).
+- OpenAI: Use background processing for `gpt-5-pro` by default.
+- Google: Enable support for `logprobs` and `top_logprobs`.
+- Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
+- Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.
+- Scoring: Periodically flush samples when scoring with streaming enabled.
+- Inspect View: Properly display task error when a task error is present in the log file.
+- Adjust terminal progress display to accommodate longer task names.
+- Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
+- Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
+- Bugfix: Ensure that calls to generate always sync the cache state to the current sample's epoch.
 
 ## 0.3.137 (07 October 2025)
 

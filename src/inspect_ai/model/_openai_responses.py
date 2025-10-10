@@ -2,14 +2,18 @@ import json
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import reduce
-from typing import Any, Protocol, Sequence, TypeGuard, cast
+from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
     ComputerToolParam,
+    CustomToolParam,
     EasyInputMessageParam,
     FunctionToolParam,
     ResponseComputerToolCall,
     ResponseComputerToolCallParam,
+    ResponseCustomToolCall,
+    ResponseCustomToolCallOutputParam,
+    ResponseCustomToolCallParam,
     ResponseFunctionCallOutputItemListParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
@@ -39,6 +43,9 @@ from openai.types.responses import Response as OpenAIResponse
 from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
+)
+from openai.types.responses.response_custom_tool_call_output_param import (
+    OutputOutputContentList,
 )
 from openai.types.responses.response_function_web_search_param import (
     Action,
@@ -129,6 +136,7 @@ class ResponsesModelInfo(Protocol):
     def has_reasoning_options(self) -> bool: ...
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
+    def is_gpt_5_pro(self) -> bool: ...
     def is_o_series(self) -> bool: ...
     def is_o1(self) -> bool: ...
     def is_o1_early(self) -> bool: ...
@@ -178,16 +186,29 @@ async def _openai_input_item_from_chat_message(
             and responses_tool_call["type"] == "computer_call"
         ):
             return [computer_call_output(message, responses_tool_call["call_id"])]
-
-        return [
-            FunctionCallOutput(
-                type="function_call_output",
-                call_id=message.tool_call_id or str(message.function),
-                output=message.error.message
-                if message.error is not None
-                else await _openai_responses_function_call_output(message),
-            )
-        ]
+        elif (
+            responses_tool_call is not None
+            and responses_tool_call["type"] == "custom_tool_call"
+        ):
+            return [
+                ResponseCustomToolCallOutputParam(
+                    type="custom_tool_call_output",
+                    call_id=message.tool_call_id or str(message.function),
+                    output=message.error.message
+                    if message.error is not None
+                    else await _openai_responses_custom_tool_call_output(message),
+                )
+            ]
+        else:
+            return [
+                FunctionCallOutput(
+                    type="function_call_output",
+                    call_id=message.tool_call_id or str(message.function),
+                    output=message.error.message
+                    if message.error is not None
+                    else await _openai_responses_function_call_output(message),
+                )
+            ]
 
     else:
         raise ValueError(f"Unexpected message role '{message.role}'")
@@ -208,6 +229,31 @@ async def _openai_responses_function_call_output(
             elif isinstance(c, ContentImage):
                 outputs.append(
                     ResponseInputImageContentParam(
+                        type="input_image",
+                        detail=c.detail,
+                        image_url=(
+                            c.image
+                            if is_http_url(c.image)
+                            else await file_as_data_uri(c.image)
+                        ),
+                    )
+                )
+        return outputs
+
+
+async def _openai_responses_custom_tool_call_output(
+    message: ChatMessageTool,
+) -> str | Iterable[OutputOutputContentList]:
+    if isinstance(message.content, str):
+        return message.content
+    else:
+        outputs: list[OutputOutputContentList] = []
+        for c in message.content:
+            if isinstance(c, ContentText):
+                outputs.append(ResponseInputTextParam(type="input_text", text=c.text))
+            elif isinstance(c, ContentImage):
+                outputs.append(
+                    ResponseInputImageParam(
                         type="input_image",
                         detail=c.detail,
                         image_url=(
@@ -358,7 +404,10 @@ def is_native_tool_configured(
 @dataclass
 class _AssistantInternal:
     tool_calls: dict[
-        str, ResponseFunctionToolCallParam | ResponseComputerToolCallParam
+        str,
+        ResponseFunctionToolCallParam
+        | ResponseCustomToolCallParam
+        | ResponseComputerToolCallParam,
     ] = field(default_factory=dict)
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
@@ -494,6 +543,20 @@ def _chat_message_assistant_from_openai_response(
                         tools,
                     )
                 )
+            case ResponseCustomToolCall():
+                stop_reason = "tool_calls"
+                if output.id is not None:
+                    assistant_internal().tool_calls[output.call_id] = cast(
+                        ResponseCustomToolCallParam, output.model_dump()
+                    )
+                tool_call = ToolCall(
+                    id=output.call_id,
+                    function=output.name,
+                    arguments={"input": output.input},
+                    type="custom",
+                )
+                tool_calls.append(tool_call)
+
             case ResponseComputerToolCall():
                 stop_reason = "tool_calls"
                 if output.id is not None:
@@ -880,15 +943,26 @@ def _tool_param_for_tool_info(
     model_name: str,
     config: GenerateConfig,
 ) -> ToolParam:
-    # Use a native tool implementation when available. Otherwise, use the
-    # standard tool implementation
-    return _maybe_native_tool_param(tool, model_name, config) or FunctionToolParam(
-        type="function",
-        name=_responses_tool_alias(tool.name),
-        description=tool.description,
-        parameters=tool.parameters.model_dump(exclude_none=True),
-        strict=False,  # default parameters don't work in strict mode
-    )
+    # Use a native tool implementation when available.
+    tool_param = _maybe_native_tool_param(tool, model_name, config)
+    if tool_param is not None:
+        return tool_param
+
+    if tool.options is not None and "custom_format" in tool.options:
+        return CustomToolParam(
+            type="custom",
+            name=tool.name,
+            description=tool.description,
+            format=tool.options["custom_format"],
+        )
+    else:
+        return FunctionToolParam(
+            type="function",
+            name=_responses_tool_alias(tool.name),
+            description=tool.description,
+            parameters=tool.parameters.model_dump(exclude_none=True),
+            strict=False,  # default parameters don't work in strict mode
+        )
 
 
 # these functions enables us to 'escape' built in tool names like 'python'
@@ -987,6 +1061,12 @@ def is_function_call_output(
     return param["type"] == "function_call_output"
 
 
+def is_custom_tool_call_output(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseCustomToolCallOutputParam]:
+    return param["type"] == "custom_tool_call_output"
+
+
 def is_computer_call_output(
     param: ResponseInputItemParam,
 ) -> TypeGuard[ComputerCallOutput]:
@@ -1001,6 +1081,7 @@ def is_assistant_message_param(
         or is_response_computer_tool_call(param)
         or is_response_web_search_call(param)
         or is_response_function_tool_call(param)
+        or is_response_custom_tool_call(param)
         or is_response_reasoning_item(param)
         or is_response_mcp_list_tools(param)
         or is_response_mcp_call(param)
@@ -1069,6 +1150,12 @@ def is_response_mcp_call(
     return param["type"] == "mcp_call"
 
 
+def is_response_custom_tool_call(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseCustomToolCallParam]:
+    return param["type"] == "custom_tool_call"
+
+
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
     return tool_param.get("type") == "function"
 
@@ -1083,3 +1170,7 @@ def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
 
 def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam]:
     return tool_param.get("type") == "computer_use_preview"
+
+
+def is_custom_tool_param(tool_param: ToolParam) -> TypeGuard[CustomToolParam]:
+    return tool_param.get("type") == "custom"

@@ -432,13 +432,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--logprobs",
         type=bool,
         is_flag=True,
-        help="Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.",
+        help="Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.",
         envvar="INSPECT_EVAL_LOGPROBS",
     )
     @click.option(
         "--top-logprobs",
         type=int,
-        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.",
+        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(

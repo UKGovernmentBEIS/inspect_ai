@@ -92,13 +92,13 @@ def rich_progress() -> RProgress:
 
 
 MAX_MODEL_NAME_WIDTH = 25
-MAX_DESCRIPTION_WIDTH = 25
+MAX_DESCRIPTION_WIDTH = 40
 
 
 def progress_model_name(
     model_name: ModelName, max_width: int = MAX_MODEL_NAME_WIDTH, pad: bool = False
 ) -> Text:
-    model = Text(str(model_name))
+    model = Text(model_name.name)
     model.truncate(max_width, overflow="ellipsis", pad=pad)
     return model
 

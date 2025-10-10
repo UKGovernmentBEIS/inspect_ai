@@ -65,7 +65,7 @@ from inspect_ai.util._limit import (
     record_model_usage,
 )
 
-from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
+from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     disable_parallel_tools,
     execute_tools,
@@ -417,6 +417,14 @@ class Model:
         Returns:
            ModelOutput
         """
+        # if we have a TaskState then update the epoch. without this, it's possible
+        # we'd cache the same response for every single epoch
+        from inspect_ai.solver._task_state import sample_state
+
+        state = sample_state()
+        if state is not None:
+            epoch.set(state.epoch)
+
         # if we are the default model then update the displayed message count
         is_active_model = self == active_model()
         if is_active_model:
