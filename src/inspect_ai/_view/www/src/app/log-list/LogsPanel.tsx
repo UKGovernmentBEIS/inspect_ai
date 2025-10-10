@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
+import { EvalSet } from "../../@types/log";
 import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
@@ -107,12 +108,12 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
       // Track process folders to avoid duplicates
       const processedFolders = new Set<string>();
-      const runningOrFinishedTasks = new Set<string>();
+      const existingLogTaskIds = new Set<string>();
 
       for (const logFile of logs.files) {
         // Note that this task is running or complete
         if (logFile.task_id) {
-          runningOrFinishedTasks.add(logFile.task_id);
+          existingLogTaskIds.add(logFile.task_id);
         }
 
         // The file name
@@ -173,25 +174,14 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         }
       }
 
-      const pendingTasks = new Array<PendingTaskItem>();
-      for (const task of evalSet?.tasks || []) {
-        if (!runningOrFinishedTasks.has(task.task_id)) {
-          pendingTasks.push({
-            id: task.task_id,
-            name: task.name || "<unknown>",
-            model: task.model,
-            type: "pending-task",
-          });
-        }
-      }
+      // Ensure there is only one entry for each task id, preferring to
+      // always show running or complete tasks (over error tasks). Ensure that the
+      // order of all items isn't changed
+      const collapsedLogItems: Array<
+        FileLogItem | FolderLogItem | PendingTaskItem
+      > = collapseLogItems(evalSet, logItems);
 
-      // Sort pending tasks by name
-      pendingTasks.sort((a, b) => a.name.localeCompare(b.name));
-
-      // Add pending tasks to the end of the list
-      logItems.push(...pendingTasks);
-
-      return logItems;
+      return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
     }, [logPath, logs.files, logHeaders, evalSet]);
 
   const progress = useMemo(() => {
@@ -277,4 +267,106 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       />
     </div>
   );
+};
+
+export const collapseLogItems = (
+  evalSet: EvalSet | undefined,
+  logItems: (FileLogItem | FolderLogItem | PendingTaskItem)[],
+): (FileLogItem | FolderLogItem | PendingTaskItem)[] => {
+  if (!evalSet) {
+    return logItems;
+  }
+
+  const taskIdToItems = new Map<string, FileLogItem[]>();
+  const itemsWithoutTaskId: Array<FolderLogItem | FileLogItem> = [];
+
+  // Group file items by task_id
+  for (const item of logItems) {
+    if (item.type === "file" && item.logFile.task_id) {
+      const taskId = item.logFile.task_id;
+      if (!taskIdToItems.has(taskId)) {
+        taskIdToItems.set(taskId, []);
+      }
+      taskIdToItems.get(taskId)!.push(item);
+    } else if (item.type === "folder" || item.type === "file") {
+      itemsWithoutTaskId.push(item);
+    }
+  }
+
+  // For each task_id, select the best item (prefer running/complete over error)
+  const selectedItems = new Map<string, FileLogItem>();
+  for (const [taskId, items] of taskIdToItems) {
+    // Sort by status priority: started > success > error
+    // If same priority, take the last one
+    let bestItem = items[0];
+    for (const item of items) {
+      const currentStatus = item.logOverview?.status;
+      const bestStatus = bestItem.logOverview?.status;
+
+      // Prefer started over everything
+      if (currentStatus === "started" && bestStatus !== "started") {
+        bestItem = item;
+      }
+
+      // Prefer success over error
+      else if (currentStatus === "success" && bestStatus === "error") {
+        bestItem = item;
+      }
+
+      // If same status or current is error, prefer the last one (most recent)
+      else if (currentStatus === bestStatus) {
+        bestItem = item;
+      }
+    }
+    selectedItems.set(taskId, bestItem);
+  }
+
+  // Rebuild logItems maintaining order, replacing duplicates with selected item
+  const collapsedLogItems: Array<
+    FileLogItem | FolderLogItem | PendingTaskItem
+  > = [];
+  const processedTaskIds = new Set<string>();
+
+  for (const item of logItems) {
+    if (item.type === "file" && item.logFile.task_id) {
+      const taskId = item.logFile.task_id;
+      if (!processedTaskIds.has(taskId)) {
+        const selectedItem = selectedItems.get(taskId);
+        if (selectedItem) {
+          collapsedLogItems.push(selectedItem);
+        }
+        processedTaskIds.add(taskId);
+      }
+    } else {
+      // Include folders and files without task_id
+      collapsedLogItems.push(item);
+    }
+  }
+  return collapsedLogItems;
+};
+
+const appendPendingItems = (
+  evalSet: EvalSet | undefined,
+  tasksWithLogFiles: Set<string>,
+  collapsedLogItems: (FileLogItem | FolderLogItem | PendingTaskItem)[],
+): (FileLogItem | FolderLogItem | PendingTaskItem)[] => {
+  const pendingTasks = new Array<PendingTaskItem>();
+  for (const task of evalSet?.tasks || []) {
+    if (!tasksWithLogFiles.has(task.task_id)) {
+      pendingTasks.push({
+        id: task.task_id,
+        name: task.name || "<unknown>",
+        model: task.model,
+        type: "pending-task",
+      });
+    }
+  }
+
+  // Sort pending tasks by name
+  pendingTasks.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Add pending tasks to the end of the list
+  collapsedLogItems.push(...pendingTasks);
+
+  return collapsedLogItems;
 };
