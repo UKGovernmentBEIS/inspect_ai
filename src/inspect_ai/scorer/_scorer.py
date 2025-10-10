@@ -86,7 +86,7 @@ P = ParamSpec("P")
 
 
 def scorer_register(
-    scorer: Callable[P, Scorer], name: str = "", metadata: dict[str, Any] = {}
+    scorer: Callable[P, Scorer], name: str = "", metadata: dict[str, Any] | None = None
 ) -> Callable[P, Scorer]:
     r"""Register a function or class as a scorer.
 
@@ -103,7 +103,12 @@ def scorer_register(
     """
     scorer_name = name if name else getattr(scorer, "__name__")
     registry_add(
-        scorer, RegistryInfo(type="scorer", name=scorer_name, metadata=metadata)
+        scorer,
+        RegistryInfo(
+            type="scorer",
+            name=scorer_name,
+            metadata=metadata if metadata is not None else {},
+        ),
     )
     return scorer
 
