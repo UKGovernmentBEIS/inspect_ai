@@ -170,9 +170,7 @@ class AnthropicAPI(ModelAPI):
         )
 
         self.model_args = model_args
-        self.client = self._create_client()
-        self._http_hooks = HttpxHooks(self.client._client)
-        self._batcher: AnthropicBatcher | None = None
+        self.initialize()
 
     def _create_client(
         self,
@@ -225,7 +223,7 @@ class AnthropicAPI(ModelAPI):
         super().initialize()
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
-        self._batcher = None
+        self._batcher: AnthropicBatcher | None = None
 
     @override
     async def aclose(self) -> None:

@@ -179,19 +179,7 @@ class OpenAIAPI(ModelAPI):
 
         # store remaining model_args after extraction
         self.model_args = model_args
-        self.client = self._create_client()
-
-        # TODO: Although we could enhance OpenAIBatcher to support requests with
-        # homogenous endpoints (e.g. some going to completions and some going to
-        # responses), the code would have to be more complex to retain type safety.
-        # We'd have to track the endpoint and ResultCls for each request and also
-        # cast? the result when resolving the generate promise. For now, we'll
-        # side step that complexity and just use two different batchers.
-        self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
-        self._responses_batcher: OpenAIBatcher[Response] | None = None
-
-        # create time tracker
-        self._http_hooks = HttpxHooks(self.client._client)
+        self.initialize()
 
     def _create_client(self) -> AsyncAzureOpenAI | AsyncOpenAI:
         # azure client
@@ -237,8 +225,15 @@ class OpenAIAPI(ModelAPI):
     def initialize(self) -> None:
         super().initialize()
         self.client = self._create_client()
-        self._completions_batcher = None
-        self._responses_batcher = None
+
+        # TODO: Although we could enhance OpenAIBatcher to support requests with
+        # homogenous endpoints (e.g. some going to completions and some going to
+        # responses), the code would have to be more complex to retain type safety.
+        # We'd have to track the endpoint and ResultCls for each request and also
+        # cast? the result when resolving the generate promise. For now, we'll
+        # side step that complexity and just use two different batchers.
+        self._completions_batcher: OpenAIBatcher[ChatCompletion] | None = None
+        self._responses_batcher: OpenAIBatcher[Response] | None = None
         self._http_hooks = HttpxHooks(self.client._client)
 
     def is_azure(self) -> bool:
