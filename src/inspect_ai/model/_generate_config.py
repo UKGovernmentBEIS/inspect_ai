@@ -101,10 +101,10 @@ class GenerateConfigArgs(TypedDict, total=False):
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only."""
 
     logprobs: bool | None
-    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
+    """Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
 
     top_logprobs: int | None
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, and Huggingface only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, and Huggingface only."""
 
     parallel_tool_calls: bool | None
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
