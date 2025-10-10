@@ -344,7 +344,6 @@ def view_server(
 
     # run app
     display().print(f"Inspect View: {log_dir}")
-    display().print("FASTAPI")
 
     async def run_server() -> None:
         config = uvicorn.Config(app, host=host, port=port, log_config=None)
