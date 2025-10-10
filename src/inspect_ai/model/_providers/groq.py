@@ -268,7 +268,7 @@ class GroqAPI(ModelAPI):
                 content = str(error.get("message", content))
                 code = error.get("code", code)
 
-            if code == "context_length_exceeded":
+            if code == "context_length_exceeded" or "reduce the length" in content:
                 return ModelOutput.from_content(
                     model=self.model_name,
                     content=content,

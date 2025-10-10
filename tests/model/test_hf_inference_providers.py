@@ -18,7 +18,7 @@ async def test_hf_inference_providers_model_creation():
 
     # Verify the model was created successfully
     assert model is not None
-    assert model.model_name == "openai/gpt-oss-20b"
+    assert model.api.model_name == "openai/gpt-oss-20b"
 
 
 @pytest.mark.anyio
@@ -31,7 +31,7 @@ async def test_hf_inference_providers_with_config():
     model = get_model("hf-inference-providers/openai/gpt-oss-20b", config=config)
 
     assert model is not None
-    assert model.model_name == "openai/gpt-oss-20b"
+    assert model.api.model_name == "openai/gpt-oss-20b"
 
 
 @pytest.mark.anyio
