@@ -119,7 +119,7 @@ async def _stream_convert_file(
     output_file: str,
     output_dir: str,
     resolve_attachments: bool,
-    stream: int | bool,
+    stream: int | Literal[True],
 ) -> None:
     input_recorder = recorder_type_for_location(input_file)
     output_recorder = create_recorder_for_location(output_file, output_dir)
