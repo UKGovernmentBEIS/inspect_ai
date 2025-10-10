@@ -7,6 +7,7 @@
 - Inspect View: Properly display task error when a task error is present in the log file.
 - Adjust terminal progress display to accommodate longer task names.
 - Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
+- Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
 
 ## 0.3.137 (07 October 2025)
 
