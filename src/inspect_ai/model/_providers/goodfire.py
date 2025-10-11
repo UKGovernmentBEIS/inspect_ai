@@ -14,6 +14,7 @@ from goodfire.api.exceptions import (
     InvalidRequestException,
     RateLimitException,
     ServerErrorException,
+    UnauthorizedException,
 )
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
 from typing_extensions import override
@@ -107,20 +108,26 @@ class GoodfireAPI(ModelAPI):
                 f"Model {self.model_name} not supported. Supported models: {supported_models}"
             )
 
-        # Initialize client with minimal configuration
-        base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
-        assert isinstance(base_url_val, str) or base_url_val is None
+        self.base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
+        assert isinstance(self.base_url_val, str) or self.base_url_val is None
 
         # Store model args for use in generate
         self.model_args = model_args
 
-        self.client = AsyncClient(
-            api_key=self.api_key,
-            base_url=base_url_val or DEFAULT_BASE_URL,
-        )
+        self.client = self._create_client()
 
         # Initialize variant directly with model name
         self.variant = Variant(self.model_name)  # type: ignore
+
+    def _create_client(self) -> AsyncClient:
+        return AsyncClient(
+            api_key=self.api_key,
+            base_url=self.base_url_val or DEFAULT_BASE_URL,
+        )
+
+    def initialize(self) -> None:
+        super().initialize()
+        self.client = self._create_client()
 
     def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
         """Convert an Inspect message to a Goodfire message format.
@@ -182,6 +189,10 @@ class GoodfireAPI(ModelAPI):
     def max_tokens(self) -> int | None:
         """Return maximum tokens supported by model."""
         return DEFAULT_MAX_TOKENS  # Let Goodfire's Variant handle model-specific limits
+
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        return isinstance(ex, UnauthorizedException)
 
     async def generate(
         self,

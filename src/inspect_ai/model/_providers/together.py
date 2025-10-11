@@ -164,6 +164,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
                 config.max_retries,
                 config.timeout,
                 self.should_retry,
+                lambda ex: None,
                 log_model_retry,
             ),
         )
@@ -197,8 +198,15 @@ class TogetherRESTAPI(ModelAPI):
             config=config,
         )
 
-        self.client = httpx.AsyncClient()
         self.model_args = model_args
+        self.initialize()
+
+    def _create_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient()
+
+    def initialize(self) -> None:
+        super().initialize()
+        self.client = self._create_client()
 
     async def generate(
         self,
@@ -264,6 +272,12 @@ class TogetherRESTAPI(ModelAPI):
     @override
     def should_retry(self, ex: Exception) -> bool:
         return should_retry_chat_api_error(ex)
+
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, httpx.HTTPStatusError):
+            return ex.response.status_code == 401
+        return False
 
     # cloudflare enforces rate limits by model for each account
     @override

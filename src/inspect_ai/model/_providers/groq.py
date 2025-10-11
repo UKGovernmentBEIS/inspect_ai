@@ -82,14 +82,20 @@ class GroqAPI(ModelAPI):
         if not self.api_key:
             raise environment_prerequisite_error("Groq", GROQ_API_KEY)
 
-        self.client = AsyncGroq(
+        self.model_args = model_args
+        self.initialize()
+
+    def _create_client(self) -> AsyncGroq:
+        return AsyncGroq(
             api_key=self.api_key,
-            base_url=model_base_url(base_url, "GROQ_BASE_URL"),
-            **model_args,
+            base_url=model_base_url(self.base_url, "GROQ_BASE_URL"),
+            **self.model_args,
             http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=None)),
         )
 
-        # create time tracker
+    def initialize(self) -> None:
+        super().initialize()
+        self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
 
     @override
@@ -243,6 +249,12 @@ class GroqAPI(ModelAPI):
     @override
     def connection_key(self) -> str:
         return str(self.api_key)
+
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, APIStatusError):
+            return ex.status_code == 401
+        return False
 
     @override
     def collapse_user_messages(self) -> bool:
