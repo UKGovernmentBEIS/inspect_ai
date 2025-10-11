@@ -50,7 +50,10 @@ class JSONRecorder(FileRecorder):
         data: EvalLog
 
     def __init__(
-        self, log_dir: str, suffix: str = ".json", fs_options: dict[str, Any] = {}
+        self,
+        log_dir: str,
+        suffix: str = ".json",
+        fs_options: dict[str, Any] | None = None,
     ):
         # call super
         super().__init__(log_dir, suffix, fs_options)

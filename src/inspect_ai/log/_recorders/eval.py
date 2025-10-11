@@ -71,7 +71,7 @@ class EvalRecorder(FileRecorder):
         # flush more often (sample by sample) and large runs less often
         return max(1, min(math.floor(sample_count / 3), 10))
 
-    def __init__(self, log_dir: str, fs_options: dict[str, Any] = {}):
+    def __init__(self, log_dir: str, fs_options: dict[str, Any] | None = None):
         super().__init__(log_dir, ".eval", fs_options)
 
         # each eval has a unique key (created from run_id and task name/version)

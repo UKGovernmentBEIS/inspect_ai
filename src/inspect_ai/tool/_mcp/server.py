@@ -117,7 +117,7 @@ def mcp_server_stdio(
     *,
     name: str | None = None,
     command: str,
-    args: list[str] = [],
+    args: list[str] | None = None,
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
 ) -> MCPServer:
@@ -142,7 +142,7 @@ def mcp_server_stdio(
     from ._local import create_server_stdio
 
     return create_server_stdio(
-        name=name or " ".join([command] + args),
+        name=name or " ".join([command] + (args if args is not None else [])),
         command=command,
         args=args,
         cwd=cwd,
@@ -154,7 +154,7 @@ def mcp_server_sandbox(
     *,
     name: str | None = None,
     command: str,
-    args: list[str] = [],
+    args: list[str] | None = None,
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
     sandbox: str | None = None,
@@ -183,7 +183,7 @@ def mcp_server_sandbox(
     from ._local import create_server_sandbox
 
     return create_server_sandbox(
-        name=name or " ".join([command] + args),
+        name=name or " ".join([command] + (args if args is not None else [])),
         command=command,
         args=args,
         cwd=cwd,

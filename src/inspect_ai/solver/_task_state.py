@@ -152,12 +152,12 @@ class TaskState:
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
         target: Target = Target(""),
-        choices: list[str] | None = [],
+        choices: list[str] | None = None,
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
         completed: bool = False,
-        metadata: dict[str, Any] = {},
+        metadata: dict[str, Any] | None = None,
         store: dict[str, Any] | None = None,
         scores: dict[str, Score] | None = None,
         sample_uuid: str | None = None,
@@ -167,7 +167,7 @@ class TaskState:
         self._epoch = epoch
         self._input = input
         self._target = target
-        self._metadata = metadata
+        self._metadata = metadata if metadata is not None else {}
         self._messages: list[ChatMessage] = ChatMessageList(messages)
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))

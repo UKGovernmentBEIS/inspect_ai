@@ -309,7 +309,10 @@ class Model:
     """Generation config."""
 
     def __init__(
-        self, api: ModelAPI, config: GenerateConfig, model_args: dict[str, Any] = {}
+        self,
+        api: ModelAPI,
+        config: GenerateConfig,
+        model_args: dict[str, Any] | None = None,
     ) -> None:
         """Create a model.
 
@@ -320,7 +323,7 @@ class Model:
         """
         self.api = api
         self.config = config
-        self.model_args = model_args
+        self.model_args = model_args if model_args is not None else {}
         self._role: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager

@@ -81,7 +81,7 @@ class CachePolicy:
         self,
         expiry: str | None = "1W",
         per_epoch: bool = True,
-        scopes: dict[str, str] = {},
+        scopes: dict[str, str] | None = None,
     ) -> None:
         """Create a CachePolicy.
 
@@ -92,7 +92,7 @@ class CachePolicy:
 
         """
         self.per_epoch = per_epoch
-        self.scopes = scopes
+        self.scopes = scopes if scopes is not None else {}
 
         if expiry is None:
             self.expiry = None
