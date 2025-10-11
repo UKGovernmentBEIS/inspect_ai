@@ -374,7 +374,7 @@ def eval_set(
         # all the tasks that are a part of this eval set
         # (include all tasks, not just tasks that need to be
         # run in this pass)
-        write_eval_set_info(eval_set_id, log_dir, resolved_tasks)
+        write_eval_set_info(eval_set_id, log_dir, resolved_tasks, all_logs)
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
@@ -774,7 +774,7 @@ class EvalSet(BaseModel):
     tasks: list[EvalSetTask]
 
 
-def to_eval_set_task(task: ResolvedTask) -> EvalSetTask:
+def to_eval_set_task(task: ResolvedTask, all_logs: list[Log]) -> EvalSetTask:
     # resolve core model info
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
@@ -784,9 +784,22 @@ def to_eval_set_task(task: ResolvedTask) -> EvalSetTask:
         {k: v.name for k, v in task.model_roles.items()} if task.model_roles else None
     )
 
+    # see if there an existing task_id that should be used for this
+    eval_set_identifier = task_identifier(task)
+    previous_task_ids = [
+        log.info.task_id
+        for log in all_logs
+        if log.task_identifier == eval_set_identifier
+    ]
+
+    # Use the existing task_id, if there is one
+    existing_task_id = None
+    if len(previous_task_ids) > 0:
+        existing_task_id = previous_task_ids[0]
+
     return EvalSetTask(
         name=task.task.name,
-        task_id=task.id or task_identifier(task),
+        task_id=existing_task_id or task.id or task_identifier(task),
         task_file=task.task_file,
         task_args=task.task_args,
         model=model_name,
@@ -796,14 +809,17 @@ def to_eval_set_task(task: ResolvedTask) -> EvalSetTask:
     )
 
 
-def to_eval_set(id: str, tasks: list[ResolvedTask]) -> EvalSet:
-    return EvalSet(eval_set_id=id, tasks=[to_eval_set_task(task) for task in tasks])
+def to_eval_set(id: str, tasks: list[ResolvedTask], all_logs: list[Log]) -> EvalSet:
+    return EvalSet(
+        eval_set_id=id, tasks=[to_eval_set_task(task, all_logs) for task in tasks]
+    )
 
 
 def write_eval_set_info(
     eval_set_id: str,
     log_dir: str,
     tasks: list[ResolvedTask],
+    all_logs: list[Log],
     fs_options: dict[str, Any] = {},
 ) -> None:
     # resolve log dir to full path
@@ -811,7 +827,7 @@ def write_eval_set_info(
     log_dir = fs.info(log_dir).name
 
     # get info
-    eval_set_info = to_eval_set(eval_set_id, tasks)
+    eval_set_info = to_eval_set(eval_set_id, tasks, all_logs)
 
     # form target path and write
     manifest = f"{log_dir}{fs.sep}eval-set.json"

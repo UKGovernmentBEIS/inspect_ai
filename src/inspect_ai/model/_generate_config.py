@@ -61,6 +61,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     timeout: int | None
     """Request timeout (in seconds)."""
 
+    attempt_timeout: int | None
+    """Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."""
+
     max_connections: int | None
     """Maximum number of concurrent connections to Model API (default is model specific)."""
 
@@ -147,7 +150,10 @@ class GenerateConfig(BaseModel):
     """Maximum number of times to retry request (defaults to unlimited)."""
 
     timeout: int | None = Field(default=None)
-    """Request timeout (in seconds)."""
+    """Timeout (in seconds) for an entire request (including retries)."""
+
+    attempt_timeout: int | None = Field(default=None)
+    """Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."""
 
     max_connections: int | None = Field(default=None)
     """Maximum number of concurrent connections to Model API (default is model specific)."""

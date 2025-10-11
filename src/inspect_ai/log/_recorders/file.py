@@ -18,13 +18,13 @@ class FileRecorder(Recorder):
     __last_read_sample_log: tuple[str, EvalLog] | None = None
 
     def __init__(
-        self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
+        self, log_dir: str, suffix: str, fs_options: dict[str, Any] | None = None
     ) -> None:
         self.log_dir = log_dir.rstrip("/\\")
         self.suffix = suffix
 
         # initialise filesystem
-        self.fs = filesystem(log_dir, fs_options)
+        self.fs = filesystem(log_dir, fs_options if fs_options is not None else {})
         self.fs.mkdir(self.log_dir, exist_ok=True)
 
     def is_local(self) -> bool:

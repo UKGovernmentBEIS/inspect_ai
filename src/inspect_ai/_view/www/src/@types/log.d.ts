@@ -31,6 +31,7 @@ export type Type = string;
 export type Model = string;
 export type MaxRetries = number | null;
 export type Timeout = number | null;
+export type AttemptTimeout = number | null;
 export type MaxConnections = number | null;
 export type SystemMessage = string | null;
 export type MaxTokens = number | null;
@@ -866,6 +867,7 @@ export interface Config {
 export interface GenerateConfig {
   max_retries: MaxRetries;
   timeout: Timeout;
+  attempt_timeout: AttemptTimeout;
   max_connections: MaxConnections;
   system_message: SystemMessage;
   max_tokens: MaxTokens;
@@ -1048,6 +1050,7 @@ export interface Params1 {
 export interface GenerateConfig1 {
   max_retries: MaxRetries;
   timeout: Timeout;
+  attempt_timeout: AttemptTimeout;
   max_connections: MaxConnections;
   system_message: SystemMessage;
   max_tokens: MaxTokens;

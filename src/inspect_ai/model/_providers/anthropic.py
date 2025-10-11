@@ -47,6 +47,11 @@ from anthropic.types import (
     TextBlockParam,
     ThinkingBlock,
     ThinkingBlockParam,
+    ToolChoiceAnyParam,
+    ToolChoiceAutoParam,
+    ToolChoiceNoneParam,
+    ToolChoiceParam,
+    ToolChoiceToolParam,
     ToolParam,
     ToolResultBlockParam,
     ToolTextEditor20250124Param,
@@ -59,7 +64,6 @@ from anthropic.types import (
     WebSearchToolResultBlock,
     WebSearchToolResultBlockParam,
     WebSearchToolResultError,
-    message_create_params,
 )
 from anthropic.types.beta import (
     BetaMCPToolResultBlock,
@@ -274,7 +278,7 @@ class AnthropicAPI(ModelAPI):
                 request["system"] = system_param
             request["tools"] = tools_param
             if len(tools_param) > 0 and not self.is_using_thinking(config):
-                request["tool_choice"] = message_tool_choice(tool_choice)
+                request["tool_choice"] = message_tool_choice(tool_choice, config)
 
             # additional options
             req, headers, betas = self.completion_config(config)
@@ -988,15 +992,32 @@ def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
         raise ValueError(f"Unexpected content types for messages: {a}, {b}")
 
 
-def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolChoice:
+def message_tool_choice(
+    tool_choice: ToolChoice, config: GenerateConfig
+) -> ToolChoiceParam:
+    # carve out "none" (it doesn't support disable_parallel_tool_use)
+    if tool_choice == "none":
+        return ToolChoiceNoneParam(type="none")
+
+    # determine tool_choice_param
     if isinstance(tool_choice, ToolFunction):
-        return {"type": "tool", "name": tool_choice.name}
+        tool_choice_param: (
+            ToolChoiceToolParam | ToolChoiceAnyParam | ToolChoiceAutoParam
+        ) = ToolChoiceToolParam(
+            type="tool",
+            name=tool_choice.name,
+        )
     elif tool_choice == "any":
-        return {"type": "any"}
-    elif tool_choice == "none":
-        return {"type": "none"}
+        tool_choice_param = ToolChoiceAnyParam(type="any")
     else:
-        return {"type": "auto"}
+        tool_choice_param = ToolChoiceAutoParam(type="auto")
+
+    # set parallel_tool_calls if specified
+    if config.parallel_tool_calls is not None:
+        tool_choice_param["disable_parallel_tool_use"] = not config.parallel_tool_calls
+
+    # return
+    return tool_choice_param
 
 
 async def message_param(message: ChatMessage) -> MessageParam:

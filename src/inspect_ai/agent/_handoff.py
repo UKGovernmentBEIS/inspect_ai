@@ -87,14 +87,14 @@ class AgentTool(Tool):
         name: str,
         input_filter: MessageFilter | None = None,
         output_filter: MessageFilter | None = None,
-        limits: list[Limit] = [],
+        limits: list[Limit] | None = None,
         **kwargs: Any,
     ):
         self.agent = agent
         self.name = name
         self.input_filter = input_filter
         self.output_filter = output_filter
-        self.limits = limits
+        self.limits = limits if limits is not None else []
         self.kwargs = kwargs
 
     @property

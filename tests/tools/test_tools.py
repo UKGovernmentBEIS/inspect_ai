@@ -188,7 +188,7 @@ def test_mistral_tools():
 # failed tests that are red herrings. don't exercise this for now.
 # @skip_if_no_groq
 # def test_groq_tools():
-#     check_tools("groq/mixtral-8x7b-32768")
+#     check_tools("groq/openai/gpt-oss-20b")
 
 
 @skip_if_no_google
