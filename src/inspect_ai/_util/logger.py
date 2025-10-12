@@ -1,6 +1,5 @@
 import atexit
 import os
-from contextvars import ContextVar
 from logging import (
     INFO,
     NOTSET,
@@ -14,6 +13,7 @@ from logging import (
     getLogger,
 )
 from pathlib import Path
+from typing import TypedDict
 
 import rich
 from rich.console import ConsoleRenderable
@@ -111,6 +111,12 @@ class LogHandler(RichHandler):
         return Text.from_ansi(message)
 
 
+class LogHandlerVar(TypedDict):
+    """Mutable container for LogHandler that can be passed by reference."""
+
+    handler: LogHandler | None
+
+
 # initialize logging
 def init_logger(
     log_level: str | None,
@@ -118,12 +124,11 @@ def init_logger(
     env_prefix: str = "INSPECT",
     pkg_name: str = PKG_NAME,
     trace_dir: Path | None = None,
-    log_handler_context: ContextVar[LogHandler | None] | None = None,
+    log_handler_var: LogHandlerVar | None = None,
 ) -> None:
-    # provide default log_handler_context
-    log_handler_context = (
-        log_handler_context if log_handler_context is not None else _logHandler
-    )
+    # provide default log_handler_var (use TypedDict as mutable container)
+    if log_handler_var is None:
+        log_handler_var = _logHandler
 
     # backwards compatibility for 'tools'
     if log_level == "sandbox" or log_level == "tools":
@@ -169,7 +174,7 @@ def init_logger(
         capture_level = min(TRACE, transcript_levelno)
 
     # init logging handler on demand
-    if log_handler_context.get() is None:
+    if log_handler_var["handler"] is None:
         log_handler = LogHandler(
             capture_levelno=capture_level,
             display_levelno=levelno,
@@ -177,7 +182,7 @@ def init_logger(
             env_prefix=env_prefix,
             trace_dir=trace_dir,
         )
-        log_handler_context.set(log_handler)
+        log_handler_var["handler"] = log_handler
 
         if log_level != "NOTSET":
             # set the global log level
@@ -201,7 +206,7 @@ def init_logger(
         getLogger().addHandler(log_handler)
 
 
-_logHandler: ContextVar[LogHandler | None] = ContextVar("_logHandler", default=None)
+_logHandler: LogHandlerVar = {"handler": None}
 
 
 def log_to_transcript(record: LogRecord) -> None:
