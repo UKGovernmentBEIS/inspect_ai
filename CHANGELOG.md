@@ -12,6 +12,7 @@
 - Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.
 - Scoring: Periodically flush samples when scoring with streaming enabled.
 - Model API: Added `attempt_timeout` to `GenerateConfig` (governs timeout for individual attempts and still retries if timeout is exceeded).
+- Logging: Condense `ModelEvent` immediately to prevent O(N) memory usage for long message histories.
 - Adjust terminal progress display to accommodate longer task names.
 - Inspect View: Properly display task error when a task error is present in the log file.
 - Inspect View: Improve display of running eval sets (correct duplicate files and incorrect progress display).
