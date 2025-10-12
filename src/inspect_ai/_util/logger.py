@@ -187,10 +187,15 @@ def init_logger(
             # our own HTTP level
             getLogger("httpx").setLevel(WARNING)
 
-        # set the log level for our package
-        getLogger(pkg_name).setLevel(capture_level)
-        getLogger(pkg_name).addHandler(log_handler)
-        getLogger(pkg_name).propagate = False
+        # set the log level for our package and inspect_ai
+        def configure_logger(pkg: str) -> None:
+            getLogger(pkg).setLevel(capture_level)
+            getLogger(pkg).addHandler(log_handler)
+            getLogger(pkg).propagate = False
+
+        configure_logger(pkg_name)
+        if pkg_name != PKG_NAME:
+            configure_logger(PKG_NAME)
 
         # add our logger to the global handlers
         getLogger().addHandler(log_handler)
