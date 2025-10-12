@@ -692,6 +692,9 @@ class EvalRevision(BaseModel):
     commit: str
     """Revision commit."""
 
+    dirty: bool = False
+    """Working tree has uncommitted changes or untracked files."""
+
 
 class EvalSpec(BaseModel):
     """Eval target and configuration."""

@@ -2238,12 +2238,18 @@
         "commit": {
           "title": "Commit",
           "type": "string"
+        },
+        "dirty": {
+          "default": false,
+          "title": "Dirty",
+          "type": "boolean"
         }
       },
       "required": [
         "type",
         "origin",
-        "commit"
+        "commit",
+        "dirty"
       ],
       "title": "EvalRevision",
       "type": "object",

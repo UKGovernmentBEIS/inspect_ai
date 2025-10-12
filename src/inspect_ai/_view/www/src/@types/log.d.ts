@@ -123,6 +123,7 @@ export type ScoreDisplay = boolean | null;
 export type Type2 = "git";
 export type Origin = string;
 export type Commit = string;
+export type Dirty = boolean;
 export type Metadata = {
   [k: string]: unknown;
 } | null;
@@ -1011,6 +1012,7 @@ export interface EvalRevision {
   type: Type2;
   origin: Origin;
   commit: Commit;
+  dirty: Dirty;
 }
 export interface Packages {
   [k: string]: string;
