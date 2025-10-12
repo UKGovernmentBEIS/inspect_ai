@@ -1,5 +1,6 @@
 import atexit
 import os
+from contextvars import ContextVar
 from logging import (
     INFO,
     NOTSET,
@@ -44,13 +45,18 @@ TRACE_FILE_NAME = "trace.log"
 # log handler that filters messages to stderr and the log file
 class LogHandler(RichHandler):
     def __init__(
-        self, capture_levelno: int, display_levelno: int, transcript_levelno: int
+        self,
+        capture_levelno: int,
+        display_levelno: int,
+        transcript_levelno: int,
+        env_prefix: str = "INSPECT",
+        trace_dir: Path | None = None,
     ) -> None:
         super().__init__(capture_levelno, console=rich.get_console())
         self.transcript_levelno = transcript_levelno
         self.display_level = display_levelno
         # log into an external file if requested via env var
-        file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
+        file_logger = os.environ.get(f"{env_prefix}_PY_LOGGER_FILE", None)
         self.file_logger = FileHandler(file_logger) if file_logger else None
         if self.file_logger:
             self.file_logger.setFormatter(
@@ -58,22 +64,24 @@ class LogHandler(RichHandler):
             )
 
         # see if the user has a special log level for the file
-        file_logger_level = os.environ.get("INSPECT_PY_LOGGER_LEVEL", "")
+        file_logger_level = os.environ.get(f"{env_prefix}_PY_LOGGER_LEVEL", "")
         if file_logger_level:
             self.file_logger_level = int(getLevelName(file_logger_level.upper()))
         else:
             self.file_logger_level = 0
 
         # add a trace file handler
-        rotate_trace_files()  # remove oldest if > 10 trace files
-        env_trace_file = os.environ.get("INSPECT_TRACE_FILE", None)
-        trace_file = Path(env_trace_file) if env_trace_file else inspect_trace_file()
+        rotate_trace_files(trace_dir)  # remove oldest if > 10 trace files
+        env_trace_file = os.environ.get(f"{env_prefix}_TRACE_FILE", None)
+        trace_file = (
+            Path(env_trace_file) if env_trace_file else inspect_trace_file(trace_dir)
+        )
         self.trace_logger = FileHandler(trace_file)
         self.trace_logger.setFormatter(TraceFormatter())
         atexit.register(compress_trace_log(self.trace_logger))
 
         # set trace level
-        trace_level = os.environ.get("INSPECT_TRACE_LEVEL", TRACE_LOG_LEVEL)
+        trace_level = os.environ.get(f"{env_prefix}_TRACE_LEVEL", TRACE_LOG_LEVEL)
         self.trace_logger_level = int(getLevelName(trace_level.upper()))
 
     @override
@@ -103,9 +111,20 @@ class LogHandler(RichHandler):
         return Text.from_ansi(message)
 
 
-# initialize logging -- this function can be called multiple times
-# in the lifetime of the process (the levelno will update globally)
-def init_logger(log_level: str | None, log_level_transcript: str | None = None) -> None:
+# initialize logging
+def init_logger(
+    log_level: str | None,
+    log_level_transcript: str | None = None,
+    env_prefix: str = "INSPECT",
+    pkg_name: str = PKG_NAME,
+    trace_dir: Path | None = None,
+    log_handler_context: ContextVar[LogHandler | None] | None = None,
+) -> None:
+    # provide default log_handler_context
+    log_handler_context = (
+        log_handler_context if log_handler_context is not None else _logHandler
+    )
+
     # backwards compatibility for 'tools'
     if log_level == "sandbox" or log_level == "tools":
         log_level = "trace"
@@ -123,7 +142,9 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
 
     # resolve default log level
     log_level = (
-        log_level if log_level else os.getenv("INSPECT_LOG_LEVEL", DEFAULT_LOG_LEVEL)
+        log_level
+        if log_level
+        else os.getenv(f"{env_prefix}_LOG_LEVEL", DEFAULT_LOG_LEVEL)
     ).upper()
     validate_level("log level", log_level)
 
@@ -131,7 +152,9 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
     log_level_transcript = (
         log_level_transcript
         if log_level_transcript
-        else os.getenv("INSPECT_LOG_LEVEL_TRANSCRIPT", DEFAULT_LOG_LEVEL_TRANSCRIPT)
+        else os.getenv(
+            f"{env_prefix}_LOG_LEVEL_TRANSCRIPT", DEFAULT_LOG_LEVEL_TRANSCRIPT
+        )
     ).upper()
     validate_level("log file level", log_level_transcript)
 
@@ -146,13 +169,15 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
         capture_level = min(TRACE, transcript_levelno)
 
     # init logging handler on demand
-    global _logHandler
-    if not _logHandler:
-        _logHandler = LogHandler(
+    if log_handler_context.get() is None:
+        log_handler = LogHandler(
             capture_levelno=capture_level,
             display_levelno=levelno,
             transcript_levelno=transcript_levelno,
+            env_prefix=env_prefix,
+            trace_dir=trace_dir,
         )
+        log_handler_context.set(log_handler)
 
         if log_level != "NOTSET":
             # set the global log level
@@ -163,15 +188,15 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
             getLogger("httpx").setLevel(WARNING)
 
         # set the log level for our package
-        getLogger(PKG_NAME).setLevel(capture_level)
-        getLogger(PKG_NAME).addHandler(_logHandler)
-        getLogger(PKG_NAME).propagate = False
+        getLogger(pkg_name).setLevel(capture_level)
+        getLogger(pkg_name).addHandler(log_handler)
+        getLogger(pkg_name).propagate = False
 
         # add our logger to the global handlers
-        getLogger().addHandler(_logHandler)
+        getLogger().addHandler(log_handler)
 
 
-_logHandler: LogHandler | None = None
+_logHandler: ContextVar[LogHandler | None] = ContextVar("_logHandler", default=None)
 
 
 def log_to_transcript(record: LogRecord) -> None:

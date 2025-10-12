@@ -43,7 +43,12 @@ def trace_command() -> None:
 )
 def list_command(json: bool) -> None:
     """List all trace files."""
-    trace_files = list_trace_files()
+    list_command_impl(json)
+
+
+def list_command_impl(json: bool, trace_dir: Path | None = None) -> None:
+    """List all trace files."""
+    trace_files = list_trace_files(trace_dir)
     if json:
         print(
             dumps(
@@ -72,7 +77,14 @@ def list_command(json: bool) -> None:
 )
 def dump_command(trace_file: str | None, filter: str | None) -> None:
     """Dump a trace file to stdout (as a JSON array of log records)."""
-    trace_file_path = _resolve_trace_file_path(trace_file)
+    dump_command_impl(trace_file, filter)
+
+
+def dump_command_impl(
+    trace_file: str | None, filter: str | None, trace_dir: Path | None = None
+) -> None:
+    """Dump a trace file to stdout (as a JSON array of log records)."""
+    trace_file_path = _resolve_trace_file_path(trace_file, trace_dir)
 
     traces = read_trace_file(trace_file_path)
 
@@ -101,7 +113,17 @@ def dump_command(trace_file: str | None, filter: str | None) -> None:
 )
 def http_command(trace_file: str | None, filter: str | None, failed: bool) -> None:
     """View all HTTP requests in the trace log."""
-    _, traces = _read_traces(trace_file, "HTTP", filter)
+    http_command_impl(trace_file, filter, failed)
+
+
+def http_command_impl(
+    trace_file: str | None,
+    filter: str | None,
+    failed: bool,
+    trace_dir: Path | None = None,
+) -> None:
+    """View all HTTP requests in the trace log."""
+    _, traces = _read_traces(trace_file, "HTTP", filter, trace_dir)
 
     last_timestamp = ""
     table = Table(Column(), Column(), box=None)
@@ -135,7 +157,14 @@ def http_command(trace_file: str | None, filter: str | None, failed: bool) -> No
 )
 def anomolies_command(trace_file: str | None, filter: str | None, all: bool) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
-    trace_file_path, traces = _read_traces(trace_file, None, filter)
+    anomolies_command_impl(trace_file, filter, all)
+
+
+def anomolies_command_impl(
+    trace_file: str | None, filter: str | None, all: bool, trace_dir: Path | None = None
+) -> None:
+    """Look for anomalies in a trace file (never completed or cancelled actions)."""
+    trace_file_path, traces = _read_traces(trace_file, None, filter, trace_dir)
 
     # Track started actions
     running_actions: dict[str, ActionTraceRecord] = {}
@@ -231,9 +260,12 @@ def anomolies_command(trace_file: str | None, filter: str | None, all: bool) -> 
 
 
 def _read_traces(
-    trace_file: str | None, level: str | None = None, filter: str | None = None
+    trace_file: str | None,
+    level: str | None = None,
+    filter: str | None = None,
+    trace_dir: Path | None = None,
 ) -> tuple[Path, list[TraceRecord]]:
-    trace_file_path = _resolve_trace_file_path(trace_file)
+    trace_file_path = _resolve_trace_file_path(trace_file, trace_dir)
     traces = read_trace_file(trace_file_path)
 
     if level:
@@ -305,20 +337,23 @@ def _print_bucket(
         print_fn(table)
 
 
-def _resolve_trace_file(trace_file: str | None) -> str:
+def _resolve_trace_file(trace_file: str | None, trace_dir: Path | None = None) -> str:
     if trace_file is None:
-        trace_files = list_trace_files()
+        trace_files = list_trace_files(trace_dir)
         if len(trace_files) == 0:
             raise PrerequisiteError("No trace files currently availalble.")
         trace_file = str(trace_files[0].file)
     return trace_file
 
 
-def _resolve_trace_file_path(trace_file: str | None) -> Path:
-    trace_file = _resolve_trace_file(trace_file)
+def _resolve_trace_file_path(
+    trace_file: str | None, trace_dir: Path | None = None
+) -> Path:
+    trace_dir = trace_dir or inspect_trace_dir()
+    trace_file = _resolve_trace_file(trace_file, trace_dir)
     trace_file_path = Path(trace_file)
     if not trace_file_path.is_absolute():
-        trace_file_path = inspect_trace_dir() / trace_file_path
+        trace_file_path = trace_dir / trace_file_path
 
     if not trace_file_path.exists():
         raise PrerequisiteError(

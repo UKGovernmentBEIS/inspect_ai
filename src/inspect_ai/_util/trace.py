@@ -25,8 +25,9 @@ def inspect_trace_dir() -> Path:
     return inspect_data_dir("traces")
 
 
-def inspect_trace_file() -> Path:
-    return inspect_trace_dir() / f"trace-{os.getpid()}.log"
+def inspect_trace_file(trace_dir: Path | None = None) -> Path:
+    trace_dir = trace_dir or inspect_trace_dir()
+    return trace_dir / f"trace-{os.getpid()}.log"
 
 
 @contextmanager
@@ -249,10 +250,11 @@ class TraceFile:
     mtime: float
 
 
-def list_trace_files() -> list[TraceFile]:
+def list_trace_files(trace_dir: Path | None = None) -> list[TraceFile]:
+    trace_dir = trace_dir or inspect_trace_dir()
     trace_files: list[TraceFile] = [
         TraceFile(file=f, mtime=f.lstat().st_mtime)
-        for f in inspect_trace_dir().iterdir()
+        for f in trace_dir.iterdir()
         if f.is_file()
     ]
     trace_files.sort(key=lambda f: f.mtime, reverse=True)
@@ -278,13 +280,13 @@ def read_trace_file(file: Path) -> list[TraceRecord]:
             return read_file(f)
 
 
-def rotate_trace_files() -> None:
+def rotate_trace_files(trace_dir: Path | None = None) -> None:
     # if multiple inspect processes start up at once they
     # will all be attempting to rotate at the same time,
     # which can lead to FileNotFoundError -- ignore these
     # errors if they occur
     try:
-        rotate_files = list_trace_files()[10:]
+        rotate_files = list_trace_files(trace_dir)[10:]
         for file in rotate_files:
             file.file.unlink(missing_ok=True)
     except (FileNotFoundError, OSError):
