@@ -71,9 +71,7 @@ export class WorkQueue<TInput, TOutput> {
     });
 
     // Start processing if not already running
-    if (!this.processing) {
-      this.startProcessing();
-    }
+    this.startProcessing();
   }
 
   private async startProcessing() {
@@ -91,7 +89,7 @@ export class WorkQueue<TInput, TOutput> {
 
         // Notify completion
         if (this.onComplete) {
-          this.onComplete(results, inputs);
+          await this.onComplete(results, inputs);
         }
       } catch (error) {
         // TODO: Retry?
@@ -107,6 +105,11 @@ export class WorkQueue<TInput, TOutput> {
     }
 
     this.processing = false;
+
+    // If items were added during processing, restart
+    if (this.queue.length > 0) {
+      this.startProcessing();
+    }
   }
 
   clear() {
