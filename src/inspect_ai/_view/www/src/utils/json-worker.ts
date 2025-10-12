@@ -1,54 +1,96 @@
-export const asyncJsonParse = async (text: string): Promise<any> => {
-  // Encode the input text
-  const encoder = new TextEncoder();
-  const encodedText = encoder.encode(text);
+// Pool of workers to parse JSON/JSON5 off the main thread
+class JsonWorkerPool {
+  private workers: Worker[] = [];
+  private blobURL: string | null = null;
+  private nextRequestId = 0;
+  private pendingRequests = new Map<
+    number,
+    { resolve: (value: any) => void; reject: (error: Error) => void }
+  >();
+  private readonly poolSize = 4;
 
-  // Create a worker from the inline script
-  const blob = new Blob([kWorkerCode], { type: "application/javascript" });
-  const blobURL = URL.createObjectURL(blob);
-  const worker = new Worker(blobURL);
+  private ensureWorkers() {
+    if (this.workers.length === 0) {
+      const blob = new Blob([kWorkerCode], { type: "application/javascript" });
+      this.blobURL = URL.createObjectURL(blob);
 
-  try {
-    const result = new Promise((resolve, reject) => {
-      worker.onmessage = function (e) {
-        if (e.data.success) {
-          if (e.data.serialized) {
-            // Deserialize the result if it was sent as a transferable
-            const decoder = new TextDecoder();
-            const resultString = decoder.decode(e.data.result);
-            resolve(JSON.parse(resultString));
-          } else {
-            resolve(e.data.result);
-          }
-        } else {
-          const error = new Error(e.data.error);
-          if (e.data.stack) {
-            error.stack = e.data.stack;
-          }
-          reject(error);
-        }
-      };
-
-      worker.onerror = function (error) {
-        reject(new Error(`Worker error: ${error.message}`));
-      };
-    });
-
-    // Transfer the encoded text buffer to the worker
-    worker.postMessage(
-      {
-        scriptContent: kJson5ScriptBase64,
-        encodedText,
-      },
-      [encodedText.buffer],
-    );
-
-    return await result;
-  } finally {
-    // Clean up resources
-    worker.terminate();
-    URL.revokeObjectURL(blobURL);
+      for (let i = 0; i < this.poolSize; i++) {
+        const worker = new Worker(this.blobURL);
+        worker.onmessage = (e) => this.handleMessage(e);
+        worker.onerror = (error) => this.handleError(error);
+        this.workers.push(worker);
+      }
+    }
   }
+
+  private handleMessage(e: MessageEvent) {
+    const { requestId, success, serialized, result, error, stack } = e.data;
+    const pending = this.pendingRequests.get(requestId);
+    if (!pending) return;
+
+    this.pendingRequests.delete(requestId);
+
+    if (success) {
+      if (serialized) {
+        const decoder = new TextDecoder();
+        const resultString = decoder.decode(result);
+        pending.resolve(JSON.parse(resultString));
+      } else {
+        pending.resolve(result);
+      }
+    } else {
+      const err = new Error(error);
+      if (stack) err.stack = stack;
+      pending.reject(err);
+    }
+  }
+
+  private handleError(error: ErrorEvent) {
+    // Find any pending request and reject them all
+    for (const [id, pending] of this.pendingRequests.entries()) {
+      pending.reject(new Error(`Worker error: ${error.message}`));
+      this.pendingRequests.delete(id);
+    }
+  }
+
+  async parse(text: string): Promise<any> {
+    this.ensureWorkers();
+
+    const encoder = new TextEncoder();
+    const encodedText = encoder.encode(text);
+    const requestId = this.nextRequestId++;
+
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(requestId, { resolve, reject });
+
+      // Use round-robin to distribute work
+      const worker = this.workers[requestId % this.workers.length];
+      worker.postMessage(
+        {
+          requestId,
+          scriptContent: kJson5ScriptBase64,
+          encodedText,
+        },
+        [encodedText.buffer],
+      );
+    });
+  }
+
+  terminate() {
+    this.workers.forEach((w) => w.terminate());
+    this.workers = [];
+    if (this.blobURL) {
+      URL.revokeObjectURL(this.blobURL);
+      this.blobURL = null;
+    }
+    this.pendingRequests.clear();
+  }
+}
+
+const workerPool = new JsonWorkerPool();
+
+export const asyncJsonParse = async (text: string): Promise<any> => {
+  return workerPool.parse(text);
 };
 
 const kWorkerCode = `
@@ -56,8 +98,8 @@ const kWorkerCode = `
 let JSON5 = null;
 
 self.onmessage = function (e) {
-  const { encodedText, scriptContent } = e.data;
-  
+  const { requestId, encodedText, scriptContent } = e.data;
+
   try {
     // Only load the JSON5 script if we haven't done so yet
     if (!JSON5) {
@@ -70,37 +112,41 @@ self.onmessage = function (e) {
       }
       JSON5 = self.JSON5;
     }
-    
+
     // Decode the text using TextDecoder
     const decoder = new TextDecoder();
     const text = decoder.decode(encodedText);
-    
+
     // Parse with JSON5
     const result = JSON5.parse(text);
-    
-    if (result && typeof result === 'object' && 
+
+    if (result && typeof result === 'object' &&
         (Array.isArray(result) ? result.length > 10000 : Object.keys(result).length > 10000)) {
-      
+
       // Large result, use transferrable object
       const resultString = JSON.stringify(result);
       const encoder = new TextEncoder();
       const serialized = encoder.encode(resultString);
-      
+
       postMessage({
-        success: true, 
+      requestId,
+        requestId,
+        success: true,
         serialized: true,
         result: serialized
       }, [serialized.buffer]);
     } else {
       // Small results, send directly
-      postMessage({ 
+      postMessage({
+        requestId,
         success: true, 
         serialized: false, 
         result: result 
       });
     }
   } catch (err) {
-    postMessage({ 
+    postMessage({
+        requestId,
       success: false, 
       error: err.message,
       stack: err.stack || ''
