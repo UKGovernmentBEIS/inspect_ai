@@ -65,33 +65,9 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
        EvalSample: Eval sample in condensed form.
     """
     # de-duplicate large content fields as 'attachments'
-    attachments: dict[str, str] = {}
-
-    def create_attachment(text: str) -> str:
-        hash = mm3_hash(text)
-        attachments[hash] = text
-        return f"{ATTACHMENT_PROTOCOL}{hash}"
-
-    # for events, we want to strip images when requested and
-    # create attachments for text > 100
-    def events_fn(text: str) -> str:
-        if not log_images and is_data_uri(text):
-            return BASE_64_DATA_REMOVED
-        elif len(text) > 100:
-            return create_attachment(text)
-        else:
-            return text
-
-    # for messages, we only want to handle images (either stripping
-    # them or turning them into attachments as required)
-    def messages_fn(text: str) -> str:
-        if is_data_uri(text):
-            if log_images:
-                return create_attachment(text)
-            else:
-                return BASE_64_DATA_REMOVED
-        else:
-            return text
+    attachments: dict[str, str] = dict(sample.attachments)
+    events_fn = events_attachment_fn(attachments, log_images)
+    messages_fn = messages_attachment_fn(attachments, log_images)
 
     return sample.model_copy(
         update={
@@ -101,6 +77,59 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
             "attachments": attachments,
         }
     )
+
+
+def condense_event(
+    event: Event, attachments: dict[str, str], log_images: bool = True
+) -> Event:
+    event_fn = events_attachment_fn(attachments, log_images)
+    return walk_event(event, event_fn)
+
+
+def events_attachment_fn(
+    attachments: dict[str, str], log_images: bool = True
+) -> Callable[[str], str]:
+    create_attachment = attachment_fn(attachments)
+
+    # for events, we want to strip images when requested and
+    # create attachments for text > 100
+    def fn(text: str) -> str:
+        if not log_images and is_data_uri(text):
+            return BASE_64_DATA_REMOVED
+        elif len(text) > 100:
+            return create_attachment(text)
+        else:
+            return text
+
+    return fn
+
+
+def messages_attachment_fn(
+    attachments: dict[str, str], log_images: bool = True
+) -> Callable[[str], str]:
+    create_attachment = attachment_fn(attachments)
+
+    # for messages, we only want to handle images (either stripping
+    # them or turning them into attachments as required)
+    def fn(text: str) -> str:
+        if is_data_uri(text):
+            if log_images:
+                return create_attachment(text)
+            else:
+                return BASE_64_DATA_REMOVED
+        else:
+            return text
+
+    return fn
+
+
+def attachment_fn(attachments: dict[str, str]) -> Callable[[str], str]:
+    def create_attachment(text: str) -> str:
+        hash = mm3_hash(text)
+        attachments[hash] = text
+        return f"{ATTACHMENT_PROTOCOL}{hash}"
+
+    return create_attachment
 
 
 def resolve_sample_attachments(sample: EvalSample) -> EvalSample:

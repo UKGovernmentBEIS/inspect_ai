@@ -1066,6 +1066,7 @@ def create_eval_sample(
         store=dict(state.store.items()),
         uuid=state.uuid,
         events=list(transcript().events),
+        attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
         total_time=round(total_time, 3) if total_time is not None else None,
         working_time=round(total_time - sample_waiting_time(), 3)
