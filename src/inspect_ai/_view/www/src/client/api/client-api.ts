@@ -71,16 +71,22 @@ export const clientApi = (
   };
 
   const remoteEvalFile = async (log_file: string, cached: boolean = false) => {
-    if (!cached || loadedEvalFile.file !== log_file) {
-      const remoteLog = await openRemoteLogFile(
-        api,
-        encodePathParts(log_file),
-        5,
-      );
+    if (cached && loadedEvalFile.file === log_file) {
+      return loadedEvalFile.remoteLog;
+    }
+
+    const remoteLog = await openRemoteLogFile(
+      api,
+      encodePathParts(log_file),
+      5,
+    );
+
+    if (cached) {
       loadedEvalFile.file = log_file;
       loadedEvalFile.remoteLog = remoteLog;
     }
-    return loadedEvalFile.remoteLog;
+
+    return remoteLog;
   };
 
   /**
