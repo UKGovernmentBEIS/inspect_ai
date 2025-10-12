@@ -1,4 +1,9 @@
-import { ClientAPI, LogHandle, LogPreview } from "../../client/api/types";
+import {
+  ClientAPI,
+  LogDetails,
+  LogHandle,
+  LogPreview,
+} from "../../client/api/types";
 import { DatabaseService } from "../../client/database";
 import { WorkQueue } from "../../utils/workQueue";
 
@@ -14,11 +19,16 @@ export class ReplicationService {
   private _api: ClientAPI | undefined = undefined;
   private _applicationContext: ApplicationContext | undefined = undefined;
   private _previewQueue: WorkQueue<LogHandle, LogPreview>;
+  private _detailQueue: WorkQueue<LogHandle, LogDetails>;
 
   constructor() {
     this._previewQueue = new WorkQueue<LogHandle, LogPreview>({
       batchSize: 10,
       processingDelay: 100,
+    });
+    this._detailQueue = new WorkQueue<LogHandle, LogDetails>({
+      batchSize: 3,
+      processingDelay: 50,
     });
 
     // Set up the worker function
@@ -30,6 +40,23 @@ export class ReplicationService {
       );
 
       return previews;
+    });
+    this._detailQueue.setWorker(async (logHandles: LogHandle[]) => {
+      if (!this._api) throw new Error("API not available");
+
+      const details = await Promise.all(
+        logHandles.map(async (log) => {
+          try {
+            const result = await this._api!.get_log_details(log.name);
+            return result;
+          } catch {
+            return undefined;
+          }
+        }),
+      );
+
+      const allResults = details.filter((d) => d !== undefined);
+      return allResults;
     });
 
     // Set up completion callback
@@ -54,6 +81,20 @@ export class ReplicationService {
               Object.keys(previewMap),
             )
             .catch(() => {});
+        }
+      },
+    );
+    this._detailQueue.setOnComplete(
+      async (details: LogDetails[], inputs: LogHandle[]) => {
+        if (this._database && details.length > 0) {
+          for (const [i, detail] of details.entries()) {
+            const input = inputs[i];
+            if (detail && input) {
+              await this._database
+                .writeLogDetails(input.name, detail)
+                .catch(() => {});
+            }
+          }
         }
       },
     );
@@ -122,12 +163,12 @@ export class ReplicationService {
     const currentLogHandle = this._applicationContext.getSelectedLog();
 
     // Update the log handles in the application state
-    const refreshedLogFiles = (await this._database.readLogs()) || [];
-    this._applicationContext?.setLogHandles(refreshedLogFiles);
+    const allLogHandles = (await this._database.readLogs()) || [];
+    this._applicationContext?.setLogHandles(allLogHandles);
 
     // Preserve the current selection
     if (currentLogHandle !== undefined) {
-      const newIndex = refreshedLogFiles.findIndex((file) =>
+      const newIndex = allLogHandles.findIndex((file) =>
         currentLogHandle.name.endsWith(file.name),
       );
 
@@ -136,15 +177,28 @@ export class ReplicationService {
       }
     }
 
-    // Schedule preview fetching for new logs
-    this.syncLogPreviews(refreshedLogFiles);
+    // Schedule any missing previews
+    const previewTasks = [...toInvalidate];
+    const previews = await this._database.findMissingPreviews(allLogHandles);
+    previewTasks.push(...previews);
+    this.syncLogPreviews(previewTasks);
 
-    // TODO: Add previews and detail fetching to list of work
-    // for the sync manager
+    // Schedule preview fetching for new logs
+    const detailTasks = [...toInvalidate];
+    const details = await this._database.findMissingDetails(allLogHandles);
+    detailTasks.push(...details);
+    this.syncLogDetails(detailTasks);
+
+    // See if there are any logs without previews and sync them
   }
 
   syncLogPreviews(logs: LogHandle[]) {
     // Add to queue (deduplicated by name)
     this._previewQueue.enqueue(logs, (log) => log.name);
+  }
+
+  syncLogDetails(logs: LogHandle[]) {
+    // Add to queue (deduplicated by name)
+    this._detailQueue.enqueue(logs, (log) => log.name);
   }
 }

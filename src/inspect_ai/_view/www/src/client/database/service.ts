@@ -151,6 +151,28 @@ export class DatabaseService {
     }
   }
 
+  async findMissingPreviews(logs: LogHandle[]): Promise<LogHandle[]> {
+    try {
+      const filePaths = logs.map((log) => log.name);
+      const db = this.getDb();
+      const records = await db.log_previews
+        .where("file_path")
+        .anyOf(filePaths)
+        .toArray();
+
+      const cachedPaths = new Set(records.map((r) => r.file_path));
+      const missing = logs.filter((log) => !cachedPaths.has(log.name));
+
+      log.debug(
+        `Found ${missing.length} missing previews out of ${logs.length} requested`,
+      );
+      return missing;
+    } catch (error) {
+      log.error("Error finding missing previews:", error);
+      return logs;
+    }
+  }
+
   // === LOG DETAILS ===
   async writeLogDetails(filePath: string, info: LogDetails): Promise<void> {
     const db = this.getDb();
@@ -181,6 +203,28 @@ export class DatabaseService {
     } catch (error) {
       log.error(`Error retrieving cached log info for ${filePath}:`, error);
       return null;
+    }
+  }
+
+  async findMissingDetails(logs: LogHandle[]): Promise<LogHandle[]> {
+    try {
+      const filePaths = logs.map((log) => log.name);
+      const db = this.getDb();
+      const records = await db.log_details
+        .where("file_path")
+        .anyOf(filePaths)
+        .toArray();
+
+      const cachedPaths = new Set(records.map((r) => r.file_path));
+      const missing = logs.filter((log) => !cachedPaths.has(log.name));
+
+      log.debug(
+        `Found ${missing.length} missing details out of ${logs.length} requested`,
+      );
+      return missing;
+    } catch (error) {
+      log.error("Error finding missing details:", error);
+      return logs;
     }
   }
 
