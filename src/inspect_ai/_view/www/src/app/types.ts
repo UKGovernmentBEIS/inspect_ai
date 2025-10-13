@@ -74,6 +74,11 @@ export interface LogsState {
   selectedLogFile?: string;
   listing: LogsListing;
   pendingRequests: Map<string, Promise<EvalHeader | null>>;
+  dbStats: {
+    logCount: number;
+    previewCount: number;
+    detailsCount: number;
+  };
 }
 
 export interface LogsListing {

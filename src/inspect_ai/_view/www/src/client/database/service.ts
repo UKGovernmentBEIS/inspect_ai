@@ -53,6 +53,20 @@ export class DatabaseService {
     return this.manager.getLogDir();
   }
 
+  async countRows(
+    entity: "logs" | "logPreviews" | "logDetails",
+  ): Promise<number> {
+    const db = this.getDb();
+    switch (entity) {
+      case "logs":
+        return db.logs.count();
+      case "logPreviews":
+        return db.log_previews.count();
+      case "logDetails":
+        return db.log_details.count();
+    }
+  }
+
   // === LOG FILES ===
   async writeLogs(logs: LogHandle[]): Promise<void> {
     const db = this.getDb();
