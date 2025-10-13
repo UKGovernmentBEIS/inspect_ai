@@ -20,7 +20,6 @@ interface DatabaseStats {
   logFiles: number;
   logSummaries: number;
   logInfo: number;
-  logDir: string | null;
 }
 
 export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
@@ -33,6 +32,8 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
   const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
   const databaseService = useStore((state) => state.databaseService);
 
+  const logDir = useStore((state) => state.logs.logDir);
+
   useEffect(() => {
     const loadStats = async () => {
       if (!databaseService || !showing) return;
@@ -43,7 +44,6 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
           logFiles: stats.logFiles,
           logSummaries: stats.logSummaries,
           logInfo: stats.logHeaders,
-          logDir: stats.logDir,
         });
       } catch (error) {
         console.error("Failed to load database stats:", error);
@@ -72,7 +72,6 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
         logFiles: 0,
         logSummaries: 0,
         logInfo: 0,
-        logDir: dbStats?.logDir || null,
       });
       setTimeout(() => setClearMessage(null), 3000);
     } catch (error) {
@@ -96,61 +95,69 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
       showArrow={false}
     >
       <div className={clsx(styles.container, "text-size-smaller")}>
-        <b>Inspect Viewer</b>
-        <div className={styles.content}>
-          <div className={styles.statsSection}>
-            <div className={styles.statRow}>
-              <strong>Version:</strong> {__VIEWER_VERSION__}
-            </div>
-            <div className={styles.statRow}>
-              <strong>Database Version:</strong> {DB_VERSION}
-            </div>
-            {dbStats && (
-              <>
-                <div className={styles.statRow}>
-                  <strong>Log Directory:</strong>{" "}
-                  {dbStats.logDir ? (
-                    <span className={styles.logDir}>{dbStats.logDir}</span>
-                  ) : (
-                    <span className={styles.notSet}>Not set</span>
-                  )}
-                </div>
-                <div className={styles.statRow}>
-                  <strong>Cached Items:</strong>
-                  <ul className={styles.cachedItemsList}>
-                    <li>Log Handles: {dbStats.logFiles}</li>
-                    <li>Log Previews: {dbStats.logSummaries}</li>
-                    <li>Log Details: {dbStats.logInfo}</li>
-                  </ul>
-                </div>
-              </>
-            )}
-          </div>
+        <div
+          className={clsx(
+            "text-style-label",
+            "text-style-secondary",
+            styles.fullWidth,
+          )}
+        >
+          Log Directory
+        </div>
+        <div className={clsx(styles.fullWidth, styles.fullWidthPadded)}>
+          <span className={styles.logDir}>{logDir}</span>
+        </div>
+
+        <div className={clsx("text-style-label", "text-style-secondary")}>
+          Version
+        </div>
+        <div className={clsx()}>{__VIEWER_VERSION__}</div>
+
+        <div className={clsx("text-style-label", "text-style-secondary")}>
+          Schema
+        </div>
+        <div className={clsx()}>{DB_VERSION}</div>
+
+        <div className={clsx(styles.spacer)}></div>
+        <div className={clsx("text-style-label", "text-style-secondary")}>
+          Logs
+        </div>
+        <div className={clsx()}>{dbStats?.logFiles || 0}</div>
+
+        <div className={clsx(styles.spacer)}></div>
+
+        <div className={clsx("text-style-label", "text-style-secondary")}>
+          Tools
+        </div>
+        <div className={clsx()}>
+          {" "}
           <button
             onClick={handleClearDatabase}
             disabled={isClearing}
             className={clsx(
               "btn",
               "btn-tools",
-              "text-size-smaller",
+              "text-size-smallest",
               styles.clearButton,
             )}
           >
             {isClearing ? "Clearing..." : "Clear Local Database"}
           </button>
-          {clearMessage && (
-            <div
-              className={clsx(
-                styles.message,
-                clearMessage.includes("success")
-                  ? styles.messageSuccess
-                  : styles.messageError,
-              )}
-            >
-              {clearMessage}
-            </div>
-          )}
         </div>
+
+        {clearMessage && (
+          <div
+            className={clsx(
+              styles.fullWidth,
+              styles.message,
+              clearMessage.includes("success")
+                ? styles.messageSuccess
+                : styles.messageError,
+            )}
+          >
+            {clearMessage}
+          </div>
+        )}
       </div>
     </PopOver>
   );
