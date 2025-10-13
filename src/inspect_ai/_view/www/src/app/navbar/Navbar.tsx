@@ -1,10 +1,12 @@
 import clsx from "clsx";
 import { FC, Fragment, ReactNode, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
+import { usePagination } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
 import { prettyDirUri } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
+import { kDefaultPageSize, kLogsPaginationId } from "../log-list/LogsPanel";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import styles from "./Navbar.module.css";
 import { useBreadcrumbTruncation } from "./useBreadcrumbTruncation";
@@ -19,6 +21,7 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
   const baseLogDir = dirname(logDir || "");
   const baseLogName = basename(logDir || "");
   const pathContainerRef = useRef<HTMLDivElement>(null);
+  const { setPage } = usePagination(kLogsPaginationId, kDefaultPageSize);
 
   const backUrl = logUrl(ensureTrailingSlash(dirname(logPath || "")), logDir);
 
@@ -57,7 +60,13 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
         <Link to={backUrl} className={clsx(styles.toolbarButton)}>
           <i className={clsx(ApplicationIcons.navbar.back)} />
         </Link>
-        <Link to={logUrl("", logDir)} className={clsx(styles.toolbarButton)}>
+        <Link
+          to={logUrl("", logDir)}
+          className={clsx(styles.toolbarButton)}
+          onClick={() => {
+            setPage(0);
+          }}
+        >
           <i className={clsx(ApplicationIcons.navbar.home)} />
         </Link>
         <div className={clsx(styles.pathContainer)} ref={pathContainerRef}>

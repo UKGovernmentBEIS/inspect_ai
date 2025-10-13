@@ -213,8 +213,11 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   }, [loadLogs, logPath]);
 
   useEffect(() => {
-    setPage(0);
+    if (currentDir !== loadedDir.current) {
+      setPage(0);
+    }
   }, [currentDir]);
+  const loadedDir = useRef<string | undefined>(currentDir);
 
   useEffect(() => {
     if (maybeShowSingleLog && logItems.length === 1) {
