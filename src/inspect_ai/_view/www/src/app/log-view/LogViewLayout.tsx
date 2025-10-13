@@ -5,6 +5,8 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
 import { useStore } from "../../state/store";
+import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
+import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
 import { Navbar } from "../navbar/Navbar";
 import { LogView } from "./LogView";
 
@@ -54,6 +56,12 @@ export const LogViewLayout: FC = () => {
     };
   }, [setShowFind, hideFind]);
 
+  const optionsRef = useRef<HTMLButtonElement>(null);
+  const isShowing = useStore((state) => state.app.dialogs.options);
+  const setShowing = useStore(
+    (state) => state.appActions.setShowingOptionsDialog,
+  );
+
   return (
     <ExtendedFindProvider>
       <div
@@ -67,7 +75,23 @@ export const LogViewLayout: FC = () => {
         tabIndex={0}
       >
         {showFind ? <FindBand /> : ""}
-        {!singleFileMode ? <Navbar /> : ""}
+        {!singleFileMode ? (
+          <Navbar>
+            {" "}
+            <ViewerOptionsButton
+              showing={isShowing}
+              setShowing={setShowing}
+              ref={optionsRef}
+            />
+            <ViewerOptionsPopover
+              positionEl={optionsRef.current}
+              showing={isShowing}
+              setShowing={setShowing}
+            />
+          </Navbar>
+        ) : (
+          ""
+        )}
         <ActivityBar animating={!!appStatus.loading} />
         {appStatus.error ? (
           <ErrorPanel

@@ -158,7 +158,18 @@ export class ReplicationService {
     }
 
     // Fetch the updated list of logs from the server
-    const updatedLogs = await this._api.get_logs(mtime, clientFileCount);
+    const response = await this._api.get_logs(mtime, clientFileCount);
+    const updatedLogs = response.files;
+
+    // Find deleted file
+    if (response.response_type === "full") {
+      const deletedFiles = logFiles.filter((current) => {
+        return !updatedLogs.find((f) => f.name === current.name);
+      });
+      for (const file of deletedFiles) {
+        this._database?.clearCacheForFile(file.name);
+      }
+    }
 
     // Make a list of the files in current files that are missing
     // from the files we just loaded or which have a lower mtime
