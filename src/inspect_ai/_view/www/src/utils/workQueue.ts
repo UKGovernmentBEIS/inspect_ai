@@ -15,6 +15,7 @@ interface WorkQueueOptions {
   batchSize: number;
   processingDelay?: number;
   maxRetries?: number;
+  onProcessingChanged?: (processing: boolean) => void;
 }
 
 export class WorkQueue<TInput, TOutput> {
@@ -29,6 +30,7 @@ export class WorkQueue<TInput, TOutput> {
     this.options = {
       processingDelay: 100,
       maxRetries: 3,
+      onProcessingChanged: (_processing: boolean) => {},
       ...options,
     };
   }
@@ -74,10 +76,21 @@ export class WorkQueue<TInput, TOutput> {
     this.startProcessing();
   }
 
+  async atOnce(items: TInput[]) {
+    if (!this.worker) return;
+
+    const results = await this.worker(items);
+
+    if (this.onComplete) {
+      this.onComplete(results, items);
+    }
+  }
+
   private async startProcessing() {
     if (this.processing || !this.worker) return;
 
     this.processing = true;
+    this.options.onProcessingChanged?.(true);
 
     while (this.queue.length > 0) {
       // Get next batch
@@ -89,7 +102,7 @@ export class WorkQueue<TInput, TOutput> {
 
         // Notify completion
         if (this.onComplete) {
-          await this.onComplete(results, inputs);
+          this.onComplete(results, inputs);
         }
       } catch (error) {
         // TODO: Retry?
@@ -104,12 +117,13 @@ export class WorkQueue<TInput, TOutput> {
       }
     }
 
-    this.processing = false;
-
     // If items were added during processing, restart
     if (this.queue.length > 0) {
       this.startProcessing();
     }
+
+    this.options.onProcessingChanged?.(false);
+    this.processing = false;
   }
 
   clear() {

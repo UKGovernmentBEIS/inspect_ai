@@ -61,7 +61,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
       kLogsPaginationId,
       kDefaultPageSize,
     );
-    const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
+
     const loading = useStore((state) => state.app.status.loading);
     const setWatchedLogs = useStore(
       (state) => state.logsActions.setWatchedLogs,
@@ -233,7 +233,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
     ]);
 
     const placeholderText = useMemo(() => {
-      if (headersLoading || loading) {
+      if (loading) {
         if (globalFilter) {
           return "searching...";
         } else {
@@ -246,7 +246,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
           return "no logs";
         }
       }
-    }, [headersLoading, loading, globalFilter]);
+    }, [loading, globalFilter]);
 
     const handleKeyDown = useCallback(
       (e: KeyboardEvent<HTMLDivElement>) => {

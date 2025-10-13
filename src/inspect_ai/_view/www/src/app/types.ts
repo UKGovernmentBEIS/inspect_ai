@@ -69,7 +69,6 @@ export interface LogsState {
   logs: LogHandle[];
   evalSet?: EvalSet;
   logOverviews: Record<string, LogPreview>;
-  logOverviewsLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;
   listing: LogsListing;
@@ -153,7 +152,11 @@ export type Event =
   | SubtaskEvent;
 
 export interface AppStatus {
-  loading: boolean;
+  // Waiting while loading data, show large form of progress
+  loading: number;
+
+  // Background syncing data, show small form of activity
+  syncing: boolean;
   error?: Error;
 }
 

@@ -27,24 +27,24 @@ export const useEvalSpec = () => {
 };
 
 export const useRefreshLog = () => {
-  const setAppStatus = useStore((state) => state.appActions.setStatus);
+  const setLoading = useStore((state) => state.appActions.setLoading);
   const refreshLog = useStore((state) => state.logActions.refreshLog);
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
 
   return useCallback(() => {
     try {
-      setAppStatus({ loading: true, error: undefined });
+      setLoading(true);
 
       refreshLog();
       resetFiltering();
 
-      setAppStatus({ loading: false, error: undefined });
+      setLoading(false);
     } catch (e) {
       // Show an error
       console.log(e);
-      setAppStatus({ loading: false, error: e as Error });
+      setLoading(false, e as Error);
     }
-  }, [refreshLog, resetFiltering, setAppStatus]);
+  }, [refreshLog, resetFiltering, setLoading]);
 };
 
 // Fetches all samples summaries (both completed and incomplete)
@@ -578,12 +578,12 @@ export const useLogs = () => {
   );
 
   // Status
-  const setStatus = useStore((state) => state.appActions.setStatus);
+  const setLoading = useStore((state) => state.appActions.setLoading);
 
   const loadLogs = useCallback(
     async (logPath?: string) => {
       const exec = async () => {
-        setStatus({ loading: true, error: undefined });
+        setLoading(true);
 
         // Sync logs
         await syncLogs();
@@ -591,18 +591,18 @@ export const useLogs = () => {
         // Sync eval set info
         await syncEvalSetInfo(logPath);
 
-        setStatus({ loading: false, error: undefined });
+        setLoading(false);
       };
       exec().catch((e) => {
         log.error("Error loading logs", e);
-        setStatus({ loading: false, error: e });
+        setLoading(false, e as Error);
       });
     },
-    [syncLogs, setStatus, syncEvalSetInfo],
+    [syncLogs, setLoading, syncEvalSetInfo],
   );
 
   // Loading overviews
-  const syncLogOverviews = useStore(
+  const syncLogPreviews = useStore(
     (state) => state.logsActions.syncLogPreviews,
   );
   const existingHeaders = useStore((state) => state.logs.logOverviews);
@@ -610,9 +610,9 @@ export const useLogs = () => {
 
   const loadLogOverviews = useCallback(
     async (logs: LogHandle[] = allLogFiles) => {
-      await syncLogOverviews(logs);
+      await syncLogPreviews(logs);
     },
-    [syncLogOverviews, allLogFiles],
+    [syncLogPreviews, allLogFiles],
   );
 
   const loadAllLogOverviews = useCallback(async () => {

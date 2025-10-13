@@ -21,8 +21,7 @@ export interface LogsSlice {
 
     updateLogPreviews: (previews: Record<string, LogPreview>) => void;
 
-    syncLogPreviews: (logs: LogHandle[]) => Promise<LogPreview[]>;
-    setLogPreviewsLoading: (loading: boolean) => void;
+    syncLogPreviews: (logs: LogHandle[]) => Promise<void>;
 
     setSelectedLogIndex: (index: number) => void;
     setSelectedLogFile: (logUrl: string) => void;
@@ -58,7 +57,6 @@ const initialState: LogsState = {
   logDir: undefined,
   logs: [],
   logOverviews: {},
-  logOverviewsLoading: false,
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
   listing: {},
@@ -94,153 +92,23 @@ export const createLogsSlice = (
         const api = state.api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return [];
+          return;
         }
 
-        // OPTIONAL: Try cache first (non-blocking, fail silently)
-        let cached: Record<string, LogPreview> = {};
-        const databaseService = get().databaseService;
-        if (databaseService) {
-          try {
-            cached = await databaseService.readLogPreviews(logs);
-          } catch (e) {
-            // Cache read failed, continue with normal flow
-          }
+        if (!state.replicationService) {
+          console.error("Replication service not initialized in LogsStore");
+          return;
         }
-
-        // Filter out files that are already loaded, cached, or currently loading
-        // reload headers with "started" status as they may have changed
-        const filesToLoad = logs.filter((logFile) => {
-          const existing = state.logs.logOverviews[logFile.name];
-          const cachedOverview = cached[logFile.name];
-          const isLoading = state.logs.loadingFiles.has(logFile.name);
-
-          // Use cached version if available and not "started"
-          if (cachedOverview && cachedOverview.status !== "started") {
-            return false;
-          }
-
-          // Always load if no existing header and no cached version
-          if (!existing && !cachedOverview) {
-            return !isLoading;
-          }
-
-          // Reload if header status is "started" or "error" (but not if already loading)
-          const overview = existing || cachedOverview;
-          if (overview && overview.status === "started") {
-            return !isLoading;
-          }
-
-          // Skip if already loaded with final status
-          return false;
-        });
-
-        // Include cached overviews in the store immediately
-        if (Object.keys(cached).length > 0) {
-          set((state) => {
-            state.logs.logOverviews = {
-              ...state.logs.logOverviews,
-              ...cached,
-            };
-          });
-        }
-
-        if (filesToLoad.length === 0) {
-          return Object.values({ ...state.logs.logOverviews, ...cached });
-        }
-
-        // Mark files as loading
-        set((state) => {
-          filesToLoad.forEach((logFile) => {
-            state.logs.loadingFiles.add(logFile.name);
-          });
-        });
-
-        // Set global loading state if this is the first batch
-        set((state) => {
-          state.logs.logOverviewsLoading = true;
-        });
-
-        try {
-          log.debug(
-            `LOADING LOG OVERVIEWS from API for ${filesToLoad.length} files`,
-          );
-          const headers = await api.get_log_summaries(
-            filesToLoad.map((log) => log.name),
-          );
-
-          // Process results and update store
-          const headerMap: Record<string, LogPreview> = {};
-          for (let i = 0; i < filesToLoad.length; i++) {
-            const logFile = filesToLoad[i];
-            const header = headers[i];
-            if (header) {
-              headerMap[logFile.name] = header as LogPreview;
-            }
-          }
-
-          // Update headers in store
-          set((state) => {
-            state.logs.logOverviews = {
-              ...state.logs.logOverviews,
-              ...headerMap,
-            };
-            // Remove from loading state
-            filesToLoad.forEach((logFile) => {
-              state.logs.loadingFiles.delete(logFile.name);
-            });
-            // Update global loading state if no more files are loading
-            state.logs.logOverviewsLoading = false;
-          });
-
-          // OPTIONAL: Cache log summaries (non-blocking)
-          if (databaseService && Object.keys(headerMap).length > 0) {
-            setTimeout(() => {
-              databaseService
-                .writeLogPreviews(
-                  Object.values(headerMap),
-                  Object.keys(headerMap),
-                )
-                .catch(() => {
-                  // Silently ignore cache errors
-                });
-            }, 0);
-          }
-
-          return Object.values({ ...cached, ...headerMap });
-        } catch (error) {
-          log.error("Error loading log headers", error);
-
-          // Clear loading state on error
-          set((state) => {
-            filesToLoad.forEach((logFile) => {
-              state.logs.loadingFiles.delete(logFile.name);
-            });
-            state.logs.logOverviewsLoading = false;
-          });
-
-          // Still return cached overviews if we have them
-          if (Object.keys(cached).length > 0) {
-            return Object.values(cached);
-          }
-
-          // Don't throw - just return empty array like the old implementation
-          return [];
-        }
+        await state.replicationService?.loadLogPreviews({ logs });
       },
       updateLogPreviews: (previews: Record<string, LogPreview>) =>
         set((state) => {
-          // TODO: write through to the database
           state.logs.logOverviews = {
             ...get().logs.logOverviews,
             ...previews,
           };
         }),
 
-      setLogPreviewsLoading: (loading: boolean) =>
-        set((state) => {
-          state.logs.logOverviewsLoading = loading;
-        }),
       setSelectedLogIndex: (selectedLogIndex: number) => {
         set((state) => {
           state.logs.selectedLogIndex = selectedLogIndex;
@@ -268,13 +136,15 @@ export const createLogsSlice = (
           return;
         }
 
+        get().appActions.setLoading(true);
+
         // Determine the log directory
         const loadLogDir = async () => {
           try {
             return await api.get_log_dir();
           } catch (e) {
             console.log(e);
-            get().appActions.setStatus({ loading: false, error: e as Error });
+            get().appActions.setLoading(false, e as Error);
             return undefined;
           }
         };
@@ -299,7 +169,8 @@ export const createLogsSlice = (
             return databaseService;
           } catch (e) {
             console.log(e);
-            get().appActions.setStatus({ loading: false, error: e as Error });
+            get().appActions.setLoading(false, e as Error);
+            return;
           }
         };
 
@@ -330,10 +201,21 @@ export const createLogsSlice = (
             const state = get();
             state.logsActions.updateLogPreviews(previews);
           },
+          setLoading(loading: boolean) {
+            const state = get();
+            state.appActions.setLoading(loading);
+          },
+          setBackgroundSyncing(syncing: boolean) {
+            set((state) => {
+              state.app.status.syncing = syncing;
+            });
+          },
         });
 
+        get().appActions.setLoading(false);
+
         // Sync
-        get().replicationService?.sync();
+        get().replicationService?.sync(true);
       },
       syncEvalSetInfo: async (logPath?: string) => {
         const api = get().api;

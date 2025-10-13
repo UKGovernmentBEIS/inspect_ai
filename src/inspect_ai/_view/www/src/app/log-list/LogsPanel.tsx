@@ -37,14 +37,16 @@ interface LogsPanelProps {
 
 export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   // Get the logs from the store
-  const loading = useStore((state) => state.app.status.loading);
-
   const { loadLogs } = useLogs();
+
   const logDir = useStore((state) => state.logs.logDir);
   const logFiles = useStore((state) => state.logs.logs);
   const evalSet = useStore((state) => state.logs.evalSet);
   const logHeaders = useStore((state) => state.logs.logOverviews);
-  const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
+
+  const loading = useStore((state) => state.app.status.loading);
+  const syncing = useStore((state) => state.app.status.syncing);
+
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
   const navigate = useNavigate();
 
@@ -257,16 +259,14 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         />
       </Navbar>
 
-      <ActivityBar animating={loading || headersLoading} />
+      <ActivityBar animating={!!loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
         <LogListGrid ref={gridRef} items={logItems} />
       </div>
       <LogListFooter
         logDir={currentDir}
         itemCount={logItems.length}
-        progressText={
-          loading ? "Loading logs" : headersLoading ? "Loading data" : undefined
-        }
+        progressText={syncing ? "Syncing data" : undefined}
         progressBar={
           progress.total !== progress.complete ? (
             <ProgressBar

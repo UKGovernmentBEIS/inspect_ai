@@ -29,7 +29,6 @@ export const LogViewContainer: FC = () => {
   const setShowingSampleDialog = useStore(
     (state) => state.appActions.setShowingSampleDialog,
   );
-  const setStatus = useStore((state) => state.appActions.setStatus);
   const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
 
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
@@ -116,14 +115,7 @@ export const LogViewContainer: FC = () => {
     };
 
     loadLogFromPath();
-  }, [
-    logPath,
-    tabId,
-    selectLogFile,
-    setWorkspaceTab,
-    setSelectedLogIndex,
-    setStatus,
-  ]);
+  }, [logPath, tabId, selectLogFile, setWorkspaceTab, setSelectedLogIndex]);
 
   // Handle sample selection from URL params
   useEffect(() => {
