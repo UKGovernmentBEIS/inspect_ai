@@ -11,28 +11,32 @@ from typing_extensions import override
 
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.transcript import transcript_code_theme
-from inspect_ai.util._display import display_type, display_type_plain
+from inspect_ai.util._display import DisplayType, display_type, display_type_plain
 
 
 def is_vscode_notebook(console: Console) -> bool:
     return console.is_jupyter and is_running_in_vscode()
 
 
-def rich_no_color() -> bool:
-    return (
-        display_type_plain() or not is_running_in_vscode() or is_running_in_jupyterlab()
-    )
+def rich_no_color(plain: bool) -> bool:
+    return plain or not is_running_in_vscode() or is_running_in_jupyterlab()
 
 
-def rich_initialise() -> None:
+def rich_initialise(
+    display: DisplayType | None = None, plain: bool | None = None
+) -> None:
+    # default args
+    display = display if display is not None else display_type()
+    plain = plain if plain is not None else display_type_plain()
+
     # reflect ansi prefs
-    if display_type_plain():
+    if plain:
         rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
-    elif rich_no_color():
+    elif rich_no_color(plain):
         rich.reconfigure(no_color=True)
 
     # reflect display == none
-    if display_type() == "none":
+    if display == "none":
         rich.reconfigure(quiet=True)
 
     # consistent markdown code bock background

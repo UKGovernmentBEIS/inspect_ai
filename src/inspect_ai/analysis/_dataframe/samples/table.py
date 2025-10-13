@@ -93,7 +93,7 @@ def samples_df(
           (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
        full: Read full sample `metadata`. This will be much slower, but will include
-          the unfiltered values of sample `metadata` rather than the abbrevivated
+          the unfiltered values of sample `metadata` rather than the abbreviated
           metadata from sample summaries (which includes only scalar values and limits
           string values to 1k).
        strict: Raise import errors immediately. Defaults to `True`.
