@@ -60,6 +60,11 @@ const initialState: LogsState = {
   selectedLogFile: undefined as string | undefined,
   listing: {},
   pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
+  dbStats: {
+    logCount: 0,
+    previewCount: 0,
+    detailsCount: 0,
+  },
 };
 
 export const createLogsSlice = (
@@ -193,6 +198,15 @@ export const createLogsSlice = (
           setBackgroundSyncing(syncing: boolean) {
             set((state) => {
               state.app.status.syncing = syncing;
+            });
+          },
+          setDbStats(stats: {
+            logCount: number;
+            previewCount: number;
+            detailsCount: number;
+          }) {
+            set((state) => {
+              state.logs.dbStats = stats;
             });
           },
         });

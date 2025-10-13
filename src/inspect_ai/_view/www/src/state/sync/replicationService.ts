@@ -14,6 +14,11 @@ export interface ApplicationContext {
   updateLogPreviews: (previews: Record<string, LogPreview>) => void;
   setLoading: (loading: boolean) => void;
   setBackgroundSyncing: (syncing: boolean) => void;
+  setDbStats: (stats: {
+    logCount: number;
+    previewCount: number;
+    detailsCount: number;
+  }) => void;
 }
 
 export class ReplicationService {
@@ -87,6 +92,7 @@ export class ReplicationService {
               Object.keys(previewMap),
             )
             .catch(() => {});
+          this.updateDbStats();
         }
       },
     );
@@ -99,6 +105,7 @@ export class ReplicationService {
               await this._database
                 .writeLogDetails(input.name, detail)
                 .catch(() => {});
+              this.updateDbStats();
             }
           }
         }
@@ -114,6 +121,24 @@ export class ReplicationService {
       this._applicationContext?.setBackgroundSyncing(false);
     }
   };
+
+  private updateDbStats() {
+    if (!this._database || !this._applicationContext) return;
+
+    Promise.all([
+      this._database.countRows("logs"),
+      this._database.countRows("logPreviews"),
+      this._database.countRows("logDetails"),
+    ])
+      .then(([logCount, previewCount, detailsCount]) => {
+        this._applicationContext?.setDbStats({
+          logCount,
+          previewCount,
+          detailsCount,
+        });
+      })
+      .catch(() => {});
+  }
 
   public startReplication(
     database: DatabaseService,

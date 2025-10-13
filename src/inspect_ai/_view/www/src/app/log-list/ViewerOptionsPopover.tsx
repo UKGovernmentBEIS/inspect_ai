@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useState } from "react";
 import { DB_VERSION } from "../../client/database/schema";
 import { PopOver } from "../../components/PopOver";
 import { useStore } from "../../state/store";
@@ -16,12 +16,6 @@ export interface ViewerOptionsPopoverProps {
   positionEl: HTMLElement | null;
 }
 
-interface DatabaseStats {
-  logFiles: number;
-  logSummaries: number;
-  logInfo: number;
-}
-
 export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
   showing,
   positionEl,
@@ -29,30 +23,10 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
 }) => {
   const [isClearing, setIsClearing] = useState(false);
   const [clearMessage, setClearMessage] = useState<string | null>(null);
-  const [dbStats, setDbStats] = useState<DatabaseStats | null>(null);
   const databaseService = useStore((state) => state.databaseService);
+  const dbStats = useStore((state) => state.logs.dbStats);
 
   const logDir = useStore((state) => state.logs.logDir);
-
-  useEffect(() => {
-    const loadStats = async () => {
-      if (!databaseService || !showing) return;
-
-      try {
-        const stats = await databaseService.getCacheStats();
-        setDbStats({
-          logFiles: stats.logFiles,
-          logSummaries: stats.logSummaries,
-          logInfo: stats.logHeaders,
-        });
-      } catch (error) {
-        console.error("Failed to load database stats:", error);
-        setDbStats(null);
-      }
-    };
-
-    loadStats();
-  }, [databaseService, showing]);
 
   const handleClearDatabase = async () => {
     if (!databaseService) {
@@ -67,12 +41,6 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
     try {
       await databaseService.clearAllCaches();
       setClearMessage("Database cleared successfully");
-      // Refresh stats after clearing
-      setDbStats({
-        logFiles: 0,
-        logSummaries: 0,
-        logInfo: 0,
-      });
       setTimeout(() => setClearMessage(null), 3000);
     } catch (error) {
       console.error("Failed to clear database:", error);
@@ -108,6 +76,8 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
           <span className={styles.logDir}>{logDir}</span>
         </div>
 
+        <div className={clsx(styles.spacer)}></div>
+
         <div className={clsx("text-style-label", "text-style-secondary")}>
           Version
         </div>
@@ -119,10 +89,21 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
         <div className={clsx()}>{DB_VERSION}</div>
 
         <div className={clsx(styles.spacer)}></div>
+
         <div className={clsx("text-style-label", "text-style-secondary")}>
           Logs
         </div>
-        <div className={clsx()}>{dbStats?.logFiles || 0}</div>
+        <div className={clsx()}>{dbStats?.logCount || 0}</div>
+
+        <div className={clsx("text-style-label", "text-style-secondary")}>
+          Log Previews
+        </div>
+        <div className={clsx()}>{dbStats?.previewCount || 0}</div>
+
+        <div className={clsx("text-style-label", "text-style-secondary")}>
+          Log Details
+        </div>
+        <div className={clsx()}>{dbStats?.detailsCount || 0}</div>
 
         <div className={clsx(styles.spacer)}></div>
 
