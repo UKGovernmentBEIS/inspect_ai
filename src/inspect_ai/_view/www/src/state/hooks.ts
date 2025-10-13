@@ -605,7 +605,7 @@ export const useLogs = () => {
   const syncLogPreviews = useStore(
     (state) => state.logsActions.syncLogPreviews,
   );
-  const existingHeaders = useStore((state) => state.logs.logOverviews);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
   const allLogFiles = useStore((state) => state.logs.logs);
 
   const loadLogOverviews = useCallback(
@@ -617,14 +617,14 @@ export const useLogs = () => {
 
   const loadAllLogOverviews = useCallback(async () => {
     const logsToLoad = allLogFiles.filter((logFile) => {
-      const existingHeader = existingHeaders[logFile.name];
+      const existingHeader = logPreviews[logFile.name];
       return !existingHeader || existingHeader.status === "started";
     });
 
     if (logsToLoad.length > 0) {
       await loadLogOverviews(logsToLoad);
     }
-  }, [loadLogOverviews, allLogFiles, existingHeaders]);
+  }, [loadLogOverviews, allLogFiles, logPreviews]);
 
   return { loadLogs, loadLogOverviews, loadAllLogOverviews };
 };

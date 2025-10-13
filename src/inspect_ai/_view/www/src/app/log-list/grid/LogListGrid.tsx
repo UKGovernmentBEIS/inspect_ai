@@ -67,7 +67,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
       (state) => state.logsActions.setWatchedLogs,
     );
 
-    const logHeaders = useStore((state) => state.logs.logOverviews);
+    const logPreviews = useStore((state) => state.logs.logPreviews);
     const sortingRef = useRef(sorting);
     const navigate = useNavigate();
     const gridRef = useRef<HTMLDivElement>(null);
@@ -115,7 +115,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
         // Trigger a re-sort by updating the sorting state
         setSorting([...(sortingRef.current || [])]);
       }
-    }, [logHeaders]);
+    }, [logPreviews]);
 
     const columns = useMemo(() => {
       return getColumns();
@@ -214,7 +214,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
           .filter((file) => file !== undefined);
 
         // Only load headers for files that don't already have headers loaded
-        const filesToLoad = logFiles.filter((file) => !logHeaders[file.name]);
+        const filesToLoad = logFiles.filter((file) => !logPreviews[file.name]);
 
         if (filesToLoad.length > 0) {
           await loadLogOverviews(filesToLoad);
@@ -229,7 +229,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
       items,
       loadLogOverviews,
       setWatchedLogs,
-      logHeaders,
+      logPreviews,
     ]);
 
     const placeholderText = useMemo(() => {

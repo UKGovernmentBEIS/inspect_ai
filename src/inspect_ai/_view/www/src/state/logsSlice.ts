@@ -55,7 +55,7 @@ export interface LogsSlice {
 const initialState: LogsState = {
   logDir: undefined,
   logs: [],
-  logOverviews: {},
+  logPreviews: {},
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
   listing: {},
@@ -102,8 +102,8 @@ export const createLogsSlice = (
       },
       updateLogPreviews: (previews: Record<string, LogPreview>) =>
         set((state) => {
-          state.logs.logOverviews = {
-            ...get().logs.logOverviews,
+          state.logs.logPreviews = {
+            ...get().logs.logPreviews,
             ...previews,
           };
         }),

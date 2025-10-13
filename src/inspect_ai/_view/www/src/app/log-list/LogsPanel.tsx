@@ -42,7 +42,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const logDir = useStore((state) => state.logs.logDir);
   const logFiles = useStore((state) => state.logs.logs);
   const evalSet = useStore((state) => state.logs.evalSet);
-  const logHeaders = useStore((state) => state.logs.logOverviews);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
 
   const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.syncing);
@@ -149,7 +149,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             type: "file",
             url: logUrl(path, logDir),
             log: logFile,
-            logPreview: logHeaders[logFile.name],
+            logPreview: logPreviews[logFile.name],
           });
         } else if (name.startsWith(dirWithSlash)) {
           // This is file that is next level (or deeper) child
@@ -183,7 +183,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       > = collapseLogItems(evalSet, logItems);
 
       return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [logPath, logFiles, logHeaders, evalSet]);
+    }, [logPath, logFiles, logPreviews, evalSet]);
 
   const progress = useMemo(() => {
     let pending = 0;
