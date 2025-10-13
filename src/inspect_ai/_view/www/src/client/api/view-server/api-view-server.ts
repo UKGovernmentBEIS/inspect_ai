@@ -79,7 +79,7 @@ export function viewServerApi(
     lastEvalTime = Date.now();
 
     const envelope = await requestApi.fetchString("GET", path, headers);
-    return envelope.parsed.files || [];
+    return envelope.parsed;
   };
 
   const log_file_token = (mtime: number, fileCount: number) => {

@@ -26,7 +26,6 @@ from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import filesystem
 from inspect_ai._view import notify
 from inspect_ai._view.common import (
-    _parse_log_token,
     delete_log,
     get_log_bytes,
     get_log_dir,
@@ -35,6 +34,7 @@ from inspect_ai._view.common import (
     get_log_size,
     get_logs,
     normalize_uri,
+    parse_log_token,
 )
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
@@ -172,7 +172,7 @@ def view_server_app(
         mtime = 0.0
         file_count = 0
         if client_etag is not None:
-            mtime, file_count = _parse_log_token(client_etag)
+            mtime, file_count = parse_log_token(client_etag)
         log_files_response: dict[str, Any] = await get_log_files(
             log_dir,
             recursive=recursive,

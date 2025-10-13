@@ -7,7 +7,6 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Tuple,
     TypeVar,
 )
 
@@ -26,7 +25,6 @@ from inspect_ai.log._file import (
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 
 from .common import (
-    _parse_log_token,
     async_connection,
     delete_log,
     get_log_bytes,
@@ -36,6 +34,7 @@ from .common import (
     get_log_size,
     get_logs,
     normalize_uri,
+    parse_log_token,
 )
 from .notify import view_last_eval_time
 
@@ -166,7 +165,7 @@ def view_server(
         mtime = 0.0
         file_count = 0
         if client_etag is not None:
-            mtime, file_count = _parse_log_token(client_etag)
+            mtime, file_count = parse_log_token(client_etag)
 
         log_files_response: dict[str, Any] = await get_log_files(
             request_log_dir,

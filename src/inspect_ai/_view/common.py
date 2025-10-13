@@ -68,14 +68,14 @@ async def get_log_files(
     if len(logs) != file_count:
         # have the number of files changed? could be a delete
         # so send a complete list
-        return log_files_response(logs)
+        return log_files_response(logs, response_type="full")
     else:
         # send only the changed files (captures edits)
         logs = [log for log in logs if (log.mtime is None or log.mtime > mtime)]
-        return log_files_response(logs)
+        return log_files_response(logs, response_type="incremental")
 
 
-def _parse_log_token(log_token: str) -> Tuple[float, int]:
+def parse_log_token(log_token: str) -> Tuple[float, int]:
     # validate basic format
     if log_token.find("-") == -1:
         raise RuntimeError(f"Invalid log token: {log_token}")
@@ -88,8 +88,11 @@ def _parse_log_token(log_token: str) -> Tuple[float, int]:
     return float(parts[0]), int(parts[1])
 
 
-def log_files_response(logs: list[EvalLogInfo]) -> dict[str, Any]:
+def log_files_response(
+    logs: list[EvalLogInfo], response_type: Literal["incremental", "full"]
+) -> dict[str, Any]:
     response = dict(
+        response_type=response_type,
         files=[
             dict(
                 name=log.name,

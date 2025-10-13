@@ -10,7 +10,7 @@ import {
   ClientAPI,
   LogContents,
   LogDetails,
-  LogHandle,
+  LogFilesResponse,
   LogPreview,
   LogRoot,
   LogViewAPI,
@@ -295,12 +295,16 @@ export const clientApi = (
   const get_logs = async (
     mtime: number,
     clientFileCount: number,
-  ): Promise<LogHandle[]> => {
+  ): Promise<LogFilesResponse> => {
     if (api.get_logs) {
-      return await api.get_logs(mtime, clientFileCount);
+      const result = await api.get_logs(mtime, clientFileCount);
+      return result;
     } else {
       const logRoot = await api.get_log_root();
-      return logRoot?.logs || [];
+      return {
+        files: logRoot?.logs || [],
+        response_type: "full",
+      };
     }
   };
 
