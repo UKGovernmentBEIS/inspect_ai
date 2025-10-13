@@ -5,13 +5,15 @@ import {
   LogPreview,
 } from "../../client/api/types";
 import { DatabaseService } from "../../client/database";
-import { WorkQueue } from "../../utils/workQueue";
+import { WorkPriority, WorkQueue } from "../../utils/workQueue";
 
 export interface ApplicationContext {
   setLogHandles: (logs: LogHandle[]) => void;
   getSelectedLog: () => LogHandle | undefined;
   setSelectedLogIndex: (index: number) => void;
   updateLogPreviews: (previews: Record<string, LogPreview>) => void;
+  setLoading: (loading: boolean) => void;
+  setBackgroundSyncing: (syncing: boolean) => void;
 }
 
 export class ReplicationService {
@@ -20,16 +22,20 @@ export class ReplicationService {
   private _applicationContext: ApplicationContext | undefined = undefined;
   private _previewQueue: WorkQueue<LogHandle, LogPreview>;
   private _detailQueue: WorkQueue<LogHandle, LogDetails>;
+  private _processingCount: number;
 
   constructor() {
     this._previewQueue = new WorkQueue<LogHandle, LogPreview>({
       batchSize: 10,
       processingDelay: 100,
+      onProcessingChanged: this.processingChanged,
     });
     this._detailQueue = new WorkQueue<LogHandle, LogDetails>({
       batchSize: 3,
       processingDelay: 50,
+      onProcessingChanged: this.processingChanged,
     });
+    this._processingCount = 0;
 
     // Set up the worker function
     this._previewQueue.setWorker(async (logHandles: LogHandle[]) => {
@@ -100,6 +106,15 @@ export class ReplicationService {
     );
   }
 
+  processingChanged = (processing: boolean) => {
+    this._processingCount += processing ? 1 : -1;
+    if (this._processingCount > 0) {
+      this._applicationContext?.setBackgroundSyncing(true);
+    } else {
+      this._applicationContext?.setBackgroundSyncing(false);
+    }
+  };
+
   public startReplication(
     database: DatabaseService,
     api: ClientAPI,
@@ -116,7 +131,7 @@ export class ReplicationService {
     this._applicationContext = undefined;
   }
 
-  public async sync() {
+  public async sync(progress?: boolean) {
     if (!this._database) {
       throw new Error("No database available for replication.");
     }
@@ -127,6 +142,10 @@ export class ReplicationService {
 
     if (!this._applicationContext) {
       throw new Error("No replication context available for replication.");
+    }
+
+    if (progress) {
+      this._applicationContext.setLoading(true);
     }
 
     // First query the list of logs
@@ -180,25 +199,82 @@ export class ReplicationService {
     // Schedule any missing previews
     const previewTasks = [...toInvalidate];
     const previews = await this._database.findMissingPreviews(allLogHandles);
-    previewTasks.push(...previews);
-    this.syncLogPreviews(previewTasks);
+    for (const p of previews) {
+      if (!previewTasks.find((t) => t.name === p.name)) {
+        previewTasks.push(p);
+      }
+    }
+    this.queueLogPreviews(previewTasks);
 
     // Schedule preview fetching for new logs
     const detailTasks = [...toInvalidate];
     const details = await this._database.findMissingDetails(allLogHandles);
-    detailTasks.push(...details);
-    this.syncLogDetails(detailTasks);
+    for (const d of details) {
+      if (!detailTasks.find((t) => t.name === d.name)) {
+        detailTasks.push(d);
+      }
+    }
+    this.queueLogDetails(detailTasks);
 
-    // See if there are any logs without previews and sync them
+    if (progress) {
+      this._applicationContext.setLoading(false);
+    }
   }
 
-  syncLogPreviews(logs: LogHandle[]) {
-    // Add to queue (deduplicated by name)
-    this._previewQueue.enqueue(logs, (log) => log.name);
+  public async loadLogPreviews(context: {
+    logs?: LogHandle[];
+    force?: boolean;
+  }) {
+    this._applicationContext?.setLoading(true);
+    try {
+      if (context.force) {
+        const toLoad = context.logs || (await this._database?.readLogs()) || [];
+        await this._previewQueue.atOnce(toLoad);
+      } else {
+        const allLogs = (await this._database?.readLogs()) || [];
+        const loaded = (await this._database?.readLogPreviews(allLogs)) || {};
+
+        const logList = context.logs || allLogs;
+        const filtered = logList.filter((log) => {
+          const loadedPreview = loaded[log.name];
+          if (!loadedPreview) {
+            return true;
+          }
+
+          if (loadedPreview.status === "success") {
+            return false;
+          }
+          return true;
+        });
+
+        // Activate existing previews
+        this._applicationContext?.updateLogPreviews(loaded);
+
+        // Queue any missing previews
+        if (filtered.length > 0) {
+          await this._previewQueue.atOnce(filtered);
+        }
+      }
+    } finally {
+      this._applicationContext?.setLoading(false);
+    }
   }
 
-  syncLogDetails(logs: LogHandle[]) {
+  queueLogPreviews(
+    logs: LogHandle[],
+    priority: WorkPriority = WorkPriority.Medium,
+  ) {
     // Add to queue (deduplicated by name)
-    this._detailQueue.enqueue(logs, (log) => log.name);
+    this._previewQueue.enqueue(logs, (log) => log.name, priority);
+  }
+
+  private count = 0;
+  queueLogDetails(
+    logs: LogHandle[],
+    priority: WorkPriority = WorkPriority.Medium,
+  ) {
+    this.count = this.count + logs.length;
+    // Add to queue (deduplicated by name)
+    this._detailQueue.enqueue(logs, (log) => log.name, priority);
   }
 }

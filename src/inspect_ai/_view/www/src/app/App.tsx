@@ -36,7 +36,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
 
   const setIntialState = useStore((state) => state.appActions.setInitialState);
-  const setAppStatus = useStore((state) => state.appActions.setStatus);
+  const setLoading = useStore((state) => state.appActions.setLoading);
 
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
   const setLogDir = useStore((state) => state.logsActions.setLogDir);
@@ -65,27 +65,21 @@ export const App: FC<AppProps> = ({ api }) => {
 
       try {
         // Set loading first and wait for it to update
-        setAppStatus({ loading: true, error: undefined });
+        setLoading(true);
 
         // Then load the log
         await loadLog(selectedLogFile);
 
         // Finally set loading to false
-        setAppStatus({ loading: false, error: undefined });
+        setLoading(false);
       } catch (e) {
         console.log(e);
-        setAppStatus({ loading: false, error: e as Error });
+        setLoading(false, e as Error);
       }
     };
 
     loadSpecificLog();
-  }, [
-    selectedLogFile,
-    loadedLogFile,
-    selectedLogDetails,
-    loadLog,
-    setAppStatus,
-  ]);
+  }, [selectedLogFile, loadedLogFile, selectedLogDetails, loadLog, setLoading]);
 
   useEffect(() => {
     // If the component re-mounts and there is a running load loaded
@@ -100,14 +94,14 @@ export const App: FC<AppProps> = ({ api }) => {
 
   useEffect(() => {
     if (logDir && logFiles.length === 0) {
-      setAppStatus({
-        loading: false,
-        error: new Error(
+      setLoading(
+        false,
+        new Error(
           `No log files to display in the directory ${logDir}. Are you sure this is the correct log directory?`,
         ),
-      });
+      );
     }
-  }, [logDir, logFiles, setAppStatus]);
+  }, [logDir, logFiles, setLoading]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {

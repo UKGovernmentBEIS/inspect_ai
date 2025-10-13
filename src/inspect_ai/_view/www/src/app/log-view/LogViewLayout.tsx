@@ -68,7 +68,7 @@ export const LogViewLayout: FC = () => {
       >
         {showFind ? <FindBand /> : ""}
         {!singleFileMode ? <Navbar /> : ""}
-        <ActivityBar animating={appStatus.loading} />
+        <ActivityBar animating={!!appStatus.loading} />
         {appStatus.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."

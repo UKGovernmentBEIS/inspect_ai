@@ -45,7 +45,6 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     kLogsPaginationId,
     kDefaultPageSize,
   );
-  const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const loading = useStore((state) => state.app.status.loading);
   const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
 
@@ -198,7 +197,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   }, [page, itemsPerPage, items, loadLogOverviews, setWatchedLogs, logHeaders]);
 
   const placeholderText = useMemo(() => {
-    if (headersLoading || loading) {
+    if (loading) {
       if (globalFilter) {
         return "searching...";
       } else {
@@ -211,7 +210,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         return "no logs";
       }
     }
-  }, [headersLoading, loading, globalFilter]);
+  }, [loading, globalFilter]);
 
   return (
     <div className={styles.gridContainer}>
