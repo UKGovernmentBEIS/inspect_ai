@@ -59,7 +59,6 @@ const initialState: LogsState = {
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
   listing: {},
-  loadingFiles: new Set<string>(),
   pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
 };
 
