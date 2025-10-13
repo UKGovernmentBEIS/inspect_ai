@@ -9,7 +9,7 @@ const log = createLogger("Client-Events");
 
 export function useClientEvents() {
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
-  const logHeaders = useStore((state) => state.logs.logOverviews);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
   const api = useStore((state) => state.api);
   const { loadLogOverviews } = useLogs();
 
@@ -22,7 +22,7 @@ export function useClientEvents() {
 
       const toRefresh: LogHandle[] = [];
       for (const log of logs) {
-        const header = logHeaders[log.name];
+        const header = logPreviews[log.name];
         if (!header || header.status === "started") {
           toRefresh.push(log);
         }
@@ -34,7 +34,7 @@ export function useClientEvents() {
         await loadLogOverviews(toRefresh);
       }
     },
-    [logHeaders, syncLogs, loadLogOverviews],
+    [logPreviews, syncLogs, loadLogOverviews],
   );
 
   // Update the service's refresh callback when dependencies change

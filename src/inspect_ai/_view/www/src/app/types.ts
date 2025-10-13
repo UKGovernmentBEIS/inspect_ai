@@ -68,8 +68,8 @@ export interface AppState {
 export interface LogsState {
   logDir?: string;
   logs: LogHandle[];
+  logPreviews: Record<string, LogPreview>;
   evalSet?: EvalSet;
-  logOverviews: Record<string, LogPreview>;
   selectedLogIndex: number;
   selectedLogFile?: string;
   listing: LogsListing;

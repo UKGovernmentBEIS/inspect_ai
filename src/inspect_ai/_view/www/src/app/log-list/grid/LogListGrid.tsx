@@ -48,7 +48,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
   const loading = useStore((state) => state.app.status.loading);
   const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
 
-  const logHeaders = useStore((state) => state.logs.logOverviews);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
   const sortingRef = useRef(sorting);
 
   const logFiles = useMemo(() => {
@@ -88,7 +88,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
       // Trigger a re-sort by updating the sorting state
       setSorting([...(sortingRef.current || [])]);
     }
-  }, [logHeaders]);
+  }, [logPreviews]);
 
   const columns = useMemo(() => {
     return getColumns();
@@ -185,7 +185,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         .filter((file) => file !== undefined);
 
       // Only load headers for files that don't already have headers loaded
-      const filesToLoad = logFiles.filter((file) => !logHeaders[file.name]);
+      const filesToLoad = logFiles.filter((file) => !logPreviews[file.name]);
 
       if (filesToLoad.length > 0) {
         await loadLogOverviews(filesToLoad);
@@ -194,7 +194,14 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
       setWatchedLogs(logFiles);
     };
     exec();
-  }, [page, itemsPerPage, items, loadLogOverviews, setWatchedLogs, logHeaders]);
+  }, [
+    page,
+    itemsPerPage,
+    items,
+    loadLogOverviews,
+    setWatchedLogs,
+    logPreviews,
+  ]);
 
   const placeholderText = useMemo(() => {
     if (loading) {
