@@ -16618,41 +16618,59 @@ a._citationLink_t2k1z_9:hover {
   padding: 0;
   background-color: inherit;
 }
-._container_1d7iz_1 {
-  /* Container for the popover content */
+._container_8ywll_1 {
+  min-width: 500px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.5em;
+  row-gap: 0.25em;
 }
 
-._content_1d7iz_5 {
+._fullWidth_8ywll_9 {
+  grid-column: -1 / 1;
+}
+
+._fullWidthPadded_8ywll_13 {
+  grid-column: -1 / 1;
+  padding-bottom: 0.5em;
+}
+
+._spacer_8ywll_18 {
+  grid-column: -1 / 1;
+  height: 0.5em;
+}
+
+._content_8ywll_23 {
   padding: 8px;
 }
 
-._statsSection_1d7iz_9 {
+._statsSection_8ywll_27 {
   margin-bottom: 12px;
 }
 
-._statRow_1d7iz_13 {
+._statRow_8ywll_31 {
   margin-bottom: 4px;
 }
 
-._logDir_1d7iz_17 {
+._logDir_8ywll_35 {
   font-family: monospace;
   font-size: 11px;
 }
 
-._notSet_1d7iz_22 {
+._notSet_8ywll_40 {
   color: #666;
 }
 
-._cachedItemsList_1d7iz_26 {
+._cachedItemsList_8ywll_44 {
   margin: 4px 0 0 20px;
   padding: 0;
 }
 
-._clearButton_1d7iz_31 {
-  width: 100%;
+._clearButton_8ywll_49 {
+  padding: 0.1em 0.5em;
 }
 
-._message_1d7iz_35 {
+._message_8ywll_53 {
   margin-top: 8px;
   padding: 4px 8px;
   border-radius: 4px;
@@ -16660,12 +16678,12 @@ a._citationLink_t2k1z_9:hover {
   text-align: center;
 }
 
-._messageSuccess_1d7iz_43 {
+._messageSuccess_8ywll_61 {
   background-color: #d4edda;
   color: #155724;
 }
 
-._messageError_1d7iz_48 {
+._messageError_8ywll_66 {
   background-color: #f8d7da;
   color: #721c24;
 }
