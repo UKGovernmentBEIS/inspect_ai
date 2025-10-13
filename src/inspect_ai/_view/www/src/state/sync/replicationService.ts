@@ -219,6 +219,8 @@ export class ReplicationService {
     if (progress) {
       this._applicationContext.setLoading(false);
     }
+
+    return allLogHandles;
   }
 
   public async loadLogPreviews(context: {
