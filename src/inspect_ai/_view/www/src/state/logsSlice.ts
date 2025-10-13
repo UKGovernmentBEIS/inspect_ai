@@ -24,10 +24,9 @@ export interface LogsSlice {
     syncLogPreviews: (logs: LogHandle[]) => Promise<void>;
 
     setSelectedLogIndex: (index: number) => void;
-    setSelectedLogFile: (logUrl: string) => void;
 
     // Fetch or update logs
-    syncLogs: () => Promise<void>;
+    syncLogs: () => Promise<LogHandle[]>;
     selectLogFile: (logUrl: string) => Promise<void>;
 
     // Cross-file sample operations
@@ -116,24 +115,11 @@ export const createLogsSlice = (
           state.logs.selectedLogFile = file ? file.name : undefined;
         });
       },
-
-      setSelectedLogFile: (logUrl: string) => {
-        const state = get();
-        const index = state.logs.logs.findIndex((val: { name: string }) =>
-          logUrl.endsWith(val.name),
-        );
-
-        if (index > -1) {
-          state.logsActions.setSelectedLogIndex(index);
-          state.logs.selectedLogFile =
-            state.logs.logs[index]?.name ?? undefined;
-        }
-      },
       syncLogs: async () => {
         const api = get().api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return;
+          return [];
         }
 
         get().appActions.setLoading(true);
@@ -215,7 +201,7 @@ export const createLogsSlice = (
         get().appActions.setLoading(false);
 
         // Sync
-        get().replicationService?.sync(true);
+        return (await get().replicationService?.sync(true)) || [];
       },
       syncEvalSetInfo: async (logPath?: string) => {
         const api = get().api;
@@ -240,9 +226,9 @@ export const createLogsSlice = (
           state.logsActions.setSelectedLogIndex(index);
         } else {
           // It isn't yet loaded, so refresh the logs and try to load it from there
-          await state.logsActions.syncLogs();
+          const logHandles = await state.logsActions.syncLogs();
 
-          const idx = state.logs.logs.findIndex((file) =>
+          const idx = logHandles.findIndex((file) =>
             file.name.endsWith(logUrl),
           );
 
