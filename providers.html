@@ -572,6 +572,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#tool-emulation-openai" id="toc-tool-emulation-openai" class="nav-link" data-scroll-target="#tool-emulation-openai">Tool Emulation</a></li>
   </ul></li>
   <li><a href="#openrouter" id="toc-openrouter" class="nav-link" data-scroll-target="#openrouter">OpenRouter</a></li>
+  <li><a href="#hugging-face-inference-providers" id="toc-hugging-face-inference-providers" class="nav-link" data-scroll-target="#hugging-face-inference-providers">Hugging Face Inference Providers</a></li>
   <li><a href="#custom-models" id="toc-custom-models" class="nav-link" data-scroll-target="#custom-models">Custom Models</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -613,7 +614,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td>Open (Hosted)</td>
-<td><a href="./providers.html#groq">Groq</a>, <a href="./providers.html#together-ai">Together AI</a>, <a href="./providers.html#fireworks-ai">Fireworks AI</a>, <a href="./providers.html#cloudflare">Cloudflare</a></td>
+<td><a href="./providers.html#groq">Groq</a>, <a href="./providers.html#together-ai">Together AI</a>, <a href="./providers.html#fireworks-ai">Fireworks AI</a>, <a href="./providers.html#cloudflare">Cloudflare</a>, <a href="./providers.html#hf-inference-providers">HF Inference Providers</a>, <a href="./providers.html#sambanova">SambaNova</a>, <a href="./providers.html#goodfire">Goodfire</a></td>
 </tr>
 <tr class="even">
 <td>Open (Local)</td>
@@ -695,7 +696,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>background</code></td>
-<td>Run generate requests asynchronously, polling response objects to check status over time.</td>
+<td>Execute generate requests asynchronously, polling response objects to check status over time. Defaults to <code>True</code> for <code>gpt-5-pro</code> and <code>deep-research</code> and <code>False</code> for other models.</td>
 </tr>
 <tr class="odd">
 <td><code>safety_identifier</code></td>
@@ -715,7 +716,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or from Python:</p>
-<div id="bfadb16e" class="cell">
+<div id="7838695a" class="cell">
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">" openai/gpt-4o-mini"</span>, </span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    model_args<span class="op">=</span> { <span class="st">"responses_api"</span>: <span class="va">True</span> }</span>
@@ -1658,6 +1659,51 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="even">
 <td><code>OPENROUTER_BASE_URL</code></td>
 <td>Base URL for requests (optional, defaults to <code>https://openrouter.ai/api/v1</code>)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="hugging-face-inference-providers" class="level2">
+<h2 class="anchored" data-anchor-id="hugging-face-inference-providers">Hugging Face Inference Providers</h2>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The Hugging Face Inference Providers support described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb64"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+<p>To use <a href="https://huggingface.co/docs/inference-providers">Hugging Face Inference Providers</a>, install the <code>openai</code> package (which provides the compatibility layer), set your Hugging Face token, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb65"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb65-2"><a href="#cb65-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">HF_TOKEN</span><span class="op">=</span>your-huggingface-token</span>
+<span id="cb65-3"><a href="#cb65-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The above will automatically select the provider for you. If you want to use a specific provider you can append <code>:</code> followed by the provider name. To use cerebras for example, you would do the following:</p>
+<div class="sourceCode" id="cb66"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb66-2"><a href="#cb66-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">HF_TOKEN</span><span class="op">=</span>your-huggingface-token</span>
+<span id="cb66-3"><a href="#cb66-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf-inference-providers/openai/gpt-oss-120b:cerebras</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>HF Inference Providers provides unified access to hundreds of machine learning models through multiple world-class inference providers (Cerebras, Groq, Together AI, etc.) with automatic provider routing and failover.</p>
+<p>The following environment variables are supported by the HF Inference Providers:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>HF_TOKEN</code></td>
+<td>Hugging Face token with appropriate permissions (required).</td>
 </tr>
 </tbody>
 </table>

@@ -147,7 +147,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#october-2025" id="toc-october-2025" class="nav-link active" data-scroll-target="#october-2025">0.3.137 (07 October 2025)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#october-2025" id="toc-october-2025" class="nav-link" data-scroll-target="#october-2025">0.3.137 (07 October 2025)</a></li>
   <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.136 (02 October 2025)</a></li>
   <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.135 (29 September 2025)</a></li>
   <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.134 (27 September 2025)</a></li>
@@ -292,6 +293,33 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Added model API for <a href="https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers">Hugging Face Inference Providers</a>.</li>
+<li>Agent bridge: Support for OpenAI ‘custom’ tools (required by Codex apply_patch tool).</li>
+<li>OpenAI: Use background processing for <code>gpt-5-pro</code> by default.</li>
+<li>Anthropic: Support <code>parallel_tool_calls</code> option for tool choice.</li>
+<li>Google: Enable support for <code>logprobs</code> and <code>top_logprobs</code>.</li>
+<li>Groq: Update “model_length” stop reason detection for latest way of reporting bad requests.</li>
+<li>Bedrock: Detect <code>model_length</code> stop reason based on additional error pattern.</li>
+<li>Bedrock: Ensure that list of <code>content</code> can never be empty.</li>
+<li>Scoring: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_score">edit_score()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#recompute_metrics">recompute_metrics()</a></span> functions for modifying evaluation scores with provenance tracking and metric recomputation.</li>
+<li>Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.</li>
+<li>Scoring: Periodically flush samples when scoring with streaming enabled.</li>
+<li>Model API: Added <code>attempt_timeout</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> (governs timeout for individual attempts and still retries if timeout is exceeded).</li>
+<li>Analysis: Handle string columns which exceed the pyarrow 2GB limit (convert to large_string).</li>
+<li>Logging: Condense <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#modelevent">ModelEvent</a></span> immediately to prevent O(N) memory usage for long message histories.</li>
+<li>Adjust terminal progress display to accommodate longer task names.</li>
+<li>Inspect View: Properly display task error when a task error is present in the log file.</li>
+<li>Inspect View: Improve display of running eval sets (correct duplicate files and incorrect progress display).</li>
+<li>Inspect View: Provide option to run <code>inspect view</code> server using uvicorn / fastapi.</li>
+<li>Bugfix: Fix improperly scoped use of restrictive <code>umask</code> that led to permission problems with <code>bash_session</code> tool.</li>
+<li>Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.</li>
+<li>Bugfix: Ensure that calls to generate always sync the cache state to the current sample’s epoch.</li>
+<li>Bugfix: Don’t use default values for <code>list</code> and <code>dict</code> parameters (rather use <code>None</code> and initialize on use).</li>
+</ul>
+</section>
 <section id="october-2025" class="level2">
 <h2 class="anchored" data-anchor-id="october-2025">0.3.137 (07 October 2025)</h2>
 <ul>

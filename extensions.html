@@ -735,10 +735,62 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>The layer of indirection (creating a function that returns a SandboxEnvironment class) is done so that you can separate the registration of sandboxes from the importing of libraries they require (important for limiting dependencies).</p>
 <p>The class methods take care of various stages of initialisation, setup, and teardown:</p>
-<div class="line-block">Method | Lifecycle | Purpose |</div>
-<p>|——————-|——————-|———————————-| | | <code>task_init()</code> | Called once for each unique sandbox environment config before executing the tasks in an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> run. | Expensive initialisation operations (e.g.&nbsp;pulling or building images) | | <code>sample_init()</code> | Called at the beginning of each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>. | Create <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> instances for the sample. | | <code>sample_cleanup()</code> | Called at the end of each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> | Cleanup <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> instances for the sample. | | <code>task_cleanup()</code> | Called once for each unique sandbox environment config after executing the tasks in an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> run. | Last chance handler for any resources not yet cleaned up (see also discussion below). | | <code>cli_cleanup()</code> | Called via <code>inspect sandbox cleanup</code> | CLI invoked manual cleanup of resources created by this <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span>. | | <code>config_files()</code> | Called once to determine the names of ‘default’ config files for this provider (e.g.&nbsp;‘compose.yaml’). | | | <code>config_deserialize()</code> | Called when a custom sandbox config type is read from a log file. | Only required if a sandbox supports custom config types.<br>
-| <code>default_concurrency()</code> | Called once to determine the default maximum number of sandboxes to run in parallel. Return <code>None</code> for no limit (the default behaviour). |<br>
-| <code>default_polling_interval()</code> | Called when sandbox services are created to determine the default polling interval (in seconds) for request checking. Defaultss to 2 seconds. | |</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Method</th>
+<th>Lifecycle</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>task_init()</code></td>
+<td>Called once for each unique sandbox environment config before executing the tasks in an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> run.</td>
+<td>Expensive initialisation operations (e.g.&nbsp;pulling or building images)</td>
+</tr>
+<tr class="even">
+<td><code>sample_init()</code></td>
+<td>Called at the beginning of each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>.</td>
+<td>Create <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> instances for the sample.</td>
+</tr>
+<tr class="odd">
+<td><code>sample_cleanup()</code></td>
+<td>Called at the end of each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span></td>
+<td>Cleanup <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> instances for the sample.</td>
+</tr>
+<tr class="even">
+<td><code>task_cleanup()</code></td>
+<td>Called once for each unique sandbox environment config after executing the tasks in an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> run.</td>
+<td>Last chance handler for any resources not yet cleaned up (see also discussion below).</td>
+</tr>
+<tr class="odd">
+<td><code>cli_cleanup()</code></td>
+<td>Called via <code>inspect sandbox cleanup</code></td>
+<td>CLI invoked manual cleanup of resources created by this <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span>.</td>
+</tr>
+<tr class="even">
+<td><code>config_files()</code></td>
+<td>Called once to determine the names of ‘default’ config files for this provider (e.g.&nbsp;‘compose.yaml’).</td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>config_deserialize()</code></td>
+<td>Called when a custom sandbox config type is read from a log file.</td>
+<td>Only required if a sandbox supports custom config types.</td>
+</tr>
+<tr class="even">
+<td><code>default_concurrency()</code></td>
+<td>Called once to determine the default maximum number of sandboxes to run in parallel. Return <code>None</code> for no limit (the default behaviour).</td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>default_polling_interval()</code></td>
+<td>Called when sandbox services are created to determine the default polling interval (in seconds) for request checking. Defaults to 2 seconds.</td>
+<td></td>
+</tr>
+</tbody>
+</table>
 <p>In the case of parallel execution of a group of tasks within the same working directory, the <code>task_init()</code> and <code>task_cleanup()</code> functions will be called once for each unique sandbox environment configuration (e.g.&nbsp;Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">

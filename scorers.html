@@ -539,6 +539,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#unscored-evals" id="toc-unscored-evals" class="nav-link" data-scroll-target="#unscored-evals">Unscored Evals</a></li>
   <li><a href="#score-command" id="toc-score-command" class="nav-link" data-scroll-target="#score-command">Score Command</a></li>
   <li><a href="#score-function" id="toc-score-function" class="nav-link" data-scroll-target="#score-function">Score Function</a></li>
+  <li><a href="#editing-scores" id="toc-editing-scores" class="nav-link" data-scroll-target="#editing-scores">Editing Scores</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -1323,6 +1324,10 @@ Note
 <span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a>    base, ext <span class="op">=</span> os.path.splitext(input_log_path)</span>
 <span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>    output_file <span class="op">=</span> <span class="ss">f"</span><span class="sc">{</span>base<span class="sc">}</span><span class="ss">_</span><span class="sc">{</span>model<span class="sc">.</span>replace(<span class="st">'/'</span>, <span class="st">'_'</span>)<span class="sc">}{</span>ext<span class="sc">}</span><span class="ss">"</span></span>
 <span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>    write_eval_log(scored_log, output_file)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="editing-scores" class="level3">
+<h3 class="anchored" data-anchor-id="editing-scores">Editing Scores</h3>
+<p>You may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails. Learn more about modifying scores in <a href="./eval-logs.html#sec-eval-log-modification">Editing Logs</a></p>
 
 
 </section>

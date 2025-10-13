@@ -11,7 +11,7 @@ providers is built in to Inspect:
 |----|----|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock) and [Azure AI](providers.qmd#azure-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [HF Inference Providers](providers.qmd#hf-inference-providers), [SambaNova](providers.qmd#sambanova), [Goodfire](providers.qmd#goodfire) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
 
 If the provider you are using is not listed above, you may still be able
@@ -58,7 +58,7 @@ model args are forwarded to the constructor of the `AsyncOpenAI` class):
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `service_tier` | Processing type used for serving the request (“auto”, “default”, or “flex”). |
-| `background` | Run generate requests asynchronously, polling response objects to check status over time. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
@@ -1154,6 +1154,51 @@ provider
 |----|----|
 | `OPENROUTER_API_KEY` | API key credentials (required). |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
+
+## Hugging Face Inference Providers
+
+> [!NOTE]
+>
+> The Hugging Face Inference Providers support described below is
+> available only in the development version of Inspect. To install the
+> development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+To use [Hugging Face Inference
+Providers](https://huggingface.co/docs/inference-providers), install the
+`openai` package (which provides the compatibility layer), set your
+Hugging Face token, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export HF_TOKEN=your-huggingface-token
+inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b
+```
+
+The above will automatically select the provider for you. If you want to
+use a specific provider you can append `:` followed by the provider
+name. To use cerebras for example, you would do the following:
+
+``` bash
+pip install openai
+export HF_TOKEN=your-huggingface-token
+inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b:cerebras
+```
+
+HF Inference Providers provides unified access to hundreds of machine
+learning models through multiple world-class inference providers
+(Cerebras, Groq, Together AI, etc.) with automatic provider routing and
+failover.
+
+The following environment variables are supported by the HF Inference
+Providers:
+
+| Variable   | Description                                                 |
+|------------|-------------------------------------------------------------|
+| `HF_TOKEN` | Hugging Face token with appropriate permissions (required). |
 
 ## Custom Models
 

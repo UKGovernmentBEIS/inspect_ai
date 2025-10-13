@@ -116,6 +116,7 @@ example:
 | `--internal-tools` | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for Anthropic). |
 | `--max-retries` | Maximum number of times to retry generate request (defaults to unlimited) |
 | `--timeout` | Generate timeout in seconds (defaults to no timeout) |
+| `--attempt-timeout` | Timeout (in seconds) for any given generate attempt (if exceeded, will abandon attempt and retry according to max_retries). |
 
 ## Tasks and Solvers
 

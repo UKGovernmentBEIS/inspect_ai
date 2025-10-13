@@ -37,6 +37,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |
+| `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | None |
 | `--max-samples` | integer | Maximum number of samples to run in parallel (default is running all samples in parallel) | None |
 | `--max-tasks` | integer | Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set) | None |
 | `--max-subprocesses` | integer | Maximum number of subprocesses to run in parallel (default is os.cpu_count()) | None |
@@ -68,8 +69,8 @@ inspect eval [OPTIONS] [TASKS]...
 | `--top-p` | float | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. | None |
 | `--top-k` | integer | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only. | None |
 | `--num-choices` | integer | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only. | None |
-| `--logprobs` | boolean | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. | `False` |
-| `--top-logprobs` | integer | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. | None |
+| `--logprobs` | boolean | Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. | `False` |
+| `--top-logprobs` | integer | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only. | None |
 | `--parallel-tool-calls` / `--no-parallel-tool-calls` | boolean | Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only. | `True` |
 | `--internal-tools` / `--no-internal-tools` | boolean | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for anthropic). | `True` |
 | `--max-tool-output` | integer | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. | None |

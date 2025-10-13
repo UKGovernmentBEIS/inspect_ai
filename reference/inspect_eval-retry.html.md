@@ -32,6 +32,7 @@ inspect eval-retry [OPTIONS] LOG_FILES...
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |
+| `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | None |
 | `--log-level-transcript` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level of the transcript (defaults to ‘info’) | `info` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |

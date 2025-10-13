@@ -525,6 +525,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#sec-sample-preservation" id="toc-sec-sample-preservation" class="nav-link" data-scroll-target="#sec-sample-preservation">Sample Preservation</a></li>
   </ul></li>
+  <li><a href="#sec-eval-log-modification" id="toc-sec-eval-log-modification" class="nav-link" data-scroll-target="#sec-eval-log-modification">Editing Logs</a>
+  <ul class="collapse">
+  <li><a href="#score-editing" id="toc-score-editing" class="nav-link" data-scroll-target="#score-editing">Score Editing</a></li>
+  <li><a href="#score-history" id="toc-score-history" class="nav-link" data-scroll-target="#score-history">Score History</a></li>
+  <li><a href="#recomputing-metrics" id="toc-recomputing-metrics" class="nav-link" data-scroll-target="#recomputing-metrics">Recomputing Metrics</a></li>
+  <li><a href="#score-edit-events" id="toc-score-edit-events" class="nav-link" data-scroll-target="#score-edit-events">Score Edit Events</a></li>
+  </ul></li>
   <li><a href="#sec-amazon-s3" id="toc-sec-amazon-s3" class="nav-link" data-scroll-target="#sec-amazon-s3">Amazon S3</a></li>
   <li><a href="#log-file-name" id="toc-log-file-name" class="nav-link" data-scroll-target="#log-file-name">Log File Name</a></li>
   <li><a href="#sec-log-commands" id="toc-sec-log-commands" class="nav-link" data-scroll-target="#sec-log-commands">Log Commands</a>
@@ -897,6 +904,76 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 </section>
 </section>
+<section id="sec-eval-log-modification" class="level2">
+<h2 class="anchored" data-anchor-id="sec-eval-log-modification">Editing Logs</h2>
+<p>After running an evaluation, you may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails.</p>
+<section id="score-editing" class="level3">
+<h3 class="anchored" data-anchor-id="score-editing">Score Editing</h3>
+<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_score">edit_score()</a></span> function to modify scores for individual samples. For example, this example will modify the score for the first sample, preserving its previous value in the score history, while also tracking the author and reason for the change:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> read_eval_log, write_eval_log, edit_score</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> ScoreEdit, ProvenanceData</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the log file</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(<span class="st">"my_eval.json"</span>)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a score edit with provenance tracking</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>edit <span class="op">=</span> ScoreEdit(</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    value<span class="op">=</span><span class="fl">0.95</span>,  <span class="co"># New score value</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    explanation<span class="op">=</span><span class="st">"Corrected model grader bug"</span>,  <span class="co"># Optional new explanation</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>    provenance<span class="op">=</span>ProvenanceData(</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>        author<span class="op">=</span><span class="st">"anthony"</span>,</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>        reason<span class="op">=</span><span class="st">"there was a bug in the model grader"</span>,</span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Edit the score (automatically recomputes metrics)</span></span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a>edit_score(</span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>    log<span class="op">=</span>log,</span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>    sample_id<span class="op">=</span>log.samples[<span class="dv">0</span>].<span class="bu">id</span>,  <span class="co"># Can be string or int</span></span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a>    score_name<span class="op">=</span><span class="st">"accuracy"</span>,</span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a>    edit<span class="op">=</span>edit</span>
+<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
+<span id="cb24-26"><a href="#cb24-26" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that using <code>edit_score</code> modifies the log loaded into memory but doesn’t modify the written log file. Be sure to use <code>write_eval_log</code> to save the changes to the eval file (or a copy).</p>
+</section>
+<section id="score-history" class="level3">
+<h3 class="anchored" data-anchor-id="score-history">Score History</h3>
+<p>Each score maintains a complete edit history. The original score and all subsequent edits are preserved:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Access the edit history</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>score <span class="op">=</span> log.samples[<span class="dv">0</span>].scores[<span class="st">"accuracy"</span>]</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Original value: </span><span class="sc">{</span>score<span class="sc">.</span>history[<span class="dv">0</span>]<span class="sc">.</span>value<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Current value: </span><span class="sc">{</span>score<span class="sc">.</span>value<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Was edited: </span><span class="sc">{</span><span class="bu">len</span>(score.history) <span class="op">&gt;</span> <span class="dv">1</span><span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of edits: </span><span class="sc">{</span><span class="bu">len</span>(score.history)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Iterate through all edits</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, edit <span class="kw">in</span> <span class="bu">enumerate</span>(score.history):</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    provenance <span class="op">=</span> edit.provenance</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>    author <span class="op">=</span> provenance.author <span class="cf">if</span> provenance <span class="cf">else</span> <span class="st">"original"</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Edit </span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">: value=</span><span class="sc">{</span>edit<span class="sc">.</span>value<span class="sc">}</span><span class="ss">, author=</span><span class="sc">{</span>author<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="recomputing-metrics" class="level3">
+<h3 class="anchored" data-anchor-id="recomputing-metrics">Recomputing Metrics</h3>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_score">edit_score()</a></span> function automatically recomputes aggregate metrics by default. You can disable this and manually recompute later if you’re making multiple edits:</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> recompute_metrics</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Make edits without recomputing metrics each time</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>edit_score(log, sample_id_1, <span class="st">"accuracy"</span>, edit1, recompute_metrics<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>edit_score(log, sample_id_2, <span class="st">"accuracy"</span>, edit2, recompute_metrics<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Recompute metrics once after all edits</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>recompute_metrics(log)</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="score-edit-events" class="level3">
+<h3 class="anchored" data-anchor-id="score-edit-events">Score Edit Events</h3>
+<p>When you edit a score, a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#scoreeditevent">ScoreEditEvent</a></span> is automatically added to the sample’s event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.</p>
+</section>
+</section>
 <section id="sec-amazon-s3" class="level2">
 <h2 class="anchored" data-anchor-id="sec-amazon-s3">Amazon S3</h2>
 <p>Storing evaluation logs on S3 provides a more permanent and secure store than using the local filesystem. While the <code>inspect eval</code> command has a <code>--log-dir</code> argument which accepts an S3 URL, the most convenient means of directing inspect to an S3 bucket is to add the <code>INSPECT_LOG_DIR</code> environment variable to the <code>.env</code> file (potentially alongside your S3 credentials). For example:</p>
@@ -912,8 +989,8 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <pre><code>{timestamp}_{task}_{id}</code></pre>
 <p>Where <code>timestamp</code> is the time the log was created; <code>task</code> is the name of the task the log corresponds to; and <code>id</code> is a unique task id.</p>
 <p>The <code>{timestamp}</code> part of the log file name is required to ensure that log files appear in sequential order in the filesystem. However, the rest of the filename can be customized using the <code>INSPECT_EVAL_LOG_FILE_PATTERN</code> environment variable, which can include any combination of <code>task</code>, <code>model</code>, and <code>id</code> fields. For example, to include the <code>model</code> in log file names:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>As with other log file oriented environment variables, you may find it convenient to define this in a <code>.env</code> file from the location where you run your evals.</p>
 </section>
 <section id="sec-log-commands" class="level2">
@@ -948,13 +1025,13 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <section id="listing-logs" class="level3">
 <h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
 <p>You can use the <code>inspect log list</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
-<div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can use the <code>--retryable</code> option to list only logs that are <a href="#eval-retries">retryable</a></p>
-<div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="reading-logs" class="level3">
 <h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
@@ -964,22 +1041,22 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <li>Log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</li>
 </ol>
 <p>For example, here we read a local log file and a log file on Amazon S3:</p>
-<div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="converting-logs" class="level3">
 <h3 class="anchored" data-anchor-id="converting-logs">Converting Logs</h3>
 <p>You can convert between the two underlying <a href="#sec-log-format">log formats</a> using the <code>inspect log convert</code> command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (<code>--to</code> and <code>--output-dir</code>). For example:</p>
-<div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or for an entire directory:</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb35"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the <code>--overwrite</code> flag to force an overwrite.</p>
 <p>Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.</p>
 </section>
 <section id="log-schema" class="level3">
 <h3 class="anchored" data-anchor-id="log-schema">Log Schema</h3>
 <p>Log files are stored in JSON. You can get the JSON schema for the log file format with a call to <code>inspect log schema</code>:</p>
-<div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-simple callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">

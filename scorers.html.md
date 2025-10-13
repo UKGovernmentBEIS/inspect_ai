@@ -1048,3 +1048,11 @@ for model, scored_log in zip(grader_models, scoring_logs):
     output_file = f"{base}_{model.replace('/', '_')}{ext}"
     write_eval_log(scored_log, output_file)
 ```
+
+### Editing Scores
+
+You may need to modify the results—for example, correcting scoring
+errors or adjusting sample scores based on manual review. Inspect
+provides functions for modifying logs while maintaining data integrity
+and audit trails. Learn more about modifying scores in [Editing
+Logs](eval-logs.qmd#sec-eval-log-modification)
