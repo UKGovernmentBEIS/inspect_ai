@@ -226,11 +226,21 @@ export class ReplicationService {
     // Make a list of the files in current files that are missing
     // from the files we just loaded or which have a lower mtime
     // than the file in the files list.
-    const toInvalidate = updatedLogs.filter((current) => {
-      const match = logFiles.find((f) => f.name === current.name);
-      return (
-        !match || (current.mtime && match.mtime && current.mtime < match.mtime)
-      );
+    const toInvalidate = updatedLogs.filter((remoteLog) => {
+      const localCopy = logFiles.find((f) => f.name === remoteLog.name);
+
+      // There isn't a local copy, so it's new
+      if (!localCopy) {
+        return true;
+      }
+
+      // If there is a local copy, but the remote mtime is newer, invalidate
+      if (remoteLog.mtime && localCopy.mtime) {
+        return remoteLog.mtime > localCopy.mtime;
+      }
+
+      // times are missing, so assume it's changed
+      return true;
     });
 
     // Invalidate summaries and overviews for deleted or updated files
