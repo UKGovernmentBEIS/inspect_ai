@@ -354,8 +354,8 @@ website:
           href: reference/inspect_ai.model.qmd#cache_path
         - text: messages_to_openai
           href: reference/inspect_ai.model.qmd#messages_to_openai
-        - text: messages_from_openai
-          href: reference/inspect_ai.model.qmd#messages_from_openai
+        - text: messages_to_openai_responses
+          href: reference/inspect_ai.model.qmd#messages_to_openai_responses
         - text: modelapi
           href: reference/inspect_ai.model.qmd#modelapi
         - text: ModelAPI
