@@ -27,6 +27,7 @@ learn from the following examples:
 
 |  |  |
 |----|----|
+| [OpenAI Agents SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk) | Demonstrates using a native [Open AI Agents SDK](https://openai.github.io/openai-agents-python/) agent to perform Q/A. |
 | [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) | Demonstrates using a native [LangChain](https://www.langchain.com/) agent to perform Q/A using the [Tavili Search API](https://tavily.com/) |
 | [Claude Code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/claude) | Demonstrates using a [Claude Code](https://www.anthropic.com/claude-code) agent to explore a Kali Linux system. |
 | [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex) | Demonstrates using a [Codex CLI](https://github.com/openai/codex) agent to explore a Kali Linux system. |
@@ -89,7 +90,9 @@ Convert the `state.messages` input into native OpenAI messages using the
 Line 18  
 Return the `state` changes automatically tracked by the `bridge` .
 
-The
+The [OpenAI Agents
+SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk)
+and
 [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
 example provides a more in-depth demonstration of using the Python agent
 bridge with Inspect.

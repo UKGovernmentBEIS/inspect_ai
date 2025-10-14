@@ -298,7 +298,9 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li>Added model API for <a href="https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers">Hugging Face Inference Providers</a>.</li>
 <li>Agent bridge: Support for OpenAI ‘custom’ tools (required by Codex apply_patch tool).</li>
+<li>Agent bridge: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai_responses">messages_to_openai_responses()</a></span> function.</li>
 <li>OpenAI: Use background processing for <code>gpt-5-pro</code> by default.</li>
+<li>OpenAI: Use “developer” role for system messages for all models (formerly was only o-series and gpt5).</li>
 <li>Anthropic: Support <code>parallel_tool_calls</code> option for tool choice.</li>
 <li>Google: Enable support for <code>logprobs</code> and <code>top_logprobs</code>.</li>
 <li>Groq: Update “model_length” stop reason detection for latest way of reporting bad requests.</li>
@@ -536,7 +538,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Agent Bridge: Inspect model roles can now be addressed by bridged agents (e.g.&nbsp;“inspect/red-team”).</li>
 <li>ReAct Agent: Allow for a ToolDef to be passed to an AgentSubmit type.</li>
 <li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#user_prompt">user_prompt()</a></span> function for getting the last user message from a list of messages.</li>
-<li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai">messages_to_openai()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_from_openai">messages_from_openai()</a></span> functions for converting to and from OpenAI-style message dicts.</li>
+<li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai">messages_to_openai()</a></span> and <code>messages_from_openai()</code> functions for converting to and from OpenAI-style message dicts.</li>
 <li>Groq: Support <code>response_schema</code> option for providing a JSON schema for model output.</li>
 <li>VLLM: Allow specifying the port when starting up a new vllm server.</li>
 <li>Eval Log: For sample summaries, preserve all sample and score fields that are less than 1k in size.</li>
