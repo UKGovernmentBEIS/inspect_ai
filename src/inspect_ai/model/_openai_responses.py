@@ -147,25 +147,21 @@ class ResponsesModelInfo(Protocol):
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model_info: ResponsesModelInfo
+    messages: list[ChatMessage],
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model_info)
+        for item in await _openai_input_item_from_chat_message(message)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model_info: ResponsesModelInfo
+    message: ChatMessage,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
-        return (
-            [Message(type="message", role="developer", content=content)]
-            if model_info.is_o_series() or model_info.is_gpt_5()
-            else [Message(type="message", role="system", content=content)]
-        )
+        return [Message(type="message", role="developer", content=content)]
     elif message.role == "user":
         return [
             Message(
@@ -628,7 +624,7 @@ def reasoning_from_responses_reasoning(
 def read_reasoning_item_param(
     param: ResponseReasoningItemParam,
 ) -> ResponseReasoningItem:
-    no_id = "id" not in param
+    no_id = param.get("id", None) is None
     if no_id:
         param = param.copy()
         param["id"] = "dummy-id"

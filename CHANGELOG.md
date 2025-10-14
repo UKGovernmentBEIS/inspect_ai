@@ -2,7 +2,9 @@
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
 - Agent bridge: Support for OpenAI 'custom' tools (required by Codex apply_patch tool).
+- Agent bridge: New `messages_to_openai_responses()` function.
 - OpenAI: Use background processing for `gpt-5-pro` by default.
+- OpenAI: Use "developer" role for system messages for all models (formerly was only o-series and gpt5).
 - Anthropic: Support `parallel_tool_calls` option for tool choice.
 - Google: Enable support for `logprobs` and `top_logprobs`.
 - Groq: Update "model_length" stop reason detection for latest way of reporting bad requests.
