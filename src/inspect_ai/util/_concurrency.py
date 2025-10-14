@@ -1,11 +1,32 @@
 import contextlib
 import time
-from dataclasses import dataclass
-from typing import AsyncIterator
+from typing import Any, AsyncIterator, Protocol
 
 import anyio
 
 from inspect_ai._util.working import report_sample_waiting_time
+
+
+class ConcurrencySemaphore(Protocol):
+    """Protocol for concurrency semaphores."""
+
+    name: str
+    concurrency: int
+    semaphore: contextlib.AbstractAsyncContextManager[Any]
+    visible: bool
+
+    @property
+    def value(self) -> int:
+        """Return the number of available tokens in the semaphore."""
+        ...
+
+
+class ConcurrencySemaphoreFactory(Protocol):
+    """Protocol for creating ConcurrencySemaphore instances."""
+
+    async def __call__(
+        self, name: str, concurrency: int, visible: bool
+    ) -> ConcurrencySemaphore: ...
 
 
 @contextlib.asynccontextmanager
@@ -45,9 +66,7 @@ async def concurrency(
     # do we have an existing semaphore? if not create one and store it
     semaphore = _concurrency_semaphores.get(key, None)
     if semaphore is None:
-        semaphore = ConcurencySempahore(
-            name, concurrency, anyio.Semaphore(concurrency), visible=visible
-        )
+        semaphore = await _semaphore_factory(name, concurrency, visible)
         _concurrency_semaphores[key] = semaphore
 
     # wait and yield to protected code
@@ -76,21 +95,42 @@ def concurrency_status_display() -> dict[str, tuple[int, int]]:
             name = c.name
 
         # status display entry
-        status[name] = (c.concurrency - c.semaphore.value, c.concurrency)
+        status[name] = (c.concurrency - c.value, c.concurrency)
 
     return status
 
 
-def init_concurrency() -> None:
+def init_concurrency(
+    semaphore_factory: ConcurrencySemaphoreFactory | None = None,
+) -> None:
     _concurrency_semaphores.clear()
+    global _semaphore_factory
+    _semaphore_factory = (
+        semaphore_factory if semaphore_factory else _anyio_semaphore_factory
+    )
 
 
-@dataclass
-class ConcurencySempahore:
-    name: str
-    concurrency: int
-    semaphore: anyio.Semaphore
-    visible: bool
+_concurrency_semaphores: dict[str, ConcurrencySemaphore] = {}
 
 
-_concurrency_semaphores: dict[str, ConcurencySempahore] = {}
+async def _anyio_semaphore_factory(
+    name: str, concurrency: int, visible: bool
+) -> ConcurrencySemaphore:
+    """Default factory for creating ConcurrencySemaphore instances."""
+
+    class _ConcurrencySemaphore(ConcurrencySemaphore):
+        def __init__(self, name: str, concurrency: int, visible: bool) -> None:
+            self.name = name
+            self.concurrency = concurrency
+            self.visible = visible
+            self._sem = anyio.Semaphore(concurrency)
+            self.semaphore: contextlib.AbstractAsyncContextManager[Any] = self._sem
+
+        @property
+        def value(self) -> int:
+            return self._sem.value
+
+    return _ConcurrencySemaphore(name, concurrency, visible)
+
+
+_semaphore_factory: ConcurrencySemaphoreFactory = _anyio_semaphore_factory
