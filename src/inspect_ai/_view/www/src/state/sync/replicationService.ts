@@ -28,6 +28,8 @@ export class ReplicationService {
   private _previewQueue: WorkQueue<LogHandle, LogPreview>;
   private _detailQueue: WorkQueue<LogHandle, LogDetails>;
   private _processingCount: number;
+  private _pendingSync: Promise<LogHandle[]> | null = null;
+  private _syncQueued: boolean = false;
 
   constructor() {
     this._previewQueue = new WorkQueue<LogHandle, LogPreview>({
@@ -156,7 +158,32 @@ export class ReplicationService {
     this._applicationContext = undefined;
   }
 
-  public async sync(progress?: boolean) {
+  public async sync(progress?: boolean): Promise<LogHandle[]> {
+    // If sync is running and another is already queued, just wait for the queued one
+    if (this._pendingSync && this._syncQueued) {
+      return this._pendingSync;
+    }
+
+    // If sync is running but none queued, queue this one
+    if (this._pendingSync) {
+      this._syncQueued = true;
+      await this._pendingSync;
+      this._syncQueued = false;
+      // After pending completes, run one more sync
+      return this.sync(progress);
+    }
+
+    // No sync running, execute immediately
+    this._pendingSync = this._syncImpl(progress);
+
+    try {
+      return await this._pendingSync;
+    } finally {
+      this._pendingSync = null;
+    }
+  }
+
+  private async _syncImpl(progress?: boolean): Promise<LogHandle[]> {
     if (!this._database) {
       throw new Error("No database available for replication.");
     }
