@@ -265,6 +265,7 @@ async def score_async(
             epochs_reducer,
             scorers,
             log_metrics,
+            log.results if action == "append" else None,
         )
 
     return log

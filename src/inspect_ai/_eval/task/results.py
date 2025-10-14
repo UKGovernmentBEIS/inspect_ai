@@ -70,6 +70,7 @@ def eval_results(
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
     metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
+    previous_results: EvalResults | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
@@ -79,19 +80,19 @@ def eval_results(
     # scores not already accounted for by a scorer name
     scorers_info = [ScorerInfo.from_scorer(scorer) for scorer in (scorers or [])]
     scorer_names = {info.name for info in scorers_info}
+    scorer_info_map = {info.name: info for info in scorers_info}
+
     for sample_scores in scores:
-        for name, sample_score in sample_scores.items():
-            if sample_score.scorer is None and name not in scorer_names:
-                # the scorer info for this score
-                scorer_info = ScorerInfo.from_name(name)
-
-                # resolve the task scores
-                if metrics is not None:
-                    scorer_info.metrics = metrics
-
-                # capture the scorer information
+        for name in sample_scores.keys():
+            if name not in scorer_names:
+                scorer_info = resolve_scorer_info(name, scorer_info_map, metrics)
                 scorers_info.append(scorer_info)
                 scorer_names.add(name)
+
+    # Map existing scores to reuse (preserves already-computed metric values)
+    previous_scores_map: dict[str, EvalScore] = {}
+    if previous_results and previous_results.scores:
+        previous_scores_map = {s.name: s for s in previous_results.scores}
 
     # record scorer
     if len(scorers_info) > 0:
@@ -102,6 +103,13 @@ def eval_results(
             scorer_name = unique_scorer_name(
                 scorer_info.name, [eval_score.name for eval_score in result_scores]
             )
+
+            # Check if we should reuse an existing score instead of recomputing
+            # This happens when we're appending and the scorer already exists in previous results
+            if scorer_name in previous_scores_map:
+                # Reuse existing score to preserve original metrics
+                result_scores.append(previous_scores_map[scorer_name])
+                continue
 
             # scores for this scorer
             resolved_scores = [
@@ -551,3 +559,32 @@ def metrics_unique_key(key: str, existing: list[str]) -> str:
 
 def with_suffix(prefix: str, suffix: str) -> str:
     return prefix + "-" + suffix
+
+
+def resolve_scorer_info(
+    name: str,
+    scorer_info_map: dict[str, "ScorerInfo"],
+    default_metrics: list[Metric | dict[str, list[Metric]]]
+    | dict[str, list[Metric]]
+    | None,
+) -> "ScorerInfo":
+    if name in scorer_info_map:
+        return scorer_info_map[name]
+
+    # Check for deduplicated name (e.g., "my_scorer1" -> "my_scorer")
+    base_name = re.sub(r"\d+$", "", name)
+    if base_name != name and base_name in scorer_info_map:
+        base_info = scorer_info_map[base_name]
+        scorer_info = ScorerInfo(
+            name=name,
+            metrics=base_info.metrics,
+            params=base_info.params,
+            metadata=base_info.metadata,
+        )
+    else:
+        scorer_info = ScorerInfo.from_name(name)
+        if default_metrics is not None:
+            scorer_info.metrics = default_metrics
+
+    scorer_info_map[name] = scorer_info
+    return scorer_info
