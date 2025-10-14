@@ -1016,7 +1016,30 @@ async def eval_retry_async(
                     log_format = "eval"
                 case ".json":
                     log_format = "json"
-        sample_id = sample_id if sample_id is not None else eval_log.eval.config.sample_id
+        # if sample id is set filter the samples
+        if sample_id is not None:
+            # Normalize sample_id to a list
+            sample_ids_to_rerun = sample_id if isinstance(sample_id, list) else [sample_id]
+            new_sample_ids = list(sample_ids_to_rerun)
+            samples_to_rerun = []
+
+            for sample_index, sample in enumerate(eval_log.samples or []):
+                if sample.id in sample_ids_to_rerun:
+                    samples_to_rerun.append(sample_index)
+                else:
+                    new_sample_ids.append(sample.id)
+
+            # Remove the samples that need to be rerun from the eval_log
+            # Build new list excluding samples at indices in samples_to_rerun
+            if eval_log.samples:
+                eval_log.samples = [
+                    s for i, s in enumerate(eval_log.samples)
+                    if i not in samples_to_rerun
+                ]
+
+            sample_id = new_sample_ids
+        else:
+            sample_id = eval_log.eval.config.sample_id
         sample_shuffle = eval_log.eval.config.sample_shuffle
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
