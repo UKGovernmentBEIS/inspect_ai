@@ -22,6 +22,7 @@ from inspect_ai.model._openai_convert import (
 )
 from inspect_ai.model._providers.providers import (
     validate_anthropic_client,
+    validate_google_client,
     validate_openai_client,
 )
 from inspect_ai.tool._tools._web_search._web_search import (
@@ -30,6 +31,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 
 from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
+from .google_api import inspect_google_api_request
 from .responses import inspect_responses_api_request
 from .util import (
     internal_web_search_providers,
@@ -48,8 +50,8 @@ async def agent_bridge(
     """Agent bridge.
 
     Provide Inspect integration for 3rd party agents that use the
-    the OpenAI Completions API, OpenAI Responses API, or Anthropic API.
-    The bridge patches the OpenAI and Anthropic client libraries
+    the OpenAI Completions API, OpenAI Responses API, Anthropic API, or Google API.
+    The bridge patches the OpenAI, Anthropic, and Google client libraries
     to redirect any model named "inspect" (or prefaced with
     "inspect/" for non-default models) into the Inspect model API.
 
@@ -64,7 +66,7 @@ async def agent_bridge(
        web_search: Configuration for mapping model internal
           web_search tools to Inspect. By default, will map to the
           internal provider of the target model (supported for OpenAI,
-          Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
+          Anthropic, Google, Grok, and Perplexity). Pass an alternate
           configuration to use to use an external provider like
           Tavili or Exa for models that don't support internal search.
     """
@@ -116,6 +118,7 @@ def init_bridge_request_patch() -> None:
 
     init_openai_request_patch()
     init_anthropic_request_patch()
+    init_google_request_patch()
 
     _patch_initialised = True
 
@@ -231,6 +234,61 @@ def init_anthropic_request_patch() -> None:
         )
 
     setattr(AsyncAPIClient, "request", patched_request)
+
+
+def init_google_request_patch() -> None:
+    # don't patch if no google.genai
+    if not importlib.util.find_spec("google.genai"):
+        return
+
+    validate_google_client("agent bridge")
+
+    from google.genai import _api_client
+    from google.genai.types import HttpOptionsOrDict
+
+    # get reference to original method
+    original_request = getattr(_api_client.BaseApiClient, "async_request")
+    if original_request is None:
+        raise RuntimeError("Couldn't find 'async_request' method on BaseApiClient")
+
+    @wraps(original_request)
+    async def patched_async_request(
+        self: _api_client.BaseApiClient,
+        http_method: str,
+        path: str,
+        request_dict: dict[str, Any],
+        http_options: HttpOptionsOrDict | None = None,
+    ) -> Any:
+        # we have patched the underlying request method so now need to figure out when to
+        # patch and when to stand down
+        config = _patch_config.get()
+
+        # Check if this is a generateContent request
+        is_generate_content = ":generateContent" in path
+
+        if (
+            # enabled for this coroutine
+            config.enabled
+            # generateContent request
+            and is_generate_content
+        ):
+            json_data = request_dict
+
+            # must also be an explicit request for an inspect model
+            if targets_inspect_model(json_data):
+                if json_data.get("stream", False):
+                    raise_stream_error()
+
+                return await inspect_google_api_request(
+                    json_data, config.web_search, config.bridge
+                )
+
+        # otherwise just delegate
+        return await original_request(
+            self, http_method, path, request_dict, http_options
+        )
+
+    setattr(_api_client.BaseApiClient, "async_request", patched_async_request)
 
 
 def targets_inspect_model(json_data: dict[str, Any]) -> bool:
