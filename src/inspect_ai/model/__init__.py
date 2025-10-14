@@ -63,7 +63,11 @@ from ._model_output import (
     StopReason,
     TopLogprob,
 )
-from ._openai_convert import messages_from_openai, messages_to_openai
+from ._openai_convert import (
+    messages_from_openai,
+    messages_to_openai,
+    messages_to_openai_responses,
+)
 from ._prompt import user_prompt
 from ._providers.providers import *
 from ._registry import modelapi
@@ -96,6 +100,7 @@ __all__ = [
     "ChatCompletionChoice",
     "messages_from_openai",
     "messages_to_openai",
+    "messages_to_openai_responses",
     "ModelCall",
     "ModelOutput",
     "ModelConversation",
