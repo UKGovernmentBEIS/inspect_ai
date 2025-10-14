@@ -104,8 +104,6 @@ def eval_results(
                 scorer_info.name, [eval_score.name for eval_score in result_scores]
             )
 
-            # Check if we should reuse an existing score instead of recomputing
-            # This happens when we're appending and the scorer already exists in previous results
             if scorer_name in previous_scores_map:
                 # Reuse existing score to preserve original metrics
                 result_scores.append(previous_scores_map[scorer_name])
@@ -571,7 +569,7 @@ def resolve_scorer_info(
     if name in scorer_info_map:
         return scorer_info_map[name]
 
-    # Check for deduplicated name (e.g., "my_scorer1" -> "my_scorer")
+    # Check for deduplicated scorer
     base_name = re.sub(r"\d+$", "", name)
     if base_name != name and base_name in scorer_info_map:
         base_info = scorer_info_map[base_name]
