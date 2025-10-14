@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import Field, field_serializer
+from pydantic import Field, field_serializer, field_validator
 
 from inspect_ai.event._base import BaseEvent
 
@@ -20,6 +20,14 @@ class SubtaskEvent(BaseEvent):
 
     input: dict[str, Any]
     """Subtask function inputs."""
+
+    @field_validator("input", mode="before")
+    @classmethod
+    def validate_input(cls, v: Any) -> dict[str, Any]:
+        """Handle backward compatibility for old logs where input was a list."""
+        if not isinstance(v, dict):
+            return {}
+        return v
 
     result: Any = Field(default=None)
     """Subtask function result."""
