@@ -4,13 +4,11 @@ This example demonstrates using a native [OpenAI Agents SDK](https://openai.gith
 
 The example uses the [`agent_bridge()`](https://inspect.aisi.org.uk/agent-bridge.html) which enables integrating arbitrary 3rd party agent frameworks into Inspect. 
 
-::: callout-note
-This example relies on the `messages_to_openai_responses()` function, which is available only in the development version of Inspect. To install the development version from GitHub:
+Note that this example relies on the `messages_to_openai_responses()` function, which is available only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
-:::
 
 Source files include:
 
