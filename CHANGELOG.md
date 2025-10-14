@@ -24,6 +24,7 @@
 - Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
 - Bugfix: Ensure that calls to generate always sync the cache state to the current sample's epoch.
 - Bugfix: Don't use default values for `list` and `dict` parameters (rather use `None` and initialize on use).
+- Bugfix: When reading log files, tolerate `SubtaskEvent.input` values that aren't of the required `dict` type.
 
 ## 0.3.137 (07 October 2025)
 
