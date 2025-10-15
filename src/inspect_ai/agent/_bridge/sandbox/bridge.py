@@ -41,7 +41,7 @@ async def sandbox_agent_bridge(
     a proxy server in the container that provides REST endpoints for the OpenAI Completions API, OpenAI Responses API, Anthropic API, and Google API. This proxy server
     runs on port 13131 and routes requests to the current Inspect model provider.
 
-    You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GEMINI_API_BASE=http://localhost:13131/v1beta` when executing
+    You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131/v1beta` when executing
     the agent within the container and ensure that your agent targets the
     model name "inspect" when calling OpenAI, Anthropic, or Google. Use "inspect/<full-model-name>" to target other Inspect model providers.
 

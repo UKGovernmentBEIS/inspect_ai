@@ -70,7 +70,7 @@ The [OpenAI Agents SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main
 
 The `sandbox_agent_bridge()` can bridge agents written against the OpenAI Completions, OpenAI Responses, Anthropic API, or Google API. To bridge an agent running in a sandbox to Inspect:
 
-1.  Configure your sandbox (e.g. via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI, Anthropic, or Gemini API on localhost port 13131 (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GEMINI_API_BASE=http://localhost:13131/v1beta`).
+1.  Configure your sandbox (e.g. via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI, Anthropic, or Gemini API on localhost port 13131 (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131/v1beta`).
 
 2.  Write a standard Inspect agent that uses the `sandbox_agent_bridge()` context manager and the `sandbox().exec()` method to invoke the custom agent.
 
