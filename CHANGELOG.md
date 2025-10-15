@@ -10,6 +10,7 @@
 - Groq: Update "model_length" stop reason detection for latest way of reporting bad requests.
 - Bedrock: Detect `model_length` stop reason based on additional error pattern.
 - Bedrock: Ensure that list of `content` can never be empty.
+- VLLM: Catch additional model_length stop reasons.
 - Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
 - Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.
 - Scoring: Periodically flush samples when scoring with streaming enabled.
