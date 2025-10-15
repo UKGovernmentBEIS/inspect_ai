@@ -24,6 +24,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
+from inspect_ai.model._providers.google import content_to_part
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -273,9 +274,18 @@ def google_response_from_output(
     # Build parts from output message
     parts: list[Part] = []
 
-    # Add text content
+    # Add content parts
     if output.message.content:
-        parts.append(Part(text=output.message.text))
+        if isinstance(output.message.content, str):
+            parts.append(Part(text=output.message.content))
+        else:
+            for content in output.message.content:
+                part = content_to_part(content)
+                if part is None:
+                    raise RuntimeError(
+                        "Google bridge should never encounter ContentImage, ContentAudio, ContentVideo, or ContentDocument"
+                    )
+                parts.append(part)
 
     # Add function calls if present
     if output.message.tool_calls:
