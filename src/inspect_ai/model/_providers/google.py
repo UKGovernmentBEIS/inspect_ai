@@ -671,10 +671,8 @@ async def content(
         return Content(role="user", parts=[Part(function_response=response)])
 
 
-async def content_part(client: Client, content: InspectContent | str) -> Part:
-    if isinstance(content, str):
-        return Part.from_text(text=content or NO_CONTENT)
-    elif isinstance(content, ContentText):
+def content_to_part(content: InspectContent) -> Part | None:
+    if isinstance(content, ContentText):
         return Part.from_text(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentReasoning):
         return Part(
@@ -687,7 +685,21 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentToolUse):
         raise RuntimeError("Google provider should never encounter ContentToolUse")
     else:
-        return await chat_content_to_part(client, content)
+        return None
+
+
+async def content_part(client: Client, content: InspectContent | str) -> Part:
+    if isinstance(content, str):
+        return Part.from_text(text=content or NO_CONTENT)
+
+    part = content_to_part(content)
+    if part is not None:
+        return part
+
+    return await chat_content_to_part(
+        client,
+        cast(ContentImage | ContentAudio | ContentVideo | ContentDocument, content),
+    )
 
 
 async def chat_content_to_part(

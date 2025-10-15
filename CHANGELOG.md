@@ -10,6 +10,7 @@
 ## 0.3.138 (16 October 2025)
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
+- Agent Bridge: Google Gemini API is now supported for both in-process and sandbox-based agent bridges.
 - Agent bridge: Support for OpenAI 'custom' tools (required by Codex apply_patch tool).
 - Agent bridge: New `messages_to_openai_responses()` function.
 - OpenAI: Use background processing for `gpt-5-pro` by default.

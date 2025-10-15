@@ -66,18 +66,8 @@ def anthropic() -> type[ModelAPI]:
 
 @modelapi(name="google")
 def google() -> type[ModelAPI]:
-    FEATURE = "Google API"
-    PACKAGE = "google-genai"
-    MIN_VERSION = "1.16.1"
-
-    # verify we have the package
-    try:
-        import google.genai  # type: ignore  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+    # validate
+    validate_google_client("Google API")
 
     # in the clear
     from .google import GoogleGenAIAPI
@@ -340,6 +330,20 @@ def validate_anthropic_client(feature: str) -> None:
     # verify we have the package
     try:
         import anthropic  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(feature, [PACKAGE])
+
+    # verify version
+    verify_required_version(feature, PACKAGE, MIN_VERSION)
+
+
+def validate_google_client(feature: str) -> None:
+    PACKAGE = "google-genai"
+    MIN_VERSION = "1.16.1"
+
+    # verify we have the package
+    try:
+        import google.genai  # type: ignore  # noqa: F401
     except ImportError:
         raise pip_dependency_error(feature, [PACKAGE])
 

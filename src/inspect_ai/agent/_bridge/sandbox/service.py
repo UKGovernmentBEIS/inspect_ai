@@ -9,6 +9,7 @@ from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
+from ..google_api import inspect_google_api_request
 from ..responses import inspect_responses_api_request
 from .types import SandboxAgentBridge
 
@@ -30,6 +31,7 @@ async def run_model_service(
             "generate_completions": generate_completions(bridge),
             "generate_responses": generate_responses(web_search, bridge),
             "generate_anthropic": generate_anthropic(web_search, bridge),
+            "generate_google": generate_google(web_search, bridge),
         },
         until=lambda: False,
         sandbox=sandbox,
@@ -74,5 +76,18 @@ def generate_anthropic(
             json_data["model"] = bridge.model
         completion = await inspect_anthropic_api_request(json_data, web_search, bridge)
         return completion.model_dump(mode="json")
+
+    return generate
+
+
+def generate_google(
+    web_search: WebSearchProviders,
+    bridge: SandboxAgentBridge,
+) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
+    async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        if bridge.model is not None:
+            json_data["model"] = bridge.model
+        response = await inspect_google_api_request(json_data, web_search, bridge)
+        return response.model_dump(mode="json")
 
     return generate
