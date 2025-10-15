@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from google.genai.types import GenerateContentResponse
+if TYPE_CHECKING:
+    from google.genai.types import GenerateContentResponse
 
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._providers.providers import validate_google_client
@@ -13,7 +14,7 @@ async def inspect_google_api_request(
     json_data: dict[str, Any],
     web_search: WebSearchProviders,
     bridge: AgentBridge,
-) -> GenerateContentResponse:
+) -> "GenerateContentResponse":
     validate_google_client("agent bridge")
 
     from .google_api_impl import inspect_google_api_request_impl

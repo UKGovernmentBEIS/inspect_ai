@@ -1,9 +1,7 @@
-from google.genai.types import Candidate, Content, FinishReason, FunctionCall, Part
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.model._providers.google import completion_choice_from_candidate
 from inspect_ai.scorer import includes
 
 
@@ -42,6 +40,10 @@ def test_google_block_reason():
 
 
 def test_completion_choice_malformed_function_call():
+    from google.genai.types import Candidate, Content, FinishReason
+
+    from inspect_ai.model._providers.google import completion_choice_from_candidate
+
     # Copied from the ``Candidate`` object actually returned by the Google API
     candidate = Candidate(
         content=Content(parts=None, role=None),
@@ -67,6 +69,10 @@ def test_completion_choice_malformed_function_call():
 
 
 def test_completion_choice_multiple_function_calls():
+    from google.genai.types import Candidate, Content, FinishReason, FunctionCall, Part
+
+    from inspect_ai.model._providers.google import completion_choice_from_candidate
+
     """Test that multiple tool calls to same function get unique IDs"""
     # Create candidate with multiple calls to same function
     candidate = Candidate(

@@ -4,7 +4,6 @@ from typing import Any, Literal, cast
 from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolChoiceAnyParam
-from google import genai
 from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
 from test_helpers.utils import (
@@ -288,6 +287,8 @@ def anthropic_web_search_agent() -> Agent:
 
 @agent
 def google_agent(tools: bool) -> Agent:
+    from google import genai
+
     async def execute(state: AgentState) -> AgentState:
         def tools_param() -> Any:
             if tools:
@@ -354,6 +355,8 @@ def google_agent(tools: bool) -> Agent:
 
 @agent
 def google_web_search_agent() -> Agent:
+    from google import genai
+
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
             client = genai.Client(api_key="inspect")
