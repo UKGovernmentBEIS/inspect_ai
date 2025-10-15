@@ -278,7 +278,10 @@ class VLLMAPI(OpenAICompatibleAPI):
             else:
                 content = ex.message
 
-            if "maximum context length" in content:
+            if (
+                "maximum context length" in content
+                or "max_tokens must be at least 1" in content
+            ):
                 return ModelOutput.from_content(
                     self.model_name, content=content, stop_reason="model_length"
                 )
