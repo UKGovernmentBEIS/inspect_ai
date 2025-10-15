@@ -297,6 +297,7 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
 <li>Added model API for <a href="https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers">Hugging Face Inference Providers</a>.</li>
+<li>Agent Bridge: Google Gemini API is now supported for both in-process and sandbox-based agent bridges.</li>
 <li>Agent bridge: Support for OpenAI ‘custom’ tools (required by Codex apply_patch tool).</li>
 <li>Agent bridge: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#messages_to_openai_responses">messages_to_openai_responses()</a></span> function.</li>
 <li>OpenAI: Use background processing for <code>gpt-5-pro</code> by default.</li>
@@ -306,6 +307,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Groq: Update “model_length” stop reason detection for latest way of reporting bad requests.</li>
 <li>Bedrock: Detect <code>model_length</code> stop reason based on additional error pattern.</li>
 <li>Bedrock: Ensure that list of <code>content</code> can never be empty.</li>
+<li>VLLM: Catch additional model_length stop reasons.</li>
 <li>Scoring: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_score">edit_score()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#recompute_metrics">recompute_metrics()</a></span> functions for modifying evaluation scores with provenance tracking and metric recomputation.</li>
 <li>Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.</li>
 <li>Scoring: Periodically flush samples when scoring with streaming enabled.</li>
@@ -320,6 +322,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.</li>
 <li>Bugfix: Ensure that calls to generate always sync the cache state to the current sample’s epoch.</li>
 <li>Bugfix: Don’t use default values for <code>list</code> and <code>dict</code> parameters (rather use <code>None</code> and initialize on use).</li>
+<li>Bugfix: When reading log files, tolerate <code>SubtaskEvent.input</code> values that aren’t of the required <code>dict</code> type.</li>
 </ul>
 </section>
 <section id="october-2025" class="level2">
