@@ -2,6 +2,12 @@
 
 This example demonstrates using the [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) as an Inspect agent to explore the configuration of a Kali Linux system. The example uses the Inspect [`sandbox_agent_bridge()`](https://inspect.aisi.org.uk/agent-bridge.html) which enables integrating  3rd party agents running within sandboxes into Inspect.
 
+Note that this example relies features that are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+
 > [!NOTE] This example is intended as a demonstration of the basic mechanics of using the sandbox agent bridge. For a more feature-rich implementation of a Gemini CLI agent for Inspect see <https://meridianlabs-ai.github.io/inspect_swe/>.
 
 The example includes the following source files:

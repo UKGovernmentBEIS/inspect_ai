@@ -5,7 +5,7 @@ code-annotations: select
 
 ## Overview
 
-While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Claude Code](https://www.anthropic.com/claude-code), [Codex CLI](https://github.com/openai/codex), or [Gemini CLI](https://github.com/google-gemini/gemini-cli)).
+While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [OpenAI Agents SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk) and [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Claude Code](https://www.anthropic.com/claude-code), [Codex CLI](https://github.com/openai/codex), or [Gemini CLI](https://github.com/google-gemini/gemini-cli)).
 
 Agents are *bridged* into Inspect such that their native model calling functions are routed through the current Inspect model provider. There are two types of agent bridges supported:
 
