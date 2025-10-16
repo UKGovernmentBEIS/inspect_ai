@@ -1,6 +1,6 @@
 ## Future
 
-- Google: Improve model API call diagnotics to accurately reflect request body sent by the Python client.
+- Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
 
 ## Unreleased
 
