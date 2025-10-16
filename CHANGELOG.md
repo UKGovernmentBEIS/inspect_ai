@@ -1,3 +1,7 @@
+## Future
+
+- Google: Improve model API call diagnotics to accurately reflect request body sent by the Python client.
+
 ## Unreleased
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
