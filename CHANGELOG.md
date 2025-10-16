@@ -1,8 +1,10 @@
-## Future
-
-- Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
 
 ## Unreleased
+
+- OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
+- Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
+
+## 0.3.138 (16 October 2025)
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
 - Agent bridge: Support for OpenAI 'custom' tools (required by Codex apply_patch tool).

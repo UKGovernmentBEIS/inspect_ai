@@ -33,7 +33,7 @@
 - [ReAct Agent](https://inspect.aisi.org.uk/react-agent.html.md)  provides details on using and customizing the built-in ReAct agent.  
 - [Multi Agent](https://inspect.aisi.org.uk/multi-agent.html.md) covers various ways to compose agents together in multi-agent architectures.
 - [Custom Agents](https://inspect.aisi.org.uk/agent-custom.html.md): This article describes Inspect APIs available for creating custom agents.
-- [Agent Bridge](agent-bridge.qmd): Facility for integrating agents from 3rd party frameworks like AutoGen or LangChain.
+- [Agent Bridge](agent-bridge.qmd): Facility for integrating agents from 3rd party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI.
 - [Human Agent](https://inspect.aisi.org.uk/human-agent.html.md): This article describes the `human_cli()` agent which enables human baselining for computing tasks.
 
 - [Eval Logs](https://inspect.aisi.org.uk/eval-logs.html.md): Explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.

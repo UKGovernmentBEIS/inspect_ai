@@ -49,14 +49,6 @@ async def messages_to_openai_responses(
 ) -> "list[ResponseInputItemParam]":
     """Convert messages to OpenAI Responses API input item params.
 
-    ::: callout-note
-    The `messages_to_openai_responses()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Args:
        messages: List of messages to convert
     """
