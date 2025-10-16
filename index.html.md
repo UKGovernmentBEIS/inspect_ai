@@ -332,7 +332,8 @@ These sections describe how to create agent evaluations with Inspect:
   available for creating custom agents.
 
 - [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd
-  party frameworks like AutoGen or LangChain with Inspect.
+  party frameworks like OpenAI Agents SDK, LangChain, and Pydantic AI
+  with Inspect.
 
 - [Human Agent](human-agent.qmd) is a solver that enables human
   baselining on computing tasks.

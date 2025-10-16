@@ -1157,16 +1157,6 @@ provider
 
 ## Hugging Face Inference Providers
 
-> [!NOTE]
->
-> The Hugging Face Inference Providers support described below is
-> available only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 To use [Hugging Face Inference
 Providers](https://huggingface.co/docs/inference-providers), install the
 `openai` package (which provides the compatibility layer), set your
