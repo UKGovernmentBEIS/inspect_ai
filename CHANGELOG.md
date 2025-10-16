@@ -1,10 +1,9 @@
-
 ## Unreleased
 
 - OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
 - Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
 - Bugfix: Fix `edit_score()` silently editing only first epoch in multi-epoch evaluations (now requires explicit `epoch` parameter).
-
+- Bugfix: Fix errors that could occur when re-scoring with duplicated scorer names.
 
 ## 0.3.138 (16 October 2025)
 
