@@ -147,25 +147,21 @@ class ResponsesModelInfo(Protocol):
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model_info: ResponsesModelInfo
+    messages: list[ChatMessage],
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model_info)
+        for item in await _openai_input_item_from_chat_message(message)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model_info: ResponsesModelInfo
+    message: ChatMessage,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
-        return (
-            [Message(type="message", role="developer", content=content)]
-            if model_info.is_o_series() or model_info.is_gpt_5()
-            else [Message(type="message", role="system", content=content)]
-        )
+        return [Message(type="message", role="developer", content=content)]
     elif message.role == "user":
         return [
             Message(
@@ -628,7 +624,7 @@ def reasoning_from_responses_reasoning(
 def read_reasoning_item_param(
     param: ResponseReasoningItemParam,
 ) -> ResponseReasoningItem:
-    no_id = "id" not in param
+    no_id = param.get("id", None) is None
     if no_id:
         param = param.copy()
         param["id"] = "dummy-id"
@@ -1052,7 +1048,9 @@ def is_input_file(
 def is_response_input_message(
     param: ResponseInputItemParam,
 ) -> TypeGuard[Message | EasyInputMessageParam]:
-    return param["type"] == "message" and not is_response_output_message(param)
+    return (
+        "role" in param and "content" in param and not is_response_output_message(param)
+    )
 
 
 def is_function_call_output(
@@ -1076,7 +1074,7 @@ def is_computer_call_output(
 def is_assistant_message_param(
     param: ResponseInputItemParam,
 ) -> bool:
-    return (
+    return "type" in param and (
         is_response_output_message(param)
         or is_response_computer_tool_call(param)
         or is_response_web_search_call(param)
@@ -1092,7 +1090,8 @@ def is_response_output_message(
     param: ResponseInputItemParam,
 ) -> TypeGuard[ResponseOutputMessageParam]:
     return (
-        param["type"] == "message"
+        "type" in param
+        and param["type"] == "message"
         and param["role"] == "assistant"
         and isinstance(param.get("content", None), list)
         and any(

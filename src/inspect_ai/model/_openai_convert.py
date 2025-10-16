@@ -7,6 +7,7 @@ from ._providers.providers import validate_openai_client
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
+    from openai.types.responses import ResponseInputItemParam
 
 
 async def messages_to_openai(
@@ -41,3 +42,18 @@ async def messages_from_openai(
     from ._openai import messages_from_openai as messages_from_openai_impl
 
     return await messages_from_openai_impl(messages, model)
+
+
+async def messages_to_openai_responses(
+    messages: list[ChatMessage],
+) -> "list[ResponseInputItemParam]":
+    """Convert messages to OpenAI Responses API input item params.
+
+    Args:
+       messages: List of messages to convert
+    """
+    validate_openai_client("messages_to_openai_responses()")
+
+    from ._openai_responses import openai_responses_inputs
+
+    return await openai_responses_inputs(messages)

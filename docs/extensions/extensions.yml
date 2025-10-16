@@ -10,6 +10,12 @@
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_cyber)"
   categories: ["Framework"]
 
+- name: "[Petri](https://safety-research.github.io/petri/)"
+  description: |
+    Framework for rapidly testing concrete alignment hypotheses end‑to‑end, including automatic generation of realistic audit scenarios.
+  author: "[Anthropic](https://www.anthropic.com/research/petri-open-source-auditing)"
+  categories: ["Framework"]
+
 - name: "[Control Arena](https://github.com/UKGovernmentBEIS/control-arena)"
   description: |
     Framework for running experiments on AI Control and Monitoring.

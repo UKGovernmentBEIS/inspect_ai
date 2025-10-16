@@ -5,7 +5,7 @@ code-annotations: select
 
 ## Overview
 
-While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Claude Code](https://www.anthropic.com/claude-code) or [Codex CLI](https://github.com/openai/codex)).
+While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/), [Pydantic AI](https://ai.pydantic.dev/), and [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Claude Code](https://www.anthropic.com/claude-code) or [Codex CLI](https://github.com/openai/codex)).
 
 Agents are *bridged* into Inspect such that their native model calling functions are routed through the current Inspect model provider. There are two types of agent bridges supported:
 
@@ -17,7 +17,9 @@ We'll cover each of these configurations in turn below. You can also learn from 
 
 |  |  |
 |-----------------------------|-------------------------------------------|
+| [OpenAI Agents SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk) | Demonstrates using a native [Open AI Agents SDK](https://openai.github.io/openai-agents-python/) agent to perform Q/A using web search. |
 | [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) | Demonstrates using a native [LangChain](https://www.langchain.com/) agent to perform Q/A using the [Tavili Search API](https://tavily.com/) |
+| [Pydantic AI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/pydantic-ai) | Demonstrates using a native [Pydantic AI](https://ai.pydantic.dev/) agent to perform Q/A using web search.|
 | [Claude Code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/claude) | Demonstrates using a [Claude Code](https://www.anthropic.com/claude-code) agent to explore a Kali Linux system. |
 | [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex) | Demonstrates using a [Codex CLI](https://github.com/openai/codex) agent to explore a Kali Linux system. |
 
@@ -61,7 +63,7 @@ def my_agent() -> AgentState:
 3.  Convert the `state.messages` input into native OpenAI messages using the `messages_to_openai()` function.
 4.  Return the `state` changes automatically tracked by the `bridge` .
 
-The [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) example provides a more in-depth demonstration of using the Python agent bridge with Inspect.
+The [OpenAI Agents SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk) and [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) example provides a more in-depth demonstration of using the Python agent bridge with Inspect.
 
 
 ## Sandbox Bridge
