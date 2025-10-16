@@ -1,4 +1,12 @@
+
 ## Unreleased
+
+- OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
+- Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
+- Bugfix: Fix `edit_score()` silently editing only first epoch in multi-epoch evaluations (now requires explicit `epoch` parameter).
+
+
+## 0.3.138 (16 October 2025)
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
 - Agent bridge: Support for OpenAI 'custom' tools (required by Codex apply_patch tool).
@@ -21,6 +29,7 @@
 - Inspect View: Properly display task error when a task error is present in the log file.
 - Inspect View: Improve display of running eval sets (correct duplicate files and incorrect progress display).
 - Inspect View: Provide option to run `inspect view` server using uvicorn / fastapi.
+- Python Versions: Use explicit `Union` for `TypeAlias` (required by Python 3.14).
 - Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
 - Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
 - Bugfix: Ensure that calls to generate always sync the cache state to the current sample's epoch.

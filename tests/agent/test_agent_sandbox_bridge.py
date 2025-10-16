@@ -18,6 +18,7 @@ def test_agent_sandbox_bridge_openai():
 
 
 @pytest.mark.slow
+@pytest.mark.flaky
 @skip_if_no_anthropic
 @skip_if_no_docker
 @flaky_retry(max_retries=3)  # docker compose sometimes fails for undebugged reasons
