@@ -70,6 +70,7 @@ def eval_results(
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
     metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
+    scorer_names: list[str] | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
@@ -78,10 +79,18 @@ def eval_results(
     # extract scorers info from scorers then create scorers info for any
     # scores not already accounted for by a scorer name
     scorers_info = [ScorerInfo.from_scorer(scorer) for scorer in (scorers or [])]
-    scorer_names = {info.name for info in scorers_info}
+
+    # use resolved scorer names to detect scores that are present in task state
+    # that don't have a corresponding scorer
+    resolved_scorer_names = (
+        set(scorer_names)
+        if scorer_names is not None
+        else {info.name for info in scorers_info}
+    )
+
     for sample_scores in scores:
         for name, sample_score in sample_scores.items():
-            if sample_score.scorer is None and name not in scorer_names:
+            if sample_score.scorer is None and name not in resolved_scorer_names:
                 # the scorer info for this score
                 scorer_info = ScorerInfo.from_name(name)
 
@@ -91,16 +100,21 @@ def eval_results(
 
                 # capture the scorer information
                 scorers_info.append(scorer_info)
-                scorer_names.add(name)
+                resolved_scorer_names.add(name)
 
     # record scorer
     if len(scorers_info) > 0:
         result_scores: list[EvalScore] = []
         sample_reductions: list[EvalSampleReductions] = []
-        for scorer_info in scorers_info:
-            # this scorer
-            scorer_name = unique_scorer_name(
-                scorer_info.name, [eval_score.name for eval_score in result_scores]
+        for index, scorer_info in enumerate(scorers_info):
+            # this scorer (if an explicit list of scorer name is provided, use those
+            # otherwise, generate a unique name for the scorer)
+            scorer_name = (
+                scorer_names[index]
+                if scorer_names
+                else unique_scorer_name(
+                    scorer_info.name, [eval_score.name for eval_score in result_scores]
+                )
             )
 
             # scores for this scorer
