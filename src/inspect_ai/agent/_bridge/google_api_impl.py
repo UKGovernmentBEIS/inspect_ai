@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from google.genai.types import (
     Candidate,
@@ -50,7 +50,7 @@ async def inspect_google_api_request_impl(
     bridge: AgentBridge,
 ) -> GenerateContentResponse:
     # resolve model
-    bridge_model_name = str(json_data.get("model", "inspect"))
+    bridge_model_name = google_api_model_name_impl(json_data) or "inspect"
     model = resolve_inspect_model(bridge_model_name)
     model_name = model.api.model_name
 
@@ -331,3 +331,13 @@ def google_usage(usage: ModelUsage) -> GenerateContentResponseUsageMetadata:
         candidates_token_count=usage.output_tokens,
         total_token_count=usage.input_tokens + usage.output_tokens,
     )
+
+
+def google_api_model_name_impl(json_data: dict[str, Any]) -> str | None:
+    _url = cast(dict[str, Any] | None, json_data.get("_url", None))
+    if _url is None:
+        return None
+    model = cast(str, _url.get("model", None))
+    if model is None:
+        return None
+    return model.removeprefix("models/")

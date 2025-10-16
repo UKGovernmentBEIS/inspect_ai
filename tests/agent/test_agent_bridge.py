@@ -344,7 +344,7 @@ def google_agent(tools: bool) -> Agent:
                 config=genai.types.GenerateContentConfig(  # type: ignore[call-arg]
                     tools=tools_param(),
                     tool_config=tool_config,  # type: ignore[arg-type]
-                    generation_config=generation_config,
+                    **generation_config,
                 ),
             )
 
@@ -615,7 +615,7 @@ def check_google_bridge_log_json(log_json: str, tools: bool):
 
 @skip_if_no_google
 def test_bridged_agent_google():
-    log_json = eval_bridged_task("google/gemini-2.0-flash", agent=google_agent(False))
+    log_json = eval_bridged_task("google/gemini-2.-flash", agent=google_agent(False))
     check_google_bridge_log_json(log_json, tools=False)
 
 
