@@ -1,13 +1,13 @@
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import Iterable, Sequence, TypeAlias
+from typing import Iterable, Sequence, TypeAlias, Union
 
 from ._event import Event
 from ._span import SpanBeginEvent, SpanEndEvent
 
 logger = getLogger(__name__)
 
-EventNode: TypeAlias = "SpanNode" | Event
+EventNode: TypeAlias = Union["SpanNode", Event]
 """Node in an event tree."""
 
 EventTree: TypeAlias = list[EventNode]

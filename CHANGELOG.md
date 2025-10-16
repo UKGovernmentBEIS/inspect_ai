@@ -21,6 +21,7 @@
 - Inspect View: Properly display task error when a task error is present in the log file.
 - Inspect View: Improve display of running eval sets (correct duplicate files and incorrect progress display).
 - Inspect View: Provide option to run `inspect view` server using uvicorn / fastapi.
+- Python Versions: Use explicit `Union` for `TypeAlias` (required by Python 3.14).
 - Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
 - Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
 - Bugfix: Ensure that calls to generate always sync the cache state to the current sample's epoch.
