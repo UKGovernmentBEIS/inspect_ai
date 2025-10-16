@@ -3,6 +3,8 @@
 
 - OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
 - Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
+- Bugfix: Fix `edit_score()` silently editing only first epoch in multi-epoch evaluations (now requires explicit `epoch` parameter).
+
 
 ## 0.3.138 (16 October 2025)
 
@@ -33,7 +35,6 @@
 - Bugfix: Ensure that calls to generate always sync the cache state to the current sample's epoch.
 - Bugfix: Don't use default values for `list` and `dict` parameters (rather use `None` and initialize on use).
 - Bugfix: When reading log files, tolerate `SubtaskEvent.input` values that aren't of the required `dict` type.
-- Bugfix: Fix `edit_score()` silently editing only first epoch in multi-epoch evaluations (now requires explicit `epoch` parameter).
 
 ## 0.3.137 (07 October 2025)
 
