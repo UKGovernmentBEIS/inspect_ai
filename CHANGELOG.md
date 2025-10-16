@@ -1,3 +1,7 @@
+### Unreleased
+
+- OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
+
 ## 0.3.138 (16 October 2025)
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
