@@ -14,6 +14,7 @@ def edit_score(
     score_name: str,
     edit: ScoreEdit,
     recompute_metrics: bool = True,
+    epoch: int | None = None,
 ) -> None:
     """Edit a score in-place.
 
@@ -23,17 +24,38 @@ def edit_score(
         score_name: Name of the score to edit
         edit: The edit to apply to the score
         recompute_metrics: Whether to recompute aggregate metrics after editing
+        epoch: Epoch number of the sample to edit (required when there are multiple epochs)
 
     Raises:
-        ValueError: If the sample or score cannot be found
+        ValueError: If the sample or score cannot be found, or if epoch is not specified
+            and there are multiple matching samples for an ID
     """
     if log.samples is None:
         raise ValueError("Log contains no samples")
 
-    sample = next((sample for sample in log.samples if sample.id == sample_id), None)
+    if epoch is not None:
+        sample = next(
+            (
+                sample
+                for sample in log.samples
+                if sample.id == sample_id and sample.epoch == epoch
+            ),
+            None,
+        )
+        if sample is None:
+            raise ValueError(f"Sample with id {sample_id} and epoch {epoch} not found")
+    else:
+        samples = [sample for sample in log.samples if sample.id == sample_id]
 
-    if sample is None:
-        raise ValueError(f"Sample with id {sample_id} not found")
+        if not samples:
+            raise ValueError(f"Sample with id {sample_id} not found")
+
+        if len(samples) > 1:
+            raise ValueError(
+                f"Multiple samples found with id {sample_id}. You must specify the epoch parameter."
+            )
+
+        sample = samples[0]
 
     if sample.scores is None:
         raise ValueError(f"Sample {sample_id} has no scores")
@@ -44,7 +66,7 @@ def edit_score(
     score = sample.scores[score_name]
 
     # If history is empty, capture original state first
-    if len(score.history) == 0:
+    if not score.history:
         original = ScoreEdit(
             value=score.value,
             answer=score.answer,
