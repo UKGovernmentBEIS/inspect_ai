@@ -39,7 +39,7 @@ async def test_openai_logprobs() -> None:
 @pytest.mark.anyio
 @skip_if_no_google
 async def test_google_logprobs() -> None:
-    response = await generate_with_logprobs("google/gemini-2.5-pro")
+    response = await generate_with_logprobs("google/gemini-2.5-flash")
     assert response.choices[0].logprobs is not None
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
     # 10/16/25: Google returning only 1 top logprob even when set to to
