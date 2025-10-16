@@ -232,6 +232,7 @@ async def score_async(
                     score=score,
                     sample_id=sample.id,
                     sample_metadata=sample.metadata,
+                    scorer=registry_unqualified_name(score_key),
                 )
                 for score_key, score in sample.scores.items()
             }
