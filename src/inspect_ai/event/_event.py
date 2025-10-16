@@ -1,5 +1,7 @@
 from typing import TypeAlias, Union
 
+from inspect_ai.event._score_edit import ScoreEditEvent
+
 from ._approval import ApprovalEvent
 from ._error import ErrorEvent
 from ._info import InfoEvent
@@ -28,6 +30,7 @@ Event: TypeAlias = Union[
     ApprovalEvent,
     InputEvent,
     ScoreEvent,
+    ScoreEditEvent,
     ErrorEvent,
     LoggerEvent,
     InfoEvent,

@@ -28,7 +28,7 @@ CLAUDE_3_5_HAIKU = "anthropic/claude-3-5-haiku-latest"
 GEMINI_2_0_FLASH = "google/gemini-2.0-flash"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
 GROK_3_MINI = "grok/grok-3-mini"
-GROQ_LLAMA_3_70B = "groq/llama3-70b-8192"
+GROQ_LLAMA_3_3_70B_VERSATILE = "groq/llama-3.3-70b-versatile"
 CLOUDFLARE_LLAMA_3_1_8B = "cf/meta/llama-3.1-8b-instruct-awq"
 TOGETHER_LLAMA_3_3_70B = "together/meta-llama/Llama-3.3-70B-Instruct-Turbo"
 BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
@@ -40,7 +40,7 @@ MODELS = {
     GEMINI_2_0_FLASH: 1000000,
     MISTRAL_LARGE_2411: 131000,
     GROK_3_MINI: 131072,
-    GROQ_LLAMA_3_70B: 8192,
+    GROQ_LLAMA_3_3_70B_VERSATILE: 128000,
     CLOUDFLARE_LLAMA_3_1_8B: 128000,
     TOGETHER_LLAMA_3_3_70B: 128000,
     BEDROCK_NOVA_LITE_1_0: 128000,
@@ -126,7 +126,7 @@ async def test_model_length_grok():
 @pytest.mark.asyncio
 @skip_if_no_groq
 async def test_model_length_groq():
-    await check_model_length(GROQ_LLAMA_3_70B, max_chars=50000)
+    await check_model_length(GROQ_LLAMA_3_3_70B_VERSATILE)
 
 
 @pytest.mark.asyncio

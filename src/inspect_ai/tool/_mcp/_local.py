@@ -266,7 +266,7 @@ def create_server_stdio(
     *,
     name: str,
     command: str,
-    args: list[str] = [],
+    args: list[str] | None = None,
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
 ) -> MCPServer:
@@ -274,7 +274,7 @@ def create_server_stdio(
         lambda: stdio_client(
             StdioServerParameters(
                 command=command,
-                args=args,
+                args=args if args is not None else [],
                 cwd=cwd,
                 env=env,
             )
@@ -288,7 +288,7 @@ def create_server_sandbox(
     *,
     name: str,
     command: str,
-    args: list[str] = [],
+    args: list[str] | None = None,
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
     sandbox: str | None = None,
@@ -300,7 +300,7 @@ def create_server_sandbox(
         lambda: sandbox_client(
             StdioServerParameters(
                 command=command,
-                args=args,
+                args=args if args is not None else [],
                 cwd=cwd,
                 env=env,
             ),

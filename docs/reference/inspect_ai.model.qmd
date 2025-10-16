@@ -73,7 +73,7 @@ title: "inspect_ai.model"
 ## Conversion
 
 ### messages_to_openai
-### messages_from_openai
+### messages_to_openai_responses
 
 ## Provider
 

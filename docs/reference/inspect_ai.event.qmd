@@ -30,6 +30,7 @@ title: "inspect_ai.event"
 ### StoreEvent
 ### InputEvent
 ### ScoreEvent
+### ScoreEditEvent
 
 ## Types
 

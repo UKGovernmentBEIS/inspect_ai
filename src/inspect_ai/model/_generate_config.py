@@ -61,6 +61,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     timeout: int | None
     """Request timeout (in seconds)."""
 
+    attempt_timeout: int | None
+    """Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."""
+
     max_connections: int | None
     """Maximum number of concurrent connections to Model API (default is model specific)."""
 
@@ -101,10 +104,10 @@ class GenerateConfigArgs(TypedDict, total=False):
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only."""
 
     logprobs: bool | None
-    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
+    """Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
 
     top_logprobs: int | None
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, and Huggingface only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, and Huggingface only."""
 
     parallel_tool_calls: bool | None
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
@@ -147,7 +150,10 @@ class GenerateConfig(BaseModel):
     """Maximum number of times to retry request (defaults to unlimited)."""
 
     timeout: int | None = Field(default=None)
-    """Request timeout (in seconds)."""
+    """Timeout (in seconds) for an entire request (including retries)."""
+
+    attempt_timeout: int | None = Field(default=None)
+    """Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."""
 
     max_connections: int | None = Field(default=None)
     """Maximum number of concurrent connections to Model API (default is model specific)."""

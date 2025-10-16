@@ -238,6 +238,10 @@ def skip_if_no_vertex(func):
     return pytest.mark.api(skip_if_env_var("ENABLE_VERTEX_TESTS", exists=False)(func))
 
 
+def skip_if_no_hf_token(func):
+    return pytest.mark.api(skip_if_env_var("HF_TOKEN", exists=False)(func))
+
+
 def skip_if_github_action(func):
     return skip_if_env_var("GITHUB_ACTIONS", exists=True)(func)
 
@@ -286,15 +290,15 @@ def run_example(example: str, model: str):
 # "some" state. Over time this will likely expand and need to be extracted into
 # its own helper file with multiple options.
 def simple_task_state(
-    choices: list[str] = [],
-    messages: list[ChatMessage] = [],
+    choices: list[str] | None = None,
+    messages: list[ChatMessage] | None = None,
     model_output: str = "",
 ) -> TaskState:
     return TaskState(
         choices=choices,
         epoch=0,
         input=[],
-        messages=messages,
+        messages=messages if messages is not None else [],
         model=ModelName(model="fake/model"),
         output=ModelOutput.from_content(model="model", content=model_output),
         sample_id=0,

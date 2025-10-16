@@ -9,6 +9,7 @@ from functools import lru_cache
 from itertools import chain
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generator,
     Literal,
@@ -93,7 +94,7 @@ def samples_df(
           (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
        full: Read full sample `metadata`. This will be much slower, but will include
-          the unfiltered values of sample `metadata` rather than the abbrevivated
+          the unfiltered values of sample `metadata` rather than the abbreviated
           metadata from sample summaries (which includes only scalar values and limits
           string values to 1k).
        strict: Raise import errors immediately. Defaults to `True`.
@@ -198,7 +199,16 @@ def _read_samples_df(
         # recombine df
         df = pd.concat(df_results, ignore_index=True)
         subset = f"{detail.name}_id" if detail else SAMPLE_ID
-        df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
+        try:
+            df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
+        except Exception as e:
+            # Check if it's specifically the pyarrow offset overflow error
+            if "offset overflow" in str(e):
+                # Convert to large_string and retry
+                df = _convert_to_large_string(df)
+                df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
+            else:
+                raise
 
         # recombine errors
         errors: list[ColumnError] = list(
@@ -530,3 +540,52 @@ def reorder_samples_df_columns(
 
     # reorder the DataFrame
     return df[ordered_columns]
+
+
+def _convert_to_large_string(df: "pd.DataFrame") -> "pd.DataFrame":
+    """Convert PyArrow string columns to large_string to avoid offset overflow.
+
+    PyArrow's default string type uses 32-bit offsets, which limits total string
+    data to ~2GB. This function converts string columns to large_string (64-bit
+    offsets) to handle larger datasets.
+
+    Only columns that are approaching or exceeding the 2GB limit are converted.
+
+    Args:
+        df: DataFrame with potential PyArrow string columns
+
+    Returns:
+        DataFrame with string columns converted to large_string where needed
+    """
+    import pandas as pd
+    import pyarrow as pa
+
+    # 2^31 bytes is the limit for 32-bit offsets
+    # Use a threshold of 1.5GB to catch columns that might be close
+    SIZE_THRESHOLD = int(1.5 * 1024**3)
+
+    # Build a new DataFrame with converted columns
+    new_columns: dict[str, Any] = {}
+    for col in df.columns:
+        # Check if this is a PyArrow-backed column
+        col_dtype = df[col].dtype
+        if hasattr(col_dtype, "pyarrow_dtype"):
+            dtype = col_dtype.pyarrow_dtype  # type: ignore[attr-defined]
+            if pa.types.is_string(dtype):
+                # Check the size of this column's string data
+                col_array = df[col].array
+                if hasattr(col_array, "_pa_array"):
+                    arrow_array = col_array._pa_array  # type: ignore[attr-defined]
+                    # Get the total size of string data in this column
+                    total_size = arrow_array.nbytes
+                    # Only convert if this column is large enough to potentially cause issues
+                    if total_size > SIZE_THRESHOLD:
+                        large_string_array = arrow_array.cast(pa.large_string())
+                        new_columns[col] = pd.arrays.ArrowExtensionArray(  # type: ignore[attr-defined]
+                            large_string_array
+                        )
+                        continue
+        # Keep original column if not converted
+        new_columns[col] = df[col]
+
+    return pd.DataFrame(new_columns, index=df.index)

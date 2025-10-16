@@ -2,6 +2,7 @@ import pytest
 from test_helpers.utils import (
     skip_if_github_action,
     skip_if_no_accelerate,
+    skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_llama_cpp_python,
     skip_if_no_openai,
@@ -33,6 +34,16 @@ async def test_openai_logprobs() -> None:
     assert response.choices[0].logprobs is not None
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_google_logprobs() -> None:
+    response = await generate_with_logprobs("google/gemini-2.5-flash")
+    assert response.choices[0].logprobs is not None
+    assert response.choices[0].logprobs.content[0].top_logprobs is not None
+    # 10/16/25: Google returning only 1 top logprob even when set to to
+    # assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
 
 
 @pytest.mark.anyio

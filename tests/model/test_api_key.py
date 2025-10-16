@@ -28,7 +28,7 @@ async def check_explicit_api_key(model_name, env_var):
 @pytest.mark.anyio
 @skip_if_no_groq
 async def test_groq_api_key():
-    await check_explicit_api_key("groq/llama3-70b-8192", "GROQ_API_KEY")
+    await check_explicit_api_key("groq/openai/gpt-oss-20b", "GROQ_API_KEY")
 
 
 @pytest.mark.anyio

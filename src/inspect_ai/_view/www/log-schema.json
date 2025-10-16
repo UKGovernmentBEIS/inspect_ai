@@ -2117,6 +2117,7 @@
           "default": {
             "max_retries": null,
             "timeout": null,
+            "attempt_timeout": null,
             "max_connections": null,
             "system_message": null,
             "max_tokens": null,
@@ -2460,6 +2461,9 @@
                 "$ref": "#/$defs/ScoreEvent"
               },
               {
+                "$ref": "#/$defs/ScoreEditEvent"
+              },
+              {
                 "$ref": "#/$defs/ErrorEvent"
               },
               {
@@ -2764,6 +2768,13 @@
           "default": null,
           "title": "Metadata"
         },
+        "history": {
+          "items": {
+            "$ref": "#/$defs/ScoreEdit"
+          },
+          "title": "History",
+          "type": "array"
+        },
         "sample_id": {
           "anyOf": [
             {
@@ -2785,6 +2796,7 @@
         "answer",
         "explanation",
         "metadata",
+        "history",
         "sample_id"
       ],
       "title": "EvalSampleScore",
@@ -3326,6 +3338,18 @@
           "default": null,
           "title": "Timeout"
         },
+        "attempt_timeout": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt Timeout"
+        },
         "max_connections": {
           "anyOf": [
             {
@@ -3677,6 +3701,7 @@
       "required": [
         "max_retries",
         "timeout",
+        "attempt_timeout",
         "max_connections",
         "system_message",
         "max_tokens",
@@ -4791,6 +4816,46 @@
       ],
       "additionalProperties": false
     },
+    "ProvenanceData": {
+      "description": "Metadata about who made an edit and why.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "timestamp",
+        "author",
+        "reason",
+        "metadata"
+      ],
+      "title": "ProvenanceData",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ResponseSchema": {
       "description": "Schema for model response when using Structured Output.",
       "properties": {
@@ -5489,15 +5554,248 @@
           ],
           "default": null,
           "title": "Metadata"
+        },
+        "history": {
+          "items": {
+            "$ref": "#/$defs/ScoreEdit"
+          },
+          "title": "History",
+          "type": "array"
         }
       },
       "required": [
         "value",
         "answer",
         "explanation",
-        "metadata"
+        "metadata",
+        "history"
       ],
       "title": "Score",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ScoreEdit": {
+      "description": "A single edit to a score.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "const": "UNCHANGED",
+              "type": "string"
+            }
+          ],
+          "default": "UNCHANGED",
+          "title": "Value"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "const": "UNCHANGED",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "UNCHANGED",
+          "title": "Answer"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "const": "UNCHANGED",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "UNCHANGED",
+          "title": "Explanation"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "const": "UNCHANGED",
+              "type": "string"
+            }
+          ],
+          "default": "UNCHANGED",
+          "title": "Metadata"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvenanceData"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ScoreEdit",
+      "type": "object",
+      "required": [
+        "value",
+        "answer",
+        "explanation",
+        "metadata",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "ScoreEditEvent": {
+      "description": "Event recorded when a score is edited.",
+      "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
+        "event": {
+          "const": "score_edit",
+          "default": "score_edit",
+          "title": "Event",
+          "type": "string"
+        },
+        "score_name": {
+          "title": "Score Name",
+          "type": "string"
+        },
+        "edit": {
+          "$ref": "#/$defs/ScoreEdit"
+        }
+      },
+      "required": [
+        "uuid",
+        "span_id",
+        "timestamp",
+        "working_start",
+        "metadata",
+        "pending",
+        "event",
+        "score_name",
+        "edit"
+      ],
+      "title": "ScoreEditEvent",
       "type": "object",
       "additionalProperties": false
     },
@@ -6282,16 +6580,13 @@
           "default": null
         },
         "type": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "default": "function",
+          "enum": [
+            "function",
+            "custom"
           ],
-          "default": null,
-          "title": "Type"
+          "title": "Type",
+          "type": "string"
         }
       },
       "required": [

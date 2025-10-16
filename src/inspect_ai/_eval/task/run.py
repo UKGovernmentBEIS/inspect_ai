@@ -683,11 +683,13 @@ async def task_run_sample(
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
         limit: EvalSampleLimit | None = None
-        try:
-            # begin init
-            init_span = span("init", type="init")
-            await init_span.__aenter__()
 
+        # begin init
+        init_span = span("init", type="init")
+        await init_span.__aenter__()
+        cleanup_span: contextlib.AbstractAsyncContextManager[None] | None = init_span
+
+        try:
             # sample init event (remove file bodies as they have content or absolute paths)
             event_sample = sample.model_copy(
                 update=dict(files={k: "" for k in sample.files.keys()})
@@ -706,6 +708,7 @@ async def task_run_sample(
                         active.sandboxes = await sandbox_connections()
                     finally:
                         await init_span.__aexit__(None, None, None)
+                        cleanup_span = None
 
                     # record start time
                     start_time = time.monotonic()
@@ -937,6 +940,9 @@ async def task_run_sample(
 
         except Exception as ex:
             error, raise_error = handle_error(ex)
+        finally:
+            if cleanup_span is not None:
+                await cleanup_span.__aexit__(None, None, None)
 
         # complete the sample if there is no error or if there is no retry_on_error in play
         if not error or (retry_on_error == 0):
@@ -1060,6 +1066,7 @@ def create_eval_sample(
         store=dict(state.store.items()),
         uuid=state.uuid,
         events=list(transcript().events),
+        attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
         total_time=round(total_time, 3) if total_time is not None else None,
         working_time=round(total_time - sample_waiting_time(), 3)

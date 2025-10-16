@@ -302,7 +302,7 @@ def test_mistral_tool_types() -> None:
 
 # @skip_if_no_groq
 # def test_groq_tool_types() -> None:
-#     check_tool_types("groq/mixtral-8x7b-32768")
+#     check_tool_types("groq/openai/gpt-oss-20b")
 
 
 def verify_tool_call(log: EvalLog, includes: str):

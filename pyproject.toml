@@ -152,6 +152,7 @@ dev = [
   "anthropic>=0.52.0",
   "azure-identity",
   "azure-ai-inference",
+  "fastapi",
   "google-genai",
   "griffe",
   "groq",
@@ -195,6 +196,7 @@ dev = [
   "types-protobuf",
   "types-psutil",
   "types-python-dateutil",
+  "uvicorn",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe"]

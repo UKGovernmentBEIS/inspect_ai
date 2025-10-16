@@ -64,6 +64,7 @@ export const ApplicationIcons = {
   epoch: (epoch: string) => {
     return `bi bi-${epoch}-circle`;
   },
+  edit: "bi bi-pencil-square",
   error: "bi bi-exclamation-circle-fill",
   eval: "bi bi-info-circle-fill",
   "eval-set": "bi bi-list-task",

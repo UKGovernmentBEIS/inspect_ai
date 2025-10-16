@@ -1,3 +1,32 @@
+## Unreleased
+
+- Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
+- Agent bridge: Support for OpenAI 'custom' tools (required by Codex apply_patch tool).
+- Agent bridge: New `messages_to_openai_responses()` function.
+- OpenAI: Use background processing for `gpt-5-pro` by default.
+- OpenAI: Use "developer" role for system messages for all models (formerly was only o-series and gpt5).
+- Anthropic: Support `parallel_tool_calls` option for tool choice.
+- Google: Enable support for `logprobs` and `top_logprobs`.
+- Groq: Update "model_length" stop reason detection for latest way of reporting bad requests.
+- Bedrock: Detect `model_length` stop reason based on additional error pattern.
+- Bedrock: Ensure that list of `content` can never be empty.
+- VLLM: Catch additional model_length stop reasons.
+- Scoring: New `edit_score()` and `recompute_metrics()` functions for modifying evaluation scores with provenance tracking and metric recomputation.
+- Scoring: When re-scoring an eval, use the correct sample uuid in TaskState.
+- Scoring: Periodically flush samples when scoring with streaming enabled.
+- Model API: Added `attempt_timeout` to `GenerateConfig` (governs timeout for individual attempts and still retries if timeout is exceeded).
+- Analysis: Handle string columns which exceed the pyarrow 2GB limit (convert to large_string).
+- Logging: Condense `ModelEvent` immediately to prevent O(N) memory usage for long message histories.
+- Adjust terminal progress display to accommodate longer task names.
+- Inspect View: Properly display task error when a task error is present in the log file.
+- Inspect View: Improve display of running eval sets (correct duplicate files and incorrect progress display).
+- Inspect View: Provide option to run `inspect view` server using uvicorn / fastapi.
+- Bugfix: Fix improperly scoped use of restrictive `umask` that led to permission problems with `bash_session` tool.
+- Bugfix: Ensure that init span is always cleaned up even when sandbox init fails.
+- Bugfix: Ensure that calls to generate always sync the cache state to the current sample's epoch.
+- Bugfix: Don't use default values for `list` and `dict` parameters (rather use `None` and initialize on use).
+- Bugfix: When reading log files, tolerate `SubtaskEvent.input` values that aren't of the required `dict` type.
+
 ## 0.3.137 (07 October 2025)
 
 - OpenAI: Support for tool calls returning images (requires v2.0 of `openai` package, which is now required).

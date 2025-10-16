@@ -5,13 +5,13 @@ import {
   EvalResults,
   EvalSpec,
   EvalStats,
+  Status,
 } from "../../../@types/log";
 import { SampleSummary } from "../../../client/api/types";
 import { MessageBand } from "../../../components/MessageBand";
 import { kLogViewInfoTabId } from "../../../constants";
 import { useTotalSampleCount } from "../../../state/hooks";
 import { PlanCard } from "../../plan/PlanCard";
-import { TaskErrorCard } from "../error/TaskErrorPanel";
 
 // Individual hook for Info tab
 export const useInfoTabConfig = (
@@ -19,6 +19,7 @@ export const useInfoTabConfig = (
   evalPlan: EvalPlan | undefined,
   evalError: EvalError | undefined | null,
   evalResults: EvalResults | undefined | null,
+  evalStatus: Status | undefined | null,
 ) => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const totalSampleCount = useTotalSampleCount();
@@ -33,6 +34,7 @@ export const useInfoTabConfig = (
         evalPlan,
         evalError,
         evalResults,
+        evalStatus,
         sampleCount: totalSampleCount,
         scrollRef,
       },
@@ -47,8 +49,7 @@ interface InfoTabProps {
   evalStats?: EvalStats;
   evalResults?: EvalResults;
   samples?: SampleSummary[];
-  evalStatus?: "started" | "error" | "cancelled" | "success";
-  evalError?: EvalError;
+  evalStatus?: Status;
   sampleCount?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
 }
@@ -58,7 +59,6 @@ export const InfoTab: FC<InfoTabProps> = ({
   evalPlan,
   evalResults,
   evalStatus,
-  evalError,
   sampleCount,
   scrollRef,
 }) => {
@@ -86,9 +86,6 @@ export const InfoTab: FC<InfoTabProps> = ({
           scores={evalResults?.scores}
           scrollRef={scrollRef}
         />
-        {evalStatus === "error" && evalError ? (
-          <TaskErrorCard error={evalError} />
-        ) : undefined}
       </div>
     </div>
   );

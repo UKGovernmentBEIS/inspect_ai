@@ -22,6 +22,7 @@ from typing import (
     cast,
 )
 
+import anyio
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from tenacity import (
@@ -65,7 +66,7 @@ from inspect_ai.util._limit import (
     record_model_usage,
 )
 
-from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
+from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     disable_parallel_tools,
     execute_tools,
@@ -308,7 +309,10 @@ class Model:
     """Generation config."""
 
     def __init__(
-        self, api: ModelAPI, config: GenerateConfig, model_args: dict[str, Any] = {}
+        self,
+        api: ModelAPI,
+        config: GenerateConfig,
+        model_args: dict[str, Any] | None = None,
     ) -> None:
         """Create a model.
 
@@ -319,7 +323,7 @@ class Model:
         """
         self.api = api
         self.config = config
-        self.model_args = model_args
+        self.model_args = model_args if model_args is not None else {}
         self._role: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager
@@ -394,6 +398,14 @@ class Model:
         Returns:
            ModelOutput
         """
+        # if we have a TaskState then update the epoch. without this, it's possible
+        # we'd cache the same response for every single epoch
+        from inspect_ai.solver._task_state import sample_state
+
+        state = sample_state()
+        if state is not None:
+            epoch.set(state.epoch)
+
         # if we are the default model then update the displayed message count
         is_active_model = self == active_model()
         if is_active_model:
@@ -675,17 +687,31 @@ class Model:
                 cache="write" if cache else None,
             )
 
+            # create timeout context manager if we have an attempt timeout
+            timeout_cm = (
+                anyio.move_on_after(config.attempt_timeout)
+                if config.attempt_timeout is not None
+                else contextlib.nullcontext()
+            )
+
             with trace_action(logger, "Model", f"generate ({str(self)})"):
                 time_start = time.monotonic()
                 try:
                     assert isinstance(event, ModelEvent)
                     with track_active_model_event(event):
-                        result = await self.api.generate(
-                            input=input,
-                            tools=tools_info,
-                            tool_choice=tool_choice,
-                            config=config,
-                        )
+                        with timeout_cm:
+                            result = await self.api.generate(
+                                input=input,
+                                tools=tools_info,
+                                tool_choice=tool_choice,
+                                config=config,
+                            )
+                        if (
+                            isinstance(timeout_cm, anyio.CancelScope)
+                            and timeout_cm.cancel_called
+                        ):
+                            raise AttemptTimeoutError(config.attempt_timeout)
+
                 finally:
                     time_elapsed = time.monotonic() - time_start
 
@@ -753,6 +779,11 @@ class Model:
 
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, Exception):
+            # attempt timeout is always retried (we rely on `timeout`
+            # and/or `max_retries` for termination)
+            if isinstance(ex, AttemptTimeoutError):
+                return True
+
             # check standard should_retry() method
             retry = self.api.should_retry(ex)
             if retry:
@@ -865,6 +896,11 @@ class Model:
             complete(output, call)
 
         return complete, event
+
+
+class AttemptTimeoutError(RuntimeError):
+    def __init__(self, timeout: int | None) -> None:
+        super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
 
 
 class ModelName:

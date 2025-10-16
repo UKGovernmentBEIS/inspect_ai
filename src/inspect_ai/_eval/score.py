@@ -27,6 +27,7 @@ from inspect_ai.log import (
     EvalLog,
 )
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
+from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
 from inspect_ai.model._model import get_model
@@ -124,11 +125,8 @@ def _get_updated_scores(
 def _get_updated_events(
     sample: EvalSample, new_events: Sequence[Event], action: ScoreAction
 ) -> list[Event]:
-    final_scorers_node: SpanNode | None = None
     sample_event_tree = event_tree(sample.events)
-    for node in walk_node_spans(sample_event_tree):
-        if node.type == "scorers" and node.name == "scorers":
-            final_scorers_node = node
+    final_scorers_node = _find_scorers_span(sample_event_tree)
 
     if final_scorers_node is None:
         return [*sample.events, *new_events]
@@ -292,6 +290,7 @@ async def _run_score_task(
         metadata=sample.metadata,
         store=sample.store,
         scores=(sample.scores or {}).copy() if action == "append" else {},
+        sample_uuid=sample.uuid,
     )
 
     # get the model then initialize the async context
@@ -388,7 +387,7 @@ def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
 
 
 def resolve_scorers(
-    log: EvalLog, scorer: str | None, scorer_args: dict[str, Any] | None
+    log: EvalLog, scorer: str | None = None, scorer_args: dict[str, Any] | None = None
 ) -> list[Scorer]:
     """
     Create a list of Scorer objects from an evaluation log.
