@@ -38,12 +38,12 @@ async def sandbox_agent_bridge(
     """Sandbox agent bridge.
 
     Provide Inspect integration for agents running inside sandboxes. Runs
-    a proxy server in the container that provides REST endpoints for the OpenAI Completions API, OpenAI Responses API, Anthropic API, and Google API. This proxy server
+    a proxy server in the container that provides REST entpoints for the OpenAI Completions API, OpenAI Responses API, and Anthropic API. This proxy server
     runs on port 13131 and routes requests to the current Inspect model provider.
 
-    You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131/v1beta` when executing
+    You should set `OPENAI_BASE_URL=http://localhost:13131/v1` or `ANTHROPIC_BASE_URL=http://localhost:13131` when executing
     the agent within the container and ensure that your agent targets the
-    model name "inspect" when calling OpenAI, Anthropic, or Google. Use "inspect/<full-model-name>" to target other Inspect model providers.
+    model name "inspect" when calling OpenAI or Anthropic. Use "inspect/<full-model-name>" to target other Inspect model providers.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
@@ -58,9 +58,9 @@ async def sandbox_agent_bridge(
         web_search: Configuration for mapping model internal
             web_search tools to Inspect. By default, will map to the
             internal provider of the target model (supported for OpenAI,
-            Anthropic, Google, Grok, and Perplexity). Pass an alternate
+            Anthropic, Gemini, Grok, and Perplxity). Pass an alternate
             configuration to use to use an external provider like
-            Tavily or Exa for models that don't support internal search.
+            Tavili or Exa for models that don't support internal search.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"

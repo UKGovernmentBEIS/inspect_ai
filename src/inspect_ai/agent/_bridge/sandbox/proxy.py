@@ -1732,62 +1732,6 @@ async def model_proxy_server(
             _handle_model_proxy_error(ex)
             os._exit(1)
 
-    @server.route("/v1beta/models/*", method="POST")
-    async def google(request: dict[str, Any]) -> dict[str, Any]:
-        try:
-            # Check if this is a generateContent request
-            path = request.get("path", "")
-            if ":generateContent" not in path:
-                return {
-                    "status": 404,
-                    "body": {
-                        "error": {
-                            "message": f"Unsupported Gemini endpoint: {path}",
-                            "type": "not_found",
-                            "code": 404,
-                        }
-                    },
-                }
-
-            json_body = request.get("json", {}) or {}
-            stream = json_body.get("stream", False)
-
-            completion = await call_bridge_model_service_async(
-                "generate_google", json_data=json_body
-            )
-
-            if stream:
-
-                async def stream_response() -> AsyncIterator[bytes]:
-                    # Parse the completion as a dict
-                    response = (
-                        completion
-                        if isinstance(completion, dict)
-                        else json.loads(completion)
-                    )
-
-                    # Gemini streaming format: newline-delimited JSON (not SSE)
-                    # Each chunk is just the JSON response, no "data:" prefix
-                    yield (json.dumps(response, ensure_ascii=False) + "\n").encode(
-                        "utf-8"
-                    )
-
-                return {
-                    "status": 200,
-                    "body_iter": stream_response(),
-                    "headers": {
-                        "Content-Type": "application/json; charset=utf-8",
-                        "Cache-Control": "no-cache",
-                    },
-                    "chunked": True,
-                }
-            else:
-                return {"status": 200, "body": completion}
-
-        except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
-
     # return configured server
     return server
 
