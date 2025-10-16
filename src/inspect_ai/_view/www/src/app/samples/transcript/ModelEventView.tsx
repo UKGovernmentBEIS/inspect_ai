@@ -19,6 +19,7 @@ import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
+import { CopyButton } from "../../../components/CopyButton";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { usePrismHighlight } from "../../../state/hooks";
 import styles from "./ModelEventView.module.css";
@@ -202,6 +203,9 @@ export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
 
   return (
     <div ref={sourceCodeRef} className={clsx("model-call")}>
+      <div className={clsx(styles.codeHeader)}>
+        <CopyButton value={sourceCode} ariaLabel="Copy to clipboard" />
+      </div>
       <pre className={clsx(styles.codePre)}>
         <code
           id={id}
