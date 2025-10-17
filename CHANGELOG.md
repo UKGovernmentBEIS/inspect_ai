@@ -2,6 +2,7 @@
 
 - OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
 - Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
+- Agent Bridge: Google Gemini API is now supported for both in-process and sandbox-based agent bridges.
 - Model API: Support for refreshing API keys during long-running evaluations via the `override_api_key()` hook.
 - Datasets: Use readahead content caching by default for reading CSV and JSON datasets from S3.
 - Bugfix: Fix `edit_score()` silently editing only first epoch in multi-epoch evaluations (now requires explicit `epoch` parameter).
@@ -10,7 +11,6 @@
 ## 0.3.138 (16 October 2025)
 
 - Added model API for [Hugging Face Inference Providers](https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers).
-- Agent Bridge: Google Gemini API is now supported for both in-process and sandbox-based agent bridges.
 - Agent bridge: Support for OpenAI 'custom' tools (required by Codex apply_patch tool).
 - Agent bridge: New `messages_to_openai_responses()` function.
 - OpenAI: Use background processing for `gpt-5-pro` by default.
