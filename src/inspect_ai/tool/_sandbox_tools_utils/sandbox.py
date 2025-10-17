@@ -48,10 +48,12 @@ InstallState = Literal["pypi", "clean", "edited"]
 """
 
 
-# TODO: Currently, this logic relies on a specific file existing at a specific path
-# this may need to be enhanced to use a dynamic predicate instead. otherwise, how
-# would we work on os's with a different directory structure?
-SANDBOX_TOOLS_CLI = f"/opt/{SANDBOX_TOOLS_BASE_NAME}"
+# For this, we choose /var/tmp as the injection location since it is
+#  1) accessible in all major linux distributions
+#  2) unlikely to be cleared during an evaluation (https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard)
+#  3) unlikely to be accidentally stumbled upon by an LLM solving a taks that requires interacting with temp files
+# We additionally choose a dot-prefixed random hash sub-directory to further attempt to prevent LLMs from stumbling on the injected tools.
+SANDBOX_TOOLS_CLI = f"/var/tmp/.da7be258e003d428/{SANDBOX_TOOLS_BASE_NAME}"
 
 
 async def sandbox_with_injected_tools(
