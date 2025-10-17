@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { LogFile } from "../client/api/types";
+import { LogHandle } from "../client/api/types";
 import { createLogger } from "../utils/logger";
 import { clientEventsService } from "./clientEventsService";
 import { useLogs } from "./hooks";
@@ -8,33 +8,33 @@ import { useStore } from "./store";
 const log = createLogger("Client-Events");
 
 export function useClientEvents() {
-  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
-  const logHeaders = useStore((state) => state.logs.logOverviews);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
   const api = useStore((state) => state.api);
-  const { loadHeaders } = useLogs();
+  const { loadLogOverviews } = useLogs();
 
   // Set up the refresh callback for the service
   const refreshCallback = useCallback(
-    async (logFiles: LogFile[]) => {
+    async (logs: LogHandle[]) => {
       // Refresh the list of log files
       log.debug("Refresh Log Files");
-      await refreshLogs();
+      await syncLogs();
 
-      const toRefresh: LogFile[] = [];
-      for (const logFile of logFiles) {
-        const header = logHeaders[logFile.name];
+      const toRefresh: LogHandle[] = [];
+      for (const log of logs) {
+        const header = logPreviews[log.name];
         if (!header || header.status === "started") {
-          toRefresh.push(logFile);
+          toRefresh.push(log);
         }
       }
 
       // Refresh any logFiles that are currently being watched
       if (toRefresh.length > 0) {
         log.debug(`Refreshing ${toRefresh.length} log files`, toRefresh);
-        await loadHeaders(toRefresh);
+        await loadLogOverviews(toRefresh);
       }
     },
-    [logHeaders, refreshLogs, loadHeaders],
+    [logPreviews, syncLogs, loadLogOverviews],
   );
 
   // Update the service's refresh callback when dependencies change
@@ -44,8 +44,8 @@ export function useClientEvents() {
 
   // Wrapper functions that call the service
   const startPolling = useCallback(
-    (logFiles: LogFile[]) => {
-      clientEventsService.startPolling(logFiles, api);
+    (logs: LogHandle[]) => {
+      clientEventsService.startPolling(logs, api);
     },
     [api],
   );

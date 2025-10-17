@@ -3,12 +3,12 @@ import { asyncJsonParse } from "../../utils/json-worker";
 import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
-  EvalSummary,
-  LogOverview,
+  LogDetails,
+  LogPreview,
   LogViewAPI,
   SampleSummary,
 } from "../api/types";
-import { toBasicInfo } from "../utils/type-utils";
+import { toLogPreview } from "../utils/type-utils";
 import {
   CentralDirectoryEntry,
   FileSizeLimitError,
@@ -33,8 +33,8 @@ export class SampleNotFoundError extends Error {
   }
 }
 export interface RemoteLogFile {
-  readEvalBasicInfo: () => Promise<LogOverview>;
-  readLogSummary: () => Promise<EvalSummary>;
+  readEvalBasicInfo: () => Promise<LogPreview>;
+  readLogSummary: () => Promise<LogDetails>;
   readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
   readCompleteLog: () => Promise<EvalLog>;
 }
@@ -67,8 +67,8 @@ export const openRemoteLogFile = async (
     try {
       remoteZipFile = await openRemoteZipFile(
         url,
-        api.eval_log_size,
-        api.eval_log_bytes,
+        api.get_log_size,
+        api.get_log_bytes,
       );
     } catch {
       retryCount++;
@@ -165,9 +165,9 @@ export const openRemoteLogFile = async (
     }
   };
 
-  const readEvalBasicInfo = async (): Promise<LogOverview> => {
+  const readEvalBasicInfo = async (): Promise<LogPreview> => {
     const header = await readHeader();
-    return toBasicInfo(header);
+    return toLogPreview(header);
   };
 
   /**

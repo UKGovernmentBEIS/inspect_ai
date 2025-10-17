@@ -205,9 +205,12 @@ export const fetchSize = async (url: string): Promise<number> => {
     if (contentRange !== null) {
       const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
       if (rangeMatch !== null) {
+        await getResponse.arrayBuffer();
         return Number(rangeMatch[3]);
       }
     }
+    // Consume the response body (even if unused) to avoid resource leaks
+    await getResponse.arrayBuffer();
   }
 
   //  use the HEAD request to get Content-Length

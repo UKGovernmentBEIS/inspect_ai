@@ -29,10 +29,8 @@ export const LogViewContainer: FC = () => {
   const setShowingSampleDialog = useStore(
     (state) => state.appActions.setShowingSampleDialog,
   );
-  const setStatus = useStore((state) => state.appActions.setStatus);
   const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
 
-  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
   const selectSample = useStore((state) => state.logActions.selectSample);
   const setSelectedLogIndex = useStore(
@@ -40,7 +38,7 @@ export const LogViewContainer: FC = () => {
   );
 
   const clearSelectedLogSummary = useStore(
-    (state) => state.logActions.clearSelectedLogSummary,
+    (state) => state.logActions.clearSelectedLogDetails,
   );
 
   const clearSelectedSample = useStore(
@@ -117,15 +115,7 @@ export const LogViewContainer: FC = () => {
     };
 
     loadLogFromPath();
-  }, [
-    logPath,
-    tabId,
-    selectLogFile,
-    refreshLogs,
-    setWorkspaceTab,
-    setSelectedLogIndex,
-    setStatus,
-  ]);
+  }, [logPath, tabId, selectLogFile, setWorkspaceTab, setSelectedLogIndex]);
 
   // Handle sample selection from URL params
   useEffect(() => {

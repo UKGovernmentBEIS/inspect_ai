@@ -82,7 +82,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   const runningSampleData = sampleData.running;
 
-  const evalSpec = useStore((state) => state.log.selectedLogSummary?.eval);
+  const evalSpec = useStore((state) => state.log.selectedLogDetails?.eval);
   const { setDocumentTitle } = useDocumentTitle();
   useEffect(() => {
     setDocumentTitle({ evalSpec, sample });

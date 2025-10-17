@@ -1,13 +1,8 @@
 import { EvalSet } from "../../../@types/log";
 import { fetchRange, fetchSize } from "../../remote/remoteZipFile";
 import { download_file } from "../shared/api-shared";
-import { Capabilities, LogFiles, LogOverview, LogViewAPI } from "../types";
+import { Capabilities, LogPreview, LogRoot, LogViewAPI } from "../types";
 import { fetchJsonFile, fetchLogFile, fetchManifest, joinURI } from "./fetch";
-
-interface LogInfo {
-  log_dir?: string;
-  log_file?: string;
-}
 
 /**
  * This provides an API implementation that will serve a single
@@ -30,13 +25,16 @@ export default function staticHttpApi(
 /**
  * Fetches a file from the specified URL and parses its content.
  */
-function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
+function staticHttpApiForLog(logInfo: {
+  log_dir?: string;
+  log_file?: string;
+}): LogViewAPI {
   const log_dir = logInfo.log_dir;
-  let manifest: Record<string, LogOverview> | undefined = undefined;
-  let manifestPromise: Promise<Record<string, LogOverview>> | undefined =
+  let manifest: Record<string, LogPreview> | undefined = undefined;
+  let manifestPromise: Promise<Record<string, LogPreview>> | undefined =
     undefined;
 
-  const getManifest = async (): Promise<Record<string, LogOverview>> => {
+  const getManifest = async (): Promise<Record<string, LogPreview>> => {
     if (!manifest && log_dir) {
       if (!manifestPromise) {
         manifestPromise = fetchManifest(log_dir).then((manifestRaw) => {
@@ -58,7 +56,7 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
       // http
       return Promise.resolve([]);
     },
-    eval_logs: async (): Promise<LogFiles | undefined> => {
+    get_log_root: async (): Promise<LogRoot | undefined> => {
       // First check based upon the log dir
       if (log_dir) {
         const manifest = await getManifest();
@@ -71,7 +69,7 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
             };
           });
           return Promise.resolve({
-            files: logs,
+            logs: logs,
             log_dir,
           });
         }
@@ -79,7 +77,7 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
 
       return undefined;
     },
-    eval_set: async (dir?: string) => {
+    get_eval_set: async (dir?: string) => {
       const dirSegments = [];
       if (log_dir) {
         dirSegments.push(log_dir);
@@ -94,7 +92,7 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
     log_message: async (log_file: string, message: string) => {
       console.log(`[CLIENT MESSAGE] (${log_file}): ${message}`);
     },
-    eval_log: async (
+    get_log_contents: async (
       log_file: string,
       _headerOnly?: number,
       _capabilities?: Capabilities,
@@ -106,16 +104,16 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
         throw new Error(`"Unable to load eval log ${log_file}`);
       }
     },
-    eval_log_size: async (log_file: string) => {
+    get_log_size: async (log_file: string) => {
       return await fetchSize(log_file);
     },
-    eval_log_bytes: async (log_file: string, start: number, end: number) => {
+    get_log_bytes: async (log_file: string, start: number, end: number) => {
       return await fetchRange(log_file, start, end);
     },
-    eval_log_overview: async (log_file: string) => {
+    get_log_summary: async (log_file: string) => {
       const manifest = await getManifest();
       if (manifest) {
-        const manifestAbs: Record<string, LogOverview> = {};
+        const manifestAbs: Record<string, LogPreview> = {};
         Object.keys(manifest).forEach((key) => {
           manifestAbs[joinURI(log_dir || "", key)] = manifest[key];
         });
@@ -126,7 +124,7 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
       }
       throw new Error(`Unable to load eval log header for ${log_file}`);
     },
-    eval_log_overviews: async (files: string[]) => {
+    get_log_summaries: async (files: string[]) => {
       if (files.length === 0) {
         return [];
       }
@@ -135,7 +133,7 @@ function staticHttpApiForLog(logInfo: LogInfo): LogViewAPI {
         const manifest = await getManifest();
         if (manifest) {
           const keys = Object.keys(manifest);
-          const result: LogOverview[] = [];
+          const result: LogPreview[] = [];
           files.forEach((file) => {
             const fileKey = keys.find((key) => {
               return file.endsWith(key);

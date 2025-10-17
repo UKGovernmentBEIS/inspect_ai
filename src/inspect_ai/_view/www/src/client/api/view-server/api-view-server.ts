@@ -1,8 +1,11 @@
+import { Scores } from "../../../@types/log";
 import { asyncJsonParse } from "../../../utils/json-worker";
 import { download_file } from "../shared/api-shared";
 import {
   Capabilities,
+  EvalHeader,
   LogContents,
+  LogPreview,
   LogViewAPI,
   PendingSampleResponse,
   SampleDataResponse,
@@ -43,7 +46,12 @@ export function viewServerApi(
     return result.parsed;
   };
 
-  const eval_logs = async () => {
+  const get_log_dir = async () => {
+    const obj = (await requestApi.fetchString("GET", "/log-dir")).parsed;
+    return obj.log_dir as string | undefined;
+  };
+
+  const get_log_root = async () => {
     const path = logDir
       ? `/logs?log_dir=${encodeURIComponent(logDir)}`
       : "/logs";
@@ -55,8 +63,35 @@ export function viewServerApi(
     return logs.parsed;
   };
 
-  const eval_set = async (dir?: string) => {
-    if (logDir) dir ??= logDir;
+  const get_log_files = async (mtime: number, clientFileCount: number) => {
+    const path = logDir
+      ? `/log-files?log_dir=${encodeURIComponent(logDir)}`
+      : "/log-files";
+
+    const headers: Record<string, string> = {};
+    const token = log_file_token(mtime, clientFileCount);
+    if (token) {
+      headers["If-None-Match"] = token;
+    }
+
+    // Note the last request time so we can get events
+    // since the last request
+    lastEvalTime = Date.now();
+
+    const envelope = await requestApi.fetchString("GET", path, headers);
+    return envelope.parsed;
+  };
+
+  const log_file_token = (mtime: number, fileCount: number) => {
+    // Use a weak etag as the mtime and file count may not
+    // uniquely identify the state of the log directory
+    return `W/"${mtime}-${fileCount}"`;
+  };
+
+  const get_eval_set = async (dir?: string) => {
+    if (logDir) {
+      dir ??= logDir;
+    }
     const path = dir ? `/eval-set?dir=${encodeURIComponent(dir)}` : "/eval-set";
     try {
       const result = await requestApi.fetchString("GET", path);
@@ -64,14 +99,17 @@ export function viewServerApi(
     } catch (error) {
       // if the eval set is not found, no biggee as not all
       // log directories will have an eval set.
-      if (error instanceof ApiError && error.status === 404) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.status === 403)
+      ) {
         return undefined;
       }
       throw error;
     }
   };
 
-  const eval_log = async (
+  const get_log_contents = async (
     file: string,
     headerOnly?: number,
     _capabilities?: Capabilities,
@@ -83,7 +121,7 @@ export function viewServerApi(
     return result;
   };
 
-  const eval_log_size = async (file: string): Promise<number> => {
+  const get_log_size = async (file: string): Promise<number> => {
     const result = await requestApi.fetchString(
       "GET",
       `/log-size/${encodeURIComponent(file)}`,
@@ -91,7 +129,34 @@ export function viewServerApi(
     return result.parsed;
   };
 
-  const eval_log_bytes = async (
+  const toLogPreview = (header: EvalHeader): LogPreview => {
+    const scores: Scores = Object.values(header.results?.scores || {});
+    const metric = scores.length > 0 ? scores[0].metrics : undefined;
+    const evalMetrics = Object.values(metric || {});
+    const primary_metric = evalMetrics.length > 0 ? evalMetrics[0] : undefined;
+
+    return {
+      eval_id: header.eval.eval_id,
+      run_id: header.eval.run_id,
+
+      task: header.eval.task,
+      task_id: header.eval.task_id,
+      task_version: header.eval.task_version,
+
+      version: header.version,
+      status: header.status,
+      error: header.error,
+
+      model: header.eval.model,
+
+      started_at: header.stats?.started_at,
+      completed_at: header.stats?.completed_at,
+
+      primary_metric,
+    };
+  };
+
+  const get_log_bytes = async (
     file: string,
     start: number,
     end: number,
@@ -101,7 +166,7 @@ export function viewServerApi(
       `/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`,
     );
 
-  const eval_log_overviews = async (files: string[]) => {
+  const get_log_summaries = async (files: string[]) => {
     const params = new URLSearchParams();
     for (const file of files) {
       params.append("file", file);
@@ -110,7 +175,8 @@ export function viewServerApi(
       "GET",
       `/log-headers?${params.toString()}`,
     );
-    return result.parsed;
+    const logHeaders: EvalHeader[] = result.parsed;
+    return logHeaders.map(toLogPreview);
   };
 
   const log_message = async (
@@ -234,12 +300,14 @@ export function viewServerApi(
 
   return {
     client_events,
-    eval_logs,
-    eval_set,
-    eval_log,
-    eval_log_size,
-    eval_log_bytes,
-    eval_log_overviews,
+    get_log_root,
+    get_logs: get_log_files,
+    get_log_dir,
+    get_eval_set,
+    get_log_contents,
+    get_log_size,
+    get_log_bytes,
+    get_log_summaries,
     log_message,
     download_file,
     open_log_file: async () => {},

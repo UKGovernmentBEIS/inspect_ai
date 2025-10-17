@@ -3,7 +3,12 @@ import os
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    TypeVar,
+)
 
 from aiohttp import web
 from pydantic_core import to_jsonable_python
@@ -23,10 +28,13 @@ from .common import (
     async_connection,
     delete_log,
     get_log_bytes,
+    get_log_dir,
     get_log_file,
+    get_log_files,
     get_log_size,
     get_logs,
     normalize_uri,
+    parse_log_token,
 )
 from .notify import view_last_eval_time
 
@@ -107,6 +115,20 @@ def view_server(
             body=body, headers=headers, content_type="application/octet-stream"
         )
 
+    @routes.get("/api/log-dir")
+    async def api_log_dir(request: web.Request) -> web.Response:
+        # log dir can optionally be overridden by the request
+        if authorization:
+            request_log_dir = request.query.getone("log_dir", None)
+            if request_log_dir:
+                request_log_dir = normalize_uri(request_log_dir)
+            else:
+                request_log_dir = log_dir
+        else:
+            request_log_dir = log_dir
+
+        return web.json_response(get_log_dir(request_log_dir))
+
     @routes.get("/api/logs")
     async def api_logs(request: web.Request) -> web.Response:
         # log dir can optionally be overridden by the request
@@ -125,6 +147,34 @@ def view_server(
         if listing is None:
             return web.Response(status=404, reason="File not found")
         return web.json_response(listing)
+
+    @routes.get("/api/log-files")
+    async def api_log_files(request: web.Request) -> web.Response:
+        # log dir can optionally be overridden by the request
+        if authorization:
+            request_log_dir = request.query.getone("log_dir", None)
+            if request_log_dir:
+                request_log_dir = normalize_uri(request_log_dir)
+            else:
+                request_log_dir = log_dir
+        else:
+            request_log_dir = log_dir
+
+        # see if there is an etag
+        client_etag = request.headers.get("If-None-Match")
+        mtime = 0.0
+        file_count = 0
+        if client_etag is not None:
+            mtime, file_count = parse_log_token(client_etag)
+
+        log_files_response: dict[str, Any] = await get_log_files(
+            request_log_dir,
+            recursive=recursive,
+            fs_options=fs_options,
+            mtime=mtime,
+            file_count=file_count,
+        )
+        return web.json_response(log_files_response)
 
     @routes.get("/api/eval-set")
     async def eval_set(request: web.Request) -> web.Response:

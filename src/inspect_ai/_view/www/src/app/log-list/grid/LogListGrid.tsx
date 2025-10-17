@@ -13,7 +13,7 @@ import {
 import clsx from "clsx";
 import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { LogFile } from "../../../client/api/types";
+import { LogHandle } from "../../../client/api/types";
 import { useLogs, useLogsListing, usePagination } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
@@ -39,33 +39,32 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
     setColumnSize,
   } = useLogsListing();
 
-  const { loadHeaders } = useLogs();
+  const { loadLogOverviews, loadAllLogOverviews } = useLogs();
 
   const { page, itemsPerPage, setPage } = usePagination(
     kLogsPaginationId,
     kDefaultPageSize,
   );
-  const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
   const loading = useStore((state) => state.app.status.loading);
   const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
 
-  const logHeaders = useStore((state) => state.logs.logOverviews);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
   const sortingRef = useRef(sorting);
 
   const logFiles = useMemo(() => {
     return items
       .filter((item) => item.type === "file")
-      .map((item) => item.logFile)
+      .map((item) => item.log)
       .filter((file) => file !== undefined);
   }, [items]);
 
   // Load all headers when needed (store handles deduplication)
   const loadAllHeadersForItems = useCallback(
-    async (files: LogFile[]) => {
-      await loadHeaders(files);
-      setWatchedLogs(files);
+    async (logs: LogHandle[]) => {
+      await loadAllLogOverviews();
+      setWatchedLogs(logs);
     },
-    [loadHeaders, setWatchedLogs],
+    [loadLogOverviews, setWatchedLogs],
   );
 
   // Keep ref updated
@@ -89,7 +88,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
       // Trigger a re-sort by updating the sorting state
       setSorting([...(sortingRef.current || [])]);
     }
-  }, [logHeaders]);
+  }, [logPreviews]);
 
   const columns = useMemo(() => {
     return getColumns();
@@ -182,23 +181,30 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
       const fileItems = currentPageItems.filter((item) => item.type === "file");
       const logFiles = fileItems
-        .map((item) => item.logFile)
+        .map((item) => item.log)
         .filter((file) => file !== undefined);
 
       // Only load headers for files that don't already have headers loaded
-      const filesToLoad = logFiles.filter((file) => !logHeaders[file.name]);
+      const filesToLoad = logFiles.filter((file) => !logPreviews[file.name]);
 
       if (filesToLoad.length > 0) {
-        await loadHeaders(filesToLoad);
+        await loadLogOverviews(filesToLoad);
       }
 
       setWatchedLogs(logFiles);
     };
     exec();
-  }, [page, itemsPerPage, items, loadHeaders, setWatchedLogs, logHeaders]);
+  }, [
+    page,
+    itemsPerPage,
+    items,
+    loadLogOverviews,
+    setWatchedLogs,
+    logPreviews,
+  ]);
 
   const placeholderText = useMemo(() => {
-    if (headersLoading || loading) {
+    if (loading) {
       if (globalFilter) {
         return "searching...";
       } else {
@@ -211,7 +217,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
         return "no logs";
       }
     }
-  }, [headersLoading, loading, globalFilter]);
+  }, [loading, globalFilter]);
 
   return (
     <div className={styles.gridContainer}>

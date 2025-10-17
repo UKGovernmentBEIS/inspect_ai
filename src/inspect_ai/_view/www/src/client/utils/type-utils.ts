@@ -1,7 +1,7 @@
 import { EvalMetric, EvalResults } from "../../@types/log";
-import { EvalHeader, EvalSummary, LogOverview } from "../api/types";
+import { EvalHeader, LogDetails, LogPreview } from "../api/types";
 
-export const toBasicInfo = (header: EvalHeader | EvalSummary): LogOverview => {
+export const toLogPreview = (header: EvalHeader | LogDetails): LogPreview => {
   return {
     eval_id: header.eval.eval_id,
     run_id: header.eval.run_id,

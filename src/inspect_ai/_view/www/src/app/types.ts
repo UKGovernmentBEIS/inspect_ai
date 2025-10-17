@@ -25,12 +25,11 @@ import {
 } from "../@types/log";
 import {
   AttachmentData,
-  EvalLogHeader,
-  EvalSummary,
+  EvalHeader,
   EventData,
-  LogFile,
-  LogFiles,
-  LogOverview,
+  LogDetails,
+  LogHandle,
+  LogPreview,
   PendingSamples,
   SampleSummary,
 } from "../client/api/types";
@@ -67,15 +66,19 @@ export interface AppState {
 }
 
 export interface LogsState {
-  logs: LogFiles;
+  logDir?: string;
+  logs: LogHandle[];
+  logPreviews: Record<string, LogPreview>;
   evalSet?: EvalSet;
-  logOverviews: Record<string, LogOverview>;
-  logOverviewsLoading: boolean;
   selectedLogIndex: number;
   selectedLogFile?: string;
   listing: LogsListing;
-  loadingFiles: Set<string>;
-  pendingRequests: Map<string, Promise<EvalLogHeader | null>>;
+  pendingRequests: Map<string, Promise<EvalHeader | null>>;
+  dbStats: {
+    logCount: number;
+    previewCount: number;
+    detailsCount: number;
+  };
 }
 
 export interface LogsListing {
@@ -85,14 +88,14 @@ export interface LogsListing {
   columnResizeMode?: ColumnResizeMode;
   columnSizes?: Record<string, number>;
   filteredCount?: number;
-  watchedLogs?: LogFile[];
+  watchedLogs?: LogHandle[];
 }
 
 export interface LogState {
   loadedLog?: string;
 
   selectedSampleIndex: number;
-  selectedLogSummary?: EvalSummary;
+  selectedLogDetails?: LogDetails;
   pendingSampleSummaries?: PendingSamples;
 
   filter: string;
@@ -153,13 +156,17 @@ export type Event =
   | SubtaskEvent;
 
 export interface AppStatus {
-  loading: boolean;
+  // Waiting while loading data, show large form of progress
+  loading: number;
+
+  // Background syncing data, show small form of activity
+  syncing: boolean;
   error?: Error;
 }
 
 export interface CurrentLog {
   name: string;
-  contents: EvalSummary;
+  contents: LogDetails;
 }
 
 export interface Logs {
