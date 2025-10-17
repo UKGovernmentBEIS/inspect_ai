@@ -832,6 +832,9 @@ class Model:
 
     async def before_retry(self, ex: BaseException) -> None:
         if isinstance(ex, Exception) and self.api.is_auth_failure(ex):
+            # close existing model instance
+            await self.api.aclose()
+            # re-initialize
             self.api.initialize()
 
     # function to verify that its okay to call model apis
