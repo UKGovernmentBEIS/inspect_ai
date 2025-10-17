@@ -323,7 +323,9 @@ export class ReplicationService {
         });
 
         // Activate existing previews
-        this._applicationContext?.updateLogPreviews(loaded);
+        if (Object.keys(loaded).length > 0) {
+          this._applicationContext?.updateLogPreviews(loaded);
+        }
 
         // Queue any missing previews
         if (filtered.length > 0) {

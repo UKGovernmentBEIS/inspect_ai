@@ -9,6 +9,7 @@ interface WorkItem<T> {
   data: T;
   priority: WorkPriority;
   addedAt: number;
+  retries: number;
 }
 
 interface WorkQueueOptions {
@@ -25,6 +26,8 @@ export class WorkQueue<TInput, TOutput> {
   private onComplete: ((results: TOutput[], inputs: TInput[]) => void) | null =
     null;
   private options: Required<WorkQueueOptions>;
+  private backoffDelay = 0;
+  private consecutiveErrors = 0;
 
   constructor(options: WorkQueueOptions) {
     this.options = {
@@ -54,6 +57,7 @@ export class WorkQueue<TInput, TOutput> {
       data: item,
       priority,
       addedAt: now,
+      retries: 0,
     }));
 
     // Deduplicate - don't add if already in queue
@@ -104,16 +108,38 @@ export class WorkQueue<TInput, TOutput> {
         if (this.onComplete) {
           this.onComplete(results, inputs);
         }
+
+        // Reset backoff on success
+        this.consecutiveErrors = 0;
+        this.backoffDelay = 0;
       } catch (error) {
-        // TODO: Retry?
         console.error("Work queue processing error:", error);
+
+        // Re-queue items that haven't exceeded max retries
+        const itemsToRetry = batch.filter(
+          (item) => item.retries < this.options.maxRetries,
+        );
+        if (itemsToRetry.length > 0) {
+          // Increment retry count and add back to queue
+          itemsToRetry.forEach((item) => item.retries++);
+          this.queue.unshift(...itemsToRetry);
+        }
+
+        // Increase backoff: 1x, 2x, 4x, 8x, 16x (max) of processingDelay
+        this.consecutiveErrors++;
+        const multiplier = Math.min(
+          Math.pow(2, this.consecutiveErrors - 1),
+          16,
+        );
+        this.backoffDelay = multiplier * (this.options.processingDelay || 100);
       }
 
-      // Delay between batches
-      if (this.queue.length > 0 && this.options.processingDelay) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, this.options.processingDelay),
-        );
+      // Delay between batches (either normal delay or backoff delay)
+      if (this.queue.length > 0) {
+        const delay = this.backoffDelay || this.options.processingDelay || 0;
+        if (delay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
       }
     }
 
