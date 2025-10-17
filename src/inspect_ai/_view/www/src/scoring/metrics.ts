@@ -51,7 +51,28 @@ const clusterMetricModifier: MetricModifier = (
   return clusterValue;
 };
 
-const metricModifiers: MetricModifier[] = [clusterMetricModifier];
+const groupMetricModifier: MetricModifier = (metric: MetricSummary) => {
+  const groupKey = ((metric.params || {}) as Record<string, unknown>)[
+    "group_key"
+  ];
+  if (groupKey === undefined || typeof groupKey !== "string") {
+    return undefined;
+  }
+  const metricRaw = ((metric.params || {}) as Record<string, unknown>)[
+    "metric"
+  ];
+  if (metricRaw === undefined || typeof metricRaw !== "object") {
+    return undefined;
+  }
+  const metricObj = metricRaw as Record<string, unknown>;
+  const name = metricObj["name"] as string;
+  return name;
+};
+
+const metricModifiers: MetricModifier[] = [
+  clusterMetricModifier,
+  groupMetricModifier,
+];
 
 export const toDisplayScorers = (scores?: Scores): ScoreSummary[] => {
   if (!scores) {
