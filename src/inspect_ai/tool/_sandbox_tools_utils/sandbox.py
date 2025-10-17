@@ -50,8 +50,9 @@ InstallState = Literal["pypi", "clean", "edited"]
 
 # For this, we choose /var/tmp as the injection location since it is
 #  1) accessible in all major linux distributions
-#  2) unlikely to be cleared during an evaluation (https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard)
-#  3) unlikely to be accidentally stumbled upon by an LLM solving a taks that requires interacting with temp files
+#  2) all users have permissions to read/write to (i.e., world-writable)
+#  3) unlikely to be cleared during an evaluation (https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard)
+#  4) unlikely to be accidentally stumbled upon by an LLM solving a taks that requires interacting with temp files
 # We additionally choose a dot-prefixed random hash sub-directory to further attempt to prevent LLMs from stumbling on the injected tools.
 SANDBOX_TOOLS_CLI = f"/var/tmp/.da7be258e003d428/{SANDBOX_TOOLS_BASE_NAME}"
 
