@@ -158,6 +158,10 @@ export class ReplicationService {
     this._applicationContext = undefined;
   }
 
+  public isReplicating(): boolean {
+    return !!this._api && !!this._database && !!this._applicationContext;
+  }
+
   public async sync(progress?: boolean): Promise<LogHandle[]> {
     // If sync is running and another is already queued, just wait for the queued one
     if (this._pendingSync && this._syncQueued) {

@@ -168,6 +168,12 @@ export const createLogsSlice = (
           }
         };
 
+        // Don't enable syncing if there is no log directory
+        if (!logDir) {
+          get().appActions.setLoading(false);
+          return [];
+        }
+
         // Activate the database for this log directory
         const databaseService = await initializeDatabase(logDir);
         if (!databaseService) {
@@ -242,16 +248,20 @@ export const createLogsSlice = (
         if (index > -1) {
           state.logsActions.setSelectedLogIndex(index);
         } else {
-          // It isn't yet loaded, so refresh the logs and try to load it from there
-          const logHandles = await state.logsActions.syncLogs();
+          if (state.replicationService?.isReplicating()) {
+            // It isn't yet loaded, so refresh the logs and try to load it from there
+            const logHandles = await state.logsActions.syncLogs();
+            const idx = logHandles.findIndex((file) =>
+              file.name.endsWith(logUrl),
+            );
 
-          const idx = logHandles.findIndex((file) =>
-            file.name.endsWith(logUrl),
-          );
-
-          state.logsActions.setSelectedLogIndex(
-            idx !== undefined && idx > -1 ? idx : 0,
-          );
+            state.logsActions.setSelectedLogIndex(
+              idx !== undefined && idx > -1 ? idx : 0,
+            );
+          } else {
+            state.logsActions.setLogHandles([{ name: logUrl }]);
+            state.logsActions.setSelectedLogIndex(0);
+          }
         }
       },
       setSorting: (sorting: SortingState) => {
