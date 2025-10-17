@@ -20,7 +20,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._store import StoreEvent
-from inspect_ai.log._condense import condense_event
+from inspect_ai.log._condense import WalkContext, condense_event
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 logger = getLogger(__name__)
@@ -33,6 +33,7 @@ class Transcript:
     """Transcript of events."""
 
     _event_logger: Callable[[Event], None] | None
+    _context: WalkContext
 
     @overload
     def __init__(self) -> None: ...
@@ -42,6 +43,7 @@ class Transcript:
 
     def __init__(self, events: list[Event] | None = None) -> None:
         self._event_logger = None
+        self._context = WalkContext(message_cache={}, only_core=False)
         self._events: list[Event] = events if events is not None else []
         self._attachments: dict[str, str] = {}
 
@@ -87,7 +89,12 @@ class Transcript:
 
         # condense model events immediately to prevent O(N) memory usage
         if isinstance(event, ModelEvent):
-            ev_condensed = cast(ModelEvent, condense_event(event, self.attachments))
+            ev_condensed = cast(
+                ModelEvent,
+                condense_event(
+                    event, self.attachments, log_images=True, context=self._context
+                ),
+            )
             # mutate the original event in place so callers that hold a reference see the condensed version
             event.input = ev_condensed.input
             event.output = ev_condensed.output
@@ -102,7 +109,12 @@ class Transcript:
 
         # condense model event call immediately to prevent O(N) memory usage (call and output are the only changed fields)
         if isinstance(event, ModelEvent):
-            ev_condensed = cast(ModelEvent, condense_event(event, self.attachments))
+            ev_condensed = cast(
+                ModelEvent,
+                condense_event(
+                    event, self.attachments, log_images=True, context=self._context
+                ),
+            )
             event.call = ev_condensed.call
             event.output = ev_condensed.output
 
