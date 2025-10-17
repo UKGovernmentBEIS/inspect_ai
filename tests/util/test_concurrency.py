@@ -10,8 +10,93 @@ import pytest
 from inspect_ai.util._concurrency import (
     concurrency,
     concurrency_status_display,
+    get_or_create_semaphore,
     init_concurrency,
 )
+
+# get_or_create_sem Tests
+
+
+@pytest.mark.anyio
+async def test_get_or_create_sem_creates_new_semaphore() -> None:
+    """Test that get_or_create_sem creates a new semaphore on first call."""
+    init_concurrency()
+
+    sem = await get_or_create_semaphore("test-resource", 5, None, True)
+
+    assert sem.name == "test-resource"
+    assert sem.concurrency == 5
+    assert sem.visible is True
+    assert sem.value == 5  # All slots available
+
+
+@pytest.mark.anyio
+async def test_get_or_create_sem_returns_existing_semaphore() -> None:
+    """Test that get_or_create_sem returns the same semaphore for the same key."""
+    init_concurrency()
+
+    sem1 = await get_or_create_semaphore("test-resource", 3, None, True)
+    sem2 = await get_or_create_semaphore("test-resource", 3, None, True)
+
+    assert sem1 is sem2
+
+
+@pytest.mark.anyio
+async def test_get_or_create_sem_respects_explicit_key() -> None:
+    """Test that get_or_create_sem uses explicit key parameter when provided."""
+    init_concurrency()
+
+    # Same name, different keys should create different semaphores
+    sem1 = await get_or_create_semaphore("display-name", 2, "key-1", True)
+    sem2 = await get_or_create_semaphore("display-name", 3, "key-2", True)
+
+    assert sem1 is not sem2
+    assert sem1.name == "display-name"
+    assert sem2.name == "display-name"
+    assert sem1.concurrency == 2
+    assert sem2.concurrency == 3
+
+
+@pytest.mark.anyio
+async def test_get_or_create_sem_key_defaults_to_name() -> None:
+    """Test that key defaults to name when key is None."""
+    init_concurrency()
+
+    # Both calls use name as key
+    sem1 = await get_or_create_semaphore("test-resource", 4, None, True)
+    sem2 = await get_or_create_semaphore("test-resource", 4, "test-resource", True)
+
+    assert sem1 is sem2
+
+
+@pytest.mark.anyio
+async def test_get_or_create_sem_visibility() -> None:
+    """Test that get_or_create_sem properly sets visibility flag."""
+    init_concurrency()
+
+    sem_visible = await get_or_create_semaphore("visible-resource", 1, None, True)
+    sem_hidden = await get_or_create_semaphore("hidden-resource", 1, None, False)
+
+    assert sem_visible.visible is True
+    assert sem_hidden.visible is False
+
+
+@pytest.mark.anyio
+async def test_get_or_create_sem_semaphore_is_usable() -> None:
+    """Test that semaphore returned by get_or_create_sem is functional."""
+    init_concurrency()
+
+    sem = await get_or_create_semaphore("test-resource", 2, None, True)
+
+    # Use the semaphore
+    async with sem.semaphore:
+        assert sem.value == 1  # One slot taken
+
+        async with sem.semaphore:
+            assert sem.value == 0  # Both slots taken
+
+    assert sem.value == 2  # Both slots released
+
 
 # Basic Concurrency Control Tests
 
@@ -26,7 +111,9 @@ from inspect_ai.util._concurrency import (
         (100, 10, 10),  # High limit
     ],
 )
-async def test_concurrency_limits(limit: int, num_tasks: int, expected_max: int) -> None:
+async def test_concurrency_limits(
+    limit: int, num_tasks: int, expected_max: int
+) -> None:
     """Test that concurrency limits are properly enforced."""
     init_concurrency()
     max_concurrent = 0

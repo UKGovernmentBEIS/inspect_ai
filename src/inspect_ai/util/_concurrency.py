@@ -54,7 +54,7 @@ class ConcurrencySemaphoreRegistry(Protocol):
         ...
 
 
-async def get_or_create_sem(
+async def get_or_create_semaphore(
     name: str, concurrency: int, key: str | None, visible: bool
 ) -> ConcurrencySemaphore:
     """Get or create a concurrency semaphore.
@@ -99,7 +99,7 @@ async def concurrency(
     key = key if key else name
 
     # do we have an existing semaphore? if not create one and store it
-    semaphore = await get_or_create_sem(name, concurrency, key, visible)
+    semaphore = await get_or_create_semaphore(name, concurrency, key, visible)
 
     # wait and yield to protected code
     start_wait = time.monotonic()
