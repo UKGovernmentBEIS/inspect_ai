@@ -102,7 +102,11 @@ export const createLogsSlice = (
           console.error("Replication service not initialized in LogsStore");
           return;
         }
-        await state.replicationService?.loadLogPreviews({ logs });
+        try {
+          await state.replicationService?.loadLogPreviews({ logs });
+        } catch (e) {
+          console.error("Failed to sync log previews", e);
+        }
       },
       updateLogPreviews: (previews: Record<string, LogPreview>) =>
         set((state) => {
