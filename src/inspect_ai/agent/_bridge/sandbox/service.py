@@ -87,7 +87,7 @@ def generate_google(
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         if bridge.model is not None:
             json_data["model"] = bridge.model
-        response = await inspect_google_api_request(json_data, web_search, bridge)
-        return response.model_dump(mode="json")
+        completion = await inspect_google_api_request(json_data, web_search, bridge)
+        return completion.model_dump(mode="json")
 
     return generate

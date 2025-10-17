@@ -1999,14 +1999,14 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
                                     {"text": "The answer is 42."},
                                 ],
                             },
-                            "finish_reason": "STOP",
+                            "finishReason": "STOP",
                         }
                     ],
-                    "usage_metadata": {
-                        "prompt_token_count": 20,
-                        "candidates_token_count": 50,
-                        "total_token_count": 70,
-                        "thoughts_token_count": 30,
+                    "usageMetadata": {
+                        "promptTokenCount": 20,
+                        "candidatesTokenCount": 50,
+                        "totalTokenCount": 70,
+                        "thoughtsTokenCount": 30,
                     },
                 }
             elif "test_web_search" in last_user_text:
@@ -2026,13 +2026,13 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
                                     },
                                 ],
                             },
-                            "finish_reason": "STOP",
+                            "finishReason": "STOP",
                         }
                     ],
-                    "usage_metadata": {
-                        "prompt_token_count": 20,
-                        "candidates_token_count": 15,
-                        "total_token_count": 35,
+                    "usageMetadata": {
+                        "promptTokenCount": 20,
+                        "candidatesTokenCount": 15,
+                        "totalTokenCount": 35,
                     },
                 }
             elif tools and "weather" in last_user_text.lower():
@@ -2052,13 +2052,13 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
                                     },
                                 ],
                             },
-                            "finish_reason": "STOP",
+                            "finishReason": "STOP",
                         }
                     ],
-                    "usage_metadata": {
-                        "prompt_token_count": 25,
-                        "candidates_token_count": 20,
-                        "total_token_count": 45,
+                    "usageMetadata": {
+                        "promptTokenCount": 25,
+                        "candidatesTokenCount": 20,
+                        "totalTokenCount": 45,
                     },
                 }
             else:
@@ -2073,13 +2073,13 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
                                 "role": "model",
                                 "parts": [{"text": response_text}],
                             },
-                            "finish_reason": "STOP",
+                            "finishReason": "STOP",
                         }
                     ],
-                    "usage_metadata": {
-                        "prompt_token_count": 10,
-                        "candidates_token_count": 15,
-                        "total_token_count": 25,
+                    "usageMetadata": {
+                        "promptTokenCount": 10,
+                        "candidatesTokenCount": 15,
+                        "totalTokenCount": 25,
                     },
                 }
         else:

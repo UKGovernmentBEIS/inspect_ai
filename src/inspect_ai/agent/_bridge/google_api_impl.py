@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from google.genai.types import (
     Candidate,
@@ -10,9 +10,7 @@ from google.genai.types import (
     GenerateContentResponse,
     GenerateContentResponseUsageMetadata,
     Part,
-    ToolConfig,
 )
-from google.genai.types import Tool as GoogleTool
 from shortuuid import uuid
 
 from inspect_ai.model._chat_message import (
@@ -50,20 +48,20 @@ async def inspect_google_api_request_impl(
     bridge: AgentBridge,
 ) -> GenerateContentResponse:
     # resolve model
-    bridge_model_name = str(json_data.get("model", "inspect"))
+    bridge_model_name = google_api_model_name_impl(json_data) or "inspect"
     model = resolve_inspect_model(bridge_model_name)
     model_name = model.api.model_name
 
     # tools
-    google_tools: list[GoogleTool] | None = json_data.get("tools", None)
+    google_tools: list[dict[str, Any]] | None = json_data.get("tools", None)
     tools = tools_from_google_tools(google_tools, web_search)
 
     # tool choice
-    google_tool_config: ToolConfig | None = json_data.get("toolConfig", None)
+    google_tool_config: dict[str, Any] | None = json_data.get("toolConfig", None)
     tool_choice = tool_choice_from_google_tool_config(google_tool_config)
 
     # convert to inspect messages
-    input: list[Content] = json_data.get("contents", [])
+    input: list[dict[str, Any]] = json_data.get("contents", [])
     debug_log("SCAFFOLD INPUT", input)
 
     messages = await messages_from_google_input(input, tools)
@@ -136,29 +134,45 @@ def generate_config_from_google(json_data: dict[str, Any]) -> GenerateConfig:
     return config
 
 
+def convert_type_enums(obj: Any) -> Any:
+    """Recursively convert Google Type enums to string values.
+
+    The SDK sends Type.STRING, Type.OBJECT enums but ToolParams expects
+    string literals like "string", "object".
+    """
+    if isinstance(obj, dict):
+        return {k: convert_type_enums(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_type_enums(item) for item in obj]
+    elif hasattr(obj, "value"):
+        return obj.value.lower()  # Type.STRING → 'STRING' → 'string'
+    return obj
+
+
 def tools_from_google_tools(
-    google_tools: list[GoogleTool] | None,
+    google_tools: list[dict[str, Any]] | None,
     web_search_providers: WebSearchProviders,
 ) -> list[ToolInfo | Tool]:
+    from inspect_ai.tool._tool_util import tool_to_tool_info
+
     tools: list[ToolInfo | Tool] = []
 
     for tool in google_tools or []:
-        if tool.google_search is not None:
+        if tool.get("googleSearch") is not None:
             # Gemini native web search - convert to Inspect web_search tool
-            tools.append(web_search(web_search_providers))
-        elif tool.function_declarations:
-            for func_decl in tool.function_declarations:
-                if func_decl.name is None:
+            tools.append(tool_to_tool_info(web_search(web_search_providers)))
+        elif tool.get("functionDeclarations"):
+            for func_decl in tool.get("functionDeclarations", []):
+                if func_decl.get("name") is None:
                     continue
+                # Convert Type enums to strings before validation
+                parameters = func_decl.get("parameters") or {}
+                parameters = convert_type_enums(parameters)
                 tools.append(
                     ToolInfo(
-                        name=func_decl.name,
-                        description=func_decl.description or "",
-                        parameters=ToolParams.model_validate(
-                            func_decl.parameters.model_dump()
-                            if func_decl.parameters
-                            else {}
-                        ),
+                        name=func_decl["name"],
+                        description=func_decl.get("description") or "",
+                        parameters=ToolParams.model_validate(parameters),
                     )
                 )
 
@@ -166,13 +180,16 @@ def tools_from_google_tools(
 
 
 def tool_choice_from_google_tool_config(
-    tool_config: ToolConfig | None,
+    tool_config: dict[str, Any] | None,
 ) -> ToolChoice | None:
-    if tool_config is None or tool_config.function_calling_config is None:
+    if tool_config is None:
         return None
 
-    func_calling_config = tool_config.function_calling_config
-    mode = func_calling_config.mode if func_calling_config.mode else "AUTO"
+    func_calling_config = tool_config.get("functionCallingConfig")
+    if func_calling_config is None:
+        return None
+
+    mode = func_calling_config.get("mode") or "AUTO"
 
     match mode:
         case "AUTO" | "VALIDATED":
@@ -183,39 +200,38 @@ def tool_choice_from_google_tool_config(
             return "none"
         case _:
             # If specific function name, extract it
-            if func_calling_config.allowed_function_names:
-                allowed = func_calling_config.allowed_function_names
-                if len(allowed) == 1:
-                    return ToolFunction(name=allowed[0])
+            allowed = func_calling_config.get("allowedFunctionNames")
+            if allowed and len(allowed) == 1:
+                return ToolFunction(name=allowed[0])
             return "auto"
 
 
 async def messages_from_google_input(
-    input: list[Content], tools: list[ToolInfo | Tool]
+    input: list[dict[str, Any]], tools: list[ToolInfo | Tool]
 ) -> list[ChatMessage]:
     messages: list[ChatMessage] = []
     tool_names: dict[str, str] = {}  # tool_call_id -> function_name
 
     for content in input:
-        role = content.role or "user"
-        parts = content.parts or []
+        role = content.get("role") or "user"
+        parts = content.get("parts") or []
 
         if role == "model":  # Gemini uses "model" not "assistant"
             text_parts = []
             tool_calls: list[ToolCall] = []
 
             for part in parts:
-                if part.text is not None:
-                    text_parts.append(part.text)
-                elif part.function_call is not None:
-                    func_call = part.function_call
-                    if func_call.name is None or func_call.args is None:
+                if part.get("text") is not None:
+                    text_parts.append(part["text"])
+                elif part.get("functionCall") is not None:
+                    func_call = part["functionCall"]
+                    if func_call.get("name") is None or func_call.get("args") is None:
                         continue
                     tool_call_id = str(uuid())
                     tool_call = ToolCall(
                         id=tool_call_id,
-                        function=func_call.name,
-                        arguments=func_call.args,
+                        function=func_call["name"],
+                        arguments=func_call["args"],
                     )
                     tool_calls.append(tool_call)
                     tool_names[tool_call_id] = tool_call.function
@@ -231,20 +247,20 @@ async def messages_from_google_input(
             pending_user_parts: list[str] = []
 
             for part in parts:
-                if part.text is not None:
-                    pending_user_parts.append(part.text)
-                elif part.function_response is not None:
+                if part.get("text") is not None:
+                    pending_user_parts.append(part["text"])
+                elif part.get("functionResponse") is not None:
                     if pending_user_parts:
                         messages.append(
                             ChatMessageUser(content="\n".join(pending_user_parts))
                         )
                         pending_user_parts = []
 
-                    func_response = part.function_response
-                    if func_response.name is None:
+                    func_response = part["functionResponse"]
+                    if func_response.get("name") is None:
                         continue
                     # Gemini uses function name as identifier
-                    func_name = func_response.name
+                    func_name = func_response["name"]
                     tool_call_id = next(
                         (
                             tid
@@ -257,7 +273,7 @@ async def messages_from_google_input(
                         ChatMessageTool(
                             tool_call_id=tool_call_id,
                             function=func_name,
-                            content=str(func_response.response or {}),
+                            content=str(func_response.get("response") or {}),
                         )
                     )
 
@@ -331,3 +347,13 @@ def google_usage(usage: ModelUsage) -> GenerateContentResponseUsageMetadata:
         candidates_token_count=usage.output_tokens,
         total_token_count=usage.input_tokens + usage.output_tokens,
     )
+
+
+def google_api_model_name_impl(json_data: dict[str, Any]) -> str | None:
+    _url = cast(dict[str, Any] | None, json_data.get("_url", None))
+    if _url is None:
+        return None
+    model = cast(str, _url.get("model", None))
+    if model is None:
+        return None
+    return model.removeprefix("models/")

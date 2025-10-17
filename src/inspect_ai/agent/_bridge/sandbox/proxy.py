@@ -1735,9 +1735,8 @@ async def model_proxy_server(
     @server.route("/v1beta/models/*", method="POST")
     async def google(request: dict[str, Any]) -> dict[str, Any]:
         try:
-            # Check if this is a generateContent request
             path = request.get("path", "")
-            if ":generateContent" not in path:
+            if not (":generateContent" in path or ":streamGenerateContent" in path):
                 return {
                     "status": 404,
                     "body": {

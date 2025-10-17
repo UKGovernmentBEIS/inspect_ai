@@ -31,7 +31,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 
 from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
-from .google_api import inspect_google_api_request
+from .google_api import google_api_model_name, inspect_google_api_request
 from .responses import inspect_responses_api_request
 from .util import (
     internal_web_search_providers,
@@ -243,7 +243,10 @@ def init_google_request_patch() -> None:
 
     validate_google_client("agent bridge")
 
+    import json
+
     from google.genai import _api_client
+    from google.genai._api_client import SdkHttpResponse  # type: ignore[attr-defined]
     from google.genai.types import HttpOptionsOrDict
 
     # get reference to original method
@@ -263,7 +266,6 @@ def init_google_request_patch() -> None:
         # patch and when to stand down
         config = _patch_config.get()
 
-        # Check if this is a generateContent request
         is_generate_content = ":generateContent" in path
 
         if (
@@ -275,13 +277,18 @@ def init_google_request_patch() -> None:
             json_data = request_dict
 
             # must also be an explicit request for an inspect model
-            if targets_inspect_model(json_data):
+            if "inspect" in (google_api_model_name(json_data) or ""):
                 if json_data.get("stream", False):
                     raise_stream_error()
 
-                return await inspect_google_api_request(
+                response = await inspect_google_api_request(
                     json_data, config.web_search, config.bridge
                 )
+
+                response_dict = response.model_dump(mode="json", by_alias=True)
+
+                response_json = json.dumps(response_dict)
+                return SdkHttpResponse(headers={}, body=response_json)
 
         # otherwise just delegate
         return await original_request(

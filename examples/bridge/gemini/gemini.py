@@ -36,7 +36,7 @@ def gemini() -> Agent:
                 ],
                 env={
                     "GOOGLE_GEMINI_BASE_URL": f"http://localhost:{bridge.port}/v1beta",
-                    "GOOGLE_API_KEY": "inspect",
+                    "GEMINI_API_KEY": "inspect",
                 },
             )
 
