@@ -49,14 +49,14 @@ ATTACHMENT_PROTOCOL = "attachment://"
 
 class WalkContext(TypedDict):
     message_cache: dict[str, ChatMessage]
-    resolve_attachments: bool | Literal["full", "core"]
+    only_core: bool
 
 
 def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     """Reduce the storage size of the eval sample.
 
     Reduce size by:
-    1. De-duplciating larger content fields (especially important for images
+    1. De-duplicating larger content fields (especially important for images
        but also for message repeated over and over in the event stream)
     2. Removing base64 encoded images if log_images is True
 
@@ -76,7 +76,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     events_fn = events_attachment_fn(attachments, log_images)
     messages_fn = messages_attachment_fn(attachments, log_images)
 
-    context = WalkContext(message_cache={})
+    context = WalkContext(message_cache={}, only_core=False)
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, messages_fn, context),
@@ -90,10 +90,12 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 def condense_event(
     event: Event,
     attachments: dict[str, str],
-    context: WalkContext,
     log_images: bool = True,
+    context: WalkContext | None = None,
 ) -> Event:
     event_fn = events_attachment_fn(attachments, log_images)
+    if context is None:
+        context = WalkContext(message_cache={}, only_core=False)
     return walk_event(event, event_fn, context)
 
 
@@ -175,10 +177,10 @@ def resolve_sample_attachments(
         else:
             return text
 
-    context: WalkContext = {
-        "message_cache": {},
-        "resolve_attachments": resolve_attachments,
-    }
+    context = WalkContext(
+        message_cache={},
+        only_core=resolve_attachments == "core",
+    )
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
@@ -319,7 +321,7 @@ def walk_model_output(
 def walk_model_call(
     call: ModelCall | None, content_fn: Callable[[str], str], context: WalkContext
 ) -> ModelCall | None:
-    if context.get("resolve_attachments") == "core":
+    if context.get("only_core") is True:
         return call
     if call:
         return ModelCall(

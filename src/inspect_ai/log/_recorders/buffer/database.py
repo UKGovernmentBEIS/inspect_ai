@@ -491,7 +491,7 @@ class SampleBufferDatabase(SampleBuffer):
                 "input": walk_input(
                     sample.input,
                     self._create_attachments_content_fn(attachments),
-                    WalkContext(message_cache={}),
+                    WalkContext(message_cache={}, only_core=False),
                 )
             }
         )
@@ -510,7 +510,7 @@ class SampleBufferDatabase(SampleBuffer):
                 "input": walk_input(
                     sample.input,
                     self._resolve_attachments_content_fn(conn),
-                    WalkContext(message_cache={}),
+                    WalkContext(message_cache={}, only_core=False),
                 )
             }
         )
@@ -521,7 +521,7 @@ class SampleBufferDatabase(SampleBuffer):
         event.event = walk_events(
             [event.event],
             self._create_attachments_content_fn(attachments),
-            WalkContext(message_cache={}),
+            WalkContext(message_cache={}, only_core=False),
         )[0]
 
         # insert attachments
@@ -536,7 +536,7 @@ class SampleBufferDatabase(SampleBuffer):
         return walk_json_dict(
             event,
             self._resolve_attachments_content_fn(conn),
-            WalkContext(message_cache=message_cache),
+            WalkContext(message_cache=message_cache, only_core=False),
         )
 
     def _create_attachments_content_fn(
