@@ -4,8 +4,6 @@ Tests the public interface of concurrency control functionality including
 the concurrency context manager, status display, and initialization.
 """
 
-import asyncio
-
 import anyio
 import pytest
 
@@ -32,13 +30,20 @@ async def test_concurrency_limits(limit: int, num_tasks: int, expected_max: int)
     """Test that concurrency limits are properly enforced."""
     init_concurrency()
     max_concurrent = 0
+    entered_count = 0
+    barrier = anyio.Event()
 
     async def task() -> None:
-        nonlocal max_concurrent
+        nonlocal max_concurrent, entered_count
         async with concurrency("test-resource", limit):
             status = concurrency_status_display()
             max_concurrent = max(max_concurrent, status["test-resource"][0])
-            await asyncio.sleep(0.01)
+            entered_count += 1
+            # If we're at the expected max, release all waiting tasks
+            if entered_count >= expected_max:
+                barrier.set()
+            # Wait for barrier to ensure tasks stay concurrent long enough
+            await barrier.wait()
 
     async with anyio.create_task_group() as tg:
         for _ in range(num_tasks):
@@ -132,12 +137,19 @@ async def test_status_display_concurrent_updates() -> None:
     """Test that status display reflects concurrent task execution."""
     init_concurrency()
     status_snapshots: list[tuple[int, int]] = []
+    entered_count = 0
+    barrier = anyio.Event()
 
     async def task() -> None:
+        nonlocal entered_count
         async with concurrency("test-resource", 3):
             status = concurrency_status_display()
             status_snapshots.append(status["test-resource"])
-            await asyncio.sleep(0.05)
+            entered_count += 1
+            # Once all 3 tasks have entered, release them
+            if entered_count >= 3:
+                barrier.set()
+            await barrier.wait()
 
     async with anyio.create_task_group() as tg:
         for _ in range(3):
@@ -193,12 +205,19 @@ async def test_concurrent_context_usage() -> None:
     """Test multiple tasks concurrently using the same context."""
     init_concurrency()
     results: list[tuple[int, int]] = []
+    entered_count = 0
+    barrier = anyio.Event()
 
     async def task() -> None:
+        nonlocal entered_count
         async with concurrency("test-resource", 3):
             status = concurrency_status_display()
             results.append(status["test-resource"])
-            await asyncio.sleep(0.05)
+            entered_count += 1
+            # Once 3 tasks have entered (the limit), release all
+            if entered_count >= 3:
+                barrier.set()
+            await barrier.wait()
 
     async with anyio.create_task_group() as tg:
         for _ in range(5):
@@ -251,12 +270,10 @@ async def test_rapid_concurrent_access_multiple_resources() -> None:
 
     async def task_a() -> None:
         async with concurrency("resource-a", 5):
-            await asyncio.sleep(0.001)
             completion_count["a"] += 1
 
     async def task_b() -> None:
         async with concurrency("resource-b", 3):
-            await asyncio.sleep(0.001)
             completion_count["b"] += 1
 
     async with anyio.create_task_group() as tg:
@@ -271,21 +288,31 @@ async def test_rapid_concurrent_access_multiple_resources() -> None:
 
 @pytest.mark.anyio
 async def test_long_running_task_holds_slot() -> None:
-    """Test that long-running tasks properly hold their slots."""
+    """Test that tasks properly hold their slots while executing."""
     init_concurrency()
+    task_holding = anyio.Event()
+    check_done = anyio.Event()
 
-    async def long_task() -> None:
+    async def holding_task() -> None:
         async with concurrency("test-resource", 1):
-            await asyncio.sleep(0.2)
+            # Signal that we're holding the slot
+            task_holding.set()
+            # Wait until checker has verified
+            await check_done.wait()
 
-    async def quick_check() -> tuple[int, int]:
-        await asyncio.sleep(0.05)
+    async def checker() -> tuple[int, int]:
+        # Wait for task to acquire slot
+        await task_holding.wait()
+        # Check status while task is holding
         status = concurrency_status_display()
-        return status.get("test-resource", (0, 0))
+        result = status.get("test-resource", (0, 0))
+        # Signal task can release
+        check_done.set()
+        return result
 
     async with anyio.create_task_group() as tg:
-        tg.start_soon(long_task)
-        result = await quick_check()
+        tg.start_soon(holding_task)
+        result = await checker()
 
-    # Long task should have been holding the slot when we checked
+    # Task should have been holding the slot when we checked
     assert result == (1, 1)
