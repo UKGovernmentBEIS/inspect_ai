@@ -89,7 +89,9 @@ export function viewServerApi(
   };
 
   const get_eval_set = async (dir?: string) => {
-    if (logDir) dir ??= logDir;
+    if (logDir) {
+      dir ??= logDir;
+    }
     const path = dir ? `/eval-set?dir=${encodeURIComponent(dir)}` : "/eval-set";
     try {
       const result = await requestApi.fetchString("GET", path);

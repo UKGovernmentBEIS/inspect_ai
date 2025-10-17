@@ -205,9 +205,11 @@ def view_server_app(
     async def eval_set(
         request: Request, log_dir: str = Query(None, alias="dir")
     ) -> Response:
-        if log_dir is None:
+        if log_dir:
+            log_dir = default_dir + "/" + log_dir.lstrip("/")
+        elif log_dir is None:
             log_dir = default_dir
-        await _validate_read(request, log_dir)
+        await _validate_list(request, log_dir)
 
         eval_set = read_eval_set_info(
             await _map_file(request, log_dir), fs_options=fs_options
