@@ -39,6 +39,24 @@ logger = getLogger(__name__)
 
 TRACE_SANDBOX_TOOLS = "Sandbox Tools"
 
+
+class SandboxInjectionError(Exception):
+    """Exception raised when sandbox tools injection fails.
+
+    This error wraps any exception that occurs during the injection process
+    to provide a clear signal that the failure was specifically during injection.
+    This is required because SandboxInjection happens as a side effect of making
+    a tool call. We need to make sure that injection errors are not interpreted
+    and handled specially (e.g. give to the model) as exceptions throw from tool
+    calls are.
+    """
+
+    def __init__(self, message: str, cause: Exception | None = None) -> None:
+        super().__init__(message)
+        self.cause = cause
+        self.__cause__ = cause
+
+
 InstallState = Literal["pypi", "clean", "edited"]
 """Represents the state of the inspect-ai installation.
 
@@ -78,13 +96,18 @@ async def sandbox_with_injected_tools(
 
 
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
-    info = await detect_sandbox_os(sandbox)
+    try:
+        info = await detect_sandbox_os(sandbox)
 
-    async with _open_executable_for_arch(info["architecture"]) as (_, f):
-        # TODO: The first tuple member, filename, isn't currently used, but it will be
-        await sandbox.write_file(SANDBOX_TOOLS_CLI, f.read())
-        # .write_file used `tee` which dropped execute permissions
-        await sandbox.exec(["chmod", "+x", SANDBOX_TOOLS_CLI])
+        async with _open_executable_for_arch(info["architecture"]) as (_, f):
+            # TODO: The first tuple member, filename, isn't currently used, but it will be
+            await sandbox.write_file(SANDBOX_TOOLS_CLI, f.read())
+            # .write_file used `tee` which dropped execute permissions
+            await sandbox.exec(["chmod", "+x", SANDBOX_TOOLS_CLI])
+    except Exception as e:
+        raise SandboxInjectionError(
+            f"Failed to inject sandbox tools into sandbox: {e}", cause=e
+        ) from e
 
 
 @asynccontextmanager
