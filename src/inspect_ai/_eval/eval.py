@@ -740,6 +740,7 @@ def eval_retry(
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -774,6 +775,9 @@ def eval_retry(
             (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults
             to "eval", the native high-performance format).
+        sample_id: Evaluate specific sample(s) from the dataset. If provided,
+            overrides the sample_id from the original evaluation log, allowing
+            you to rerun specific samples even if they previously succeeded.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
@@ -833,6 +837,7 @@ def eval_retry(
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
             log_format=log_format,
+            sample_id=sample_id,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -864,6 +869,7 @@ async def eval_retry_async(
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -894,6 +900,9 @@ async def eval_retry_async(
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
+        sample_id: Evaluate specific sample(s) from the dataset. If provided,
+            overrides the sample_id from the original evaluation log, allowing
+            you to rerun specific samples even if they previously succeeded.
         max_samples: Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel (default is 1)
@@ -1007,7 +1016,30 @@ async def eval_retry_async(
                     log_format = "eval"
                 case ".json":
                     log_format = "json"
-        sample_id = eval_log.eval.config.sample_id
+        # if sample id is set filter the samples
+        if sample_id is not None:
+            # Normalize sample_id to a list
+            sample_ids_to_rerun = sample_id if isinstance(sample_id, list) else [sample_id]
+            new_sample_ids = list(sample_ids_to_rerun)
+            samples_to_rerun = []
+
+            for sample_index, sample in enumerate(eval_log.samples or []):
+                if sample.id in sample_ids_to_rerun:
+                    samples_to_rerun.append(sample_index)
+                else:
+                    new_sample_ids.append(sample.id)
+
+            # Remove the samples that need to be rerun from the eval_log
+            # Build new list excluding samples at indices in samples_to_rerun
+            if eval_log.samples:
+                eval_log.samples = [
+                    s for i, s in enumerate(eval_log.samples)
+                    if i not in samples_to_rerun
+                ]
+
+            sample_id = new_sample_ids
+        else:
+            sample_id = eval_log.eval.config.sample_id
         sample_shuffle = eval_log.eval.config.sample_shuffle
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)

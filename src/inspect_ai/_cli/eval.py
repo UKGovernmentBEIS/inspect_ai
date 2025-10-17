@@ -1145,6 +1145,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=NO_SANDBOX_CLEANUP_HELP,
 )
 @click.option(
+    "--sample-id",
+    type=str,
+    help="Evaluate specific sample(s) (comma separated list of ids)",
+    envvar="INSPECT_EVAL_SAMPLE_ID",
+)
+@click.option(
     "--trace",
     type=bool,
     is_flag=True,
@@ -1267,6 +1273,7 @@ def eval_retry_command(
     max_subprocesses: int | None,
     max_sandboxes: int | None,
     no_sandbox_cleanup: bool | None,
+    sample_id: str | None,
     trace: bool | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
@@ -1313,12 +1320,16 @@ def eval_retry_command(
         log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
     ]
 
+    # parse sample_id
+    eval_sample_id = parse_sample_id(sample_id)
+
     # retry
     eval_retry(
         retry_log_files,
         log_level=common["log_level"],
         log_level_transcript=log_level_transcript,
         log_dir=common["log_dir"],
+        sample_id=eval_sample_id,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
