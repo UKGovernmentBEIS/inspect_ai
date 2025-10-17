@@ -301,8 +301,8 @@ export const collapseLogItems = (
 
   // Group file items by task_id
   for (const item of logItems) {
-    if (item.type === "file" && item.logFile.task_id) {
-      const taskId = item.logFile.task_id;
+    if (item.type === "file" && item.log.task_id) {
+      const taskId = item.log.task_id;
       if (!taskIdToItems.has(taskId)) {
         taskIdToItems.set(taskId, []);
       }
@@ -319,8 +319,8 @@ export const collapseLogItems = (
     // If same priority, take the last one
     let bestItem = items[0];
     for (const item of items) {
-      const currentStatus = item.logOverview?.status;
-      const bestStatus = bestItem.logOverview?.status;
+      const currentStatus = item.logPreview?.status;
+      const bestStatus = bestItem.logPreview?.status;
 
       // Prefer started over everything
       if (currentStatus === "started" && bestStatus !== "started") {
@@ -347,8 +347,8 @@ export const collapseLogItems = (
   const processedTaskIds = new Set<string>();
 
   for (const item of logItems) {
-    if (item.type === "file" && item.logFile.task_id) {
-      const taskId = item.logFile.task_id;
+    if (item.type === "file" && item.log.task_id) {
+      const taskId = item.log.task_id;
       if (!processedTaskIds.has(taskId)) {
         const selectedItem = selectedItems.get(taskId);
         if (selectedItem) {

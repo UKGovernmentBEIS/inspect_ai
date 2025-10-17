@@ -23,13 +23,13 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
 }) => {
   const [isClearing, setIsClearing] = useState(false);
   const [clearMessage, setClearMessage] = useState<string | null>(null);
-  const databaseService = useStore((state) => state.databaseService);
+  const replicationService = useStore((state) => state.replicationService);
   const dbStats = useStore((state) => state.logs.dbStats);
 
   const logDir = useStore((state) => state.logs.logDir);
 
   const handleClearDatabase = async () => {
-    if (!databaseService) {
+    if (!replicationService) {
       setClearMessage("Database service not available");
       setTimeout(() => setClearMessage(null), 3000);
       return;
@@ -39,7 +39,7 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
     setClearMessage(null);
 
     try {
-      await databaseService.clearAllCaches();
+      await replicationService.clearData();
       setClearMessage("Database cleared successfully");
       setTimeout(() => setClearMessage(null), 3000);
     } catch (error) {

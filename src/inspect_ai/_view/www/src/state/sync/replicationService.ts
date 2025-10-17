@@ -329,7 +329,7 @@ export class ReplicationService {
 
         // Queue any missing previews
         if (filtered.length > 0) {
-          await this._previewQueue.atOnce(filtered);
+          this.queueLogPreviews(filtered, WorkPriority.High);
         }
       }
     } finally {
@@ -337,11 +337,16 @@ export class ReplicationService {
     }
   }
 
+  public clearData() {
+    this._database?.clearAllCaches();
+    this.updateDbStats();
+  }
+
   queueLogPreviews(
     logs: LogHandle[],
     priority: WorkPriority = WorkPriority.Medium,
   ) {
-    // Add to queue (deduplicated by name)
+    // Add to queue
     this._previewQueue.enqueue(logs, (log) => log.name, priority);
   }
 

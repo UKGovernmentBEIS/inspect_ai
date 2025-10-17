@@ -64,6 +64,14 @@ export class WorkQueue<TInput, TOutput> {
     const existingIds = new Set(this.queue.map((item) => item.id));
     const toAdd = newItems.filter((item) => !existingIds.has(item.id));
 
+    // If the new item is higher priority than an existing one, update the existing one's priority
+    for (const newItem of newItems) {
+      const existingItem = this.queue.find((item) => item.id === newItem.id);
+      if (existingItem && newItem.priority > existingItem.priority) {
+        existingItem.priority = newItem.priority;
+      }
+    }
+
     this.queue.push(...toAdd);
 
     // Sort queue by priority (high to low), then by addedAt (oldest first)
