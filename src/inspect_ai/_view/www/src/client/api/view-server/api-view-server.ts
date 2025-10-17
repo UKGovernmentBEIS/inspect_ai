@@ -97,7 +97,10 @@ export function viewServerApi(
     } catch (error) {
       // if the eval set is not found, no biggee as not all
       // log directories will have an eval set.
-      if (error instanceof ApiError && error.status === 404) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.status === 403)
+      ) {
         return undefined;
       }
       throw error;
