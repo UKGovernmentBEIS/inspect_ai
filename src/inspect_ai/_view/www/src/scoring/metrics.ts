@@ -58,7 +58,6 @@ const groupMetricModifier: MetricModifier = (metric: MetricSummary) => {
   if (groupKey === undefined || typeof groupKey !== "string") {
     return undefined;
   }
-  console.log({ metric });
   const metricRaw = ((metric.params || {}) as Record<string, unknown>)[
     "metric"
   ];
