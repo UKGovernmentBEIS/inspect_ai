@@ -49,6 +49,7 @@ ATTACHMENT_PROTOCOL = "attachment://"
 
 class WalkContext(TypedDict):
     message_cache: dict[str, ChatMessage]
+    resolve_attachments: bool | Literal["full", "core"]
 
 
 def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
@@ -174,16 +175,15 @@ def resolve_sample_attachments(
         else:
             return text
 
-    context: WalkContext = {"message_cache": {}}
+    context: WalkContext = {
+        "message_cache": {},
+        "resolve_attachments": resolve_attachments,
+    }
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
             "messages": walk_chat_messages(sample.messages, content_fn, context),
-            "events": (
-                walk_events(sample.events, content_fn, context)
-                if resolve_attachments is True or resolve_attachments == "full"
-                else sample.events
-            ),
+            "events": walk_events(sample.events, content_fn, context),
             "attachments": {},
         }
     )
@@ -319,6 +319,8 @@ def walk_model_output(
 def walk_model_call(
     call: ModelCall | None, content_fn: Callable[[str], str], context: WalkContext
 ) -> ModelCall | None:
+    if context.get("resolve_attachments") == "core":
+        return call
     if call:
         return ModelCall(
             request=walk_json_dict(call.request, content_fn, context),

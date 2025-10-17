@@ -3,7 +3,7 @@ from typing import Literal
 
 import pytest
 
-from inspect_ai.event import SampleInitEvent
+from inspect_ai.event import ModelEvent, SampleInitEvent
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
@@ -51,7 +51,21 @@ def test_convert_eval_logs(
     sample_init_event = log.samples[0].events[0]
     assert isinstance(sample_init_event, SampleInitEvent)
     assert isinstance(sample_init_event.sample.input, str)
-    if resolve_attachments == "full":
-        assert not sample_init_event.sample.input.startswith("attachment:")
+    if resolve_attachments is not False:
+        assert sample_init_event.sample.input.startswith("Hey there, hipster!")
     else:
         assert sample_init_event.sample.input.startswith("attachment:")
+
+    model_event = log.samples[0].events[6]
+    assert isinstance(model_event, ModelEvent)
+    assert model_event.call is not None
+    model_event_call_messages = model_event.call.request.get("messages")
+    assert isinstance(model_event_call_messages, list)
+    model_event_call_message = model_event_call_messages[0]
+    assert isinstance(model_event_call_message, dict)
+    model_event_call_message_content = model_event_call_message.get("content")
+    assert isinstance(model_event_call_message_content, str)
+    if resolve_attachments == "full":
+        assert model_event_call_message_content.startswith("Hey there, hipster!")
+    else:
+        assert model_event_call_message_content.startswith("attachment:")
