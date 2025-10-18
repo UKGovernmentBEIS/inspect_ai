@@ -4,6 +4,7 @@
 - Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
 - Model API: Support for refreshing API keys during long-running evaluations via the `override_api_key()` hook.
 - Datasets: Use readahead content caching by default for reading CSV and JSON datasets from S3.
+- Datasets: Enable json dataset reader to support `dict` as well as `list` for underlying data.
 - Bugfix: Fix `edit_score()` silently editing only first epoch in multi-epoch evaluations (now requires explicit `epoch` parameter).
 - Bugfix: Fix errors that could occur when re-scoring with duplicated scorer names.
 - Inspect View: Improve the display of grouped metrics.
