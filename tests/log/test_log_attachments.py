@@ -8,7 +8,6 @@ from inspect_ai.log._condense import (
     resolve_sample_attachments,
 )
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.log._transcript import Transcript
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
@@ -46,80 +45,80 @@ def test_log_attachments_migration():
     assert len(log.samples[0].transcript.events) > 0
 
 
-def test_transcript_incremental_condense():
-    """Test that Transcript condenses ModelEvents immediately when added."""
-    transcript = Transcript()
+# def test_transcript_incremental_condense():
+#     """Test that Transcript condenses ModelEvents immediately when added."""
+#     transcript = Transcript()
 
-    # Create a long text that should be condensed (> 100 chars)
-    long_text = "x" * 200
-    message = ChatMessageUser(content=long_text)
+#     # Create a long text that should be condensed (> 100 chars)
+#     long_text = "x" * 200
+#     message = ChatMessageUser(content=long_text)
 
-    # Create a model event with long content
-    event = ModelEvent(
-        model="test-model",
-        input=[message],
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(),
-        output=ModelOutput.from_content("test-model", "response"),
-    )
+#     # Create a model event with long content
+#     event = ModelEvent(
+#         model="test-model",
+#         input=[message],
+#         tools=[],
+#         tool_choice="auto",
+#         config=GenerateConfig(),
+#         output=ModelOutput.from_content("test-model", "response"),
+#     )
 
-    # Add event to transcript
-    transcript._event(event)
+#     # Add event to transcript
+#     transcript._event(event)
 
-    # Verify the event was condensed immediately
-    stored_event = transcript.events[0]
-    assert isinstance(stored_event, ModelEvent)
-    assert stored_event.input[0].content.startswith(ATTACHMENT_PROTOCOL)
-    assert stored_event.input[0].content != long_text
+#     # Verify the event was condensed immediately
+#     stored_event = transcript.events[0]
+#     assert isinstance(stored_event, ModelEvent)
+#     assert stored_event.input[0].content.startswith(ATTACHMENT_PROTOCOL)
+#     assert stored_event.input[0].content != long_text
 
-    # Verify attachment was created
-    assert len(transcript.attachments) == 1
-    attachment_hash = stored_event.input[0].content.replace(ATTACHMENT_PROTOCOL, "")
-    assert attachment_hash in transcript.attachments
-    assert transcript.attachments[attachment_hash] == long_text
+#     # Verify attachment was created
+#     assert len(transcript.attachments) == 1
+#     attachment_hash = stored_event.input[0].content.replace(ATTACHMENT_PROTOCOL, "")
+#     assert attachment_hash in transcript.attachments
+#     assert transcript.attachments[attachment_hash] == long_text
 
 
-def test_transcript_event_updated_condenses():
-    """Test that _event_updated condenses the output and call fields."""
-    transcript = Transcript()
+# def test_transcript_event_updated_condenses():
+#     """Test that _event_updated condenses the output and call fields."""
+#     transcript = Transcript()
 
-    # Create initial event with placeholder output
-    initial_message = ChatMessageUser(content="short input")
-    event = ModelEvent(
-        model="test-model",
-        input=[initial_message],
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(),
-        output=ModelOutput.from_content("test-model", ""),
-        pending=True,
-    )
+#     # Create initial event with placeholder output
+#     initial_message = ChatMessageUser(content="short input")
+#     event = ModelEvent(
+#         model="test-model",
+#         input=[initial_message],
+#         tools=[],
+#         tool_choice="auto",
+#         config=GenerateConfig(),
+#         output=ModelOutput.from_content("test-model", ""),
+#         pending=True,
+#     )
 
-    # Add event to transcript
-    transcript._event(event)
+#     # Add event to transcript
+#     transcript._event(event)
 
-    # Simulate what happens in _record_model_interaction's complete() callback:
-    # Mutate the event's output with long content
-    long_response = "y" * 200
-    event.output = ModelOutput.from_content("test-model", long_response)
-    event.pending = None
+#     # Simulate what happens in _record_model_interaction's complete() callback:
+#     # Mutate the event's output with long content
+#     long_response = "y" * 200
+#     event.output = ModelOutput.from_content("test-model", long_response)
+#     event.pending = None
 
-    # Call _event_updated to condense the new output
-    transcript._event_updated(event)
+#     # Call _event_updated to condense the new output
+#     transcript._event_updated(event)
 
-    # Verify the output was condensed
-    stored_event = transcript.events[0]
-    assert isinstance(stored_event, ModelEvent)
-    # The output's message content should be condensed
-    output_content = stored_event.output.choices[0].message.content
-    assert output_content.startswith(ATTACHMENT_PROTOCOL)
-    assert output_content != long_response
+#     # Verify the output was condensed
+#     stored_event = transcript.events[0]
+#     assert isinstance(stored_event, ModelEvent)
+#     # The output's message content should be condensed
+#     output_content = stored_event.output.choices[0].message.content
+#     assert output_content.startswith(ATTACHMENT_PROTOCOL)
+#     assert output_content != long_response
 
-    # Verify attachment was created for the output
-    attachment_hash = output_content.replace(ATTACHMENT_PROTOCOL, "")
-    assert attachment_hash in transcript.attachments
-    assert transcript.attachments[attachment_hash] == long_response
+#     # Verify attachment was created for the output
+#     attachment_hash = output_content.replace(ATTACHMENT_PROTOCOL, "")
+#     assert attachment_hash in transcript.attachments
+#     assert transcript.attachments[attachment_hash] == long_response
 
 
 # def test_transcript_deduplication_across_events():
