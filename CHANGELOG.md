@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.139 (18 October 2025)
 
 - OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
 - Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
