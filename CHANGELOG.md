@@ -7,6 +7,7 @@
 - Datasets: Use readahead content caching by default for reading CSV and JSON datasets from S3.
 - Bugfix: Fix `edit_score()` silently editing only first epoch in multi-epoch evaluations (now requires explicit `epoch` parameter).
 - Bugfix: Fix errors that could occur when re-scoring with duplicated scorer names.
+- Inspect View: Improve the display of grouped metrics.
 
 ## 0.3.138 (16 October 2025)
 
