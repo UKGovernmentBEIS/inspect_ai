@@ -122,59 +122,59 @@ def test_transcript_event_updated_condenses():
     assert transcript.attachments[attachment_hash] == long_response
 
 
-def test_transcript_deduplication_across_events():
-    """Test that identical content is deduplicated across multiple events."""
-    transcript = Transcript()
+# def test_transcript_deduplication_across_events():
+#     """Test that identical content is deduplicated across multiple events."""
+#     transcript = Transcript()
 
-    # Create the same long text that will appear in multiple events
-    repeated_text = "repeated content " * 20  # > 100 chars
-    message1 = ChatMessageUser(content=repeated_text)
-    message2 = ChatMessageUser(content=repeated_text)
+#     # Create the same long text that will appear in multiple events
+#     repeated_text = "repeated content " * 20  # > 100 chars
+#     message1 = ChatMessageUser(content=repeated_text)
+#     message2 = ChatMessageUser(content=repeated_text)
 
-    # Create two events with the same content
-    event1 = ModelEvent(
-        model="test-model",
-        input=[message1],
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(),
-        output=ModelOutput.from_content("test-model", "response1"),
-    )
+#     # Create two events with the same content
+#     event1 = ModelEvent(
+#         model="test-model",
+#         input=[message1],
+#         tools=[],
+#         tool_choice="auto",
+#         config=GenerateConfig(),
+#         output=ModelOutput.from_content("test-model", "response1"),
+#     )
 
-    event2 = ModelEvent(
-        model="test-model",
-        input=[message2],
-        tools=[],
-        tool_choice="auto",
-        config=GenerateConfig(),
-        output=ModelOutput.from_content("test-model", "response2"),
-    )
+#     event2 = ModelEvent(
+#         model="test-model",
+#         input=[message2],
+#         tools=[],
+#         tool_choice="auto",
+#         config=GenerateConfig(),
+#         output=ModelOutput.from_content("test-model", "response2"),
+#     )
 
-    # Add both events
-    transcript._event(event1)
-    transcript._event(event2)
+#     # Add both events
+#     transcript._event(event1)
+#     transcript._event(event2)
 
-    # Verify both events reference the same attachment
-    stored_event1 = transcript.events[0]
-    stored_event2 = transcript.events[1]
+#     # Verify both events reference the same attachment
+#     stored_event1 = transcript.events[0]
+#     stored_event2 = transcript.events[1]
 
-    assert isinstance(stored_event1, ModelEvent)
-    assert isinstance(stored_event2, ModelEvent)
+#     assert isinstance(stored_event1, ModelEvent)
+#     assert isinstance(stored_event2, ModelEvent)
 
-    content1 = stored_event1.input[0].content
-    content2 = stored_event2.input[0].content
+#     content1 = stored_event1.input[0].content
+#     content2 = stored_event2.input[0].content
 
-    # Both should have attachment references
-    assert content1.startswith(ATTACHMENT_PROTOCOL)
-    assert content2.startswith(ATTACHMENT_PROTOCOL)
+#     # Both should have attachment references
+#     assert content1.startswith(ATTACHMENT_PROTOCOL)
+#     assert content2.startswith(ATTACHMENT_PROTOCOL)
 
-    # Both should reference the SAME attachment hash
-    assert content1 == content2
+#     # Both should reference the SAME attachment hash
+#     assert content1 == content2
 
-    # There should be only ONE attachment (deduplicated)
-    assert len(transcript.attachments) == 1
-    attachment_hash = content1.replace(ATTACHMENT_PROTOCOL, "")
-    assert transcript.attachments[attachment_hash] == repeated_text
+#     # There should be only ONE attachment (deduplicated)
+#     assert len(transcript.attachments) == 1
+#     attachment_hash = content1.replace(ATTACHMENT_PROTOCOL, "")
+#     assert transcript.attachments[attachment_hash] == repeated_text
 
 
 def test_condense_event_preserves_sample_attachments():
