@@ -20,7 +20,11 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._store import StoreEvent
-from inspect_ai.log._condense import condense_event
+from inspect_ai.log._condense import (
+    condense_event,
+    events_attachment_fn,
+    walk_model_call,
+)
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 logger = getLogger(__name__)
@@ -85,14 +89,10 @@ class Transcript:
         if self._event_logger:
             self._event_logger(event)
 
-        # condense model events immediately to prevent O(N) memory usage
+        # condense model event calls immediately to prevent O(N) memory usage
         if isinstance(event, ModelEvent):
-            ev_condensed = cast(ModelEvent, condense_event(event, self.attachments))
-            # mutate the original event in place so callers that hold a reference see the condensed version
-            event.input = ev_condensed.input
-            event.output = ev_condensed.output
-            event.tools = ev_condensed.tools
-            event.call = ev_condensed.call
+            event_fn = events_attachment_fn(self.attachments)
+            event.call = walk_model_call(event.call, event_fn)
 
         self._events.append(event)
 
