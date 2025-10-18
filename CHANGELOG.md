@@ -2,6 +2,7 @@
 
 - OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
 - Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.
+- Agent Bridge: Google Gemini API is now supported for both in-process and sandbox-based agent bridges.
 - Model API: Support for refreshing API keys during long-running evaluations via the `override_api_key()` hook.
 - Datasets: Use readahead content caching by default for reading CSV and JSON datasets from S3.
 - Datasets: Enable json dataset reader to support `dict` as well as `list` for underlying data.
