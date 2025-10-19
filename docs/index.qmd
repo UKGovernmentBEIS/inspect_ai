@@ -141,7 +141,7 @@ def theory_of_mind():
 
 2.  In this example we are chaining together three standard solver components. It's also possible to create a more complex custom solver that manages state and interactions internally.
 
-3.  Since the output is likely to have pretty involved language, we use a model for scoring.
+3.  Since the output is likely to have natural, nuanced language, we use a model for scoring.
 
 Note that you can provide a *single* solver or multiple solvers chained together as we did here.
 
