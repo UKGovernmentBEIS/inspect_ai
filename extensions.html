@@ -1164,8 +1164,10 @@ pyproject.toml</code></pre>
 </section>
 <section id="api-key-override" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="api-key-override">API Key Override</h3>
-<p>There is a hook event to optionally override the value of model API key environment variables. This could be used to:</p>
+<p>There is a hook event to optionally override the value of model API key environment variables. The <code>override_api_key()</code> hook is called during model initialization and automatically when authentication errors are detected.</p>
+<p>This could be used to:</p>
 <ul>
+<li>Refresh API keys or tokens during long-running evaluations</li>
 <li>Inject API keys at runtime (e.g.&nbsp;fetched from a secrets manager), to avoid having to store these in your environment or .env file</li>
 <li>Use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys</li>
 </ul>

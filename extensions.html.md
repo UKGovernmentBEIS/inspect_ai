@@ -833,8 +833,13 @@ occur at startup time.
 ### API Key Override
 
 There is a hook event to optionally override the value of model API key
-environment variables. This could be used to:
+environment variables. The `override_api_key()` hook is called during
+model initialization and automatically when authentication errors are
+detected.
 
+This could be used to:
+
+- Refresh API keys or tokens during long-running evaluations
 - Inject API keys at runtime (e.g. fetched from a secrets manager), to
   avoid having to store these in your environment or .env file
 - Use some custom model API authentication mechanism in conjunction with

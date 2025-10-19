@@ -2488,7 +2488,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="list_eval_logs">list_eval_logs</h3>
 <p>List all eval logs in a directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L77">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L77">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> list_eval_logs(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">=</span> os.environ.get(<span class="st">"INSPECT_LOG_DIR"</span>, <span class="st">"./logs"</span>),</span>
@@ -2529,7 +2529,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="write_eval_log">write_eval_log</h3>
 <p>Write an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L125">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L125">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> write_eval_log(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -2560,7 +2560,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="write_eval_log_async">write_eval_log_async</h3>
 <p>Write an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L156">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L156">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> write_eval_log_async(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -2591,7 +2591,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="read_eval_log">read_eval_log</h3>
 <p>Read an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L242">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L242">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_eval_log(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log_file: <span class="bu">str</span> <span class="op">|</span> Path <span class="op">|</span> EvalLogInfo,</span>
@@ -2622,7 +2622,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="read_eval_log_async">read_eval_log_async</h3>
 <p>Read an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L280">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L280">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> read_eval_log_async(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    log_file: <span class="bu">str</span> <span class="op">|</span> Path <span class="op">|</span> EvalLogInfo,</span>
@@ -2653,7 +2653,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="read_eval_log_sample">read_eval_log_sample</h3>
 <p>Read a sample from an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L350">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L350">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_eval_log_sample(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    log_file: <span class="bu">str</span> <span class="op">|</span> Path <span class="op">|</span> EvalLogInfo,</span>
@@ -2695,7 +2695,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Read all samples from an evaluation log incrementally.</p>
 <p>Generator for samples in a log file. Only one sample at a time will be read into memory and yielded to the caller.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L501">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L501">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_eval_log_samples(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    log_file: <span class="bu">str</span> <span class="op">|</span> Path <span class="op">|</span> EvalLogInfo,</span>
@@ -2726,7 +2726,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="read_eval_log_sample_summaries">read_eval_log_sample_summaries</h3>
 <p>Read sample summaries from an eval log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L446">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L446">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_eval_log_sample_summaries(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    log_file: <span class="bu">str</span> <span class="op">|</span> Path <span class="op">|</span> EvalLogInfo,</span>
@@ -2747,7 +2747,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="edit_score">edit_score</h3>
 <p>Edit a score in-place.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_score.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_score.py#L11">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> edit_score(</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -2755,7 +2755,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    score_name: <span class="bu">str</span>,</span>
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    edit: ScoreEdit,</span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    recompute_metrics: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    epoch: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">log</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span></span></dt>
 <dd>
@@ -2777,13 +2778,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Whether to recompute aggregate metrics after editing</p>
 </dd>
+<dt><code class="ref-definition">epoch</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Epoch number of the sample to edit (required when there are multiple epochs)</p>
+</dd>
 </dl>
 </section>
 <section id="recompute_metrics" class="level3">
 <h3 class="anchored" data-anchor-id="recompute_metrics">recompute_metrics</h3>
 <p>Recompute aggregate metrics after score edits.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_metric.py#L9">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_metric.py#L9">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> recompute_metrics(log: EvalLog) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2798,7 +2803,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Convert between log file formats.</p>
 <p>Convert log file(s) to a target format. If a file is already in the target format it will just be copied to the output dir.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_convert.py#L20">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_convert.py#L20">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> convert_eval_logs(</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    path: <span class="bu">str</span>,</span>
@@ -2839,7 +2844,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="bundle_log_dir">bundle_log_dir</h3>
 <p>Bundle a log_dir into a statically deployable viewer</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_bundle.py#L23">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_bundle.py#L23">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bundle_log_dir(</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -2871,7 +2876,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Write a manifest for a log directory.</p>
 <p>A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o samples) keyed by log file names (names are relative to the log directory)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L200">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L200">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> write_log_dir_manifest(</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span>,</span>
@@ -2904,7 +2909,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Extract the list of retryable logs from a list of logs.</p>
 <p>Retryable logs are logs with status “error” or “cancelled” that do not have a corresponding log with status “success” (indicating they were subsequently retried and completed)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_retry.py#L10">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_retry.py#L10">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> retryable_eval_logs(logs: <span class="bu">list</span>[EvalLogInfo]) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLogInfo]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2918,7 +2923,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalloginfo">EvalLogInfo</h3>
 <p>File info and task identifiers for eval log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_file.py#L30">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_file.py#L30">Source</a>
 </div>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalLogInfo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2962,7 +2967,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evallog">EvalLog</h3>
 <p>Evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L867">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L867">Source</a>
 </div>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalLog(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3019,7 +3024,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalspec">EvalSpec</h3>
 <p>Eval target and configuration.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L694">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L694">Source</a>
 </div>
 <div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSpec(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3148,7 +3153,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evaldataset">EvalDataset</h3>
 <p>Dataset used for evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L638">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L638">Source</a>
 </div>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalDataset(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3181,7 +3186,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalconfig">EvalConfig</h3>
 <p>Configuration used for evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L65">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L65">Source</a>
 </div>
 <div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalConfig(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3292,7 +3297,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalrevision">EvalRevision</h3>
 <p>Git revision for evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L681">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L681">Source</a>
 </div>
 <div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalRevision(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3317,7 +3322,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalplan">EvalPlan</h3>
 <p>Plan (solvers) used in evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L474">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L474">Source</a>
 </div>
 <div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalPlan(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3346,7 +3351,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalplanstep">EvalPlanStep</h3>
 <p>Solver step.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L464">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L464">Source</a>
 </div>
 <div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalPlanStep(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3367,7 +3372,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalresults">EvalResults</h3>
 <p>Scoring results from evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L554">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L554">Source</a>
 </div>
 <div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalResults(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3401,7 +3406,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalscore">EvalScore</h3>
 <p>Score for evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L506">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L506">Source</a>
 </div>
 <div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalScore(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3446,7 +3451,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalmetric">EvalMetric</h3>
 <p>Metric for evaluation score.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L490">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L490">Source</a>
 </div>
 <div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalMetric(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3475,7 +3480,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplereductions">EvalSampleReductions</h3>
 <p>Score reductions.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L541">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L541">Source</a>
 </div>
 <div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleReductions(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3500,7 +3505,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalstats">EvalStats</h3>
 <p>Timing and usage statistics.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L851">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L851">Source</a>
 </div>
 <div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalStats(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3525,7 +3530,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalerror">EvalError</h3>
 <p>Eval error details.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/_util/error.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/_util/error.py#L11">Source</a>
 </div>
 <div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalError(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3550,7 +3555,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsample">EvalSample</h3>
 <p>Sample from evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L260">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L260">Source</a>
 </div>
 <div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSample(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3654,7 +3659,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Pydantic model interface to metadata.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L299">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L299">Source</a>
 </div>
 <div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -3668,7 +3673,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Pydantic model interface to the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L313">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L313">Source</a>
 </div>
 <div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store_as(<span class="va">self</span>, model_cls: Type[SMT], instance: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SMT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -3688,7 +3693,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The summary excludes potentially large fields like messages, output, events, store, and metadata so that it is always fast to load.</p>
 <p>If there are images, audio, or video in the input, they are replaced with a placeholder.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L370">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L370">Source</a>
 </div>
 <div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> summary(<span class="va">self</span>) <span class="op">-&gt;</span> EvalSampleSummary</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
@@ -3702,7 +3707,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplesummary">EvalSampleSummary</h3>
 <p>Summary information (including scoring) for a sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L181">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L181">Source</a>
 </div>
 <div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleSummary(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3775,7 +3780,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplelimit">EvalSampleLimit</h3>
 <p>Limit encountered by sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L169">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L169">Source</a>
 </div>
 <div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleLimit(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3796,7 +3801,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplereductions-1">EvalSampleReductions</h3>
 <p>Score reductions.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L541">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L541">Source</a>
 </div>
 <div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleReductions(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3821,7 +3826,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplescore">EvalSampleScore</h3>
 <p>Score and sample_id scored.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_log.py#L534">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_log.py#L534">Source</a>
 </div>
 <div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleScore(Score)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -3839,7 +3844,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Exception raised when a conditional write fails due to concurrent modification.</p>
 <p>This error occurs when attempting to write to a log file that has been modified by another process since it was last read, indicating a race condition between concurrent evaluation runs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/_util/error.py#L62">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/_util/error.py#L62">Source</a>
 </div>
 <div class="sourceCode" id="cb37"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> WriteConflictError(<span class="pp">Exception</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -3850,7 +3855,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="transcript">transcript</h3>
 <p>Get the current <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#transcript">Transcript</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_transcript.py#L113">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_transcript.py#L113">Source</a>
 </div>
 <div class="sourceCode" id="cb38"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> transcript() <span class="op">-&gt;</span> Transcript</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -3858,7 +3863,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="transcript-1">Transcript</h3>
 <p>Transcript of events.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_transcript.py#L32">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_transcript.py#L36">Source</a>
 </div>
 <div class="sourceCode" id="cb39"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Transcript</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
@@ -3868,7 +3873,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Add an <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.event.html#infoevent">InfoEvent</a></span> to the transcript.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_transcript.py#L48">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_transcript.py#L52">Source</a>
 </div>
 <div class="sourceCode" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> info(<span class="va">self</span>, data: JsonValue, <span class="op">*</span>, source: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -3887,7 +3892,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Context manager for recording StepEvent.</p>
 <p>The <code>step()</code> context manager is deprecated and will be removed in a future version. Please use the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#span">span()</a></span> context manager instead.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/48587ea0aae7de47b13c1d21375f915e157c51bf/src/inspect_ai/log/_transcript.py#L57">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/81d8689032370a3b30a10fe8e8ac0be5efae8788/src/inspect_ai/log/_transcript.py#L61">Source</a>
 </div>
 <div class="sourceCode" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextlib.contextmanager</span></span>
 <span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> step(<span class="va">self</span>, name: <span class="bu">str</span>, <span class="bu">type</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Iterator[<span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
