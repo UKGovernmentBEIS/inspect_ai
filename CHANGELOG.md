@@ -1,3 +1,7 @@
+## Unreleased
+
+- Tests: Skip git revision detection and realtime logging during pytest runs to improve test performance.
+
 ## 0.3.139 (18 October 2025)
 
 - OpenAI: Handle `Message` input types that have no `"type"` field in responses API.
