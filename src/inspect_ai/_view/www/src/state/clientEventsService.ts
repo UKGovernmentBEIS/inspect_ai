@@ -50,6 +50,7 @@ class ClientEventsService {
 
     this.abortController = new AbortController();
 
+    let pollingCount = 1;
     this.currentPolling = createPolling(
       `Client-Events`,
       async () => {
@@ -68,6 +69,10 @@ class ClientEventsService {
         }
 
         if ((events || []).includes(kRefreshEvent)) {
+          await this.refreshLogFiles(logs);
+        }
+
+        if (pollingCount++ % 10 === 0) {
           await this.refreshLogFiles(logs);
         }
 
