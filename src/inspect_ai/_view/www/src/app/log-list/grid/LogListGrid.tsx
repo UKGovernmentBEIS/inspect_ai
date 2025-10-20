@@ -19,7 +19,6 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -52,6 +51,8 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
       setFilteredCount,
       columnSizes,
       setColumnSize,
+      selectedRowIndex,
+      setSelectedRowIndex,
     } = useLogsListing();
 
     const { loadHeaders } = useLogs();
@@ -70,10 +71,6 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
     const sortingRef = useRef(sorting);
     const navigate = useNavigate();
     const gridRef = useRef<HTMLDivElement>(null);
-
-    const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(
-      null,
-    );
 
     useImperativeHandle(ref, () => ({
       focus: () => {
@@ -249,25 +246,26 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
         const rowCount = table.getRowModel().rows.length;
         const totalPages = table.getPageCount();
 
+        if (rowCount === 0) return;
+
         if (e.key === "ArrowDown") {
           e.preventDefault();
-          setSelectedRowIndex((prev) => {
-            if (prev === null) {
-              return 0;
-            }
-            return Math.min(prev + 1, rowCount - 1);
-          });
+          if (selectedRowIndex === null || selectedRowIndex === undefined) {
+            setSelectedRowIndex(0);
+          } else if (selectedRowIndex >= rowCount - 1) {
+            setSelectedRowIndex(0);
+          } else {
+            setSelectedRowIndex(selectedRowIndex + 1);
+          }
         } else if (e.key === "ArrowUp") {
           e.preventDefault();
-          setSelectedRowIndex((prev) => {
-            if (prev === null) {
-              return rowCount - 1;
-            }
-            if (prev === 0) {
-              return null;
-            }
-            return prev - 1;
-          });
+          if (selectedRowIndex === null || selectedRowIndex === undefined) {
+            setSelectedRowIndex(rowCount - 1);
+          } else if (selectedRowIndex === 0) {
+            setSelectedRowIndex(rowCount - 1);
+          } else {
+            setSelectedRowIndex(selectedRowIndex - 1);
+          }
         } else if (e.key === "ArrowLeft") {
           e.preventDefault();
           if (page > 0) {
@@ -298,7 +296,11 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
           }
         } else if (e.key === "Enter") {
           e.preventDefault();
-          if (selectedRowIndex !== null) {
+          if (
+            selectedRowIndex !== null &&
+            selectedRowIndex !== undefined &&
+            selectedRowIndex >= 0
+          ) {
             const selectedRow = table.getRowModel().rows[selectedRowIndex];
             const item = selectedRow?.original;
             if (item?.url) {
@@ -307,12 +309,12 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
           }
         }
       },
-      [table, page, setPage, selectedRowIndex, navigate],
+      [table, page, setPage, selectedRowIndex, navigate, setSelectedRowIndex],
     );
 
     useEffect(() => {
       setSelectedRowIndex(null);
-    }, [page]);
+    }, [page, setSelectedRowIndex]);
 
     useEffect(() => {
       gridRef.current?.focus();

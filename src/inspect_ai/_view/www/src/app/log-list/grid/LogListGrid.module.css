@@ -91,10 +91,13 @@
 
 .bodyRow {
   display: grid;
-  transition: background-color 0.15s ease-in-out;
+  transition:
+    background-color 0.15s ease-in-out,
+    border-left-color 0.15s ease-in-out;
   width: fit-content;
   min-width: 100%;
   cursor: pointer;
+  border-left: 3px solid transparent;
 }
 
 .bodyRow:hover {
@@ -103,7 +106,7 @@
 
 .selectedRow {
   background-color: var(--bs-primary-bg-subtle);
-  border-left: 3px solid var(--bs-primary);
+  border-left-color: var(--bs-primary);
 }
 
 .selectedRow:hover {

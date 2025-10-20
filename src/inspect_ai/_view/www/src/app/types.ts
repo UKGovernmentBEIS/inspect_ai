@@ -86,6 +86,7 @@ export interface LogsListing {
   columnSizes?: Record<string, number>;
   filteredCount?: number;
   watchedLogs?: LogFile[];
+  selectedRowIndex?: number | null;
 }
 
 export interface LogState {
