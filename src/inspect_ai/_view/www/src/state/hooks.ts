@@ -71,22 +71,26 @@ export const useTotalSampleCount = () => {
   }, [sampleSummaries]);
 };
 
-// Provides the currently selected score for this eval, providing a default
+// Provides the currently selected score(s) for this eval, providing a default
 // based upon the configuration (eval + summaries) if no scorer has been
 // selected
-export const useScore = () => {
+export const useSelectedScores = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const sampleSummaries = useSampleSummaries();
-  const score = useStore((state) => state.log.score);
+  const selected = useStore((state) => state.log.selectedScores);
   return useMemo(() => {
-    if (score) {
-      return score;
+    if (selected && selected.length > 0) {
+      return selected;
     } else if (selectedLogSummary) {
-      return getDefaultScorer(selectedLogSummary, sampleSummaries);
+      const defaultScorer = getDefaultScorer(
+        selectedLogSummary,
+        sampleSummaries,
+      );
+      return defaultScorer ? [defaultScorer] : undefined;
     } else {
       return undefined;
     }
-  }, [selectedLogSummary, sampleSummaries, score]);
+  }, [selectedLogSummary, sampleSummaries, selected]);
 };
 
 // Provides the list of available scorers. Will inspect the eval or samples
@@ -119,12 +123,14 @@ export const useEvalDescriptor = () => {
 export const useSampleDescriptor = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
-  const score = useScore();
+  const selectedScores = useSelectedScores();
+  const scores = useScores();
+  const renderedScore = selectedScores?.[0] || scores?.[0];
   return useMemo(() => {
     return evalDescriptor
-      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, score)
+      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, renderedScore)
       : undefined;
-  }, [evalDescriptor, sampleSummaries, score]);
+  }, [evalDescriptor, sampleSummaries, selectedScores, scores]);
 };
 
 // Provides the list of filtered samples
@@ -141,7 +147,7 @@ export const useFilteredSamples = () => {
   const epoch = useStore((state) => state.log.epoch);
   const sort = useStore((state) => state.log.sort);
   const samplesDescriptor = useSampleDescriptor();
-  const score = useScore();
+  const selectedScores = useSelectedScores();
 
   return useMemo(() => {
     // Apply filters
@@ -167,7 +173,7 @@ export const useFilteredSamples = () => {
 
     // Sort samples
     const sorted = samplesDescriptor
-      ? sortSamples(sort, filtered, samplesDescriptor, score)
+      ? sortSamples(sort, filtered, samplesDescriptor, selectedScores?.[0])
       : filtered;
 
     return [...sorted];
@@ -180,7 +186,7 @@ export const useFilteredSamples = () => {
     epoch,
     sort,
     samplesDescriptor,
-    score,
+    selectedScores,
   ]);
 };
 

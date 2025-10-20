@@ -20534,21 +20534,39 @@ span.ap-marker-container:hover span.ap-marker {
   cursor: help;
   align-self: center;
 }
-._flex_anstf_1 {
+._flex_u11hi_1 {
   display: flex;
+  align-items: center;
+  gap: 0.5em;
 }
 
-._label_anstf_5 {
+._label_u11hi_7 {
   align-self: center;
 }
 
-._secondSel_anstf_9 {
-  margin-left: 1em;
+._button_u11hi_11 {
+  min-width: 8em;
+  text-align: left;
 }
 
-._secondLabel_anstf_13 {
-  margin-right: 0.3em;
-  margin-left: 0.2em;
+._grid_u11hi_16 {
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 0.15em;
+  min-width: 12em;
+}
+
+._row_u11hi_23 {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  cursor: pointer;
+  border-radius: 0.25em;
+  padding: 0.3em 0.5em;
+}
+
+._row_u11hi_23:hover {
+  background-color: var(--bs-secondary-bg);
 }
 ._body_12gn4_1 {
   color: var(--bs-danger);

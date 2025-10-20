@@ -1,184 +1,131 @@
 import clsx from "clsx";
 import { ScoreLabel } from "../../../app/types";
 
-import { ChangeEvent, FC, useCallback, useMemo } from "react";
+import { FC, useCallback, useMemo, useRef, useState } from "react";
+import { PopOver } from "../../../components/PopOver";
 import styles from "./SelectScorer.module.css";
 
 interface SelectScorerProps {
   scores: ScoreLabel[];
-  score?: ScoreLabel;
-  setScore: (score: ScoreLabel) => void;
+  selectedScores?: ScoreLabel[];
+  setSelectedScores?: (scores: ScoreLabel[]) => void;
 }
 
 export const SelectScorer: FC<SelectScorerProps> = ({
   scores,
-  score,
-  setScore,
+  selectedScores,
+  setSelectedScores,
 }) => {
-  const scorers = useMemo(() => {
-    return scores.reduce((accum, scorer) => {
-      if (
-        !accum.find((sc) => {
-          return scorer.scorer === sc.scorer;
-        })
-      ) {
-        accum.push(scorer);
-      }
-      return accum;
-    }, [] as ScoreLabel[]);
-  }, [scores]);
+  const [showing, setShowing] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  if (scorers.length === 1) {
-    // There is only a single scorer in play, just show the list of available scores
-    return (
-      <div className={styles.flex}>
-        <span
-          className={clsx(
-            "select-scorer-label",
-            "text-size-smaller",
-            "text-style-label",
-            "text-style-secondary",
-            styles.label,
-          )}
-        >
-          Score:
-        </span>
-        <ScoreSelector
+  const selectedKeys = useMemo(() => {
+    return new Set(selectedScores?.map((s) => `${s.scorer}.${s.name}`));
+  }, [selectedScores]);
+
+  const selectedCount = selectedKeys.size;
+  const buttonText =
+    selectedCount === 1
+      ? selectedScores?.[0]?.name || "Score"
+      : `${selectedCount} Scores`;
+
+  return (
+    <div className={styles.flex}>
+      <span
+        className={clsx(
+          "select-scorer-label",
+          "text-size-smaller",
+          "text-style-label",
+          "text-style-secondary",
+          styles.label,
+        )}
+      >
+        Score:
+      </span>
+      <button
+        ref={buttonRef}
+        className={clsx(
+          "btn",
+          "btn-sm",
+          "btn-outline-secondary",
+          styles.button,
+        )}
+        onClick={() => setShowing(!showing)}
+      >
+        {buttonText}
+      </button>
+      <PopOver
+        id="score-selector-popover"
+        positionEl={buttonRef.current}
+        isOpen={showing}
+        setIsOpen={setShowing}
+        placement="bottom-start"
+        hoverDelay={-1}
+      >
+        <ScoreCheckboxes
           scores={scores}
-          selectedScore={score}
-          setSelectedScore={setScore}
+          selectedKeys={selectedKeys}
+          setSelectedScores={setSelectedScores}
         />
-      </div>
-    );
-  } else {
-    // selected scorer
-
-    const scorerScores = scores.filter((sc) => {
-      return score && sc.scorer === score.scorer;
-    });
-
-    // There are multiple scorers, so show a scorer selector and a r
-    return (
-      <div className={styles.flex}>
-        <span
-          className={clsx(
-            "select-scorer-label",
-            "text-size-smaller",
-            "text-style-label",
-            "text-style-secondary",
-            styles.label,
-            styles.secondLabel,
-          )}
-        >
-          Scorer:
-        </span>
-        <ScorerSelector
-          scorers={scorers}
-          selectedScore={score}
-          setSelectedScore={setScore}
-        />
-        {scorerScores.length > 1 ? (
-          <ScoreSelector
-            className={clsx(styles.secondSel)}
-            scores={scorerScores}
-            selectedScore={score}
-            setSelectedScore={setScore}
-          />
-        ) : undefined}
-      </div>
-    );
-  }
+      </PopOver>
+    </div>
+  );
 };
 
-interface ScoreSelectorProps {
+interface ScoreCheckboxesProps {
   scores: ScoreLabel[];
-  selectedScore?: ScoreLabel;
-  setSelectedScore: (score: ScoreLabel) => void;
-  className?: string | string[];
+  selectedKeys?: Set<string>;
+  setSelectedScores?: (scores: ScoreLabel[]) => void;
 }
 
-const ScoreSelector: FC<ScoreSelectorProps> = ({
+const ScoreCheckboxes: FC<ScoreCheckboxesProps> = ({
   scores,
-  selectedScore,
-  setSelectedScore,
-  className,
+  selectedKeys,
+  setSelectedScores,
 }) => {
-  const handleChange = useCallback(
-    (e: ChangeEvent<HTMLSelectElement>) => {
-      const sel = e.target as HTMLSelectElement;
-      setSelectedScore(scores[sel.selectedIndex]);
-    },
-    [setSelectedScore, scores],
-  );
+  const handleToggle = useCallback(
+    (scoreToToggle: ScoreLabel, currentlyChecked: boolean) => {
+      if (!setSelectedScores) return;
 
-  const index = scores.findIndex((sc) => {
-    return (
-      selectedScore &&
-      sc.name === selectedScore.name &&
-      sc.scorer === selectedScore.scorer
-    );
-  });
+      const key = `${scoreToToggle.scorer}.${scoreToToggle.name}`;
+      const current = new Set(selectedKeys);
+
+      if (currentlyChecked) {
+        current.delete(key);
+      } else {
+        current.add(key);
+      }
+
+      const next = scores.filter((s) => current.has(`${s.scorer}.${s.name}`));
+      const fallback = next.length > 0 ? next : [scores[0]];
+      setSelectedScores(fallback);
+    },
+    [setSelectedScores, scores, selectedKeys],
+  );
 
   return (
-    <select
-      className={clsx(
-        "form-select",
-        "form-select-sm",
-        "text-size-smaller",
-        className,
-      )}
-      aria-label=".select-scorer-label"
-      value={scores[index].name}
-      onChange={handleChange}
-    >
-      {scores.map((score) => {
+    <div className={clsx(styles.grid, "text-size-smaller")}>
+      {scores.map((sc) => {
+        const key = `${sc.scorer}.${sc.name}`;
+        const isChecked = selectedKeys ? selectedKeys.has(key) : false;
         return (
-          <option key={score.name} value={score.name}>
-            {score.name}
-          </option>
+          <div
+            key={key}
+            className={clsx(styles.row)}
+            onClick={() => handleToggle(sc, isChecked)}
+          >
+            <input
+              type="checkbox"
+              checked={isChecked}
+              onChange={(e) => {
+                e.stopPropagation();
+                handleToggle(sc, isChecked);
+              }}
+            />
+            {sc.name}
+          </div>
         );
       })}
-    </select>
-  );
-};
-
-interface ScorerSelectorProps {
-  scorers: ScoreLabel[];
-  selectedScore?: ScoreLabel;
-  setSelectedScore: (score: ScoreLabel) => void;
-}
-
-const ScorerSelector: FC<ScorerSelectorProps> = ({
-  scorers,
-  selectedScore,
-  setSelectedScore,
-}) => {
-  const handleChange = useCallback(
-    (e: ChangeEvent<HTMLSelectElement>) => {
-      const sel = e.target as HTMLSelectElement;
-      setSelectedScore(scorers[sel.selectedIndex]);
-    },
-    [setSelectedScore, scorers],
-  );
-
-  const index = scorers.findIndex((sc) => {
-    return selectedScore && sc.scorer === selectedScore.scorer;
-  });
-
-  return (
-    <select
-      className={clsx("form-select", "form-select-sm", "text-size-smaller")}
-      aria-label=".epoch-filter-label"
-      value={scorers[index].scorer}
-      onChange={handleChange}
-    >
-      {scorers.map((scorer) => {
-        return (
-          <option key={scorer.scorer} value={scorer.scorer}>
-            {scorer.scorer}
-          </option>
-        );
-      })}
-    </select>
+    </div>
   );
 };

@@ -34,7 +34,6 @@ import {
   PendingSamples,
   SampleSummary,
 } from "../client/api/types";
-import { ScorerInfo } from "../state/scoring";
 
 export interface AppState {
   status: AppStatus;
@@ -101,8 +100,8 @@ export interface LogState {
 
   epoch: string;
   sort: string;
-  score?: ScoreLabel;
-  scores?: ScorerInfo[];
+  selectedScores?: ScoreLabel[];
+  scores?: ScoreLabel[];
 }
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";

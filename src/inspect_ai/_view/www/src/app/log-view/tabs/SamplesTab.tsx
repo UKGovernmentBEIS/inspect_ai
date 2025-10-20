@@ -16,7 +16,7 @@ import {
   useGroupBy,
   useGroupByOrder,
   useSampleDescriptor,
-  useScore,
+  useSelectedScores,
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
@@ -104,7 +104,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const samplesDescriptor = useSampleDescriptor();
   const groupBy = useGroupBy();
   const groupByOrder = useGroupByOrder();
-  const currentScore = useScore();
+  const selectedScores = useSelectedScores();
   const selectSample = useStore((state) => state.logActions.selectSample);
 
   const selectedSampleIdentifier = useStore(
@@ -155,7 +155,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
       groupBy,
       groupByOrder,
       samplesDescriptor,
-      currentScore,
+      selectedScores,
     );
   }, [
     samplesDescriptor,
@@ -163,7 +163,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     selectedLogSummary?.eval?.config?.epochs,
     groupBy,
     groupByOrder,
-    currentScore,
+    selectedScores,
   ]);
 
   useEffect(() => {

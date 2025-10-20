@@ -5,7 +5,7 @@ import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../client/api/types";
-import { useSampleDescriptor, useScore } from "../../state/hooks";
+import { useSampleDescriptor, useSelectedScores } from "../../state/hooks";
 import { RenderedText } from "../content/RenderedText";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
@@ -90,7 +90,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   sample,
 }) => {
   const sampleDescriptor = useSampleDescriptor();
-  const currentScore = useScore();
+  const currentScore = useSelectedScores()?.[0];
   if (!sampleDescriptor) {
     return undefined;
   }

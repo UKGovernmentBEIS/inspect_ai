@@ -1,16 +1,34 @@
 .flex {
   display: flex;
+  align-items: center;
+  gap: 0.5em;
 }
 
 .label {
   align-self: center;
 }
 
-.secondSel {
-  margin-left: 1em;
+.button {
+  min-width: 8em;
+  text-align: left;
 }
 
-.secondLabel {
-  margin-right: 0.3em;
-  margin-left: 0.2em;
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 0.15em;
+  min-width: 12em;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  cursor: pointer;
+  border-radius: 0.25em;
+  padding: 0.3em 0.5em;
+}
+
+.row:hover {
+  background-color: var(--bs-secondary-bg);
 }
