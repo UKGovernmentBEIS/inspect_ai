@@ -141,7 +141,7 @@ def theory_of_mind():
 
 2.  In this example we are chaining together three standard solver components. It's also possible to create a more complex custom solver that manages state and interactions internally.
 
-3.  Since the output is likely to have pretty involved language, we use a model for scoring.
+3.  Since the output is likely to have natural, nuanced language, we use a model for scoring.
 
 Note that you can provide a *single* solver or multiple solvers chained together as we did here.
 
@@ -160,7 +160,7 @@ By default, eval logs are written to the `./logs` sub-directory of the current w
 
 If you are using VS Code, we recommend installing the [Inspect VS Code Extension](vscode.qmd) and using its integrated log browsing and viewing.
 
-For other editors, you can use the `inspect view` command to open a log viewer in the browser (you only need to do this once as the viewer will automatically updated when new evals are run):
+For other editors, you can use the `inspect view` command to open a log viewer in the browser (you only need to do this once as the viewer will automatically update when new evals are run):
 
 ``` bash
 inspect view
@@ -198,7 +198,7 @@ Next, review these articles which cover basic workflow, more sophisticated examp
 
 These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.
 
--   [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to define a evaluation. This section explores strategies for creating flexible and re-usable tasks.
+-   [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to define an evaluation. This section explores strategies for creating flexible and re-usable tasks.
 
 -   [Datasets](datasets.qmd) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
 

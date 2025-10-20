@@ -2,7 +2,7 @@ import json
 import os
 from io import TextIOWrapper
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import jsonlines
 
@@ -108,5 +108,11 @@ def jsonlines_dataset_reader(file: TextIOWrapper) -> DatasetReader:
 
 
 def json_dataset_reader(file: TextIOWrapper) -> DatasetReader:
-    data = cast(list[dict[str, Any]], json.load(file))
-    return iter(data)
+    data = json.load(file)
+    if isinstance(data, list):
+        return iter(data)
+
+    if isinstance(data, dict):
+        return iter([data])
+
+    raise ValueError(f"Could not read json into a supported type, found: {type(data)=}")
