@@ -32,7 +32,7 @@ export interface LogDetailsRecord {
 }
 
 // Current database schema version
-export const DB_VERSION = 6;
+export const DB_VERSION = 8;
 
 // Resolves a log dir into a database name
 function resolveDBName(logDir: string): string {
@@ -84,7 +84,7 @@ export class AppDatabase extends Dexie {
 
     this.version(DB_VERSION).stores({
       // Basic file listing - indexes for querying and sorting
-      logs: "++id, &file_path, task, task_id, cached_at",
+      logs: "++id, &file_path, mtime, task, task_id, cached_at",
 
       // Log summaries from get_log_summaries() - indexes for common queries
       log_previews:

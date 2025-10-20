@@ -100,7 +100,7 @@ export class DatabaseService {
       }
 
       const db = this.getDb();
-      const files = await db.logs.orderBy("id").toArray();
+      const files = await db.logs.orderBy("mtime").reverse().toArray();
 
       if (files.length === 0) {
         log.debug("No cached log files found");
