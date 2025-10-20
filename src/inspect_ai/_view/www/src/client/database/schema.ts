@@ -10,6 +10,7 @@ export interface LogHandleRecord {
   task?: string;
   task_id?: string;
   mtime?: number;
+  cached_at: string;
 }
 
 // Log Previews Table - Stores results from get_log_summaries()
@@ -19,6 +20,8 @@ export interface LogPreviewRecord {
 
   // The complete log summary object
   preview: LogPreview;
+
+  cached_at: string;
 }
 
 // Log Details Table - Stores complete results from get_log_info()
@@ -29,6 +32,8 @@ export interface LogDetailsRecord {
 
   // The complete log info object (includes sample summaries)
   details: LogDetails;
+
+  cached_at: string;
 }
 
 // Current database schema version
@@ -42,7 +47,7 @@ function resolveDBName(logDir: string): string {
 }
 
 export class AppDatabase extends Dexie {
-  logs!: Dexie.Table<LogHandleRecord, string>;
+  logs!: Dexie.Table<LogHandleRecord, number>;
   log_previews!: Dexie.Table<LogPreviewRecord, string>;
   log_details!: Dexie.Table<LogDetailsRecord, string>;
 

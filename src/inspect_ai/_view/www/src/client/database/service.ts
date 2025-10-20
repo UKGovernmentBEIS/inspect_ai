@@ -100,7 +100,20 @@ export class DatabaseService {
       }
 
       const db = this.getDb();
-      const files = await db.logs.orderBy("mtime").reverse().toArray();
+      // Sort by mtime if available, otherwise by id (insertion order)
+      let files = await db.logs.toArray();
+
+      // Sort by mtime (descending) if present, otherwise maintain insertion order
+      files.sort((a, b) => {
+        if (a.mtime !== undefined && b.mtime !== undefined) {
+          return b.mtime - a.mtime;
+        }
+        // If mtime is not available, maintain insertion order (ascending by id)
+        if (a.id !== undefined && b.id !== undefined) {
+          return a.id - b.id;
+        }
+        return 0;
+      });
 
       if (files.length === 0) {
         log.debug("No cached log files found");
