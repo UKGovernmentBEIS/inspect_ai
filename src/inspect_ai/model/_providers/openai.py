@@ -242,7 +242,7 @@ class OpenAIAPI(ModelAPI):
     def has_reasoning_options(self) -> bool:
         return (
             (self.is_o_series() and not self.is_o1_early())
-            or self.is_gpt_5()
+            or (self.is_gpt_5() and not self.is_gpt_5_chat())
             or self.is_codex()
         )
 
@@ -263,6 +263,10 @@ class OpenAIAPI(ModelAPI):
     def is_gpt_5_pro(self) -> bool:
         name = self.service_model_name()
         return self.is_gpt_5() and "-pro" in name
+
+    def is_gpt_5_chat(self) -> bool:
+        name = self.service_model_name()
+        return self.is_gpt_5() and "-chat" in name
 
     def is_o1(self) -> bool:
         name = self.service_model_name()
