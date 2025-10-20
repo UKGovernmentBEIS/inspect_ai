@@ -234,14 +234,10 @@ def completion_params_responses(
 
     # responses_store may have been specified in config.extra_body
     # (e.g. by a client talking to us through the agent bridge)
-    if config.extra_body and "store" in config.extra_body:
+    if responses_store is None and config.extra_body and "store" in config.extra_body:
         responses_store = config.extra_body["store"]
 
-    if responses_store is False:
-        if model_info.is_computer_use_preview():
-            raise RuntimeError(
-                "OpenAI computer use model requires responses store=True"
-            )
+    if responses_store is not True:
         params["store"] = False
         params["include"] = ["reasoning.encrypted_content"]
 

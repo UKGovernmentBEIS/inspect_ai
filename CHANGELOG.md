@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
 - Tests: Skip git revision detection and realtime logging during pytest runs to improve test performance.
 
 ## 0.3.139 (18 October 2025)
