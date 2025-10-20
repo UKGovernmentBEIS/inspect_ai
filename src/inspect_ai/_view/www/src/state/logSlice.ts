@@ -100,6 +100,7 @@ export const createLogSlice = (
       setSelectedLogSummary: (selectedLogSummary: EvalSummary) => {
         set((state) => {
           state.log.selectedLogSummary = selectedLogSummary;
+          state.log.selectedScores = undefined;
         });
 
         if (

@@ -353,14 +353,16 @@ const gridColumns = (
     Math.min(10, sampleDescriptor?.messageShape.raw.id || 0),
   );
 
-  const scoreCount =
-    selectedScores && selectedScores.length > 0 ? selectedScores.length : 1;
+  const scoreCount = selectedScores?.length ?? 0;
   const scoreRaw = sampleDescriptor?.messageShape.raw.score || 0;
   const scoreSize = Math.max(
     3,
     Math.min(10, typeof scoreRaw === "number" ? scoreRaw : 6),
   );
-  const score = Array.from({ length: scoreCount }).map(() => `${scoreSize}rem`);
+  const score =
+    scoreCount > 0
+      ? Array.from({ length: scoreCount }).map(() => `${scoreSize}rem`)
+      : [];
 
   const frSize = (val: number) => {
     if (val === 0) {
@@ -385,11 +387,11 @@ const scoreHeaders = (
   selectedScores?: ScoreLabel[],
   availableScores?: ScoreLabel[],
 ): string[] => {
+  if (!selectedScores || selectedScores.length === 0) {
+    return [];
+  }
   if (availableScores && availableScores.length === 1) {
     return ["Score"];
   }
-  if (selectedScores && selectedScores.length > 0) {
-    return selectedScores.map((s) => s.name);
-  }
-  return ["Score"];
+  return selectedScores.map((s) => s.name);
 };

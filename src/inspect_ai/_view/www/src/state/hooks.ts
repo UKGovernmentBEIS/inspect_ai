@@ -79,7 +79,7 @@ export const useSelectedScores = () => {
   const sampleSummaries = useSampleSummaries();
   const selected = useStore((state) => state.log.selectedScores);
   return useMemo(() => {
-    if (selected && selected.length > 0) {
+    if (selected !== undefined) {
       return selected;
     } else if (selectedLogSummary) {
       const defaultScorer = getDefaultScorer(

@@ -3,6 +3,8 @@ import { ScoreLabel } from "../../../app/types";
 
 import { FC, useCallback, useMemo, useRef, useState } from "react";
 import { PopOver } from "../../../components/PopOver";
+import { ToolButton } from "../../../components/ToolButton";
+import { ApplicationIcons } from "../../appearance/icons";
 import styles from "./SelectScorer.module.css";
 
 interface SelectScorerProps {
@@ -24,36 +26,21 @@ export const SelectScorer: FC<SelectScorerProps> = ({
   }, [selectedScores]);
 
   const selectedCount = selectedKeys.size;
-  const buttonText =
-    selectedCount === 1
-      ? selectedScores?.[0]?.name || "Score"
-      : `${selectedCount} Scores`;
+  const label =
+    selectedCount === 0
+      ? "Score"
+      : selectedCount === 1
+        ? selectedScores?.[0]?.name || "Score"
+        : `${selectedCount} Scores`;
 
   return (
-    <div className={styles.flex}>
-      <span
-        className={clsx(
-          "select-scorer-label",
-          "text-size-smaller",
-          "text-style-label",
-          "text-style-secondary",
-          styles.label,
-        )}
-      >
-        Score:
-      </span>
-      <button
-        ref={buttonRef}
-        className={clsx(
-          "btn",
-          "btn-sm",
-          "btn-outline-secondary",
-          styles.button,
-        )}
+    <>
+      <ToolButton
+        label={label}
+        icon={ApplicationIcons.metrics}
         onClick={() => setShowing(!showing)}
-      >
-        {buttonText}
-      </button>
+        ref={buttonRef}
+      />
       <PopOver
         id="score-selector-popover"
         positionEl={buttonRef.current}
@@ -68,7 +55,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
           setSelectedScores={setSelectedScores}
         />
       </PopOver>
-    </div>
+    </>
   );
 };
 
@@ -97,8 +84,7 @@ const ScoreCheckboxes: FC<ScoreCheckboxesProps> = ({
       }
 
       const next = scores.filter((s) => current.has(`${s.scorer}.${s.name}`));
-      const fallback = next.length > 0 ? next : [scores[0]];
-      setSelectedScores(fallback);
+      setSelectedScores(next);
     },
     [setSelectedScores, scores, selectedKeys],
   );
