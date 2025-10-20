@@ -30,6 +30,7 @@ from google.genai.types import (
     HarmBlockThreshold,
     HarmCategory,
     HttpOptions,
+    Image,
     Part,
     SafetySetting,
     SafetySettingDict,
@@ -284,6 +285,7 @@ class GoogleGenAIAPI(ModelAPI):
                 if not has_native_search and len(tools) > 0
                 else None
             )
+            system_instruction = await extract_system_message_as_parts(client, input)
             parameters = GenerateContentConfig(
                 http_options=HttpOptions(
                     headers={HttpHooks.REQUEST_ID_HEADER: request_id}
@@ -301,7 +303,7 @@ class GoogleGenAIAPI(ModelAPI):
                 safety_settings=safety_settings_to_list(self.safety_settings),
                 tools=gemini_tools,
                 tool_config=gemini_tool_config,
-                system_instruction=await extract_system_message_as_parts(client, input),  # type: ignore[arg-type]
+                system_instruction=system_instruction,  # type: ignore[arg-type]
                 thinking_config=self.chat_thinking_config(config),
             )
             if config.response_schema is not None:
@@ -319,6 +321,7 @@ class GoogleGenAIAPI(ModelAPI):
                     generation_config=parameters,
                     tools=gemini_tools,
                     tool_config=gemini_tool_config,
+                    system_instruction=system_instruction,
                     response=response,
                     time=http_hooks.end_request(request_id),
                 )
@@ -386,6 +389,12 @@ class GoogleGenAIAPI(ModelAPI):
     def connection_key(self) -> str:
         """Scope for enforcing max_connections."""
         return str(self.api_key)
+
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, APIError):
+            return ex.code == 401
+        return False
 
     def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
         if (
@@ -508,6 +517,7 @@ class GoogleGenAIAPI(ModelAPI):
                 config.max_retries,
                 config.timeout,
                 self.should_retry,
+                lambda ex: None,
                 log_model_retry,
             ),
             self.service_model_name(),
@@ -531,16 +541,28 @@ def build_model_call(
     safety_settings: list[SafetySettingDict],
     tools: ToolListUnion | None,
     tool_config: ToolConfig | None,
+    system_instruction: list[File | Part | Image | str] | None,
     response: GenerateContentResponse | None,
     time: float | None,
 ) -> ModelCall:
     return ModelCall.create(
         request=dict(
             contents=contents,
-            generation_config=generation_config,
+            # the excluded fields are passed to the Python API as part of
+            # GenerateContentConfig however they are passed separately in
+            # the actual http request body, so reflect that here
+            generation_config=generation_config.model_copy(
+                update={
+                    "safety_settings": None,
+                    "tools": None,
+                    "tool_config": None,
+                    "system_instruction": None,
+                }
+            ),
             safety_settings=safety_settings,
             tools=tools if tools is not None else None,
             tool_config=tool_config if tool_config is not None else None,
+            system_instruction=system_instruction,
         ),
         response=response if response is not None else {},
         filter=model_call_filter,
@@ -685,8 +707,8 @@ async def chat_content_to_part(
 async def extract_system_message_as_parts(
     client: Client,
     messages: list[ChatMessage],
-) -> list[File | Part | str] | None:
-    system_parts: list[File | Part | str] = []
+) -> list[File | Part | Image | str] | None:
+    system_parts: list[File | Part | Image | str] = []
     for message in messages:
         if message.role == "system":
             content = message.content

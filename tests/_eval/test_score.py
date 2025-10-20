@@ -326,8 +326,8 @@ def adds_to_state() -> Scorer:
             "append",
             [("f1", {"stop_words": ["woah"]})],
             {
-                "f1": {"num_metrics": 2, "stop_words": ["woah"]},
                 "match": {"num_metrics": 2},
+                "f1": {"num_metrics": 2, "stop_words": ["woah"]},
             },
             None,
             id="scored-append",
@@ -345,9 +345,9 @@ def adds_to_state() -> Scorer:
             "append",
             [("f1", dict[str, Any]()), ("choice", dict[str, Any]())],
             {
+                "match": {"num_metrics": 2},
                 "f1": {"num_metrics": 2},
                 "choice": {"num_metrics": 2},
-                "match": {"num_metrics": 2},
             },
             None,
             id="multiple-scorers",

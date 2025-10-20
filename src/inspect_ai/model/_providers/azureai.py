@@ -283,6 +283,12 @@ class AzureAIAPI(ModelAPI):
             return False
 
     @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, HttpResponseError):
+            return ex.status_code == 401
+        return False
+
+    @override
     def collapse_user_messages(self) -> bool:
         return True
 

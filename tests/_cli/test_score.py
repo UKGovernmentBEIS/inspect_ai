@@ -49,8 +49,8 @@ LOG_UNSCORED = (
             "append",
             ("f1", ("stop_words=[woah]",)),
             {
-                "f1": {"num_metrics": 2, "stop_words": ["woah"]},
                 "match": {"num_metrics": 2},
+                "f1": {"num_metrics": 2, "stop_words": ["woah"]},
             },
             id="scored-append",
         ),

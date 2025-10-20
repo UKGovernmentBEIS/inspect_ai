@@ -346,3 +346,53 @@ async def test_edit_score_without_recompute():
 
     recompute_metrics(log)
     assert log.results.scores[0].metrics["mean"].value != original_mean
+
+
+@pytest.mark.anyio
+async def test_edit_score_multiple_epochs_with_epoch_specified():
+    """Test editing scores when there are multiple epochs and epoch is specified."""
+    logs = await eval_async(single_metric_task(), epochs=3)
+    log = logs[0]
+
+    sample_id = log.samples[0].id
+
+    edit = ScoreEdit(value=5)
+    edit_score(
+        log, sample_id, "single_metric_scorer", edit, recompute_metrics=False, epoch=1
+    )
+
+    for sample in log.samples:
+        if sample.id == sample_id:
+            expected = 5 if sample.epoch == 1 else 1
+            assert sample.scores["single_metric_scorer"].value == expected
+
+
+@pytest.mark.anyio
+async def test_edit_score_multiple_epochs_without_epoch_fails():
+    """Test that editing without specifying epoch fails when there are multiple epochs."""
+    logs = await eval_async(single_metric_task(), epochs=2)
+    log = logs[0]
+
+    sample_id = log.samples[0].id
+
+    edit = ScoreEdit(value=5)
+
+    with pytest.raises(
+        ValueError,
+        match=r"Multiple samples found with id .+\. You must specify the epoch parameter\.",
+    ):
+        edit_score(log, sample_id, "single_metric_scorer", edit)
+
+
+@pytest.mark.anyio
+async def test_edit_score_invalid_epoch():
+    """Test that editing with an invalid epoch raises an error."""
+    logs = await eval_async(single_metric_task(), epochs=2)
+    log = logs[0]
+
+    sample_id = log.samples[0].id
+
+    edit = ScoreEdit(value=5)
+
+    with pytest.raises(ValueError, match=r"Sample with id .+ and epoch 5 not found"):
+        edit_score(log, sample_id, "single_metric_scorer", edit, epoch=5)

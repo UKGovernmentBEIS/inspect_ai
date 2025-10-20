@@ -1048,7 +1048,9 @@ def is_input_file(
 def is_response_input_message(
     param: ResponseInputItemParam,
 ) -> TypeGuard[Message | EasyInputMessageParam]:
-    return param["type"] == "message" and not is_response_output_message(param)
+    return (
+        "role" in param and "content" in param and not is_response_output_message(param)
+    )
 
 
 def is_function_call_output(
@@ -1072,7 +1074,7 @@ def is_computer_call_output(
 def is_assistant_message_param(
     param: ResponseInputItemParam,
 ) -> bool:
-    return (
+    return "type" in param and (
         is_response_output_message(param)
         or is_response_computer_tool_call(param)
         or is_response_web_search_call(param)
@@ -1088,7 +1090,8 @@ def is_response_output_message(
     param: ResponseInputItemParam,
 ) -> TypeGuard[ResponseOutputMessageParam]:
     return (
-        param["type"] == "message"
+        "type" in param
+        and param["type"] == "message"
         and param["role"] == "assistant"
         and isinstance(param.get("content", None), list)
         and any(

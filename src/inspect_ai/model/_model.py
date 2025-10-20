@@ -156,11 +156,16 @@ class ModelAPI(abc.ABC):
         """
         self.model_name = model_name
         self.base_url = base_url
+        self.api_key = api_key
+        self.api_key_vars = api_key_vars
+        self._apply_api_key_overrides()
 
+    def _apply_api_key_overrides(self) -> None:
         from inspect_ai.hooks._hooks import override_api_key
 
         # apply api key override
-        for key in api_key_vars:
+        api_key = self.api_key
+        for key in self.api_key_vars:
             # if there is an explicit api_key passed then it
             # overrides anything in the environment so use it
             if api_key is not None:
@@ -178,6 +183,13 @@ class ModelAPI(abc.ABC):
 
         # set any explicitly specified api key
         self.api_key = api_key
+
+    def initialize(self) -> None:
+        """Reinitialize the model API client.
+
+        This can be used to reinitialize the API keys.
+        """
+        self._apply_api_key_overrides()
 
     async def aclose(self) -> None:
         """Async close method for closing any client allocated for the model."""
@@ -249,6 +261,17 @@ class ModelAPI(abc.ABC):
 
         Args:
            ex: Exception to check for retry
+        """
+        return False
+
+    def is_auth_failure(self, ex: Exception) -> bool:
+        """Check if this exception indicates an authentication failure.
+
+        Args:
+           ex: Exception to check for authentication failure
+
+        Returns:
+           True if this is an authentication error (e.g., 401 Unauthorized)
         """
         return False
 
@@ -632,6 +655,7 @@ class Model:
                 config.max_retries,
                 config.timeout,
                 self.should_retry,
+                self.before_retry,
                 log_model_retry,
             )
         )
@@ -805,6 +829,13 @@ class Model:
 
         # no retry
         return False
+
+    async def before_retry(self, ex: BaseException) -> None:
+        if isinstance(ex, Exception) and self.api.is_auth_failure(ex):
+            # close existing model instance
+            await self.api.aclose()
+            # re-initialize
+            self.api.initialize()
 
     # function to verify that its okay to call model apis
     def verify_model_apis(self) -> None:

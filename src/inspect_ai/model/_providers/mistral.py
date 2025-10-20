@@ -256,6 +256,12 @@ class MistralAPI(ModelAPI):
     def connection_key(self) -> str:
         return str(self.api_key)
 
+    @override
+    def is_auth_failure(self, ex: Exception) -> bool:
+        if isinstance(ex, SDKError):
+            return ex.status_code == 401
+        return False
+
     def handle_bad_request(self, ex: SDKError) -> ModelOutput | Exception:
         body = json.loads(ex.body)
         content = body.get("message", ex.body)
