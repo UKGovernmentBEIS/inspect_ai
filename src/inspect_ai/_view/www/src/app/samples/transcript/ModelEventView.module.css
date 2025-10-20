@@ -31,11 +31,6 @@
   word-wrap: anywhere !important;
 }
 
-.codeHeader {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .progress {
   margin-left: 0.5em;
 }

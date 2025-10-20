@@ -174,10 +174,26 @@ export const APIView: FC<APIViewProps> = ({ call, className }) => {
 
   return (
     <div className={clsx(className)}>
-      <EventSection title="Request">
+      <EventSection
+        title="Request"
+        actions={
+          <CopyButton
+            value={JSON.stringify(call.request, undefined, 2)}
+            ariaLabel="Copy Request JSON"
+          />
+        }
+      >
         <APICodeCell contents={call.request} />
       </EventSection>
-      <EventSection title="Response">
+      <EventSection
+        title="Response"
+        actions={
+          <CopyButton
+            value={JSON.stringify(call.response, undefined, 2)}
+            ariaLabel="Copy Response JSON"
+          />
+        }
+      >
         <APICodeCell contents={call.response} />
       </EventSection>
     </div>
@@ -203,9 +219,6 @@ export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
 
   return (
     <div ref={sourceCodeRef} className={clsx("model-call")}>
-      <div className={clsx(styles.codeHeader)}>
-        <CopyButton value={sourceCode} ariaLabel="Copy to clipboard" />
-      </div>
       <pre className={clsx(styles.codePre)}>
         <code
           id={id}

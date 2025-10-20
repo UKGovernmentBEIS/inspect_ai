@@ -5,6 +5,7 @@ import styles from "./EventSection.module.css";
 interface EventSectionProps {
   title: string;
   children: ReactNode;
+  actions?: ReactNode | ReactNode[];
   className?: string | string[];
 }
 
@@ -14,14 +15,20 @@ interface EventSectionProps {
 export const EventSection: FC<EventSectionProps> = ({
   title,
   children,
+  actions,
   className,
 }) => {
   return (
     <div className={clsx(styles.container, className)}>
-      <div
-        className={clsx("text-size-small", "text-style-label", styles.title)}
-      >
-        {title}
+      <div className={clsx(styles.titleRow)}>
+        <div
+          className={clsx("text-size-small", "text-style-label", styles.title)}
+        >
+          {title}
+          {actions ? (
+            <div className={clsx(styles.actions)}>{actions}</div>
+          ) : null}
+        </div>
       </div>
       {children}
     </div>
