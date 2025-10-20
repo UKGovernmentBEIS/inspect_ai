@@ -11,7 +11,7 @@ import vscodeApi from "./vscode/api-vscode";
  * Resolves the client API
  */
 const resolveApi = (): ClientAPI => {
-  const debug = false;
+  const debug = true;
   if (getVscodeApi()) {
     // This is VSCode
     return clientApi(vscodeApi, undefined, debug);
