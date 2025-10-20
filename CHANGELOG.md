@@ -1,7 +1,8 @@
-## Unreleased
+## 0.3.140 (20 October 2025)
 
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
 - Tests: Skip git revision detection and realtime logging during pytest runs to improve test performance.
+- Inspect View: Fix regression that resulted in an error when displaying JSON log files.
 
 ## 0.3.139 (18 October 2025)
 

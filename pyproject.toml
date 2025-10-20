@@ -149,7 +149,7 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 dev = [
-  "anthropic>=0.52.0",
+  "anthropic>=0.62.0",
   "azure-identity",
   "azure-ai-inference",
   "fastapi",

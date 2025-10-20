@@ -283,18 +283,13 @@ def eval_set_response(eval_set: EvalSet | None) -> web.Response:
 
 async def log_file_response(file: str, header_only_param: str | None) -> web.Response:
     try:
-        contents = get_log_file(file, header_only_param)
+        contents = await get_log_file(file, header_only_param)
 
         return web.Response(body=contents, content_type="application/json")
 
     except Exception as error:
         logger.exception(error)
         return web.Response(status=500, reason="File not found")
-
-
-async def log_size_response(log_file: str) -> web.Response:
-    size = get_log_size(log_file)
-    return web.json_response(size)
 
 
 async def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:
