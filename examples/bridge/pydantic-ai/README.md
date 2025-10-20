@@ -2,12 +2,6 @@
 
 This example demonstrates using a native [Pydantic AI](https://ai.pydantic.dev/) agent with Inspect.
 
-Note that this example relies on features available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-
 The example uses the [`agent_bridge()`](https://inspect.aisi.org.uk/agent-bridge.html) which enables integrating arbitrary 3rd party agent frameworks into Inspect. 
 
 Source files include:

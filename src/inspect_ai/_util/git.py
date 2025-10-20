@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 
@@ -10,6 +11,10 @@ class GitContext(BaseModel):
 
 
 def git_context() -> GitContext | None:
+    # skip git operations when running under pytest
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return None
+
     # check for git
     git = shutil.which("git")
     if not git:
