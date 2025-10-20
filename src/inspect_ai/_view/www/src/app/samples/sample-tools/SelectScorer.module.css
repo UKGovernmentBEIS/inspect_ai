@@ -1,7 +1,11 @@
+.container {
+  padding: 0.2em 0.3em;
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr;
-  row-gap: 0.1em;
+  row-gap: 0;
   min-width: 9em;
 }
 
@@ -11,7 +15,8 @@
   gap: 0.5em;
   cursor: pointer;
   border-radius: 0.25em;
-  padding: 0.2em 0;
+  padding: 0.35em 0.4em;
+  margin: 0 -0.4em;
 }
 
 .row:hover {

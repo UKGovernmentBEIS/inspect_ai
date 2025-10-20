@@ -133,9 +133,9 @@ export const SampleRow: FC<SampleRowProps> = ({
             <SampleErrorView message={sample.error} />
           ) : completed ? (
             scoreRendered
-          ) : (
+          ) : i === scoresRendered.length - 1 ? (
             <PulsingDots subtle={false} />
-          )}
+          ) : undefined}
         </div>
       ))}
     </div>

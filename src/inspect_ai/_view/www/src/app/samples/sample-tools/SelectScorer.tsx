@@ -10,7 +10,7 @@ import styles from "./SelectScorer.module.css";
 interface SelectScorerProps {
   scores: ScoreLabel[];
   selectedScores?: ScoreLabel[];
-  setSelectedScores?: (scores: ScoreLabel[]) => void;
+  setSelectedScores: (scores: ScoreLabel[]) => void;
 }
 
 export const SelectScorer: FC<SelectScorerProps> = ({
@@ -40,6 +40,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         icon={ApplicationIcons.metrics}
         onClick={() => setShowing(!showing)}
         ref={buttonRef}
+        classes="bg-white"
       />
       <PopOver
         id="score-selector-popover"
@@ -48,12 +49,17 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         setIsOpen={setShowing}
         placement="bottom-start"
         hoverDelay={-1}
+        styles={{
+          padding: "3px 5px",
+        }}
       >
-        <ScoreCheckboxes
-          scores={scores}
-          selectedKeys={selectedKeys}
-          setSelectedScores={setSelectedScores}
-        />
+        <div className={styles.container}>
+          <ScoreCheckboxes
+            scores={scores}
+            selectedKeys={selectedKeys}
+            setSelectedScores={setSelectedScores}
+          />
+        </div>
       </PopOver>
     </>
   );
@@ -62,7 +68,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
 interface ScoreCheckboxesProps {
   scores: ScoreLabel[];
   selectedKeys?: Set<string>;
-  setSelectedScores?: (scores: ScoreLabel[]) => void;
+  setSelectedScores: (scores: ScoreLabel[]) => void;
 }
 
 const ScoreCheckboxes: FC<ScoreCheckboxesProps> = ({
@@ -72,8 +78,6 @@ const ScoreCheckboxes: FC<ScoreCheckboxesProps> = ({
 }) => {
   const handleToggle = useCallback(
     (scoreToToggle: ScoreLabel, currentlyChecked: boolean) => {
-      if (!setSelectedScores) return;
-
       const key = `${scoreToToggle.scorer}.${scoreToToggle.name}`;
       const current = new Set(selectedKeys);
 

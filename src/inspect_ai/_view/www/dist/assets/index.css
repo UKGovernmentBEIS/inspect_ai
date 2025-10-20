@@ -20534,23 +20534,28 @@ span.ap-marker-container:hover span.ap-marker {
   cursor: help;
   align-self: center;
 }
-._grid_11k8g_1 {
+._container_85z5v_1 {
+  padding: 0.2em 0.3em;
+}
+
+._grid_85z5v_5 {
   display: grid;
   grid-template-columns: 1fr;
-  row-gap: 0.1em;
+  row-gap: 0;
   min-width: 9em;
 }
 
-._row_11k8g_8 {
+._row_85z5v_12 {
   display: flex;
   align-items: center;
   gap: 0.5em;
   cursor: pointer;
   border-radius: 0.25em;
-  padding: 0.2em 0;
+  padding: 0.35em 0.4em;
+  margin: 0 -0.4em;
 }
 
-._row_11k8g_8:hover {
+._row_85z5v_12:hover {
   background-color: var(--bs-secondary-bg);
 }
 ._body_12gn4_1 {

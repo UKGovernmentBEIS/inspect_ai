@@ -86,10 +86,11 @@ export const useSelectedScores = () => {
         selectedLogSummary,
         sampleSummaries,
       );
-      return defaultScorer ? [defaultScorer] : undefined;
-    } else {
-      return undefined;
+      if (defaultScorer) {
+        return [defaultScorer];
+      }
     }
+    return [];
   }, [selectedLogSummary, sampleSummaries, selected]);
 };
 
@@ -173,7 +174,7 @@ export const useFilteredSamples = () => {
 
     // Sort samples
     const sorted = samplesDescriptor
-      ? sortSamples(sort, filtered, samplesDescriptor, selectedScores?.[0])
+      ? sortSamples(sort, filtered, samplesDescriptor, selectedScores)
       : filtered;
 
     return [...sorted];
