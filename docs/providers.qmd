@@ -72,14 +72,11 @@ Note that certain models including `o1-pro` and `computer_use_preview` *require*
 
 ### Responses Store
 
-By default, the Responses API stores requests on the server for retrieval of previous reasoning content (which is not transmitted as part of responses). To control this behavior explicitly use the `responses_store` model argument. For example:
+By default, Inspect's implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the "reasoning.encrypted_content" include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
 ```bash
-inspect eval math.py --model openai/o4-mini -M responses_store=false
+inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
-
-For example, you might need to do this if you have a non-logging interface to OpenAI models (as `store` is incompatible with non-logging interfaces). Note that some features (such as computer use) _require_ responses store to be `True`.
-
 
 ### Flex Processing
 
