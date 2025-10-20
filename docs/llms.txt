@@ -9,7 +9,7 @@
 - [Log Viewer](https://inspect.aisi.org.uk/log-viewer.html.md): Goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
 - [VS Code](https://inspect.aisi.org.uk/vscode.html.md) Provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
 
-- [Tasks](https://inspect.aisi.org.uk/tasks.html.md) bring together datasets, solvers, and scorers to define a evaluation. This section explores strategies for creating flexible and re-usable tasks.
+- [Tasks](https://inspect.aisi.org.uk/tasks.html.md) bring together datasets, solvers, and scorers to define an evaluation. This section explores strategies for creating flexible and re-usable tasks.
 - [Datasets](https://inspect.aisi.org.uk/datasets.html.md): Datasets provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
 - [Solvers](https://inspect.aisi.org.uk/solvers.html.md): Solvers are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies. Here we cover using the built-in solvers and creating your own more sophisticated ones.
 - [Scorers](https://inspect.aisi.org.uk/scorers.html.md): Scorers evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
