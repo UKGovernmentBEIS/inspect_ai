@@ -143,83 +143,85 @@ export const createLogsSlice = (
           }
         };
         const logDir = await loadLogDir();
-        get().logsActions.setLogDir(logDir);
+        if (get().logs.logDir !== logDir) {
+          get().logsActions.setLogDir(logDir);
 
-        // Initialize the database
-        const initializeDatabase = async (
-          logDir?: string,
-        ): Promise<DatabaseService | undefined> => {
-          if (!logDir) {
-            // No database service available
-            return undefined;
-          }
-
-          try {
-            const databaseService = get().databaseService;
-            if (!databaseService) {
+          // Initialize the database
+          const initializeDatabase = async (
+            logDir?: string,
+          ): Promise<DatabaseService | undefined> => {
+            if (!logDir) {
+              // No database service available
               return undefined;
             }
-            await databaseService.openDatabase(logDir);
-            return databaseService;
-          } catch (e) {
-            console.log(e);
-            get().appActions.setLoading(false, e as Error);
-            return;
+
+            try {
+              const databaseService = get().databaseService;
+              if (!databaseService) {
+                return undefined;
+              }
+              await databaseService.openDatabase(logDir);
+              return databaseService;
+            } catch (e) {
+              console.log(e);
+              get().appActions.setLoading(false, e as Error);
+              return;
+            }
+          };
+
+          // Don't enable syncing if there is no log directory
+          if (!logDir) {
+            get().appActions.setLoading(false);
+            return [];
           }
-        };
 
-        // Don't enable syncing if there is no log directory
-        if (!logDir) {
-          get().appActions.setLoading(false);
-          return [];
+          // Activate the database for this log directory
+          const databaseService = await initializeDatabase(logDir);
+          if (!databaseService) {
+            // No database service available
+            throw new Error("Database service not available");
+          }
+
+          // Activate replication for this database
+          get().replicationService?.startReplication(databaseService, api, {
+            setLogHandles: (logs: LogHandle[]) => {
+              const state = get();
+              state.logsActions.setLogHandles(logs);
+            },
+            getSelectedLog: () => {
+              const state = get();
+              return state.logs.selectedLogIndex > -1
+                ? state.logs.logs[state.logs.selectedLogIndex]
+                : undefined;
+            },
+            setSelectedLogIndex: (index: number) => {
+              const state = get();
+              state.logsActions.setSelectedLogIndex(index);
+            },
+            updateLogPreviews: (previews: Record<string, LogPreview>) => {
+              const state = get();
+              state.logsActions.updateLogPreviews(previews);
+            },
+            setLoading(loading: boolean) {
+              const state = get();
+              state.appActions.setLoading(loading);
+            },
+            setBackgroundSyncing(syncing: boolean) {
+              set((state) => {
+                state.app.status.syncing = syncing;
+              });
+            },
+            setDbStats(stats: {
+              logCount: number;
+              previewCount: number;
+              detailsCount: number;
+            }) {
+              set((state) => {
+                state.logs.dbStats = stats;
+              });
+            },
+          });
         }
-
-        // Activate the database for this log directory
-        const databaseService = await initializeDatabase(logDir);
-        if (!databaseService) {
-          // No database service available
-          throw new Error("Database service not available");
-        }
-
-        // Activate replication for this database
-        get().replicationService?.startReplication(databaseService, api, {
-          setLogHandles: (logs: LogHandle[]) => {
-            const state = get();
-            state.logsActions.setLogHandles(logs);
-          },
-          getSelectedLog: () => {
-            const state = get();
-            return state.logs.selectedLogIndex > -1
-              ? state.logs.logs[state.logs.selectedLogIndex]
-              : undefined;
-          },
-          setSelectedLogIndex: (index: number) => {
-            const state = get();
-            state.logsActions.setSelectedLogIndex(index);
-          },
-          updateLogPreviews: (previews: Record<string, LogPreview>) => {
-            const state = get();
-            state.logsActions.updateLogPreviews(previews);
-          },
-          setLoading(loading: boolean) {
-            const state = get();
-            state.appActions.setLoading(loading);
-          },
-          setBackgroundSyncing(syncing: boolean) {
-            set((state) => {
-              state.app.status.syncing = syncing;
-            });
-          },
-          setDbStats(stats: {
-            logCount: number;
-            previewCount: number;
-            detailsCount: number;
-          }) {
-            set((state) => {
-              state.logs.dbStats = stats;
-            });
-          },
-        });
 
         get().appActions.setLoading(false);
 
