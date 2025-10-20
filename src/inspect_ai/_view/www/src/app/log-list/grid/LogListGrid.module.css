@@ -2,6 +2,7 @@
   height: 100%;
   overflow: auto;
   padding: 0;
+  outline: none;
 }
 
 .grid {
@@ -93,6 +94,20 @@
   transition: background-color 0.15s ease-in-out;
   width: fit-content;
   min-width: 100%;
+  cursor: pointer;
+}
+
+.bodyRow:hover {
+  background-color: var(--bs-secondary-bg-subtle);
+}
+
+.selectedRow {
+  background-color: var(--bs-primary-bg-subtle);
+  border-left: 3px solid var(--bs-primary);
+}
+
+.selectedRow:hover {
+  background-color: var(--bs-primary-bg-subtle);
 }
 
 /* Cell Styles */
