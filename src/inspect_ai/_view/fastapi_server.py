@@ -160,6 +160,7 @@ def view_server_app(
             return Response(status_code=HTTP_404_NOT_FOUND)
         for file in listing["files"]:
             file["name"] = await _unmap_file(request, file["name"])
+        listing["log_dir"] = await _unmap_file(request, listing["log_dir"])
         return InspectJsonResponse(content=listing)
 
     @app.get("/eval-set")
