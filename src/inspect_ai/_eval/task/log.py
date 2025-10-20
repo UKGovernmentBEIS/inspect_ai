@@ -1,3 +1,4 @@
+import os
 from importlib import metadata as importlib_metadata
 from typing import Any, Literal, cast
 
@@ -181,12 +182,17 @@ class TaskLogger:
 
     async def init(self) -> None:
         self._location = await self.recorder.log_init(self.eval)
-        if self.eval.config.log_realtime is not False:
-            self._buffer_db = SampleBufferDatabase(
-                location=self._location,
-                log_images=self.eval.config.log_images is not False,
-                log_shared=self.eval.config.log_shared,
-            )
+
+        if self.eval.config.log_realtime is False or os.environ.get(
+            "PYTEST_CURRENT_TEST"
+        ):
+            return
+
+        self._buffer_db = SampleBufferDatabase(
+            location=self._location,
+            log_images=self.eval.config.log_images is not False,
+            log_shared=self.eval.config.log_shared,
+        )
 
     @property
     def location(self) -> str:
