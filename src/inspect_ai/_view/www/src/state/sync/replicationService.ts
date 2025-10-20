@@ -32,49 +32,24 @@ export class ReplicationService {
   private _syncQueued: boolean = false;
 
   constructor() {
+    this._processingCount = 0;
+
     this._previewQueue = new WorkQueue<LogHandle, LogPreview>({
+      name: "Log-Preview-Queue",
       batchSize: 10,
       processingDelay: 100,
       onProcessingChanged: this.processingChanged,
-    });
-    this._detailQueue = new WorkQueue<LogHandle, LogDetails>({
-      batchSize: 3,
-      processingDelay: 50,
-      onProcessingChanged: this.processingChanged,
-    });
-    this._processingCount = 0;
+      getId: (log) => log.name,
+      worker: async (logHandles: LogHandle[]) => {
+        if (!this._api) throw new Error("API not available");
 
-    // Set up the worker function
-    this._previewQueue.setWorker(async (logHandles: LogHandle[]) => {
-      if (!this._api) throw new Error("API not available");
+        const previews = await this._api.get_log_summaries(
+          logHandles.map((log) => log.name),
+        );
 
-      const previews = await this._api.get_log_summaries(
-        logHandles.map((log) => log.name),
-      );
-
-      return previews;
-    });
-    this._detailQueue.setWorker(async (logHandles: LogHandle[]) => {
-      if (!this._api) throw new Error("API not available");
-
-      const details = await Promise.all(
-        logHandles.map(async (log) => {
-          try {
-            const result = await this._api!.get_log_details(log.name);
-            return result;
-          } catch {
-            return undefined;
-          }
-        }),
-      );
-
-      const allResults = details.filter((d) => d !== undefined);
-      return allResults;
-    });
-
-    // Set up completion callback
-    this._previewQueue.setOnComplete(
-      (previews: LogPreview[], inputs: LogHandle[]) => {
+        return previews;
+      },
+      onComplete: async (previews: LogPreview[], inputs: LogHandle[]) => {
         // Build preview map
         const previewMap: Record<string, LogPreview> = {};
         inputs.forEach((log, i) => {
@@ -88,18 +63,41 @@ export class ReplicationService {
 
         // Optionally cache to database
         if (this._database && Object.keys(previewMap).length > 0) {
-          this._database
+          await this._database
             .writeLogPreviews(
               Object.values(previewMap),
               Object.keys(previewMap),
             )
             .catch(() => {});
-          this.updateDbStats();
+          await this.updateDbStats();
         }
       },
-    );
-    this._detailQueue.setOnComplete(
-      async (details: LogDetails[], inputs: LogHandle[]) => {
+    });
+
+    this._detailQueue = new WorkQueue<LogHandle, LogDetails>({
+      name: "Log-Detail-Queue",
+      batchSize: 3,
+      processingDelay: 50,
+      onProcessingChanged: this.processingChanged,
+      getId: (log) => log.name,
+      worker: async (logHandles: LogHandle[]) => {
+        if (!this._api) throw new Error("API not available");
+
+        const details = await Promise.all(
+          logHandles.map(async (log) => {
+            try {
+              const result = await this._api!.get_log_details(log.name);
+              return result;
+            } catch {
+              return undefined;
+            }
+          }),
+        );
+
+        const allResults = details.filter((d) => d !== undefined);
+        return allResults;
+      },
+      onComplete: async (details: LogDetails[], inputs: LogHandle[]) => {
         if (this._database && details.length > 0) {
           for (const [i, detail] of details.entries()) {
             const input = inputs[i];
@@ -112,7 +110,7 @@ export class ReplicationService {
           }
         }
       },
-    );
+    });
   }
 
   processingChanged = (processing: boolean) => {
@@ -124,10 +122,10 @@ export class ReplicationService {
     }
   };
 
-  private updateDbStats() {
+  private async updateDbStats() {
     if (!this._database || !this._applicationContext) return;
 
-    Promise.all([
+    await Promise.all([
       this._database.countRows("logs"),
       this._database.countRows("logPreviews"),
       this._database.countRows("logDetails"),
@@ -308,7 +306,7 @@ export class ReplicationService {
     try {
       if (context.force) {
         const toLoad = context.logs || (await this._database?.readLogs()) || [];
-        await this._previewQueue.atOnce(toLoad);
+        await this._previewQueue.processImmediate(toLoad);
       } else {
         const allLogs = (await this._database?.readLogs()) || [];
         const loaded = (await this._database?.readLogPreviews(allLogs)) || {};
@@ -351,7 +349,7 @@ export class ReplicationService {
     priority: WorkPriority = WorkPriority.Medium,
   ) {
     // Add to queue
-    this._previewQueue.enqueue(logs, (log) => log.name, priority);
+    this._previewQueue.enqueue(logs, priority);
   }
 
   private count = 0;
@@ -361,6 +359,6 @@ export class ReplicationService {
   ) {
     this.count = this.count + logs.length;
     // Add to queue (deduplicated by name)
-    this._detailQueue.enqueue(logs, (log) => log.name, priority);
+    this._detailQueue.enqueue(logs, priority);
   }
 }

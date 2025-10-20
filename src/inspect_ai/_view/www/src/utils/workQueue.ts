@@ -12,24 +12,24 @@ interface WorkItem<T> {
   retries: number;
 }
 
-interface WorkQueueOptions {
+interface WorkQueueOptions<TInput, TOutput> {
+  name: string;
   batchSize: number;
   processingDelay?: number;
   maxRetries?: number;
+  getId: (item: TInput) => string;
+  worker: (items: TInput[]) => Promise<TOutput[]>;
+  onComplete: (results: TOutput[], inputs: TInput[]) => Promise<void>;
   onProcessingChanged?: (processing: boolean) => void;
 }
 
 export class WorkQueue<TInput, TOutput> {
-  private queue: WorkItem<TInput>[] = [];
+  private itemsById = new Map<string, WorkItem<TInput>>();
   private processing = false;
-  private worker: ((items: TInput[]) => Promise<TOutput[]>) | null = null;
-  private onComplete: ((results: TOutput[], inputs: TInput[]) => void) | null =
-    null;
-  private options: Required<WorkQueueOptions>;
-  private backoffDelay = 0;
   private consecutiveErrors = 0;
+  private options: Required<WorkQueueOptions<TInput, TOutput>>;
 
-  constructor(options: WorkQueueOptions) {
+  constructor(options: WorkQueueOptions<TInput, TOutput>) {
     this.options = {
       processingDelay: 100,
       maxRetries: 3,
@@ -38,44 +38,102 @@ export class WorkQueue<TInput, TOutput> {
     };
   }
 
-  setWorker(worker: (items: TInput[]) => Promise<TOutput[]>) {
-    this.worker = worker;
-  }
-
-  setOnComplete(callback: (results: TOutput[], inputs: TInput[]) => void) {
-    this.onComplete = callback;
-  }
-
-  enqueue(
-    items: TInput[],
-    getId: (item: TInput) => string,
-    priority: WorkPriority = WorkPriority.Medium,
-  ) {
+  enqueue(items: TInput[], priority: WorkPriority = WorkPriority.Medium) {
     const now = Date.now();
-    const newItems = items.map((item) => ({
-      id: getId(item),
-      data: item,
-      priority,
-      addedAt: now,
-      retries: 0,
-    }));
 
-    // Deduplicate - don't add if already in queue
-    const existingIds = new Set(this.queue.map((item) => item.id));
-    const toAdd = newItems.filter((item) => !existingIds.has(item.id));
+    for (const item of items) {
+      const id = this.options.getId(item);
+      const existing = this.itemsById.get(id);
 
-    // If the new item is higher priority than an existing one, update the existing one's priority
-    for (const newItem of newItems) {
-      const existingItem = this.queue.find((item) => item.id === newItem.id);
-      if (existingItem && newItem.priority > existingItem.priority) {
-        existingItem.priority = newItem.priority;
+      if (existing) {
+        // Update priority if higher
+        if (priority > existing.priority) {
+          existing.priority = priority;
+        }
+      } else {
+        // Add new item
+        this.itemsById.set(id, {
+          id,
+          data: item,
+          priority,
+          addedAt: now,
+          retries: 0,
+        });
       }
     }
 
-    this.queue.push(...toAdd);
+    void this.startProcessing();
+  }
 
-    // Sort queue by priority (high to low), then by addedAt (oldest first)
-    this.queue.sort((a, b) => {
+  async processImmediate(items: TInput[]) {
+    const results = await this.options.worker(items);
+    this.options.onComplete(results, items);
+  }
+
+  private async startProcessing() {
+    if (this.processing) {
+      return;
+    }
+
+    this.processing = true;
+
+    try {
+      this.options.onProcessingChanged(true);
+    } catch (error) {
+      console.error("onProcessingChanged callback error:", error);
+    }
+
+    try {
+      while (this.itemsById.size > 0) {
+        // Get next batch (sorted by priority, then age)
+        const batch = this.getNextBatch();
+
+        const inputs = batch.map((item) => item.data);
+
+        try {
+          const results = await this.options.worker(inputs);
+          await this.options.onComplete(results, inputs);
+
+          // Remove successful items
+          batch.forEach((item) => this.itemsById.delete(item.id));
+          this.consecutiveErrors = 0;
+        } catch (error) {
+          console.error("Work queue processing error:", error);
+
+          // Retry or remove items
+          for (const item of batch) {
+            if (item.retries < this.options.maxRetries) {
+              // Retry this item
+              item.retries++;
+            } else {
+              // Item has been retried too many times, remove it
+              this.itemsById.delete(item.id);
+            }
+          }
+
+          this.consecutiveErrors++;
+        }
+
+        // Delay between batches
+        if (this.itemsById.size > 0) {
+          const delay = this.getBackoffDelay();
+          if (delay > 0) {
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        }
+      }
+    } finally {
+      this.processing = false;
+      try {
+        this.options.onProcessingChanged(false);
+      } catch (error) {
+        console.error("onProcessingChanged callback error:", error);
+      }
+    }
+  }
+
+  private getNextBatch(): WorkItem<TInput>[] {
+    const items = Array.from(this.itemsById.values()).sort((a, b) => {
       if (a.priority !== b.priority) {
         // Higher priority first
         return b.priority - a.priority;
@@ -83,89 +141,23 @@ export class WorkQueue<TInput, TOutput> {
       // Older first
       return a.addedAt - b.addedAt;
     });
-
-    // Start processing if not already running
-    this.startProcessing();
+    return items.slice(0, this.options.batchSize);
   }
 
-  async atOnce(items: TInput[]) {
-    if (!this.worker) return;
-
-    const results = await this.worker(items);
-
-    if (this.onComplete) {
-      this.onComplete(results, items);
+  private getBackoffDelay(): number {
+    if (this.consecutiveErrors === 0) {
+      return this.options.processingDelay;
     }
-  }
-
-  private async startProcessing() {
-    if (this.processing || !this.worker) return;
-
-    this.processing = true;
-    this.options.onProcessingChanged?.(true);
-
-    while (this.queue.length > 0) {
-      // Get next batch
-      const batch = this.queue.splice(0, this.options.batchSize);
-      const inputs = batch.map((item) => item.data);
-
-      try {
-        const results = await this.worker(inputs);
-
-        // Notify completion
-        if (this.onComplete) {
-          this.onComplete(results, inputs);
-        }
-
-        // Reset backoff on success
-        this.consecutiveErrors = 0;
-        this.backoffDelay = 0;
-      } catch (error) {
-        console.error("Work queue processing error:", error);
-
-        // Re-queue items that haven't exceeded max retries
-        const itemsToRetry = batch.filter(
-          (item) => item.retries < this.options.maxRetries,
-        );
-        if (itemsToRetry.length > 0) {
-          // Increment retry count and add back to queue
-          itemsToRetry.forEach((item) => item.retries++);
-          this.queue.unshift(...itemsToRetry);
-        }
-
-        // Increase backoff: 1x, 2x, 4x, 8x, 16x (max) of processingDelay
-        this.consecutiveErrors++;
-        const multiplier = Math.min(
-          Math.pow(2, this.consecutiveErrors - 1),
-          16,
-        );
-        this.backoffDelay = multiplier * (this.options.processingDelay || 100);
-      }
-
-      // Delay between batches (either normal delay or backoff delay)
-      if (this.queue.length > 0) {
-        const delay = this.backoffDelay || this.options.processingDelay || 0;
-        if (delay > 0) {
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-      }
-    }
-
-    // If items were added during processing, restart
-    if (this.queue.length > 0) {
-      this.startProcessing();
-    }
-
-    this.options.onProcessingChanged?.(false);
-    this.processing = false;
+    const multiplier = Math.min(Math.pow(2, this.consecutiveErrors - 1), 16);
+    return multiplier * this.options.processingDelay;
   }
 
   clear() {
-    this.queue = [];
+    this.itemsById.clear();
   }
 
   get size() {
-    return this.queue.length;
+    return this.itemsById.size;
   }
 
   get isProcessing() {
