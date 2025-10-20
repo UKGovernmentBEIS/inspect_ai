@@ -12,8 +12,3 @@
   font-weight: 600;
   padding-bottom: 0.3em;
 }
-
-.actions {
-  display: inline-flex;
-  gap: 0.25rem;
-}

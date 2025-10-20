@@ -1,11 +1,12 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
+import { CopyButton } from "../../../../components/CopyButton";
 import styles from "./EventSection.module.css";
 
 interface EventSectionProps {
   title: string;
   children: ReactNode;
-  actions?: ReactNode | ReactNode[];
+  copyContent?: string;
   className?: string | string[];
 }
 
@@ -15,7 +16,7 @@ interface EventSectionProps {
 export const EventSection: FC<EventSectionProps> = ({
   title,
   children,
-  actions,
+  copyContent,
   className,
 }) => {
   return (
@@ -25,8 +26,8 @@ export const EventSection: FC<EventSectionProps> = ({
           className={clsx("text-size-small", "text-style-label", styles.title)}
         >
           {title}
-          {actions ? (
-            <div className={clsx(styles.actions)}>{actions}</div>
+          {copyContent ? (
+            <CopyButton value={copyContent} ariaLabel="Copy to clipboard" />
           ) : null}
         </div>
       </div>
