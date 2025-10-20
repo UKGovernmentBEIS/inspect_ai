@@ -227,7 +227,6 @@ def write_log_dir_manifest(
     names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
     headers = read_eval_log_headers(logs)
 
-    headers[0].reductions = None
     manifest_logs = dict(zip(names, headers))
 
     # form target path and write
