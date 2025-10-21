@@ -3,7 +3,10 @@ import { FC } from "react";
 import { RunningMetric } from "../../../client/api/types";
 import { LinkButton } from "../../../components/LinkButton";
 import { Modal } from "../../../components/Modal";
-import { metricDisplayName } from "../../../scoring/metrics";
+import {
+  expandGroupedMetrics,
+  metricDisplayName,
+} from "../../../scoring/metrics";
 import { groupScorers } from "../../../scoring/scores";
 import { MetricSummary, ScoreSummary } from "../../../scoring/types";
 import { useProperty } from "../../../state/hooks";
@@ -49,7 +52,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
     }
   });
 
-  return Object.values(scorers);
+  return expandGroupedMetrics(Object.values(scorers));
 };
 
 interface ResultsPanelProps {
@@ -69,19 +72,21 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
     return undefined;
   }
 
+  const expandedScorers = expandGroupedMetrics(scorers);
+
   // Get the display scorers
-  if (scorers.length === 1) {
-    const showReducer = !!scorers[0].reducer;
-    const metrics = scorers[0].metrics;
-    const unscoredSamples = scorers[0].unscoredSamples || 0;
-    const scoredSamples = scorers[0].scoredSamples || 0;
+  if (expandedScorers.length === 1) {
+    const showReducer = !!expandedScorers[0].reducer;
+    const metrics = expandedScorers[0].metrics;
+    const unscoredSamples = expandedScorers[0].unscoredSamples || 0;
+    const scoredSamples = expandedScorers[0].scoredSamples || 0;
     return (
       <div className={styles.simpleMetricsRows}>
         {metrics.map((metric, i) => {
           return (
             <VerticalMetric
               key={`simple-metric-${i}`}
-              reducer={scorers[0].reducer}
+              reducer={expandedScorers[0].reducer}
               metric={metric}
               isFirst={i === 0}
               showReducer={showReducer}
@@ -93,8 +98,9 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
       </div>
     );
   } else {
-    const showReducer = scorers.findIndex((score) => !!score.reducer) !== -1;
-    const grouped = groupScorers(scorers);
+    const showReducer =
+      expandedScorers.findIndex((score) => !!score.reducer) !== -1;
+    const grouped = groupScorers(expandedScorers);
 
     // If grouping produced an empty array, no results to show
     if (grouped.length < 1) {

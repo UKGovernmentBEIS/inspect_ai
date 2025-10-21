@@ -102,3 +102,76 @@ export const toDisplayScorers = (scores?: Scores): ScoreSummary[] => {
     };
   });
 };
+
+const isGroupedMetric = (metric: MetricSummary): boolean => {
+  if (!metric.params) {
+    return false;
+  }
+  const params = metric.params as Record<string, unknown>;
+  return params["group_key"] !== undefined && params["metric"] !== undefined;
+};
+
+const getBaseMetricName = (metric: MetricSummary): string | undefined => {
+  if (!metric.params) {
+    return undefined;
+  }
+  const params = metric.params as Record<string, unknown>;
+  const metricObj = params["metric"] as Record<string, unknown> | undefined;
+  if (!metricObj || typeof metricObj !== "object") {
+    return undefined;
+  }
+  return metricObj["name"] as string;
+};
+
+const normalizeMetricName = (name: string): string => {
+  return name.replace(/\d+$/, "");
+};
+
+export const expandGroupedMetrics = (
+  scorers: ScoreSummary[],
+): ScoreSummary[] => {
+  const result: ScoreSummary[] = [];
+
+  for (const scorer of scorers) {
+    if (scorer.metrics.length === 0) {
+      result.push(scorer);
+      continue;
+    }
+
+    const hasGroupedMetrics = scorer.metrics.some(isGroupedMetric);
+
+    if (!hasGroupedMetrics) {
+      result.push(scorer);
+      continue;
+    }
+
+    const metricsByBase = new Map<string, MetricSummary[]>();
+
+    for (const metric of scorer.metrics) {
+      const baseMetricName = getBaseMetricName(metric);
+      if (!baseMetricName) {
+        continue;
+      }
+
+      if (!metricsByBase.has(baseMetricName)) {
+        metricsByBase.set(baseMetricName, []);
+      }
+      metricsByBase.get(baseMetricName)!.push({
+        ...metric,
+        name: normalizeMetricName(metric.name),
+      });
+    }
+
+    for (const [baseMetricName, metrics] of metricsByBase.entries()) {
+      result.push({
+        scorer: scorer.scorer,
+        reducer: baseMetricName,
+        metrics: metrics,
+        unscoredSamples: scorer.unscoredSamples,
+        scoredSamples: scorer.scoredSamples,
+      });
+    }
+  }
+
+  return result;
+};
