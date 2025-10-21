@@ -181,7 +181,6 @@ dev = [
   "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
   "together",
   "textual-dev>=0.86.2",
-  "transformer-lens",
   "trio",
   "pandas-stubs",
   "pyarrow-stubs",
