@@ -58,7 +58,7 @@ def _recursively_make_command_docs(
 
     if ctx.command.hidden and not show_hidden:
         return
-    
+
     subcommands = _get_sub_commands(ctx.command, ctx)
 
     if parent is not None:
@@ -68,7 +68,7 @@ def _recursively_make_command_docs(
     if len(subcommands) == 0:
         yield from _make_options(ctx, style, show_hidden=show_hidden)
         return
-    
+
     if list_subcommands:
         yield from _make_subcommands_links(
             subcommands,
@@ -274,22 +274,22 @@ def _format_table_option_type(option: click.Option) -> str:
     if isinstance(option.type, click.DateTime):
         # @click.option(..., type=click.DateTime(["A", "B", "C"]))
         # -> datetime (`%Y-%m-%d` | `%Y-%m-%dT%H:%M:%S` | `%Y-%m-%d %H:%M:%S`)
-        formats = f" {_HTML_PIPE} ".join(f"`{fmt}`" for fmt in option.type.formats) 
+        formats = f" {_HTML_PIPE} ".join(f"`{fmt}`" for fmt in option.type.formats)
         return f"{typename} ({formats})"
 
     if isinstance(option.type, (click.IntRange, click.FloatRange)):
-        if option.type.min is not None and option.type.max is not None:  
+        if option.type.min is not None and option.type.max is not None:
             # @click.option(..., type=click.IntRange(min=0, max=10))
             # -> integer range (between `0` and `10`)
-            return f"{typename} (between `{option.type.min}` and `{option.type.max}`)" 
+            return f"{typename} (between `{option.type.min}` and `{option.type.max}`)"
         elif option.type.min is not None:
             # @click.option(..., type=click.IntRange(min=0))
             # -> integer range (`0` and above)
-            return f"{typename} (`{option.type.min}` and above)" 
+            return f"{typename} (`{option.type.min}` and above)"
         else:
             # @click.option(..., type=click.IntRange(max=10))
             # -> integer range (`10` and below)
-            return f"{typename} (`{option.type.max}` and below)" 
+            return f"{typename} (`{option.type.max}` and below)"
 
     # -> "boolean", "text", etc.
     return typename
