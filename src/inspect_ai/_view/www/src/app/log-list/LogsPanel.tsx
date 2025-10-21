@@ -12,7 +12,7 @@ import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl, useLogRouteParams } from "../routing/url";
-import { LogListGrid } from "./grid/LogListGrid";
+import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import { LogsFilterInput } from "./LogsFilterInput";
@@ -48,7 +48,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const { setPage } = usePagination(kLogsPaginationId, kDefaultPageSize);
 
   const filterRef = useRef<HTMLInputElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<LogListGridHandle>(null);
 
   const { logPath } = useLogRouteParams();
 
@@ -91,13 +91,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       previousWatchedLogs.current = watchedLogs;
     }
   }, [watchedLogs]);
-
-  // Focus the panel when it loads
-  useEffect(() => {
-    setTimeout(() => {
-      rootRef.current?.focus();
-    }, 10);
-  }, []);
 
   // All the items visible in the current directory (might span
   // multiple pages)
@@ -228,17 +221,21 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     if (e.key === "f" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       filterRef.current?.focus();
+    } else if (
+      e.key === "Escape" &&
+      document.activeElement === filterRef.current
+    ) {
+      e.preventDefault();
+      gridRef.current?.focus();
     }
   }
 
   return (
     <div
-      ref={rootRef}
       className={clsx(styles.panel)}
       onKeyDown={(e) => {
         handleKeyDown(e);
       }}
-      tabIndex={0}
     >
       <Navbar>
         <LogsFilterInput ref={filterRef} />
@@ -246,7 +243,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
       <ActivityBar animating={loading || headersLoading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
-        <LogListGrid items={logItems} />
+        <LogListGrid ref={gridRef} items={logItems} />
       </div>
       <LogListFooter
         logDir={currentDir}

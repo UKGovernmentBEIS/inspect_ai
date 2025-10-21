@@ -44,7 +44,7 @@ def make_command_docs(
 
 def _recursively_make_command_docs(
     prog_name: str,
-    command: click.BaseCommand,
+    command: click.Command,
     parent: click.Context | None = None,
     depth: int = 0,
     style: str = "plain",
@@ -58,7 +58,7 @@ def _recursively_make_command_docs(
 
     if ctx.command.hidden and not show_hidden:
         return
-    
+
     subcommands = _get_sub_commands(ctx.command, ctx)
 
     if parent is not None:
@@ -68,7 +68,7 @@ def _recursively_make_command_docs(
     if len(subcommands) == 0:
         yield from _make_options(ctx, style, show_hidden=show_hidden)
         return
-    
+
     if list_subcommands:
         yield from _make_subcommands_links(
             subcommands,
@@ -91,9 +91,9 @@ def _recursively_make_command_docs(
 
 
 def _build_command_context(
-    prog_name: str, command: click.BaseCommand, parent: click.Context | None
+    prog_name: str, command: click.Command, parent: click.Context | None
 ) -> click.Context:
-    return click.Context(cast(click.Command, command), info_name=prog_name, parent=parent)
+    return click.Context(command, info_name=prog_name, parent=parent)
 
 
 def _get_sub_commands(command: click.Command, ctx: click.Context) -> list[click.Command]:
@@ -102,17 +102,17 @@ def _get_sub_commands(command: click.Command, ctx: click.Context) -> list[click.
     if subcommands:
         return list(subcommands.values())
 
-    if not isinstance(command, click.MultiCommand):
+    if not isinstance(command, click.Group):
         return []
 
-    subcommands = []
+    subcommands_list: list[click.Command] = []
 
     for name in command.list_commands(ctx):
         subcommand = command.get_command(ctx, name)
         assert subcommand is not None
-        subcommands.append(subcommand)
+        subcommands_list.append(subcommand)
 
-    return subcommands
+    return subcommands_list
 
 
 def _make_title(ctx: click.Context, depth: int, *, has_attr_list: bool) -> Iterator[str]:
@@ -274,22 +274,22 @@ def _format_table_option_type(option: click.Option) -> str:
     if isinstance(option.type, click.DateTime):
         # @click.option(..., type=click.DateTime(["A", "B", "C"]))
         # -> datetime (`%Y-%m-%d` | `%Y-%m-%dT%H:%M:%S` | `%Y-%m-%d %H:%M:%S`)
-        formats = f" {_HTML_PIPE} ".join(f"`{fmt}`" for fmt in option.type.formats) 
+        formats = f" {_HTML_PIPE} ".join(f"`{fmt}`" for fmt in option.type.formats)
         return f"{typename} ({formats})"
 
     if isinstance(option.type, (click.IntRange, click.FloatRange)):
-        if option.type.min is not None and option.type.max is not None:  
+        if option.type.min is not None and option.type.max is not None:
             # @click.option(..., type=click.IntRange(min=0, max=10))
             # -> integer range (between `0` and `10`)
-            return f"{typename} (between `{option.type.min}` and `{option.type.max}`)" 
+            return f"{typename} (between `{option.type.min}` and `{option.type.max}`)"
         elif option.type.min is not None:
             # @click.option(..., type=click.IntRange(min=0))
             # -> integer range (`0` and above)
-            return f"{typename} (`{option.type.min}` and above)" 
+            return f"{typename} (`{option.type.min}` and above)"
         else:
             # @click.option(..., type=click.IntRange(max=10))
             # -> integer range (`10` and below)
-            return f"{typename} (`{option.type.max}` and below)" 
+            return f"{typename} (`{option.type.max}` and below)"
 
     # -> "boolean", "text", etc.
     return typename
@@ -367,15 +367,15 @@ def _make_subcommands_links(
     yield ""
 
 
-def load_command(module: str, attribute: str) -> click.BaseCommand:
+def load_command(module: str, attribute: str) -> click.Command:
     """
     Load and return the Click command object located at '<module>:<attribute>'.
     """
     command = _load_obj(module, attribute)
 
-    if not isinstance(command, click.BaseCommand):
+    if not isinstance(command, click.Command):
         raise RuntimeError(
-            f"{attribute!r} must be a 'click.BaseCommand' object, got {type(command)}"
+            f"{attribute!r} must be a 'click.Command' object, got {type(command)}"
         )
 
     return command

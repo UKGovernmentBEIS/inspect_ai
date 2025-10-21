@@ -51,6 +51,7 @@ export interface LogsSlice {
     setFilteredCount: (count: number) => void;
     setWatchedLogs: (logs: LogFile[]) => void;
     clearWatchedLogs: () => void;
+    setSelectedRowIndex: (index: number | null) => void;
   };
 }
 
@@ -335,6 +336,11 @@ export const createLogsSlice = (
       clearWatchedLogs: () => {
         set((state) => {
           state.logs.listing.watchedLogs = undefined;
+        });
+      },
+      setSelectedRowIndex: (index: number | null) => {
+        set((state) => {
+          state.logs.listing.selectedRowIndex = index;
         });
       },
     },

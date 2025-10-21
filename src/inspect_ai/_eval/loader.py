@@ -125,7 +125,9 @@ def resolve_tasks(
                 model_roles=(
                     previous_task.model_roles or loaded_task.model_roles or model_roles
                 ),
-                sandbox=previous_task.log.eval.sandbox,
+                sandbox=resolve_task_file_sandbox(
+                    previous_task.log.eval.task_file, previous_task.log.eval.sandbox
+                ),
                 sequence=sequence,
                 id=previous_task.id,
                 sample_source=eval_log_sample_source(
@@ -213,6 +215,25 @@ def resolve_task_sandbox(
 
     # return resolved sandbox
     return resolved_sandbox
+
+
+def resolve_task_file_sandbox(
+    task_file: str | None, sandbox: SandboxEnvironmentSpec | None
+) -> SandboxEnvironmentSpec | None:
+    if sandbox is None or not isinstance(sandbox.config, str):
+        return sandbox
+
+    if task_file is None:
+        return sandbox
+
+    file_path = Path(sandbox.config)
+    if file_path.is_absolute():
+        return sandbox
+
+    # resolve relative sandbox config paths from logged task file location
+    src_dir = Path(task_file).parent
+    file_path = (src_dir / file_path).resolve()
+    return SandboxEnvironmentSpec(sandbox.type, file_path.as_posix())
 
 
 def load_tasks(
