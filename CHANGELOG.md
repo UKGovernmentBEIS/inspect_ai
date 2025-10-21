@@ -2,6 +2,7 @@
 
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
 - Remove Goodfire model provider (as the goodfire package has been archived/deprecated).
+- Inspect View: Display copy button for model events api request and response JSON.
 - Bugfix: Correctly resolve relative sandbox config paths in `eval-retry` when CWD differs from task directory.
 
 ## 0.3.140 (20 October 2025)
