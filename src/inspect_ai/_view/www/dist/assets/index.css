@@ -17624,11 +17624,17 @@ a._citationLink_t2k1z_9:hover {
 ._jsonPanel_1eq5o_8 {
   padding: 0 !important;
 }
-._container_1brs9_1 {
+._container_1ww70_1 {
   margin: 1em 0 0 0;
 }
 
-._title_1brs9_5 {
+._titleRow_1ww70_5 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+._title_1ww70_5 {
   font-weight: 600;
   padding-bottom: 0.3em;
 }
