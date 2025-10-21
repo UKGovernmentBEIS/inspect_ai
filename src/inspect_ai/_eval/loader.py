@@ -220,20 +220,20 @@ def resolve_task_sandbox(
 def resolve_task_file_sandbox(
     task_file: str | None, sandbox: SandboxEnvironmentSpec | None
 ) -> SandboxEnvironmentSpec | None:
-    if sandbox is None or task_file is None:
+    if sandbox is None or not isinstance(sandbox.config, str):
         return sandbox
 
-    if not isinstance(sandbox.config, str):
+    if task_file is None:
         return sandbox
 
-    config_path = Path(sandbox.config)
-    if config_path.is_absolute():
+    file_path = Path(sandbox.config)
+    if file_path.is_absolute():
         return sandbox
 
     # resolve relative sandbox config paths from logged task file location
-    task_dir = Path(task_file).parent
-    resolved_config = (task_dir / config_path).resolve().as_posix()
-    return SandboxEnvironmentSpec(sandbox.type, resolved_config)
+    src_dir = Path(task_file).parent
+    file_path = (src_dir / file_path).resolve()
+    return SandboxEnvironmentSpec(sandbox.type, file_path.as_posix())
 
 
 def load_tasks(

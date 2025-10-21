@@ -141,7 +141,7 @@ def my_task():
         )
 
         # Change to tmpdir (different from task_dir) to ensure CWD != task dir
-        original_cwd = os.getcwd()
+        eval_wd = os.getcwd()
         try:
             os.chdir(tmpdir)
 
@@ -162,13 +162,13 @@ def my_task():
             # Now retry from tmpdir (not task_dir)
             # This should work because eval-retry resolves relative to task file
             # eval_retry uses model and solver from the log
-            retry_log = eval_retry(log)[0]
+            log = eval_retry(log)[0]
 
             # If we get here without Docker errors, the path was resolved correctly
             # (The eval will still fail due to our failing_solver, but that's expected)
-            assert retry_log.status == "error"
-            if retry_log.error:
-                assert "Error reading docker config" not in retry_log.error.message
+            assert log.status == "error"
+            if log.error:
+                assert "Error reading docker config" not in log.error.message
 
         finally:
-            os.chdir(original_cwd)
+            os.chdir(eval_wd)
