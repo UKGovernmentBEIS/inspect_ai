@@ -682,6 +682,13 @@ export const useLogsListing = () => {
     (state) => state.logsActions.setFilteredCount,
   );
 
+  const selectedRowIndex = useStore(
+    (state) => state.logs.listing.selectedRowIndex,
+  );
+  const setSelectedRowIndex = useStore(
+    (state) => state.logsActions.setSelectedRowIndex,
+  );
+
   return {
     sorting,
     setSorting,
@@ -695,6 +702,8 @@ export const useLogsListing = () => {
     setColumnSize,
     filteredCount,
     setFilteredCount,
+    selectedRowIndex,
+    setSelectedRowIndex,
   };
 };
 
