@@ -5,7 +5,7 @@ import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../client/api/types";
-import { useSampleDescriptor, useScore } from "../../state/hooks";
+import { useSampleDescriptor, useSelectedScores } from "../../state/hooks";
 import { RenderedText } from "../content/RenderedText";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
@@ -90,7 +90,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   sample,
 }) => {
   const sampleDescriptor = useSampleDescriptor();
-  const currentScore = useScore();
+  const selectedScores = useSelectedScores();
   if (!sampleDescriptor) {
     return undefined;
   }
@@ -187,17 +187,29 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     });
   }
 
-  columns.push({
-    label: "Score",
-    value: fields.error ? (
-      <FlatSampleError message={fields.error} />
-    ) : (
-      sampleDescriptor?.evalDescriptor.score(sample, currentScore)?.render() ||
-      ""
-    ),
-    size: "fit-content(15em)",
-    center: true,
-  });
+  if (selectedScores && selectedScores.length > 0) {
+    selectedScores.forEach((scoreLabel) => {
+      columns.push({
+        label: selectedScores.length === 1 ? "Score" : scoreLabel.name,
+        value: fields.error ? (
+          <FlatSampleError message={fields.error} />
+        ) : (
+          sampleDescriptor?.evalDescriptor
+            .score(sample, scoreLabel)
+            ?.render() || ""
+        ),
+        size: "fit-content(15em)",
+        center: true,
+      });
+    });
+  } else {
+    columns.push({
+      label: "Score",
+      value: fields.error ? <FlatSampleError message={fields.error} /> : "",
+      size: "fit-content(15em)",
+      center: true,
+    });
+  }
 
   return (
     <div

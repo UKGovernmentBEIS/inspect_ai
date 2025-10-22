@@ -109,13 +109,18 @@ export const sortSamples = (
   sort: string,
   samples: SampleSummary[],
   samplesDescriptor: SamplesDescriptor,
-  score?: ScoreLabel,
+  scores: ScoreLabel[],
 ): SampleSummary[] => {
+  const scoreDescriptors = scores
+    .map((score) => samplesDescriptor.evalDescriptor.scoreDescriptor(score))
+    .filter((scoreDescriptor) => scoreDescriptor !== undefined);
   const sortedSamples = samples.sort((a: SampleSummary, b: SampleSummary) => {
-    const scoreDescriptor = score
-      ? samplesDescriptor.evalDescriptor.scoreDescriptor(score)
-      : undefined;
-
+    const aScores = scores
+      .map((score) => samplesDescriptor.evalDescriptor.score(a, score))
+      .filter((score) => score !== undefined);
+    const bScores = scores
+      .map((score) => samplesDescriptor.evalDescriptor.score(b, score))
+      .filter((score) => score !== undefined);
     switch (sort) {
       case kSampleAscVal: {
         const result = sortId(a, b);
@@ -151,29 +156,34 @@ export const sortSamples = (
       }
 
       case kScoreAscVal: {
-        const aScore = samplesDescriptor.evalDescriptor.score(a, score);
-        const bScore = samplesDescriptor.evalDescriptor.score(b, score);
         if (
-          aScore === undefined ||
-          bScore === undefined ||
-          scoreDescriptor === undefined
+          aScores.length === 0 ||
+          bScores.length === 0 ||
+          scoreDescriptors.length === 0
         ) {
           return 0;
         }
-        return scoreDescriptor?.compare(aScore, bScore);
+        return aScores.reduce((cmp, score, index) => {
+          if (cmp !== 0) {
+            return cmp;
+          }
+          return scoreDescriptors[index]?.compare(score, bScores[index]);
+        }, 0);
       }
       case kScoreDescVal: {
-        const aScore = samplesDescriptor.evalDescriptor.score(a, score);
-        const bScore = samplesDescriptor.evalDescriptor.score(b, score);
         if (
-          aScore === undefined ||
-          bScore === undefined ||
-          scoreDescriptor == undefined
+          aScores.length === 0 ||
+          bScores.length === 0 ||
+          scoreDescriptors.length === 0
         ) {
           return 0;
         }
-
-        return scoreDescriptor?.compare(bScore, aScore);
+        return bScores.reduce((cmp, score, index) => {
+          if (cmp !== 0) {
+            return cmp;
+          }
+          return scoreDescriptors[index]?.compare(score, aScores[index]);
+        }, 0);
       }
       default:
         return 0;

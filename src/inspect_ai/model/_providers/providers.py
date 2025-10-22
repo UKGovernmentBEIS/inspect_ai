@@ -285,28 +285,6 @@ def none() -> type[ModelAPI]:
     return NoModel
 
 
-@modelapi("goodfire")
-def goodfire() -> type[ModelAPI]:
-    """Get the Goodfire API provider."""
-    FEATURE = "Goodfire API"
-    PACKAGE = "goodfire"
-    MIN_VERSION = "0.3.4"  # Support for newer Llama models and OpenAI compatibility
-
-    # verify we have the package
-    try:
-        import goodfire  # type: ignore # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-
-    # in the clear
-    from .goodfire import GoodfireAPI  # type: ignore[attr-defined]
-
-    return GoodfireAPI  # type: ignore[no-any-return]
-
-
 @modelapi(name="hf-inference-providers")
 def hf_inference_providers() -> type[ModelAPI]:
     # validate
