@@ -215,7 +215,7 @@ export class DatabaseService {
     await db.log_details.put(record);
   }
 
-  async readLogDetails(filePath: string): Promise<LogDetails | null> {
+  async readLogDetailsForFile(filePath: string): Promise<LogDetails | null> {
     try {
       const db = this.getDb();
       const record = await db.log_details.get(filePath);
@@ -230,6 +230,31 @@ export class DatabaseService {
     } catch (error) {
       log.error(`Error retrieving cached log info for ${filePath}:`, error);
       return null;
+    }
+  }
+
+  async readLogDetails(logs: LogHandle[]): Promise<Record<string, LogDetails>> {
+    try {
+      const filePaths = logs.map((log) => log.name);
+      const db = this.getDb();
+      const records = await db.log_details
+        .where("file_path")
+        .anyOf(filePaths)
+        .toArray();
+
+      log.debug(
+        `Retrieved ${records.length} cached log details out of ${filePaths.length} requested`,
+      );
+
+      const result: Record<string, LogDetails> = {};
+      for (const record of records) {
+        result[record.file_path] = record.details;
+      }
+
+      return result;
+    } catch (error) {
+      log.error("Error retrieving cached log details:", error);
+      return {};
     }
   }
 
@@ -274,7 +299,7 @@ export class DatabaseService {
   }
 
   async readSampleSummariesForFile(filePath: string): Promise<SampleSummary[]> {
-    const logInfo = await this.readLogDetails(filePath);
+    const logInfo = await this.readLogDetailsForFile(filePath);
     if (!logInfo || !logInfo.sampleSummaries) {
       return [];
     }

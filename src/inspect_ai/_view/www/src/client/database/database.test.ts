@@ -240,7 +240,7 @@ describe("Database Service", () => {
       await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo);
 
       // Retrieve cached log info
-      const cached = await databaseService.readLogDetails(
+      const cached = await databaseService.readLogDetailsForFile(
         "/test/logs/eval1.json",
       );
 
@@ -251,7 +251,7 @@ describe("Database Service", () => {
     });
 
     test("should return null for non-cached log info", async () => {
-      const cached = await databaseService.readLogDetails(
+      const cached = await databaseService.readLogDetailsForFile(
         "/test/logs/nonexistent.json",
       );
       expect(cached).toBeNull();

@@ -12,6 +12,7 @@ export interface ApplicationContext {
   getSelectedLog: () => LogHandle | undefined;
   setSelectedLogIndex: (index: number) => void;
   updateLogPreviews: (previews: Record<string, LogPreview>) => void;
+  updateLogDetails: (details: Record<string, LogDetails>) => void;
   setLoading: (loading: boolean) => void;
   setBackgroundSyncing: (syncing: boolean) => void;
   setDbStats: (stats: {
@@ -99,6 +100,17 @@ export class ReplicationService {
       },
       onComplete: async (details: LogDetails[], inputs: LogHandle[]) => {
         if (this._database && details.length > 0) {
+          // Build preview map
+          const detailMap: Record<string, LogDetails> = {};
+          inputs.forEach((log, i) => {
+            if (details[i]) {
+              detailMap[log.name] = details[i];
+            }
+          });
+
+          // Update store
+          this._applicationContext?.updateLogDetails(detailMap);
+
           for (const [i, detail] of details.entries()) {
             const input = inputs[i];
             if (detail && input) {
@@ -140,7 +152,7 @@ export class ReplicationService {
       .catch(() => {});
   }
 
-  public startReplication(
+  public async startReplication(
     database: DatabaseService,
     api: ClientAPI,
     context: ApplicationContext,
@@ -148,6 +160,22 @@ export class ReplicationService {
     this._database = database;
     this._api = api;
     this._applicationContext = context;
+
+    // Preload any data
+    const logHandles = await database.readLogs();
+    if (logHandles) {
+      context.setLogHandles(logHandles);
+
+      const logPreviews = await database.readLogPreviews(logHandles);
+      if (logPreviews && Object.keys(logPreviews).length > 0) {
+        context.updateLogPreviews(logPreviews);
+      }
+
+      const logDetails = await database.readLogDetails(logHandles);
+      if (logDetails && Object.keys(logDetails).length > 0) {
+        context.updateLogDetails(logDetails);
+      }
+    }
   }
 
   public stopReplication() {

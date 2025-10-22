@@ -175,7 +175,8 @@ export const createLogSlice = (
         const dbService = state.databaseService;
         if (dbService && dbService.opened()) {
           try {
-            const cachedInfo = await dbService.readLogDetails(logFileName);
+            const cachedInfo =
+              await dbService.readLogDetailsForFile(logFileName);
             if (cachedInfo) {
               log.debug(`Using cached log info for: ${logFileName}`);
               state.logActions.setSelectedLogDetails(cachedInfo);

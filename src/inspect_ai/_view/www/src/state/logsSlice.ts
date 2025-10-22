@@ -5,7 +5,12 @@ import {
 } from "@tanstack/react-table";
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
-import { EvalHeader, LogHandle, LogPreview } from "../client/api/types";
+import {
+  EvalHeader,
+  LogDetails,
+  LogHandle,
+  LogPreview,
+} from "../client/api/types";
 import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
@@ -20,8 +25,9 @@ export interface LogsSlice {
     setLogHandles: (logHandles: LogHandle[]) => void;
 
     updateLogPreviews: (previews: Record<string, LogPreview>) => void;
-
     syncLogPreviews: (logs: LogHandle[]) => Promise<void>;
+
+    updateLogDetails: (details: Record<string, LogDetails>) => void;
 
     setSelectedLogIndex: (index: number) => void;
 
@@ -56,6 +62,7 @@ const initialState: LogsState = {
   logDir: undefined,
   logs: [],
   logPreviews: {},
+  logDetails: {},
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
   listing: {},
@@ -113,6 +120,14 @@ export const createLogsSlice = (
           state.logs.logPreviews = {
             ...get().logs.logPreviews,
             ...previews,
+          };
+        }),
+
+      updateLogDetails: (details: Record<string, LogDetails>) =>
+        set((state) => {
+          state.logs.logDetails = {
+            ...get().logs.logDetails,
+            ...details,
           };
         }),
 
@@ -183,44 +198,52 @@ export const createLogsSlice = (
           }
 
           // Activate replication for this database
-          get().replicationService?.startReplication(databaseService, api, {
-            setLogHandles: (logs: LogHandle[]) => {
-              const state = get();
-              state.logsActions.setLogHandles(logs);
+          await get().replicationService?.startReplication(
+            databaseService,
+            api,
+            {
+              setLogHandles: (logs: LogHandle[]) => {
+                const state = get();
+                state.logsActions.setLogHandles(logs);
+              },
+              getSelectedLog: () => {
+                const state = get();
+                return state.logs.selectedLogIndex > -1
+                  ? state.logs.logs[state.logs.selectedLogIndex]
+                  : undefined;
+              },
+              setSelectedLogIndex: (index: number) => {
+                const state = get();
+                state.logsActions.setSelectedLogIndex(index);
+              },
+              updateLogPreviews: (previews: Record<string, LogPreview>) => {
+                const state = get();
+                state.logsActions.updateLogPreviews(previews);
+              },
+              updateLogDetails: (details: Record<string, LogDetails>) => {
+                const state = get();
+                state.logsActions.updateLogDetails(details);
+              },
+              setLoading(loading: boolean) {
+                const state = get();
+                state.appActions.setLoading(loading);
+              },
+              setBackgroundSyncing(syncing: boolean) {
+                set((state) => {
+                  state.app.status.syncing = syncing;
+                });
+              },
+              setDbStats(stats: {
+                logCount: number;
+                previewCount: number;
+                detailsCount: number;
+              }) {
+                set((state) => {
+                  state.logs.dbStats = stats;
+                });
+              },
             },
-            getSelectedLog: () => {
-              const state = get();
-              return state.logs.selectedLogIndex > -1
-                ? state.logs.logs[state.logs.selectedLogIndex]
-                : undefined;
-            },
-            setSelectedLogIndex: (index: number) => {
-              const state = get();
-              state.logsActions.setSelectedLogIndex(index);
-            },
-            updateLogPreviews: (previews: Record<string, LogPreview>) => {
-              const state = get();
-              state.logsActions.updateLogPreviews(previews);
-            },
-            setLoading(loading: boolean) {
-              const state = get();
-              state.appActions.setLoading(loading);
-            },
-            setBackgroundSyncing(syncing: boolean) {
-              set((state) => {
-                state.app.status.syncing = syncing;
-              });
-            },
-            setDbStats(stats: {
-              logCount: number;
-              previewCount: number;
-              detailsCount: number;
-            }) {
-              set((state) => {
-                state.logs.dbStats = stats;
-              });
-            },
-          });
+          );
         }
 
         get().appActions.setLoading(false);
