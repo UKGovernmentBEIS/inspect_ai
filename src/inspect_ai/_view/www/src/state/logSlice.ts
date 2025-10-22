@@ -171,7 +171,7 @@ export const createLogSlice = (
 
         log.debug(`Load log: ${logFileName}`);
 
-        // OPTIONAL: Try cache first (non-blocking, fail silently)
+        // Try reading the data in the database first
         const dbService = state.databaseService;
         if (dbService && dbService.opened()) {
           try {
