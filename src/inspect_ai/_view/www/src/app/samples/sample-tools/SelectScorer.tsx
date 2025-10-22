@@ -20,6 +20,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
 }) => {
   const [showing, setShowing] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const scorers = useScores();
 
   const selectedKeys = useMemo(() => {
     return new Set(selectedScores?.map((s) => `${s.scorer}.${s.name}`));
@@ -34,7 +35,18 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         : `${selectedCount} Scores`;
 
   return (
-    <>
+    <div style={{ display: "flex" }}>
+      <span
+        className={clsx(
+          "sample-filter-label",
+          "text-size-smaller",
+          "text-style-label",
+          "text-style-secondary",
+          styles.label,
+        )}
+      >
+        Scorers:
+      </span>
       <ToolButton
         label={label}
         icon={ApplicationIcons.metrics}
@@ -61,7 +73,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
           />
         </div>
       </PopOver>
-    </>
+    </div>
   );
 };
 
