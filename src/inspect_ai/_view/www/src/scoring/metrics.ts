@@ -146,10 +146,12 @@ export const expandGroupedMetrics = (
     }
 
     const metricsByBase = new Map<string, MetricSummary[]>();
+    const nonGroupedMetrics: MetricSummary[] = [];
 
     for (const metric of scorer.metrics) {
       const baseMetricName = getBaseMetricName(metric);
       if (!baseMetricName) {
+        nonGroupedMetrics.push(metric);
         continue;
       }
 
@@ -159,6 +161,16 @@ export const expandGroupedMetrics = (
       metricsByBase.get(baseMetricName)!.push({
         ...metric,
         name: normalizeMetricName(metric.name),
+      });
+    }
+
+    if (nonGroupedMetrics.length > 0) {
+      result.push({
+        scorer: scorer.scorer,
+        reducer: scorer.reducer,
+        metrics: nonGroupedMetrics,
+        unscoredSamples: scorer.unscoredSamples,
+        scoredSamples: scorer.scoredSamples,
       });
     }
 
