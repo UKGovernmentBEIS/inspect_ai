@@ -36,6 +36,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
         scorers[key].metrics.push({
           name: metric.name,
           value: metric.value,
+          params: metric.params,
         });
       } else {
         scorers[key] = {
@@ -45,6 +46,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
             {
               name: metric.name,
               value: metric.value,
+              params: metric.params,
             },
           ],
         };
