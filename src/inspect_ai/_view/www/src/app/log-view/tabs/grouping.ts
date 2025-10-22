@@ -10,7 +10,7 @@ export const getSampleProcessor = (
   groupBy: "sample" | "epoch" | "none",
   groupByOrder: "asc" | "desc",
   sampleDescriptor: SamplesDescriptor,
-  selectedScores?: ScoreLabel[],
+  selectedScores: ScoreLabel[],
 ): ((
   sample: SampleSummary,
   index: number,
