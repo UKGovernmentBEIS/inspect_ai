@@ -120,18 +120,15 @@ export const useEvalDescriptor = () => {
   }, [scores, sampleSummaries]);
 };
 
-// Provides the sampls descriptor
 export const useSampleDescriptor = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
   const selectedScores = useSelectedScores();
-  const scores = useScores();
-  const renderedScore = selectedScores?.[0] || scores?.[0];
   return useMemo(() => {
     return evalDescriptor
-      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, renderedScore)
+      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, selectedScores)
       : undefined;
-  }, [evalDescriptor, sampleSummaries, selectedScores, scores]);
+  }, [evalDescriptor, sampleSummaries, selectedScores]);
 };
 
 // Provides the list of filtered samples
