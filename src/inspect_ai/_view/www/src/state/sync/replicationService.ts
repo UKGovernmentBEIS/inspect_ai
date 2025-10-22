@@ -204,16 +204,16 @@ export class ReplicationService {
 
     // First query the list of logs
     const logFiles = (await this._database.readLogs()) || [];
-    let mtime = -1;
+    let mtime = 0;
     let clientFileCount = 0;
     if (logFiles && logFiles.length > 0) {
-      mtime = Math.max(...logFiles.map((file) => file.mtime || -1));
+      mtime = Math.max(...logFiles.map((file) => file.mtime || 0));
       clientFileCount = logFiles.length;
     }
 
     // If there are logFiles, but no mtime, then no sync is possible
     // this is just a static list.
-    const staticList = logFiles.length > 0 && mtime === -1;
+    const staticList = logFiles.length > 0 && mtime === 0;
     if (staticList) {
       // There is no mtime data which means sync isn't possible
       // just use the current list and activate it
