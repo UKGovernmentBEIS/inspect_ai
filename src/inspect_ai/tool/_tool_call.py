@@ -16,7 +16,7 @@ class ToolCallContent(BaseModel):
     format: Literal["text", "markdown"]
     """Format (text or markdown)."""
 
-    content: str
+    content: str = Field(default_factory=str)
     """Text or markdown content."""
 
 
