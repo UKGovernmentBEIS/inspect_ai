@@ -204,11 +204,47 @@ export class ReplicationService {
 
     // First query the list of logs
     const logFiles = (await this._database.readLogs()) || [];
-    let mtime = 0;
+    let mtime = -1;
     let clientFileCount = 0;
     if (logFiles && logFiles.length > 0) {
-      mtime = Math.max(...logFiles.map((file) => file.mtime || 0));
+      mtime = Math.max(...logFiles.map((file) => file.mtime || -1));
       clientFileCount = logFiles.length;
+    }
+
+    // If there are logFiles, but no mtime, then no sync is possible
+    // this is just a static list.
+    const staticList = logFiles.length > 0 && mtime === -1;
+    if (staticList) {
+      // There is no mtime data which means sync isn't possible
+      // just use the current list and activate it
+
+      // Activate the current log handles
+      this._applicationContext?.setLogHandles(logFiles);
+
+      // Schedule sync of missing previews or details
+      const previewTasks: LogHandle[] = [];
+      const previews = await this._database.findMissingPreviews(logFiles);
+      for (const p of previews) {
+        if (!previewTasks.find((t) => t.name === p.name)) {
+          previewTasks.push(p);
+        }
+      }
+      this.queueLogPreviews(previewTasks);
+
+      const detailTasks: LogHandle[] = [];
+      const details = await this._database.findMissingDetails(logFiles);
+      for (const d of details) {
+        if (!detailTasks.find((t) => t.name === d.name)) {
+          detailTasks.push(d);
+        }
+      }
+      this.queueLogDetails(detailTasks);
+
+      if (progress) {
+        this._applicationContext.setLoading(false);
+      }
+
+      return logFiles;
     }
 
     // Fetch the updated list of logs from the server
