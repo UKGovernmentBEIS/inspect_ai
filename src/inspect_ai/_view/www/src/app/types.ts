@@ -68,6 +68,7 @@ export interface LogsState {
   logDir?: string;
   logs: LogHandle[];
   logPreviews: Record<string, LogPreview>;
+  logDetails: Record<string, LogDetails>;
   evalSet?: EvalSet;
   selectedLogIndex: number;
   selectedLogFile?: string;
