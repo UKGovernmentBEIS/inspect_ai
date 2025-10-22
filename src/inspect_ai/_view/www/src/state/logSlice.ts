@@ -4,7 +4,6 @@ import { toBasicInfo } from "../client/utils/type-utils";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
 import { createLogPolling } from "./logPolling";
-import { ScorerInfo } from "./scoring";
 import { StoreState } from "./store";
 
 const log = createLogger("logSlice");
@@ -38,11 +37,11 @@ export interface LogSlice {
     // Set sort order and update groupBy
     setSort: (sort: string) => void;
 
-    // Set score label
-    setScore: (score: ScoreLabel) => void;
+    // Set score labels
+    setSelectedScores: (scores: ScoreLabel[]) => void;
 
     // Set available scores
-    setScores: (scores: ScorerInfo[]) => void;
+    setScores: (scores: ScoreLabel[]) => void;
 
     // Reset filter state to defaults
     resetFiltering: () => void;
@@ -75,7 +74,7 @@ const initialState = {
 
   epoch: "all",
   sort: kDefaultSort,
-  score: undefined,
+  selectedScores: undefined,
   scores: undefined,
 };
 
@@ -101,6 +100,7 @@ export const createLogSlice = (
       setSelectedLogSummary: (selectedLogSummary: EvalSummary) => {
         set((state) => {
           state.log.selectedLogSummary = selectedLogSummary;
+          state.log.selectedScores = undefined;
         });
 
         if (
@@ -143,11 +143,11 @@ export const createLogSlice = (
         set((state) => {
           state.log.sort = sort;
         }),
-      setScore: (score: ScoreLabel) =>
+      setSelectedScores: (scores: ScoreLabel[]) =>
         set((state) => {
-          state.log.score = score;
+          state.log.selectedScores = scores;
         }),
-      setScores: (scores: ScorerInfo[]) =>
+      setScores: (scores: ScoreLabel[]) =>
         set((state) => {
           state.log.scores = scores;
         }),
@@ -157,7 +157,7 @@ export const createLogSlice = (
           state.log.filterError = undefined;
           state.log.epoch = "all";
           state.log.sort = kDefaultSort;
-          state.log.score = undefined;
+          state.log.selectedScores = state.log.scores?.slice(0, 1);
         }),
 
       loadLog: async (logFileName: string) => {

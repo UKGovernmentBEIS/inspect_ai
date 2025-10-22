@@ -1,6 +1,6 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
-import { useScore, useScores } from "../../state/hooks";
+import { useScores, useSelectedScores } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
@@ -13,8 +13,10 @@ export const SampleTools: FC<SampleToolsProps> = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
 
   const scores = useScores();
-  const score = useScore();
-  const setScore = useStore((state) => state.logActions.setScore);
+  const selectedScores = useSelectedScores();
+  const setSelectedScores = useStore(
+    (state) => state.logActions.setSelectedScores,
+  );
   const epoch = useStore((state) => state.log.epoch);
   const setEpoch = useStore((state) => state.logActions.setEpoch);
   const sort = useStore((state) => state.log.sort);
@@ -25,7 +27,11 @@ export const SampleTools: FC<SampleToolsProps> = () => {
     <Fragment>
       <SampleFilter />
       {scores?.length > 1 ? (
-        <SelectScorer scores={scores} score={score} setScore={setScore} />
+        <SelectScorer
+          scores={scores}
+          selectedScores={selectedScores}
+          setSelectedScores={setSelectedScores}
+        />
       ) : undefined}
       {epochs > 1 ? (
         <EpochFilter epoch={epoch} setEpoch={setEpoch} epochs={epochs} />
@@ -39,10 +45,18 @@ interface ScoreFilterToolsProps {}
 
 export const ScoreFilterTools: FC<ScoreFilterToolsProps> = () => {
   const scores = useScores();
-  const score = useScore();
-  const setScore = useStore((state) => state.logActions.setScore);
+  const selectedScores = useSelectedScores();
+  const setSelectedScores = useStore(
+    (state) => state.logActions.setSelectedScores,
+  );
   if (scores.length <= 1) {
     return undefined;
   }
-  return <SelectScorer scores={scores} score={score} setScore={setScore} />;
+  return (
+    <SelectScorer
+      scores={scores}
+      selectedScores={selectedScores}
+      setSelectedScores={setSelectedScores}
+    />
+  );
 };

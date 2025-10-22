@@ -283,36 +283,38 @@ export const createEvalDescriptor = (
 export const createSamplesDescriptor = (
   samples: SampleSummary[],
   evalDescriptor: EvalDescriptor,
-  selectedScore?: ScoreLabel,
+  selectedScores: ScoreLabel[],
 ): SamplesDescriptor | undefined => {
-  // Find the total length of the value so we can compute an average
   const sizes = samples.reduce(
     (previous, current) => {
       const text = inputString(current.input).join(" ");
-      const score = selectedScore
-        ? evalDescriptor.score(current, selectedScore)
-        : undefined;
-      const scoreValue = score?.value;
-      const scoreText = scoreValue
-        ? String(scoreValue)
-        : current.error
-          ? String(current.error)
-          : "";
+
+      let maxScoreTextLength = 0;
+      let maxAnswerLength = 0;
+
+      if (selectedScores.length > 0) {
+        selectedScores.forEach((scoreLabel) => {
+          const score = evalDescriptor.score(current, scoreLabel);
+          const scoreValue = score?.value;
+          const scoreText = scoreValue
+            ? String(scoreValue)
+            : current.error
+              ? String(current.error)
+              : "";
+          maxScoreTextLength = Math.max(maxScoreTextLength, scoreText.length);
+          maxAnswerLength = Math.max(
+            maxAnswerLength,
+            evalDescriptor.scoreAnswer(current, scoreLabel)?.length || 0,
+          );
+        });
+      }
+
       previous[0] = Math.min(Math.max(previous[0], text.length), 200);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
         300,
       );
-
-      previous[2] = Math.min(
-        Math.max(
-          previous[2],
-          selectedScore
-            ? evalDescriptor.scoreAnswer(current, selectedScore)?.length || 0
-            : 0,
-        ),
-        300,
-      );
+      previous[2] = Math.min(Math.max(previous[2], maxAnswerLength), 300);
       previous[3] = Math.min(
         Math.max(previous[3], current.limit ? current.limit.length : 0),
         50,
@@ -328,7 +330,7 @@ export const createSamplesDescriptor = (
         Math.max(previous[5], String(current.id).length),
         10,
       );
-      previous[6] = Math.min(Math.max(previous[6], scoreText.length), 30);
+      previous[6] = Math.min(Math.max(previous[6], maxScoreTextLength), 30);
 
       return previous;
     },
@@ -385,14 +387,18 @@ export const createSamplesDescriptor = (
     },
   };
 
+  const firstSelectedScore = selectedScores?.[0];
+
   return {
     evalDescriptor,
     messageShape,
     selectedScore: (sample) =>
-      selectedScore ? evalDescriptor.score(sample, selectedScore) : undefined,
+      firstSelectedScore
+        ? evalDescriptor.score(sample, firstSelectedScore)
+        : undefined,
     selectedScorerDescriptor: (sample) =>
-      selectedScore
-        ? evalDescriptor.scorerDescriptor(sample, selectedScore)
+      firstSelectedScore
+        ? evalDescriptor.scorerDescriptor(sample, firstSelectedScore)
         : undefined,
   };
 };

@@ -17,10 +17,13 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
+import { ScoreLabel } from "../../../app/types";
 import {
   useDocumentTitle,
   useProperty,
   useSampleDescriptor,
+  useScores,
+  useSelectedScores,
 } from "../../../state/hooks";
 import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
@@ -167,9 +170,13 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     ],
   );
 
+  const selectedScores = useSelectedScores();
+
+  const scores = useScores();
+
   const gridColumnsTemplate = useMemo(() => {
-    return gridColumnsValue(samplesDescriptor);
-  }, [samplesDescriptor]);
+    return gridColumnsValue(samplesDescriptor, selectedScores);
+  }, [samplesDescriptor, selectedScores]);
 
   const renderRow = useCallback(
     (_index: number, item: ListItem) => {
@@ -182,7 +189,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
             height={kSampleHeight}
             answer={item.answer}
             completed={item.completed}
-            scoreRendered={item.scoreRendered}
+            scoresRendered={item.scoresRendered}
             gridColumnsTemplate={gridColumnsTemplate}
             sampleUrl={sampleNavigation.getSampleUrl(
               item.data.id,
@@ -265,6 +272,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         answer={answer !== "0"}
         limit={limit !== "0"}
         retries={retries !== "0em"}
+        scoreLabels={scoreHeaders(selectedScores, scores)}
         gridColumnsTemplate={gridColumnsTemplate}
       />
       <Virtuoso
@@ -303,13 +311,21 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   );
 });
 
-const gridColumnsValue = (sampleDescriptor?: SamplesDescriptor) => {
-  const { input, target, answer, limit, retries, id, score } =
-    gridColumns(sampleDescriptor);
-  return `${id} ${input} ${target} ${answer} ${limit} ${retries} ${score}`;
+const gridColumnsValue = (
+  sampleDescriptor?: SamplesDescriptor,
+  selectedScores?: ScoreLabel[],
+) => {
+  const { input, target, answer, limit, retries, id, score } = gridColumns(
+    sampleDescriptor,
+    selectedScores,
+  );
+  return `${id} ${input} ${target} ${answer} ${limit} ${retries} ${score.join(" ")}`;
 };
 
-const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
+const gridColumns = (
+  sampleDescriptor?: SamplesDescriptor,
+  selectedScores?: ScoreLabel[],
+) => {
   const input =
     sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
@@ -335,10 +351,14 @@ const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
     2,
     Math.min(10, sampleDescriptor?.messageShape.raw.id || 0),
   );
-  const score = Math.max(
-    3,
-    Math.min(10, sampleDescriptor?.messageShape.raw.score || 0),
-  );
+
+  const scoreCount = selectedScores?.length ?? 0;
+  const scoreRaw = sampleDescriptor?.messageShape.raw.score || 0;
+  const scoreSize = Math.max(3, Math.min(10, scoreRaw));
+  const score =
+    scoreCount > 0
+      ? Array.from({ length: scoreCount }).map(() => `${scoreSize}rem`)
+      : [];
 
   const frSize = (val: number) => {
     if (val === 0) {
@@ -355,6 +375,19 @@ const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
     limit: frSize(limit),
     retries: `${retries}em`,
     id: `${id}rem`,
-    score: `${score}rem`,
+    score,
   };
+};
+
+const scoreHeaders = (
+  selectedScores?: ScoreLabel[],
+  availableScores?: ScoreLabel[],
+): string[] => {
+  if (!selectedScores || selectedScores.length === 0) {
+    return [];
+  }
+  if (availableScores && availableScores.length === 1) {
+    return ["Score"];
+  }
+  return selectedScores.map((s) => s.name);
 };
