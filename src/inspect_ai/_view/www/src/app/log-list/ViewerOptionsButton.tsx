@@ -27,7 +27,7 @@ export const ViewerOptionsButton = forwardRef<
       >
         <i
           ref={ref}
-          className={clsx(ApplicationIcons.options, styles.viewerOptions)}
+          className={clsx(ApplicationIcons.info, styles.viewerOptions)}
         />
       </button>
     </div>
