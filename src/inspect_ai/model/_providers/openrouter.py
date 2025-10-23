@@ -1,10 +1,11 @@
 import json
+from logging import getLogger
 from typing import Any, TypedDict
 
 from typing_extensions import NotRequired, override
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.logger import getLogger, warn_once
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import OpenAIResponseError
 
 from .._generate_config import GenerateConfig
