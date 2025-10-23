@@ -92,10 +92,15 @@ export interface LogsListing {
   selectedRowIndex?: number | null;
 }
 
+export interface SampleHandle {
+  id: string | number;
+  epoch: number;
+}
+
 export interface LogState {
   loadedLog?: string;
 
-  selectedSampleIndex: number;
+  selectedSampleHandle?: SampleHandle;
   selectedLogDetails?: LogDetails;
   pendingSampleSummaries?: PendingSamples;
 

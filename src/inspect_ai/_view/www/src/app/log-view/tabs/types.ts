@@ -2,6 +2,8 @@ import { ReactNode } from "react";
 import { SampleSummary } from "../../../client/api/types";
 
 export interface SampleListItem {
+  sampleId: string | number;
+  sampleEpoch: number;
   label: string;
   index: number;
   number: number;
