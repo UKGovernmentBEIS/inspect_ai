@@ -1,7 +1,7 @@
 ## Unreleased
 
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
-- OpenRouter: Classify `JSONDecodeError` as a retryable infrastructure error.
+- OpenRouter: Classify `JSONDecodeError` as a retry-able infrastructure error.
 - Remove Goodfire model provider (as the goodfire package has been archived/deprecated).
 - Inspect View: Display copy button for model events api request and response JSON.
 - Inspect View: Show multiple scores in sample view.
