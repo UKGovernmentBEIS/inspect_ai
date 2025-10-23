@@ -62,6 +62,7 @@ export interface AppState {
   pagination: Record<string, { page: number; pageSize: number }>;
   singleFileMode?: boolean;
   displayMode?: "rendered" | "raw";
+  logsSampleView: boolean;
 }
 
 export interface LogsState {
