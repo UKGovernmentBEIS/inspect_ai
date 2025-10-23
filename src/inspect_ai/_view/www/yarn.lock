@@ -5080,10 +5080,10 @@ react-router@7.9.4:
     cookie "^1.0.1"
     set-cookie-parser "^2.6.0"
 
-react-virtuoso@^4.14.0:
-  version "4.14.0"
-  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.14.0.tgz#6998631cb0a86efc2b15e551f55e7199a0f25c7a"
-  integrity sha512-fR+eiCvirSNIRvvCD7ueJPRsacGQvUbjkwgWzBZXVq+yWypoH7mRUvWJzGHIdoRaCZCT+6mMMMwIG2S1BW3uwA==
+react-virtuoso@^4.14.1:
+  version "4.14.1"
+  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.14.1.tgz#78a5e796a3f9ec501499f01962ec6fc7eed77d8d"
+  integrity sha512-NRUF1ak8lY+Tvc6WN9cce59gU+lilzVtOozP+pm9J7iHshLGGjsiAB4rB2qlBPHjFbcXOQpT+7womNHGDUql8w==
 
 react@^19.1.1:
   version "19.1.1"
