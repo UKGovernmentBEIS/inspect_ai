@@ -5,6 +5,7 @@
   border-bottom: solid var(--bs-border-color) 1px;
   cursor: pointer;
   overflow-y: hidden;
+  padding-left: 0.5rem;
 }
 
 .selected {

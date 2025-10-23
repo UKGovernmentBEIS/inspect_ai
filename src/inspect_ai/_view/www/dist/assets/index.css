@@ -20610,72 +20610,73 @@ span.ap-marker-container:hover span.ap-marker {
   text-align: center;
   width: 300px;
 }
-._grid_6oh12_1 {
+._grid_1213u_1 {
   display: grid;
   padding-top: 1em;
   padding-bottom: 1em;
   border-bottom: solid var(--bs-border-color) 1px;
   cursor: pointer;
   overflow-y: hidden;
+  padding-left: 0.5rem;
 }
 
-._selected_6oh12_10 {
+._selected_1213u_11 {
   box-shadow: inset 0 0 0px 2px var(--bs-focus-ring-color);
 }
 
-._sampleLink_6oh12_14:hover,
-._sampleRowLink_6oh12_15:hover {
+._sampleLink_1213u_15:hover,
+._sampleRowLink_1213u_16:hover {
   text-decoration: none;
   color: inherit;
   display: block;
 }
 
-._sampleRowLink_6oh12_15 {
+._sampleRowLink_1213u_16 {
   text-decoration: none;
   color: inherit;
   display: block;
 }
 
-._sampleLink_6oh12_14 {
+._sampleLink_1213u_15 {
   text-decoration: none;
   color: inherit;
   display: block;
 }
 
-._disabledRow_6oh12_33 {
+._disabledRow_1213u_34 {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-._disabled_6oh12_33 {
+._disabled_1213u_34 {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-._cell_6oh12_43 {
+._cell_1213u_44 {
   padding-left: 0;
   padding-right: 0;
 }
 
-._wrapAnywhere_6oh12_48 {
+._wrapAnywhere_1213u_49 {
   word-wrap: anywhere;
 }
 
-._noLeft_6oh12_52 {
+._noLeft_1213u_53 {
   padding-left: 0;
 }
 
-._score_6oh12_56 {
+._score_1213u_57 {
   display: flex;
   justify-self: center;
 }
 
-._centered_6oh12_61 {
+._centered_1213u_62 {
   display: flex;
   justify-content: center;
 }
 
-._spinner_6oh12_66 {
+._spinner_1213u_67 {
   height: 1.4em;
   width: 1.4em;
   color: var(--bs-focus-ring-color);
@@ -20714,18 +20715,19 @@ span.ap-marker-container:hover span.ap-marker {
   margin-left: 0.1em;
   margin-top: -3px;
 }
-._header_v80lf_1 {
+._header_1qnb6_1 {
+  padding-left: 0.5rem;
   display: grid;
   padding-bottom: 0.3em;
   padding-top: 0.3em;
   border-bottom: solid var(--bs-light-border-subtle) 1px;
 }
 
-._center_v80lf_8 {
+._center_1qnb6_9 {
   justify-self: center;
 }
 
-._shrinkable_v80lf_12 {
+._shrinkable_1qnb6_13 {
   min-width: 0;
   max-width: 100%;
   white-space: nowrap;
