@@ -313,6 +313,9 @@ export const createSamplesDescriptor = (
 
         answerLength =
           evalDescriptor.scoreAnswer(current, selectedScores[0])?.length || 0;
+      } else {
+        previous.scores = [];
+        previous.scores[0] = 3;
       }
 
       previous.input = Math.min(Math.max(previous.input, text.length), 200);

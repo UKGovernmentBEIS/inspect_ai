@@ -1,4 +1,5 @@
 import { EvalSample } from "../../@types/log";
+import { sampleIdsEqual } from "../../app/shared/sample";
 import { encodePathParts } from "../../utils/uri";
 import {
   openRemoteLogFile,
@@ -210,7 +211,7 @@ export const clientApi = (
       const logContents = await get_log(log_file, true);
       if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
         return logContents.parsed.samples.find((sample) => {
-          return sample.id === id && sample.epoch === epoch;
+          return sampleIdsEqual(sample.id, id) && sample.epoch === epoch;
         });
       }
     }

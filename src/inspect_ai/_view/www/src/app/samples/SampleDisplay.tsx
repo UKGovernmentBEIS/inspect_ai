@@ -34,8 +34,8 @@ import {
 } from "../../constants";
 import {
   useDocumentTitle,
-  useFilteredSamples,
   useSampleData,
+  useSelectedSampleSummary,
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
@@ -70,10 +70,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
-  const filteredSamples = useFilteredSamples();
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
-  );
 
   const sampleData = useSampleData();
   const sample = useMemo(() => {
@@ -111,9 +107,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     return -1;
   }, [tabsRef.current]);
 
-  const sampleSummary = useMemo(() => {
-    return filteredSamples[selectedSampleIndex];
-  }, [filteredSamples, selectedSampleIndex]);
+  const selectedSampleSummary = useSelectedSampleSummary();
 
   // Consolidate the events and messages into the proper list
   // whether running or not
@@ -263,15 +257,16 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   // Is the sample running?
   const running = useMemo(() => {
-    return isRunning(sampleSummary, runningSampleData);
-  }, [sampleSummary, runningSampleData]);
+    return isRunning(selectedSampleSummary, runningSampleData);
+  }, [selectedSampleSummary, runningSampleData]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
+  const displaySample = sample || selectedSampleSummary;
 
   return (
     <Fragment>
-      {sample || sampleSummary ? (
-        <SampleSummaryView parent_id={id} sample={sample || sampleSummary} />
+      {displaySample ? (
+        <SampleSummaryView parent_id={id} sample={displaySample} />
       ) : undefined}
       <TabSet
         id={tabsetId}
