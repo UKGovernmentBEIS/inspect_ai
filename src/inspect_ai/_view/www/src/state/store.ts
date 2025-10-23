@@ -3,6 +3,7 @@ import { create, StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { Capabilities, ClientAPI, ClientStorage } from "../client/api/types";
+import { createDatabaseService, DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { debounce } from "../utils/sync";
 import { AppSlice, createAppSlice, initializeAppSlice } from "./appSlice";
@@ -15,12 +16,19 @@ import {
   SampleSlice,
 } from "./sampleSlice";
 import { filterState } from "./store_filter";
+import { ReplicationService } from "./sync/replicationService";
 
 const log = createLogger("store");
 
 export interface StoreState extends AppSlice, LogsSlice, LogSlice, SampleSlice {
   // The shared api
   api?: ClientAPI | null;
+
+  // The shared database service
+  databaseService?: DatabaseService | null;
+
+  // The shared replication service
+  replicationService?: ReplicationService | null;
 
   // Global actions
   initialize: (api: ClientAPI, capabilities: Capabilities) => void;
@@ -99,14 +107,24 @@ export const initializeStore = (
             store,
           );
 
+          // Create a shared database service instance
+          const databaseService = createDatabaseService();
+
+          // The replication service
+          const replicationService = new ReplicationService();
+
           return {
             // Shared state
             api: null,
+            databaseService,
+            replicationService,
 
             // Initialize
             initialize: (api, capabilities) => {
               set((state) => {
                 state.api = api;
+                state.databaseService = databaseService;
+                state.replicationService = replicationService;
               });
 
               // Initialize application slices
@@ -131,9 +149,12 @@ export const initializeStore = (
             ...logSlice,
             ...sampleSlice,
 
-            cleanup: () => {
+            cleanup: async () => {
+              // Close database before cleaning up slices
+              await databaseService.closeDatabase();
+
               appCleanup();
-              logsCleanup();
+              await logsCleanup();
               logCleanup();
               sampleCleanup();
             },

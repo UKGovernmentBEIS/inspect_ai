@@ -68,5 +68,5 @@ const itemCompletedAt = (
   item: FileLogItem | FolderLogItem | PendingTaskItem,
 ) => {
   if (item.type !== "file") return undefined;
-  return item.logOverview?.completed_at;
+  return item.logPreview?.completed_at;
 };
