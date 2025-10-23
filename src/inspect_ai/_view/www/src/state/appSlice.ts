@@ -65,6 +65,8 @@ export interface AppSlice {
     setSingleFileMode: (singleFile: boolean) => void;
 
     setDisplayMode: (mode: "raw" | "rendered") => void;
+
+    setLogsSampleView: (logsSampleView: boolean) => void;
   };
 }
 
@@ -91,6 +93,7 @@ const initialState: AppState = {
   propertyBags: {},
   pagination: {},
   displayMode: "rendered",
+  logsSampleView: false,
 };
 
 export const createAppSlice = (
@@ -354,6 +357,11 @@ export const createAppSlice = (
       setDisplayMode: (mode: "raw" | "rendered") => {
         set((state) => {
           state.app.displayMode = mode;
+        });
+      },
+      setLogsSampleView: (logsSampleView: boolean) => {
+        set((state) => {
+          state.app.logsSampleView = logsSampleView;
         });
       },
     },
