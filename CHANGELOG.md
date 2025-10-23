@@ -4,6 +4,7 @@
 - OpenRouter: Classify `JSONDecodeError` as a retry-able infrastructure error.
 - Remove Goodfire model provider (as the goodfire package has been archived/deprecated).
 - Inspect View: Display copy button for model events api request and response JSON.
+- Inspect View: Support selecting multiple scorers for display in the sample list.
 - Inspect View: Show multiple scores in sample view.
 - Bugfix: Correctly resolve relative sandbox config paths in `eval-retry` when CWD differs from task directory.
 

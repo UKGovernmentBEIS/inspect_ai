@@ -8,10 +8,11 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 0.3em;
+  gap: 0.5em;
   cursor: pointer;
-  border-radius: 0.25em;
-  padding: 0.1em;
+  border-radius: var(--bs-border-radius);
+  padding: 0.1em 0.4em;
+  margin: 0 -0.4em;
 }
 
 .row:hover {

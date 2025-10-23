@@ -5,9 +5,7 @@
   border-bottom: solid var(--bs-border-color) 1px;
   cursor: pointer;
   overflow-y: hidden;
-  grid-gap: 10px;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 0.5rem;
 }
 
 .selected {
