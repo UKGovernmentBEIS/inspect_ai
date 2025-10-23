@@ -309,4 +309,8 @@ def completion_params_responses(
             if field in config.extra_body and field not in params:
                 params[field] = config.extra_body[field]
 
+    # remove metadata if store is true
+    if responses_store is True:
+        params.pop("metadata", None)
+
     return params
