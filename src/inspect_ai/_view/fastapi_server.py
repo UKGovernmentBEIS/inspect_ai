@@ -330,13 +330,13 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     return AuthorizationMiddleware
 
 
-class OnlyLogDirAccessPolicy(AccessPolicy):
-    def __init__(self, log_dir: str) -> None:
+class OnlyDirAccessPolicy(AccessPolicy):
+    def __init__(self, dir: str) -> None:
         super().__init__()
-        self.log_dir = log_dir
+        self.dir = dir
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.log_dir) and ".." not in file
+        return file.startswith(self.dir) and ".." not in file
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
@@ -365,7 +365,7 @@ def view_server(
     # setup server
     api = view_server_app(
         mapping_policy=None,
-        access_policy=OnlyLogDirAccessPolicy(log_dir) if not authorization else None,
+        access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
         default_dir=log_dir,
         recursive=recursive,
         fs_options=fs_options,
