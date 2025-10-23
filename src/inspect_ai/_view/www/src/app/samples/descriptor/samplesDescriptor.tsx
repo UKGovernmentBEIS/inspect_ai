@@ -289,11 +289,10 @@ export const createSamplesDescriptor = (
     (previous, current) => {
       const text = inputString(current.input).join(" ");
 
-      let maxScoreTextLength = 0;
-      let maxAnswerLength = 0;
+      let answerLength = 0;
 
       if (selectedScores.length > 0) {
-        selectedScores.forEach((scoreLabel) => {
+        selectedScores.forEach((scoreLabel, index) => {
           const score = evalDescriptor.score(current, scoreLabel);
           const scoreValue = score?.value;
           const scoreText = scoreValue
@@ -301,51 +300,70 @@ export const createSamplesDescriptor = (
             : current.error
               ? String(current.error)
               : "";
-          maxScoreTextLength = Math.max(maxScoreTextLength, scoreText.length);
-          maxAnswerLength = Math.max(
-            maxAnswerLength,
-            evalDescriptor.scoreAnswer(current, scoreLabel)?.length || 0,
+
+          const currentSize = Math.max(
+            scoreText.length,
+            scoreLabel.name.length,
+          );
+          previous.scores[index] = Math.max(
+            previous.scores[index] || 0,
+            currentSize,
           );
         });
+
+        answerLength =
+          evalDescriptor.scoreAnswer(current, selectedScores[0])?.length || 0;
       }
 
-      previous[0] = Math.min(Math.max(previous[0], text.length), 200);
-      previous[1] = Math.min(
-        Math.max(previous[1], arrayToString(current.target).length),
+      previous.input = Math.min(Math.max(previous.input, text.length), 200);
+      previous.target = Math.min(
+        Math.max(previous.target, arrayToString(current.target).length),
         300,
       );
-      previous[2] = Math.min(Math.max(previous[2], maxAnswerLength), 300);
-      previous[3] = Math.min(
-        Math.max(previous[3], current.limit ? current.limit.length : 0),
+      previous.answer = Math.min(Math.max(previous.answer, answerLength), 300);
+      previous.limit = Math.min(
+        Math.max(previous.limit, current.limit ? current.limit.length : 0),
         50,
       );
-      previous[4] = Math.min(
+      previous.retries = Math.min(
         Math.max(
-          previous[4],
+          previous.retries,
           current.retries ? String(current.retries).length : 0,
         ),
         50,
       );
-      previous[5] = Math.min(
-        Math.max(previous[5], String(current.id).length),
+      previous.id = Math.min(
+        Math.max(previous.id, String(current.id).length),
         10,
       );
-      previous[6] = Math.min(Math.max(previous[6], maxScoreTextLength), 30);
 
       return previous;
     },
-    [0, 0, 0, 0, 0, 0, 0],
+    {
+      input: 0,
+      target: 0,
+      answer: 0,
+      limit: 0,
+      retries: 0,
+      id: 0,
+      scores: [] as number[],
+    },
   );
-
   // normalize to base 1
+
+  const totalScoreSizes = sizes.scores.reduce((sum, size) => sum + size, 0);
+  const normalizedScoreSizes =
+    totalScoreSizes > 0
+      ? sizes.scores.map((size) => Math.round((size / totalScoreSizes) * 30))
+      : [];
   const maxSizes = {
-    input: Math.min(sizes[0], 300),
-    target: Math.min(sizes[1], 300),
-    answer: Math.min(sizes[2], 300),
-    limit: Math.min(sizes[3], 50),
-    retries: Math.min(sizes[4], 50),
-    id: Math.min(sizes[5], 10),
-    score: Math.min(sizes[6], 30),
+    input: Math.min(sizes.input, 300),
+    target: Math.min(sizes.target, 300),
+    answer: Math.min(sizes.answer, 300),
+    limit: Math.min(sizes.limit, 50),
+    retries: Math.min(sizes.retries, 50),
+    id: Math.min(sizes.id, 10),
+    score: normalizedScoreSizes,
   };
   const base =
     maxSizes.input +
@@ -354,7 +372,9 @@ export const createSamplesDescriptor = (
       maxSizes.limit +
       maxSizes.retries +
       maxSizes.id +
-      maxSizes.score || 1;
+      maxSizes.score.reduce((sum, size) => {
+        return sum + size;
+      }, 0) || 1;
 
   const inputNormalized = maxSizes.input / base;
   const targetNormalized =
@@ -367,15 +387,7 @@ export const createSamplesDescriptor = (
       : 0;
 
   const messageShape = {
-    raw: {
-      input: sizes[0],
-      target: sizes[1],
-      answer: sizes[2],
-      limit: sizes[3],
-      retries: sizes[4],
-      id: sizes[5],
-      score: sizes[6],
-    },
+    raw: sizes,
     normalized: {
       input: inputNormalized,
       target: targetNormalized,
@@ -383,7 +395,9 @@ export const createSamplesDescriptor = (
       limit: maxSizes.limit / base,
       retries: maxSizes.retries / base,
       id: maxSizes.id / base,
-      score: maxSizes.score / base,
+      scores: maxSizes.score.map((val) => {
+        return val / base;
+      }),
     },
   };
 

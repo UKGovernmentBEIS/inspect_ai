@@ -32,6 +32,7 @@
   --inspect-font-size-small: 0.8rem;
   --inspect-font-size-smaller: 0.8rem;
   --inspect-font-size-smallest: 0.7rem;
+  --inspect-font-size-smallestest: 0.6rem;
 
   /* Inspect Glass */
   --inspect-glass-color: #000000;
@@ -124,6 +125,10 @@ a:hover {
 
 .text-size-smallest {
   font-size: var(--inspect-font-size-smallest) !important;
+}
+
+.text-size-smallestest {
+  font-size: var(--inspect-font-size-smallestest) !important;
 }
 
 .text-truncate {
