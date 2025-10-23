@@ -14,8 +14,8 @@
   align-items: center;
   gap: 0.5em;
   cursor: pointer;
-  border-radius: 0.25em;
-  padding: 0.35em 0.4em;
+  border-radius: var(--bs-border-radius);
+  padding: 0.15em 0.4em;
   margin: 0 -0.4em;
 }
 
@@ -27,4 +27,26 @@
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
+}
+
+.links {
+  display: flex;
+  padding-bottom: 0.2em;
+  margin-bottom: 0.4em;
+  column-gap: 0.3em;
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+.links a {
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--bs-link-color);
+}
+
+.links a:hover {
+  color: var(--bs-link-hover-color);
+}
+
+.selected {
+  font-weight: 600;
 }

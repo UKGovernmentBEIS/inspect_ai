@@ -20539,35 +20539,57 @@ span.ap-marker-container:hover span.ap-marker {
   cursor: help;
   align-self: center;
 }
-._container_1waoo_1 {
+._container_19edv_1 {
   padding: 0.2em 0.3em;
 }
 
-._grid_1waoo_5 {
+._grid_19edv_5 {
   display: grid;
   grid-template-columns: 1fr;
   row-gap: 0;
   min-width: 9em;
 }
 
-._row_1waoo_12 {
+._row_19edv_12 {
   display: flex;
   align-items: center;
   gap: 0.5em;
   cursor: pointer;
-  border-radius: 0.25em;
-  padding: 0.35em 0.4em;
+  border-radius: var(--bs-border-radius);
+  padding: 0.15em 0.4em;
   margin: 0 -0.4em;
 }
 
-._row_1waoo_12:hover {
+._row_19edv_12:hover {
   background-color: var(--bs-secondary-bg);
 }
 
-._label_1waoo_26 {
+._label_19edv_26 {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
+}
+
+._links_19edv_32 {
+  display: flex;
+  padding-bottom: 0.2em;
+  margin-bottom: 0.4em;
+  column-gap: 0.3em;
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+._links_19edv_32 a {
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--bs-link-color);
+}
+
+._links_19edv_32 a:hover {
+  color: var(--bs-link-hover-color);
+}
+
+._selected_19edv_50 {
+  font-weight: 600;
 }
 ._body_12gn4_1 {
   color: var(--bs-danger);
