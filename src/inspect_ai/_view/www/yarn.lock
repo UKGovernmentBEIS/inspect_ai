@@ -1093,10 +1093,19 @@
     "@lezer/lr" "^1.0.0"
     style-mod "^4.0.0"
 
-"@codemirror/lint@^6.0.0", "@codemirror/lint@^6.8.5":
+"@codemirror/lint@^6.0.0":
   version "6.8.5"
   resolved "https://registry.npmjs.org/@codemirror/lint/-/lint-6.8.5.tgz"
   integrity sha512-s3n3KisH7dx3vsoeGMxsbRAgKe4O1vbrnKBClm99PU0fWxmxsx5rR2PfqQgIt+2MMJBHbiJ5rfIdLYfB9NNvsA==
+  dependencies:
+    "@codemirror/state" "^6.0.0"
+    "@codemirror/view" "^6.35.0"
+    crelt "^1.0.5"
+
+"@codemirror/lint@^6.9.0":
+  version "6.9.1"
+  resolved "https://registry.yarnpkg.com/@codemirror/lint/-/lint-6.9.1.tgz#1af2cf32dca1971b9cf8318fba0a935ddde8adf1"
+  integrity sha512-te7To1EQHePBQQzasDKWmK2xKINIXpk+xAiSYr9ZN+VB4KaT+/Hi2PEkeErTk5BV3PTz1TLyQL4MtJfPkKZ9sw==
   dependencies:
     "@codemirror/state" "^6.0.0"
     "@codemirror/view" "^6.35.0"
