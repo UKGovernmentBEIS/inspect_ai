@@ -21,8 +21,8 @@ import { directoryRelativeUrl, join } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl, useLogRouteParams } from "../routing/url";
-import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { SamplesGrid } from "../samples-grid/SamplesGrid";
+import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import { LogsFilterInput } from "./LogsFilterInput";
@@ -295,25 +295,27 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           <SamplesGrid />
         </div>
       ) : (
-        <div className={clsx(styles.list, "text-size-smaller")}>
-          <LogListGrid ref={gridRef} items={logItems} />
-        </div>
+        <>
+          <div className={clsx(styles.list, "text-size-smaller")}>
+            <LogListGrid ref={gridRef} items={logItems} />
+          </div>
+          <LogListFooter
+            logDir={currentDir}
+            itemCount={logItems.length}
+            progressText={syncing ? "Syncing data" : undefined}
+            progressBar={
+              progress.total !== progress.complete ? (
+                <ProgressBar
+                  min={0}
+                  max={progress.total}
+                  value={progress.complete}
+                  width="100px"
+                />
+              ) : undefined
+            }
+          />
+        </>
       )}
-      <LogListFooter
-        logDir={currentDir}
-        itemCount={logItems.length}
-        progressText={syncing ? "Syncing data" : undefined}
-        progressBar={
-          progress.total !== progress.complete ? (
-            <ProgressBar
-              min={0}
-              max={progress.total}
-              value={progress.complete}
-              width="100px"
-            />
-          ) : undefined
-        }
-      />
     </div>
   );
 };

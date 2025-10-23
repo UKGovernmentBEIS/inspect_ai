@@ -28,6 +28,7 @@ interface SampleRow {
   error?: string;
   limit?: string;
   retries?: number;
+  completed?: boolean;
   [key: string]: any; // For dynamic score columns
 }
 
@@ -102,6 +103,7 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
           error: sample.error,
           limit: sample.limit,
           retries: sample.retries,
+          completed: sample.completed || false,
         };
 
         // Add scores as individual fields
@@ -135,38 +137,14 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
   const hasError = useMemo(() => data.some((row) => row.error), [data]);
   const hasLimit = useMemo(() => data.some((row) => row.limit), [data]);
   const hasRetries = useMemo(() => data.some((row) => row.retries), [data]);
+  const hasRunning = useMemo(
+    () => data.some((row) => row.completed === false),
+    [data],
+  );
 
   // Create column definitions
   const columnDefs = useMemo((): ColDef<SampleRow>[] => {
     const baseColumns: ColDef<SampleRow>[] = [
-      {
-        field: "sampleId",
-        headerName: "Sample ID",
-        width: 120,
-        minWidth: 80,
-        sortable: true,
-        filter: true,
-        resizable: true,
-      },
-      {
-        field: "epoch",
-        headerName: "Epoch",
-        width: 70,
-        minWidth: 40,
-        sortable: true,
-        filter: true,
-        resizable: true,
-      },
-      {
-        field: "input",
-        headerName: "Input",
-        width: 250,
-        minWidth: 150,
-        sortable: true,
-        filter: true,
-        resizable: true,
-        cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
-      },
       {
         field: "task",
         headerName: "Task",
@@ -184,6 +162,36 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
         sortable: true,
         filter: true,
         resizable: true,
+      },
+      {
+        field: "sampleId",
+        headerName: "Sample ID",
+        width: 120,
+        minWidth: 80,
+        sortable: true,
+        filter: true,
+        resizable: true,
+      },
+      {
+        field: "epoch",
+        headerName: "Epoch",
+        width: 70,
+        minWidth: 40,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellStyle: { textAlign: "center" },
+      },
+
+      {
+        field: "input",
+        headerName: "Input",
+        width: 250,
+        minWidth: 150,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
       },
       {
         field: "status",
@@ -272,6 +280,18 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
       });
     }
 
+    if (hasRunning) {
+      optionalColumns.push({
+        field: "completed",
+        headerName: "Completed",
+        width: 80,
+        minWidth: 60,
+        sortable: true,
+        filter: true,
+        resizable: true,
+      });
+    }
+
     return [...baseColumns, ...scoreColumns, ...optionalColumns];
   }, [scoreNames, hasError, hasLimit, hasRetries]);
 
@@ -300,6 +320,7 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
           rowSelection="single"
           onRowSelected={onRowSelected}
           theme={themeBalham}
+          enableCellTextSelection={true}
         />
       </div>
     </div>
