@@ -4,7 +4,7 @@ interface SampleHeaderProps {
   answer?: boolean;
   limit?: boolean;
   retries?: boolean;
-  score?: boolean;
+  scoreLabels?: string[];
   gridColumnsTemplate: string;
 }
 import clsx from "clsx";
@@ -17,13 +17,13 @@ export const SampleHeader: FC<SampleHeaderProps> = ({
   answer = true,
   limit = true,
   retries = false,
-  score = true,
+  scoreLabels = ["Score"],
   gridColumnsTemplate,
 }) => (
   <div
     className={clsx(
       styles.header,
-      "text-size-smaller",
+      "text-size-smallestest",
       "text-style-label",
       "text-style-secondary",
     )}
@@ -35,6 +35,13 @@ export const SampleHeader: FC<SampleHeaderProps> = ({
     <div>{answer ? "Answer" : ""}</div>
     <div>{limit ? "Limit" : ""}</div>
     <div>{retries ? "Retries" : ""}</div>
-    <div className={styles.center}>{score ? "Score" : ""}</div>
+    {scoreLabels.map((label, i) => (
+      <div
+        key={`score-header-${i}`}
+        className={clsx(styles.center, styles.shrinkable)}
+      >
+        {label}
+      </div>
+    ))}
   </div>
 );

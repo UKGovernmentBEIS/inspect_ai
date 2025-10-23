@@ -14,7 +14,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Global dictionary to keep track of process -> reserved port mappings
-process_socket_map = {}
+process_socket_map: dict[subprocess.Popen[str], socket.socket] = {}
 
 
 DEFAULT_TIMEOUT = 60 * 10  # fairly conservative default timeout of 10 minutes

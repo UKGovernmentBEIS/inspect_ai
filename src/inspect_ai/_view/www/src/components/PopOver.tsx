@@ -25,6 +25,7 @@ interface PopOverProps {
   arrowClassName?: string | string[];
 
   children: ReactNode;
+  styles?: CSSProperties;
 }
 
 /**
@@ -43,6 +44,7 @@ export const PopOver: React.FC<PopOverProps> = ({
   arrowClassName = "",
   usePortal = true,
   hoverDelay = 250,
+  styles = {},
 }) => {
   const popperRef = useRef<HTMLDivElement | null>(null);
   const arrowRef = useRef<HTMLDivElement | null>(null);
@@ -206,15 +208,16 @@ export const PopOver: React.FC<PopOverProps> = ({
   ];
 
   // Use popper hook with modifiers
-  const { styles, attributes, state, update } = usePopper(
-    positionEl,
-    popperRef.current,
-    {
-      placement,
-      strategy: "fixed",
-      modifiers,
-    },
-  );
+  const {
+    styles: popperStyles,
+    attributes,
+    state,
+    update,
+  } = usePopper(positionEl, popperRef.current, {
+    placement,
+    strategy: "fixed",
+    modifiers,
+  });
 
   // Force update when needed refs change
   useEffect(() => {
@@ -262,11 +265,11 @@ export const PopOver: React.FC<PopOverProps> = ({
   const positionedStyle =
     state && state.styles && state.styles.popper
       ? {
-          ...styles.popper,
+          ...popperStyles.popper,
           opacity: 1,
         }
       : {
-          ...styles.popper,
+          ...popperStyles.popper,
           opacity: 0,
           // Position offscreen initially to prevent flicker
           position: "fixed" as const,
@@ -278,7 +281,7 @@ export const PopOver: React.FC<PopOverProps> = ({
   const popperContent = (
     <div
       ref={popperRef}
-      style={{ ...defaultPopperStyles, ...positionedStyle }}
+      style={{ ...defaultPopperStyles, ...positionedStyle, ...styles }}
       className={clsx(className)}
       {...attributes.popper}
     >
@@ -297,7 +300,7 @@ export const PopOver: React.FC<PopOverProps> = ({
           <div
             className={clsx("popper-arrow-container", arrowClassName)}
             style={{
-              ...styles.arrow,
+              ...popperStyles.arrow,
               position: "absolute",
               zIndex: 1,
               // Size and positioning based on placement - smaller arrow

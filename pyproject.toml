@@ -149,7 +149,7 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 dev = [
-  "anthropic>=0.52.0",
+  "anthropic>=0.62.0",
   "azure-identity",
   "azure-ai-inference",
   "fastapi",
@@ -181,7 +181,6 @@ dev = [
   "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
   "together",
   "textual-dev>=0.86.2",
-  "transformer-lens",
   "trio",
   "pandas-stubs",
   "pyarrow-stubs",
@@ -199,7 +198,7 @@ dev = [
   "uvicorn",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
-doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe"]
+doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe", "click>=8.2.0"]
 dist = ["twine", "build"]
 
 [tool.typos.default.extend-words]

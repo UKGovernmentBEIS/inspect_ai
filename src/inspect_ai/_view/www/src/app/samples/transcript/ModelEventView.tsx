@@ -4,14 +4,7 @@ import "prismjs/components/prism-python";
 
 import clsx from "clsx";
 import { FC, Fragment, useMemo, useRef } from "react";
-import {
-  ModelCall,
-  ModelEvent,
-  Request,
-  Response,
-  ToolChoice,
-  Tools1,
-} from "../../../@types/log";
+import { ModelCall, ModelEvent, ToolChoice, Tools1 } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
@@ -167,17 +160,25 @@ interface APIViewProps {
 }
 
 export const APIView: FC<APIViewProps> = ({ call, className }) => {
+  const requestCode = useMemo(() => {
+    return JSON.stringify(call.request, undefined, 2);
+  }, [call.request]);
+
+  const responseCode = useMemo(() => {
+    return JSON.stringify(call.response, undefined, 2);
+  }, [call.response]);
+
   if (!call) {
     return null;
   }
 
   return (
     <div className={clsx(className)}>
-      <EventSection title="Request">
-        <APICodeCell contents={call.request} />
+      <EventSection title="Request" copyContent={requestCode}>
+        <APICodeCell sourceCode={requestCode} />
       </EventSection>
-      <EventSection title="Response">
-        <APICodeCell contents={call.response} />
+      <EventSection title="Response" copyContent={responseCode}>
+        <APICodeCell sourceCode={responseCode} />
       </EventSection>
     </div>
   );
@@ -185,18 +186,14 @@ export const APIView: FC<APIViewProps> = ({ call, className }) => {
 
 interface APICodeCellProps {
   id?: string;
-  contents: Request | Response;
+  sourceCode: string;
 }
 
-export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
-  const sourceCode = useMemo(() => {
-    return JSON.stringify(contents, undefined, 2);
-  }, [contents]);
-
+export const APICodeCell: FC<APICodeCellProps> = ({ id, sourceCode }) => {
   const sourceCodeRef = useRef<HTMLDivElement | null>(null);
   usePrismHighlight(sourceCodeRef, sourceCode.length);
 
-  if (!contents) {
+  if (!sourceCode) {
     return null;
   }
 

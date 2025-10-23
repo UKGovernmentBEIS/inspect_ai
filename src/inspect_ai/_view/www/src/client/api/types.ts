@@ -36,7 +36,7 @@ import {
   Version,
 } from "../../@types/log";
 
-export interface EvalSummary {
+export interface LogDetails {
   version?: Version;
   status?: Status;
   eval: EvalSpec;
@@ -45,6 +45,11 @@ export interface EvalSummary {
   stats?: EvalStats;
   error?: EvalError | null;
   sampleSummaries: SampleSummary[];
+}
+
+export interface LogFilesResponse {
+  files: LogHandle[];
+  response_type: "incremental" | "full";
 }
 
 export interface PendingSampleResponse {
@@ -108,16 +113,6 @@ export interface AttachmentData {
   content: string;
 }
 
-export interface EvalLogHeader {
-  version?: Version;
-  status?: Status;
-  eval: EvalSpec;
-  plan?: EvalPlan;
-  results?: EvalResults;
-  stats?: EvalStats;
-  error?: EvalError;
-}
-
 export interface SampleSummary {
   uuid?: string;
   id: number | string;
@@ -144,26 +139,31 @@ export interface Capabilities {
   webWorkers: boolean;
   streamSamples: boolean;
   streamSampleData: boolean;
-  nativeFind: boolean;
 }
 
 export interface LogViewAPI {
   client_events: () => Promise<any[]>;
-  eval_set: (dir?: string) => Promise<EvalSet | undefined>;
-  eval_logs: () => Promise<LogFiles | undefined>;
-  eval_log: (
+  get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
+  get_log_dir?: () => Promise<string | undefined>;
+  get_logs?: (
+    mtime: number,
+    clientFileCount: number,
+  ) => Promise<LogFilesResponse>;
+  get_log_root: () => Promise<LogRoot | undefined>;
+  get_log_contents: (
     log_file: string,
+    // This is the number of MB of the log to fetch. If the log is larger than this, only the header will be returned. If not provided, it always fetches the entire log. Really only user for old JSON logs.
     headerOnly?: number,
     capabilities?: Capabilities,
   ) => Promise<LogContents>;
-  eval_log_size: (log_file: string) => Promise<number>;
-  eval_log_bytes: (
+  get_log_size: (log_file: string) => Promise<number>;
+  get_log_bytes: (
     log_file: string,
     start: number,
     end: number,
   ) => Promise<Uint8Array>;
-  eval_log_overview?: (log_file: string) => Promise<LogOverview>;
-  eval_log_overviews: (log_files: string[]) => Promise<LogOverview[]>;
+  get_log_summary?: (log_file: string) => Promise<LogPreview>;
+  get_log_summaries: (log_files: string[]) => Promise<LogPreview[]>;
   log_message: (log_file: string, message: string) => Promise<void>;
   download_file: (
     filename: string,
@@ -184,23 +184,30 @@ export interface LogViewAPI {
 }
 
 export interface ClientAPI {
-  client_events: () => Promise<string[]>;
-  get_log_paths: () => Promise<LogFiles>;
-  get_eval_set_info: (dir?: string) => Promise<EvalSet | undefined>;
-  get_log_overviews: (log_files: string[]) => Promise<LogOverview[]>;
-  get_log_summary: (log_file: string) => Promise<EvalSummary>;
+  // Basic initialization
+  get_log_dir: () => Promise<string | undefined>;
+
+  // List of files
+  get_logs: (
+    mtime: number,
+    clientFileCount: number,
+  ) => Promise<LogFilesResponse>;
+
+  // Log files retrieval
+  // Legacy: Read the files and log directory in a single request
+  get_log_root: () => Promise<LogRoot>;
+
+  // Read eval set
+  get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
+  get_log_summaries: (log_files: string[]) => Promise<LogPreview[]>;
+  get_log_details: (log_file: string) => Promise<LogDetails>;
+
+  // Sample retrieval
   get_log_sample: (
     log_file: string,
     id: string | number,
     epoch: number,
   ) => Promise<EvalSample | undefined>;
-  log_message?: (log_file: string, message: string) => Promise<void>;
-  download_file: (
-    file_name: string,
-    file_contents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
-  ) => Promise<void>;
-  open_log_file: (log_file: string, log_dir: string) => Promise<void>;
-
   get_log_pending_samples?: (
     log_file: string,
     etag?: string,
@@ -212,6 +219,19 @@ export interface ClientAPI {
     last_event?: number,
     last_attachment?: number,
   ) => Promise<SampleDataResponse | undefined>;
+
+  // Events
+  client_events: () => Promise<string[]>;
+
+  // Logging
+  log_message?: (log_file: string, message: string) => Promise<void>;
+
+  // File operations (for the client)
+  download_file: (
+    file_name: string,
+    file_contents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
+  ) => Promise<void>;
+  open_log_file: (log_file: string, log_dir: string) => Promise<void>;
 }
 
 export interface ClientStorage {
@@ -235,7 +255,7 @@ export interface EvalHeader {
   error?: EvalError | null;
 }
 
-export interface LogOverview {
+export interface LogPreview {
   eval_id: EvalId;
   run_id: RunId;
 
@@ -255,15 +275,16 @@ export interface LogOverview {
   primary_metric?: EvalMetric;
 }
 
-export interface LogFiles {
-  files: LogFile[];
+export interface LogRoot {
+  logs: LogHandle[];
   log_dir?: string;
 }
 
-export interface LogFile {
+export interface LogHandle {
   name: string;
   task?: string;
   task_id?: string;
+  mtime?: number;
 }
 
 export interface LogContents {
@@ -273,7 +294,7 @@ export interface LogContents {
 
 export interface LogFilesFetchResponse {
   raw: string;
-  parsed: Record<string, LogOverview>;
+  parsed: Record<string, LogPreview>;
 }
 
 export interface UpdateStateMessage {

@@ -6,42 +6,45 @@ import {
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
 import {
-  EvalLogHeader,
-  LogFile,
-  LogFiles,
-  LogOverview,
+  EvalHeader,
+  LogDetails,
+  LogHandle,
+  LogPreview,
 } from "../client/api/types";
+import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
 
-const kEmptyLogs: LogFiles = {
-  log_dir: "",
-  files: [],
-};
-
 export interface LogsSlice {
   logs: LogsState;
   logsActions: {
     // Update State
-    setLogs: (logs: LogFiles) => void;
-    setLogOverviews: (overviews: Record<string, LogOverview>) => void;
-    loadLogOverviews: (logs: LogFile[]) => Promise<LogOverview[]>;
-    updateLogOverviews: (overviews: Record<string, LogOverview>) => void;
-    setLogOverviewsLoading: (loading: boolean) => void;
+    setLogDir: (logDir?: string) => void;
+    setLogHandles: (logHandles: LogHandle[]) => void;
+
+    updateLogPreviews: (previews: Record<string, LogPreview>) => void;
+    syncLogPreviews: (logs: LogHandle[]) => Promise<void>;
+
+    updateLogDetails: (details: Record<string, LogDetails>) => void;
+
     setSelectedLogIndex: (index: number) => void;
-    setSelectedLogFile: (logUrl: string) => void;
 
     // Fetch or update logs
-    refreshLogs: () => Promise<void>;
+    syncLogs: () => Promise<LogHandle[]>;
     selectLogFile: (logUrl: string) => Promise<void>;
-    loadLogs: () => Promise<LogFiles>;
+
+    // Cross-file sample operations
+    getAllCachedSamples: () => Promise<any[]>;
+    queryCachedSamples: (filter?: {
+      completed?: boolean;
+      hasError?: boolean;
+      scoreRange?: { min: number; max: number; scoreName?: string };
+    }) => Promise<any[]>;
 
     // Try to fetch an eval-set
-    loadEvalSetInfo: (logPath?: string) => Promise<EvalSet | undefined>;
-    setEvalSetInfo: (info: EvalSet | undefined) => void;
-    clearEvalSetInfo: () => void;
+    syncEvalSetInfo: (logPath?: string) => Promise<EvalSet | undefined>;
 
     setSorting: (sorting: SortingState) => void;
     setFiltering: (filtering: ColumnFiltersState) => void;
@@ -49,20 +52,26 @@ export interface LogsSlice {
     setColumnResizeMode: (mode: ColumnResizeMode) => void;
     setColumnSize: (columnId: string, size: number) => void;
     setFilteredCount: (count: number) => void;
-    setWatchedLogs: (logs: LogFile[]) => void;
+    setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
+    setSelectedRowIndex: (index: number | null) => void;
   };
 }
 
 const initialState: LogsState = {
-  logs: kEmptyLogs,
-  logOverviews: {},
-  logOverviewsLoading: false,
+  logDir: undefined,
+  logs: [],
+  logPreviews: {},
+  logDetails: {},
   selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
   listing: {},
-  loadingFiles: new Set<string>(),
-  pendingRequests: new Map<string, Promise<EvalLogHeader | null>>(),
+  pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
+  dbStats: {
+    logCount: 0,
+    previewCount: 0,
+    detailsCount: 0,
+  },
 };
 
 export const createLogsSlice = (
@@ -76,205 +85,187 @@ export const createLogsSlice = (
 
     // Actions
     logsActions: {
-      setLogs: (logs: LogFiles) => {
+      setLogDir: (logDir?: string) =>
+        set((state) => {
+          state.logs.logDir = logDir;
+        }),
+      setLogHandles: (logs: LogHandle[]) =>
         set((state) => {
           state.logs.logs = logs;
           state.logs.selectedLogFile =
             state.logs.selectedLogIndex > -1
-              ? logs.files[state.logs.selectedLogIndex]?.name
+              ? logs[state.logs.selectedLogIndex]?.name
               : undefined;
-        });
-      },
-      setLogOverviews: (overviews: Record<string, LogOverview>) =>
-        set((state) => {
-          state.logs.logOverviews = overviews;
         }),
-      loadLogOverviews: async (logs: LogFile[]) => {
+      syncLogPreviews: async (logs: LogHandle[]) => {
         const state = get();
         const api = state.api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return [];
+          return;
         }
 
-        // Filter out files that are already loaded or currently loading
-        // reload headers with "started" status as they may have changed
-        const filesToLoad = logs.filter((logFile) => {
-          const existing = state.logs.logOverviews[logFile.name];
-          const isLoading = state.logs.loadingFiles.has(logFile.name);
-
-          // Always load if no existing header
-          if (!existing) {
-            return !isLoading;
-          }
-
-          // Reload if header status is "started" or "error" (but not if already loading)
-          if (existing.status === "started") {
-            return !isLoading;
-          }
-
-          // Skip if already loaded with final status
-          return false;
-        });
-
-        if (filesToLoad.length === 0) {
-          return [];
+        if (!state.replicationService) {
+          console.error("Replication service not initialized in LogsStore");
+          return;
         }
-
-        // Mark files as loading
-        set((state) => {
-          filesToLoad.forEach((logFile) => {
-            state.logs.loadingFiles.add(logFile.name);
-          });
-        });
-
-        // Set global loading state if this is the first batch
-        set((state) => {
-          state.logs.logOverviewsLoading = true;
-        });
-
         try {
-          log.debug(`LOADING LOG OVERVIEWS for ${filesToLoad.length} files`);
-          const headers = await api.get_log_overviews(
-            filesToLoad.map((log) => log.name),
-          );
-
-          // Process results and update store
-          const headerMap: Record<string, LogOverview> = {};
-          for (let i = 0; i < filesToLoad.length; i++) {
-            const logFile = filesToLoad[i];
-            const header = headers[i];
-            if (header) {
-              headerMap[logFile.name] = header as LogOverview;
-            }
-          }
-
-          // Update headers in store
-          set((state) => {
-            state.logs.logOverviews = {
-              ...state.logs.logOverviews,
-              ...headerMap,
-            };
-            // Remove from loading state
-            filesToLoad.forEach((logFile) => {
-              state.logs.loadingFiles.delete(logFile.name);
-            });
-            // Update global loading state if no more files are loading
-            state.logs.logOverviewsLoading = false;
-          });
-
-          return headers;
-        } catch (error) {
-          log.error("Error loading log headers", error);
-
-          // Clear loading state on error
-          set((state) => {
-            filesToLoad.forEach((logFile) => {
-              state.logs.loadingFiles.delete(logFile.name);
-            });
-            state.logs.logOverviewsLoading = false;
-          });
-
-          // Don't throw - just return empty array like the old implementation
-          return [];
+          await state.replicationService?.loadLogPreviews({ logs });
+        } catch (e) {
+          console.error("Failed to sync log previews", e);
         }
       },
-      setLogOverviewsLoading: (loading: boolean) =>
+      updateLogPreviews: (previews: Record<string, LogPreview>) =>
         set((state) => {
-          state.logs.logOverviewsLoading = loading;
-        }),
-      setSelectedLogIndex: (selectedLogIndex: number) => {
-        set((state) => {
-          state.logs.selectedLogIndex = selectedLogIndex;
-          const file = state.logs.logs.files[selectedLogIndex];
-          state.logs.selectedLogFile = file ? file.name : undefined;
-        });
-      },
-      updateLogOverviews: (overviews: Record<string, LogOverview>) =>
-        set((state) => {
-          state.logs.logOverviews = {
-            ...get().logs.logOverviews,
-            ...overviews,
+          state.logs.logPreviews = {
+            ...get().logs.logPreviews,
+            ...previews,
           };
         }),
 
-      setSelectedLogFile: (logUrl: string) => {
-        const state = get();
-        const index = state.logs.logs.files.findIndex((val: { name: string }) =>
-          logUrl.endsWith(val.name),
-        );
+      updateLogDetails: (details: Record<string, LogDetails>) =>
+        set((state) => {
+          state.logs.logDetails = {
+            ...get().logs.logDetails,
+            ...details,
+          };
+        }),
 
-        if (index > -1) {
-          state.logsActions.setSelectedLogIndex(index);
-          state.logs.selectedLogFile =
-            state.logs.logs.files[index]?.name ?? undefined;
-        }
+      setSelectedLogIndex: (selectedLogIndex: number) => {
+        set((state) => {
+          state.logs.selectedLogIndex = selectedLogIndex;
+          const file = state.logs.logs[selectedLogIndex];
+          state.logs.selectedLogFile = file ? file.name : undefined;
+        });
       },
-
-      // Helper function to load logs
-      loadLogs: async () => {
+      syncLogs: async () => {
         const api = get().api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return kEmptyLogs;
+          return [];
         }
 
-        try {
-          log.debug("LOADING LOG FILES");
-          return await api.get_log_paths();
-        } catch (e) {
-          console.log(e);
-          get().appActions.setStatus({ loading: false, error: e as Error });
-          return kEmptyLogs;
-        }
-      },
-      refreshLogs: async () => {
-        log.debug("REFRESH LOGS");
-        const state = get();
-        // Preserve the selected log even if new logs appear
-        const currentLog =
-          state.logs.selectedLogIndex > -1
-            ? state.logs.logs.files[state.logs.selectedLogIndex]
-            : undefined;
+        get().appActions.setLoading(true);
 
-        // Set the logs first
-        const refreshedLogs = await state.logsActions.loadLogs();
-        state.logsActions.setLogs(refreshedLogs || kEmptyLogs);
-
-        if (currentLog) {
-          const newIndex = refreshedLogs?.files.findIndex((file) =>
-            currentLog.name.endsWith(file.name),
-          );
-
-          if (newIndex !== undefined && newIndex !== -1) {
-            state.logsActions.setSelectedLogIndex(newIndex);
+        // Determine the log directory
+        const loadLogDir = async () => {
+          try {
+            return await api.get_log_dir();
+          } catch (e) {
+            console.log(e);
+            get().appActions.setLoading(false, e as Error);
+            return undefined;
           }
+        };
+        const logDir = await loadLogDir();
+        if (get().logs.logDir !== logDir) {
+          get().logsActions.setLogDir(logDir);
+
+          // Initialize the database
+          const initializeDatabase = async (
+            logDir?: string,
+          ): Promise<DatabaseService | undefined> => {
+            if (!logDir) {
+              // No database service available
+              return undefined;
+            }
+
+            try {
+              const databaseService = get().databaseService;
+              if (!databaseService) {
+                return undefined;
+              }
+              await databaseService.openDatabase(logDir);
+              return databaseService;
+            } catch (e) {
+              console.log(e);
+              get().appActions.setLoading(false, e as Error);
+              return;
+            }
+          };
+
+          // Don't enable syncing if there is no log directory
+          if (!logDir) {
+            get().appActions.setLoading(false);
+            return [];
+          }
+
+          // Activate the database for this log directory
+          const databaseService = await initializeDatabase(logDir);
+          if (!databaseService) {
+            // No database service available
+            throw new Error("Database service not available");
+          }
+
+          // Activate replication for this database
+          await get().replicationService?.startReplication(
+            databaseService,
+            api,
+            {
+              setLogHandles: (logs: LogHandle[]) => {
+                const state = get();
+                state.logsActions.setLogHandles(logs);
+              },
+              getSelectedLog: () => {
+                const state = get();
+                return state.logs.selectedLogIndex > -1
+                  ? state.logs.logs[state.logs.selectedLogIndex]
+                  : undefined;
+              },
+              setSelectedLogIndex: (index: number) => {
+                const state = get();
+                state.logsActions.setSelectedLogIndex(index);
+              },
+              updateLogPreviews: (previews: Record<string, LogPreview>) => {
+                const state = get();
+                state.logsActions.updateLogPreviews(previews);
+              },
+              updateLogDetails: (details: Record<string, LogDetails>) => {
+                const state = get();
+                state.logsActions.updateLogDetails(details);
+              },
+              setLoading(loading: boolean) {
+                const state = get();
+                state.appActions.setLoading(loading);
+              },
+              setBackgroundSyncing(syncing: boolean) {
+                set((state) => {
+                  state.app.status.syncing = syncing;
+                });
+              },
+              setDbStats(stats: {
+                logCount: number;
+                previewCount: number;
+                detailsCount: number;
+              }) {
+                set((state) => {
+                  state.logs.dbStats = stats;
+                });
+              },
+            },
+          );
         }
+
+        get().appActions.setLoading(false);
+
+        // Sync
+        return (await get().replicationService?.sync(true)) || [];
       },
-      loadEvalSetInfo: async (logPath?: string) => {
+      syncEvalSetInfo: async (logPath?: string) => {
         const api = get().api;
         if (!api) {
           console.error("API not initialized in LogsStore");
           return undefined;
         }
-
-        const info = await api.get_eval_set_info(logPath);
-        return info;
-      },
-      setEvalSetInfo: (info: EvalSet | undefined) => {
+        const info = await api.get_eval_set(logPath);
         set((state) => {
           state.logs.evalSet = info;
-        });
-      },
-      clearEvalSetInfo: () => {
-        set((state) => {
-          state.logs.evalSet = undefined;
         });
       },
       // Select a specific log file
       selectLogFile: async (logUrl: string) => {
         const state = get();
-        const index = state.logs.logs.files.findIndex((val: { name: string }) =>
+        const index = state.logs.logs.findIndex((val: { name: string }) =>
           val.name.endsWith(logUrl),
         );
 
@@ -282,16 +273,20 @@ export const createLogsSlice = (
         if (index > -1) {
           state.logsActions.setSelectedLogIndex(index);
         } else {
-          // It isn't yet loaded, so refresh the logs and try to load it from there
-          const result = await state.logsActions.loadLogs();
-          const idx = result?.files.findIndex((file) =>
-            file.name.endsWith(logUrl),
-          );
+          if (state.replicationService?.isReplicating()) {
+            // It isn't yet loaded, so refresh the logs and try to load it from there
+            const logHandles = await state.logsActions.syncLogs();
+            const idx = logHandles.findIndex((file) =>
+              file.name.endsWith(logUrl),
+            );
 
-          state.logsActions.setLogs(result || kEmptyLogs);
-          state.logsActions.setSelectedLogIndex(
-            idx !== undefined && idx > -1 ? idx : 0,
-          );
+            state.logsActions.setSelectedLogIndex(
+              idx !== undefined && idx > -1 ? idx : 0,
+            );
+          } else {
+            state.logsActions.setLogHandles([{ name: logUrl }]);
+            state.logsActions.setSelectedLogIndex(0);
+          }
         }
       },
       setSorting: (sorting: SortingState) => {
@@ -327,7 +322,7 @@ export const createLogsSlice = (
           state.logs.listing.filteredCount = count;
         });
       },
-      setWatchedLogs: (logs: LogFile[]) => {
+      setWatchedLogs: (logs: LogHandle[]) => {
         set((state) => {
           state.logs.listing.watchedLogs = logs;
         });
@@ -337,10 +332,53 @@ export const createLogsSlice = (
           state.logs.listing.watchedLogs = undefined;
         });
       },
+      setSelectedRowIndex: (index: number | null) => {
+        set((state) => {
+          state.logs.listing.selectedRowIndex = index;
+        });
+      },
+      // Cross-file sample operations
+      getAllCachedSamples: async () => {
+        try {
+          log.debug("LOADING ALL CACHED SAMPLES");
+          const dbService = get().databaseService;
+          if (!dbService) {
+            throw new Error("Database service not initialized");
+          }
+          const samples = await dbService.readAllSampleSummaries();
+          log.debug(`Retrieved ${samples.length} cached samples`);
+          return samples;
+        } catch (e) {
+          log.debug("No cached samples available");
+          return [];
+        }
+      },
+
+      queryCachedSamples: async (filter?: {
+        completed?: boolean;
+        hasError?: boolean;
+        scoreRange?: { min: number; max: number; scoreName?: string };
+      }) => {
+        try {
+          log.debug("QUERYING CACHED SAMPLES", filter);
+          const dbService = get().databaseService;
+          if (!dbService) {
+            throw new Error("Database service not initialized");
+          }
+          const samples = await dbService.querySampleSummaries(filter);
+          log.debug(`Query returned ${samples.length} samples`);
+          return samples;
+        } catch (e) {
+          log.debug("Sample query failed, returning empty results");
+          return [];
+        }
+      },
     },
   } as const;
 
-  const cleanup = () => {};
+  const cleanup = () => {
+    // Database cleanup is handled in the main store cleanup
+  };
 
   return [slice, cleanup];
 };

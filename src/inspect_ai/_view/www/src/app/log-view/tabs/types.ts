@@ -6,7 +6,7 @@ export interface SampleListItem {
   index: number;
   number: number;
   answer: string;
-  scoreRendered: ReactNode;
+  scoresRendered: ReactNode[];
   data: SampleSummary;
   type: "sample";
   completed: boolean;

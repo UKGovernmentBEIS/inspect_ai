@@ -2,6 +2,7 @@
   height: 100%;
   overflow: auto;
   padding: 0;
+  outline: none;
 }
 
 .grid {
@@ -90,9 +91,26 @@
 
 .bodyRow {
   display: grid;
-  transition: background-color 0.15s ease-in-out;
+  transition:
+    background-color 0.15s ease-in-out,
+    border-left-color 0.15s ease-in-out;
   width: fit-content;
   min-width: 100%;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.bodyRow:hover {
+  background-color: var(--bs-secondary-bg-subtle);
+}
+
+.selectedRow {
+  background-color: var(--bs-primary-bg-subtle);
+  border-left-color: var(--bs-primary);
+}
+
+.selectedRow:hover {
+  background-color: var(--bs-primary-bg-subtle);
 }
 
 /* Cell Styles */

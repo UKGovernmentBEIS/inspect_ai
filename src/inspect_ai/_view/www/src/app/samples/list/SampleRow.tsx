@@ -15,7 +15,7 @@ interface SampleRowProps {
   sample: SampleSummary;
   answer: string;
   completed: boolean;
-  scoreRendered: ReactNode;
+  scoresRendered: ReactNode[];
   gridColumnsTemplate: string;
   height: number;
   showSample: () => void;
@@ -28,7 +28,7 @@ export const SampleRow: FC<SampleRowProps> = ({
   sample,
   answer,
   completed,
-  scoreRendered,
+  scoresRendered,
   gridColumnsTemplate,
   height,
   showSample,
@@ -47,6 +47,25 @@ export const SampleRow: FC<SampleRowProps> = ({
   // this allows the sample list to retain precise state (since it remains loaded)
   // while not causing text content to be present in the DOM
   const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
+
+  if (
+    !completed &&
+    scoresRendered.length === 0 &&
+    Object.keys(sample.scores || {}).length === 0
+  ) {
+    scoresRendered = [null];
+  }
+  const scoreColumnContent = scoresRendered.map((scoreRendered, i) => {
+    if (!showingSampleDialog && sample.error) {
+      return <SampleErrorView message={sample.error} />;
+    } else if (completed) {
+      return scoreRendered;
+    } else if (i === scoresRendered.length - 1) {
+      return <PulsingDots subtle={false} />;
+    } else {
+      return undefined;
+    }
+  });
 
   const rowContent = (
     <div
@@ -124,15 +143,14 @@ export const SampleRow: FC<SampleRowProps> = ({
           ? sample.retries
           : undefined}
       </div>
-      <div className={clsx("text-size-small", styles.cell, styles.score)}>
-        {!showingSampleDialog && sample.error ? (
-          <SampleErrorView message={sample.error} />
-        ) : completed ? (
-          scoreRendered
-        ) : (
-          <PulsingDots subtle={false} />
-        )}
-      </div>
+      {scoreColumnContent.map((scoreColumnContent, i) => (
+        <div
+          key={`score-${i}`}
+          className={clsx("text-size-small", styles.cell, styles.score)}
+        >
+          {scoreColumnContent}
+        </div>
+      ))}
     </div>
   );
 

@@ -12,11 +12,13 @@ import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl, useLogRouteParams } from "../routing/url";
-import { LogListGrid } from "./grid/LogListGrid";
+import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import { LogsFilterInput } from "./LogsFilterInput";
 import styles from "./LogsPanel.module.css";
+import { ViewerOptionsButton } from "./ViewerOptionsButton";
+import { ViewerOptionsPopover } from "./ViewerOptionsPopover";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -35,24 +37,33 @@ interface LogsPanelProps {
 
 export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   // Get the logs from the store
-  const loading = useStore((state) => state.app.status.loading);
-
   const { loadLogs } = useLogs();
-  const logs = useStore((state) => state.logs.logs);
+
+  const logDir = useStore((state) => state.logs.logDir);
+  const logFiles = useStore((state) => state.logs.logs);
   const evalSet = useStore((state) => state.logs.evalSet);
-  const logHeaders = useStore((state) => state.logs.logOverviews);
-  const headersLoading = useStore((state) => state.logs.logOverviewsLoading);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
+
+  const loading = useStore((state) => state.app.status.loading);
+  const syncing = useStore((state) => state.app.status.syncing);
+
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
   const navigate = useNavigate();
 
   const { setPage } = usePagination(kLogsPaginationId, kDefaultPageSize);
 
   const filterRef = useRef<HTMLInputElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<LogListGridHandle>(null);
+  const optionsRef = useRef<HTMLButtonElement>(null);
+
+  const isShowing = useStore((state) => state.app.dialogs.options);
+  const setShowing = useStore(
+    (state) => state.appActions.setShowingOptionsDialog,
+  );
 
   const { logPath } = useLogRouteParams();
 
-  const currentDir = join(logPath || "", logs.log_dir);
+  const currentDir = join(logPath || "", logDir);
 
   // Polling for client events
   const { startPolling, stopPolling } = useClientEvents();
@@ -60,9 +71,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const { setDocumentTitle } = useDocumentTitle();
   useEffect(() => {
     setDocumentTitle({
-      logDir: logs.log_dir,
+      logDir: logDir,
     });
-  }, [setDocumentTitle, logs.log_dir]);
+  }, [setDocumentTitle, logDir]);
 
   const previousWatchedLogs = useRef<typeof watchedLogs>(undefined);
 
@@ -92,13 +103,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     }
   }, [watchedLogs]);
 
-  // Focus the panel when it loads
-  useEffect(() => {
-    setTimeout(() => {
-      rootRef.current?.focus();
-    }, 10);
-  }, []);
-
   // All the items visible in the current directory (might span
   // multiple pages)
   const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
@@ -110,7 +114,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       const processedFolders = new Set<string>();
       const existingLogTaskIds = new Set<string>();
 
-      for (const logFile of logs.files) {
+      for (const logFile of logFiles) {
         // Note that this task is running or complete
         if (logFile.task_id) {
           existingLogTaskIds.add(logFile.task_id);
@@ -130,7 +134,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
         if (isInDirectory(name, cleanDir)) {
           // This is a file within the current directory
-          const dirName = directoryRelativeUrl(currentDir, logs.log_dir);
+          const dirName = directoryRelativeUrl(currentDir, logDir);
           const relativePath = directoryRelativeUrl(name, currentDir);
 
           const fileOrFolderName = decodeURIComponent(rootName(relativePath));
@@ -143,9 +147,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             id: fileOrFolderName,
             name: fileOrFolderName,
             type: "file",
-            url: logUrl(path, logs.log_dir),
-            logFile: logFile,
-            logOverview: logHeaders[logFile.name],
+            url: logUrl(path, logDir),
+            log: logFile,
+            logPreview: logPreviews[logFile.name],
           });
         } else if (name.startsWith(dirWithSlash)) {
           // This is file that is next level (or deeper) child
@@ -154,18 +158,15 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           const relativePath = directoryRelativeUrl(name, currentDir);
 
           const dirName = decodeURIComponent(rootName(relativePath));
-          const currentDirRelative = directoryRelativeUrl(
-            currentDir,
-            logs.log_dir,
-          );
+          const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
           const url = join(dirName, decodeURIComponent(currentDirRelative));
           if (!processedFolders.has(dirName)) {
             logItems.push({
               id: dirName,
               name: dirName,
               type: "folder",
-              url: logUrl(url, logs.log_dir),
-              itemCount: logs.files.filter((file) =>
+              url: logUrl(url, logDir),
+              itemCount: logFiles.filter((file) =>
                 file.name.startsWith(dirname(name)),
               ).length,
             });
@@ -182,7 +183,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       > = collapseLogItems(evalSet, logItems);
 
       return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [logPath, logs.files, logHeaders, evalSet]);
+    }, [logPath, logFiles, logPreviews, evalSet]);
 
   const progress = useMemo(() => {
     let pending = 0;
@@ -192,7 +193,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         total += 1;
         if (
           item.type === "pending-task" ||
-          item.logOverview?.status === "started"
+          item.logPreview?.status === "started"
         ) {
           pending += 1;
         }
@@ -212,8 +213,11 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   }, [loadLogs, logPath]);
 
   useEffect(() => {
-    setPage(0);
+    if (currentDir !== loadedDir.current) {
+      setPage(0);
+    }
   }, [currentDir]);
+  const loadedDir = useRef<string | undefined>(currentDir);
 
   useEffect(() => {
     if (maybeShowSingleLog && logItems.length === 1) {
@@ -228,32 +232,44 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     if (e.key === "f" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       filterRef.current?.focus();
+    } else if (
+      e.key === "Escape" &&
+      document.activeElement === filterRef.current
+    ) {
+      e.preventDefault();
+      gridRef.current?.focus();
     }
   }
 
   return (
     <div
-      ref={rootRef}
       className={clsx(styles.panel)}
       onKeyDown={(e) => {
         handleKeyDown(e);
       }}
-      tabIndex={0}
     >
       <Navbar>
         <LogsFilterInput ref={filterRef} />
+        <ViewerOptionsButton
+          showing={isShowing}
+          setShowing={setShowing}
+          ref={optionsRef}
+        />
+        <ViewerOptionsPopover
+          positionEl={optionsRef.current}
+          showing={isShowing}
+          setShowing={setShowing}
+        />
       </Navbar>
 
-      <ActivityBar animating={loading || headersLoading} />
+      <ActivityBar animating={!!loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
-        <LogListGrid items={logItems} />
+        <LogListGrid ref={gridRef} items={logItems} />
       </div>
       <LogListFooter
         logDir={currentDir}
         itemCount={logItems.length}
-        progressText={
-          loading ? "Loading logs" : headersLoading ? "Loading data" : undefined
-        }
+        progressText={syncing ? "Syncing data" : undefined}
         progressBar={
           progress.total !== progress.complete ? (
             <ProgressBar
@@ -282,8 +298,8 @@ export const collapseLogItems = (
 
   // Group file items by task_id
   for (const item of logItems) {
-    if (item.type === "file" && item.logFile.task_id) {
-      const taskId = item.logFile.task_id;
+    if (item.type === "file" && item.log.task_id) {
+      const taskId = item.log.task_id;
       if (!taskIdToItems.has(taskId)) {
         taskIdToItems.set(taskId, []);
       }
@@ -300,8 +316,8 @@ export const collapseLogItems = (
     // If same priority, take the last one
     let bestItem = items[0];
     for (const item of items) {
-      const currentStatus = item.logOverview?.status;
-      const bestStatus = bestItem.logOverview?.status;
+      const currentStatus = item.logPreview?.status;
+      const bestStatus = bestItem.logPreview?.status;
 
       // Prefer started over everything
       if (currentStatus === "started" && bestStatus !== "started") {
@@ -328,8 +344,8 @@ export const collapseLogItems = (
   const processedTaskIds = new Set<string>();
 
   for (const item of logItems) {
-    if (item.type === "file" && item.logFile.task_id) {
-      const taskId = item.logFile.task_id;
+    if (item.type === "file" && item.log.task_id) {
+      const taskId = item.log.task_id;
       if (!processedTaskIds.has(taskId)) {
         const selectedItem = selectedItems.get(taskId);
         if (selectedItem) {

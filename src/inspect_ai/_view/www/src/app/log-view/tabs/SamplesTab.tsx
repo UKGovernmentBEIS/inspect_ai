@@ -16,7 +16,7 @@ import {
   useGroupBy,
   useGroupByOrder,
   useSampleDescriptor,
-  useScore,
+  useSelectedScores,
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
@@ -81,12 +81,12 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   );
 
   const sampleSummaries = useFilteredSamples();
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
 
   // Compute the limit to apply to the sample count (this is so)
   // we can provide a total expected sample count for this evaluation
   const evalSampleCount = useMemo(() => {
-    const limit = selectedLogSummary?.eval.config.limit;
+    const limit = selectedLogDetails?.eval.config.limit;
     const limitCount =
       limit === null || limit === undefined
         ? undefined
@@ -94,17 +94,17 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
           ? limit
           : (limit[1] as number) - (limit[0] as number);
     return (
-      (limitCount || selectedLogSummary?.eval.dataset.samples || 0) *
-      (selectedLogSummary?.eval.config.epochs || 0)
+      (limitCount || selectedLogDetails?.eval.dataset.samples || 0) *
+      (selectedLogDetails?.eval.config.epochs || 0)
     );
-  }, [selectedLogSummary?.eval.config.limit]);
+  }, [selectedLogDetails?.eval.config.limit]);
 
   const totalSampleCount = useTotalSampleCount();
 
   const samplesDescriptor = useSampleDescriptor();
   const groupBy = useGroupBy();
   const groupByOrder = useGroupByOrder();
-  const currentScore = useScore();
+  const selectedScores = useSelectedScores();
   const selectSample = useStore((state) => state.logActions.selectSample);
 
   const selectedSampleIdentifier = useStore(
@@ -151,19 +151,19 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
 
     return getSampleProcessor(
       sampleSummaries || [],
-      selectedLogSummary?.eval?.config?.epochs || 1,
+      selectedLogDetails?.eval?.config?.epochs || 1,
       groupBy,
       groupByOrder,
       samplesDescriptor,
-      currentScore,
+      selectedScores,
     );
   }, [
     samplesDescriptor,
     sampleSummaries,
-    selectedLogSummary?.eval?.config?.epochs,
+    selectedLogDetails?.eval?.config?.epochs,
     groupBy,
     groupByOrder,
-    currentScore,
+    selectedScores,
   ]);
 
   useEffect(() => {

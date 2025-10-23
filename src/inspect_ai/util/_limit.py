@@ -378,7 +378,7 @@ def check_working_limit() -> None:
 
 
 def monitor_working_limit(interval: float = 1) -> None:
-    from inspect_ai.log._samples import sample_active
+    from inspect_ai.log._samples import has_active_model_event, sample_active
 
     # get the active sample
     sample = sample_active()
@@ -399,6 +399,12 @@ def monitor_working_limit(interval: float = 1) -> None:
             # don't continue after the sample is completed
             if sample.completed:
                 return
+
+            # don't check if there is an active model event
+            # (need to wait until it completes for the working time
+            # computation to be done)
+            if has_active_model_event():
+                continue
 
             error = working_limit_exceeded()
             if error is not None:

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from test_helpers.tool_call_utils import (
     get_tool_call,
@@ -18,13 +20,24 @@ from inspect_ai.solver import (
 from inspect_ai.tool import ToolCallError, bash_session, text_editor
 
 
+@pytest.mark.parametrize(
+    "sandbox",
+    [
+        "docker",
+        ("docker", str(Path(__file__).parent / ".." / "test_sandbox_compose.yaml")),
+        (
+            "docker",
+            str(Path(__file__).parent / ".." / "test_sandbox_compose_alpine.yaml"),
+        ),
+    ],
+)
 @pytest.mark.slow
-def test_text_editor_read():
+def test_text_editor_read(sandbox: str | tuple[str, str]):
     task = Task(
         dataset=[Sample(input="Please read the file '/etc/passwd'")],
         solver=[use_tools([text_editor()]), generate()],
         scorer=match(),
-        sandbox="docker",
+        sandbox=sandbox,
     )
     model = get_model(
         "mockllm/model",
