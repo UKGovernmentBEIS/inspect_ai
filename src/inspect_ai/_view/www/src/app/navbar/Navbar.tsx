@@ -1,10 +1,12 @@
 import clsx from "clsx";
 import { FC, Fragment, ReactNode, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
+import { usePagination } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { basename, dirname, ensureTrailingSlash } from "../../utils/path";
 import { prettyDirUri } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
+import { kDefaultPageSize, kLogsPaginationId } from "../log-list/LogsPanel";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import styles from "./Navbar.module.css";
 import { useBreadcrumbTruncation } from "./useBreadcrumbTruncation";
@@ -15,15 +17,13 @@ interface NavbarProps {
 
 export const Navbar: FC<NavbarProps> = ({ children }) => {
   const { logPath } = useLogRouteParams();
-  const logs = useStore((state) => state.logs.logs);
-  const baseLogDir = dirname(logs.log_dir || "");
-  const baseLogName = basename(logs.log_dir || "");
+  const logDir = useStore((state) => state.logs.logDir);
+  const baseLogDir = dirname(logDir || "");
+  const baseLogName = basename(logDir || "");
   const pathContainerRef = useRef<HTMLDivElement>(null);
+  const { setPage } = usePagination(kLogsPaginationId, kDefaultPageSize);
 
-  const backUrl = logUrl(
-    ensureTrailingSlash(dirname(logPath || "")),
-    logs.log_dir,
-  );
+  const backUrl = logUrl(ensureTrailingSlash(dirname(logPath || "")), logDir);
 
   const segments = useMemo(() => {
     const pathSegments = logPath ? logPath.split("/") : [];
@@ -31,7 +31,7 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
     const currentSegment = [];
     for (const pathSegment of pathSegments) {
       currentSegment.push(pathSegment);
-      const segmentUrl = logUrl(currentSegment.join("/"), logs.log_dir);
+      const segmentUrl = logUrl(currentSegment.join("/"), logDir);
       dirSegments.push({
         text: pathSegment,
         url: segmentUrl,
@@ -40,10 +40,10 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
 
     return [
       { text: prettyDirUri(baseLogDir) },
-      { text: baseLogName, url: logUrl("", logs.log_dir) },
+      { text: baseLogName, url: logUrl("", logDir) },
       ...dirSegments,
     ];
-  }, [baseLogDir, baseLogName, logPath, logs.log_dir]);
+  }, [baseLogDir, baseLogName, logPath, logDir]);
 
   const { visibleSegments, showEllipsis } = useBreadcrumbTruncation(
     segments,
@@ -61,13 +61,16 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
           <i className={clsx(ApplicationIcons.navbar.back)} />
         </Link>
         <Link
-          to={logUrl("", logs.log_dir)}
+          to={logUrl("", logDir)}
           className={clsx(styles.toolbarButton)}
+          onClick={() => {
+            setPage(0);
+          }}
         >
           <i className={clsx(ApplicationIcons.navbar.home)} />
         </Link>
         <div className={clsx(styles.pathContainer)} ref={pathContainerRef}>
-          {logs.log_dir ? (
+          {logDir ? (
             <ol className={clsx("breadcrumb", styles.breadcrumbs)}>
               {visibleSegments?.map((segment, index) => {
                 const isLast = index === visibleSegments.length - 1;
