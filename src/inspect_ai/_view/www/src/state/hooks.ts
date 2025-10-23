@@ -11,6 +11,7 @@ import {
   bySample,
   sortSamples,
 } from "../app/samples/sample-tools/SortFilter";
+import { sampleIdsEqual } from "../app/shared/sample";
 import { LogHandle, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
@@ -221,11 +222,20 @@ export const useGroupByOrder = () => {
 
 // Provides the currently selected sample summary
 export const useSelectedSampleSummary = (): SampleSummary | undefined => {
-  const filteredSamples = useFilteredSamples();
-  const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
+  const sampleSummaries = useSampleSummaries();
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
+  );
   return useMemo(() => {
-    return filteredSamples[selectedIndex];
-  }, [filteredSamples, selectedIndex]);
+    const selectedSampleSummary = sampleSummaries.find((sample) => {
+      return (
+        sampleIdsEqual(sample.id, selectedSampleHandle?.id) &&
+        sample.epoch === selectedSampleHandle?.epoch
+      );
+    });
+
+    return selectedSampleSummary;
+  }, [selectedSampleHandle, sampleSummaries]);
 };
 
 export const useSampleData = () => {
@@ -371,9 +381,10 @@ export const useMessageVisibility = (
   }, [selectedLogFile, clearVisible, id]);
 
   // Maybe reset state if sample changes
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
   );
+
   useEffect(() => {
     // Skip the first effect run for sample changes too
     if (isFirstRender.current) {
@@ -384,7 +395,7 @@ export const useMessageVisibility = (
       log.debug("clear message (sample)", id);
       clearVisible(id);
     }
-  }, [selectedSampleIndex, clearVisible, id, scope]);
+  }, [selectedSampleHandle, clearVisible, id, scope]);
 
   return useMemo(() => {
     log.debug("visibility", id, visible);

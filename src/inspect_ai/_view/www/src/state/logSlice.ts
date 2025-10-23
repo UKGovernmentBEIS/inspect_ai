@@ -1,3 +1,4 @@
+import { sampleIdsEqual } from "../app/shared/sample";
 import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { LogDetails, PendingSamples } from "../client/api/types";
 import { toLogPreview } from "../client/utils/type-utils";
@@ -11,7 +12,7 @@ const log = createLogger("logSlice");
 export interface LogSlice {
   log: LogState;
   logActions: {
-    selectSample: (index: number) => void;
+    selectSample: (sampleId: string | number, epoch: number) => void;
 
     // Set the selected log summary
     setSelectedLogDetails: (details: LogDetails) => void;
@@ -63,7 +64,8 @@ export interface LogSlice {
 // Initial state
 const initialState = {
   // Log state
-  selectedSampleIndex: -1,
+  șselectedSampleId: undefined,
+  selectedSampleEpoch: undefined,
   selectedLogDetails: undefined,
   pendingSampleSummaries: undefined,
   loadedLog: undefined,
@@ -92,10 +94,20 @@ export const createLogSlice = (
 
     // Actions
     logActions: {
-      selectSample: (index: number) =>
+      selectSample: (sampleId: string | number, epoch: number) => {
+        // Ignore if already selected
+        const currentSample = get().log.selectedSampleHandle;
+        if (
+          sampleIdsEqual(currentSample?.id, sampleId) &&
+          currentSample?.epoch === epoch
+        ) {
+          return;
+        }
+
         set((state) => {
-          state.log.selectedSampleIndex = index;
-        }),
+          state.log.selectedSampleHandle = { id: sampleId, epoch };
+        });
+      },
 
       setSelectedLogDetails: (details: LogDetails) => {
         set((state) => {
