@@ -315,11 +315,12 @@ const gridColumnsValue = (
   sampleDescriptor?: SamplesDescriptor,
   selectedScores?: ScoreLabel[],
 ) => {
-  const { input, target, answer, limit, retries, id, score } = gridColumns(
+  const { input, target, answer, limit, retries, id, scores } = gridColumns(
     sampleDescriptor,
     selectedScores,
   );
-  return `${id} ${input} ${target} ${answer} ${limit} ${retries} ${score.join(" ")}`;
+  const result = `${id} ${input} ${target} ${answer} ${limit} ${retries} ${scores.join(" ")}`;
+  return result;
 };
 
 const gridColumns = (
@@ -353,12 +354,10 @@ const gridColumns = (
   );
 
   const scoreCount = selectedScores?.length ?? 0;
-  const scoreRaw = sampleDescriptor?.messageShape.raw.score || 0;
-  const scoreSize = Math.max(3, Math.min(10, scoreRaw));
-  const score =
-    scoreCount > 0
-      ? Array.from({ length: scoreCount }).map(() => `${scoreSize}rem`)
-      : [];
+  const scoresRaw = sampleDescriptor?.messageShape.raw.scores || [];
+  const scoreSizes = scoresRaw.map((size) => Math.max(3, size));
+  const scores =
+    scoreCount > 0 ? scoreSizes.map((size) => `${size / 2}rem`) : [];
 
   const frSize = (val: number) => {
     if (val === 0) {
@@ -375,7 +374,7 @@ const gridColumns = (
     limit: frSize(limit),
     retries: `${retries}em`,
     id: `${id}rem`,
-    score,
+    scores,
   };
 };
 

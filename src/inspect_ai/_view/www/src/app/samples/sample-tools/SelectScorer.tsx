@@ -20,7 +20,6 @@ export const SelectScorer: FC<SelectScorerProps> = ({
 }) => {
   const [showing, setShowing] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const scorers = useScores();
 
   const selectedKeys = useMemo(() => {
     return new Set(selectedScores?.map((s) => `${s.scorer}.${s.name}`));
