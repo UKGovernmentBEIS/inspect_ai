@@ -7,6 +7,7 @@
 - Inspect View: Support selecting multiple scorers for display in the sample list.
 - Inspect View: Show multiple scores in sample view.
 - Bugfix: Correctly resolve relative sandbox config paths in `eval-retry` when CWD differs from task directory.
+- Bugfix: Don't check working time limit when there is a model generation in flight.
 
 ## 0.3.140 (20 October 2025)
 
