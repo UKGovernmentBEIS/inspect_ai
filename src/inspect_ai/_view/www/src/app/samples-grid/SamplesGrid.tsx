@@ -1,11 +1,13 @@
-import { FC, useMemo, useCallback, useEffect, useRef } from "react";
+import type { ColDef, RowSelectedEvent } from "ag-grid-community";
+import {
+  AllCommunityModule,
+  ModuleRegistry,
+  themeBalham,
+} from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { ModuleRegistry, AllCommunityModule } from "ag-grid-community";
-import type { ColDef, RowSelectedEvent, GridReadyEvent } from "ag-grid-community";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-quartz.css";
-import { useStore } from "../../state/store";
+import { FC, useCallback, useEffect, useMemo } from "react";
 import { Score } from "../../@types/log";
+import { useStore } from "../../state/store";
 import styles from "./SamplesGrid.module.css";
 
 // Register AG Grid modules
@@ -69,11 +71,17 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
 
   // Debug: Log when component renders
   useEffect(() => {
-    console.log("SamplesGrid mounted, logDetails count:", Object.keys(logDetails).length);
+    console.log(
+      "SamplesGrid mounted, logDetails count:",
+      Object.keys(logDetails).length,
+    );
   }, []);
 
   useEffect(() => {
-    console.log("SamplesGrid logDetails updated:", Object.keys(logDetails).length);
+    console.log(
+      "SamplesGrid logDetails updated:",
+      Object.keys(logDetails).length,
+    );
   }, [logDetails]);
 
   // Transform logDetails into flat rows
@@ -132,13 +140,32 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
   const columnDefs = useMemo((): ColDef<SampleRow>[] => {
     const baseColumns: ColDef<SampleRow>[] = [
       {
-        field: "logFile",
-        headerName: "Log File",
-        width: 200,
+        field: "sampleId",
+        headerName: "Sample ID",
+        width: 120,
+        minWidth: 80,
+        sortable: true,
+        filter: true,
+        resizable: true,
+      },
+      {
+        field: "epoch",
+        headerName: "Epoch",
+        width: 70,
+        minWidth: 40,
+        sortable: true,
+        filter: true,
+        resizable: true,
+      },
+      {
+        field: "input",
+        headerName: "Input",
+        width: 250,
         minWidth: 150,
         sortable: true,
         filter: true,
         resizable: true,
+        cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
       },
       {
         field: "task",
@@ -168,32 +195,13 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
         resizable: true,
       },
       {
-        field: "sampleId",
-        headerName: "Sample ID",
-        width: 120,
-        minWidth: 80,
-        sortable: true,
-        filter: true,
-        resizable: true,
-      },
-      {
-        field: "epoch",
-        headerName: "Epoch",
-        width: 80,
-        minWidth: 60,
-        sortable: true,
-        filter: true,
-        resizable: true,
-      },
-      {
-        field: "input",
-        headerName: "Input",
-        width: 250,
+        field: "logFile",
+        headerName: "Log File",
+        width: 200,
         minWidth: 150,
         sortable: true,
         filter: true,
         resizable: true,
-        cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
       },
       {
         field: "target",
@@ -271,36 +279,16 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
   const onRowSelected = useCallback((event: RowSelectedEvent<SampleRow>) => {
     if (event.node.isSelected() && event.data) {
       console.log(
-        `Selected: Log File="${event.data.logFile}", Sample ID="${event.data.sampleId}", Epoch=${event.data.epoch}`
+        `Selected: Log File="${event.data.logFile}", Sample ID="${event.data.sampleId}", Epoch=${event.data.epoch}`,
       );
     }
   }, []);
 
-  // Handle grid ready
-  const onGridReady = useCallback((params: GridReadyEvent) => {
-    console.log("Grid ready, API:", params.api);
-    params.api.sizeColumnsToFit();
-  }, []);
-
-  // Debug: Log data length
-  useEffect(() => {
-    console.log("SamplesGrid data rows:", data.length);
-    if (data.length > 0) {
-      console.log("First row:", data[0]);
-      console.log("Column defs:", columnDefs.length);
-    }
-  }, [data, columnDefs]);
-
-  if (data.length === 0) {
-    console.log("SamplesGrid: No data to display");
-    return <div className={styles.emptyState}>No samples available</div>;
-  }
-
-  console.log("SamplesGrid: Rendering grid with", data.length, "rows");
-
   return (
     <div className={styles.gridWrapper}>
-      <div className="ag-theme-quartz" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <div
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+      >
         <AgGridReact<SampleRow>
           rowData={data}
           columnDefs={columnDefs}
@@ -311,6 +299,7 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
           }}
           rowSelection="single"
           onRowSelected={onRowSelected}
+          theme={themeBalham}
         />
       </div>
     </div>
