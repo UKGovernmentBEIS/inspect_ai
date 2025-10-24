@@ -2,11 +2,13 @@ import { ReactNode } from "react";
 import { SampleSummary } from "../../../client/api/types";
 
 export interface SampleListItem {
+  sampleId: string | number;
+  sampleEpoch: number;
   label: string;
   index: number;
   number: number;
   answer: string;
-  scoreRendered: ReactNode;
+  scoresRendered: ReactNode[];
   data: SampleSummary;
   type: "sample";
   completed: boolean;

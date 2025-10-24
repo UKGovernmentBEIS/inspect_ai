@@ -17,14 +17,18 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
+import { ScoreLabel } from "../../../app/types";
 import {
   useDocumentTitle,
   useProperty,
   useSampleDescriptor,
+  useScores,
+  useSelectedScores,
 } from "../../../state/hooks";
 import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
 import { useSampleNavigation } from "../../routing/sampleNavigation";
+import { sampleIdsEqual } from "../../shared/sample";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
@@ -45,21 +49,21 @@ export const kSampleFollowProp = "sample-list";
 export const SampleList: FC<SampleListProps> = memo((props) => {
   const { items, totalItemCount, running, className, listHandle } = props;
 
-  const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const { getRestoreState, isScrolling } = useVirtuosoState(
     listHandle,
-    `sample-list-${selectedLogIndex}`,
+    `sample-list-${selectedLogFile}`,
   );
 
   useEffect(() => {
     listHandle.current?.scrollTo({ top: 0, behavior: "instant" });
-  }, [selectedLogIndex]);
+  }, [selectedLogFile]);
 
   // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();
 
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
   );
   const samplesDescriptor = useSampleDescriptor();
   const [followOutput, setFollowOutput] = useProperty(
@@ -70,7 +74,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     },
   );
 
-  const evalSpec = useStore((state) => state.log.selectedLogSummary?.eval);
+  const evalSpec = useStore((state) => state.log.selectedLogDetails?.eval);
   const { setDocumentTitle } = useDocumentTitle();
   useEffect(() => {
     setDocumentTitle({ evalSpec });
@@ -144,13 +148,17 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           e.stopPropagation();
           break;
         case "Enter": {
-          const item = items[selectedSampleIndex];
-          if (item.type === "sample") {
-            sampleNavigation.showSample(
-              item.index,
-              item.data.id,
-              item.data.epoch,
-            );
+          const item = items.find((item) => {
+            if (item.type === "sample") {
+              return (
+                sampleIdsEqual(item.sampleId, selectedSampleHandle?.id) &&
+                item.sampleEpoch === selectedSampleHandle?.epoch
+              );
+            }
+          });
+
+          if (item && item.type === "sample") {
+            sampleNavigation.showSample(item.data.id, item.data.epoch);
             e.preventDefault();
             e.stopPropagation();
           }
@@ -159,13 +167,17 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       }
     },
     [
-      selectedSampleIndex,
+      selectedSampleHandle,
       sampleNavigation.nextSample,
       sampleNavigation.previousSample,
       sampleNavigation.showSample,
       listHandle,
     ],
   );
+
+  const selectedScores = useSelectedScores();
+
+  const scores = useScores();
 
   const gridColumnsTemplate = useMemo(() => {
     return gridColumnsValue(samplesDescriptor);
@@ -177,23 +189,22 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         return (
           <SampleRow
             id={`${item.number}`}
-            index={item.index}
             sample={item.data}
             height={kSampleHeight}
             answer={item.answer}
             completed={item.completed}
-            scoreRendered={item.scoreRendered}
+            scoresRendered={item.scoresRendered}
             gridColumnsTemplate={gridColumnsTemplate}
             sampleUrl={sampleNavigation.getSampleUrl(
               item.data.id,
               item.data.epoch,
             )}
+            selected={
+              sampleIdsEqual(selectedSampleHandle?.id, item.sampleId) &&
+              selectedSampleHandle?.epoch === item.sampleEpoch
+            }
             showSample={() => {
-              sampleNavigation.showSample(
-                item.index,
-                item.data.id,
-                item.data.epoch,
-              );
+              sampleNavigation.showSample(item.data.id, item.data.epoch);
             }}
           />
         );
@@ -265,6 +276,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         answer={answer !== "0"}
         limit={limit !== "0"}
         retries={retries !== "0em"}
+        scoreLabels={scoreHeaders(selectedScores, scores)}
         gridColumnsTemplate={gridColumnsTemplate}
       />
       <Virtuoso
@@ -304,9 +316,10 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
 });
 
 const gridColumnsValue = (sampleDescriptor?: SamplesDescriptor) => {
-  const { input, target, answer, limit, retries, id, score } =
+  const { input, target, answer, limit, retries, id, scores } =
     gridColumns(sampleDescriptor);
-  return `${id} ${input} ${target} ${answer} ${limit} ${retries} ${score}`;
+  const result = `${id} ${input} ${target} ${answer} ${limit} ${retries} ${scores.join(" ")}`;
+  return result;
 };
 
 const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
@@ -335,10 +348,11 @@ const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
     2,
     Math.min(10, sampleDescriptor?.messageShape.raw.id || 0),
   );
-  const score = Math.max(
-    3,
-    Math.min(10, sampleDescriptor?.messageShape.raw.score || 0),
-  );
+
+  const scoresRaw = sampleDescriptor?.messageShape.raw.scores || [];
+  const scoreSizes = scoresRaw.map((size) => Math.max(3, size));
+  const scores =
+    scoreSizes.length > 0 ? scoreSizes.map((size) => `${size / 2}rem`) : [];
 
   const frSize = (val: number) => {
     if (val === 0) {
@@ -355,6 +369,19 @@ const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
     limit: frSize(limit),
     retries: `${retries}em`,
     id: `${id}rem`,
-    score: `${score}rem`,
+    scores,
   };
+};
+
+const scoreHeaders = (
+  selectedScores?: ScoreLabel[],
+  availableScores?: ScoreLabel[],
+): string[] => {
+  if (!selectedScores || selectedScores.length === 0) {
+    return [];
+  }
+  if (availableScores && availableScores.length === 1) {
+    return ["Score"];
+  }
+  return selectedScores.map((s) => s.name);
 };

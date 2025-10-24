@@ -11,35 +11,33 @@ import styles from "./SampleRow.module.css";
 
 interface SampleRowProps {
   id: string;
-  index: number;
   sample: SampleSummary;
   answer: string;
   completed: boolean;
-  scoreRendered: ReactNode;
+  scoresRendered: ReactNode[];
   gridColumnsTemplate: string;
   height: number;
+  selected: boolean;
   showSample: () => void;
   sampleUrl?: string;
 }
 
 export const SampleRow: FC<SampleRowProps> = ({
   id,
-  index,
   sample,
   answer,
   completed,
-  scoreRendered,
+  scoresRendered,
   gridColumnsTemplate,
   height,
+  selected,
   showSample,
   sampleUrl,
 }) => {
   const streamSampleData = useStore(
     (state) => state.capabilities.streamSampleData,
   );
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
-  );
+
   // Determine if this sample can be viewed (completed or streaming)
   const isViewable = completed || streamSampleData;
 
@@ -48,13 +46,32 @@ export const SampleRow: FC<SampleRowProps> = ({
   // while not causing text content to be present in the DOM
   const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
 
+  if (
+    !completed &&
+    scoresRendered.length === 0 &&
+    Object.keys(sample.scores || {}).length === 0
+  ) {
+    scoresRendered = [null];
+  }
+  const scoreColumnContent = scoresRendered.map((scoreRendered, i) => {
+    if (!showingSampleDialog && sample.error) {
+      return <SampleErrorView message={sample.error} />;
+    } else if (completed) {
+      return scoreRendered;
+    } else if (i === scoresRendered.length - 1) {
+      return <PulsingDots subtle={false} />;
+    } else {
+      return undefined;
+    }
+  });
+
   const rowContent = (
     <div
       id={`sample-${id}`}
       className={clsx(
         styles.grid,
         "text-size-base",
-        selectedSampleIndex === index ? styles.selected : undefined,
+        selected ? styles.selected : undefined,
         !isViewable && !sampleUrl ? styles.disabled : undefined,
       )}
       style={{
@@ -124,15 +141,14 @@ export const SampleRow: FC<SampleRowProps> = ({
           ? sample.retries
           : undefined}
       </div>
-      <div className={clsx("text-size-small", styles.cell, styles.score)}>
-        {!showingSampleDialog && sample.error ? (
-          <SampleErrorView message={sample.error} />
-        ) : completed ? (
-          scoreRendered
-        ) : (
-          <PulsingDots subtle={false} />
-        )}
-      </div>
+      {scoreColumnContent.map((scoreColumnContent, i) => (
+        <div
+          key={`score-${i}`}
+          className={clsx("text-size-small", styles.cell, styles.score)}
+        >
+          {scoreColumnContent}
+        </div>
+      ))}
     </div>
   );
 

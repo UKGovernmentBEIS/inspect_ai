@@ -1,15 +1,11 @@
 import { EvalResults } from "../@types/log";
-import { EvalSummary, SampleSummary } from "../client/api/types";
-
-export interface ScorerInfo {
-  name: string;
-  scorer: string;
-}
+import { ScoreLabel } from "../app/types";
+import { LogDetails, SampleSummary } from "../client/api/types";
 
 /**
  * Extracts scorer information from evaluation results
  */
-const getScorersFromResults = (results?: EvalResults): ScorerInfo[] => {
+const getScorersFromResults = (results?: EvalResults): ScoreLabel[] => {
   if (!results?.scores) {
     return [];
   }
@@ -28,13 +24,13 @@ const getScorersFromResults = (results?: EvalResults): ScorerInfo[] => {
     }
 
     return uniqueScorers;
-  }, [] as ScorerInfo[]);
+  }, [] as ScoreLabel[]);
 };
 
 /**
  * Extracts scorer information from sample summaries
  */
-const getScorersFromSamples = (samples: SampleSummary[]): ScorerInfo[] => {
+const getScorersFromSamples = (samples: SampleSummary[]): ScoreLabel[] => {
   // Find a sample with scores
   const scoredSample = samples.find((sample) => {
     return !sample.error && sample.completed && !!sample.scores;
@@ -50,9 +46,9 @@ const getScorersFromSamples = (samples: SampleSummary[]): ScorerInfo[] => {
  * Gets all available scorers for a log, prioritizing results over samples
  */
 export const getAvailableScorers = (
-  log: EvalSummary,
+  log: LogDetails,
   sampleSummaries: SampleSummary[],
-): ScorerInfo[] | undefined => {
+): ScoreLabel[] | undefined => {
   const resultScorers = log.results ? getScorersFromResults(log.results) : [];
   if (resultScorers.length > 0) {
     return resultScorers;
@@ -71,9 +67,9 @@ export const getAvailableScorers = (
  * or falling back to the first scorer from samples
  */
 export const getDefaultScorer = (
-  log: EvalSummary,
+  log: LogDetails,
   sampleSummaries: SampleSummary[],
-): ScorerInfo | undefined => {
+): ScoreLabel | undefined => {
   if (sampleSummaries.length === 0) {
     return undefined;
   }
