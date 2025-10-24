@@ -175,6 +175,7 @@ export class ReplicationService {
       if (logDetails && Object.keys(logDetails).length > 0) {
         context.updateLogDetails(logDetails);
       }
+      await this.updateDbStats();
     }
   }
 
