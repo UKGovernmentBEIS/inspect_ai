@@ -10,7 +10,7 @@ import { WorkPriority, WorkQueue } from "../../utils/workQueue";
 export interface ApplicationContext {
   setLogHandles: (logs: LogHandle[]) => void;
   getSelectedLog: () => LogHandle | undefined;
-  setSelectedLogIndex: (index: number) => void;
+  setSelectedLogFile: (fileName: string) => void;
   updateLogPreviews: (previews: Record<string, LogPreview>) => void;
   updateLogDetails: (details: Record<string, LogDetails>) => void;
   setLoading: (loading: boolean) => void;
@@ -175,6 +175,7 @@ export class ReplicationService {
       if (logDetails && Object.keys(logDetails).length > 0) {
         context.updateLogDetails(logDetails);
       }
+      await this.updateDbStats();
     }
   }
 
@@ -317,23 +318,9 @@ export class ReplicationService {
     // Cache the current list of files
     await this._database.writeLogs(updatedLogs);
 
-    // Find the selected log (if any)
-    const currentLogHandle = this._applicationContext.getSelectedLog();
-
     // Update the log handles in the application state
     const allLogHandles = (await this._database.readLogs()) || [];
     this._applicationContext?.setLogHandles(allLogHandles);
-
-    // Preserve the current selection
-    if (currentLogHandle !== undefined) {
-      const newIndex = allLogHandles.findIndex((file) =>
-        currentLogHandle.name.endsWith(file.name),
-      );
-
-      if (newIndex !== undefined && newIndex !== -1) {
-        this._applicationContext.setSelectedLogIndex(newIndex);
-      }
-    }
 
     // Schedule any missing previews
     const previewTasks = [...toInvalidate];

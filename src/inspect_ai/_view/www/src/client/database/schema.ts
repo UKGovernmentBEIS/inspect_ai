@@ -37,7 +37,7 @@ export interface LogDetailsRecord {
 }
 
 // Current database schema version
-export const DB_VERSION = 8;
+export const DB_VERSION = 9;
 
 // Resolves a log dir into a database name
 function resolveDBName(logDir: string): string {

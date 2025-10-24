@@ -70,7 +70,6 @@ export interface LogsState {
   logPreviews: Record<string, LogPreview>;
   logDetails: Record<string, LogDetails>;
   evalSet?: EvalSet;
-  selectedLogIndex: number;
   selectedLogFile?: string;
   listing: LogsListing;
   pendingRequests: Map<string, Promise<EvalHeader | null>>;
