@@ -79,6 +79,25 @@ def view_server_app(
 ) -> "FastAPI":
     app = FastAPI()
 
+    def _resolve_path(file: str) -> str:
+        """Resolve relative paths against default_dir."""
+        # If it's not a URI (file://, s3://, etc.), treat it as relative to default_dir
+        if "://" not in file and default_dir:
+            # Normalize path separators
+            file = file.replace("\\", "/")
+            default = default_dir.replace("\\", "/")
+
+            # Ensure default_dir ends with /
+            if not default.endswith("/"):
+                default = default + "/"
+
+            # If the file is already absolute (starts with /), use it as-is
+            # Otherwise, join it with default_dir
+            if not file.startswith("/"):
+                file = default + file
+
+        return file
+
     async def _map_file(request: Request, file: str) -> str:
         if mapping_policy is not None:
             return await mapping_policy.map(request, file)
@@ -111,6 +130,7 @@ def view_server_app(
         header_only: str | None = Query(None, alias="header-only"),
     ) -> Response:
         file = normalize_uri(log)
+        file = _resolve_path(file)
         await _validate_read(request, file)
         body = await get_log_file(await _map_file(request, file), header_only)
         return Response(content=body, media_type="application/json")
@@ -118,6 +138,7 @@ def view_server_app(
     @app.get("/log-size/{log:path}")
     async def api_log_size(request: Request, log: str) -> Response:
         file = normalize_uri(log)
+        file = _resolve_path(file)
         await _validate_read(request, file)
         size = await get_log_size(await _map_file(request, file))
         return InspectJsonResponse(content=size)
@@ -125,6 +146,7 @@ def view_server_app(
     @app.get("/log-delete/{log:path}")
     async def api_log_delete(request: Request, log: str) -> Response:
         file = normalize_uri(log)
+        file = _resolve_path(file)
         await _validate_delete(request, file)
         await delete_log(await _map_file(request, file))
 
@@ -138,6 +160,7 @@ def view_server_app(
         end: int = Query(...),
     ) -> Response:
         file = normalize_uri(log)
+        file = _resolve_path(file)
         await _validate_read(request, file)
         response = await get_log_bytes(await _map_file(request, file), start, end)
         return Response(
@@ -222,7 +245,7 @@ def view_server_app(
     async def api_log_headers(
         request: Request, file: list[str] = Query([])
     ) -> Response:
-        files = [normalize_uri(f) for f in file]
+        files = [_resolve_path(normalize_uri(f)) for f in file]
         async with anyio.create_task_group() as tg:
             for f in files:
                 tg.start_soon(_validate_read, request, f)
@@ -245,6 +268,7 @@ def view_server_app(
     @app.get("/pending-samples")
     async def api_pending_samples(request: Request, log: str = Query(...)) -> Response:
         file = urllib.parse.unquote(log)
+        file = _resolve_path(file)
         await _validate_read(request, file)
 
         client_etag = request.headers.get("If-None-Match")
@@ -266,6 +290,7 @@ def view_server_app(
         request: Request, log_file: str, message: str
     ) -> Response:
         file = urllib.parse.unquote(log_file)
+        file = _resolve_path(file)
         await _validate_read(request, file)
 
         logger = logging.getLogger(__name__)
@@ -283,6 +308,7 @@ def view_server_app(
         after_attachment_id: int | None = Query(None, alias="after-attachment-id"),
     ) -> Response:
         file = urllib.parse.unquote(log)
+        file = _resolve_path(file)
         await _validate_read(request, file)
 
         buffer = sample_buffer(await _map_file(request, file))
