@@ -241,7 +241,7 @@ def write_log_dir_manifest(
 def read_eval_log(
     log_file: str | Path | EvalLogInfo,
     header_only: bool = False,
-    resolve_attachments: bool = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalLog:
     """Read an evaluation log.
@@ -279,7 +279,7 @@ def read_eval_log(
 async def read_eval_log_async(
     log_file: str | Path | EvalLogInfo,
     header_only: bool = False,
-    resolve_attachments: bool = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalLog:
     """Read an evaluation log.
@@ -315,7 +315,10 @@ async def read_eval_log_async(
 
     # resolve attachement if requested
     if resolve_attachments and log.samples:
-        log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
+        log.samples = [
+            resolve_sample_attachments(sample, resolve_attachments)
+            for sample in log.samples
+        ]
 
     # provide sample ids if they aren't there
     if log.eval.dataset.sample_ids is None and log.samples is not None:
@@ -351,7 +354,7 @@ def read_eval_log_sample(
     id: int | str | None = None,
     epoch: int = 1,
     uuid: str | None = None,
-    resolve_attachments: bool = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
     """Read a sample from an evaluation log.
@@ -394,7 +397,7 @@ async def read_eval_log_sample_async(
     id: int | str | None = None,
     epoch: int = 1,
     uuid: str | None = None,
-    resolve_attachments: bool = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
     """Read a sample from an evaluation log.
@@ -437,7 +440,7 @@ async def read_eval_log_sample_async(
     sample = await recorder_type.read_log_sample(log_file, id, epoch, uuid)
 
     if resolve_attachments:
-        sample = resolve_sample_attachments(sample)
+        sample = resolve_sample_attachments(sample, resolve_attachments)
 
     return sample
 
@@ -500,7 +503,7 @@ async def read_eval_log_sample_summaries_async(
 def read_eval_log_samples(
     log_file: str | Path | EvalLogInfo,
     all_samples_required: bool = True,
-    resolve_attachments: bool = False,
+    resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> Generator[EvalSample, None, None]:
     """Read all samples from an evaluation log incrementally.
