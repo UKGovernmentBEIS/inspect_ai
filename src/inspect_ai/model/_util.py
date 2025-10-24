@@ -16,3 +16,10 @@ def resolve_model_roles(
         return resolved_model_roles
     else:
         return None
+
+
+def resolve_model(model: str | Model | None) -> Model | None:
+    if isinstance(model, str):
+        return get_model(model)
+    else:
+        return model

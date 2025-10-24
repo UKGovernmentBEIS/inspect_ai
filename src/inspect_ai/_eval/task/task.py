@@ -20,8 +20,8 @@ from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_c
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
-from inspect_ai.model._model import Model, get_model
-from inspect_ai.model._util import resolve_model_roles
+from inspect_ai.model._model import Model
+from inspect_ai.model._util import resolve_model, resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
@@ -397,13 +397,6 @@ def resolve_solver(solver: Solver | Agent | list[Solver]) -> Solver:
         return as_solver(solver)
     else:
         return cast(Solver, solver)
-
-
-def resolve_model(model: str | Model | None) -> Model | None:
-    if isinstance(model, str):
-        return get_model(model)
-    else:
-        return model
 
 
 def resolve_scorer(scorer: Scorer | list[Scorer] | None) -> list[Scorer] | None:
