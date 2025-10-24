@@ -453,7 +453,8 @@ async def eval_async(
         raise inner_exception(ex)
     except anyio.get_cancelled_exc_class():
         # Cancelled exceptions are expected and handled by _eval_async_inner
-        pass
+        if result is None:
+            raise
 
     assert result is not None, "Eval async did not return a result."
 
