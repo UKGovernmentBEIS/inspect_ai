@@ -13,6 +13,7 @@ import {
 } from "../client/api/types";
 import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
+import { isUri, join } from "../utils/uri";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
@@ -29,11 +30,13 @@ export interface LogsSlice {
 
     updateLogDetails: (details: Record<string, LogDetails>) => void;
 
-    setSelectedLogIndex: (index: number) => void;
-
     // Fetch or update logs
+    initLogDir: () => Promise<string | undefined>;
+    ensureReplication: () => Promise<void>;
     syncLogs: () => Promise<LogHandle[]>;
-    selectLogFile: (logUrl: string) => Promise<void>;
+
+    setSelectedLogFile: (logFile: string) => void;
+    clearSelectedLogFile: () => void;
 
     // Cross-file sample operations
     getAllCachedSamples: () => Promise<any[]>;
@@ -63,7 +66,6 @@ const initialState: LogsState = {
   logs: [],
   logPreviews: {},
   logDetails: {},
-  selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
   listing: {},
   pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
@@ -92,10 +94,6 @@ export const createLogsSlice = (
       setLogHandles: (logs: LogHandle[]) =>
         set((state) => {
           state.logs.logs = logs;
-          state.logs.selectedLogFile =
-            state.logs.selectedLogIndex > -1
-              ? logs[state.logs.selectedLogIndex]?.name
-              : undefined;
         }),
       syncLogPreviews: async (logs: LogHandle[]) => {
         const state = get();
@@ -130,22 +128,12 @@ export const createLogsSlice = (
             ...details,
           };
         }),
-
-      setSelectedLogIndex: (selectedLogIndex: number) => {
-        set((state) => {
-          state.logs.selectedLogIndex = selectedLogIndex;
-          const file = state.logs.logs[selectedLogIndex];
-          state.logs.selectedLogFile = file ? file.name : undefined;
-        });
-      },
-      syncLogs: async () => {
+      initLogDir: async () => {
         const api = get().api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return [];
+          return undefined;
         }
-
-        get().appActions.setLoading(true);
 
         // Determine the log directory
         const loadLogDir = async () => {
@@ -160,7 +148,33 @@ export const createLogsSlice = (
         const logDir = await loadLogDir();
         if (get().logs.logDir !== logDir) {
           get().logsActions.setLogDir(logDir);
+        }
+        return logDir;
+      },
+      ensureReplication: async () => {
+        const state = get();
+        if (state.logs.logDir) {
+          await state.logsActions.syncLogs();
+        }
+      },
+      syncLogs: async () => {
+        const api = get().api;
+        if (!api) {
+          console.error("API not initialized in LogsStore");
+          return [];
+        }
 
+        get().appActions.setLoading(true);
+
+        // Determine the log directory
+        const logDir = await get().logsActions.initLogDir();
+
+        // Setup up the database service
+        const databaseService = get().databaseService;
+        const initDatabase =
+          !databaseService || databaseService.getLogDir() !== logDir;
+
+        if (initDatabase) {
           // Initialize the database
           const initializeDatabase = async (
             logDir?: string,
@@ -208,13 +222,16 @@ export const createLogsSlice = (
               },
               getSelectedLog: () => {
                 const state = get();
-                return state.logs.selectedLogIndex > -1
-                  ? state.logs.logs[state.logs.selectedLogIndex]
-                  : undefined;
+                if (!state.logs.selectedLogFile) {
+                  return undefined;
+                }
+                return state.logs.logs.find((handle) => {
+                  return handle.name.endsWith(state.logs.selectedLogFile!);
+                });
               },
-              setSelectedLogIndex: (index: number) => {
+              setSelectedLogFile: (logFile: string) => {
                 const state = get();
-                state.logsActions.setSelectedLogIndex(index);
+                state.logsActions.setSelectedLogFile(logFile);
               },
               updateLogPreviews: (previews: Record<string, LogPreview>) => {
                 const state = get();
@@ -263,31 +280,32 @@ export const createLogsSlice = (
         });
       },
       // Select a specific log file
-      selectLogFile: async (logUrl: string) => {
+      setSelectedLogFile: async (logFile: string) => {
         const state = get();
-        const index = state.logs.logs.findIndex((val: { name: string }) =>
-          val.name.endsWith(logUrl),
-        );
+        const isInFileList =
+          state.logs.logs.findIndex((val: { name: string }) =>
+            val.name.endsWith(logFile),
+          ) !== -1;
 
-        // It is already loaded
-        if (index > -1) {
-          state.logsActions.setSelectedLogIndex(index);
-        } else {
+        if (!isInFileList) {
           if (state.replicationService?.isReplicating()) {
-            // It isn't yet loaded, so refresh the logs and try to load it from there
-            const logHandles = await state.logsActions.syncLogs();
-            const idx = logHandles.findIndex((file) =>
-              file.name.endsWith(logUrl),
+            await state.logsActions.syncLogs();
+            const logHandle = state.logs.logs.find((val: { name: string }) =>
+              val.name.endsWith(logFile),
             );
-
-            state.logsActions.setSelectedLogIndex(
-              idx !== undefined && idx > -1 ? idx : 0,
-            );
+            if (!logHandle) {
+              throw new Error(`Log file not found: ${logFile}`);
+            }
           } else {
-            state.logsActions.setLogHandles([{ name: logUrl }]);
-            state.logsActions.setSelectedLogIndex(0);
+            state.logsActions.setLogHandles([{ name: logFile }]);
           }
         }
+        set((state) => {
+          const absoluteLogfile = isUri(logFile)
+            ? logFile
+            : join(logFile, state.logs.logDir);
+          state.logs.selectedLogFile = absoluteLogfile;
+        });
       },
       setSorting: (sorting: SortingState) => {
         set((state) => {
@@ -337,6 +355,12 @@ export const createLogsSlice = (
           state.logs.listing.selectedRowIndex = index;
         });
       },
+      clearSelectedLogFile: () => {
+        set((state) => {
+          state.logs.selectedLogFile = undefined;
+        });
+      },
+
       // Cross-file sample operations
       getAllCachedSamples: async () => {
         try {

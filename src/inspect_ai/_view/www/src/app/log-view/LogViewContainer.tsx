@@ -31,11 +31,9 @@ export const LogViewContainer: FC = () => {
   );
   const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
 
-  const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-
   const selectSample = useStore((state) => state.logActions.selectSample);
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
   );
 
   const clearSelectedLogSummary = useStore(
@@ -91,11 +89,13 @@ export const LogViewContainer: FC = () => {
   }, [initialState, evalSpec]);
 
   const prevLogPath = usePrevious<string | undefined>(logPath);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
 
   useEffect(() => {
     const loadLogFromPath = async () => {
       if (logPath) {
-        await selectLogFile(logPath);
+        await syncLogs();
+        setSelectedLogFile(logPath);
 
         // Set the tab if specified in the URL
         if (tabId) {
@@ -116,7 +116,7 @@ export const LogViewContainer: FC = () => {
     };
 
     loadLogFromPath();
-  }, [logPath, tabId, selectLogFile, setWorkspaceTab, setSelectedLogIndex]);
+  }, [logPath, tabId, setSelectedLogFile, setWorkspaceTab]);
 
   // Handle sample selection from URL params
   useEffect(() => {
