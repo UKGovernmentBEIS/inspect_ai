@@ -10,6 +10,7 @@
 - Inspect View: Show multiple scores in sample view.
 - Inspect View: Fix issue where samples would jump around when viewing running evals with high concurrency.
 - Inspect View: Improve log and sample list performance by adding a persistent local cache.
+- Inspect View: Display a message when there are no events to display in a transcript.
 - Bugfix: Correctly resolve relative sandbox config paths in `eval-retry` when CWD differs from task directory.
 - Bugfix: Don't check working time limit when there is a model generation in flight.
 - Bugfix: Fix broken Pydantic @model_validator's that assumed the input was a dict.
