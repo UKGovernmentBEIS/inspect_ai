@@ -12,6 +12,7 @@
 - Inspect View: Improve log and sample list performance by adding a persistent local cache.
 - Bugfix: Correctly resolve relative sandbox config paths in `eval-retry` when CWD differs from task directory.
 - Bugfix: Don't check working time limit when there is a model generation in flight.
+- Bugfix: Fix broken Pydantic @model_validator's that assumed the input was a dict.
 
 ## 0.3.140 (20 October 2025)
 

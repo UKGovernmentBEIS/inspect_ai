@@ -117,9 +117,9 @@ class ChatCompletionChoice(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_stop_reason(
-        cls: Type["ChatCompletionChoice"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def migrate_stop_reason(cls: Type["ChatCompletionChoice"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         if "stop_reason" in values:
             stop_reason = values["stop_reason"]
             if stop_reason == "length":
