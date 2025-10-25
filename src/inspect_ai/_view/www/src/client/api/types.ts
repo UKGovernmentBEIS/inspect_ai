@@ -67,6 +67,7 @@ export interface RunningMetric {
   name: string;
   value?: number | null;
   reducer?: string;
+  params?: {};
 }
 
 export interface PendingSamples {

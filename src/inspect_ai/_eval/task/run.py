@@ -532,6 +532,7 @@ def update_metrics_display_fn(
                                 name=metric.name,
                                 value=metric.value,
                                 reducer=score.reducer,
+                                params=metric.params,
                             )
                         )
                 update_fn(task_metrics)
