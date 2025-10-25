@@ -123,7 +123,7 @@ export type ScoreDisplay = boolean | null;
 export type Type2 = "git";
 export type Origin = string;
 export type Commit = string;
-export type Dirty = boolean;
+export type Dirty = boolean | null;
 export type Metadata = {
   [k: string]: unknown;
 } | null;
