@@ -1,15 +1,19 @@
 import json
+from logging import getLogger
 from typing import Any, TypedDict
 
 from typing_extensions import NotRequired, override
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import OpenAIResponseError
 
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
 
 OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
+
+logger = getLogger(__name__)
 
 
 class ErrorResponse(TypedDict):
@@ -70,6 +74,11 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             if not isinstance(self.transforms, list):
                 raise PrerequisiteError("transforms must be a list of strings")
 
+        self.reasoning_enabled = collect_model_arg("reasoning_enabled")
+        if self.reasoning_enabled is not None:
+            if not isinstance(self.reasoning_enabled, bool):
+                raise PrerequisiteError("reasoning_enabled must be a boolean")
+
         # call super
         super().__init__(
             model_name=model_name,
@@ -129,13 +138,25 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         # provide openrouter standard reasoning options
         # https://openrouter.ai/docs/use-cases/reasoning-tokens
         reasoning: dict[str, str | int] | None = None
-        if config.reasoning_effort is not None or config.reasoning_tokens is not None:
+        if (
+            config.reasoning_effort is not None
+            or config.reasoning_tokens is not None
+            or self.reasoning_enabled is not None
+        ):
             reasoning = dict()
             # openrouter supports one of max_tokens or effort, prefer max_tokens
-            if config.reasoning_tokens is not None:
-                reasoning["max_tokens"] = config.reasoning_tokens
-            elif config.reasoning_effort is not None:
+            if config.reasoning_effort is not None:
                 reasoning["effort"] = config.reasoning_effort
+                if config.reasoning_tokens is not None:
+                    warn_once(
+                        logger,
+                        "You can only specify `reasoning_effort` or `reasoning_tokens`, not both. Ignoring `reasoning_tokens`.",
+                    )
+            elif config.reasoning_tokens is not None:
+                reasoning["max_tokens"] = config.reasoning_tokens
+            if self.reasoning_enabled is not None:
+                # enabled=false will disable reasoning on hybrid models
+                reasoning["enabled"] = self.reasoning_enabled
 
         # pass args if specifed
         EXTRA_BODY = "extra_body"
