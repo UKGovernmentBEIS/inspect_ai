@@ -200,6 +200,8 @@ def test_api_logs(test_client: TestClient):
     assert {"taskid1", "taskid2", "taskid3"} == {
         file["task_id"] for file in api_logs["files"]
     }
+    assert "log_dir" in api_logs
+    assert api_logs["log_dir"] == "eval_set_dir"
 
 
 @pytest.mark.parametrize(
