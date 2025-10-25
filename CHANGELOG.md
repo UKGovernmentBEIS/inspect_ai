@@ -5,6 +5,7 @@
 - Anthropic: Increase default `max_tokens` to 32,000 for Claude 4 models.
 - OpenRouter: Classify `JSONDecodeError` as a retry-able infrastructure error.
 - Remove Goodfire model provider (as the goodfire package has been archived/deprecated).
+- Eval logs: Track dirty working tree state in `EvalRevision` (includes `dirty` field indicating uncommitted changes or untracked files at eval time).
 - Inspect View: Display copy button for model events api request and response JSON.
 - Inspect View: Support selecting multiple scorers for display in the sample list.
 - Inspect View: Show multiple scores in sample view.
