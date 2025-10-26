@@ -1,3 +1,7 @@
+## Future
+
+- Support options (time interval) for Google Web Search.
+
 ## Unreleased
 
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
