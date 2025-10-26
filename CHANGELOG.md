@@ -1,6 +1,6 @@
 ## Future
 
-- Support options (time interval) for Google Web Search.
+- Support options (time interval) for Gemini Web Search.
 
 ## Unreleased
 
