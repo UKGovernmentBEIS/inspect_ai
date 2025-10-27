@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
+
+## 0.3.141 (27 October 2025)
+
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
 - OpenAI: Don't include "metadata" extra body parameter when `responses_store` is False.
 - Anthropic: Increase default `max_tokens` to 32,000 for Claude 4 models.
