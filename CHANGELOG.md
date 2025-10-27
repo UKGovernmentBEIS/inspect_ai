@@ -1,3 +1,7 @@
+## Unreleased
+
+- Google: Correct capture and playback of `thought_signature` in `ContentReasoning` blocks.
+
 ## 0.3.142 (27 October 2025)
 
 - Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
