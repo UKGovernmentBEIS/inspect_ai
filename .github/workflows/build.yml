@@ -12,7 +12,6 @@ on:
 
 env:
   UV_VERSION: 0.9.4
-  UV_CACHE_DIR: /tmp/.uv-cache
 
 jobs:
   ruff:
@@ -21,11 +20,11 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Lint with Ruff
-        uses: chartboost/ruff-action@v1
+        uses: astral-sh/ruff-action@v3
       - name: Format with Ruff
-        uses: chartboost/ruff-action@v1
+        uses: astral-sh/ruff-action@v3
         with:
           args: "format --check"
 
@@ -37,30 +36,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
+          version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "${{ env.UV_VERSION }}"
-
-      - name: Restore uv cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.uv-cache
-          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
-          restore-keys: |
-            uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
-            uv-${{ runner.os }}-${{ matrix.python-version }}
-
       - name: Install dependencies
-        run: uv pip install --system .[dev]
+        run: |-
+          uv venv
+          uv pip install .[dev]
 
       - name: Run mypy
-        run: mypy .
+        run: uv run mypy .
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -79,15 +67,18 @@ jobs:
           python-version: "3.11"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
-          enable-cache: true
           version: "${{ env.UV_VERSION }}"
 
       - name: Install dependencies
         run: uv pip install --system .[dev]
 
       - uses: pre-commit/action@v3.0.1
+
+      - name: Minimize uv cache
+        if: ${{ !cancelled() }}
+        run: uv cache prune --ci
 
   test:
     runs-on: ubuntu-latest
@@ -98,30 +89,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
+          version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "${{ env.UV_VERSION }}"
-
-      - name: Restore uv cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.uv-cache
-          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
-          restore-keys: |
-            uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
-            uv-${{ runner.os }}-${{ matrix.python-version }}
-
       - name: Install dependencies
-        run: uv pip install --system .[dev]
+        run: |-
+          uv venv
+          uv pip install .[dev]
 
       - name: Test with pytest
-        run: pytest -rA --doctest-modules --color=yes --cov=inspect_ai
+        run: uv run pytest -rA --doctest-modules --color=yes --cov=inspect_ai
 
       - name: Minimize uv cache
         if: ${{ !cancelled() }}
@@ -132,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
         # Without this step, the build fails due to these static assets
         # being duplicated into the `dist` folder.
