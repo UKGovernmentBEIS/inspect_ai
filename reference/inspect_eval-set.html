@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.32">
+<meta name="generator" content="quarto-1.8.25">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -35,14 +35,15 @@ ul.task-list li input[type="checkbox"] {
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-871b74c1c552ddee99e75c490274fea0.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-76cf724892355dad833b5f6f64698c23.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -94,7 +95,8 @@ ul.task-list li input[type="checkbox"] {
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../index.html" class="navbar-brand navbar-brand-logo">
-    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo">
+    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo light-content">
+    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Inspect AI</span>
@@ -107,11 +109,11 @@ ul.task-list li input[type="checkbox"] {
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link" href="../index.html"> 
+    <a class="nav-link active" href="../index.html" aria-current="page"> 
 <span class="menu-text">User Guide</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link active" href="../reference/index.html" aria-current="page"> 
+    <a class="nav-link" href="../reference/index.html"> 
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
@@ -154,6 +156,10 @@ ul.task-list li input[type="checkbox"] {
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
+      <a href="../index.html" class="sidebar-logo-link">
+      </a>
+      </div>
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
@@ -2427,19 +2433,19 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--retry-attempts</code></td>
 <td>integer</td>
 <td>Maximum number of retry attempts before giving up (defaults to 10).</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--retry-wait</code></td>
 <td>integer</td>
 <td>Time in seconds wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time per-retry will in no case by longer than 1 hour.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--retry-connections</code></td>
 <td>float</td>
 <td>Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction).</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--no-retry-cleanup</code></td>
@@ -2451,13 +2457,13 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--bundle-dir</code></td>
 <td>text</td>
 <td>Bundle viewer and logs into output directory</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--bundle-overwrite</code></td>
 <td>text</td>
 <td>Overwrite existing bundle dir.</td>
-<td><code>False</code></td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--log-dir-allow-dirty</code></td>
@@ -2469,85 +2475,85 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--model</code></td>
 <td>text</td>
 <td>Model used to evaluate tasks.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--model-base-url</code></td>
 <td>text</td>
 <td>Base URL for for model API</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>-M</code></td>
 <td>text</td>
 <td>One or more native model arguments (e.g.&nbsp;-M arg=value)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--model-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with model arguments.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--model-role</code></td>
 <td>text</td>
 <td>Named model role with model name or YAML/JSON config, e.g.&nbsp;–model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}”</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>-T</code></td>
 <td>text</td>
 <td>One or more task arguments (e.g.&nbsp;-T arg=value)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--task-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with task arguments.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--solver</code></td>
 <td>text</td>
 <td>Solver to execute (overrides task default solver)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>-S</code></td>
 <td>text</td>
 <td>One or more solver arguments (e.g.&nbsp;-S arg=value)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--solver-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with solver arguments.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--tags</code></td>
 <td>text</td>
 <td>Tags to associate with this evaluation run.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--metadata</code></td>
 <td>text</td>
 <td>Metadata to associate with this evaluation run (more than one –metadata argument can be specified).</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--approval</code></td>
 <td>text</td>
 <td>Config file for tool call approval.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--sandbox</code></td>
 <td>text</td>
 <td>Sandbox environment type (with optional config file). e.g.&nbsp;‘docker’ or ‘docker:compose.yml’</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--no-sandbox-cleanup</code></td>
@@ -2559,13 +2565,13 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--limit</code></td>
 <td>text</td>
 <td>Limit samples to evaluate e.g.&nbsp;10 or 10-20</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--sample-id</code></td>
 <td>text</td>
 <td>Evaluate specific sample(s) (comma separated list of ids)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--sample-shuffle</code></td>
@@ -2577,13 +2583,13 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--epochs</code></td>
 <td>integer</td>
 <td>Number of times to repeat dataset (defaults to 1)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--epochs-reducer</code></td>
 <td>text</td>
 <td>Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least_{n}’.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--no-epochs-reducer</code></td>
@@ -2595,79 +2601,79 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--max-connections</code></td>
 <td>integer</td>
 <td>Maximum number of concurrent connections to Model API (defaults to 10)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--max-retries</code></td>
 <td>integer</td>
 <td>Maximum number of times to retry model API requests (defaults to unlimited)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--timeout</code></td>
 <td>integer</td>
 <td>Model API request timeout in seconds (defaults to no timeout)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--attempt-timeout</code></td>
 <td>integer</td>
 <td>Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--max-samples</code></td>
 <td>integer</td>
 <td>Maximum number of samples to run in parallel (default is running all samples in parallel)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--max-tasks</code></td>
 <td>integer</td>
 <td>Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--max-subprocesses</code></td>
 <td>integer</td>
 <td>Maximum number of subprocesses to run in parallel (default is os.cpu_count())</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--max-sandboxes</code></td>
 <td>integer</td>
 <td>Maximum number of sandboxes (per-provider) to run in parallel.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--message-limit</code></td>
 <td>integer</td>
 <td>Limit on total messages used for each sample.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--token-limit</code></td>
 <td>integer</td>
 <td>Limit on total tokens used for each sample.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--time-limit</code></td>
 <td>integer</td>
 <td>Limit on total running time for each sample.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--working-limit</code></td>
 <td>integer</td>
 <td>Limit on total working time (e.g.&nbsp;model generation, tool calls, etc.) for each sample.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--fail-on-error</code></td>
 <td>float</td>
 <td>Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--no-fail-on-error</code></td>
@@ -2709,7 +2715,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--log-buffer</code></td>
 <td>integer</td>
 <td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--log-shared</code></td>
@@ -2733,73 +2739,73 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--max-tokens</code></td>
 <td>integer</td>
 <td>The maximum number of tokens that can be generated in the completion (default is model specific)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--system-message</code></td>
 <td>text</td>
 <td>Override the default system message.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--best-of</code></td>
 <td>integer</td>
 <td>Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--frequency-penalty</code></td>
 <td>float</td>
 <td>Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--presence-penalty</code></td>
 <td>float</td>
 <td>Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--logit-bias</code></td>
 <td>text</td>
 <td>Map token Ids to an associated bias value from -100 to 100 (e.g.&nbsp;“42=10,43=-10”). OpenAI, Grok, and Grok only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--seed</code></td>
 <td>integer</td>
 <td>Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--stop-seqs</code></td>
 <td>text</td>
 <td>Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--temperature</code></td>
 <td>float</td>
 <td>What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--top-p</code></td>
 <td>float</td>
 <td>An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--top-k</code></td>
 <td>integer</td>
 <td>Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--num-choices</code></td>
 <td>integer</td>
 <td>How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--logprobs</code></td>
@@ -2811,7 +2817,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--top-logprobs</code></td>
 <td>integer</td>
 <td>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--parallel-tool-calls</code> / <code>--no-parallel-tool-calls</code></td>
@@ -2829,43 +2835,43 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--max-tool-output</code></td>
 <td>integer</td>
 <td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--cache-prompt</code></td>
 <td>choice (<code>auto</code> | <code>true</code> | <code>false</code>)</td>
 <td>Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--reasoning-effort</code></td>
 <td>choice (<code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code>)</td>
 <td>Constrains effort on reasoning for reasoning models (defaults to <code>medium</code>). Open AI o-series and gpt-5 models only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--reasoning-tokens</code></td>
 <td>integer</td>
 <td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--reasoning-summary</code></td>
 <td>choice (<code>concise</code> | <code>detailed</code> | <code>auto</code>)</td>
 <td>Provide summary of reasoning steps (defaults to no summary). Use ‘auto’ to access the most detailed summarizer available for the current model. OpenAI reasoning models only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--reasoning-history</code></td>
 <td>choice (<code>none</code> | <code>all</code> | <code>last</code> | <code>auto</code>)</td>
 <td>Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">
 <td><code>--response-schema</code></td>
 <td>text</td>
 <td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--batch</code></td>
@@ -2877,7 +2883,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--log-format</code></td>
 <td>choice (<code>eval</code> | <code>json</code>)</td>
 <td>Format for writing log files.</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--log-level-transcript</code></td>
@@ -2913,7 +2919,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
-<td>None</td>
+<td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
 <td><code>--debug</code></td>
@@ -2995,13 +3001,14 @@ ul.task-list li input[type="checkbox"] {
       e.clearSelection();
     }
     const getTextToCopy = function(trigger) {
-        const codeEl = trigger.previousElementSibling.cloneNode(true);
-        for (const childEl of codeEl.children) {
-          if (isCodeAnnotation(childEl)) {
-            childEl.remove();
-          }
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
         }
-        return codeEl.innerText;
+      }
+      return codeEl.innerText;
     }
     const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
       text: getTextToCopy

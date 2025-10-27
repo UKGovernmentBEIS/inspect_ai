@@ -11,7 +11,7 @@ providers is built in to Inspect:
 |----|----|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock) and [Azure AI](providers.qmd#azure-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [HF Inference Providers](providers.qmd#hf-inference-providers), [SambaNova](providers.qmd#sambanova), [Goodfire](providers.qmd#goodfire) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [HF Inference Providers](providers.qmd#hf-inference-providers), [SambaNova](providers.qmd#sambanova) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
 
 If the provider you are using is not listed above, you may still be able
@@ -100,19 +100,15 @@ which models are supported by the respective APIs.
 
 ### Responses Store
 
-By default, the Responses API stores requests on the server for
-retrieval of previous reasoning content (which is not transmitted as
-part of responses). To control this behavior explicitly use the
-`responses_store` model argument. For example:
+By default, Inspect’s implementation of the Responses API does not store
+messages on the server. Reasoning content (which is intended to be
+opaque to clients) is handled using encrypted payloads (via the
+“reasoning.encrypted_content” include option). To control this behavior
+explicitly use the `responses_store` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M responses_store=false
+inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
-
-For example, you might need to do this if you have a non-logging
-interface to OpenAI models (as `store` is incompatible with non-logging
-interfaces). Note that some features (such as computer use) *require*
-responses store to be `True`.
 
 ### Flex Processing
 
@@ -691,29 +687,6 @@ Perplexity responses include citations when available. These are
 surfaced as `UrlCitation`s attached to the assistant message. Additional
 usage metrics such as `reasoning_tokens` and `citation_tokens` are
 recorded in `ModelOutput.metadata`.
-
-## Goodfire
-
-To use the [Goodfire](https://platform.goodfire.ai/) provider, install
-the `goodfire` package, set your credentials, and specify a model using
-the `--model` option:
-
-``` bash
-pip install goodfire
-export GOODFIRE_API_KEY=your-goodfire-api-key
-inspect eval arc.py --model goodfire/meta-llama/Meta-Llama-3.1-8B-Instruct
-```
-
-For the `goodfire` provider, custom model args (`-M`) are forwarded to
-`chat.completions.create` method of the `AsyncClient` class.
-
-The following environment variables are supported by the Goodfire
-provider
-
-| Variable | Description |
-|----|----|
-| `GOODFIRE_API_KEY` | API key credentials (required). |
-| `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
 
 ## Hugging Face
 

@@ -15,7 +15,7 @@ scorers. The following topics are explored:
   with many different solvers.
 - [Task Reuse](#task-reuse) documents how to flexibly derive new tasks
   from existing task definitions.
-- [Packaging](#packaging) illustreates how you can distribute tasks
+- [Packaging](#packaging) illustrates how you can distribute tasks
   within Python packages.
 - [Exploratory](#exploratory) provides guidance on doing exploratory
   task and solver development.
@@ -209,12 +209,12 @@ You can now switch between solvers when running the evaluation:
 
 ``` bash
 # run with the default solver (ctf_tool_loop)
-inspect eval ctf.py 
+inspect eval ctf.py
 
 # run with the ctf agent solver
 inspect eval ctf.py --solver=ctf_agent
 
-# run with a different attempts
+# run with a different number of attempts
 inspect eval ctf.py --solver=ctf_agent -S attempts=5
 ```
 

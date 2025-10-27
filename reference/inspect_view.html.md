@@ -40,7 +40,7 @@ inspect view start [OPTIONS]
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
-| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |
@@ -64,10 +64,10 @@ inspect view bundle [OPTIONS]
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
-| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |
-| `--output-dir` | text | The directory where bundled output will be placed. | \_required |
+| `--output-dir` | text | The directory where bundled output will be placed. | `Sentinel.UNSET` |
 | `--overwrite` | boolean | Overwrite files in the output directory. | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |

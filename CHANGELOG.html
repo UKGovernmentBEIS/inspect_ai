@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.32">
+<meta name="generator" content="quarto-1.8.25">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -33,14 +33,15 @@ ul.task-list li input[type="checkbox"] {
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-871b74c1c552ddee99e75c490274fea0.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-76cf724892355dad833b5f6f64698c23.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -92,7 +93,8 @@ ul.task-list li input[type="checkbox"] {
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
-    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo">
+    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo light-content">
+    <img src="./images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
     </a>
     <a class="navbar-brand" href="./index.html">
     <span class="navbar-title">Inspect AI</span>
@@ -147,10 +149,12 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#october-2025" id="toc-october-2025" class="nav-link active" data-scroll-target="#october-2025">0.3.139 (18 October 2025)</a></li>
-  <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.138 (16 October 2025)</a></li>
-  <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.137 (07 October 2025)</a></li>
-  <li><a href="#october-2025-3" id="toc-october-2025-3" class="nav-link" data-scroll-target="#october-2025-3">0.3.136 (02 October 2025)</a></li>
+  <li><a href="#october-2025" id="toc-october-2025" class="nav-link active" data-scroll-target="#october-2025">0.3.141 (27 October 2025)</a></li>
+  <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.140 (20 October 2025)</a></li>
+  <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.139 (18 October 2025)</a></li>
+  <li><a href="#october-2025-3" id="toc-october-2025-3" class="nav-link" data-scroll-target="#october-2025-3">0.3.138 (16 October 2025)</a></li>
+  <li><a href="#october-2025-4" id="toc-october-2025-4" class="nav-link" data-scroll-target="#october-2025-4">0.3.137 (07 October 2025)</a></li>
+  <li><a href="#october-2025-5" id="toc-october-2025-5" class="nav-link" data-scroll-target="#october-2025-5">0.3.136 (02 October 2025)</a></li>
   <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.135 (29 September 2025)</a></li>
   <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.134 (27 September 2025)</a></li>
   <li><a href="#september-2025-2" id="toc-september-2025-2" class="nav-link" data-scroll-target="#september-2025-2">0.3.133 (22 September 2025)</a></li>
@@ -295,7 +299,35 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="october-2025" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025">0.3.139 (18 October 2025)</h2>
+<h2 class="anchored" data-anchor-id="october-2025">0.3.141 (27 October 2025)</h2>
+<ul>
+<li>OpenAI: Use <code>responses_store=false</code> by default (handling reasoning via the “reasoning.encrypted_content” include option).</li>
+<li>OpenAI: Don’t include “metadata” extra body parameter when <code>responses_store</code> is False.</li>
+<li>Anthropic: Increase default <code>max_tokens</code> to 32,000 for Claude 4 models.</li>
+<li>OpenRouter: Classify <code>JSONDecodeError</code> as a retry-able infrastructure error.</li>
+<li>Remove Goodfire model provider (as the goodfire package has been archived/deprecated).</li>
+<li>Eval logs: Track dirty working tree state in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalrevision">EvalRevision</a></span> (includes <code>dirty</code> field indicating uncommitted changes or untracked files at eval time).</li>
+<li>Inspect View: Display copy button for model events api request and response JSON.</li>
+<li>Inspect View: Support selecting multiple scorers for display in the sample list.</li>
+<li>Inspect View: Show multiple scores in sample view.</li>
+<li>Inspect View: Fix issue where samples would jump around when viewing running evals with high concurrency.</li>
+<li>Inspect View: Improve log and sample list performance by adding a persistent local cache.</li>
+<li>Inspect View: Display a message when there are no events to display in a transcript.</li>
+<li>Bugfix: Correctly resolve relative sandbox config paths in <code>eval-retry</code> when CWD differs from task directory.</li>
+<li>Bugfix: Don’t check working time limit when there is a model generation in flight.</li>
+<li>Bugfix: Fix broken Pydantic <span class="citation" data-cites="model_validator">@model_validator</span>’s that assumed the input was a dict.</li>
+<li>Bugfix: Fix <code>run_coroutine</code> to exit internal catch handler before running the coroutine.</li>
+</ul>
+</section>
+<section id="october-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-1">0.3.140 (20 October 2025)</h2>
+<ul>
+<li>Tests: Skip git revision detection and realtime logging during pytest runs to improve test performance.</li>
+<li>Inspect View: Fix regression that resulted in an error when displaying JSON log files.</li>
+</ul>
+</section>
+<section id="october-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-2">0.3.139 (18 October 2025)</h2>
 <ul>
 <li>OpenAI: Handle <code>Message</code> input types that have no <code>"type"</code> field in responses API.</li>
 <li>Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.</li>
@@ -308,8 +340,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix regression in running samples display resulting from condensing model event messages.</li>
 </ul>
 </section>
-<section id="october-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025-1">0.3.138 (16 October 2025)</h2>
+<section id="october-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-3">0.3.138 (16 October 2025)</h2>
 <ul>
 <li>Added model API for <a href="https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers">Hugging Face Inference Providers</a>.</li>
 <li>Agent bridge: Support for OpenAI ‘custom’ tools (required by Codex apply_patch tool).</li>
@@ -340,8 +372,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: When reading log files, tolerate <code>SubtaskEvent.input</code> values that aren’t of the required <code>dict</code> type.</li>
 </ul>
 </section>
-<section id="october-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025-2">0.3.137 (07 October 2025)</h2>
+<section id="october-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-4">0.3.137 (07 October 2025)</h2>
 <ul>
 <li>OpenAI: Support for tool calls returning images (requires v2.0 of <code>openai</code> package, which is now required).</li>
 <li>Anthropic: Retry requests that get an error body payload with ‘internal server error’</li>
@@ -360,8 +392,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix crash when determining tool_param based on type hint of Any in Python 3.10 w/Pydantic 2.12.0.</li>
 </ul>
 </section>
-<section id="october-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025-3">0.3.136 (02 October 2025)</h2>
+<section id="october-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-5">0.3.136 (02 October 2025)</h2>
 <ul>
 <li>Google: Manage Google client lifetime to scope of call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
 <li>Eval logs: Add message count tracking to evaluation logs for quick analysis without loading full samples.</li>
@@ -2410,13 +2442,14 @@ ul.task-list li input[type="checkbox"] {
       e.clearSelection();
     }
     const getTextToCopy = function(trigger) {
-        const codeEl = trigger.previousElementSibling.cloneNode(true);
-        for (const childEl of codeEl.children) {
-          if (isCodeAnnotation(childEl)) {
-            childEl.remove();
-          }
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
         }
-        return codeEl.innerText;
+      }
+      return codeEl.innerText;
     }
     const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
       text: getTextToCopy

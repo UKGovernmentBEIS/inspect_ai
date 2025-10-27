@@ -169,7 +169,7 @@ components. It’s also possible to create a more complex custom solver
 that manages state and interactions internally.
 
 Line 17  
-Since the output is likely to have pretty involved language, we use a
+Since the output is likely to have natural, nuanced language, we use a
 model for scoring.
 
 Note that you can provide a *single* solver or multiple solvers chained
@@ -197,7 +197,7 @@ viewing.
 
 For other editors, you can use the `inspect view` command to open a log
 viewer in the browser (you only need to do this once as the viewer will
-automatically updated when new evals are run):
+automatically update when new evals are run):
 
 ``` bash
 inspect view
@@ -248,7 +248,7 @@ components used in evals. Read them as required as you learn to build
 evaluations.
 
 - [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to
-  define a evaluation. This section explores strategies for creating
+  define an evaluation. This section explores strategies for creating
   flexible and re-usable tasks.
 
 - [Datasets](datasets.qmd) provide samples to evaluation tasks. This
