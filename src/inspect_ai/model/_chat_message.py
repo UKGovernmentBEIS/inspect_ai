@@ -224,9 +224,9 @@ class ChatMessageTool(ChatMessageBase):
 
     @model_validator(mode="before")
     @classmethod
-    def convert_tool_error_to_error(
-        cls: Type["ChatMessageTool"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def convert_tool_error_to_error(cls: Type["ChatMessageTool"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         tool_error = values.get("tool_error", None)
         if tool_error:
             values["error"] = ToolCallError("unknown", tool_error)

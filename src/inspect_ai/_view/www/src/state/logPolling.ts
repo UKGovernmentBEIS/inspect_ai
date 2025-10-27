@@ -35,14 +35,14 @@ export function createLogPolling(
     log.debug(`refresh: ${selectedLogFile}`);
 
     try {
-      const logContents = await api.get_log_summary(selectedLogFile);
+      const logDetails = await api.get_log_details(selectedLogFile);
 
       set((state) => {
         // Set the log summary
-        state.log.selectedLogSummary = logContents;
+        state.log.selectedLogDetails = logDetails;
         log.debug(
-          `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
-          logContents,
+          `Setting refreshed summary ${logDetails.sampleSummaries.length} samples`,
+          logDetails,
         );
 
         // Clear pending summaries if requested
@@ -135,7 +135,7 @@ export function createLogPolling(
           // Clear pending summaries and refresh in one transaction
           if (
             loadedPendingSamples ||
-            state.log.selectedLogSummary?.status === "started"
+            state.log.selectedLogDetails?.status === "started"
           ) {
             log.debug(`Refresh log: ${logFileName}`);
             await refreshLog(logFileName, true);

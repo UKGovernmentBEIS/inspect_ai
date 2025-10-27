@@ -5,6 +5,8 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
 import { useStore } from "../../state/store";
+import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
+import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
 import { Navbar } from "../navbar/Navbar";
 import { LogView } from "./LogView";
 
@@ -22,14 +24,15 @@ export const LogViewLayout: FC = () => {
   const singleFileMode = useStore((state) => state.app.singleFileMode);
 
   // Logs Data
-  const logs = useStore((state) => state.logs.logs);
+  const logDir = useStore((state) => state.logs.logDir);
+  const logFiles = useStore((state) => state.logs.logs);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
-  const fullScreen = logs.files.length === 1 && !logs.log_dir;
+  const fullScreen = logFiles.length === 1 && !logDir;
 
   // Global keydown handler for keyboard shortcuts
   useEffect(() => {
@@ -53,6 +56,12 @@ export const LogViewLayout: FC = () => {
     };
   }, [setShowFind, hideFind]);
 
+  const optionsRef = useRef<HTMLButtonElement>(null);
+  const isShowing = useStore((state) => state.app.dialogs.options);
+  const setShowing = useStore(
+    (state) => state.appActions.setShowingOptionsDialog,
+  );
+
   return (
     <ExtendedFindProvider>
       <div
@@ -66,8 +75,24 @@ export const LogViewLayout: FC = () => {
         tabIndex={0}
       >
         {showFind ? <FindBand /> : ""}
-        {!singleFileMode ? <Navbar /> : ""}
-        <ActivityBar animating={appStatus.loading} />
+        {!singleFileMode ? (
+          <Navbar>
+            {" "}
+            <ViewerOptionsButton
+              showing={isShowing}
+              setShowing={setShowing}
+              ref={optionsRef}
+            />
+            <ViewerOptionsPopover
+              positionEl={optionsRef.current}
+              showing={isShowing}
+              setShowing={setShowing}
+            />
+          </Navbar>
+        ) : (
+          ""
+        )}
+        <ActivityBar animating={!!appStatus.loading} />
         {appStatus.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."

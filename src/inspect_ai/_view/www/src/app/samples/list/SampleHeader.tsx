@@ -23,7 +23,7 @@ export const SampleHeader: FC<SampleHeaderProps> = ({
   <div
     className={clsx(
       styles.header,
-      "text-size-smaller",
+      "text-size-smallestest",
       "text-style-label",
       "text-style-secondary",
     )}
@@ -36,7 +36,10 @@ export const SampleHeader: FC<SampleHeaderProps> = ({
     <div>{limit ? "Limit" : ""}</div>
     <div>{retries ? "Retries" : ""}</div>
     {scoreLabels.map((label, i) => (
-      <div key={`score-header-${i}`} className={styles.center}>
+      <div
+        key={`score-header-${i}`}
+        className={clsx(styles.center, styles.shrinkable)}
+      >
         {label}
       </div>
     ))}

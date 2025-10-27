@@ -28,10 +28,13 @@ from inspect_ai._view import notify
 from inspect_ai._view.common import (
     delete_log,
     get_log_bytes,
+    get_log_dir,
     get_log_file,
+    get_log_files,
     get_log_size,
     get_logs,
     normalize_uri,
+    parse_log_token,
 )
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
@@ -143,6 +146,42 @@ def view_server_app(
             media_type="application/octet-stream",
         )
 
+    @app.get("/log-dir")
+    async def api_log_dir(
+        request: Request,
+        log_dir: str | None = Query(None, alias="log_dir"),
+    ) -> Response:
+        if log_dir is None:
+            log_dir = default_dir
+        await _validate_list(request, log_dir)
+        log_dir_response = get_log_dir(log_dir)
+        if log_dir_response is None:
+            return Response(status_code=HTTP_404_NOT_FOUND)
+        return InspectJsonResponse(content=log_dir_response)
+
+    @app.get("/log-files")
+    async def api_log_files(
+        request: Request,
+        log_dir: str | None = Query(None, alias="log_dir"),
+    ) -> Response:
+        if log_dir is None:
+            log_dir = default_dir
+        await _validate_list(request, log_dir)
+
+        client_etag = request.headers.get("If-None-Match")
+        mtime = 0.0
+        file_count = 0
+        if client_etag is not None:
+            mtime, file_count = parse_log_token(client_etag)
+        log_files_response: dict[str, Any] = await get_log_files(
+            log_dir,
+            recursive=recursive,
+            fs_options=fs_options,
+            mtime=mtime,
+            file_count=file_count,
+        )
+        return InspectJsonResponse(content=log_files_response)
+
     @app.get("/logs")
     async def api_logs(
         request: Request,
@@ -166,9 +205,11 @@ def view_server_app(
     async def eval_set(
         request: Request, log_dir: str = Query(None, alias="dir")
     ) -> Response:
-        if log_dir is None:
+        if log_dir:
+            log_dir = default_dir + "/" + log_dir.lstrip("/")
+        elif log_dir is None:
             log_dir = default_dir
-        await _validate_read(request, log_dir)
+        await _validate_list(request, log_dir)
 
         eval_set = read_eval_set_info(
             await _map_file(request, log_dir), fs_options=fs_options
@@ -289,13 +330,13 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     return AuthorizationMiddleware
 
 
-class OnlyLogDirAccessPolicy(AccessPolicy):
-    def __init__(self, log_dir: str) -> None:
+class OnlyDirAccessPolicy(AccessPolicy):
+    def __init__(self, dir: str) -> None:
         super().__init__()
-        self.log_dir = log_dir
+        self.dir = dir
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.log_dir) and ".." not in file
+        return file.startswith(self.dir) and ".." not in file
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
@@ -324,7 +365,7 @@ def view_server(
     # setup server
     api = view_server_app(
         mapping_policy=None,
-        access_policy=OnlyLogDirAccessPolicy(log_dir) if not authorization else None,
+        access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
         default_dir=log_dir,
         recursive=recursive,
         fs_options=fs_options,

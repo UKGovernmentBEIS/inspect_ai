@@ -1,5 +1,5 @@
-import "bootstrap/dist/css/bootstrap.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
+import "bootstrap/dist/css/bootstrap.css";
 import JSON5 from "json5";
 
 import "prismjs";
@@ -29,19 +29,22 @@ export const App: FC<AppProps> = ({ api }) => {
   // Whether the app was rehydrated
   const rehydrated = useStore((state) => state.app.rehydrated);
 
-  const logs = useStore((state) => state.logs.logs);
+  const logDir = useStore((state) => state.logs.logDir);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const loadedLogFile = useStore((state) => state.log.loadedLog);
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
 
   const setIntialState = useStore((state) => state.appActions.setInitialState);
-  const setAppStatus = useStore((state) => state.appActions.setStatus);
+  const setLoading = useStore((state) => state.appActions.setLoading);
 
-  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
-  const setLogs = useStore((state) => state.logsActions.setLogs);
-  const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
+  const setLogDir = useStore((state) => state.logsActions.setLogDir);
+  const setLogFiles = useStore((state) => state.logsActions.setLogHandles);
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
+  );
 
-  const loadLog = useStore((state) => state.logActions.loadLog);
+  const loadLog = useStore((state) => state.logActions.syncLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
 
   const setSingleFileMode = useStore(
@@ -56,34 +59,28 @@ export const App: FC<AppProps> = ({ api }) => {
         return;
       }
 
-      if (selectedLogFile === loadedLogFile && selectedLogSummary) {
-        // The load is already loaded and we have the data
+      if (selectedLogFile === loadedLogFile && selectedLogDetails) {
+        // The log is already loaded and we have the data
         return;
       }
 
       try {
         // Set loading first and wait for it to update
-        setAppStatus({ loading: true, error: undefined });
+        setLoading(true);
 
         // Then load the log
         await loadLog(selectedLogFile);
 
         // Finally set loading to false
-        setAppStatus({ loading: false, error: undefined });
+        setLoading(false);
       } catch (e) {
         console.log(e);
-        setAppStatus({ loading: false, error: e as Error });
+        setLoading(false, e as Error);
       }
     };
 
     loadSpecificLog();
-  }, [
-    selectedLogFile,
-    loadedLogFile,
-    selectedLogSummary,
-    loadLog,
-    setAppStatus,
-  ]);
+  }, [selectedLogFile, loadedLogFile, selectedLogDetails, loadLog, setLoading]);
 
   useEffect(() => {
     // If the component re-mounts and there is a running load loaded
@@ -91,21 +88,10 @@ export const App: FC<AppProps> = ({ api }) => {
     const doPoll = async () => {
       await pollLog();
     };
-    if (selectedLogSummary?.status === "started") {
+    if (selectedLogDetails?.status === "started") {
       doPoll();
     }
-  }, [pollLog, selectedLogSummary?.status]);
-
-  useEffect(() => {
-    if (logs.log_dir && logs.files.length === 0) {
-      setAppStatus({
-        loading: false,
-        error: new Error(
-          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
-        ),
-      });
-    }
-  }, [logs.log_dir, logs.files.length, setAppStatus]);
+  }, [pollLog, selectedLogDetails?.status]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
@@ -122,19 +108,19 @@ export const App: FC<AppProps> = ({ api }) => {
           const log_dir = e.data.log_dir;
           const isFocused = document.hasFocus();
           if (!isFocused) {
-            if (log_dir === logs.log_dir) {
-              selectLogFile(decodedUrl);
+            if (log_dir === logDir) {
+              setSelectedLogFile(decodedUrl);
             } else {
               api.open_log_file(e.data.url, e.data.log_dir);
             }
           } else {
-            refreshLogs();
+            syncLogs();
           }
           break;
         }
       }
     },
-    [logs, selectLogFile, refreshLogs, api],
+    [logDir, setSelectedLogFile, syncLogs, api],
   );
 
   // listen for updateState messages from vscode
@@ -164,17 +150,16 @@ export const App: FC<AppProps> = ({ api }) => {
         const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
 
         if (resolvedLogPath) {
-          // Load only this file
-          setLogs({
-            log_dir: "",
-            files: [{ name: resolvedLogPath }],
-          });
+          // Clear any log dir
+          setLogDir(undefined);
+          // Load just the passed file
+          setLogFiles([{ name: resolvedLogPath }]);
           setSingleFileMode(true);
         } else {
           // If a log file was passed, select it
           const log_file = urlParams.get("log_file");
           if (log_file) {
-            await selectLogFile(log_file);
+            setSelectedLogFile(log_file);
             setSingleFileMode(true);
           }
           // Else do nothing - RouteProvider will handle it
@@ -185,7 +170,7 @@ export const App: FC<AppProps> = ({ api }) => {
     };
 
     loadLogsAndState();
-  }, [setLogs, selectLogFile, refreshLogs, onMessage]);
+  }, [setLogDir, setLogFiles, setSelectedLogFile, syncLogs, onMessage]);
 
   return <RouterProvider router={AppRouter} />;
 };

@@ -192,6 +192,10 @@ def track_active_model_event(event: ModelEvent) -> Iterator[None]:
         _active_model_event.reset(token)
 
 
+def has_active_model_event() -> bool:
+    return _active_model_event.get() is not None
+
+
 def report_active_sample_retry() -> None:
     model_event = _active_model_event.get()
     if model_event is not None:

@@ -254,6 +254,8 @@ def openai_completion_params(
             ),
         )
     if config.extra_body:
+        # never supported for completions as requires 'store'
+        config.extra_body.pop("metadata", None)
         params["extra_body"] = config.extra_body
 
     return params

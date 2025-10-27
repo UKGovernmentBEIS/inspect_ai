@@ -1,4 +1,5 @@
 import { EvalSample } from "../../@types/log";
+import { sampleIdsEqual } from "../../app/shared/sample";
 import { encodePathParts } from "../../utils/uri";
 import {
   openRemoteLogFile,
@@ -8,10 +9,11 @@ import {
 import { FileSizeLimitError } from "../remote/remoteZipFile";
 import {
   ClientAPI,
-  EvalSummary,
   LogContents,
-  LogFiles,
-  LogOverview,
+  LogDetails,
+  LogFilesResponse,
+  LogPreview,
+  LogRoot,
   LogViewAPI,
   PendingSampleResponse,
   SampleDataResponse,
@@ -56,7 +58,11 @@ interface LoadedLogFile {
  * to a webserver without inspect or the ability to enumerate log
  * files
  */
-export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
+export const clientApi = (
+  api: LogViewAPI,
+  log_file?: string,
+  debug = false,
+): ClientAPI => {
   let current_log: LogContents | undefined = undefined;
   let current_path: string | undefined = undefined;
 
@@ -66,16 +72,22 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   };
 
   const remoteEvalFile = async (log_file: string, cached: boolean = false) => {
-    if (!cached || loadedEvalFile.file !== log_file) {
-      const remoteLog = await openRemoteLogFile(
-        api,
-        encodePathParts(log_file),
-        5,
-      );
+    if (cached && loadedEvalFile.file === log_file) {
+      return loadedEvalFile.remoteLog;
+    }
+
+    const remoteLog = await openRemoteLogFile(
+      api,
+      encodePathParts(log_file),
+      5,
+    );
+
+    if (cached) {
       loadedEvalFile.file = log_file;
       loadedEvalFile.remoteLog = remoteLog;
     }
-    return loadedEvalFile.remoteLog;
+
+    return remoteLog;
   };
 
   /**
@@ -94,7 +106,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
       // Otherwise, create a new promise for fetching the log
       pending_log_promise = api
-        .eval_log(log_file, 100)
+        .get_log_contents(log_file, 100)
         .then((log) => {
           current_log = log;
           current_path = log_file;
@@ -115,7 +127,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   /**
    * Gets a log summary
    */
-  const get_log_summary = async (log_file: string): Promise<EvalSummary> => {
+  const get_log_details = async (log_file: string): Promise<LogDetails> => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
       if (remoteLogFile) {
@@ -199,17 +211,17 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
       const logContents = await get_log(log_file, true);
       if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
         return logContents.parsed.samples.find((sample) => {
-          return sample.id === id && sample.epoch === epoch;
+          return sampleIdsEqual(sample.id, id) && sample.epoch === epoch;
         });
       }
     }
     return undefined;
   };
 
-  const get_eval_log_header = async (log_file: string) => {
+  const read_eval_file_log_summary = async (log_file: string) => {
     // If the API supports this, delegate to it
-    if (api.eval_log_overview) {
-      return api.eval_log_overview(log_file);
+    if (api.get_log_summary) {
+      return api.get_log_summary(log_file);
     } else {
       // Don't re-use the eval log file since we know these are all different log files
       const remoteLogFile = await openRemoteLogFile(
@@ -224,9 +236,9 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   /**
    * Gets log headers
    */
-  const get_log_headers = async (
+  const get_log_summaries = async (
     log_files: string[],
-  ): Promise<LogOverview[]> => {
+  ): Promise<LogPreview[]> => {
     const eval_files: Record<string, number> = {};
     const json_files: Record<string, number> = {};
     let index = 0;
@@ -243,45 +255,70 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
     // Get the promises for eval log headers
     const evalLogHeadersPromises = Object.keys(eval_files).map((file) =>
-      get_eval_log_header(file).then((header) => ({
+      read_eval_file_log_summary(file).then((summary) => ({
         index: eval_files[file], // Store original index
-        header,
+        summary,
       })),
     );
 
     // Get the promise for json log headers
     const jsonLogHeadersPromise = api
-      .eval_log_overviews(Object.keys(json_files))
-      .then((headers) =>
-        headers.map((header, i) => ({
+      .get_log_summaries(Object.keys(json_files))
+      .then((summaries) =>
+        summaries.map((summary, i) => ({
           index: json_files[Object.keys(json_files)[i]], // Store original index
-          header,
+          summary,
         })),
       );
 
     // Wait for all promises to resolve
-    const headers = await Promise.all([
+    const summaries = await Promise.all([
       ...evalLogHeadersPromises,
       jsonLogHeadersPromise,
     ]);
 
     // Flatten the nested array and sort headers by their original index
-    const orderedHeaders = headers.flat().sort((a, b) => a.index - b.index);
+    const orderedSummaries = summaries.flat().sort((a, b) => a.index - b.index);
 
     // Return only the header values in the correct order
-    return orderedHeaders.map(({ header }) => header);
+    return orderedSummaries.map(({ summary }) => summary);
   };
 
-  const get_log_paths = async (): Promise<LogFiles> => {
-    const logFiles = await api.eval_logs();
+  const get_log_dir = async (): Promise<string | undefined> => {
+    if (api.get_log_dir) {
+      return await api.get_log_dir();
+    } else {
+      const logRoot = await api.get_log_root();
+      return logRoot?.log_dir;
+    }
+  };
+
+  const get_logs = async (
+    mtime: number,
+    clientFileCount: number,
+  ): Promise<LogFilesResponse> => {
+    if (api.get_logs) {
+      const result = await api.get_logs(mtime, clientFileCount);
+      return result;
+    } else {
+      const logRoot = await api.get_log_root();
+      return {
+        files: logRoot?.logs || [],
+        response_type: "full",
+      };
+    }
+  };
+
+  const get_log_root = async (): Promise<LogRoot> => {
+    const logFiles = await api.get_log_root();
     if (logFiles) {
       return logFiles!;
     } else if (log_file) {
       // Is there an explicitly passed log file?
-      const summary = await get_log_summary(log_file);
+      const summary = await get_log_details(log_file);
       if (summary) {
         return {
-          files: [
+          logs: [
             {
               name: log_file,
               task: summary.eval.task,
@@ -323,38 +360,99 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     );
   };
 
+  const middleware = debug
+    ? createMiddlewareWrapper([debugMiddleware])
+    : <T extends (...args: any[]) => any>(_name: string, fn: T): T => fn;
+
   return {
-    client_events: () => {
+    client_events: middleware("client_events", () => {
       return api.client_events();
-    },
-    get_log_paths: () => {
-      return get_log_paths();
-    },
-    get_log_overviews: (log_files) => {
-      return get_log_headers(log_files);
-    },
-    get_eval_set_info: (dir?: string) => {
-      return api.eval_set(dir);
-    },
-    get_log_summary,
-    get_log_sample,
-    open_log_file: (log_file, log_dir) => {
+    }),
+    get_log_dir: middleware("get_log_dir", get_log_dir),
+    get_logs: middleware("get_log_files", get_logs),
+    get_log_root: middleware("get_log_root", get_log_root),
+    get_eval_set: middleware("get_eval_set", (dir?: string) => {
+      return api.get_eval_set(dir);
+    }),
+    get_log_summaries: middleware("get_log_summaries", get_log_summaries),
+    get_log_details: middleware("get_log_details", get_log_details),
+    get_log_sample: middleware("get_log_sample", get_log_sample),
+    open_log_file: middleware("open_log_file", (log_file, log_dir) => {
       return api.open_log_file(log_file, log_dir);
-    },
-    download_file: (
-      download_file: string,
-      file_contents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
-    ) => {
-      return api.download_file(download_file, file_contents);
-    },
-    log_message: (log_file: string, message: string) => {
-      return api.log_message(log_file, message);
-    },
+    }),
+    download_file: middleware(
+      "download_file",
+      (
+        download_file: string,
+        file_contents:
+          | string
+          | Blob
+          | ArrayBuffer
+          | ArrayBufferView<ArrayBuffer>,
+      ) => {
+        return api.download_file(download_file, file_contents);
+      },
+    ),
+    log_message: middleware(
+      "log_message",
+      (log_file: string, message: string) => {
+        return api.log_message(log_file, message);
+      },
+    ),
     get_log_pending_samples: api.eval_pending_samples
-      ? get_log_pending_samples
+      ? middleware("get_log_pending_samples", get_log_pending_samples)
       : undefined,
     get_log_sample_data: api.eval_log_sample_data
-      ? get_log_sample_data
+      ? middleware("get_log_sample_data", get_log_sample_data)
       : undefined,
+  };
+};
+
+type Middleware<T extends (...args: any[]) => any> = (
+  name: string,
+  fn: T,
+  args: Parameters<T>,
+  result: ReturnType<T>,
+) => ReturnType<T>;
+
+const debugMiddleware: Middleware<any> = (name, _fn, args, result) => {
+  if (result instanceof Promise) {
+    const startTime = performance.now();
+    return result.then((returned) => {
+      const duration = performance.now() - startTime;
+      console.log(`[ClientAPI] ${name}`, {
+        args,
+        returned,
+        duration: `${duration.toFixed(2)}ms`,
+      });
+      return returned;
+    });
+  } else {
+    console.log(`[ClientAPI] ${name}`, { args, returned: result });
+    return result;
+  }
+};
+
+const applyMiddleware = <T extends (...args: any[]) => any>(
+  name: string,
+  fn: T,
+  middlewares: Middleware<T>[],
+): T => {
+  if (middlewares.length === 0) return fn;
+
+  return ((...args: Parameters<T>) => {
+    let result = fn(...args);
+
+    for (const middleware of middlewares) {
+      result = middleware(name, fn, args, result);
+    }
+
+    return result;
+  }) as T;
+};
+
+const createMiddlewareWrapper = (middlewares: Middleware<any>[]) => {
+  return <T extends (...args: any[]) => any>(name: string, fn: T): T => {
+    return applyMiddleware(name, fn, middlewares);
   };
 };

@@ -1,0 +1,72 @@
+.container {
+  min-width: 500px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1em;
+  row-gap: 0.25em;
+}
+
+.fullWidth {
+  grid-column: -1 / 1;
+}
+
+.fullWidthPadded {
+  grid-column: -1 / 1;
+  padding-bottom: 0.5em;
+}
+
+.spacer {
+  grid-column: -1 / 1;
+  height: 1px;
+  margin-top: 0.2em;
+  margin-bottom: 0.2em;
+  background-color: var(--bs-light-border-subtle);
+}
+
+.content {
+  padding: 8px;
+}
+
+.statsSection {
+  margin-bottom: 12px;
+}
+
+.statRow {
+  margin-bottom: 4px;
+}
+
+.logDir {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.notSet {
+  color: #666;
+}
+
+.cachedItemsList {
+  margin: 4px 0 0 20px;
+  padding: 0;
+}
+
+.clearButton {
+  padding: 0.1em 0.5em;
+}
+
+.message {
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.messageSuccess {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.messageError {
+  background-color: #f8d7da;
+  color: #721c24;
+}

@@ -230,7 +230,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
             className={clsx(
               "text-style-label",
               "text-style-secondary",
-              "text-size-base",
+              "text-size-smallest",
               col.title ? styles.titled : undefined,
               col.center ? styles.centerLabel : undefined,
             )}

@@ -11,7 +11,8 @@ import {
   bySample,
   sortSamples,
 } from "../app/samples/sample-tools/SortFilter";
-import { LogFile, SampleSummary } from "../client/api/types";
+import { sampleIdsEqual } from "../app/shared/sample";
+import { LogHandle, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { prettyDirUri } from "../utils/uri";
@@ -22,45 +23,45 @@ import { mergeSampleSummaries } from "./utils";
 const log = createLogger("hooks");
 
 export const useEvalSpec = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-  return selectedLogSummary?.eval;
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
+  return selectedLogDetails?.eval;
 };
 
 export const useRefreshLog = () => {
-  const setAppStatus = useStore((state) => state.appActions.setStatus);
+  const setLoading = useStore((state) => state.appActions.setLoading);
   const refreshLog = useStore((state) => state.logActions.refreshLog);
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
 
   return useCallback(() => {
     try {
-      setAppStatus({ loading: true, error: undefined });
+      setLoading(true);
 
       refreshLog();
       resetFiltering();
 
-      setAppStatus({ loading: false, error: undefined });
+      setLoading(false);
     } catch (e) {
       // Show an error
       console.log(e);
-      setAppStatus({ loading: false, error: e as Error });
+      setLoading(false, e as Error);
     }
-  }, [refreshLog, resetFiltering, setAppStatus]);
+  }, [refreshLog, resetFiltering, setLoading]);
 };
 
 // Fetches all samples summaries (both completed and incomplete)
 // without applying any filtering
 export const useSampleSummaries = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const pendingSampleSummaries = useStore(
     (state) => state.log.pendingSampleSummaries,
   );
 
   return useMemo(() => {
     return mergeSampleSummaries(
-      selectedLogSummary?.sampleSummaries || [],
+      selectedLogDetails?.sampleSummaries || [],
       pendingSampleSummaries?.samples || [],
     );
-  }, [selectedLogSummary, pendingSampleSummaries]);
+  }, [selectedLogDetails, pendingSampleSummaries]);
 };
 
 // Counts the total number of unfiltered sample summaries (both complete and incomplete)
@@ -75,15 +76,15 @@ export const useTotalSampleCount = () => {
 // based upon the configuration (eval + summaries) if no scorer has been
 // selected
 export const useSelectedScores = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const sampleSummaries = useSampleSummaries();
   const selected = useStore((state) => state.log.selectedScores);
   return useMemo(() => {
     if (selected !== undefined) {
       return selected;
-    } else if (selectedLogSummary) {
+    } else if (selectedLogDetails) {
       const defaultScorer = getDefaultScorer(
-        selectedLogSummary,
+        selectedLogDetails,
         sampleSummaries,
       );
       if (defaultScorer) {
@@ -91,24 +92,24 @@ export const useSelectedScores = () => {
       }
     }
     return [];
-  }, [selectedLogSummary, sampleSummaries, selected]);
+  }, [selectedLogDetails, sampleSummaries, selected]);
 };
 
 // Provides the list of available scorers. Will inspect the eval or samples
 // to determine scores (even for in progress evals that don't yet have final
 // metrics)
 export const useScores = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const sampleSummaries = useSampleSummaries();
   return useMemo(() => {
-    if (!selectedLogSummary) {
+    if (!selectedLogDetails) {
       return [];
     }
 
     const result =
-      getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+      getAvailableScorers(selectedLogDetails, sampleSummaries) || [];
     return result;
-  }, [selectedLogSummary, sampleSummaries]);
+  }, [selectedLogDetails, sampleSummaries]);
 };
 
 // Provides the eval descriptor
@@ -190,11 +191,11 @@ export const useFilteredSamples = () => {
 
 // Computes the group by to use given a particular sort
 export const useGroupBy = () => {
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const sort = useStore((state) => state.log.sort);
   const epoch = useStore((state) => state.log.epoch);
   return useMemo(() => {
-    const epochs = selectedLogSummary?.eval?.config?.epochs || 1;
+    const epochs = selectedLogDetails?.eval?.config?.epochs || 1;
     if (epochs > 1) {
       if (byEpoch(sort) || epoch !== "all") {
         return "epoch";
@@ -204,7 +205,7 @@ export const useGroupBy = () => {
     }
 
     return "none";
-  }, [selectedLogSummary, sort, epoch]);
+  }, [selectedLogDetails, sort, epoch]);
 };
 
 // Computes the ordering for groups based upon the sort
@@ -221,11 +222,20 @@ export const useGroupByOrder = () => {
 
 // Provides the currently selected sample summary
 export const useSelectedSampleSummary = (): SampleSummary | undefined => {
-  const filteredSamples = useFilteredSamples();
-  const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
+  const sampleSummaries = useSampleSummaries();
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
+  );
   return useMemo(() => {
-    return filteredSamples[selectedIndex];
-  }, [filteredSamples, selectedIndex]);
+    const selectedSampleSummary = sampleSummaries.find((sample) => {
+      return (
+        sampleIdsEqual(sample.id, selectedSampleHandle?.id) &&
+        sample.epoch === selectedSampleHandle?.epoch
+      );
+    });
+
+    return selectedSampleSummary;
+  }, [selectedSampleHandle, sampleSummaries]);
 };
 
 export const useSampleData = () => {
@@ -371,9 +381,10 @@ export const useMessageVisibility = (
   }, [selectedLogFile, clearVisible, id]);
 
   // Maybe reset state if sample changes
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
   );
+
   useEffect(() => {
     // Skip the first effect run for sample changes too
     if (isFirstRender.current) {
@@ -384,7 +395,7 @@ export const useMessageVisibility = (
       log.debug("clear message (sample)", id);
       clearVisible(id);
     }
-  }, [selectedSampleIndex, clearVisible, id, scope]);
+  }, [selectedSampleHandle, clearVisible, id, scope]);
 
   return useMemo(() => {
     log.debug("visibility", id, visible);
@@ -483,29 +494,33 @@ export const usePrismHighlight = (
 };
 
 export const useSetSelectedLogIndex = () => {
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
   );
   const clearSelectedSample = useStore(
     (state) => state.sampleActions.clearSelectedSample,
   );
-  const clearSelectedLogSummary = useStore(
-    (state) => state.logActions.clearSelectedLogSummary,
+  const clearSelectedLogDetails = useStore(
+    (state) => state.logActions.clearSelectedLogDetails,
   );
   const clearCollapsedEvents = useStore(
     (state) => state.sampleActions.clearCollapsedEvents,
   );
+  const allLogFiles = useStore((state) => state.logs.logs);
 
   return useCallback(
     (index: number) => {
       clearCollapsedEvents();
       clearSelectedSample();
-      clearSelectedLogSummary();
-      setSelectedLogIndex(index);
+      clearSelectedLogDetails();
+
+      const logHandle = allLogFiles[index];
+      setSelectedLogFile(logHandle.name);
     },
     [
-      setSelectedLogIndex,
-      clearSelectedLogSummary,
+      allLogFiles,
+      setSelectedLogFile,
+      clearSelectedLogDetails,
       clearSelectedSample,
       clearCollapsedEvents,
     ],
@@ -570,64 +585,63 @@ export const useSamplePopover = (id: string) => {
 
 export const useLogs = () => {
   // Loading logs
-  const load = useStore((state) => state.logsActions.loadLogs);
-  const setLogs = useStore((state) => state.logsActions.setLogs);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
 
   // Loading eval set info
-  const loadEvalSetInfo = useStore(
-    (state) => state.logsActions.loadEvalSetInfo,
+  const syncEvalSetInfo = useStore(
+    (state) => state.logsActions.syncEvalSetInfo,
   );
-  const setEvalSetInfo = useStore((state) => state.logsActions.setEvalSetInfo);
 
   // Status
-  const setStatus = useStore((state) => state.appActions.setStatus);
+  const setLoading = useStore((state) => state.appActions.setLoading);
 
   const loadLogs = useCallback(
     async (logPath?: string) => {
       const exec = async () => {
-        setStatus({ loading: true, error: undefined });
-        const logs = await load();
-        setLogs(logs);
+        setLoading(true);
 
-        const setInfo = await loadEvalSetInfo(logPath);
-        setEvalSetInfo(setInfo);
+        // Sync logs
+        await syncLogs();
 
-        setStatus({ loading: false, error: undefined });
+        // Sync eval set info
+        await syncEvalSetInfo(logPath);
+
+        setLoading(false);
       };
       exec().catch((e) => {
         log.error("Error loading logs", e);
-        setStatus({ loading: false, error: e });
+        setLoading(false, e as Error);
       });
     },
-    [load, setLogs, setStatus],
+    [syncLogs, setLoading, syncEvalSetInfo],
   );
 
-  // Loading headers
-  const storeLoadHeaders = useStore(
-    (state) => state.logsActions.loadLogOverviews,
+  // Loading overviews
+  const syncLogPreviews = useStore(
+    (state) => state.logsActions.syncLogPreviews,
   );
-  const existingHeaders = useStore((state) => state.logs.logOverviews);
-  const allLogFiles = useStore((state) => state.logs.logs.files);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
+  const allLogFiles = useStore((state) => state.logs.logs);
 
-  const loadHeaders = useCallback(
-    async (logFiles: LogFile[] = allLogFiles) => {
-      await storeLoadHeaders(logFiles);
+  const loadLogOverviews = useCallback(
+    async (logs: LogHandle[] = allLogFiles) => {
+      await syncLogPreviews(logs);
     },
-    [storeLoadHeaders, allLogFiles],
+    [syncLogPreviews, allLogFiles],
   );
 
-  const loadAllHeaders = useCallback(async () => {
+  const loadAllLogOverviews = useCallback(async () => {
     const logsToLoad = allLogFiles.filter((logFile) => {
-      const existingHeader = existingHeaders[logFile.name];
+      const existingHeader = logPreviews[logFile.name];
       return !existingHeader || existingHeader.status === "started";
     });
 
     if (logsToLoad.length > 0) {
-      await storeLoadHeaders(logsToLoad);
+      await loadLogOverviews(logsToLoad);
     }
-  }, [storeLoadHeaders, allLogFiles, existingHeaders]);
+  }, [loadLogOverviews, allLogFiles, logPreviews]);
 
-  return { loadLogs, loadHeaders, loadAllHeaders };
+  return { loadLogs, loadLogOverviews, loadAllLogOverviews };
 };
 
 export const usePagination = (name: string, defaultPageSize: number) => {

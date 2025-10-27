@@ -276,14 +276,13 @@ export const createSampleSlice = (
               `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`,
             );
             if (sample) {
-              const migratedSample = resolveSample(sample);
-
               if (
                 state.sample.sample_identifier?.id !== sample.id &&
                 state.sample.sample_identifier?.epoch !== sample.epoch
               ) {
                 sampleActions.clearCollapsedEvents();
               }
+              const migratedSample = resolveSample(sample);
               sampleActions.setSelectedSample(migratedSample);
               sampleActions.setSampleStatus("ok");
             } else {

@@ -80,6 +80,23 @@ export function encodePathParts(url: string): string {
   }
 }
 
+/**
+ * Tests whether a string is a valid URI.
+ *
+ * @param value - The string to test
+ * @returns true if the string is a valid URI, false otherwise
+ */
+export const isUri = (value: string): boolean => {
+  if (!value) return false;
+
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const prettyDirUri = (uri: string) => {
   if (uri.startsWith("file://")) {
     return uri.replace("file://", "");

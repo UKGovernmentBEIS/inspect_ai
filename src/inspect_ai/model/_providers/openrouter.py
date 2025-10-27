@@ -83,6 +83,15 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         )
 
     @override
+    def should_retry(self, ex: BaseException) -> bool:
+        if super().should_retry(ex):
+            return True
+        elif isinstance(ex, json.JSONDecodeError):
+            return True
+        else:
+            return False
+
+    @override
     def on_response(self, response: dict[str, Any]) -> None:
         """Handle documented OpenRouter error conditions.
 

@@ -33,8 +33,21 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         ? selectedScores?.[0]?.name || "Score"
         : `${selectedCount} Scores`;
 
+  const allScoresSelected = selectedCount === scores.length;
+
   return (
-    <>
+    <div style={{ display: "flex" }}>
+      <span
+        className={clsx(
+          "sample-filter-label",
+          "text-size-smaller",
+          "text-style-label",
+          "text-style-secondary",
+          styles.label,
+        )}
+      >
+        Scorers:
+      </span>
       <ToolButton
         label={label}
         icon={ApplicationIcons.metrics}
@@ -53,6 +66,33 @@ export const SelectScorer: FC<SelectScorerProps> = ({
           padding: "3px 5px",
         }}
       >
+        <div className={clsx(styles.links, "text-size-smaller")}>
+          <a
+            className={clsx(
+              styles.link,
+              !allScoresSelected ? styles.selected : undefined,
+            )}
+            onClick={() => {
+              if (scores.length > 0) {
+                setSelectedScores([scores[0]]);
+              }
+            }}
+          >
+            Default
+          </a>
+          |
+          <a
+            className={clsx(
+              styles.link,
+              allScoresSelected ? styles.selected : undefined,
+            )}
+            onClick={() => {
+              setSelectedScores(scores);
+            }}
+          >
+            All
+          </a>
+        </div>
         <div className={styles.container}>
           <ScoreCheckboxes
             scores={scores}
@@ -61,7 +101,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
           />
         </div>
       </PopOver>
-    </>
+    </div>
   );
 };
 

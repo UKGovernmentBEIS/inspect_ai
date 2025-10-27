@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class GitContext(BaseModel):
     origin: str
     commit: str
+    dirty: bool
 
 
 def git_context() -> GitContext | None:
@@ -34,5 +35,13 @@ def git_context() -> GitContext | None:
         text=True,
     ).stdout.strip()
 
+    # check if working tree is dirty
+    status_result = subprocess.run(
+        [git, "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+    )
+    dirty = bool(status_result.stdout.strip())
+
     # return context
-    return GitContext(origin=origin, commit=commit_result.stdout.strip())
+    return GitContext(origin=origin, commit=commit_result.stdout.strip(), dirty=dirty)

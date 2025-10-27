@@ -11,35 +11,33 @@ import styles from "./SampleRow.module.css";
 
 interface SampleRowProps {
   id: string;
-  index: number;
   sample: SampleSummary;
   answer: string;
   completed: boolean;
   scoresRendered: ReactNode[];
   gridColumnsTemplate: string;
   height: number;
+  selected: boolean;
   showSample: () => void;
   sampleUrl?: string;
 }
 
 export const SampleRow: FC<SampleRowProps> = ({
   id,
-  index,
   sample,
   answer,
   completed,
   scoresRendered,
   gridColumnsTemplate,
   height,
+  selected,
   showSample,
   sampleUrl,
 }) => {
   const streamSampleData = useStore(
     (state) => state.capabilities.streamSampleData,
   );
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
-  );
+
   // Determine if this sample can be viewed (completed or streaming)
   const isViewable = completed || streamSampleData;
 
@@ -73,7 +71,7 @@ export const SampleRow: FC<SampleRowProps> = ({
       className={clsx(
         styles.grid,
         "text-size-base",
-        selectedSampleIndex === index ? styles.selected : undefined,
+        selected ? styles.selected : undefined,
         !isViewable && !sampleUrl ? styles.disabled : undefined,
       )}
       style={{

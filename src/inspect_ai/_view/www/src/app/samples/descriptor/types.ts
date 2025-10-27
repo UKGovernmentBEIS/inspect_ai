@@ -54,5 +54,5 @@ export interface MessageShapeData {
   answer: number;
   limit: number;
   retries: number;
-  score: number;
+  scores: number[];
 }
