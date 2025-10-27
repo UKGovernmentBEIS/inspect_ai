@@ -1,3 +1,4 @@
+import base64
 import functools
 import hashlib
 import json
@@ -634,6 +635,7 @@ async def content(
     client: Client,
     message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
 ) -> Content:
+    working_reasoning_block = None
     if isinstance(message, ChatMessageUser):
         if isinstance(message.content, str):
             return Content(
@@ -647,26 +649,84 @@ async def content(
         )
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
-        # tool call parts
-        if message.tool_calls is not None:
-            content_parts.extend(
-                [
-                    Part.from_function_call(
-                        name=tool_call.function,
-                        args=tool_call.arguments,
-                    )
-                    for tool_call in message.tool_calls
-                ]
-            )
 
-        # content parts
         if isinstance(message.content, str):
             content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
-            content_parts.extend(
-                [await content_part(client, content) for content in message.content]
-            )
+            for i, content in enumerate(message.content):
+                if isinstance(content, ContentReasoning):
+                    if content.summary is not None:
+                        # Append a part for the thought summary, which originally
+                        # was a different part
+                        content_parts.append(
+                            Part(
+                                text=content.summary,
+                                thought=True,
+                            )
+                        )
+                    # We should never have working_reasoning_block set here because
+                    # that means we have had two reasoning blocks in a row.
+                    # NOTE: We may break this invariant to support multiple thinking blocks,
+                    # though that is problematic because we don't know which reasoning block
+                    # corresponds to which tool call.
 
+                    assert working_reasoning_block is None, (
+                        "Multiple reasoning blocks detected in a row. "
+                        "This is not currently supported."
+                    )
+
+                    # Now set the "working" reasoning block so that future parts can use it.
+                    # Reasoning blocks are never standalone with the ROBIN provider.
+                    working_reasoning_block = content
+                else:
+                    part_to_append = await content_part(client, content)
+                    # If previously there was a reasoning block, we need to set the "thought_signature"
+                    # using the reasoning from that block.
+                    if working_reasoning_block is not None:
+                        # thoughtSignature is present on all blocks for ROBIN, may not be the case for previous models without functions in the request.
+                        assert (
+                            working_reasoning_block.reasoning is not None
+                            and working_reasoning_block.redacted
+                        ), (
+                            "Reasoning block must have a reasoning signature to set thought_signature."
+                        )
+                        part_to_append.thought_signature = base64.b64decode(
+                            working_reasoning_block.reasoning.encode()
+                        )
+                        # Now, reset the previous reasoning block.
+                        working_reasoning_block = None
+                    content_parts.append(part_to_append)
+
+        # Now handle tool calls
+        if message.tool_calls is not None:
+            # Note that if each tool call had its own reasoning block in a message with multiple reasoning blocks, we wouldn't know which reasoning block corresponded to which tool call.
+            # The assertion down below will take care of this in the tool call section of completion_choice_from_candidate
+            # if working_reasoning_block and len(message.tool_calls) > 1:
+            #    logger.warning(
+            #        "Multiple tool calls and reasoning blocks detected when using thinking. CoT may get incorrectly replayed. This is likely fine based on observed API patterns."
+            #    )
+
+            for tool_call in message.tool_calls:
+                part = Part.from_function_call(
+                    name=tool_call.function,
+                    args=tool_call.arguments,
+                )
+
+                if working_reasoning_block is not None:
+                    assert (
+                        working_reasoning_block.reasoning is not None
+                        and working_reasoning_block.redacted
+                    ), (
+                        "Reasoning block must have a reasoning signature to set thought_signature."
+                    )
+                    part.thought_signature = base64.b64decode(
+                        working_reasoning_block.reasoning.encode()
+                    )
+                    working_reasoning_block = None
+
+                content_parts.append(part)
+        # print("Content parts")
+        # print(content_parts)
         # return parts
         return Content(role="model", parts=content_parts)
 
@@ -680,6 +740,7 @@ async def content(
             },
         )
         return Content(role="user", parts=[Part(function_response=response)])
+    assert False, f"Unsupported message type: {type(message)}"
 
 
 async def content_part(client: Client, content: InspectContent | str) -> Part:
