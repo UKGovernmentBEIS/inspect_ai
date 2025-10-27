@@ -743,15 +743,9 @@ def task_identifier(
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
     if task_file:
-        task_id = f"{task_file}@{task_name}#{task_args_hash}/{model}/{additional_hash}"
+        return f"{task_file}@{task_name}#{task_args_hash}/{model}/{additional_hash}"
     else:
-        task_id = f"{task_name}#{task_args_hash}/{model}/{additional_hash}"
-
-    print(
-        "    TASK ID: " if isinstance(task, ResolvedTask) else "LOG TASK ID: ",
-        f"{task_id}, additional hash input: {additional_hash_input}",
-    )
-    return task_id
+        return f"{task_name}#{task_args_hash}/{model}/{additional_hash}"
 
 
 class ModelList:

@@ -337,50 +337,96 @@ def sleep_for_3_task(task_arg: str):
 
 
 def test_task_identifier_with_model_configs():
-    resolved_tasks1 = resolve_tasks(
-        "examples/hello_world.py",
-        {},
-        get_model("mockllm/model", config=GenerateConfig(temperature=0.7)),
-        None,
-        None,
-        None,
+    model1 = get_model("mockllm/model", config=GenerateConfig(temperature=0.7))
+    model2 = get_model("mockllm/model", config=GenerateConfig(temperature=0))
+    task1 = hello_world.hello_world()
+    task2 = hello_world.hello_world()
+    task_with(
+        task1,
+        model=model1,
     )
-    resolved_tasks2 = resolve_tasks(
-        "examples/hello_world.py",
-        {},
-        get_model("mockllm/model", config=GenerateConfig(temperature=0)),
-        None,
-        None,
-        None,
+    task_with(
+        task2,
+        model=model2,
     )
-    assert task_identifier(resolved_tasks1[0], GenerateConfig()) != task_identifier(
-        resolved_tasks2[0], GenerateConfig()
+    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
+        resolved_tasks[1], GenerateConfig()
     )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        config = GenerateConfig(temperature=0.7)
+        # Although eval_set config overrides the model config, it does not in the task identifier or log, so these are treated as different tasks
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            **config.model_dump(),
+        )
+
+        all_logs = list_all_eval_logs(log_dir)
+
+        all_logs = validate_eval_set_prerequisites(
+            resolved_tasks=resolved_tasks,
+            all_logs=all_logs,
+            log_dir_allow_dirty=False,
+            config=config,
+        )
+        assert len(all_logs) == 2
+
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            **config.model_dump(),
+        )
 
 
 def test_task_identifier_with_model_roles_model_configs():
     # ensure that model roles with different configs produce different task identifiers
     model1 = get_model("mockllm/model")
     model2 = get_model("mockllm/model", config=GenerateConfig(temperature=0))
-    resolved_tasks1 = resolve_tasks(
-        "examples/hello_world.py",
-        {},
-        model1,
-        {"scorer": model1},
-        None,
-        None,
+    task1 = hello_world.hello_world()
+    task2 = hello_world.hello_world()
+    task_with(
+        task1,
+        model=model1,
+        model_roles={"scorer": model1},
     )
-    resolved_tasks2 = resolve_tasks(
-        "examples/hello_world.py",
-        {},
-        model1,
-        {"scorer": model2},
-        None,
-        None,
+    task_with(
+        task2,
+        model=model1,
+        model_roles={"scorer": model2},
     )
-    assert task_identifier(resolved_tasks1[0], GenerateConfig()) != task_identifier(
-        resolved_tasks2[0], GenerateConfig()
+    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
+        resolved_tasks[1], GenerateConfig()
     )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        config = GenerateConfig(temperature=0.7)
+        # eval_set config does not override config on model roles, so these are different tasks
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            **config.model_dump(),
+        )
+
+        all_logs = list_all_eval_logs(log_dir)
+
+        all_logs = validate_eval_set_prerequisites(
+            resolved_tasks=resolved_tasks,
+            all_logs=all_logs,
+            log_dir_allow_dirty=False,
+            config=config,
+        )
+        assert len(all_logs) == 2
+
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            **config.model_dump(),
+        )
 
 
 def test_task_identifier_with_task_generate_configs():
@@ -442,25 +488,44 @@ def test_task_identifier_with_task_generate_configs():
 
 
 def test_task_identifier_with_solvers():
-    # ensure that tasks with different solvers produce different task identifiers
-    resolved_tasks1 = resolve_tasks(
-        sleep_for_1_task("arg"),
-        {},
-        get_model("mockllm/model"),
-        None,
-        None,
-        None,
-    )
+    # test that tasks with different solvers produce different task identifiers
+    model1 = get_model("mockllm/model")
+    task1 = sleep_for_1_task("arg")
     task2 = sleep_for_1_task("arg")
-    task2 = task_with(task2, solver=[sleep_for_solver(2)])
-    resolved_tasks2 = resolve_tasks(
+    task_with(
+        task1,
+        model=model1,
+    )
+    task_with(
         task2,
-        {},
-        get_model("mockllm/model"),
-        None,
-        None,
-        None,
+        model=model1,
+        solver=[sleep_for_solver(2)],
     )
-    assert task_identifier(resolved_tasks1[0], GenerateConfig()) != task_identifier(
-        resolved_tasks2[0], GenerateConfig()
+    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
+    assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
+        resolved_tasks[1], GenerateConfig()
     )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        config = GenerateConfig(temperature=0.7)
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            **config.model_dump(),
+        )
+
+        all_logs = list_all_eval_logs(log_dir)
+
+        all_logs = validate_eval_set_prerequisites(
+            resolved_tasks=resolved_tasks,
+            all_logs=all_logs,
+            log_dir_allow_dirty=False,
+            config=config,
+        )
+        assert len(all_logs) == 2
+
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            **config.model_dump(),
+        )
