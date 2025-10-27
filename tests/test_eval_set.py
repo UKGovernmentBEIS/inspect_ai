@@ -4,7 +4,6 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from examples.hello_world import hello_world
 from test_helpers.utils import (
     failing_solver,
     failing_task,
@@ -30,6 +29,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import generate
 
@@ -366,11 +366,27 @@ def run_eval_set(
         )
 
 
+@task
+def hello_world():
+    return Task(
+        dataset=[
+            Sample(
+                input="Just reply with Hello World",
+                target="Hello World",
+            )
+        ],
+        solver=[
+            generate(),
+        ],
+        scorer=exact(),
+    )
+
+
 def test_task_identifier_with_model_configs():
     model1 = get_model("mockllm/model", config=GenerateConfig(temperature=0.7))
     model2 = get_model("mockllm/model", config=GenerateConfig(temperature=0))
-    task1 = hello_world.hello_world()
-    task2 = hello_world.hello_world()
+    task1 = hello_world()
+    task2 = hello_world()
     task_with(
         task1,
         model=model1,
@@ -391,8 +407,8 @@ def test_task_identifier_with_model_roles_model_configs():
     # ensure that model roles with different configs produce different task identifiers
     model1 = get_model("mockllm/model")
     model2 = get_model("mockllm/model", config=GenerateConfig(temperature=0))
-    task1 = hello_world.hello_world()
-    task2 = hello_world.hello_world()
+    task1 = hello_world()
+    task2 = hello_world()
     task_with(
         task1,
         model=model1,
@@ -413,8 +429,8 @@ def test_task_identifier_with_model_roles_model_configs():
 
 def test_task_identifier_with_task_generate_configs():
     model1 = get_model("mockllm/model")
-    task1 = hello_world.hello_world()
-    task2 = hello_world.hello_world()
+    task1 = hello_world()
+    task2 = hello_world()
     task_with(
         task1,
         model=model1,
