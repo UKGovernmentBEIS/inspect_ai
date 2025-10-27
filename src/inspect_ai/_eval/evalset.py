@@ -679,6 +679,16 @@ def validate_eval_set_prerequisites(
         return all_logs
 
 
+# these generate config fields should not affect task identity
+_GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
+    "max_retries",
+    "timeout",
+    "attempt_timeout",
+    "max_connections",
+    "batch",
+}
+
+
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
 def task_identifier(
     task: ResolvedTask | EvalLog, eval_set_config: GenerateConfig | None
@@ -704,15 +714,6 @@ def task_identifier(
         model_roles = task.eval.model_roles or {}
         eval_plan = task.plan
 
-    # fields to exclude - these generate config should not affect task identity
-    fields_to_exclude = {
-        "max_retries",
-        "timeout",
-        "attempt_timeout",
-        "max_connections",
-        "batch",
-    }
-
     # hash for task args
     task_args_hash = hashlib.sha256(
         to_json(task_args, exclude_none=True, fallback=lambda _x: None)
@@ -722,7 +723,7 @@ def task_identifier(
     additional_hash_input = to_json(
         eval_plan,
         exclude_none=True,
-        exclude={"config": fields_to_exclude},
+        exclude={"config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE},
         fallback=lambda _x: None,
     )
 
@@ -730,7 +731,7 @@ def task_identifier(
     additional_hash_input += to_json(
         model_generate_config,
         exclude_none=True,
-        exclude=fields_to_exclude,
+        exclude=_GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
         fallback=lambda _x: None,
     )
 
