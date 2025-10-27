@@ -18,6 +18,7 @@ from inspect_ai._eval.evalset import (
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
+    task_identifier,
     validate_eval_set_prerequisites,
 )
 from inspect_ai._eval.loader import resolve_tasks
@@ -25,6 +26,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
 from inspect_ai.model import get_model
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import generate
 
@@ -320,3 +322,46 @@ def sleep_for_3_task(task_arg: str):
     return Task(
         solver=[sleep_for_solver(3)],
     )
+
+
+def test_task_identifier_with_model_configs():
+    resolved_tasks1 = resolve_tasks(
+        "examples/hello_world.py",
+        {},
+        get_model("mockllm/model", config=GenerateConfig(temperature=0.7)),
+        None,
+        None,
+        None,
+    )
+    resolved_tasks2 = resolve_tasks(
+        "examples/hello_world.py",
+        {},
+        get_model("mockllm/model", config=GenerateConfig(temperature=0)),
+        None,
+        None,
+        None,
+    )
+    assert task_identifier(resolved_tasks1[0]) != task_identifier(resolved_tasks2[0])
+
+
+def test_task_identifier_with_model_roles_model_configs():
+    # ensure that model roles with different configs produce different task identifiers
+    model1 = get_model("mockllm/model")
+    model2 = get_model("mockllm/model", config=GenerateConfig(temperature=0))
+    resolved_tasks1 = resolve_tasks(
+        "examples/hello_world.py",
+        {},
+        model1,
+        {"scorer": model1},
+        None,
+        None,
+    )
+    resolved_tasks2 = resolve_tasks(
+        "examples/hello_world.py",
+        {},
+        model1,
+        {"scorer": model2},
+        None,
+        None,
+    )
+    assert task_identifier(resolved_tasks1[0]) != task_identifier(resolved_tasks2[0])

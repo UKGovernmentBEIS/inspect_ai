@@ -682,12 +682,14 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         task_name = task.task.name
         task_args = task.task_args
         model = str(task.model)
+        model_generate_config = task.model.config
         model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
         task_args = task.eval.task_args_passed
         model = str(task.eval.model)
+        model_generate_config = task.eval.model_generate_config
         model_roles = task.eval.model_roles or {}
 
     # hash for task args
@@ -695,27 +697,30 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         to_json(task_args, exclude_none=True, fallback=lambda _x: None)
     ).hexdigest()
 
-    # hash for model roles
-    if len(model_roles):
-        model = (
-            model
-            + "/"
-            + hashlib.sha256(
-                to_json(model_roles, exclude_none=True, fallback=lambda _x: None)
-            ).hexdigest()
+    additional_hash_input = b""
+
+    # hash for model generate config
+    if model_generate_config != GenerateConfig():
+        additional_hash_input += to_json(
+            model_generate_config,
+            exclude_none=True,
+            fallback=lambda _x: None,
         )
 
+    # hash for model roles
+    if len(model_roles):
+        additional_hash_input += to_json(
+            model_roles, exclude_none=True, fallback=lambda _x: None
+        )
+
+    additional_hash = ""
+    if additional_hash_input:
+        additional_hash = "/" + hashlib.sha256(additional_hash_input).hexdigest()
+
     if task_file:
-        return f"{task_file}@{task_name}#{task_args_hash}/{model}"
+        return f"{task_file}@{task_name}#{task_args_hash}/{model}{additional_hash}"
     else:
-        return f"{task_name}#{task_args_hash}/{model}"
-
-
-def task_identifier_without_model(identifier: str) -> str:
-    parts = identifier.split("/")
-    parts = parts[:-2]
-    identifier = "/".join(parts)
-    return identifier
+        return f"{task_name}#{task_args_hash}/{model}{additional_hash}"
 
 
 class ModelList:
