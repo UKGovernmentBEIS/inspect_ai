@@ -23,6 +23,7 @@ from inspect_ai._eval.evalset import (
     validate_eval_set_prerequisites,
 )
 from inspect_ai._eval.loader import resolve_tasks
+from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
@@ -336,6 +337,35 @@ def sleep_for_3_task(task_arg: str):
     )
 
 
+def run_eval_set(
+    resolved_tasks: list[ResolvedTask],
+    config: GenerateConfig = GenerateConfig(temperature=0.7),
+) -> None:
+    tasks = [task.task for task in resolved_tasks]
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=tasks,
+            log_dir=log_dir,
+            **config.model_dump(),
+        )
+
+        all_logs = list_all_eval_logs(log_dir)
+
+        all_logs = validate_eval_set_prerequisites(
+            resolved_tasks=resolved_tasks,
+            all_logs=all_logs,
+            log_dir_allow_dirty=False,
+            config=config,
+        )
+        assert len(all_logs) == 2
+
+        eval_set(
+            tasks=tasks,
+            log_dir=log_dir,
+            **config.model_dump(),
+        )
+
+
 def test_task_identifier_with_model_configs():
     model1 = get_model("mockllm/model", config=GenerateConfig(temperature=0.7))
     model2 = get_model("mockllm/model", config=GenerateConfig(temperature=0))
@@ -354,31 +384,7 @@ def test_task_identifier_with_model_configs():
     assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
         resolved_tasks[1], GenerateConfig()
     )
-
-    with tempfile.TemporaryDirectory() as log_dir:
-        config = GenerateConfig(temperature=0.7)
-        # Although eval_set config overrides the model config, it does not in the task identifier or log, so these are treated as different tasks
-        eval_set(
-            tasks=[task1, task2],
-            log_dir=log_dir,
-            **config.model_dump(),
-        )
-
-        all_logs = list_all_eval_logs(log_dir)
-
-        all_logs = validate_eval_set_prerequisites(
-            resolved_tasks=resolved_tasks,
-            all_logs=all_logs,
-            log_dir_allow_dirty=False,
-            config=config,
-        )
-        assert len(all_logs) == 2
-
-        eval_set(
-            tasks=[task1, task2],
-            log_dir=log_dir,
-            **config.model_dump(),
-        )
+    run_eval_set(resolved_tasks)
 
 
 def test_task_identifier_with_model_roles_model_configs():
@@ -402,31 +408,7 @@ def test_task_identifier_with_model_roles_model_configs():
     assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
         resolved_tasks[1], GenerateConfig()
     )
-
-    with tempfile.TemporaryDirectory() as log_dir:
-        config = GenerateConfig(temperature=0.7)
-        # eval_set config does not override config on model roles, so these are different tasks
-        eval_set(
-            tasks=[task1, task2],
-            log_dir=log_dir,
-            **config.model_dump(),
-        )
-
-        all_logs = list_all_eval_logs(log_dir)
-
-        all_logs = validate_eval_set_prerequisites(
-            resolved_tasks=resolved_tasks,
-            all_logs=all_logs,
-            log_dir_allow_dirty=False,
-            config=config,
-        )
-        assert len(all_logs) == 2
-
-        eval_set(
-            tasks=[task1, task2],
-            log_dir=log_dir,
-            **config.model_dump(),
-        )
+    run_eval_set(resolved_tasks)
 
 
 def test_task_identifier_with_task_generate_configs():
@@ -461,30 +443,10 @@ def test_task_identifier_with_task_generate_configs():
                 **config.model_dump(),
             )
 
-        config = GenerateConfig(system_message="Test System Message")
-        eval_set(
-            tasks=[task1, task2],
-            log_dir=log_dir,
-            model="mockllm/model",
-            **config.model_dump(),
-        )
-
-        all_logs = list_all_eval_logs(log_dir)
-
-        all_logs = validate_eval_set_prerequisites(
-            resolved_tasks=resolved_tasks,
-            all_logs=all_logs,
-            log_dir_allow_dirty=False,
-            config=config,
-        )
-        assert len(all_logs) == 2
-
-        eval_set(
-            tasks=[task1, task2],
-            log_dir=log_dir,
-            model="mockllm/model",
-            **config.model_dump(),
-        )
+    # system_message will not override the value set in the task config, so these tasks will still be unique
+    run_eval_set(
+        resolved_tasks, config=GenerateConfig(system_message="Test System Message")
+    )
 
 
 def test_task_identifier_with_solvers():
@@ -505,27 +467,4 @@ def test_task_identifier_with_solvers():
     assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
         resolved_tasks[1], GenerateConfig()
     )
-
-    with tempfile.TemporaryDirectory() as log_dir:
-        config = GenerateConfig(temperature=0.7)
-        eval_set(
-            tasks=[task1, task2],
-            log_dir=log_dir,
-            **config.model_dump(),
-        )
-
-        all_logs = list_all_eval_logs(log_dir)
-
-        all_logs = validate_eval_set_prerequisites(
-            resolved_tasks=resolved_tasks,
-            all_logs=all_logs,
-            log_dir_allow_dirty=False,
-            config=config,
-        )
-        assert len(all_logs) == 2
-
-        eval_set(
-            tasks=[task1, task2],
-            log_dir=log_dir,
-            **config.model_dump(),
-        )
+    run_eval_set(resolved_tasks)
