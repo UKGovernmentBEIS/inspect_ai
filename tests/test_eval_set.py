@@ -172,6 +172,7 @@ def test_validate_eval_set_prerequisites_ok() -> None:
     resolved_tasks = resolve_tasks(
         "examples/popularity.py", {}, get_model("mockllm/model"), None, None, None
     )
+    task_with(resolved_tasks[0].task, config=GenerateConfig(temperature=1.0))
 
     all_logs = validate_eval_set_prerequisites(
         resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=False

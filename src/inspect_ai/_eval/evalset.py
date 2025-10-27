@@ -719,19 +719,13 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         fallback=lambda _x: None,
     )
 
-    print(
-        "TASK EVAL PLAN" if isinstance(task, ResolvedTask) else "LOG  EVAL PLAN",
-        additional_hash_input,
-    )
-
     # hash for model generate config
-    if model_generate_config != GenerateConfig():
-        additional_hash_input += to_json(
-            model_generate_config,
-            exclude_none=True,
-            exclude=fields_to_exclude,
-            fallback=lambda _x: None,
-        )
+    additional_hash_input += to_json(
+        model_generate_config,
+        exclude_none=True,
+        exclude=fields_to_exclude,
+        fallback=lambda _x: None,
+    )
 
     # hash for model roles
     if len(model_roles):
@@ -742,10 +736,8 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
     if task_file:
-        print(f"{task_file}@{task_name}#{task_args_hash}/{model}/{additional_hash}")
         return f"{task_file}@{task_name}#{task_args_hash}/{model}/{additional_hash}"
     else:
-        print(f"{task_name}#{task_args_hash}/{model}/{additional_hash}")
         return f"{task_name}#{task_args_hash}/{model}/{additional_hash}"
 
 
