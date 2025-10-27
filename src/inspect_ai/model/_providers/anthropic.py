@@ -468,9 +468,9 @@ class AnthropicAPI(ModelAPI):
         # Claude 4 models currently have maxes of 32k (Opus 4 and 4.1) or
         # 64k (Sonnet 4 and 4.5 and Haiku 4.5). Claude 3 models max at 4k or
         # 8k, w/ 3.7 Sonnet being capable of 128k w/ a special header).
-        # Therefore, we use 4k as the default for Claude 3 and 32,000 as the
+        # Therefore, we use 4k as the default for Claude 3 and 3.5 and 32,000 as the
         # default for everything else.
-        if self.is_claude_3():
+        if self.is_claude_3() or self.is_claude_3_5():
             return 4096
         else:
             return 32000
