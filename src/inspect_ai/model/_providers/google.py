@@ -84,7 +84,10 @@ from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers._google_batch import GoogleBatcher
-from inspect_ai.model._providers._google_citations import get_candidate_citations
+from inspect_ai.model._providers._google_citations import (
+    distribute_citations_to_text_parts,
+    get_candidate_citations,
+)
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import (
     ToolCall,
@@ -450,8 +453,8 @@ class GoogleGenAIAPI(ModelAPI):
         )
 
     def _categorize_tool(
-        self, acc: tuple[bool, list[FunctionDeclaration]], tool: ToolInfo
-    ) -> tuple[bool, list[FunctionDeclaration]]:
+        self, acc: tuple[GoogleSearch | None, list[FunctionDeclaration]], tool: ToolInfo
+    ) -> tuple[GoogleSearch | None, list[FunctionDeclaration]]:
         """Reducer function that categorizes tools into native search vs function declarations.
 
         Returns:
@@ -460,8 +463,8 @@ class GoogleGenAIAPI(ModelAPI):
             all non-native-search tools converted to FunctionDeclaration objects.
         """
         return (
-            (True, acc[1])
-            if self._use_native_search(tool)
+            (self._google_search_options(tool.options), acc[1])
+            if tool.options and self._use_native_search(tool)
             else (
                 acc[0],
                 acc[1]
@@ -477,21 +480,29 @@ class GoogleGenAIAPI(ModelAPI):
             )
         )
 
+    def _google_search_options(self, options: dict[str, Any]) -> GoogleSearch:
+        gemini_options = options.get("gemini", None)
+        if isinstance(gemini_options, dict):
+            return GoogleSearch.model_validate(gemini_options)
+        else:
+            return GoogleSearch()
+
     def chat_tools(self, tools: list[ToolInfo]) -> tuple[bool, ToolListUnion]:
-        has_native_search, function_declarations = functools.reduce(
-            self._categorize_tool, tools, (False, list[FunctionDeclaration]())
+        seed: GoogleSearch | None = None
+        google_search, function_declarations = functools.reduce(
+            self._categorize_tool, tools, (seed, list[FunctionDeclaration]())
         )
 
         # TODO: Google doesn't yet support native search concurrently with other tools.
         # Revisit this from time to time to adapt when they fix it.
-        if has_native_search and function_declarations:
+        if google_search and function_declarations:
             raise ValueError(
                 "Gemini does not yet support native search concurrently with other tools."
             )
 
         return (
-            (True, [Tool(google_search=GoogleSearch())])
-            if has_native_search
+            (True, [Tool(google_search=google_search)])
+            if google_search
             else (False, [Tool(function_declarations=function_declarations)])
         )
 
@@ -849,20 +860,6 @@ def completion_choice_from_candidate(
     elif candidate.content.parts is None:
         content = ""
     else:
-        # Google's grounded search metadata provides start/end indices for cited
-        # text based on the joining of all separate text parts (despite the doc
-        # suggesting that they provide part_index). Thankfully, the doc also says:
-        #
-        #   Exactly one field within a Part should be set, representing the specific type
-        #   of content being conveyed. Using multiple fields within the same `Part`
-        #   instance is considered invalid.
-        #
-        # That means that we can safely collapse adjacent parts with a `text` field
-        # and not fear that we're breaking other types of content parts
-        parts = functools.reduce(
-            _combine_text_parts, candidate.content.parts, list[Part]()
-        )
-
         content = [
             ContentReasoning(
                 reasoning=part.text,
@@ -871,12 +868,15 @@ def completion_choice_from_candidate(
                 else None,
             )
             if part.thought is True
-            else ContentText(
-                text=part.text, citations=get_candidate_citations(candidate)
-            )
-            for part in parts
+            else ContentText(text=part.text)
+            for part in candidate.content.parts
             if part.text is not None
         ]
+
+        # distribute citations to individual ContentText parts with adjusted indexes
+        citations = get_candidate_citations(candidate)
+        if citations:
+            distribute_citations_to_text_parts(content, citations)
 
     # now tool calls
     tool_calls: list[ToolCall] = []
@@ -1132,16 +1132,3 @@ async def file_for_content(
         files_db.put(content_sha256, str(upload.name))
         # return the file
         return upload
-
-
-def _combine_text_parts(acc: list[Part], part: Part) -> list[Part]:
-    """Combine adjacent text parts into a single part."""
-    return (
-        acc + [part]
-        if part.text is None
-        or part.thought is True
-        or len(acc) == 0
-        or acc[-1].text is None
-        or acc[-1].thought is True
-        else acc[:-1] + [Part(text=acc[-1].text + part.text)]
-    )

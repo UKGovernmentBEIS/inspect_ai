@@ -89,7 +89,9 @@ class TaskLogger:
         # determine versions
         git = git_context()
         revision = (
-            EvalRevision(type="git", origin=git.origin, commit=git.commit)
+            EvalRevision(
+                type="git", origin=git.origin, commit=git.commit, dirty=git.dirty
+            )
             if git
             else None
         )

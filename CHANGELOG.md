@@ -1,10 +1,18 @@
-## Unreleased
+## 0.3.142 (27 October 2025)
+
+- Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
+- Google: Support options (time interval) for Gemini Web Search.
+- Inspect View: Fix performance regression when loading a log view from an S3 bucket.
+- Inspect View: Fix flash of 'No events' message when loading sample transcripts.
+
+## 0.3.141 (27 October 2025)
 
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
 - OpenAI: Don't include "metadata" extra body parameter when `responses_store` is False.
 - Anthropic: Increase default `max_tokens` to 32,000 for Claude 4 models.
 - OpenRouter: Classify `JSONDecodeError` as a retry-able infrastructure error.
 - Remove Goodfire model provider (as the goodfire package has been archived/deprecated).
+- Eval logs: Track dirty working tree state in `EvalRevision` (includes `dirty` field indicating uncommitted changes or untracked files at eval time).
 - Inspect View: Display copy button for model events api request and response JSON.
 - Inspect View: Support selecting multiple scorers for display in the sample list.
 - Inspect View: Show multiple scores in sample view.
@@ -14,6 +22,7 @@
 - Bugfix: Correctly resolve relative sandbox config paths in `eval-retry` when CWD differs from task directory.
 - Bugfix: Don't check working time limit when there is a model generation in flight.
 - Bugfix: Fix broken Pydantic @model_validator's that assumed the input was a dict.
+- Bugfix: Fix `run_coroutine` to exit internal catch handler before running the coroutine.
 
 ## 0.3.140 (20 October 2025)
 
