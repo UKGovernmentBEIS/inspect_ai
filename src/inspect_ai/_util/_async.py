@@ -123,13 +123,15 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
             # this will throw if there is no running loop
             asyncio.get_running_loop()
 
-            # initialiase nest_asyncio then we are clear to run
+            # initialize nest_asyncio then we are clear to run
             init_nest_asyncio()
-            return asyncio.run(coroutine)
 
         except RuntimeError:
-            # No running event loop so we are clear to run
-            return asyncio.run(coroutine)
+            # No running event loop so we are clear to run. Exit the exception handler
+            # and run it.
+            pass
+
+        return asyncio.run(coroutine)
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:

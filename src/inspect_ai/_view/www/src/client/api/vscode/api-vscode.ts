@@ -12,6 +12,8 @@ import {
 import {
   kMethodEvalLog,
   kMethodEvalLogBytes,
+  kMethodEvalLogDir,
+  kMethodEvalLogFiles,
   kMethodEvalLogHeaders,
   kMethodEvalLogs,
   kMethodEvalLogSize,
@@ -47,6 +49,28 @@ async function get_log_root() {
     return undefined;
   }
 }
+
+const get_log_dir = async () => {
+  const response = await vscodeClient(kMethodEvalLogDir, []);
+  if (response) {
+    const parsed = JSON5.parse(response);
+    return parsed.log_dir as string | undefined;
+  }
+  return undefined;
+};
+
+const get_logs = async (mtime: number, clientFileCount: number) => {
+  const response = await vscodeClient(kMethodEvalLogFiles, [
+    mtime,
+    clientFileCount,
+  ]);
+  if (response) {
+    const parsed = JSON5.parse(response);
+    return parsed;
+  } else {
+    return [];
+  }
+};
 
 async function get_eval_set(): Promise<undefined> {
   return undefined;
@@ -172,6 +196,8 @@ async function open_log_file(log_file: string, log_dir: string) {
 const api: LogViewAPI = {
   client_events,
   get_log_root,
+  get_log_dir,
+  get_logs,
   get_eval_set,
   get_log_contents,
   get_log_size,
