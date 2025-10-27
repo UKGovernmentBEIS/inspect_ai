@@ -1,3 +1,7 @@
+## Unreleased
+
+- Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
+
 ## 0.3.141 (27 October 2025)
 
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
