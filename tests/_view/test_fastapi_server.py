@@ -17,6 +17,7 @@ import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._view import fastapi_server
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
+from inspect_ai.model._generate_config import GenerateConfig
 
 
 @pytest.fixture
@@ -331,6 +332,7 @@ def test_api_eval_set(test_client: TestClient):
             )
         ],
         all_logs=[],
+        config=GenerateConfig(),
     )
 
     response = test_client.request("GET", f"/eval-set?dir={eval_set_id}")
