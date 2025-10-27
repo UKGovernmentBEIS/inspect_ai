@@ -4,6 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
+from examples import hello_world
 from test_helpers.utils import (
     failing_solver,
     failing_task,
@@ -175,7 +176,10 @@ def test_validate_eval_set_prerequisites_ok() -> None:
     task_with(resolved_tasks[0].task, config=GenerateConfig(temperature=1.0))
 
     all_logs = validate_eval_set_prerequisites(
-        resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=False
+        resolved_tasks=resolved_tasks,
+        all_logs=all_logs,
+        log_dir_allow_dirty=False,
+        config=GenerateConfig(),
     )
     assert len(all_logs) == 2
 
@@ -192,7 +196,10 @@ def test_validate_eval_set_prerequisites_mismatch() -> None:
 
     with pytest.raises(PrerequisiteError):
         validate_eval_set_prerequisites(
-            resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=False
+            resolved_tasks=resolved_tasks,
+            all_logs=all_logs,
+            log_dir_allow_dirty=False,
+            config=GenerateConfig(),
         )
 
 
@@ -207,7 +214,10 @@ def test_validate_eval_set_prerequisites_mismatch_log_dir_allow_dirty() -> None:
     )
 
     all_logs = validate_eval_set_prerequisites(
-        resolved_tasks=resolved_tasks, all_logs=all_logs, log_dir_allow_dirty=True
+        resolved_tasks=resolved_tasks,
+        all_logs=all_logs,
+        log_dir_allow_dirty=True,
+        config=GenerateConfig(),
     )
     assert len(all_logs) == 0
 
@@ -343,7 +353,9 @@ def test_task_identifier_with_model_configs():
         None,
         None,
     )
-    assert task_identifier(resolved_tasks1[0]) != task_identifier(resolved_tasks2[0])
+    assert task_identifier(resolved_tasks1[0], GenerateConfig()) != task_identifier(
+        resolved_tasks2[0], GenerateConfig()
+    )
 
 
 def test_task_identifier_with_model_roles_model_configs():
@@ -366,7 +378,67 @@ def test_task_identifier_with_model_roles_model_configs():
         None,
         None,
     )
-    assert task_identifier(resolved_tasks1[0]) != task_identifier(resolved_tasks2[0])
+    assert task_identifier(resolved_tasks1[0], GenerateConfig()) != task_identifier(
+        resolved_tasks2[0], GenerateConfig()
+    )
+
+
+def test_task_identifier_with_task_generate_configs():
+    model1 = get_model("mockllm/model")
+    task1 = hello_world.hello_world()
+    task2 = hello_world.hello_world()
+    task_with(
+        task1,
+        model=model1,
+        config=GenerateConfig(temperature=0.0),
+        model_roles={"scorer": model1},
+    )
+    task_with(
+        task2,
+        model=model1,
+        config=GenerateConfig(temperature=0.5),
+        model_roles={"scorer": model1},
+    )
+    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
+    assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
+        resolved_tasks[1], GenerateConfig()
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        config = GenerateConfig(temperature=0.7)
+        # Since eval_set config overrides the task config, both tasks will be the same and this should raise an error
+        with pytest.raises(PrerequisiteError):
+            eval_set(
+                tasks=[task1, task2],
+                log_dir=log_dir,
+                model="mockllm/model",
+                **config.model_dump(),
+            )
+
+        config = GenerateConfig(system_message="Test System Message")
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            model="mockllm/model",
+            **config.model_dump(),
+        )
+
+        all_logs = list_all_eval_logs(log_dir)
+
+        all_logs = validate_eval_set_prerequisites(
+            resolved_tasks=resolved_tasks,
+            all_logs=all_logs,
+            log_dir_allow_dirty=False,
+            config=config,
+        )
+        assert len(all_logs) == 2
+
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            model="mockllm/model",
+            **config.model_dump(),
+        )
 
 
 def test_task_identifier_with_solvers():
@@ -389,4 +461,6 @@ def test_task_identifier_with_solvers():
         None,
         None,
     )
-    assert task_identifier(resolved_tasks1[0]) != task_identifier(resolved_tasks2[0])
+    assert task_identifier(resolved_tasks1[0], GenerateConfig()) != task_identifier(
+        resolved_tasks2[0], GenerateConfig()
+    )
