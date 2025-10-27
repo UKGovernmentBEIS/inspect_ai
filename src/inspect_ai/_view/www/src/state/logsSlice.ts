@@ -3,6 +3,7 @@ import {
   ColumnResizeMode,
   SortingState,
 } from "@tanstack/react-table";
+import { GridState } from "ag-grid-community";
 import { EvalSet } from "../@types/log";
 import { LogsState } from "../app/types";
 import {
@@ -58,6 +59,8 @@ export interface LogsSlice {
     setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
     setSelectedRowIndex: (index: number | null) => void;
+
+    setGridState: (gridState: GridState) => void;
   };
 }
 
@@ -74,6 +77,7 @@ const initialState: LogsState = {
     previewCount: 0,
     detailsCount: 0,
   },
+  samplesListState: {},
 };
 
 export const createLogsSlice = (
@@ -87,10 +91,14 @@ export const createLogsSlice = (
 
     // Actions
     logsActions: {
-      setLogDir: (logDir?: string) =>
+      setLogDir: (logDir?: string) => {
         set((state) => {
-          state.logs.logDir = logDir;
-        }),
+          if (logDir !== state.logs.logDir) {
+            state.logs.logDir = logDir;
+            state.logs.samplesListState.gridState = undefined;
+          }
+        });
+      },
       setLogHandles: (logs: LogHandle[]) =>
         set((state) => {
           state.logs.logs = logs;
@@ -128,6 +136,11 @@ export const createLogsSlice = (
             ...details,
           };
         }),
+      setGridState: (gridState: GridState) => {
+        set((state) => {
+          state.logs.samplesListState.gridState = gridState;
+        });
+      },
       initLogDir: async () => {
         const api = get().api;
         if (!api) {

@@ -1,4 +1,8 @@
-import type { ColDef, RowSelectedEvent } from "ag-grid-community";
+import type {
+  ColDef,
+  RowSelectedEvent,
+  StateUpdatedEvent,
+} from "ag-grid-community";
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -8,6 +12,7 @@ import { AgGridReact } from "ag-grid-react";
 import { FC, useCallback, useEffect, useMemo } from "react";
 import { Score } from "../../@types/log";
 import { useStore } from "../../state/store";
+import { filename } from "../../utils/path";
 import styles from "./SamplesGrid.module.css";
 
 // Register AG Grid modules
@@ -67,8 +72,15 @@ const getScoreValue = (score: Score | null | undefined): any => {
   return score;
 };
 
+// Helper to format logFile path to show only relative path
+const formatLogFilePath = (logFile: string): string => {
+  return filename(logFile);
+};
+
 export const SamplesGrid: FC<SamplesGridProps> = () => {
   const logDetails = useStore((state) => state.logs.logDetails);
+  const gridState = useStore((state) => state.logs.samplesListState.gridState);
+  const setGridState = useStore((state) => state.logsActions.setGridState);
 
   // Debug: Log when component renders
   useEffect(() => {
@@ -210,6 +222,7 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
         sortable: true,
         filter: true,
         resizable: true,
+        valueFormatter: (params) => formatLogFilePath(params.value),
       },
       {
         field: "target",
@@ -321,6 +334,10 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
           onRowSelected={onRowSelected}
           theme={themeBalham}
           enableCellTextSelection={true}
+          initialState={gridState}
+          onStateUpdated={(e: StateUpdatedEvent<SampleRow, any>) => {
+            setGridState(e.state);
+          }}
         />
       </div>
     </div>
