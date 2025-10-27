@@ -1,4 +1,3 @@
-import types
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Type, TypeVar, cast
@@ -485,11 +484,13 @@ async def emit_sample_scoring(
 
 def has_api_key_override() -> bool:
     """Check if any hooks have implemented `override_api_key()`."""
-    return any(
-        isinstance(func := hook.override_api_key, types.MethodType)
-        and func.__func__ is not Hooks.override_api_key
-        for hook in get_all_hooks()
-    )
+    for hook in get_all_hooks():
+        for cls in type(hook).mro():
+            if "override_api_key" in cls.__dict__:
+                if cls is not Hooks:
+                    return True
+                break
+    return False
 
 
 def override_api_key(env_var_name: str, value: str) -> str | None:
