@@ -814,6 +814,11 @@ class Model:
                 report_http_retry()
                 return True
 
+            retry = self.api.is_auth_failure(ex)
+            if retry:
+                report_http_retry()
+                return True
+
             # see if the API implements legacy is_rate_limit() method
             is_rate_limit = getattr(self.api, "is_rate_limit", None)
             if is_rate_limit:
