@@ -17,6 +17,8 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._display import display as display_manager
+from inspect_ai._eval.task.log import plan_to_eval_plan
+from inspect_ai._eval.task.run import resolve_plan
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, file, filesystem
@@ -684,6 +686,8 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         model = str(task.model)
         model_generate_config = task.model.config
         model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
+        plan = resolve_plan(task.task, task.task.solver)
+        eval_plan = plan_to_eval_plan(plan, task.task.config)
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
@@ -691,19 +695,41 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         model = str(task.eval.model)
         model_generate_config = task.eval.model_generate_config
         model_roles = task.eval.model_roles or {}
+        eval_plan = task.plan
+
+    # fields to exclude - these generate config should not affect task identity
+    fields_to_exclude = {
+        "max_retries",
+        "timeout",
+        "attempt_timeout",
+        "max_connections",
+        "batch",
+    }
 
     # hash for task args
     task_args_hash = hashlib.sha256(
         to_json(task_args, exclude_none=True, fallback=lambda _x: None)
     ).hexdigest()
 
-    additional_hash_input = b""
+    # hash for eval plan
+    additional_hash_input = to_json(
+        eval_plan,
+        exclude_none=True,
+        exclude={"config": fields_to_exclude},
+        fallback=lambda _x: None,
+    )
+
+    print(
+        "TASK EVAL PLAN" if isinstance(task, ResolvedTask) else "LOG  EVAL PLAN",
+        additional_hash_input,
+    )
 
     # hash for model generate config
     if model_generate_config != GenerateConfig():
         additional_hash_input += to_json(
             model_generate_config,
             exclude_none=True,
+            exclude=fields_to_exclude,
             fallback=lambda _x: None,
         )
 
@@ -713,14 +739,14 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
             model_roles, exclude_none=True, fallback=lambda _x: None
         )
 
-    additional_hash = ""
-    if additional_hash_input:
-        additional_hash = "/" + hashlib.sha256(additional_hash_input).hexdigest()
+    additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
     if task_file:
-        return f"{task_file}@{task_name}#{task_args_hash}/{model}{additional_hash}"
+        print(f"{task_file}@{task_name}#{task_args_hash}/{model}/{additional_hash}")
+        return f"{task_file}@{task_name}#{task_args_hash}/{model}/{additional_hash}"
     else:
-        return f"{task_name}#{task_args_hash}/{model}{additional_hash}"
+        print(f"{task_name}#{task_args_hash}/{model}/{additional_hash}")
+        return f"{task_name}#{task_args_hash}/{model}/{additional_hash}"
 
 
 class ModelList:

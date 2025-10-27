@@ -22,6 +22,7 @@ from inspect_ai._eval.evalset import (
     validate_eval_set_prerequisites,
 )
 from inspect_ai._eval.loader import resolve_tasks
+from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
@@ -361,6 +362,29 @@ def test_task_identifier_with_model_roles_model_configs():
         {},
         model1,
         {"scorer": model2},
+        None,
+        None,
+    )
+    assert task_identifier(resolved_tasks1[0]) != task_identifier(resolved_tasks2[0])
+
+
+def test_task_identifier_with_solvers():
+    # ensure that tasks with different solvers produce different task identifiers
+    resolved_tasks1 = resolve_tasks(
+        sleep_for_1_task("arg"),
+        {},
+        get_model("mockllm/model"),
+        None,
+        None,
+        None,
+    )
+    task2 = sleep_for_1_task("arg")
+    task2 = task_with(task2, solver=[sleep_for_solver(2)])
+    resolved_tasks2 = resolve_tasks(
+        task2,
+        {},
+        get_model("mockllm/model"),
+        None,
         None,
         None,
     )
