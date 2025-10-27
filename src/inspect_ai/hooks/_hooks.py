@@ -482,6 +482,14 @@ async def emit_sample_scoring(
     await _emit_to_all(lambda hook: hook.on_sample_scoring(data))
 
 
+def has_api_key_override() -> bool:
+    """Check if any hooks have overridden the API key."""
+    return any(
+        hook.override_api_key.__func__ is not Hooks.override_api_key
+        for hook in get_all_hooks()
+    )
+
+
 def override_api_key(env_var_name: str, value: str) -> str | None:
     data = ApiKeyOverride(env_var_name=env_var_name, value=value)
     for hook in get_all_hooks():
