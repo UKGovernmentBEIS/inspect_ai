@@ -45,7 +45,7 @@
 }
 
 .toolbarButton {
-  color: var(--bs-body);
+  color: var(--bs-body-color);
 }
 
 .toolbarButton:hover {
