@@ -4,7 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from examples import hello_world
+from examples.hello_world import hello_world
 from test_helpers.utils import (
     failing_solver,
     failing_task,
