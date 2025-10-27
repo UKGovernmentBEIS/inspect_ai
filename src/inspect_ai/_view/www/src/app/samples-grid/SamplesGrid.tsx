@@ -1,5 +1,6 @@
 import type {
   ColDef,
+  RowClickedEvent,
   RowSelectedEvent,
   StateUpdatedEvent,
 } from "ag-grid-community";
@@ -13,6 +14,7 @@ import { FC, useCallback, useEffect, useMemo } from "react";
 import { Score } from "../../@types/log";
 import { useStore } from "../../state/store";
 import { filename } from "../../utils/path";
+import { useSampleNavigation } from "../routing/sampleNavigation";
 import styles from "./SamplesGrid.module.css";
 
 // Register AG Grid modules
@@ -81,6 +83,10 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
   const logDetails = useStore((state) => state.logs.logDetails);
   const gridState = useStore((state) => state.logs.samplesListState.gridState);
   const setGridState = useStore((state) => state.logsActions.setGridState);
+  const { showSample } = useSampleNavigation();
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
+  );
 
   // Debug: Log when component renders
   useEffect(() => {
@@ -335,8 +341,14 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
           theme={themeBalham}
           enableCellTextSelection={true}
           initialState={gridState}
-          onStateUpdated={(e: StateUpdatedEvent<SampleRow, any>) => {
+          onStateUpdated={(e: StateUpdatedEvent<SampleRow>) => {
             setGridState(e.state);
+          }}
+          onRowClicked={(e: RowClickedEvent<SampleRow>) => {
+            if (e.data) {
+              setSelectedLogFile(e.data.logFile);
+              showSample(e.data.sampleId, e.data.epoch);
+            }
           }}
         />
       </div>
