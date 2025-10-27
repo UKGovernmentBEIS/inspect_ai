@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence, TypeGuard, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence, cast, overload
 
 if TYPE_CHECKING:
-    from inspect_scout import Scanner, Transcript
+    from inspect_ai.scorer._scorers import Scorers
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
@@ -62,10 +62,7 @@ class Task:
         setup: Solver | list[Solver] | None = None,
         solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
-        scorer: Scorer
-        | "Scanner[Transcript]"
-        | Sequence[Scorer | "Scanner[Transcript]"]
-        | None = None,
+        scorer: "Scorers" | None = None,
         metrics: list[Metric | dict[str, list[Metric]]]
         | dict[str, list[Metric]]
         | None = None,
@@ -217,11 +214,7 @@ def task_with(
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
-    scorer: Scorer
-    | "Scanner[Transcript]"
-    | Sequence[Scorer | "Scanner[Transcript]"]
-    | None
-    | NotGiven = NOT_GIVEN,
+    scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
     | dict[str, list[Metric]]
     | None
@@ -411,11 +404,16 @@ def resolve_solver(solver: Solver | Agent | list[Solver]) -> Solver:
         return cast(Solver, solver)
 
 
+@overload
+def resolve_scorer(scorer: "Scorers") -> list[Scorer]: ...
+
+
+@overload
+def resolve_scorer(scorer: None) -> None: ...
+
+
 def resolve_scorer(
-    scorer: Scorer
-    | "Scanner[Transcript]"
-    | Sequence[Scorer | "Scanner[Transcript]"]
-    | None = None,
+    scorer: "Scorers" | None = None,
 ) -> list[Scorer] | None:
     if scorer is None:
         return scorer
@@ -424,17 +422,15 @@ def resolve_scorer(
     return [to_scorer(s) for s in scorers]
 
 
-def to_scorer(s: Scorer | "Scanner[Transcript]") -> Scorer:
-    if is_scanner(s):
+def to_scorer(s: Any) -> Scorer:
+    if is_registry_object(s, type="scanner"):
         from inspect_scout import as_scorer
 
         return as_scorer(s)
-    else:
+    elif is_registry_object(s, type="scorer"):
         return cast(Scorer, s)
-
-
-def is_scanner(obj: Any) -> TypeGuard["Scanner[Transcript]"]:
-    return is_registry_object(obj, type="scanner")
+    else:
+        raise TypeError(f"Unexpected scorer type: {type(s)}")
 
 
 AGENT_DESCRIPTION = "description"
