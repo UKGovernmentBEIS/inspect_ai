@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
+- Google: Support options (time interval) for Gemini Web Search.
 
 ## 0.3.141 (27 October 2025)
 

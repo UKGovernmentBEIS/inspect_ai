@@ -453,8 +453,8 @@ class GoogleGenAIAPI(ModelAPI):
         )
 
     def _categorize_tool(
-        self, acc: tuple[bool, list[FunctionDeclaration]], tool: ToolInfo
-    ) -> tuple[bool, list[FunctionDeclaration]]:
+        self, acc: tuple[GoogleSearch | None, list[FunctionDeclaration]], tool: ToolInfo
+    ) -> tuple[GoogleSearch | None, list[FunctionDeclaration]]:
         """Reducer function that categorizes tools into native search vs function declarations.
 
         Returns:
@@ -463,8 +463,8 @@ class GoogleGenAIAPI(ModelAPI):
             all non-native-search tools converted to FunctionDeclaration objects.
         """
         return (
-            (True, acc[1])
-            if self._use_native_search(tool)
+            (self._google_search_options(tool.options), acc[1])
+            if tool.options and self._use_native_search(tool)
             else (
                 acc[0],
                 acc[1]
@@ -480,21 +480,29 @@ class GoogleGenAIAPI(ModelAPI):
             )
         )
 
+    def _google_search_options(self, options: dict[str, Any]) -> GoogleSearch:
+        gemini_options = options.get("gemini", None)
+        if isinstance(gemini_options, dict):
+            return GoogleSearch.model_validate(gemini_options)
+        else:
+            return GoogleSearch()
+
     def chat_tools(self, tools: list[ToolInfo]) -> tuple[bool, ToolListUnion]:
-        has_native_search, function_declarations = functools.reduce(
-            self._categorize_tool, tools, (False, list[FunctionDeclaration]())
+        seed: GoogleSearch | None = None
+        google_search, function_declarations = functools.reduce(
+            self._categorize_tool, tools, (seed, list[FunctionDeclaration]())
         )
 
         # TODO: Google doesn't yet support native search concurrently with other tools.
         # Revisit this from time to time to adapt when they fix it.
-        if has_native_search and function_declarations:
+        if google_search and function_declarations:
             raise ValueError(
                 "Gemini does not yet support native search concurrently with other tools."
             )
 
         return (
-            (True, [Tool(google_search=GoogleSearch())])
-            if has_native_search
+            (True, [Tool(google_search=google_search)])
+            if google_search
             else (False, [Tool(function_declarations=function_declarations)])
         )
 
