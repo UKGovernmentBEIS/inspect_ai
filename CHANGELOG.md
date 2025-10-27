@@ -1,3 +1,7 @@
+## Unreleased
+
+- Scoring: Support for using `@scanner` functions as scorers.
+
 ## 0.3.142 (27 October 2025)
 
 - Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
