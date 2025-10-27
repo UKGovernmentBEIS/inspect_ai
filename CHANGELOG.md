@@ -1,7 +1,9 @@
-## Unreleased
+## 0.3.142 (27 October 2025)
 
 - Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
 - Google: Support options (time interval) for Gemini Web Search.
+- Inspect View: Fix performance regression when loading a log view from an S3 bucket.
+- Inspect View: Fix flash of 'No events' message when loading sample transcripts.
 
 ## 0.3.141 (27 October 2025)
 
