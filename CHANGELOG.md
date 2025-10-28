@@ -1,3 +1,8 @@
+## Unreleased
+
+- Anthropic: Set 4k as default max_token limit for Claude 3.5 (same as Claude 3.0).
+- Scoring: Support for using `@scanner` functions as scorers.
+
 ## 0.3.142 (27 October 2025)
 
 - Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
