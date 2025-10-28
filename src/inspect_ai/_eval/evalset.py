@@ -720,26 +720,20 @@ def task_identifier(
     ).hexdigest()
 
     # hash for eval plan
-    additional_hash_input = to_json(
+    additional_hash_input = to_json_safe(
         eval_plan,
-        exclude_none=True,
         exclude={"config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE},
-        fallback=lambda _x: None,
     )
 
     # hash for model generate config
-    additional_hash_input += to_json(
+    additional_hash_input += to_json_safe(
         model_generate_config,
-        exclude_none=True,
         exclude=_GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
-        fallback=lambda _x: None,
     )
 
     # hash for model roles
     if len(model_roles):
-        additional_hash_input += to_json(
-            model_roles, exclude_none=True, fallback=lambda _x: None
-        )
+        additional_hash_input += to_json_safe(model_roles)
 
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
