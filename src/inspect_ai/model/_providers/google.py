@@ -660,28 +660,19 @@ async def content(
         else:
             for i, content in enumerate(message.content):
                 if isinstance(content, ContentReasoning):
-                    if content.summary is not None:
-                        # Append a part for the thought summary, which originally
-                        # was a different part
+                    # if this is encrytped reasoning, emit the part and save the
+                    # content block for applying the thought_signature to the next part
+                    if content.redacted:
                         content_parts.append(
                             Part(
                                 text=content.summary,
                                 thought=True,
                             )
                         )
-                    # We should never have working_reasoning_block set here because
-                    # that means we have had two reasoning blocks in a row.
-                    # NOTE: We may break this invariant to support multiple thinking blocks,
-                    # though that is problematic because we don't know which reasoning block
-                    # corresponds to which tool call.
+                        working_reasoning_block = content
+                    else:
+                        content_parts.append(Part(text=content.reasoning, thought=True))
 
-                    assert working_reasoning_block is None, (
-                        "Multiple reasoning blocks detected in a row. "
-                        "This is not currently supported."
-                    )
-
-                    # Now set the "working" reasoning block so that future parts can use it.
-                    working_reasoning_block = content
                 else:
                     part_to_append = await content_part(client, content)
                     # If previously there was a reasoning block, we need to set the "thought_signature"
@@ -693,6 +684,10 @@ async def content(
                         ):
                             part_to_append.thought_signature = base64.b64decode(
                                 working_reasoning_block.reasoning.encode()
+                            )
+                        else:
+                            logger.warning(
+                                "Reasoning block must have a reasoning signature to set thought_signature."
                             )
                         # Now, reset the previous reasoning block.
                         working_reasoning_block = None
@@ -924,31 +919,21 @@ def completion_choice_from_candidate(
                 continue  # We only care about text parts here
 
             if part.thought is True:
-                # If .thought is true, this means that it is a summary block
-                # We now look ahead to see if this is a summary block (and the next
-                # block has a thought signature)
-                next_part = parts[i + 1] if i + 1 < len(parts) else None
-                thought_signature = (
-                    base64.b64encode(next_part.thought_signature).decode()
-                    if next_part and next_part.thought_signature
-                    else None
-                )
-
-                # We fall back to using the text as the reasoning if there is no
-                # thought signature
+                # we'll create and append a reasoning block, saving a reference
+                # to it so that we can ammend it with a thought signature if/when
+                # one arrives later in the stream (note that multiple reasoning
+                # parts without a signature can occur)
                 working_reasoning_block = ContentReasoning(
-                    reasoning=thought_signature if thought_signature else part.text,
-                    summary=part.text,
-                    redacted=thought_signature is not None,
+                    reasoning=part.text,
+                    redacted=False,
                 )
-
                 content.append(working_reasoning_block)
             else:
                 # Check if this block has an associated thought_signature and
                 # whether it corresponds to the previous ContentReasoning block.
                 if part.thought_signature is not None:
                     if working_reasoning_block is None:
-                        # Prepend the reasoning block to the list
+                        # append the reasoning block to the list
                         content.append(
                             ContentReasoning(
                                 reasoning=base64.b64encode(
@@ -958,18 +943,15 @@ def completion_choice_from_candidate(
                             )
                         )
                     elif working_reasoning_block is not None:
-                        # Sanity check that the working reasoning block has the same signature
-                        if (
-                            working_reasoning_block.reasoning is not None
-                            and working_reasoning_block.redacted
-                        ):
-                            if part.thought_signature != base64.b64decode(
-                                working_reasoning_block.reasoning.encode()
-                            ):
-                                logger.warning(
-                                    "Mismatched thought_signature on part compared to working reasoning block."
-                                )
-
+                        # attach the though_signature to the previous reasoning block
+                        working_reasoning_block.summary = (
+                            working_reasoning_block.reasoning
+                        )
+                        working_reasoning_block.reasoning = base64.b64encode(
+                            part.thought_signature
+                        ).decode()
+                        working_reasoning_block.redacted = True
+                        # clear it out
                         working_reasoning_block = None
 
                 content.append(ContentText(text=part.text))
@@ -997,20 +979,23 @@ def completion_choice_from_candidate(
                 # If the part has a thought_signature, try and associate it with the previous working block
                 if part.thought_signature:
                     if working_reasoning_block is None:
-                        # We make the assumption that tool calls don't have independent reasoning blocks unless they are preceded by a reasoning block.
+                        # We make the assumption that tool calls don't have independent reasoning
+                        # blocks unless they are preceded by a reasoning block.
                         reasoning_block = ContentReasoning(
                             reasoning=base64.b64encode(part.thought_signature).decode(),
                             redacted=True,
                         )
 
                         content.append(reasoning_block)
-                        # We set the reasoning block here so that if they are found on
-                        # other tool call parts, we throw an error in the next else condition
-                        working_reasoning_block = reasoning_block
                     else:
-                        assert part.thought_signature == base64.b64decode(
-                            working_reasoning_block.reasoning.encode()
+                        # attach the though_signature to the previous reasoning block
+                        working_reasoning_block.summary = (
+                            working_reasoning_block.reasoning
                         )
+                        working_reasoning_block.reasoning = base64.b64encode(
+                            part.thought_signature
+                        ).decode()
+                        working_reasoning_block.redacted = True
                         working_reasoning_block = None
 
                 tool_calls.append(
