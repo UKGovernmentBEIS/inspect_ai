@@ -700,35 +700,34 @@ async def content(
 
         # Now handle tool calls
         if message.tool_calls is not None:
-            # Note that if each tool call had its own reasoning block in a message with multiple reasoning blocks, we wouldn't know which reasoning block corresponded to which tool call.
-            # The assertion down below will take care of this in the tool call section of completion_choice_from_candidate
-            # if working_reasoning_block and len(message.tool_calls) > 1:
-            #    logger.warning(
-            #        "Multiple tool calls and reasoning blocks detected when using thinking. CoT may get incorrectly replayed. This is likely fine based on observed API patterns."
-            #    )
-
+            # Note that if each tool call had its own reasoning block in a message with
+            # multiple reasoning blocks, we wouldn't know which reasoning block corresponded
+            # to which tool call. That said, to date we have not observed Gemini using
+            # a reasoning block per-tool so this isn't likely a practical concern
             for tool_call in message.tool_calls:
+                # extract the part
                 part = Part.from_function_call(
                     name=tool_call.function,
                     args=tool_call.arguments,
                 )
 
+                # handle reasoning block if available
                 if working_reasoning_block is not None:
-                    assert (
+                    # tool call reasoning should always use a thought_signature
+                    if (
                         working_reasoning_block.reasoning is not None
                         and working_reasoning_block.redacted
-                    ), (
-                        "Reasoning block must have a reasoning signature to set thought_signature."
-                    )
-                    part.thought_signature = base64.b64decode(
-                        working_reasoning_block.reasoning.encode()
-                    )
+                    ):
+                        part.thought_signature = base64.b64decode(
+                            working_reasoning_block.reasoning.encode()
+                        )
+                    else:
+                        logger.warning(
+                            "Reasoning block must have a reasoning signature to set thought_signature."
+                        )
                     working_reasoning_block = None
 
                 content_parts.append(part)
-        # print("Content parts")
-        # print(content_parts)
-        # return parts
         return Content(role="model", parts=content_parts)
 
     elif isinstance(message, ChatMessageTool):
@@ -741,7 +740,6 @@ async def content(
             },
         )
         return Content(role="user", parts=[Part(function_response=response)])
-    assert False, f"Unsupported message type: {type(message)}"
 
 
 async def content_part(client: Client, content: InspectContent | str) -> Part:
