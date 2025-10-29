@@ -4,7 +4,7 @@ import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
 import { sampleIdsEqual } from "../shared/sample";
-import { logUrl, logUrlRaw, sampleUrl, useLogRouteParams } from "./url";
+import { logsUrl, logsUrlRaw, sampleUrl, useLogRouteParams } from "./url";
 
 export const useLogNavigation = () => {
   const navigate = useNavigate();
@@ -17,11 +17,11 @@ export const useLogNavigation = () => {
       // Only update URL if we have a loaded log
       if (loadedLog && logPath) {
         // We already have the logPath from params, just navigate to the tab
-        const url = logUrlRaw(logPath, tabId);
+        const url = logsUrlRaw(logPath, tabId);
         navigate(url);
       } else if (loadedLog) {
         // Fallback to constructing the path if needed
-        const url = logUrl(loadedLog, logDir, tabId);
+        const url = logsUrl(loadedLog, logDir, tabId);
         navigate(url);
       }
     },
@@ -244,7 +244,7 @@ export const useSampleNavigation = () => {
   const clearSampleUrl = useCallback(() => {
     const resolvedPath = resolveLogPath();
     if (resolvedPath) {
-      const url = logUrlRaw(resolvedPath, tabId);
+      const url = logsUrlRaw(resolvedPath, tabId);
       navigate(url);
     }
   }, [resolveLogPath, navigate, tabId]);

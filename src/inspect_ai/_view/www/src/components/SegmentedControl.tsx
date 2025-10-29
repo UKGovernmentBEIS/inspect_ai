@@ -21,9 +21,12 @@ export const SegmentedControl: FC<SegmentedControlProps> = ({
   onSegmentChange,
   selectedId,
 }) => {
-  const handleSegmentClick = useCallback((segmentId: string, index: number) => {
-    onSegmentChange(segmentId, index);
-  }, []);
+  const handleSegmentClick = useCallback(
+    (segmentId: string, index: number) => {
+      onSegmentChange(segmentId, index);
+    },
+    [onSegmentChange],
+  );
 
   if (selectedId === undefined) {
     selectedId = segments[0]?.id;

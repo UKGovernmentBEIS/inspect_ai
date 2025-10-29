@@ -17,7 +17,7 @@ import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
-import { logUrl, useLogRouteParams } from "../routing/url";
+import { logsUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
@@ -108,7 +108,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       }
       previousWatchedLogs.current = watchedLogs;
     }
-  }, [watchedLogs]);
+  }, [watchedLogs, startPolling, stopPolling]);
 
   // All the items visible in the current directory (might span
   // multiple pages)
@@ -154,7 +154,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             id: fileOrFolderName,
             name: fileOrFolderName,
             type: "file",
-            url: logUrl(path, logDir),
+            url: logsUrl(path, logDir),
             log: logFile,
             logPreview: logPreviews[logFile.name],
           });
@@ -172,7 +172,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
               id: dirName,
               name: dirName,
               type: "folder",
-              url: logUrl(url, logDir),
+              url: logsUrl(url, logDir),
               itemCount: logFiles.filter((file) =>
                 file.name.startsWith(dirname(name)),
               ).length,
@@ -190,7 +190,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       > = collapseLogItems(evalSet, logItems);
 
       return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [logPath, logFiles, logPreviews, evalSet]);
+    }, [currentDir, logFiles, logPreviews, evalSet]);
 
   const progress = useMemo(() => {
     let pending = 0;
@@ -223,7 +223,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     if (currentDir !== loadedDir.current) {
       setPage(0);
     }
-  }, [currentDir]);
+  }, [currentDir, setPage]);
   const loadedDir = useRef<string | undefined>(currentDir);
 
   useEffect(() => {
@@ -255,7 +255,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         handleKeyDown(e);
       }}
     >
-      <Navbar>
+      <Navbar fnNavigationUrl={logsUrl} currentPath={logPath}>
         <LogsFilterInput ref={filterRef} />
         <ViewSegmentedControl selectedSegment="logs" />
         <ViewerOptionsButton

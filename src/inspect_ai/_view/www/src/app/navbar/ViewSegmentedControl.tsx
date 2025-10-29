@@ -2,7 +2,12 @@ import { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { ApplicationIcons } from "../appearance/icons";
-import { useLogRouteParams, useSamplesRouteParams } from "../routing/url";
+import {
+  logsUrl,
+  samplesUrl,
+  useLogRouteParams,
+  useSamplesRouteParams,
+} from "../routing/url";
 
 interface ViewSegmentControlProps {
   selectedSegment: "logs" | "samples";
@@ -19,7 +24,6 @@ export const ViewSegmentedControl: FC<ViewSegmentControlProps> = ({
   const navigate = useNavigate();
   const { logPath } = useLogRouteParams();
   const { samplesPath } = useSamplesRouteParams();
-
   return (
     <SegmentedControl
       segments={segments}
@@ -29,11 +33,13 @@ export const ViewSegmentedControl: FC<ViewSegmentControlProps> = ({
         if (segment === "samples") {
           // Going from logs to samples: use logPath if available
           const path = logPath || samplesPath || "";
-          navigate(`/samples${path ? `/${path}` : ""}`);
+          const sampleUrl = samplesUrl(path);
+          navigate(sampleUrl);
         } else {
           // Going from samples to logs: use samplesPath if available
           const path = samplesPath || logPath || "";
-          navigate(`/logs${path ? `/${path}` : ""}`);
+          const logUrl = logsUrl(path);
+          navigate(logUrl);
         }
       }}
     />

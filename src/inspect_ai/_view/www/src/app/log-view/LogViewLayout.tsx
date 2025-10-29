@@ -8,6 +8,7 @@ import { useStore } from "../../state/store";
 import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
 import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
 import { Navbar } from "../navbar/Navbar";
+import { logsUrl, useLogRouteParams } from "../routing/url";
 import { LogView } from "./LogView";
 
 /**
@@ -26,6 +27,9 @@ export const LogViewLayout: FC = () => {
   // Logs Data
   const logDir = useStore((state) => state.logs.logDir);
   const logFiles = useStore((state) => state.logs.logs);
+
+  // Route params
+  const { logPath } = useLogRouteParams();
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -76,7 +80,7 @@ export const LogViewLayout: FC = () => {
       >
         {showFind ? <FindBand /> : ""}
         {!singleFileMode ? (
-          <Navbar>
+          <Navbar fnNavigationUrl={logsUrl} currentPath={logPath}>
             {" "}
             <ViewerOptionsButton
               showing={isShowing}

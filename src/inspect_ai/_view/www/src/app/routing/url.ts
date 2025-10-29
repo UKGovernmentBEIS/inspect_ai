@@ -234,7 +234,7 @@ export const baseUrl = (
   if (sampleId !== undefined && sampleEpoch !== undefined) {
     return sampleUrl(logPath, sampleId, sampleEpoch);
   } else {
-    return logUrl(logPath);
+    return logsUrl(logPath);
   }
 };
 
@@ -290,7 +290,7 @@ export const useSampleMessageUrl = (
 
   let targetLogPath = urlLogPath;
   if (!targetLogPath && log_file) {
-    targetLogPath = makeLogPath(log_file, log_dir);
+    targetLogPath = makeLogsPath(log_file, log_dir);
   }
 
   const messageUrl = useMemo(() => {
@@ -322,7 +322,7 @@ export const useSampleEventUrl = (
 
   let targetLogPath = urlLogPath;
   if (!targetLogPath && log_file) {
-    targetLogPath = makeLogPath(log_file, log_dir);
+    targetLogPath = makeLogsPath(log_file, log_dir);
   }
 
   const eventUrl = useMemo(() => {
@@ -354,16 +354,22 @@ export const sampleMessageUrl = (
   return `${baseUrl}?message=${messageId}`;
 };
 
-export const logUrl = (log_file: string, log_dir?: string, tabId?: string) => {
-  return logUrlRaw(makeLogPath(log_file, log_dir), tabId);
+export const samplesUrl = (log_file: string, log_dir?: string) => {
+  const path = makeLogsPath(log_file, log_dir);
+  const decodedLogSegment = decodeUrlParam(path) || path;
+  return encodePathParts(`/samples/${decodedLogSegment}`);
 };
 
-export const makeLogPath = (log_file: string, log_dir?: string) => {
+export const logsUrl = (log_file: string, log_dir?: string, tabId?: string) => {
+  return logsUrlRaw(makeLogsPath(log_file, log_dir), tabId);
+};
+
+export const makeLogsPath = (log_file: string, log_dir?: string) => {
   const pathSegment = directoryRelativeUrl(log_file, log_dir);
   return pathSegment;
 };
 
-export const logUrlRaw = (log_segment: string, tabId?: string) => {
+export const logsUrlRaw = (log_segment: string, tabId?: string) => {
   // Ensure log_segment is decoded before encoding for URL construction
   const decodedLogSegment = decodeUrlParam(log_segment) || log_segment;
 
