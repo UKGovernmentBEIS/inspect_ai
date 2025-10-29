@@ -973,9 +973,6 @@ def completion_choice_from_candidate(
                 ):
                     raise ValueError(f"Incomplete function call: {part.function_call}")
 
-                if part.thought:
-                    raise RuntimeError("part.thought is True on a function call part!")
-
                 # If the part has a thought_signature, try and associate it with the previous working block
                 if part.thought_signature:
                     if working_reasoning_block is None:
