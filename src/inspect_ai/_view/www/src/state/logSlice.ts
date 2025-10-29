@@ -59,6 +59,9 @@ export interface LogSlice {
 
     // Clear the currently loaded log
     clearLog: () => void;
+
+    setFilteredSampleCount: (count: number) => void;
+    clearFilteredSampleCount: () => void;
   };
 }
 
@@ -286,6 +289,16 @@ export const createLogSlice = (
           log.error("Error refreshing log:", error);
           throw error;
         }
+      },
+      setFilteredSampleCount: (count: number) => {
+        set((state) => {
+          state.log.filteredSampleCount = count;
+        });
+      },
+      clearFilteredSampleCount: () => {
+        set((state) => {
+          state.log.filteredSampleCount = undefined;
+        });
       },
     },
   } as const;

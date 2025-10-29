@@ -61,6 +61,7 @@ export interface LogsSlice {
     setSelectedRowIndex: (index: number | null) => void;
 
     setGridState: (gridState: GridState) => void;
+    clearGridState: () => void;
   };
 }
 
@@ -136,9 +137,14 @@ export const createLogsSlice = (
             ...details,
           };
         }),
-      setGridState: (gridState: GridState) => {
+      setGridState: (gridState: GridState | undefined) => {
         set((state) => {
           state.logs.samplesListState.gridState = gridState;
+        });
+      },
+      clearGridState: () => {
+        set((state) => {
+          state.logs.samplesListState.gridState = undefined;
         });
       },
       initLogDir: async () => {

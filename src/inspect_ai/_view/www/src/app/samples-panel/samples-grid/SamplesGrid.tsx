@@ -12,6 +12,7 @@ import {
 import { AgGridReact } from "ag-grid-react";
 import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input, Score } from "../../../@types/log";
+import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
 import { join } from "../../../utils/uri";
@@ -91,8 +92,23 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
     (state) => state.logsActions.setSelectedLogFile,
   );
   const logDir = useStore((state) => state.logs.logDir);
+  const setFilteredSampleCount = useStore(
+    (state) => state.logActions.setFilteredSampleCount,
+  );
 
   const gridRef = useRef<AgGridReact>(null);
+
+  // Clear grid state when samplesPath changes
+  const prevSamplesPath = usePrevious(samplesPath);
+  const initialGridState = useMemo(() => {
+    if (prevSamplesPath !== samplesPath) {
+      const result = { ...gridState };
+      delete result?.filter;
+      return result;
+    } else {
+      return gridState;
+    }
+  }, [gridState, prevSamplesPath]);
 
   // Filter logDetails based on samplesPath
   const filteredLogDetails = useMemo(() => {
@@ -363,15 +379,27 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
           onRowSelected={onRowSelected}
           theme={themeBalham}
           enableCellTextSelection={true}
-          initialState={gridState}
+          initialState={initialGridState}
           suppressCellFocus={true}
           onStateUpdated={(e: StateUpdatedEvent<SampleRow>) => {
             setGridState(e.state);
+            if (gridRef.current?.api) {
+              const displayedRowCount =
+                gridRef.current.api.getDisplayedRowCount();
+              setFilteredSampleCount(displayedRowCount);
+            }
           }}
           onRowClicked={(e: RowClickedEvent<SampleRow>) => {
             if (e.data) {
               setSelectedLogFile(e.data.logFile);
               showSample(e.data.sampleId, e.data.epoch);
+            }
+          }}
+          onFilterChanged={() => {
+            if (gridRef.current?.api) {
+              const displayedRowCount =
+                gridRef.current.api.getDisplayedRowCount();
+              setFilteredSampleCount(displayedRowCount);
             }
           }}
         />

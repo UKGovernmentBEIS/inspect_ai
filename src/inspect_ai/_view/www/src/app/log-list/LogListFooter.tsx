@@ -1,32 +1,35 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { useLogsListing, usePagination } from "../../state/hooks";
+import { usePagination } from "../../state/hooks";
 import styles from "./LogListFooter.module.css";
 import { LogPager } from "./LogPager";
-import { kDefaultPageSize, kLogsPaginationId } from "./LogsPanel";
 
 interface LogListFooterProps {
-  logDir: string;
+  id: string;
   itemCount: number;
+  paginated: boolean;
+  filteredCount?: number;
+  pagesize?: number;
   progressText?: string;
   progressBar?: ReactNode;
 }
 
 export const LogListFooter: FC<LogListFooterProps> = ({
+  id,
   itemCount,
+  paginated,
+  pagesize,
+  filteredCount,
   progressText,
   progressBar,
 }) => {
   // Get pagination info from the store
-  const { page, itemsPerPage } = usePagination(
-    kLogsPaginationId,
-    kDefaultPageSize,
-  );
+  const { page, itemsPerPage } = usePagination(id, pagesize || itemCount);
 
   // Get filtered count from the store
-  const { filteredCount } = useLogsListing();
   const effectiveItemCount = filteredCount ?? itemCount;
 
+  // Compute the start and end items
   const currentPage = page || 0;
   const pageItemCount = Math.min(
     itemsPerPage,
@@ -53,10 +56,10 @@ export const LogListFooter: FC<LogListFooterProps> = ({
         ) : undefined}
       </div>
       <div className={clsx(styles.center)}>
-        <LogPager itemCount={effectiveItemCount} />
+        {paginated && <LogPager itemCount={effectiveItemCount} />}
       </div>
       <div className={clsx(styles.right)}>
-        {progressBar || (
+        {progressBar || paginated ? (
           <div>
             {effectiveItemCount === 0
               ? ""
@@ -64,6 +67,8 @@ export const LogListFooter: FC<LogListFooterProps> = ({
                 ? `${startItem} - ${endItem} / ${effectiveItemCount} (${itemCount} total)`
                 : `${startItem} - ${endItem} / ${effectiveItemCount}`}
           </div>
+        ) : (
+          `${effectiveItemCount} items`
         )}
       </div>
     </div>

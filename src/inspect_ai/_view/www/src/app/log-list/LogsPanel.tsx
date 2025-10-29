@@ -6,7 +6,12 @@ import { EvalSet } from "../../@types/log";
 import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
-import { useDocumentTitle, useLogs, usePagination } from "../../state/hooks";
+import {
+  useDocumentTitle,
+  useLogs,
+  useLogsListing,
+  usePagination,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
@@ -44,6 +49,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const logFiles = useStore((state) => state.logs.logs);
   const evalSet = useStore((state) => state.logs.evalSet);
   const logPreviews = useStore((state) => state.logs.logPreviews);
+  const { filteredCount } = useLogsListing();
 
   const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.syncing);
@@ -271,9 +277,12 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           <LogListGrid ref={gridRef} items={logItems} />
         </div>
         <LogListFooter
-          logDir={currentDir}
+          id={kLogsPaginationId}
           itemCount={logItems.length}
+          filteredCount={filteredCount}
           progressText={syncing ? "Syncing data" : undefined}
+          paginated={true}
+          pagesize={kDefaultPageSize}
           progressBar={
             progress.total !== progress.complete ? (
               <ProgressBar

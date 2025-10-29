@@ -4,6 +4,7 @@ import { FC, useEffect, useRef } from "react";
 import { ActivityBar } from "../../components/ActivityBar";
 import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
+import { LogListFooter } from "../log-list/LogListFooter";
 import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
 import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
 import { Navbar } from "../navbar/Navbar";
@@ -22,6 +23,10 @@ export const SamplesPanel: FC = () => {
   const isShowing = useStore((state) => state.app.dialogs.options);
   const setShowing = useStore(
     (state) => state.appActions.setShowingOptionsDialog,
+  );
+
+  const filteredSamplesCount = useStore(
+    (state) => state.log.filteredSampleCount,
   );
 
   useEffect(() => {
@@ -51,6 +56,12 @@ export const SamplesPanel: FC = () => {
       <div className={clsx(styles.list, "text-size-smaller")}>
         <SamplesGrid samplesPath={samplesPath} />
       </div>
+
+      <LogListFooter
+        id={"samples-list-footer"}
+        itemCount={filteredSamplesCount ?? 0}
+        paginated={false}
+      />
     </div>
   );
 };

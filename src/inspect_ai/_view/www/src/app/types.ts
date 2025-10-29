@@ -115,6 +115,8 @@ export interface LogState {
   sort: string;
   selectedScores?: ScoreLabel[];
   scores?: ScoreLabel[];
+
+  filteredSampleCount?: number;
 }
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";
