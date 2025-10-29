@@ -337,6 +337,7 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
             filter: true,
             resizable: true,
           }}
+          headerHeight={25}
           rowSelection="single"
           onRowSelected={onRowSelected}
           theme={themeBalham}
