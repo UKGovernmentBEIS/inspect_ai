@@ -14,8 +14,10 @@ import {
   kLogRouteUrlPattern,
   kLogsRoutUrlPattern as kLogsRouteUrlPattern,
   kSampleRouteUrlPattern,
+  kSamplesRouteUrlPattern,
   kSampleUuidRouteUrlPattern,
 } from "./url";
+import { SamplesPanel } from "../samples-panel/SamplesPanel";
 
 // Create a layout component that includes the RouteTracker
 const AppLayout = () => {
@@ -76,6 +78,10 @@ export const AppRouter = createHashRouter(
           path: kSampleUuidRouteUrlPattern,
           element: <LogViewContainer />,
         },
+        {
+          path: kSamplesRouteUrlPattern,
+          element: <SamplesPanel />,
+        }
       ],
     },
     {

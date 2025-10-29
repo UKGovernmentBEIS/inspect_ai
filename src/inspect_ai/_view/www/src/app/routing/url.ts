@@ -202,6 +202,7 @@ export const useLogRouteParams = () => {
 
 export const kLogsRoutUrlPattern = "/logs";
 export const kLogRouteUrlPattern = "/logs/*";
+export const kSamplesRouteUrlPattern = "/samples";
 export const kSampleRouteUrlPattern =
   "/logs/*/samples/sample/:sampleId/:epoch?/:sampleTabId?";
 export const kSampleUuidRouteUrlPattern =

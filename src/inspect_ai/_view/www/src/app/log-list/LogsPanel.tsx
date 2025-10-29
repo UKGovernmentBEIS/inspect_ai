@@ -1,27 +1,17 @@
 import clsx from "clsx";
-import {
-  FC,
-  KeyboardEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
 import { EvalSet } from "../../@types/log";
 import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
-import { ToolButton } from "../../components/ToolButton";
 import { useClientEvents } from "../../state/clientEvents";
 import { useDocumentTitle, useLogs, usePagination } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
-import { ApplicationIcons } from "../appearance/icons";
 import { Navbar } from "../navbar/Navbar";
 import { logUrl, useLogRouteParams } from "../routing/url";
-import { SamplesGrid } from "../samples-grid/SamplesGrid";
 import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
@@ -251,15 +241,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     }
   }
 
-  const logSamplesView = useStore((state) => state.app.logsSampleView);
-  const setLogsSampleView = useStore(
-    (state) => state.appActions.setLogsSampleView,
-  );
-
-  const toggleSamples = useCallback(() => {
-    setLogsSampleView(!logSamplesView);
-  }, [logSamplesView]);
-
   return (
     <div
       className={clsx(styles.panel)}
@@ -268,14 +249,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       }}
     >
       <Navbar>
-        <ToolButton
-          icon={ApplicationIcons.sample}
-          label="Samples"
-          latched={logSamplesView}
-          onClick={toggleSamples}
-          className={clsx("text-size-smallest")}
-          style={{ padding: "0px 6px" }}
-        />
         <LogsFilterInput ref={filterRef} />
         <ViewerOptionsButton
           showing={isShowing}
@@ -290,32 +263,27 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       </Navbar>
 
       <ActivityBar animating={!!loading} />
-      {logSamplesView ? (
+
+      <>
         <div className={clsx(styles.list, "text-size-smaller")}>
-          <SamplesGrid />
+          <LogListGrid ref={gridRef} items={logItems} />
         </div>
-      ) : (
-        <>
-          <div className={clsx(styles.list, "text-size-smaller")}>
-            <LogListGrid ref={gridRef} items={logItems} />
-          </div>
-          <LogListFooter
-            logDir={currentDir}
-            itemCount={logItems.length}
-            progressText={syncing ? "Syncing data" : undefined}
-            progressBar={
-              progress.total !== progress.complete ? (
-                <ProgressBar
-                  min={0}
-                  max={progress.total}
-                  value={progress.complete}
-                  width="100px"
-                />
-              ) : undefined
-            }
-          />
-        </>
-      )}
+        <LogListFooter
+          logDir={currentDir}
+          itemCount={logItems.length}
+          progressText={syncing ? "Syncing data" : undefined}
+          progressBar={
+            progress.total !== progress.complete ? (
+              <ProgressBar
+                min={0}
+                max={progress.total}
+                value={progress.complete}
+                width="100px"
+              />
+            ) : undefined
+          }
+        />
+      </>
     </div>
   );
 };
