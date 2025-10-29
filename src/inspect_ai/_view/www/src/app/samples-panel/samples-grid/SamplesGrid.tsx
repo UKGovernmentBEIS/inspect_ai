@@ -10,8 +10,8 @@ import {
   themeBalham,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { FC, useCallback, useMemo } from "react";
-import { Score } from "../../../@types/log";
+import { FC, useCallback, useEffect, useMemo, useRef } from "react";
+import { Input, Score } from "../../../@types/log";
 import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
 import { join } from "../../../utils/uri";
@@ -43,13 +43,13 @@ interface SampleRow {
 }
 
 // Helper to convert Input to string
-const formatInput = (input: any): string => {
+const formatInput = (input: Input): string => {
   if (typeof input === "string") return input;
   if (Array.isArray(input)) {
     return input
       .map((item) => {
         if (typeof item === "string") return item;
-        if (item?.type === "text") return item.text;
+        if (item?.content) return item.content;
         return JSON.stringify(item);
       })
       .join(" ");
@@ -92,6 +92,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
   );
   const logDir = useStore((state) => state.logs.logDir);
 
+  const gridRef = useRef<AgGridReact>(null);
+
   // Filter logDetails based on samplesPath
   const filteredLogDetails = useMemo(() => {
     if (!samplesPath) {
@@ -102,10 +104,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
 
     return Object.entries(logDetails).reduce(
       (acc, [logFile, details]) => {
-        if (logFile.includes("gaia")) {
-          console.log({ logFile, samplesPathAbs });
-        }
-
         // Check if the logFile starts with the samplesPath
         if (logFile.startsWith(samplesPathAbs)) {
           acc[logFile] = details;
@@ -179,7 +177,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       {
         field: "task",
         headerName: "Task",
-        width: 150,
+        initialWidth: 150,
         minWidth: 100,
         sortable: true,
         filter: true,
@@ -188,7 +186,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       {
         field: "model",
         headerName: "Model",
-        width: 150,
+        initialWidth: 150,
         minWidth: 100,
         sortable: true,
         filter: true,
@@ -197,7 +195,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       {
         field: "sampleId",
         headerName: "Sample ID",
-        width: 120,
+        initialWidth: 120,
         minWidth: 80,
         sortable: true,
         filter: true,
@@ -206,7 +204,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       {
         field: "epoch",
         headerName: "Epoch",
-        width: 70,
+        initialWidth: 70,
         minWidth: 40,
         sortable: true,
         filter: true,
@@ -217,7 +215,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       {
         field: "input",
         headerName: "Input",
-        width: 250,
+        initialWidth: 250,
         minWidth: 150,
         sortable: true,
         filter: true,
@@ -227,7 +225,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       {
         field: "status",
         headerName: "Status",
-        width: 100,
+        initialWidth: 100,
         minWidth: 80,
         sortable: true,
         filter: true,
@@ -236,7 +234,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       {
         field: "logFile",
         headerName: "Log File",
-        width: 200,
+        initialWidth: 200,
         minWidth: 150,
         sortable: true,
         filter: true,
@@ -246,7 +244,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       {
         field: "target",
         headerName: "Target",
-        width: 150,
+        initialWidth: 150,
         minWidth: 100,
         sortable: true,
         filter: true,
@@ -259,7 +257,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
     const scoreColumns: ColDef<SampleRow>[] = scoreNames.map((scoreName) => ({
       field: `score_${scoreName}`,
       headerName: scoreName,
-      width: 100,
+      initialWidth: 100,
       minWidth: 80,
       sortable: true,
       filter: true,
@@ -279,7 +277,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       optionalColumns.push({
         field: "error",
         headerName: "Error",
-        width: 150,
+        initialWidth: 150,
         minWidth: 100,
         sortable: true,
         filter: true,
@@ -292,7 +290,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       optionalColumns.push({
         field: "limit",
         headerName: "Limit",
-        width: 100,
+        initialWidth: 100,
         minWidth: 80,
         sortable: true,
         filter: true,
@@ -304,7 +302,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       optionalColumns.push({
         field: "retries",
         headerName: "Retries",
-        width: 80,
+        initialWidth: 80,
         minWidth: 60,
         sortable: true,
         filter: true,
@@ -316,7 +314,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       optionalColumns.push({
         field: "completed",
         headerName: "Completed",
-        width: 80,
+        initialWidth: 80,
         minWidth: 60,
         sortable: true,
         filter: true,
@@ -336,12 +334,22 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
     }
   }, []);
 
+  useEffect(() => {
+    const handleResize = () => {
+      gridRef.current?.api?.sizeColumnsToFit();
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
     <div className={styles.gridWrapper}>
       <div
         style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
       >
         <AgGridReact<SampleRow>
+          ref={gridRef}
           rowData={data}
           columnDefs={columnDefs}
           defaultColDef={{
@@ -349,6 +357,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
             filter: true,
             resizable: true,
           }}
+          autoSizeStrategy={{ type: "fitGridWidth" }}
           headerHeight={25}
           rowSelection="single"
           onRowSelected={onRowSelected}
