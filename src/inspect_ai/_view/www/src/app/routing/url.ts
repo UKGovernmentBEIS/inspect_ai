@@ -200,6 +200,24 @@ export const useLogRouteParams = () => {
   }, [params]);
 };
 
+/**
+ * Hook that parses samples route parameters from the splat route.
+ * Handles nested paths properly by parsing the full path after /samples/
+ */
+export const useSamplesRouteParams = () => {
+  const params = useParams<{
+    "*": string;
+  }>();
+
+  return useMemo(() => {
+    const splatPath = params["*"] || "";
+
+    return {
+      samplesPath: splatPath ? decodeUrlParam(splatPath) : undefined,
+    };
+  }, [params]);
+};
+
 export const kLogsRoutUrlPattern = "/logs";
 export const kLogRouteUrlPattern = "/logs/*";
 export const kSamplesRouteUrlPattern = "/samples";

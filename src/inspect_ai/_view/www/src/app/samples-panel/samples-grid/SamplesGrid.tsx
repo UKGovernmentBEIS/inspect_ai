@@ -10,17 +10,20 @@ import {
   themeBalham,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { FC, useCallback, useEffect, useMemo } from "react";
+import { FC, useCallback, useMemo } from "react";
 import { Score } from "../../../@types/log";
 import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
+import { join } from "../../../utils/uri";
 import { useSampleNavigation } from "../../routing/sampleNavigation";
 import styles from "./SamplesGrid.module.css";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-interface SamplesGridProps {}
+interface SamplesGridProps {
+  samplesPath?: string;
+}
 
 // Flattened row data for the grid
 interface SampleRow {
@@ -79,8 +82,7 @@ const formatLogFilePath = (logFile: string): string => {
   return filename(logFile);
 };
 
-export const SamplesGrid: FC<SamplesGridProps> = () => {
-  // TODO: Filter logdetails by log path
+export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
   const logDetails = useStore((state) => state.logs.logDetails);
   const gridState = useStore((state) => state.logs.samplesListState.gridState);
   const setGridState = useStore((state) => state.logsActions.setGridState);
@@ -88,27 +90,37 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
   const setSelectedLogFile = useStore(
     (state) => state.logsActions.setSelectedLogFile,
   );
+  const logDir = useStore((state) => state.logs.logDir);
 
-  // Debug: Log when component renders
-  useEffect(() => {
-    console.log(
-      "SamplesGrid mounted, logDetails count:",
-      Object.keys(logDetails).length,
-    );
-  }, []);
+  // Filter logDetails based on samplesPath
+  const filteredLogDetails = useMemo(() => {
+    if (!samplesPath) {
+      return logDetails; // Show all samples when no path is specified
+    }
 
-  useEffect(() => {
-    console.log(
-      "SamplesGrid logDetails updated:",
-      Object.keys(logDetails).length,
+    const samplesPathAbs = join(samplesPath, logDir);
+
+    return Object.entries(logDetails).reduce(
+      (acc, [logFile, details]) => {
+        if (logFile.includes("gaia")) {
+          console.log({ logFile, samplesPathAbs });
+        }
+
+        // Check if the logFile starts with the samplesPath
+        if (logFile.startsWith(samplesPathAbs)) {
+          acc[logFile] = details;
+        }
+        return acc;
+      },
+      {} as typeof logDetails,
     );
-  }, [logDetails]);
+  }, [logDetails, samplesPath]);
 
   // Transform logDetails into flat rows
   const data = useMemo(() => {
     const rows: SampleRow[] = [];
 
-    Object.entries(logDetails).forEach(([logFile, details]) => {
+    Object.entries(filteredLogDetails).forEach(([logFile, details]) => {
       details.sampleSummaries.forEach((sample) => {
         const row: SampleRow = {
           logFile,
@@ -137,12 +149,12 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
     });
 
     return rows;
-  }, [logDetails]);
+  }, [filteredLogDetails]);
 
   // Detect all unique score names across all samples
   const scoreNames = useMemo(() => {
     const names = new Set<string>();
-    Object.values(logDetails).forEach((details) => {
+    Object.values(filteredLogDetails).forEach((details) => {
       details.sampleSummaries.forEach((sample) => {
         if (sample.scores) {
           Object.keys(sample.scores).forEach((name) => names.add(name));
@@ -150,7 +162,7 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
       });
     });
     return Array.from(names).sort();
-  }, [logDetails]);
+  }, [filteredLogDetails]);
 
   // Check if any sample has error, limit, or retries
   const hasError = useMemo(() => data.some((row) => row.error), [data]);

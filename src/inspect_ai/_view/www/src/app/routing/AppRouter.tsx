@@ -14,7 +14,6 @@ import {
   kLogRouteUrlPattern,
   kLogsRoutUrlPattern as kLogsRouteUrlPattern,
   kSampleRouteUrlPattern,
-  kSamplesRouteUrlPattern,
   kSampleUuidRouteUrlPattern,
 } from "./url";
 import { SamplesPanel } from "../samples-panel/SamplesPanel";
@@ -79,7 +78,7 @@ export const AppRouter = createHashRouter(
           element: <LogViewContainer />,
         },
         {
-          path: kSamplesRouteUrlPattern,
+          path: "/samples/*",
           element: <SamplesPanel />,
         }
       ],

@@ -8,12 +8,12 @@ import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
 import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
 import { Navbar } from "../navbar/Navbar";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
-import { useLogRouteParams } from "../routing/url";
+import { useSamplesRouteParams } from "../routing/url";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
 
 export const SamplesPanel: FC = () => {
-  const { logPath } = useLogRouteParams();
+  const { samplesPath } = useSamplesRouteParams();
   const { loadLogs } = useLogs();
 
   const optionsRef = useRef<HTMLButtonElement>(null);
@@ -26,10 +26,10 @@ export const SamplesPanel: FC = () => {
 
   useEffect(() => {
     const exec = async () => {
-      await loadLogs(logPath);
+      await loadLogs(samplesPath);
     };
     exec();
-  }, [loadLogs, logPath]);
+  }, [loadLogs, samplesPath]);
 
   return (
     <div className={clsx(styles.panel)}>
@@ -49,7 +49,7 @@ export const SamplesPanel: FC = () => {
 
       <ActivityBar animating={!!loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
-        <SamplesGrid />
+        <SamplesGrid samplesPath={samplesPath} />
       </div>
     </div>
   );
