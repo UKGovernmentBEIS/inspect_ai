@@ -7,6 +7,7 @@ import { useStore } from "../../state/store";
 import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
 import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
 import { Navbar } from "../navbar/Navbar";
+import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { useLogRouteParams } from "../routing/url";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
@@ -32,7 +33,8 @@ export const SamplesPanel: FC = () => {
 
   return (
     <div className={clsx(styles.panel)}>
-      <Navbar>
+      <Navbar bordered={false}>
+        <ViewSegmentedControl selectedSegment="samples" />
         <ViewerOptionsButton
           showing={isShowing}
           setShowing={setShowing}

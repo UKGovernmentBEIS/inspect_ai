@@ -11,6 +11,7 @@ import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
 import { Navbar } from "../navbar/Navbar";
+import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { logUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
@@ -250,6 +251,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     >
       <Navbar>
         <LogsFilterInput ref={filterRef} />
+        <ViewSegmentedControl selectedSegment="logs" />
         <ViewerOptionsButton
           showing={isShowing}
           setShowing={setShowing}

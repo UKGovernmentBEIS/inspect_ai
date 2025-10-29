@@ -13,9 +13,10 @@ import { useBreadcrumbTruncation } from "./useBreadcrumbTruncation";
 
 interface NavbarProps {
   children?: ReactNode;
+  bordered?: boolean;
 }
 
-export const Navbar: FC<NavbarProps> = ({ children }) => {
+export const Navbar: FC<NavbarProps> = ({ bordered, children }) => {
   const { logPath } = useLogRouteParams();
   const logDir = useStore((state) => state.logs.logDir);
   const baseLogDir = dirname(logDir || "");
@@ -52,7 +53,12 @@ export const Navbar: FC<NavbarProps> = ({ children }) => {
 
   return (
     <nav
-      className={clsx("text-size-smaller", "header-nav", styles.header)}
+      className={clsx(
+        "text-size-smaller",
+        "header-nav",
+        styles.header,
+        bordered === false ? null : styles.bordered,
+      )}
       aria-label="breadcrumb"
       data-unsearchable={true}
     >

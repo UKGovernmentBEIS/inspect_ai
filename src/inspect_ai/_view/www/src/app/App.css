@@ -45,6 +45,12 @@ body:not([class^="vscode-"]) button {
   --bs-nav-link-color: black;
 }
 
+/* AG Grid Theming */
+body {
+  --ag-background-color: var(--bs-body-bg);
+  --ag-foreground-color: var(--bs-body-color);
+}
+
 #app {
   height: 100vh;
   overflow-y: hidden;

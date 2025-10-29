@@ -342,6 +342,7 @@ export const SamplesGrid: FC<SamplesGridProps> = () => {
           theme={themeBalham}
           enableCellTextSelection={true}
           initialState={gridState}
+          suppressCellFocus={true}
           onStateUpdated={(e: StateUpdatedEvent<SampleRow>) => {
             setGridState(e.state);
           }}
