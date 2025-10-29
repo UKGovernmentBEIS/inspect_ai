@@ -10,11 +10,12 @@ import {
   themeBalham,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { FC, useCallback, useEffect, useMemo, useRef } from "react";
+import { FC, useCallback, useMemo, useRef } from "react";
 import { Input, Score } from "../../../@types/log";
 import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
+import { debounce } from "../../../utils/sync";
 import { join } from "../../../utils/uri";
 import { useSampleNavigation } from "../../routing/sampleNavigation";
 import styles from "./SamplesGrid.module.css";
@@ -182,10 +183,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
   const hasError = useMemo(() => data.some((row) => row.error), [data]);
   const hasLimit = useMemo(() => data.some((row) => row.limit), [data]);
   const hasRetries = useMemo(() => data.some((row) => row.retries), [data]);
-  const hasRunning = useMemo(
-    () => data.some((row) => row.completed === false),
-    [data],
-  );
 
   // Create column definitions
   const columnDefs = useMemo((): ColDef<SampleRow>[] => {
@@ -212,7 +209,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
         field: "sampleId",
         headerName: "Sample ID",
         initialWidth: 120,
-        minWidth: 80,
+        minWidth: 100,
         sortable: true,
         filter: true,
         resizable: true,
@@ -221,7 +218,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
         field: "epoch",
         headerName: "Epoch",
         initialWidth: 70,
-        minWidth: 40,
+        minWidth: 70,
         sortable: true,
         filter: true,
         resizable: true,
@@ -274,7 +271,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       field: `score_${scoreName}`,
       headerName: scoreName,
       initialWidth: 100,
-      minWidth: 80,
+      minWidth: 100,
       sortable: true,
       filter: true,
       resizable: true,
@@ -326,18 +323,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
       });
     }
 
-    if (hasRunning) {
-      optionalColumns.push({
-        field: "completed",
-        headerName: "Completed",
-        initialWidth: 80,
-        minWidth: 60,
-        sortable: true,
-        filter: true,
-        resizable: true,
-      });
-    }
-
     return [...baseColumns, ...scoreColumns, ...optionalColumns];
   }, [scoreNames, hasError, hasLimit, hasRetries]);
 
@@ -350,14 +335,13 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
     }
   }, []);
 
-  useEffect(() => {
-    const handleResize = () => {
+  const resizeGridColumns = useCallback(
+    debounce(() => {
+      // Trigger column sizing after grid is ready
       gridRef.current?.api?.sizeColumnsToFit();
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    }, 10),
+    [],
+  );
 
   return (
     <div className={styles.gridWrapper}>
@@ -377,6 +361,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
           headerHeight={25}
           rowSelection="single"
           onRowSelected={onRowSelected}
+          onGridColumnsChanged={resizeGridColumns}
+          onGridSizeChanged={resizeGridColumns}
           theme={themeBalham}
           enableCellTextSelection={true}
           initialState={initialGridState}
