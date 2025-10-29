@@ -58,7 +58,7 @@ SAMPLE_SUFFIX = "_sample"
 
 @overload
 def samples_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = SampleSummary,
     full: bool = False,
     strict: Literal[True] = True,
@@ -69,7 +69,7 @@ def samples_df(
 
 @overload
 def samples_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = SampleSummary,
     full: bool = False,
     strict: Literal[False] = False,
@@ -79,7 +79,7 @@ def samples_df(
 
 
 def samples_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = SampleSummary,
     full: bool = False,
     strict: bool = True,
@@ -115,7 +115,12 @@ def samples_df(
 
     quiet = quiet if quiet is not None else running_in_notebook()
     return _read_samples_df(
-        logs, columns, full=full, strict=strict, progress=not quiet, parallel=parallel
+        logs or list_eval_logs(),
+        columns,
+        full=full,
+        strict=strict,
+        progress=not quiet,
+        parallel=parallel,
     )
 
 

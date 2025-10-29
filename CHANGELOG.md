@@ -3,6 +3,7 @@
 - Anthropic: Set 4k as default max_token limit for Claude 3.5 (same as Claude 3.0).
 - Scoring: Support for using `@scanner` functions as scorers.
 - Bugfix: Prevent condensing of model event `output` during execution (only condense `call`).
+- Bugfix: Defer binding of default value for `logs` in data frame functions.
 
 ## 0.3.142 (27 October 2025)
 
