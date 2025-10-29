@@ -156,6 +156,7 @@ dev = [
   "google-genai",
   "griffe",
   "groq",
+  "inspect_scout>=0.2.2",
   "ipython",
   "jsonpath-ng",
   "markdown",

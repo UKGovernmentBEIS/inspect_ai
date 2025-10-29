@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, example_dataset
 from inspect_ai.scorer import model_graded_qa
@@ -15,6 +17,14 @@ openai_options = {
 
 tavily_options = {"max_results": 5, "max_connections": 8}
 
+gemini_options = {
+    "time_range_filter": {
+        "start_time": datetime.now(timezone.utc).replace(microsecond=0)
+        - timedelta(days=365),
+        "end_time": datetime.now(timezone.utc).replace(microsecond=0),
+    }
+}
+
 
 @task
 def biology_qa() -> Task:
@@ -31,6 +41,7 @@ def biology_qa() -> Task:
                         "openai": openai_options,
                         "anthropic": True,
                         "tavily": tavily_options,
+                        "gemini": gemini_options,
                     },
                 )
             ),

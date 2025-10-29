@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import contextlib
 import functools
 from copy import deepcopy
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncContextManager,
     AsyncGenerator,
@@ -12,12 +15,15 @@ from typing import (
     Tuple,
 )
 
+if TYPE_CHECKING:
+    from inspect_ai.scorer._scorers import Scorers
+
 import anyio
 
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import scorer_from_spec
-from inspect_ai._eval.task.task import resolve_scorer_metrics
+from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
@@ -58,7 +64,7 @@ ScoreAction = Literal["append", "overwrite"]
 
 def score(
     log: EvalLog,
-    scorers: Scorer | list[Scorer],
+    scorers: "Scorers",
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
@@ -163,7 +169,7 @@ def _get_updated_events(
 
 async def score_async(
     log: EvalLog,
-    scorers: list[Scorer],
+    scorers: "Scorers",
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
@@ -193,6 +199,9 @@ async def score_async(
     """
     if samples is None and log.samples is None:
         raise ValueError("There are no samples to score in the log.")
+
+    # resolve scorers
+    resolved_scorers = resolve_scorer(scorers)
 
     if copy:
         # deepcopy so we don't mutate the passed log
@@ -239,7 +248,7 @@ async def score_async(
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
                 sample_score, names = await _run_score_task(
-                    log, sample, scorers, action
+                    log, sample, resolved_scorers, action
                 )
 
             assert sample.scores is not None
@@ -260,7 +269,7 @@ async def score_async(
         log_metrics = metrics_from_log_header(log)
 
         # resolve the scorer metrics onto the scorers
-        scorers = resolve_scorer_metrics(scorers, log_metrics) or []
+        resolved_scorers = resolve_scorer_metrics(resolved_scorers, log_metrics) or []
 
         # override epochs_reducer if specified
         epochs_reducer = create_reducers(epochs_reducer)
@@ -274,7 +283,7 @@ async def score_async(
             total_samples,
             list(filter(None, scores)),
             epochs_reducer,
-            scorers,
+            resolved_scorers,
             log_metrics,
             scorer_names,
         )

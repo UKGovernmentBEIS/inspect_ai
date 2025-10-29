@@ -90,12 +90,14 @@ export const LogViewContainer: FC = () => {
 
   const prevLogPath = usePrevious<string | undefined>(logPath);
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
+  const initLogDir = useStore((state) => state.logsActions.initLogDir);
 
   useEffect(() => {
     const loadLogFromPath = async () => {
       if (logPath) {
-        await syncLogs();
+        await initLogDir();
         setSelectedLogFile(logPath);
+        void syncLogs();
 
         // Set the tab if specified in the URL
         if (tabId) {

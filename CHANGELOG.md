@@ -1,5 +1,19 @@
 ## Unreleased
 
+- Anthropic: Set 4k as default max_token limit for Claude 3.5 (same as Claude 3.0).
+- Scoring: Support for using `@scanner` functions as scorers.
+- Bugfix: Prevent condensing of model event `output` during execution (only condense `call`).
+- Bugfix: Defer binding of default value for `logs` in data frame functions.
+
+## 0.3.142 (27 October 2025)
+
+- Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
+- Google: Support options (time interval) for Gemini Web Search.
+- Inspect View: Fix performance regression when loading a log view from an S3 bucket.
+- Inspect View: Fix flash of 'No events' message when loading sample transcripts.
+
+## 0.3.141 (27 October 2025)
+
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
 - OpenAI: Don't include "metadata" extra body parameter when `responses_store` is False.
 - Anthropic: Increase default `max_tokens` to 32,000 for Claude 4 models.

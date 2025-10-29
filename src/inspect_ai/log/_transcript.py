@@ -6,7 +6,6 @@ from typing import (
     Iterator,
     Sequence,
     TypeVar,
-    cast,
     overload,
 )
 
@@ -22,7 +21,6 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.log._condense import (
     WalkContext,
-    condense_event,
     events_attachment_fn,
     walk_model_call,
 )
@@ -95,7 +93,7 @@ class Transcript:
         # condense model event calls immediately to prevent O(N) memory usage
         if isinstance(event, ModelEvent):
             event_fn = events_attachment_fn(self.attachments)
-            event.call = walk_model_call(event.call, event_fn, context=self._context)
+            event.call = walk_model_call(event.call, event_fn, self._context)
 
         self._events.append(event)
 
@@ -103,16 +101,10 @@ class Transcript:
         if self._event_logger:
             self._event_logger(event)
 
-        # condense model event call immediately to prevent O(N) memory usage (call and output are the only changed fields)
+        # condense model event call immediately to prevent O(N) memory usage (call is the only changed fields
         if isinstance(event, ModelEvent):
-            ev_condensed = cast(
-                ModelEvent,
-                condense_event(
-                    event, self.attachments, log_images=True, context=self._context
-                ),
-            )
-            event.call = ev_condensed.call
-            event.output = ev_condensed.output
+            event_fn = events_attachment_fn(self.attachments)
+            event.call = walk_model_call(event.call, event_fn, self._context)
 
     def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
         self._event_logger = event_logger

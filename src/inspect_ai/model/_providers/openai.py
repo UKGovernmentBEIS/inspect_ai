@@ -224,6 +224,10 @@ class OpenAIAPI(ModelAPI):
 
     def initialize(self) -> None:
         super().initialize()
+
+        if self.http_client.is_closed:
+            self.http_client = OpenAIAsyncHttpxClient()
+
         self.client = self._create_client()
 
         # TODO: Although we could enhance OpenAIBatcher to support requests with
