@@ -1235,6 +1235,17 @@ pre[class*="language-"] {
   -webkit-mask: url("../img/inspect-home.svg") no-repeat center / contain;
 }
 
+.inspect-icon-tasks::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+  margin-top: -2px;
+  mask: url("../img/tasks.svg") no-repeat center / contain;
+  -webkit-mask: url("../img/tasks.svg") no-repeat center / contain;
+}
+
 /* Use this very carefully, find relies upon checking the 
 document selection to determine if it should skip a find match
 so disabling selection can break that functionality */

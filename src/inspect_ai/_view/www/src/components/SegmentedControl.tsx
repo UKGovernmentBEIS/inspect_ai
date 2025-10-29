@@ -34,9 +34,14 @@ export const SegmentedControl: FC<SegmentedControlProps> = ({
       {segments.map((segment, index) => (
         <button
           key={segment.id}
-          className={clsx(styles.segment, {
-            [styles.selected]: selectedId === segment.id,
-          })}
+          className={clsx(
+            styles.segment,
+            {
+              [styles.selected]: selectedId === segment.id,
+            },
+            "text-size-smallest",
+            "text-style-secondary",
+          )}
           onClick={() => handleSegmentClick(segment.id, index)}
           aria-pressed={selectedId === segment.id}
         >
