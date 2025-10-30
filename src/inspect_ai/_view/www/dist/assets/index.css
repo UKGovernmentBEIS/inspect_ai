@@ -21343,6 +21343,10 @@ thead th {
   display: grid;
   grid-template-columns: 1fr auto;
 }
+._navbarButton_1gksz_1 {
+  font-size: 0.6rem;
+  padding: 1px 5px;
+}
 ._gridWrapper_1ca3y_1 {
   height: 100%;
   width: 100%;

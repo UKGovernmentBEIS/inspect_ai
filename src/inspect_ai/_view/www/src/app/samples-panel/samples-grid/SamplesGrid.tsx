@@ -9,7 +9,7 @@ import {
   themeBalham,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { FC, useCallback, useEffect, useMemo, useRef } from "react";
+import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input, Score } from "../../../@types/log";
 import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
@@ -24,6 +24,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface SamplesGridProps {
   samplesPath?: string;
+  gridRef?: RefObject<AgGridReact | null>;
 }
 
 // Flattened row data for the grid
@@ -83,7 +84,10 @@ const formatLogFilePath = (logFile: string): string => {
   return filename(logFile);
 };
 
-export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
+export const SamplesGrid: FC<SamplesGridProps> = ({
+  samplesPath,
+  gridRef: externalGridRef,
+}) => {
   const logDetails = useStore((state) => state.logs.logDetails);
   const gridState = useStore((state) => state.logs.samplesListState.gridState);
   const setGridState = useStore((state) => state.logsActions.setGridState);
@@ -93,7 +97,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
     (state) => state.logActions.setFilteredSampleCount,
   );
 
-  const gridRef = useRef<AgGridReact>(null);
+  const internalGridRef = useRef<AgGridReact>(null);
+  const gridRef = externalGridRef || internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   // Clear grid state when samplesPath changes
