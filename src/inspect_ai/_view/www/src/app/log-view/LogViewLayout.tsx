@@ -58,12 +58,6 @@ export const LogViewLayout: FC = () => {
     };
   }, [setShowFind, hideFind]);
 
-  const optionsRef = useRef<HTMLButtonElement>(null);
-  const isShowing = useStore((state) => state.app.dialogs.options);
-  const setShowing = useStore(
-    (state) => state.appActions.setShowingOptionsDialog,
-  );
-
   return (
     <ExtendedFindProvider>
       <div
