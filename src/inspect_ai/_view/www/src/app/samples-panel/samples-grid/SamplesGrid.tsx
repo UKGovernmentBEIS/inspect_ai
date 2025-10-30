@@ -1,5 +1,6 @@
 import type {
   ColDef,
+  GridColumnsChangedEvent,
   RowClickedEvent,
   StateUpdatedEvent,
 } from "ag-grid-community";
@@ -524,6 +525,9 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     };
   }, [handleKeyDown]);
 
+  // Keep track of the max column count to avoid redundant resizing
+  const maxColCount = useRef(0);
+
   return (
     <div className={styles.gridWrapper}>
       <div
@@ -534,6 +538,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
         <AgGridReact<SampleRow>
           ref={gridRef}
           rowData={data}
+          animateRows={false}
           columnDefs={columnDefs}
           defaultColDef={{
             sortable: true,
@@ -546,7 +551,13 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           getRowId={(params) =>
             `${params.data.logFile}-${params.data.sampleId}-${params.data.epoch}`
           }
-          onGridColumnsChanged={resizeGridColumns}
+          onGridColumnsChanged={(e: GridColumnsChangedEvent<SampleRow>) => {
+            const cols = e.api.getColumnDefs();
+            if (cols && cols?.length > maxColCount.current) {
+              maxColCount.current = cols.length;
+              resizeGridColumns();
+            }
+          }}
           onGridSizeChanged={resizeGridColumns}
           theme={themeBalham}
           enableCellTextSelection={true}
