@@ -248,7 +248,7 @@ export const PopOver: React.FC<PopOverProps> = ({
     padding: "12px",
     borderRadius: "4px",
     boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-    border: "1px solid #eee",
+    border: "solid 1px var(--bs-border-color)",
     zIndex: 1200,
     position: "relative",
     // Apply opacity transition to smooth the appearance
