@@ -22,7 +22,7 @@ MessageFilter: TypeAlias = Callable[[ChatMessage], bool]
 
 @overload
 def messages_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: Literal[True] = True,
@@ -33,7 +33,7 @@ def messages_df(
 
 @overload
 def messages_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: Literal[False] = False,
@@ -43,7 +43,7 @@ def messages_df(
 
 
 def messages_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: bool = True,
@@ -82,7 +82,7 @@ def messages_df(
 
     quiet = quiet if quiet is not None else running_in_notebook()
     return _read_samples_df(
-        logs=logs,
+        logs=logs or list_eval_logs(),
         columns=columns,
         strict=strict,
         detail=detail,

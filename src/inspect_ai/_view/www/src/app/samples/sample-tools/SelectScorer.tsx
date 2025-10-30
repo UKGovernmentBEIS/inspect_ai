@@ -53,7 +53,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         icon={ApplicationIcons.metrics}
         onClick={() => setShowing(!showing)}
         ref={buttonRef}
-        classes="bg-white"
+        className={clsx(styles.bodyColorButton)}
       />
       <PopOver
         id="score-selector-popover"

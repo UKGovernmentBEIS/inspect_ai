@@ -1,3 +1,4 @@
+import base64
 import functools
 import hashlib
 import json
@@ -382,6 +383,11 @@ class GoogleGenAIAPI(ModelAPI):
         return self.is_gemini_2_5() and "-pro" in self.service_model_name()
 
     @override
+    def emulate_reasoning_history(self) -> bool:
+        # older gemini models don't know about reasoning
+        return self.is_gemini_1_5() or self.is_gemini_2_0()
+
+    @override
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIError) and ex.code is not None:
             return is_retryable_http_status(ex.code)
@@ -634,6 +640,7 @@ async def content(
     client: Client,
     message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
 ) -> Content:
+    working_reasoning_block = None
     if isinstance(message, ChatMessageUser):
         if isinstance(message.content, str):
             return Content(
@@ -647,27 +654,75 @@ async def content(
         )
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
-        # tool call parts
-        if message.tool_calls is not None:
-            content_parts.extend(
-                [
-                    Part.from_function_call(
-                        name=tool_call.function,
-                        args=tool_call.arguments,
-                    )
-                    for tool_call in message.tool_calls
-                ]
-            )
 
-        # content parts
         if isinstance(message.content, str):
             content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
-            content_parts.extend(
-                [await content_part(client, content) for content in message.content]
-            )
+            for i, content in enumerate(message.content):
+                if isinstance(content, ContentReasoning):
+                    # if this is encrytped reasoning, emit the part and save the
+                    # content block for applying the thought_signature to the next part
+                    if content.redacted:
+                        content_parts.append(
+                            Part(
+                                text=content.summary,
+                                thought=True,
+                            )
+                        )
+                        working_reasoning_block = content
+                    else:
+                        content_parts.append(Part(text=content.reasoning, thought=True))
 
-        # return parts
+                else:
+                    part_to_append = await content_part(client, content)
+                    # If previously there was a reasoning block, we need to set the "thought_signature"
+                    # using the reasoning from that block.
+                    if working_reasoning_block is not None:
+                        if (
+                            working_reasoning_block.reasoning is not None
+                            and working_reasoning_block.redacted
+                        ):
+                            part_to_append.thought_signature = base64.b64decode(
+                                working_reasoning_block.reasoning.encode()
+                            )
+                        else:
+                            logger.warning(
+                                "Reasoning block must have a reasoning signature to set thought_signature."
+                            )
+                        # Now, reset the previous reasoning block.
+                        working_reasoning_block = None
+                    content_parts.append(part_to_append)
+
+        # Now handle tool calls
+        if message.tool_calls is not None:
+            # Note that if each tool call had its own reasoning block in a message with
+            # multiple reasoning blocks, we wouldn't know which reasoning block corresponded
+            # to which tool call. That said, to date we have not observed Gemini using
+            # a reasoning block per-tool so this isn't likely a practical concern
+            for tool_call in message.tool_calls:
+                # extract the part
+                part = Part.from_function_call(
+                    name=tool_call.function,
+                    args=tool_call.arguments,
+                )
+
+                # handle reasoning block if available
+                if working_reasoning_block is not None:
+                    # tool call reasoning should always use a thought_signature
+                    if (
+                        working_reasoning_block.reasoning is not None
+                        and working_reasoning_block.redacted
+                    ):
+                        part.thought_signature = base64.b64decode(
+                            working_reasoning_block.reasoning.encode()
+                        )
+                    else:
+                        logger.warning(
+                            "Reasoning block must have a reasoning signature to set thought_signature."
+                        )
+                    working_reasoning_block = None
+
+                content_parts.append(part)
         return Content(role="model", parts=content_parts)
 
     elif isinstance(message, ChatMessageTool):
@@ -688,11 +743,7 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
     elif isinstance(content, ContentText):
         return Part.from_text(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentReasoning):
-        return Part(
-            text=content.reasoning or NO_CONTENT,
-            thought=True,
-            thought_signature=content.signature.encode() if content.signature else None,
-        )
+        raise RuntimeError("content_part should never encounter ContentReasoning")
     elif isinstance(content, ContentData):
         raise RuntimeError("Google provider should never encounter ContentData")
     elif isinstance(content, ContentToolUse):
@@ -841,42 +892,74 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
 def completion_choice_from_candidate(
     model: str, candidate: Candidate
 ) -> ChatCompletionChoice:
-    # content can be None when the finish_reason is SAFETY
-    if candidate.content is None:
-        content: (
-            str
-            | list[
-                ContentText
-                | ContentReasoning
-                | ContentImage
-                | ContentToolUse
-                | ContentAudio
-                | ContentVideo
-                | ContentData
-                | ContentDocument
-            ]
-        ) = ""
-    # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
-    elif candidate.content.parts is None:
-        content = ""
-    else:
-        content = [
-            ContentReasoning(
-                reasoning=part.text,
-                signature=part.thought_signature.decode()
-                if part.thought_signature
-                else None,
-            )
-            if part.thought is True
-            else ContentText(text=part.text)
-            for part in candidate.content.parts
-            if part.text is not None
-        ]
+    # content we'll return
+    content: list[
+        ContentText
+        | ContentReasoning
+        | ContentImage
+        | ContentToolUse
+        | ContentAudio
+        | ContentVideo
+        | ContentData
+        | ContentDocument
+    ] = []
 
-        # distribute citations to individual ContentText parts with adjusted indexes
-        citations = get_candidate_citations(candidate)
-        if citations:
-            distribute_citations_to_text_parts(content, citations)
+    # google distributes reasoning text and thought_signature across multiple
+    # content parts -- we need to consolidate this into a single ContentReasoning
+    # to match our schema (we'll unroll it back into parts on replay)
+    working_reasoning_block: ContentReasoning | None = None
+
+    # content can be None when the finish_reason is SAFETY
+    # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
+    if candidate.content is not None and candidate.content.parts is not None:
+        # traverse parts
+        parts = candidate.content.parts
+        for i, part in enumerate(parts):
+            if part.text is None:
+                continue  # We only care about text parts here
+
+            if part.thought is True:
+                # we'll create and append a reasoning block, saving a reference
+                # to it so that we can ammend it with a thought signature if/when
+                # one arrives later in the stream (note that multiple reasoning
+                # parts without a signature can occur)
+                working_reasoning_block = ContentReasoning(
+                    reasoning=part.text,
+                    redacted=False,
+                )
+                content.append(working_reasoning_block)
+            else:
+                # Check if this block has an associated thought_signature and
+                # whether it corresponds to the previous ContentReasoning block.
+                if part.thought_signature is not None:
+                    if working_reasoning_block is None:
+                        # append the reasoning block to the list
+                        content.append(
+                            ContentReasoning(
+                                reasoning=base64.b64encode(
+                                    part.thought_signature
+                                ).decode(),
+                                redacted=True,
+                            )
+                        )
+                    elif working_reasoning_block is not None:
+                        # attach the though_signature to the previous reasoning block
+                        working_reasoning_block.summary = (
+                            working_reasoning_block.reasoning
+                        )
+                        working_reasoning_block.reasoning = base64.b64encode(
+                            part.thought_signature
+                        ).decode()
+                        working_reasoning_block.redacted = True
+                        # clear it out
+                        working_reasoning_block = None
+
+                content.append(ContentText(text=part.text))
+
+    # distribute citations to individual ContentText parts with adjusted indexes
+    citations = get_candidate_citations(candidate)
+    if citations:
+        distribute_citations_to_text_parts(content, citations)
 
     # now tool calls
     tool_calls: list[ToolCall] = []
@@ -884,19 +967,41 @@ def completion_choice_from_candidate(
         for part in candidate.content.parts:
             if part.function_call:
                 if (
-                    part.function_call is not None
-                    and part.function_call.name is not None
-                    and part.function_call.args is not None
+                    part.function_call is None
+                    or part.function_call.name is None
+                    or part.function_call.args is None
                 ):
-                    tool_calls.append(
-                        ToolCall(
-                            id=f"{part.function_call.name}_{uuid()}",
-                            function=part.function_call.name,
-                            arguments=part.function_call.args,
-                        )
-                    )
-                else:
                     raise ValueError(f"Incomplete function call: {part.function_call}")
+
+                # If the part has a thought_signature, try and associate it with the previous working block
+                if part.thought_signature:
+                    if working_reasoning_block is None:
+                        # We make the assumption that tool calls don't have independent reasoning
+                        # blocks unless they are preceded by a reasoning block.
+                        reasoning_block = ContentReasoning(
+                            reasoning=base64.b64encode(part.thought_signature).decode(),
+                            redacted=True,
+                        )
+
+                        content.append(reasoning_block)
+                    else:
+                        # attach the though_signature to the previous reasoning block
+                        working_reasoning_block.summary = (
+                            working_reasoning_block.reasoning
+                        )
+                        working_reasoning_block.reasoning = base64.b64encode(
+                            part.thought_signature
+                        ).decode()
+                        working_reasoning_block.redacted = True
+                        working_reasoning_block = None
+
+                tool_calls.append(
+                    ToolCall(
+                        id=f"{part.function_call.name}_{uuid()}",
+                        function=part.function_call.name,
+                        arguments=part.function_call.args,
+                    )
+                )
 
     # stop reason
     stop_reason = finish_reason_to_stop_reason(
@@ -906,7 +1011,7 @@ def completion_choice_from_candidate(
     # build choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=content,
+            content=content if len(content) > 0 else "",
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
             model=model,
             source="generate",
