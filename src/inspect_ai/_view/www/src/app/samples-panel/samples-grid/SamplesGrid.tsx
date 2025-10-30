@@ -185,6 +185,25 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
   const columnDefs = useMemo((): ColDef<SampleRow>[] => {
     const baseColumns: ColDef<SampleRow>[] = [
       {
+        headerName: "#",
+        valueGetter: (params) => {
+          if (
+            params.node?.rowIndex !== null &&
+            params.node?.rowIndex !== undefined
+          ) {
+            return params.node.rowIndex + 1;
+          }
+          return "";
+        },
+        initialWidth: 80,
+        minWidth: 50,
+        maxWidth: 80,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        pinned: "left",
+      },
+      {
         field: "task",
         headerName: "Task",
         initialWidth: 150,
@@ -472,9 +491,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
 
       // Navigate to target row if set
       if (targetRowIndex !== null && targetRowIndex !== currentRowIndex) {
-        const targetNode = gridRef.current.api.getDisplayedRowAtIndex(
-          targetRowIndex,
-        );
+        const targetNode =
+          gridRef.current.api.getDisplayedRowAtIndex(targetRowIndex);
         if (targetNode) {
           targetNode.setSelected(true, true); // true = select, true = clear other selections
           gridRef.current.api.ensureIndexVisible(targetRowIndex, "middle");
