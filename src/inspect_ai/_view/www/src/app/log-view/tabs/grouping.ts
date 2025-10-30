@@ -54,6 +54,8 @@ const noGrouping = (
     const itemCount = counter.item();
     return [
       {
+        sampleId: sample.id,
+        sampleEpoch: sample.epoch,
         label: `Sample ${sample.id}`,
         number: itemCount,
         index: index,
@@ -125,6 +127,8 @@ const groupBySample = (
 
     counter.incrementItem();
     results.push({
+      sampleId: sample.id,
+      sampleEpoch: sample.epoch,
       label: `Sample ${counter.group()} (Epoch ${counter.item()})`,
       number: counter.item(),
       index: index,
@@ -182,6 +186,8 @@ const groupByEpoch = (
     // Compute the index within the epoch
     counter.incrementItem();
     results.push({
+      sampleId: sample.id,
+      sampleEpoch: sample.epoch,
       label: `Sample ${sample.id} (Epoch ${sample.epoch})`,
       number: counter.item(),
       index: index,

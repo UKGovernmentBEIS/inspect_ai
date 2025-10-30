@@ -138,8 +138,10 @@ class ContentDocument(ContentBase):
 
     @model_validator(mode="before")
     @classmethod
-    def set_name_and_mime_type(cls, data: dict[str, Any]) -> dict[str, Any]:
+    def set_name_and_mime_type(cls, data: Any) -> Any:
         """Automatically set name and mime_type if not provided."""
+        if not isinstance(data, dict):
+            return data
         document: str | None = data.get("document")
         filename: str | None = data.get("filename")
         mime_type: str | None = data.get("mime_type")

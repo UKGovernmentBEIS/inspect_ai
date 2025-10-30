@@ -44,6 +44,11 @@ def claude_code() -> Agent:
                 env={
                     "ANTHROPIC_BASE_URL": f"http://localhost:{bridge.port}",
                     "ANTHROPIC_API_KEY": "sk-ant-api03-DOq5tyLPrk9M4hPE",
+                    "ANTHROPIC_MODEL": "inspect",
+                    "ANTHROPIC_DEFAULT_OPUS_MODEL": "inspect",
+                    "ANTHROPIC_DEFAULT_SONNET_MODEL": "inspect",
+                    "CLAUDE_CODE_SUBAGENT_MODEL": "inspect",
+                    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "inspect",
                     "ANTHROPIC_SMALL_FAST_MODEL": "inspect",
                     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
                     "IS_SANDBOX": "1",

@@ -7,11 +7,11 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
+from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):
@@ -453,7 +453,8 @@ async def eval_async(
         raise inner_exception(ex)
     except anyio.get_cancelled_exc_class():
         # Cancelled exceptions are expected and handled by _eval_async_inner
-        pass
+        if result is None:
+            raise
 
     assert result is not None, "Eval async did not return a result."
 

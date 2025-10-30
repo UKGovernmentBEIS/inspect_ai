@@ -9,6 +9,7 @@ from rich.text import Text
 from inspect_ai._util.rich import rich_traceback
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import EvalScore
+from inspect_ai.model._model_output import ModelUsage
 
 from .config import task_config, task_dict
 from .display import (
@@ -172,29 +173,35 @@ def task_stats(stats: EvalStats) -> RenderableType:
 
     # token usage
     for model, usage in stats.model_usage.items():
-        if (
-            usage.input_tokens_cache_read is not None
-            or usage.input_tokens_cache_write is not None
-        ):
-            input_tokens_cache_read = usage.input_tokens_cache_read or 0
-            input_tokens_cache_write = usage.input_tokens_cache_write or 0
-            input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}, [bold]CW: [/bold]{input_tokens_cache_write:,}, [bold]CR: [/bold]{input_tokens_cache_read:,}"
-        else:
-            input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}"
-
-        if usage.reasoning_tokens is not None:
-            reasoning_tokens = f", [bold]R: [/bold]{usage.reasoning_tokens:,}"
-        else:
-            reasoning_tokens = ""
-
         table.add_row(
-            Text(model, style="bold"),
-            f"  {usage.total_tokens:,} tokens [{input_tokens}, [bold]O: [/bold]{usage.output_tokens:,}{reasoning_tokens}]",
+            *model_usage_summary(model, usage),
             style=theme.light,
         )
 
     panel.add_row(table)
     return panel
+
+
+def model_usage_summary(model: str, usage: ModelUsage) -> list[RenderableType]:
+    if (
+        usage.input_tokens_cache_read is not None
+        or usage.input_tokens_cache_write is not None
+    ):
+        input_tokens_cache_read = usage.input_tokens_cache_read or 0
+        input_tokens_cache_write = usage.input_tokens_cache_write or 0
+        input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}, [bold]CW: [/bold]{input_tokens_cache_write:,}, [bold]CR: [/bold]{input_tokens_cache_read:,}"
+    else:
+        input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}"
+
+    if usage.reasoning_tokens is not None:
+        reasoning_tokens = f", [bold]R: [/bold]{usage.reasoning_tokens:,}"
+    else:
+        reasoning_tokens = ""
+
+    return [
+        Text(model, style="bold"),
+        f"  {usage.total_tokens:,} tokens [{input_tokens}, [bold]O: [/bold]{usage.output_tokens:,}{reasoning_tokens}]",
+    ]
 
 
 def task_can_retry(profile: TaskProfile) -> bool:

@@ -63,7 +63,7 @@ export function viewServerApi(
     return logs.parsed;
   };
 
-  const get_log_files = async (mtime: number, clientFileCount: number) => {
+  const get_logs = async (mtime: number, clientFileCount: number) => {
     const path = logDir
       ? `/log-files?log_dir=${encodeURIComponent(logDir)}`
       : "/log-files";
@@ -301,7 +301,7 @@ export function viewServerApi(
   return {
     client_events,
     get_log_root,
-    get_logs: get_log_files,
+    get_logs,
     get_log_dir,
     get_eval_set,
     get_log_contents,

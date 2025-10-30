@@ -31,10 +31,9 @@ export const LogViewContainer: FC = () => {
   );
   const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
 
-  const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
   const selectSample = useStore((state) => state.logActions.selectSample);
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
   );
 
   const clearSelectedLogSummary = useStore(
@@ -90,11 +89,15 @@ export const LogViewContainer: FC = () => {
   }, [initialState, evalSpec]);
 
   const prevLogPath = usePrevious<string | undefined>(logPath);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
+  const initLogDir = useStore((state) => state.logsActions.initLogDir);
 
   useEffect(() => {
     const loadLogFromPath = async () => {
       if (logPath) {
-        await selectLogFile(logPath);
+        await initLogDir();
+        setSelectedLogFile(logPath);
+        void syncLogs();
 
         // Set the tab if specified in the URL
         if (tabId) {
@@ -115,31 +118,21 @@ export const LogViewContainer: FC = () => {
     };
 
     loadLogFromPath();
-  }, [logPath, tabId, selectLogFile, setWorkspaceTab, setSelectedLogIndex]);
+  }, [logPath, tabId, setSelectedLogFile, setWorkspaceTab]);
 
   // Handle sample selection from URL params
   useEffect(() => {
     if (sampleId && filteredSamples) {
-      // Find the sample with matching ID and epoch
+      const targetEpoch = epoch ? parseInt(epoch, 10) : 1;
+      selectSample(sampleId, targetEpoch);
 
-      const targetEpoch = epoch ? parseInt(epoch, 10) : undefined;
-      const sampleIndex = filteredSamples.findIndex((sample) => {
-        const matches =
-          String(sample.id) === sampleId &&
-          (targetEpoch === undefined || sample.epoch === targetEpoch);
-        return matches;
-      });
+      // Set the sample tab if specified in the URL
+      if (sampleTabId) {
+        setSampleTab(sampleTabId);
+      }
 
-      if (sampleIndex >= 0) {
-        selectSample(sampleIndex);
-        // Set the sample tab if specified in the URL
-        if (sampleTabId) {
-          setSampleTab(sampleTabId);
-        }
-
-        if (filteredSamples.length > 1) {
-          setShowingSampleDialog(true);
-        }
+      if (filteredSamples.length > 1) {
+        setShowingSampleDialog(true);
       }
     } else {
       // If we don't have sample params in the URL but the dialog is showing, close it

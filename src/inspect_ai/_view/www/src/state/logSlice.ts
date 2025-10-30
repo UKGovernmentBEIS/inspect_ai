@@ -1,8 +1,10 @@
+import { sampleIdsEqual } from "../app/shared/sample";
 import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { LogDetails, PendingSamples } from "../client/api/types";
 import { toLogPreview } from "../client/utils/type-utils";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
+import { isUri, join } from "../utils/uri";
 import { createLogPolling } from "./logPolling";
 import { StoreState } from "./store";
 
@@ -11,7 +13,7 @@ const log = createLogger("logSlice");
 export interface LogSlice {
   log: LogState;
   logActions: {
-    selectSample: (index: number) => void;
+    selectSample: (sampleId: string | number, epoch: number) => void;
 
     // Set the selected log summary
     setSelectedLogDetails: (details: LogDetails) => void;
@@ -63,7 +65,8 @@ export interface LogSlice {
 // Initial state
 const initialState = {
   // Log state
-  selectedSampleIndex: -1,
+  șselectedSampleId: undefined,
+  selectedSampleEpoch: undefined,
   selectedLogDetails: undefined,
   pendingSampleSummaries: undefined,
   loadedLog: undefined,
@@ -92,10 +95,20 @@ export const createLogSlice = (
 
     // Actions
     logActions: {
-      selectSample: (index: number) =>
+      selectSample: (sampleId: string | number, epoch: number) => {
+        // Ignore if already selected
+        const currentSample = get().log.selectedSampleHandle;
+        if (
+          sampleIdsEqual(currentSample?.id, sampleId) &&
+          currentSample?.epoch === epoch
+        ) {
+          return;
+        }
+
         set((state) => {
-          state.log.selectedSampleIndex = index;
-        }),
+          state.log.selectedSampleHandle = { id: sampleId, epoch };
+        });
+      },
 
       setSelectedLogDetails: (details: LogDetails) => {
         set((state) => {
@@ -164,26 +177,36 @@ export const createLogSlice = (
         const state = get();
         const api = state.api;
 
+        // Ensure there is a log dir
+        let logDir = state.logs.logDir;
+        if (state.logs.logDir === undefined) {
+          logDir = await state.logsActions.initLogDir();
+        }
+
+        const logAbsPath = !isUri(logFileName)
+          ? join(logFileName, logDir)
+          : logFileName;
+
         if (!api) {
           console.error("API not initialized in Store");
           return;
         }
 
-        log.debug(`Load log: ${logFileName}`);
+        log.debug(`Load log: ${logAbsPath}`);
 
         // Try reading the data in the database first
         const dbService = state.databaseService;
         if (dbService && dbService.opened()) {
           try {
             const cachedInfo =
-              await dbService.readLogDetailsForFile(logFileName);
+              await dbService.readLogDetailsForFile(logAbsPath);
             if (cachedInfo) {
-              log.debug(`Using cached log info for: ${logFileName}`);
+              log.debug(`Using cached log info for: ${logAbsPath}`);
               state.logActions.setSelectedLogDetails(cachedInfo);
               // Still fetch fresh data in background to update cache
-              api.get_log_details(logFileName).then((logDetails) => {
+              api.get_log_details(logAbsPath).then((logDetails) => {
                 state.logActions.setSelectedLogDetails(logDetails);
-                dbService.writeLogDetails(logFileName, logDetails).catch(() => {
+                dbService.writeLogDetails(logAbsPath, logDetails).catch(() => {
                   // Silently ignore cache errors
                 });
               });

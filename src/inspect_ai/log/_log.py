@@ -157,9 +157,11 @@ class EvalConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def convert_max_messages_to_message_limit(
-        cls: Type["EvalConfig"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+        cls: Type["EvalConfig"], values: Any
+    ) -> Any:
         """Migrate deprecated max_messages property."""
+        if not isinstance(values, dict):
+            return values
         max_messages = values.get("max_messages", None)
         if max_messages:
             values["message_limit"] = max_messages
@@ -420,9 +422,9 @@ class EvalSample(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_deprecated(
-        cls: Type["EvalSample"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def migrate_deprecated(cls: Type["EvalSample"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         if "score" in values:
             # There cannot be a scorers property too
             if "scores" in values:
@@ -606,9 +608,9 @@ class EvalResults(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def convert_scorer_to_scorers(
-        cls: Type["EvalResults"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def convert_scorer_to_scorers(cls: Type["EvalResults"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         if "scorer" in values:
             # There cannot be a scorers property too
             if "scores" in values:
@@ -689,6 +691,9 @@ class EvalRevision(BaseModel):
 
     commit: str
     """Revision commit."""
+
+    dirty: bool | None = Field(default=None)
+    """Working tree has uncommitted changes or untracked files."""
 
 
 class EvalSpec(BaseModel):
@@ -805,9 +810,9 @@ class EvalSpec(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def read_sandbox_spec(
-        cls: Type["EvalSpec"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def read_sandbox_spec(cls: Type["EvalSpec"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         return migrate_values(values)
 
 
@@ -919,9 +924,9 @@ class EvalLog(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def resolve_sample_reductions(
-        cls: Type["EvalLog"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def resolve_sample_reductions(cls: Type["EvalLog"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         has_reductions = "reductions" in values
         has_results = values.get("results", None) is not None
         has_sample_reductions = has_results and (

@@ -5,15 +5,15 @@ export const useUnloadLog = () => {
   const clearSelectedLogDetails = useStore(
     (state) => state.logActions.clearSelectedLogDetails,
   );
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
+  const clearSelectedLogFile = useStore(
+    (state) => state.logsActions.clearSelectedLogFile,
   );
   const clearLog = useStore((state) => state.logActions.clearLog);
 
   const unloadLog = useCallback(() => {
     clearSelectedLogDetails();
-    setSelectedLogIndex(-1);
+    clearSelectedLogFile();
     clearLog();
-  }, [clearLog, clearSelectedLogDetails, setSelectedLogIndex]);
+  }, [clearLog, clearSelectedLogDetails, clearSelectedLogFile]);
   return { unloadLog };
 };

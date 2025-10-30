@@ -466,11 +466,12 @@ class AnthropicAPI(ModelAPI):
         # Anthropic requires you to explicitly specify max_tokens (most others
         # set it to the maximum allowable output tokens for the model).
         # Claude 4 models currently have maxes of 32k (Opus 4 and 4.1) or
-        # 64k (Sonnet 4 and 4.5 and Haiku 4.5). Claude 3 models max at 4k or
-        # 8k, w/ 3.7 Sonnet being capable of 128k w/ a special header).
-        # Therefore, we use 4k as the default for Claude 3 and 32,000 as the
-        # default for everything else.
-        if self.is_claude_3():
+        # 64k (Sonnet 4 and 4.5 and Haiku 4.5). Claude 3.0 maxes at 4k and
+        # Claude 3.5 at 8k (3.7 Sonnet can go all the way to 128k since we
+        # automatically include the header that enables that features).
+        # Therefore, we use 4k as the default for Claude 3 and 3.5 and
+        # 32,000 as the default for everything else.
+        if self.is_claude_3() or self.is_claude_3_5():
             return 4096
         else:
             return 32000

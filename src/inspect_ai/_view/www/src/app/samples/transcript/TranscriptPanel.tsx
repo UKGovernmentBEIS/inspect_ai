@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { FC, memo, RefObject, useEffect, useMemo, useRef } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
 import { Events } from "../../../@types/log";
+import { NoContentsPanel } from "../../../components/NoContentsPanel";
 import { StickyScroll } from "../../../components/StickyScroll";
 import { useCollapsedState } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
@@ -34,6 +35,8 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
   const filteredEventTypes = useStore(
     (state) => state.sample.eventFilter.filteredTypes,
   );
+
+  const loading = useStore((state) => state.app.status.loading);
 
   // Apply the filter
   const filteredEvents = useMemo(() => {
@@ -156,42 +159,56 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     }
   }, [scrollRef, flattenedNodes]);
 
-  return (
-    <div
-      className={clsx(
-        styles.container,
-        collapsed ? styles.collapsed : undefined,
-      )}
-    >
-      <StickyScroll
-        scrollRef={scrollRef}
-        className={styles.treeContainer}
-        offsetTop={topOffset}
+  if (loading && flattenedNodes.length === 0) {
+    return undefined;
+  }
+
+  if (flattenedNodes.length === 0) {
+    const isCompletedFiltered =
+      flattenedNodes.length === 0 && events.length > 0;
+    const message = isCompletedFiltered
+      ? "The currently applied filter hides all events."
+      : "No events to display.";
+    return <NoContentsPanel text={message} />;
+  } else {
+    return (
+      <div
+        className={clsx(
+          styles.container,
+          collapsed ? styles.collapsed : undefined,
+        )}
       >
-        <TranscriptOutline
-          className={clsx(styles.outline)}
-          eventNodes={eventNodes}
-          running={running}
-          defaultCollapsedIds={defaultCollapsedIds}
+        <StickyScroll
           scrollRef={scrollRef}
-        />
-        <div
-          className={styles.outlineToggle}
-          onClick={() => setCollapsed(!collapsed)}
+          className={styles.treeContainer}
+          offsetTop={topOffset}
         >
-          <i className={ApplicationIcons.sidebar} />
-        </div>
-      </StickyScroll>
-      <TranscriptVirtualList
-        id={id}
-        listHandle={listHandle}
-        eventNodes={flattenedNodes}
-        scrollRef={scrollRef}
-        running={running}
-        initialEventId={initialEventId === undefined ? null : initialEventId}
-        offsetTop={topOffset}
-        className={styles.listContainer}
-      />
-    </div>
-  );
+          <TranscriptOutline
+            className={clsx(styles.outline)}
+            eventNodes={eventNodes}
+            running={running}
+            defaultCollapsedIds={defaultCollapsedIds}
+            scrollRef={scrollRef}
+          />
+          <div
+            className={styles.outlineToggle}
+            onClick={() => setCollapsed(!collapsed)}
+          >
+            <i className={ApplicationIcons.sidebar} />
+          </div>
+        </StickyScroll>
+
+        <TranscriptVirtualList
+          id={id}
+          listHandle={listHandle}
+          eventNodes={flattenedNodes}
+          scrollRef={scrollRef}
+          running={running}
+          initialEventId={initialEventId === undefined ? null : initialEventId}
+          offsetTop={topOffset}
+          className={styles.listContainer}
+        />
+      </div>
+    );
+  }
 });
