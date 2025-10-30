@@ -49,8 +49,11 @@ body:not([class^="vscode-"]) button {
 body {
   --ag-background-color: var(--bs-body-bg);
   --ag-foreground-color: var(--bs-body-color);
-  --ag-font-family: var(--bs-font-sans-serif);
-  --ag-header-font-family: var(--bs-font-sans-serif);
+  --ag-header-background-color: var(--bs-light-bg);
+  --ag-header-font-size: var(--inspect-font-size-small);
+  --ag-header-font-weight: 500;
+  --ag-header-text-color: var(--bs-secondary);
+  --ag-font-family: var(--bs-body-font-family);
 }
 
 #app {
