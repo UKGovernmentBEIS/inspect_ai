@@ -15,7 +15,7 @@ import {
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
-import { Navbar } from "../navbar/Navbar";
+import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { logsUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
@@ -23,8 +23,6 @@ import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import { LogsFilterInput } from "./LogsFilterInput";
 import styles from "./LogsPanel.module.css";
-import { ViewerOptionsButton } from "./ViewerOptionsButton";
-import { ViewerOptionsPopover } from "./ViewerOptionsPopover";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -61,12 +59,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<LogListGridHandle>(null);
-  const optionsRef = useRef<HTMLButtonElement>(null);
-
-  const isShowing = useStore((state) => state.app.dialogs.options);
-  const setShowing = useStore(
-    (state) => state.appActions.setShowingOptionsDialog,
-  );
 
   const { logPath } = useLogRouteParams();
 
@@ -255,20 +247,10 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         handleKeyDown(e);
       }}
     >
-      <Navbar fnNavigationUrl={logsUrl} currentPath={logPath}>
+      <ApplicationNavbar fnNavigationUrl={logsUrl} currentPath={logPath}>
         <LogsFilterInput ref={filterRef} />
         <ViewSegmentedControl selectedSegment="logs" />
-        <ViewerOptionsButton
-          showing={isShowing}
-          setShowing={setShowing}
-          ref={optionsRef}
-        />
-        <ViewerOptionsPopover
-          positionEl={optionsRef.current}
-          showing={isShowing}
-          setShowing={setShowing}
-        />
-      </Navbar>
+      </ApplicationNavbar>
 
       <ActivityBar animating={!!loading} />
 

@@ -1,13 +1,11 @@
 import clsx from "clsx";
 
-import { FC, useEffect, useRef } from "react";
+import { FC, useEffect } from "react";
 import { ActivityBar } from "../../components/ActivityBar";
 import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { LogListFooter } from "../log-list/LogListFooter";
-import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
-import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
-import { Navbar } from "../navbar/Navbar";
+import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
@@ -17,13 +15,7 @@ export const SamplesPanel: FC = () => {
   const { samplesPath } = useSamplesRouteParams();
   const { loadLogs } = useLogs();
 
-  const optionsRef = useRef<HTMLButtonElement>(null);
   const loading = useStore((state) => state.app.status.loading);
-
-  const isShowing = useStore((state) => state.app.dialogs.options);
-  const setShowing = useStore(
-    (state) => state.appActions.setShowingOptionsDialog,
-  );
 
   const filteredSamplesCount = useStore(
     (state) => state.log.filteredSampleCount,
@@ -38,23 +30,13 @@ export const SamplesPanel: FC = () => {
 
   return (
     <div className={clsx(styles.panel)}>
-      <Navbar
-        bordered={false}
-        fnNavigationUrl={samplesUrl}
+      <ApplicationNavbar
         currentPath={samplesPath}
+        fnNavigationUrl={samplesUrl}
+        bordered={false}
       >
         <ViewSegmentedControl selectedSegment="samples" />
-        <ViewerOptionsButton
-          showing={isShowing}
-          setShowing={setShowing}
-          ref={optionsRef}
-        />
-        <ViewerOptionsPopover
-          positionEl={optionsRef.current}
-          showing={isShowing}
-          setShowing={setShowing}
-        />
-      </Navbar>
+      </ApplicationNavbar>
 
       <ActivityBar animating={!!loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>

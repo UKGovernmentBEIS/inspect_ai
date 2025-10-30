@@ -1,9 +1,8 @@
 import clsx from "clsx";
 import { FC, useEffect } from "react";
-import { ActivityBar } from "../../components/ActivityBar";
 import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { Navbar } from "../navbar/Navbar";
+import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
 import { SampleDisplay } from "../samples/SampleDisplay";
 import styles from "./SampleDetailView.module.css";
@@ -16,7 +15,6 @@ export const SampleDetailView: FC = () => {
   const { samplesPath, sampleId, epoch } = useSamplesRouteParams();
   const { loadLogs } = useLogs();
 
-  const loading = useStore((state) => state.app.status.loading);
   const selectSample = useStore((state) => state.logActions.selectSample);
   const setSelectedLogFile = useStore(
     (state) => state.logsActions.setSelectedLogFile,
@@ -48,13 +46,11 @@ export const SampleDetailView: FC = () => {
 
   return (
     <div className={clsx(styles.panel)}>
-      <Navbar
-        bordered={true}
-        fnNavigationUrl={samplesUrl}
+      <ApplicationNavbar
         currentPath={samplesPath}
-      ></Navbar>
-
-      <ActivityBar animating={!!loading} />
+        fnNavigationUrl={samplesUrl}
+        bordered={true}
+      />
 
       <div className={clsx(styles.detail)}>
         {sampleId && (

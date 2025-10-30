@@ -5,9 +5,7 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
 import { useStore } from "../../state/store";
-import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
-import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
-import { Navbar } from "../navbar/Navbar";
+import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { logsUrl, useLogRouteParams } from "../routing/url";
 import { LogView } from "./LogView";
 
@@ -80,23 +78,10 @@ export const LogViewLayout: FC = () => {
       >
         {showFind ? <FindBand /> : ""}
         {!singleFileMode ? (
-          <Navbar fnNavigationUrl={logsUrl} currentPath={logPath}>
-            {" "}
-            <ViewerOptionsButton
-              showing={isShowing}
-              setShowing={setShowing}
-              ref={optionsRef}
-            />
-            <ViewerOptionsPopover
-              positionEl={optionsRef.current}
-              showing={isShowing}
-              setShowing={setShowing}
-            />
-          </Navbar>
+          <ApplicationNavbar fnNavigationUrl={logsUrl} currentPath={logPath} />
         ) : (
-          ""
+          <ActivityBar animating={!!appStatus.loading} />
         )}
-        <ActivityBar animating={!!appStatus.loading} />
         {appStatus.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."
