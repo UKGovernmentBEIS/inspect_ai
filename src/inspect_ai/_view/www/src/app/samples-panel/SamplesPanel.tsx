@@ -45,11 +45,7 @@ export const SamplesPanel: FC = () => {
 
   return (
     <div className={clsx(styles.panel)}>
-      <ApplicationNavbar
-        currentPath={samplesPath}
-        fnNavigationUrl={samplesUrl}
-        bordered={false}
-      >
+      <ApplicationNavbar currentPath={samplesPath} fnNavigationUrl={samplesUrl}>
         {hasFilter && (
           <NavbarButton
             key="reset-filters"

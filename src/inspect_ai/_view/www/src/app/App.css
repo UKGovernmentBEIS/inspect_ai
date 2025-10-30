@@ -54,6 +54,7 @@ body {
   --ag-header-font-weight: 500;
   --ag-header-text-color: var(--bs-secondary);
   --ag-font-family: var(--bs-body-font-family);
+  --ag-wrapper-border: none;
 }
 
 #app {
