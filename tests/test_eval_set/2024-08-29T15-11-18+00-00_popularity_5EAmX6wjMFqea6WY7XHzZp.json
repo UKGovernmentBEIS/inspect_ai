@@ -28,7 +28,7 @@
       {
         "solver": "system_message",
         "params": {
-          "message": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+          "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
         }
       },
       {

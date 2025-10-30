@@ -273,11 +273,7 @@ class TaskLogger:
         return log
 
 
-async def log_start(
-    logger: TaskLogger,
-    plan: Plan,
-    config: GenerateConfig,
-) -> None:
+def plan_to_eval_plan(plan: Plan, config: GenerateConfig) -> EvalPlan:
     def eval_plan_step(solver: Solver) -> EvalPlanStep:
         return EvalPlanStep(
             solver=registry_log_name(solver), params=registry_params(solver)
@@ -291,7 +287,15 @@ async def log_start(
     )
     if plan.finish:
         eval_plan.steps.append(eval_plan_step(plan.finish))
+    return eval_plan
 
+
+async def log_start(
+    logger: TaskLogger,
+    plan: Plan,
+    config: GenerateConfig,
+) -> None:
+    eval_plan = plan_to_eval_plan(plan, config)
     await logger.log_start(eval_plan)
 
 

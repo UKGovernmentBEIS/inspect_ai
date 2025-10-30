@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Set: Task identifiers can now vary on `GenerateConfig` and `solver` (which enables sweeping over these variables).
 - Inspect View: Fixed theming issue with the score selector control in VS Code.
 - Inspect View: Improve display of grouped metrics
 - Inspect View: Don't render markdown images in the sample list input, target, or answer.

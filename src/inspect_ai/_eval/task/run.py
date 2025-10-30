@@ -148,6 +148,23 @@ class TaskRunOptions:
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
 
+def resolve_plan(task: Task, solver: Solver | None) -> Plan:
+    # resolve the plan (unroll chains)
+    solver = solver or task.solver
+    if isinstance(solver, Plan):
+        plan = solver
+    elif isinstance(solver, Chain):
+        plan = Plan(list(solver), cleanup=task.cleanup, internal=True)
+    else:
+        plan = Plan(unroll(solver), cleanup=task.cleanup, internal=True)
+
+    # add setup solver(s) if specified
+    if task.setup:
+        plan.steps = unroll(task.setup) + plan.steps
+
+    return plan
+
+
 async def task_run(options: TaskRunOptions) -> EvalLog:
     from inspect_ai.hooks._hooks import (
         emit_task_end,
@@ -212,16 +229,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
     # resolve the plan (unroll chains)
     solver = solver or task.solver
-    if isinstance(solver, Plan):
-        plan = solver
-    elif isinstance(solver, Chain):
-        plan = Plan(list(solver), cleanup=task.cleanup, internal=True)
-    else:
-        plan = Plan(unroll(solver), cleanup=task.cleanup, internal=True)
-
-    # add setup solver(s) if specified
-    if task.setup:
-        plan.steps = unroll(task.setup) + plan.steps
+    plan = resolve_plan(task, solver)
 
     # resolve the scorer
     score = score and task.scorer is not None

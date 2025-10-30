@@ -1,6 +1,8 @@
 from typing import (
     Any,
     Literal,
+    Mapping,
+    TypeAlias,
     cast,
 )
 
@@ -26,7 +28,15 @@ def jsonable_dict(x: Any) -> dict[str, JsonValue]:
         )
 
 
-def to_json_safe(x: Any) -> bytes:
+_IncEx: TypeAlias = (
+    set[int] | set[str] | Mapping[int, "_IncEx | bool"] | Mapping[str, "_IncEx | bool"]
+)
+
+
+def to_json_safe(
+    x: Any,
+    exclude: _IncEx | None = None,
+) -> bytes:
     normalized = jsonable_python(x)
 
     def clean_utf8_json(obj: Any) -> Any:
@@ -40,7 +50,11 @@ def to_json_safe(x: Any) -> bytes:
 
     try:
         return to_json(
-            value=normalized, indent=2, exclude_none=True, fallback=lambda _x: None
+            value=normalized,
+            indent=2,
+            exclude_none=True,
+            fallback=lambda _x: None,
+            exclude=exclude,
         )
     except PydanticSerializationError as ex:
         if "surrogates not allowed" in str(ex):
