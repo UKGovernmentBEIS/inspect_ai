@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Don't render markdown images in the sample list input, target, or answer.
+
 ## 0.3.143 (29 October 2025)
 
 - Google: Correct capture and playback of `thought_signature` in `ContentReasoning` blocks.
