@@ -149,12 +149,14 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#october-2025" id="toc-october-2025" class="nav-link active" data-scroll-target="#october-2025">0.3.141 (27 October 2025)</a></li>
-  <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.140 (20 October 2025)</a></li>
-  <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.139 (18 October 2025)</a></li>
-  <li><a href="#october-2025-3" id="toc-october-2025-3" class="nav-link" data-scroll-target="#october-2025-3">0.3.138 (16 October 2025)</a></li>
-  <li><a href="#october-2025-4" id="toc-october-2025-4" class="nav-link" data-scroll-target="#october-2025-4">0.3.137 (07 October 2025)</a></li>
-  <li><a href="#october-2025-5" id="toc-october-2025-5" class="nav-link" data-scroll-target="#october-2025-5">0.3.136 (02 October 2025)</a></li>
+  <li><a href="#october-2025" id="toc-october-2025" class="nav-link active" data-scroll-target="#october-2025">0.3.143 (29 October 2025)</a></li>
+  <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.142 (27 October 2025)</a></li>
+  <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.141 (27 October 2025)</a></li>
+  <li><a href="#october-2025-3" id="toc-october-2025-3" class="nav-link" data-scroll-target="#october-2025-3">0.3.140 (20 October 2025)</a></li>
+  <li><a href="#october-2025-4" id="toc-october-2025-4" class="nav-link" data-scroll-target="#october-2025-4">0.3.139 (18 October 2025)</a></li>
+  <li><a href="#october-2025-5" id="toc-october-2025-5" class="nav-link" data-scroll-target="#october-2025-5">0.3.138 (16 October 2025)</a></li>
+  <li><a href="#october-2025-6" id="toc-october-2025-6" class="nav-link" data-scroll-target="#october-2025-6">0.3.137 (07 October 2025)</a></li>
+  <li><a href="#october-2025-7" id="toc-october-2025-7" class="nav-link" data-scroll-target="#october-2025-7">0.3.136 (02 October 2025)</a></li>
   <li><a href="#september-2025" id="toc-september-2025" class="nav-link" data-scroll-target="#september-2025">0.3.135 (29 September 2025)</a></li>
   <li><a href="#september-2025-1" id="toc-september-2025-1" class="nav-link" data-scroll-target="#september-2025-1">0.3.134 (27 September 2025)</a></li>
   <li><a href="#september-2025-2" id="toc-september-2025-2" class="nav-link" data-scroll-target="#september-2025-2">0.3.133 (22 September 2025)</a></li>
@@ -299,7 +301,26 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="october-2025" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025">0.3.141 (27 October 2025)</h2>
+<h2 class="anchored" data-anchor-id="october-2025">0.3.143 (29 October 2025)</h2>
+<ul>
+<li>Google: Correct capture and playback of <code>thought_signature</code> in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentreasoning">ContentReasoning</a></span> blocks.</li>
+<li>Anthropic: Set 4k as default max_token limit for Claude 3.5 (same as Claude 3.0).</li>
+<li>Scoring: Support for using <code>@scanner</code> functions as scorers.</li>
+<li>Bugfix: Prevent condensing of model event <code>output</code> during execution (only condense <code>call</code>).</li>
+<li>Bugfix: Defer binding of default value for <code>logs</code> in data frame functions.</li>
+</ul>
+</section>
+<section id="october-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-1">0.3.142 (27 October 2025)</h2>
+<ul>
+<li>Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).</li>
+<li>Google: Support options (time interval) for Gemini Web Search.</li>
+<li>Inspect View: Fix performance regression when loading a log view from an S3 bucket.</li>
+<li>Inspect View: Fix flash of ‘No events’ message when loading sample transcripts.</li>
+</ul>
+</section>
+<section id="october-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-2">0.3.141 (27 October 2025)</h2>
 <ul>
 <li>OpenAI: Use <code>responses_store=false</code> by default (handling reasoning via the “reasoning.encrypted_content” include option).</li>
 <li>OpenAI: Don’t include “metadata” extra body parameter when <code>responses_store</code> is False.</li>
@@ -319,15 +340,15 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix <code>run_coroutine</code> to exit internal catch handler before running the coroutine.</li>
 </ul>
 </section>
-<section id="october-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025-1">0.3.140 (20 October 2025)</h2>
+<section id="october-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-3">0.3.140 (20 October 2025)</h2>
 <ul>
 <li>Tests: Skip git revision detection and realtime logging during pytest runs to improve test performance.</li>
 <li>Inspect View: Fix regression that resulted in an error when displaying JSON log files.</li>
 </ul>
 </section>
-<section id="october-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025-2">0.3.139 (18 October 2025)</h2>
+<section id="october-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-4">0.3.139 (18 October 2025)</h2>
 <ul>
 <li>OpenAI: Handle <code>Message</code> input types that have no <code>"type"</code> field in responses API.</li>
 <li>Google: Improve model API call diagnostics to accurately reflect request body sent by the Python client.</li>
@@ -340,8 +361,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix regression in running samples display resulting from condensing model event messages.</li>
 </ul>
 </section>
-<section id="october-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025-3">0.3.138 (16 October 2025)</h2>
+<section id="october-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-5">0.3.138 (16 October 2025)</h2>
 <ul>
 <li>Added model API for <a href="https://inspect.aisi.org.uk/providers.html#hugging-face-inference-providers">Hugging Face Inference Providers</a>.</li>
 <li>Agent bridge: Support for OpenAI ‘custom’ tools (required by Codex apply_patch tool).</li>
@@ -372,8 +393,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: When reading log files, tolerate <code>SubtaskEvent.input</code> values that aren’t of the required <code>dict</code> type.</li>
 </ul>
 </section>
-<section id="october-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025-4">0.3.137 (07 October 2025)</h2>
+<section id="october-2025-6" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-6">0.3.137 (07 October 2025)</h2>
 <ul>
 <li>OpenAI: Support for tool calls returning images (requires v2.0 of <code>openai</code> package, which is now required).</li>
 <li>Anthropic: Retry requests that get an error body payload with ‘internal server error’</li>
@@ -392,8 +413,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix crash when determining tool_param based on type hint of Any in Python 3.10 w/Pydantic 2.12.0.</li>
 </ul>
 </section>
-<section id="october-2025-5" class="level2">
-<h2 class="anchored" data-anchor-id="october-2025-5">0.3.136 (02 October 2025)</h2>
+<section id="october-2025-7" class="level2">
+<h2 class="anchored" data-anchor-id="october-2025-7">0.3.136 (02 October 2025)</h2>
 <ul>
 <li>Google: Manage Google client lifetime to scope of call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
 <li>Eval logs: Add message count tracking to evaluation logs for quick analysis without loading full samples.</li>
