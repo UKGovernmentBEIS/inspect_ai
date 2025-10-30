@@ -40,6 +40,9 @@ export const SamplesPanel: FC = () => {
     exec();
   }, [loadLogs, samplesPath]);
 
+  const filterModel = gridRef.current?.api?.getFilterModel();
+  const hasFilter = filterModel && Object.keys(filterModel).length > 0;
+
   return (
     <div className={clsx(styles.panel)}>
       <ApplicationNavbar
@@ -47,12 +50,14 @@ export const SamplesPanel: FC = () => {
         fnNavigationUrl={samplesUrl}
         bordered={false}
       >
-        <NavbarButton
-          key="reset-filters"
-          label="Reset Filters"
-          icon={ApplicationIcons.filter}
-          onClick={handleResetFilters}
-        />
+        {hasFilter && (
+          <NavbarButton
+            key="reset-filters"
+            label="Reset Filters"
+            icon={ApplicationIcons.filter}
+            onClick={handleResetFilters}
+          />
+        )}
 
         <ViewSegmentedControl selectedSegment="samples" />
       </ApplicationNavbar>
