@@ -2287,7 +2287,16 @@
             },
             {
               "items": {
-                "anyOf": [
+                "discriminator": {
+                  "mapping": {
+                    "assistant": "#/$defs/ChatMessageAssistant",
+                    "system": "#/$defs/ChatMessageSystem",
+                    "tool": "#/$defs/ChatMessageTool",
+                    "user": "#/$defs/ChatMessageUser"
+                  },
+                  "propertyName": "role"
+                },
+                "oneOf": [
                   {
                     "$ref": "#/$defs/ChatMessageSystem"
                   },
@@ -2376,7 +2385,16 @@
         },
         "messages": {
           "items": {
-            "anyOf": [
+            "discriminator": {
+              "mapping": {
+                "assistant": "#/$defs/ChatMessageAssistant",
+                "system": "#/$defs/ChatMessageSystem",
+                "tool": "#/$defs/ChatMessageTool",
+                "user": "#/$defs/ChatMessageUser"
+              },
+              "propertyName": "role"
+            },
+            "oneOf": [
               {
                 "$ref": "#/$defs/ChatMessageSystem"
               },
@@ -4503,7 +4521,16 @@
         },
         "input": {
           "items": {
-            "anyOf": [
+            "discriminator": {
+              "mapping": {
+                "assistant": "#/$defs/ChatMessageAssistant",
+                "system": "#/$defs/ChatMessageSystem",
+                "tool": "#/$defs/ChatMessageTool",
+                "user": "#/$defs/ChatMessageUser"
+              },
+              "propertyName": "role"
+            },
+            "oneOf": [
               {
                 "$ref": "#/$defs/ChatMessageSystem"
               },
@@ -4897,7 +4924,16 @@
             },
             {
               "items": {
-                "anyOf": [
+                "discriminator": {
+                  "mapping": {
+                    "assistant": "#/$defs/ChatMessageAssistant",
+                    "system": "#/$defs/ChatMessageSystem",
+                    "tool": "#/$defs/ChatMessageTool",
+                    "user": "#/$defs/ChatMessageUser"
+                  },
+                  "propertyName": "role"
+                },
+                "oneOf": [
                   {
                     "$ref": "#/$defs/ChatMessageSystem"
                   },
