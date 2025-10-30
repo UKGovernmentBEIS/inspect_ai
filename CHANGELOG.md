@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.143 (29 October 2025)
 
 - Google: Correct capture and playback of `thought_signature` in `ContentReasoning` blocks.
 - Anthropic: Set 4k as default max_token limit for Claude 3.5 (same as Claude 3.0).
