@@ -19,6 +19,7 @@ export const SamplesPanel: FC = () => {
   const { loadLogs } = useLogs();
 
   const loading = useStore((state) => state.app.status.loading);
+  const syncing = useStore((state) => state.app.status.syncing);
 
   const filteredSamplesCount = useStore(
     (state) => state.log.filteredSampleCount,
@@ -67,6 +68,7 @@ export const SamplesPanel: FC = () => {
         id={"samples-list-footer"}
         itemCount={filteredSamplesCount ?? 0}
         paginated={false}
+        progressText={syncing ? "Syncing..." : undefined}
       />
     </div>
   );
