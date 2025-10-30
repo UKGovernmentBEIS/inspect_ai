@@ -9,7 +9,7 @@ import {
   themeBalham,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { FC, useCallback, useMemo, useRef } from "react";
+import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input, Score } from "../../../@types/log";
 import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
@@ -94,6 +94,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
   );
 
   const gridRef = useRef<AgGridReact>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
 
   // Clear grid state when samplesPath changes
   const prevSamplesPath = usePrevious(samplesPath);
@@ -352,10 +353,155 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
     [navigateToSampleDetail],
   );
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (!gridRef.current?.api) {
+        return;
+      }
+
+      // Don't handle keyboard events if focus is on an input, textarea, or select element
+      const activeElement = document.activeElement;
+      if (
+        activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.tagName === "SELECT")
+      ) {
+        return;
+      }
+
+      // Get the currently selected row
+      const selectedRows = gridRef.current.api.getSelectedNodes();
+      const totalRows = gridRef.current.api.getDisplayedRowCount();
+
+      // Determine current row index from selection or default to -1
+      let currentRowIndex = -1;
+      if (selectedRows.length > 0 && selectedRows[0].rowIndex !== null) {
+        currentRowIndex = selectedRows[0].rowIndex;
+      }
+
+      let targetRowIndex: number | null = null;
+
+      switch (e.key) {
+        case "ArrowUp":
+          e.preventDefault();
+          if (e.metaKey || e.ctrlKey) {
+            // Cmd/Ctrl + ArrowUp: Go to first row
+            targetRowIndex = 0;
+          } else {
+            // ArrowUp: Go to previous row
+            if (currentRowIndex === -1) {
+              targetRowIndex = 0;
+            } else {
+              targetRowIndex = Math.max(0, currentRowIndex - 1);
+            }
+          }
+          break;
+
+        case "ArrowDown":
+          e.preventDefault();
+          if (e.metaKey || e.ctrlKey) {
+            // Cmd/Ctrl + ArrowDown: Go to last row
+            targetRowIndex = totalRows - 1;
+          } else {
+            // ArrowDown: Go to next row
+            if (currentRowIndex === -1) {
+              targetRowIndex = 0;
+            } else {
+              targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 1);
+            }
+          }
+          break;
+
+        case "Home":
+          e.preventDefault();
+          // Home: Go to first row
+          targetRowIndex = 0;
+          break;
+
+        case "End":
+          e.preventDefault();
+          // End: Go to last row
+          targetRowIndex = totalRows - 1;
+          break;
+
+        case "PageUp":
+          e.preventDefault();
+          // PageUp: Go up 10 rows (or to first row)
+          if (currentRowIndex === -1) {
+            targetRowIndex = 0;
+          } else {
+            targetRowIndex = Math.max(0, currentRowIndex - 10);
+          }
+          break;
+
+        case "PageDown":
+          e.preventDefault();
+          // PageDown: Go down 10 rows (or to last row)
+          if (currentRowIndex === -1) {
+            targetRowIndex = 0;
+          } else {
+            targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 10);
+          }
+          break;
+
+        case "Enter":
+        case " ": {
+          // Space key
+          e.preventDefault();
+          // Enter/Space: Open the selected row
+          if (currentRowIndex !== -1) {
+            const rowNode =
+              gridRef.current.api.getDisplayedRowAtIndex(currentRowIndex);
+            if (rowNode?.data) {
+              const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
+              navigateToSampleDetail(
+                rowNode.data.logFile,
+                rowNode.data.sampleId,
+                rowNode.data.epoch,
+                openInNewWindow,
+              );
+            }
+          }
+          break;
+        }
+
+        default:
+          return;
+      }
+
+      // Navigate to target row if set
+      if (targetRowIndex !== null && targetRowIndex !== currentRowIndex) {
+        const targetNode = gridRef.current.api.getDisplayedRowAtIndex(
+          targetRowIndex,
+        );
+        if (targetNode) {
+          targetNode.setSelected(true, true); // true = select, true = clear other selections
+          gridRef.current.api.ensureIndexVisible(targetRowIndex, "middle");
+        }
+      }
+    },
+    [navigateToSampleDetail],
+  );
+
+  // Set up keyboard event listener
+  useEffect(() => {
+    const gridElement = gridContainerRef.current;
+    if (!gridElement) return;
+
+    gridElement.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      gridElement.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
   return (
     <div className={styles.gridWrapper}>
       <div
+        ref={gridContainerRef}
         style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        tabIndex={0}
       >
         <AgGridReact<SampleRow>
           ref={gridRef}
@@ -369,6 +515,9 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
           autoSizeStrategy={{ type: "fitGridWidth" }}
           headerHeight={25}
           rowSelection="single"
+          onRowSelected={() => {
+            console.log("Row selected");
+          }}
           onGridColumnsChanged={resizeGridColumns}
           onGridSizeChanged={resizeGridColumns}
           theme={themeBalham}
