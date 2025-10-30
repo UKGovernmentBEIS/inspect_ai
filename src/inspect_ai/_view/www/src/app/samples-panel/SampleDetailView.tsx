@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC, useEffect } from "react";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
+import { FindBand } from "../../components/FindBand";
 import { useLogs, useSelectedSampleSummary } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
@@ -32,6 +33,7 @@ export const SampleDetailView: FC = () => {
     (state) => state.logActions.clearSelectedLogDetails,
   );
   const clearLog = useStore((state) => state.logActions.clearLog);
+  const showFind = useStore((state) => state.app.showFind);
 
   // Load the log file and select the sample
   useEffect(() => {
@@ -58,6 +60,31 @@ export const SampleDetailView: FC = () => {
     selectSample,
   ]);
 
+  const setShowFind = useStore((state) => state.appActions.setShowFind);
+  const hideFind = useStore((state) => state.appActions.hideFind);
+
+  // Global keydown handler for keyboard shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault(); // Always prevent browser find
+        e.stopPropagation();
+        if (setShowFind) {
+          setShowFind(true);
+        }
+      } else if (e.key === "Escape") {
+        hideFind();
+      }
+    };
+
+    // Use capture phase to catch event before it reaches other handlers
+    document.addEventListener("keydown", handleGlobalKeyDown, true);
+
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeyDown, true);
+    };
+  }, [setShowFind, hideFind]);
+
   useEffect(() => {
     const exec = async () => {
       if (selectedLogFile && selectedSampleSummary) {
@@ -78,6 +105,7 @@ export const SampleDetailView: FC = () => {
 
   return (
     <ExtendedFindProvider>
+      {showFind ? <FindBand /> : ""}
       <div className={clsx(styles.panel)}>
         <ApplicationNavbar
           currentPath={samplesPath}
