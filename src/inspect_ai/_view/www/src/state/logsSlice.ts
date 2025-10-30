@@ -199,7 +199,7 @@ export const createLogsSlice = (
           };
 
           // Don't enable syncing if there is no log directory
-          if (!logDir) {
+          if (!logDir || get().app.singleFileMode) {
             get().appActions.setLoading(false);
             return [];
           }
@@ -288,7 +288,10 @@ export const createLogsSlice = (
           ) !== -1;
 
         if (!isInFileList) {
-          if (state.replicationService?.isReplicating()) {
+          if (
+            state.replicationService?.isReplicating() &&
+            !state.app.singleFileMode
+          ) {
             await state.logsActions.syncLogs();
             const logHandle = state.logs.logs.find((val: { name: string }) =>
               val.name.endsWith(logFile),

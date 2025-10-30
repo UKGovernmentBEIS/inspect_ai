@@ -95,6 +95,7 @@ export const SampleRow: FC<SampleRowProps> = ({
           <RenderedText
             markdown={inputString(sample.input).join(" ")}
             forceRender={true}
+            omitMedia={true}
           />
         ) : undefined}
       </div>
@@ -104,6 +105,7 @@ export const SampleRow: FC<SampleRowProps> = ({
             markdown={arrayToString(sample.target)}
             className={clsx("no-last-para-padding", styles.noLeft)}
             forceRender={true}
+            omitMedia={true}
           />
         ) : undefined}
       </div>
@@ -113,6 +115,7 @@ export const SampleRow: FC<SampleRowProps> = ({
             markdown={answer || ""}
             className={clsx("no-last-para-padding", styles.noLeft)}
             forceRender={true}
+            omitMedia={true}
           />
         ) : (
           ""

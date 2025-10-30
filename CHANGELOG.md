@@ -2,6 +2,7 @@
 
 - Inspect View: Fixed theming issue with the score selector control in VS Code.
 - Inspect View: Improve display of grouped metrics
+- Inspect View: Don't render markdown images in the sample list input, target, or answer.
 
 ## 0.3.143 (29 October 2025)
 
