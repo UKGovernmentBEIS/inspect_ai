@@ -1,0 +1,6 @@
+.detail {
+  overflow: auto;
+  height: 100%;
+  min-height: 0;
+  padding: 1rem;
+}

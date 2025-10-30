@@ -17,7 +17,7 @@ import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
 import { debounce } from "../../../utils/sync";
 import { join } from "../../../utils/uri";
-import { useSampleNavigation } from "../../routing/sampleNavigation";
+import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import styles from "./SamplesGrid.module.css";
 
 // Register AG Grid modules
@@ -88,10 +88,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
   const logDetails = useStore((state) => state.logs.logDetails);
   const gridState = useStore((state) => state.logs.samplesListState.gridState);
   const setGridState = useStore((state) => state.logsActions.setGridState);
-  const { showSample } = useSampleNavigation();
-  const setSelectedLogFile = useStore(
-    (state) => state.logsActions.setSelectedLogFile,
-  );
+  const { navigateToSampleDetail } = useSamplesGridNavigation();
   const logDir = useStore((state) => state.logs.logDir);
   const setFilteredSampleCount = useStore(
     (state) => state.logActions.setFilteredSampleCount,
@@ -377,8 +374,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
           }}
           onRowClicked={(e: RowClickedEvent<SampleRow>) => {
             if (e.data) {
-              setSelectedLogFile(e.data.logFile);
-              showSample(e.data.sampleId, e.data.epoch);
+              navigateToSampleDetail(
+                e.data.logFile,
+                e.data.sampleId,
+                e.data.epoch,
+              );
             }
           }}
           onFilterChanged={() => {

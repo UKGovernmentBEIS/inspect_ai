@@ -4,7 +4,13 @@ import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
 import { sampleIdsEqual } from "../shared/sample";
-import { logsUrl, logsUrlRaw, sampleUrl, useLogRouteParams } from "./url";
+import {
+  logsUrl,
+  logsUrlRaw,
+  sampleDetailUrl,
+  sampleUrl,
+  useLogRouteParams,
+} from "./url";
 
 export const useLogNavigation = () => {
   const navigate = useNavigate();
@@ -269,5 +275,28 @@ export const useSampleDetailNavigation = () => {
   return {
     message,
     event,
+  };
+};
+
+/**
+ * Hook for navigating to sample details from the samples grid.
+ * Uses the /samples route pattern instead of /logs.
+ */
+export const useSamplesGridNavigation = () => {
+  const navigate = useNavigate();
+  const logDirectory = useStore((state) => state.logs.logDir);
+
+  const navigateToSampleDetail = useCallback(
+    (logFile: string, sampleId: string | number, epoch: number) => {
+      // Convert absolute logFile path to relative path
+      const relativePath = directoryRelativeUrl(logFile, logDirectory);
+      const url = sampleDetailUrl(relativePath, sampleId, epoch);
+      navigate(url);
+    },
+    [navigate, logDirectory],
+  );
+
+  return {
+    navigateToSampleDetail,
   };
 };

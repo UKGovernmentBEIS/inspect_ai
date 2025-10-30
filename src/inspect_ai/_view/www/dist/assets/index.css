@@ -21363,3 +21363,9 @@ thead th {
   height: 100%;
   min-height: 0;
 }
+._detail_1nlj3_1 {
+  overflow: auto;
+  height: 100%;
+  min-height: 0;
+  padding: 1rem;
+}

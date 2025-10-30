@@ -203,6 +203,7 @@ export const useLogRouteParams = () => {
 /**
  * Hook that parses samples route parameters from the splat route.
  * Handles nested paths properly by parsing the full path after /samples/
+ * Also handles sample detail routes: /samples/path/to/file.eval/sample/id/epoch
  */
 export const useSamplesRouteParams = () => {
   const params = useParams<{
@@ -212,8 +213,25 @@ export const useSamplesRouteParams = () => {
   return useMemo(() => {
     const splatPath = params["*"] || "";
 
+    // Check for sample detail pattern: folder/file.eval/sample/id/epoch
+    const sampleMatch = splatPath.match(
+      /^(.+?)\/sample\/([^/]+)\/([^/]+)$/,
+    );
+
+    if (sampleMatch) {
+      const [, logPath, sampleId, epoch] = sampleMatch;
+      return {
+        samplesPath: decodeUrlParam(logPath),
+        sampleId: decodeUrlParam(sampleId),
+        epoch: decodeUrlParam(epoch),
+      };
+    }
+
+    // Otherwise it's just a folder path
     return {
       samplesPath: splatPath ? decodeUrlParam(splatPath) : undefined,
+      sampleId: undefined,
+      epoch: undefined,
     };
   }, [params]);
 };
@@ -358,6 +376,17 @@ export const samplesUrl = (log_file: string, log_dir?: string) => {
   const path = makeLogsPath(log_file, log_dir);
   const decodedLogSegment = decodeUrlParam(path) || path;
   return encodePathParts(`/samples/${decodedLogSegment}`);
+};
+
+export const sampleDetailUrl = (
+  logPath: string,
+  sampleId: string | number,
+  epoch: string | number,
+) => {
+  const decodedLogPath = decodeUrlParam(logPath) || logPath;
+  return encodePathParts(
+    `/samples/${decodedLogPath}/sample/${sampleId}/${epoch}`,
+  );
 };
 
 export const logsUrl = (log_file: string, log_dir?: string, tabId?: string) => {

@@ -10,13 +10,13 @@ import { AppErrorBoundary } from "../AppErrorBoundary";
 import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { RouteDispatcher } from "./RouteDispatcher";
+import { SamplesRouter } from "./SamplesRouter";
 import {
   kLogRouteUrlPattern,
   kLogsRoutUrlPattern as kLogsRouteUrlPattern,
   kSampleRouteUrlPattern,
   kSampleUuidRouteUrlPattern,
 } from "./url";
-import { SamplesPanel } from "../samples-panel/SamplesPanel";
 
 // Create a layout component that includes the RouteTracker
 const AppLayout = () => {
@@ -79,7 +79,7 @@ export const AppRouter = createHashRouter(
         },
         {
           path: "/samples/*",
-          element: <SamplesPanel />,
+          element: <SamplesRouter />,
         }
       ],
     },
