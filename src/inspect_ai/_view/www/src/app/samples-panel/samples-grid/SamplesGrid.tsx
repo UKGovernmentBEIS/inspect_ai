@@ -330,6 +330,28 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
     [],
   );
 
+  const handleRowClick = useCallback(
+    (e: RowClickedEvent<SampleRow>) => {
+      if (e.data) {
+        // Cmd/Ctrl + Click, Shift + Click, or Middle Click should open in new tab/window
+        const mouseEvent = e.event as MouseEvent | undefined;
+        const openInNewWindow =
+          mouseEvent?.metaKey ||
+          mouseEvent?.ctrlKey ||
+          mouseEvent?.shiftKey ||
+          mouseEvent?.button === 1;
+
+        navigateToSampleDetail(
+          e.data.logFile,
+          e.data.sampleId,
+          e.data.epoch,
+          openInNewWindow,
+        );
+      }
+    },
+    [navigateToSampleDetail],
+  );
+
   return (
     <div className={styles.gridWrapper}>
       <div
@@ -361,15 +383,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
               setFilteredSampleCount(displayedRowCount);
             }
           }}
-          onRowClicked={(e: RowClickedEvent<SampleRow>) => {
-            if (e.data) {
-              navigateToSampleDetail(
-                e.data.logFile,
-                e.data.sampleId,
-                e.data.epoch,
-              );
-            }
-          }}
+          onRowClicked={handleRowClick}
           onFilterChanged={() => {
             if (gridRef.current?.api) {
               const displayedRowCount =

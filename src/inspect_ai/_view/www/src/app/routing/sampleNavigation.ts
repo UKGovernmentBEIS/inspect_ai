@@ -287,11 +287,22 @@ export const useSamplesGridNavigation = () => {
   const logDirectory = useStore((state) => state.logs.logDir);
 
   const navigateToSampleDetail = useCallback(
-    (logFile: string, sampleId: string | number, epoch: number) => {
+    (
+      logFile: string,
+      sampleId: string | number,
+      epoch: number,
+      openInNewWindow = false,
+    ) => {
       // Convert absolute logFile path to relative path
       const relativePath = directoryRelativeUrl(logFile, logDirectory);
       const url = sampleDetailUrl(relativePath, sampleId, epoch);
-      navigate(url);
+
+      if (openInNewWindow) {
+        // Open in new window/tab
+        window.open(`#${url}`, "_blank");
+      } else {
+        navigate(url);
+      }
     },
     [navigate, logDirectory],
   );
