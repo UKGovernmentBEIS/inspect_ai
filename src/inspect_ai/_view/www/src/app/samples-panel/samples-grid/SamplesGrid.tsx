@@ -1,7 +1,6 @@
 import type {
   ColDef,
   RowClickedEvent,
-  RowSelectedEvent,
   StateUpdatedEvent,
 } from "ag-grid-community";
 import {
@@ -323,15 +322,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
     return [...baseColumns, ...scoreColumns, ...optionalColumns];
   }, [scoreNames, hasError, hasLimit, hasRetries]);
 
-  // Handle row selection
-  const onRowSelected = useCallback((event: RowSelectedEvent<SampleRow>) => {
-    if (event.node.isSelected() && event.data) {
-      console.log(
-        `Selected: Log File="${event.data.logFile}", Sample ID="${event.data.sampleId}", Epoch=${event.data.epoch}`,
-      );
-    }
-  }, []);
-
   const resizeGridColumns = useCallback(
     debounce(() => {
       // Trigger column sizing after grid is ready
@@ -357,7 +347,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({ samplesPath }) => {
           autoSizeStrategy={{ type: "fitGridWidth" }}
           headerHeight={25}
           rowSelection="single"
-          onRowSelected={onRowSelected}
           onGridColumnsChanged={resizeGridColumns}
           onGridSizeChanged={resizeGridColumns}
           theme={themeBalham}
