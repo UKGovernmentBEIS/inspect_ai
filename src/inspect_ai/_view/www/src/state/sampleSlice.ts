@@ -147,6 +147,7 @@ export const createSampleSlice = (
           state.sample.sample_identifier = undefined;
           state.sample.selectedSampleObject = undefined;
           state.sample.sampleInState = false;
+          state.log.selectedSampleHandle = undefined;
         });
       },
       setSampleStatus: (status: SampleStatus) =>

@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC, useEffect } from "react";
-import { useLogs } from "../../state/hooks";
+import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
+import { useLogs, useSelectedSampleSummary } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
@@ -19,11 +20,24 @@ export const SampleDetailView: FC = () => {
   const setSelectedLogFile = useStore(
     (state) => state.logsActions.setSelectedLogFile,
   );
+  const selectedSampleSummary = useSelectedSampleSummary();
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+  const initLogDir = useStore((state) => state.logsActions.initLogDir);
+
+  const loadSample = useStore((state) => state.sampleActions.loadSample);
+  const clearSelectedSample = useStore(
+    (state) => state.sampleActions.clearSelectedSample,
+  );
+  const clearSelectedLogDetails = useStore(
+    (state) => state.logActions.clearSelectedLogDetails,
+  );
+  const clearLog = useStore((state) => state.logActions.clearLog);
 
   // Load the log file and select the sample
   useEffect(() => {
-    const loadSample = async () => {
+    const exec = async () => {
       if (samplesPath && sampleId && epoch) {
+        await initLogDir();
         // Load the log file
         await loadLogs(samplesPath);
         setSelectedLogFile(samplesPath);
@@ -34,7 +48,7 @@ export const SampleDetailView: FC = () => {
       }
     };
 
-    loadSample();
+    exec();
   }, [
     samplesPath,
     sampleId,
@@ -44,23 +58,44 @@ export const SampleDetailView: FC = () => {
     selectSample,
   ]);
 
-  return (
-    <div className={clsx(styles.panel)}>
-      <ApplicationNavbar
-        currentPath={samplesPath}
-        fnNavigationUrl={samplesUrl}
-        bordered={true}
-      />
+  useEffect(() => {
+    const exec = async () => {
+      console.log({ selectedLogFile, selectedSampleSummary });
+      if (selectedLogFile && selectedSampleSummary) {
+        await loadSample(selectedLogFile, selectedSampleSummary);
+      }
+    };
+    void exec();
+  }, [selectedLogFile, selectedSampleSummary]);
 
-      <div className={clsx(styles.detail)}>
-        {sampleId && (
-          <SampleDisplay
-            id={`sample-detail-${sampleId}-${epoch}`}
-            scrollRef={{ current: null }}
-            focusOnLoad={true}
-          />
-        )}
+  useEffect(() => {
+    return () => {
+      // Clear selected sample on unmount
+      clearSelectedSample();
+      clearSelectedLogDetails();
+      clearLog();
+    };
+  }, [clearLog, clearSelectedSample, clearSelectedLogDetails]);
+
+  return (
+    <ExtendedFindProvider>
+      <div className={clsx(styles.panel)}>
+        <ApplicationNavbar
+          currentPath={samplesPath}
+          fnNavigationUrl={samplesUrl}
+          bordered={true}
+        />
+
+        <div className={clsx(styles.detail)}>
+          {sampleId && (
+            <SampleDisplay
+              id={`sample-detail-${sampleId}-${epoch}`}
+              scrollRef={{ current: null }}
+              focusOnLoad={true}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </ExtendedFindProvider>
   );
 };

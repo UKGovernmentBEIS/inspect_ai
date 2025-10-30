@@ -36,7 +36,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     (state) => state.sample.eventFilter.filteredTypes,
   );
 
-  const loading = useStore((state) => state.app.status.loading);
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
   // Apply the filter
   const filteredEvents = useMemo(() => {
@@ -159,7 +159,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     }
   }, [scrollRef, flattenedNodes]);
 
-  if (loading && flattenedNodes.length === 0) {
+  if (sampleStatus === "loading" && flattenedNodes.length === 0) {
     return undefined;
   }
 

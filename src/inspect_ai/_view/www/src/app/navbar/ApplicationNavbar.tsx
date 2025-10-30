@@ -20,6 +20,7 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
 }) => {
   const optionsRef = useRef<HTMLButtonElement>(null);
   const loading = useStore((state) => state.app.status.loading);
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
   const isShowing = useStore((state) => state.app.dialogs.options);
   const setShowing = useStore(
@@ -45,7 +46,7 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
           setShowing={setShowing}
         />
       </Navbar>
-      <ActivityBar animating={!!loading} />
+      <ActivityBar animating={!!loading || sampleStatus === "loading"} />
     </div>
   );
 };
