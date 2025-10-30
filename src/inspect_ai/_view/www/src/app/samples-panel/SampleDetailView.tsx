@@ -60,7 +60,6 @@ export const SampleDetailView: FC = () => {
 
   useEffect(() => {
     const exec = async () => {
-      console.log({ selectedLogFile, selectedSampleSummary });
       if (selectedLogFile && selectedSampleSummary) {
         await loadSample(selectedLogFile, selectedSampleSummary);
       }
