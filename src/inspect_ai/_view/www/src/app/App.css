@@ -212,6 +212,21 @@ body[class^="vscode-"] .popover-arrow::before {
   border-left-color: var(--bs-border-color) !important;
 }
 
+body[class^="vscode-"]
+  [data-popper-placement^="bottom"]
+  > .popper-arrow-container
+  > div,
+body[class^="vscode-"]
+  [data-popper-placement^="left"]
+  > .popper-arrow-container
+  > div,
+body[class^="vscode-"]
+  [data-popper-placement^="right"]
+  > .popper-arrow-container
+  > div {
+  border-color: transparent transparent var(--bs-card-border-color) !important;
+}
+
 body[class^="vscode-"] .modal-content {
   background-clip: unset;
 }

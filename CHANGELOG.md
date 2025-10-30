@@ -1,3 +1,8 @@
+## Unreleased
+
+- Inspect View: Fixed theming issue with the score selector control in VS Code.
+- Inspect View: Improve display of grouped metrics
+
 ## 0.3.143 (29 October 2025)
 
 - Google: Correct capture and playback of `thought_signature` in `ContentReasoning` blocks.

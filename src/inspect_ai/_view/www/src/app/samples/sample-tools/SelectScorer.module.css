@@ -50,3 +50,7 @@
 .selected {
   font-weight: 600;
 }
+
+.bodyColorButton {
+  background-color: var(--bs-body-bg);
+}
