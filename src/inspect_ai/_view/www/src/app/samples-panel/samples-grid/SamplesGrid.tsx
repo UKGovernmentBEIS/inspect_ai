@@ -357,8 +357,12 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
   const handleRowClick = useCallback(
     (e: RowClickedEvent<SampleRow>) => {
-      if (e.data) {
-        // Cmd/Ctrl + Click, Shift + Click, or Middle Click should open in new tab/window
+      if (e.data && e.node && gridRef.current?.api) {
+        // select the clicked row
+        gridRef.current.api.deselectAll();
+        e.node.setSelected(true);
+
+        // Compute whether the click should open in a new window
         const mouseEvent = e.event as MouseEvent | undefined;
         const openInNewWindow =
           mouseEvent?.metaKey ||
@@ -366,15 +370,16 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           mouseEvent?.shiftKey ||
           mouseEvent?.button === 1;
 
-        navigateToSampleDetail(
-          e.data.logFile,
-          e.data.sampleId,
-          e.data.epoch,
-          openInNewWindow,
-        );
+        // Use setTimeout to allow grid state to update before navigation
+        const logFile = e.data.logFile;
+        const sampleId = e.data.sampleId;
+        const epoch = e.data.epoch;
+        setTimeout(() => {
+          navigateToSampleDetail(logFile, sampleId, epoch, openInNewWindow);
+        }, 10);
       }
     },
-    [navigateToSampleDetail],
+    [navigateToSampleDetail, gridRef],
   );
 
   const handleKeyDown = useCallback(
@@ -538,9 +543,9 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           autoSizeStrategy={{ type: "fitGridWidth" }}
           headerHeight={25}
           rowSelection="single"
-          onRowSelected={() => {
-            console.log("Row selected");
-          }}
+          getRowId={(params) =>
+            `${params.data.logFile}-${params.data.sampleId}-${params.data.epoch}`
+          }
           onGridColumnsChanged={resizeGridColumns}
           onGridSizeChanged={resizeGridColumns}
           theme={themeBalham}
