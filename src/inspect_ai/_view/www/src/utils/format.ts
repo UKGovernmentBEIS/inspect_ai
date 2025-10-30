@@ -150,7 +150,7 @@ export function toTitleCase(str: string): string {
 }
 
 /**
- * Formats a number to a string without trailing zeroes after the decimal point.
+ * Formats a number to a string with no decimals
  */
 export function formatNoDecimal(num: number): string {
   // This isn't a number, continue
@@ -165,7 +165,7 @@ export function formatNoDecimal(num: number): string {
 }
 
 /**
- * Formats a number to a string without trailing zeroes after the decimal point.
+ * Formats a number to a string
  */
 export function formatNumber(num: number): string {
   return num.toLocaleString(navigator.language, {
