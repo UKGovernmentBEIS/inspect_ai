@@ -214,9 +214,7 @@ export const useSamplesRouteParams = () => {
     const splatPath = params["*"] || "";
 
     // Check for sample detail pattern: folder/file.eval/sample/id/epoch
-    const sampleMatch = splatPath.match(
-      /^(.+?)\/sample\/([^/]+)\/([^/]+)$/,
-    );
+    const sampleMatch = splatPath.match(/^(.+?)\/sample\/([^/]+)\/([^/]+)$/);
 
     if (sampleMatch) {
       const [, logPath, sampleId, epoch] = sampleMatch;

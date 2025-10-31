@@ -80,7 +80,7 @@ export const AppRouter = createHashRouter(
         {
           path: "/samples/*",
           element: <SamplesRouter />,
-        }
+        },
       ],
     },
     {
