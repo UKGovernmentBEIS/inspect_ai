@@ -10,7 +10,7 @@ import {
 } from "../../state/hooks";
 import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
-import { baseUrl, sampleUrl, useLogRouteParams } from "../routing/url";
+import { baseUrl, logSamplesUrl, useLogRouteParams } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
 
 /**
@@ -66,7 +66,12 @@ export const LogViewContainer: FC = () => {
       // Find the sample with the matching UUID
       const sample = sampleSummaries.find((s) => s.uuid === sampleUuid);
       if (sample) {
-        const url = sampleUrl(logPath, sample.id, sample.epoch, sampleTabId);
+        const url = logSamplesUrl(
+          logPath,
+          sample.id,
+          sample.epoch,
+          sampleTabId,
+        );
         const finalUrl = searchParams.toString()
           ? `${url}?${searchParams.toString()}`
           : url;

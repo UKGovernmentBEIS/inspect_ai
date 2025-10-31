@@ -43,7 +43,7 @@ import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
-import { sampleUrl, useLogRouteParams } from "../routing/url";
+import { useLogOrSampleRouteParams, useSampleUrlBuilder } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
@@ -125,9 +125,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   // Get all URL parameters at component level
   const {
     logPath: urlLogPath,
-    sampleId: urlSampleId,
+    id: urlSampleId,
     epoch: urlEpoch,
-  } = useLogRouteParams();
+  } = useLogOrSampleRouteParams();
 
   // Focus the panel when it loads
   useEffect(() => {
@@ -139,6 +139,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   }, []);
 
   // Tab selection
+  const sampleUrlBuilder = useSampleUrlBuilder();
   const onSelectedTab = useCallback(
     (e: MouseEvent<HTMLElement>) => {
       const el = e.currentTarget as HTMLElement;
@@ -147,7 +148,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
       // Use navigation hook to update URL with tab
       if (id !== sampleTabId && urlLogPath) {
-        const url = sampleUrl(urlLogPath, urlSampleId, urlEpoch, id);
+        const url = sampleUrlBuilder(urlLogPath, urlSampleId, urlEpoch, id);
         navigate(url);
       }
     },

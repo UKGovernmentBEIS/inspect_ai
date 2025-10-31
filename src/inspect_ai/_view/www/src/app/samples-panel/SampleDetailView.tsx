@@ -14,7 +14,7 @@ import styles from "./SampleDetailView.module.css";
  * This is shown when navigating to /samples/path/to/file.eval/sample/id/epoch
  */
 export const SampleDetailView: FC = () => {
-  const { samplesPath, sampleId, epoch } = useSamplesRouteParams();
+  const { samplesPath, sampleId, epoch, tabId } = useSamplesRouteParams();
   const { loadLogs } = useLogs();
 
   const selectSample = useStore((state) => state.logActions.selectSample);
@@ -34,6 +34,14 @@ export const SampleDetailView: FC = () => {
   );
   const clearLog = useStore((state) => state.logActions.clearLog);
   const showFind = useStore((state) => state.app.showFind);
+  const setSampleTab = useStore((state) => state.appActions.setSampleTab);
+
+  useEffect(() => {
+    // Set the sample tab if specified in the URL
+    if (tabId) {
+      setSampleTab(tabId);
+    }
+  }, [tabId, setSampleTab]);
 
   // Load the log file and select the sample
   useEffect(() => {

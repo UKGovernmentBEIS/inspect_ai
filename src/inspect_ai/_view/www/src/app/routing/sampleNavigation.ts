@@ -5,10 +5,10 @@ import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
 import { sampleIdsEqual } from "../shared/sample";
 import {
+  logSamplesUrl,
   logsUrl,
   logsUrlRaw,
-  sampleDetailUrl,
-  sampleUrl,
+  samplesSampleUrl,
   useLogRouteParams,
 } from "./url";
 
@@ -70,7 +70,7 @@ export const useSampleUrl = () => {
       const resolvedPath = resolveLogPath();
       if (resolvedPath) {
         const currentSampleTabId = specificSampleTabId || sampleTabId;
-        const url = sampleUrl(
+        const url = logSamplesUrl(
           resolvedPath,
           sampleId,
           epoch,
@@ -151,7 +151,7 @@ export const useSampleNavigation = () => {
         // Use specified sampleTabId if provided, otherwise use current sampleTabId from URL params
         const currentSampleTabId = specifiedSampleTabId || sampleTabId;
 
-        const url = sampleUrl(resolvedPath, id, epoch, currentSampleTabId);
+        const url = logSamplesUrl(resolvedPath, id, epoch, currentSampleTabId);
 
         // Navigate to the sample URL
         navigate(url);
@@ -175,7 +175,7 @@ export const useSampleNavigation = () => {
           const resolvedPath = resolveLogPath();
           if (resolvedPath) {
             const summary = sampleSummaries[index];
-            const url = sampleUrl(
+            const url = logSamplesUrl(
               resolvedPath,
               summary.id,
               summary.epoch,
@@ -233,7 +233,7 @@ export const useSampleNavigation = () => {
       const resolvedPath = resolveLogPath();
       if (resolvedPath) {
         const currentSampleTabId = specificSampleTabId || sampleTabId;
-        const url = sampleUrl(
+        const url = logSamplesUrl(
           resolvedPath,
           sampleId,
           epoch,
@@ -295,7 +295,7 @@ export const useSamplesGridNavigation = () => {
     ) => {
       // Convert absolute logFile path to relative path
       const relativePath = directoryRelativeUrl(logFile, logDirectory);
-      const url = sampleDetailUrl(relativePath, sampleId, epoch);
+      const url = samplesSampleUrl(relativePath, sampleId, epoch);
 
       if (openInNewWindow) {
         // Open in new window/tab
