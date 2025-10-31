@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Annotated, Any, Literal, Type, Union
+from typing import Any, Literal, Type, Union
 
 from frozendict import deepfreeze
 from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
@@ -233,8 +233,7 @@ class ChatMessageTool(ChatMessageBase):
         return values
 
 
-ChatMessage = Annotated[
-    Union[ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool],
-    Field(discriminator="role"),
+ChatMessage = Union[
+    ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool
 ]
 """Message in a chat conversation"""
