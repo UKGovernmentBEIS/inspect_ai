@@ -1,6 +1,9 @@
 .detail {
-  overflow: auto;
-  height: 100%;
-  min-height: 0;
-  padding: 0;
+  display: grid;
+  grid-template-rows: max-content 1fr;
+  height: 100vh;
+}
+
+.panel {
+  overflow-y: auto;
 }

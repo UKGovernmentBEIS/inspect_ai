@@ -21377,9 +21377,12 @@ thead th {
   height: 100%;
   min-height: 0;
 }
-._detail_1nlj3_1 {
-  overflow: auto;
-  height: 100%;
-  min-height: 0;
-  padding: 1rem;
+._detail_s5t7t_1 {
+  display: grid;
+  grid-template-rows: max-content 1fr;
+  height: 100vh;
+}
+
+._panel_s5t7t_7 {
+  overflow-y: auto;
 }

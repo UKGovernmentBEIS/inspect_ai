@@ -1,4 +1,3 @@
-import clsx from "clsx";
 import { FC, useEffect } from "react";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
@@ -6,7 +5,8 @@ import { useLogs, useSelectedSampleSummary } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
-import { SampleDisplay } from "../samples/SampleDisplay";
+import { InlineSampleDisplay } from "../samples/InlineSampleDisplay";
+
 import styles from "./SampleDetailView.module.css";
 
 /**
@@ -114,22 +114,13 @@ export const SampleDetailView: FC = () => {
   return (
     <ExtendedFindProvider>
       {showFind ? <FindBand /> : ""}
-      <div className={clsx(styles.panel)}>
+      <div className={styles.detail}>
         <ApplicationNavbar
           currentPath={samplesPath}
           fnNavigationUrl={samplesUrl}
           bordered={true}
         />
-
-        <div className={clsx(styles.detail)}>
-          {sampleId && (
-            <SampleDisplay
-              id={`sample-detail-${sampleId}-${epoch}`}
-              scrollRef={{ current: null }}
-              focusOnLoad={true}
-            />
-          )}
-        </div>
+        <InlineSampleDisplay showActivity={false} className={styles.panel} />
       </div>
     </ExtendedFindProvider>
   );
