@@ -84,6 +84,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const setFilteredSampleCount = useStore(
     (state) => state.logActions.setFilteredSampleCount,
   );
+  const loading = useStore((state) => state.app.status.loading);
+  const syncing = useStore((state) => state.app.status.loading);
 
   const internalGridRef = useRef<AgGridReact>(null);
   const gridRef = externalGridRef || internalGridRef;
@@ -591,6 +593,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
               setFilteredSampleCount(displayedRowCount);
             }
           }}
+          loading={data.length === 0 && (loading > 0 || syncing > 0)}
         />
       </div>
     </div>

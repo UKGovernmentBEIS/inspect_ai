@@ -183,13 +183,16 @@ export const createLogsSlice = (
           return [];
         }
 
-        get().appActions.setLoading(true);
+        const databaseService = get().databaseService;
+        const useProgress = !!databaseService?.getLogDir();
+        if (useProgress) {
+          get().appActions.setLoading(true);
+        }
 
         // Determine the log directory
         const logDir = await get().logsActions.initLogDir();
 
         // Setup up the database service
-        const databaseService = get().databaseService;
         const initDatabase =
           !databaseService || databaseService.getLogDir() !== logDir;
 
@@ -212,14 +215,18 @@ export const createLogsSlice = (
               return databaseService;
             } catch (e) {
               console.log(e);
-              get().appActions.setLoading(false, e as Error);
+              if (useProgress) {
+                get().appActions.setLoading(false, e as Error);
+              }
               return;
             }
           };
 
           // Don't enable syncing if there is no log directory
           if (!logDir || get().app.singleFileMode) {
-            get().appActions.setLoading(false);
+            if (useProgress) {
+              get().appActions.setLoading(false);
+            }
             return [];
           }
 
@@ -282,10 +289,12 @@ export const createLogsSlice = (
           );
         }
 
-        get().appActions.setLoading(false);
+        if (useProgress) {
+          get().appActions.setLoading(false);
+        }
 
         // Sync
-        return (await get().replicationService?.sync(true)) || [];
+        return (await get().replicationService?.sync(initDatabase)) || [];
       },
       syncEvalSetInfo: async (logPath?: string) => {
         const api = get().api;
