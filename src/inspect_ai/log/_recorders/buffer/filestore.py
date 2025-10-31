@@ -193,11 +193,16 @@ class SampleBufferFilestore(SampleBuffer):
         ]
 
         # collect data from the segments
-        sample_data = SampleData(events=[], attachments=[])
-        for segment in segments:
-            data = self.read_segment_data(segment.id, id, epoch)
-            sample_data.events.extend(data.events)
-            sample_data.attachments.extend(data.attachments)
+        try:
+            sample_data = SampleData(events=[], attachments=[])
+            for segment in segments:
+                data = self.read_segment_data(segment.id, id, epoch)
+                sample_data.events.extend(data.events)
+                sample_data.attachments.extend(data.attachments)
+        except FileNotFoundError:
+            # the sample might complete while this is running, in which case
+            # we'll just return None
+            return None
 
         return sample_data
 
