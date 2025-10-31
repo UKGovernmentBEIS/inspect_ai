@@ -33,6 +33,7 @@ export const SampleDetailView: FC = () => {
     (state) => state.logActions.clearSelectedLogDetails,
   );
   const clearLog = useStore((state) => state.logActions.clearLog);
+  const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
   const showFind = useStore((state) => state.app.showFind);
   const setSampleTab = useStore((state) => state.appActions.setSampleTab);
 
@@ -108,6 +109,7 @@ export const SampleDetailView: FC = () => {
       clearSelectedSample();
       clearSelectedLogDetails();
       clearLog();
+      clearSampleTab();
     };
   }, [clearLog, clearSelectedSample, clearSelectedLogDetails]);
 
