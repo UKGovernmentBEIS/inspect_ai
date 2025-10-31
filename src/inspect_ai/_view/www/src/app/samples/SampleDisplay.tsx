@@ -202,6 +202,20 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
   const tools = [];
+
+  tools.push(
+    <ToolButton
+      key="sample-copy-uuid"
+      label="Copy UUID"
+      icon={ApplicationIcons.copy}
+      onClick={() => {
+        if (sample?.uuid) {
+          navigator.clipboard.writeText(sample.uuid);
+        }
+      }}
+    />,
+  );
+
   if (selectedTab === kSampleTranscriptTabId) {
     const label = isDebugFilter
       ? "Debug"
