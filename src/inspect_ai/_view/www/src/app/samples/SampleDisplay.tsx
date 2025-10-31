@@ -17,6 +17,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { EvalSample, Events } from "../../@types/log";
@@ -203,15 +204,20 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
   const tools = [];
+  const [icon, setIcon] = useState(ApplicationIcons.copy);
 
   tools.push(
     <ToolButton
       key="sample-copy-uuid"
       label="Copy UUID"
-      icon={ApplicationIcons.copy}
+      icon={icon}
       onClick={() => {
         if (sample?.uuid) {
           navigator.clipboard.writeText(sample.uuid);
+          setIcon(ApplicationIcons.confirm);
+          setTimeout(() => {
+            setIcon(ApplicationIcons.copy);
+          }, 1250);
         }
       }}
     />,
