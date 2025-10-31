@@ -11,9 +11,10 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
-import { Input, Status } from "../../../@types/log";
+import { Status } from "../../../@types/log";
 import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
+import { inputString } from "../../../utils/format";
 import { filename } from "../../../utils/path";
 import { debounce } from "../../../utils/sync";
 import { join } from "../../../utils/uri";
@@ -44,33 +45,6 @@ interface SampleRow {
   completed?: boolean;
   [key: string]: any; // For dynamic score columns
 }
-
-// Helper to convert Input to string
-const formatInput = (input: Input): string => {
-  if (typeof input === "string") return input;
-  if (Array.isArray(input)) {
-    return input
-      .map((item) => {
-        if (typeof item === "string") return item;
-        if (item?.content) return item.content;
-        return JSON.stringify(item);
-      })
-      .join(" ");
-  }
-  return JSON.stringify(input);
-};
-
-// Helper to convert Target to string
-const formatTarget = (target: any): string => {
-  if (typeof target === "string") return target;
-  if (Array.isArray(target)) return target.join(", ");
-  return JSON.stringify(target);
-};
-
-// Helper to format logFile path to show only relative path
-const formatLogFilePath = (logFile: string): string => {
-  return filename(logFile);
-};
 
 export const SamplesGrid: FC<SamplesGridProps> = ({
   samplesPath,
@@ -136,8 +110,10 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           status: details.status,
           sampleId: sample.id,
           epoch: sample.epoch,
-          input: formatInput(sample.input),
-          target: formatTarget(sample.target),
+          input: inputString(sample.input).join("\n"),
+          target: Array.isArray(sample.target)
+            ? sample.target.join(", ")
+            : sample.target,
           error: sample.error,
           limit: sample.limit,
           retries: sample.retries,
@@ -269,7 +245,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
         resizable: true,
         cellDataType: "date",
         valueParser: (params) => new Date(params.newValue),
-        valueFormatter: (params) => formatLogFilePath(params.value),
+        valueFormatter: (params) => filename(params.value),
       },
       {
         field: "target",

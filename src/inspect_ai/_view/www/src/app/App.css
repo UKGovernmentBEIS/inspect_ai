@@ -55,6 +55,8 @@ body {
   --ag-header-text-color: var(--bs-secondary);
   --ag-font-family: var(--bs-body-font-family);
   --ag-wrapper-border: none;
+  --ag-row-hover-color: var(--bs-secondary-bg-subtle);
+  --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
 }
 
 #app {
