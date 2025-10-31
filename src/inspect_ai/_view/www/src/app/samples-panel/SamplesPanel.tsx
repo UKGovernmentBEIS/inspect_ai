@@ -29,7 +29,6 @@ export const SamplesPanel: FC = () => {
 
   const handleResetFilters = () => {
     if (gridRef.current?.api) {
-      console.log("Resetting filters");
       gridRef.current.api.setFilterModel(null);
     }
   };
