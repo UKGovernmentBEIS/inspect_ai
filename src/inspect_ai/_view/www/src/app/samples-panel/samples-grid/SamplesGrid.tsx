@@ -11,7 +11,7 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
-import { Input, Score } from "../../../@types/log";
+import { Input, Status } from "../../../@types/log";
 import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
@@ -33,7 +33,7 @@ interface SampleRow {
   logFile: string;
   task: string;
   model: string;
-  status: string;
+  status?: Status;
   sampleId: string | number;
   epoch: number;
   input: string;
@@ -65,19 +65,6 @@ const formatTarget = (target: any): string => {
   if (typeof target === "string") return target;
   if (Array.isArray(target)) return target.join(", ");
   return JSON.stringify(target);
-};
-
-// Helper to extract score value
-const getScoreValue = (score: Score | null | undefined): any => {
-  if (score === null || score === undefined) return "";
-  if (typeof score === "object" && "value" in score) {
-    const value = score.value;
-    if (Array.isArray(value)) {
-      return value.join(", ");
-    }
-    return value ?? "";
-  }
-  return score;
 };
 
 // Helper to format logFile path to show only relative path
@@ -144,7 +131,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           logFile,
           task: details.eval.task || "",
           model: details.eval.model || "",
-          status: details.status || "",
+          status: details.status,
           sampleId: sample.id,
           epoch: sample.epoch,
           input: formatInput(sample.input),
@@ -158,7 +145,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
         // Add scores as individual fields
         if (sample.scores) {
           Object.entries(sample.scores).forEach(([scoreName, score]) => {
-            row[`score_${scoreName}`] = getScoreValue(score);
+            row[`score_${scoreName}`] = score.value;
           });
         }
 
@@ -170,16 +157,19 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   }, [filteredLogDetails]);
 
   // Detect all unique score names across all samples
-  const scoreNames = useMemo(() => {
-    const names = new Set<string>();
-    Object.values(filteredLogDetails).forEach((details) => {
-      details.sampleSummaries.forEach((sample) => {
+  const scoreMap = useMemo(() => {
+    const scoreTypes: Record<string, string> = {};
+
+    for (const details of Object.values(filteredLogDetails)) {
+      for (const sample of details.sampleSummaries) {
         if (sample.scores) {
-          Object.keys(sample.scores).forEach((name) => names.add(name));
+          for (const [name, score] of Object.entries(sample.scores)) {
+            scoreTypes[name] = typeof score.value;
+          }
         }
-      });
-    });
-    return Array.from(names).sort();
+      }
+    }
+    return scoreTypes;
   }, [filteredLogDetails]);
 
   // Check if any sample has error, limit, or retries
@@ -188,7 +178,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const hasRetries = useMemo(() => data.some((row) => row.retries), [data]);
 
   // Create column definitions
-  const columnDefs = useMemo((): ColDef<SampleRow>[] => {
+  const columns = useMemo((): ColDef<SampleRow>[] => {
     const baseColumns: ColDef<SampleRow>[] = [
       {
         headerName: "#",
@@ -235,6 +225,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
         sortable: true,
         filter: true,
         resizable: true,
+        valueGetter: (params) => String(params.data?.sampleId ?? ""),
       },
       {
         field: "epoch",
@@ -263,8 +254,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
         initialWidth: 100,
         minWidth: 80,
         sortable: true,
-        filter: true,
         resizable: true,
+        filter: "true",
       },
       {
         field: "logFile",
@@ -274,6 +265,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
         sortable: true,
         filter: true,
         resizable: true,
+        cellDataType: "date",
+        valueParser: (params) => new Date(params.newValue),
         valueFormatter: (params) => formatLogFilePath(params.value),
       },
       {
@@ -289,21 +282,40 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     ];
 
     // Add score columns
-    const scoreColumns: ColDef<SampleRow>[] = scoreNames.map((scoreName) => ({
-      field: `score_${scoreName}`,
-      headerName: scoreName,
-      initialWidth: 100,
-      minWidth: 100,
-      sortable: true,
-      filter: true,
-      resizable: true,
-      valueFormatter: (params) => {
-        const value = params.value;
-        if (value === "" || value === null || value === undefined) return "";
-        if (typeof value === "number") return value.toFixed(3);
-        return String(value);
+    const scoreColumns: ColDef<SampleRow>[] = Object.keys(scoreMap).map(
+      (scoreName) => {
+        const scoreType = scoreMap[scoreName];
+        return {
+          field: `score_${scoreName}`,
+          headerName: scoreName,
+          initialWidth: 100,
+          minWidth: 100,
+          sortable: true,
+          filter:
+            scoreType === "number"
+              ? "agNumberColumnFilter"
+              : "agTextColumnFilter",
+
+          resizable: true,
+          valueFormatter: (params) => {
+            // Format the score based upon its type
+            const value = params.value;
+            if (value === "" || value === null || value === undefined) {
+              return "";
+            }
+
+            if (Array.isArray(value)) {
+              return value.join(", ");
+            } else if (typeof value === "object") {
+              return JSON.stringify(value);
+            } else if (typeof value === "number") {
+              return value.toFixed(3);
+            }
+            return String(value);
+          },
+        };
       },
-    }));
+    );
 
     // Add optional columns
     const optionalColumns: ColDef<SampleRow>[] = [];
@@ -346,7 +358,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     }
 
     return [...baseColumns, ...scoreColumns, ...optionalColumns];
-  }, [scoreNames, hasError, hasLimit, hasRetries]);
+  }, [scoreMap, hasError, hasLimit, hasRetries]);
 
   const resizeGridColumns = useCallback(
     debounce(() => {
@@ -539,7 +551,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           ref={gridRef}
           rowData={data}
           animateRows={false}
-          columnDefs={columnDefs}
+          columnDefs={columns}
           defaultColDef={{
             sortable: true,
             filter: true,
