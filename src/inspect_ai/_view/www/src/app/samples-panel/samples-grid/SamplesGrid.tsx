@@ -1,4 +1,5 @@
 import type {
+  GridApi,
   GridColumnsChangedEvent,
   RowClickedEvent,
   StateUpdatedEvent,
@@ -16,6 +17,7 @@ import { inputString } from "../../../utils/format";
 import { debounce } from "../../../utils/sync";
 import { join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
+import { DisplayedSample } from "../../types";
 import { useSampleColumns } from "./hooks";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
@@ -23,11 +25,13 @@ import { SampleRow } from "./types";
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
+// Sample Grid Props
 interface SamplesGridProps {
   samplesPath?: string;
   gridRef?: RefObject<AgGridReact | null>;
 }
 
+// Sample Grid
 export const SamplesGrid: FC<SamplesGridProps> = ({
   samplesPath,
   gridRef: externalGridRef,
@@ -40,8 +44,21 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const setFilteredSampleCount = useStore(
     (state) => state.logActions.setFilteredSampleCount,
   );
+  const displayedSamples = useStore(
+    (state) => state.logs.samplesListState.displayedSamples,
+  );
+  const setDisplayedSamples = useStore(
+    (state) => state.logsActions.setDisplayedSamples,
+  );
+  const clearDisplayedSamples = useStore(
+    (state) => state.logsActions.clearDisplayedSamples,
+  );
   const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.loading);
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
+  );
 
   const internalGridRef = useRef<AgGridReact>(null);
   const gridRef = externalGridRef || internalGridRef;
@@ -51,13 +68,15 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const prevSamplesPath = usePrevious(samplesPath);
   const initialGridState = useMemo(() => {
     if (prevSamplesPath !== samplesPath) {
+      // Clear displayed samples when path changes
+      clearDisplayedSamples();
       const result = { ...gridState };
       delete result?.filter;
       return result;
     } else {
       return gridState;
     }
-  }, [gridState, prevSamplesPath]);
+  }, [gridState, prevSamplesPath, clearDisplayedSamples]);
 
   // Filter logDetails based on samplesPath
   const filteredLogDetails = useMemo(() => {
@@ -296,6 +315,28 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     };
   }, [handleKeyDown]);
 
+  // Helper function to select the current sample in the grid
+  const selectCurrentSample = useCallback(() => {
+    if (!gridRef.current?.api || !selectedSampleHandle || !selectedLogFile) {
+      return;
+    }
+
+    const rowId = `${selectedLogFile}-${selectedSampleHandle.id}-${selectedSampleHandle.epoch}`;
+    const node = gridRef.current.api.getRowNode(rowId);
+    if (node) {
+      // Select the row
+      gridRef.current.api.deselectAll();
+      node.setSelected(true);
+      // Ensure it's visible
+      gridRef.current.api.ensureNodeVisible(node, "middle");
+    }
+  }, [gridRef, selectedSampleHandle, selectedLogFile]);
+
+  // Select the row when the sample handle changes
+  useEffect(() => {
+    selectCurrentSample();
+  }, [selectedSampleHandle, selectedLogFile, selectCurrentSample]);
+
   // Keep track of the max column count to avoid redundant resizing
   const maxColCount = useRef(0);
 
@@ -340,6 +381,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
               const displayedRowCount =
                 gridRef.current.api.getDisplayedRowCount();
               setFilteredSampleCount(displayedRowCount);
+
+              const gridCurrentSamples = gridDisplayedSamples(
+                gridRef.current.api,
+              );
+              setDisplayedSamples(gridCurrentSamples);
             }
           }}
           onRowClicked={handleRowClick}
@@ -348,11 +394,38 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
               const displayedRowCount =
                 gridRef.current.api.getDisplayedRowCount();
               setFilteredSampleCount(displayedRowCount);
+
+              const newDisplayedSamples = gridDisplayedSamples(
+                gridRef.current.api,
+              );
+              setDisplayedSamples(newDisplayedSamples);
             }
+          }}
+          onFirstDataRendered={() => {
+            // Select the current sample when the grid first renders data
+            selectCurrentSample();
           }}
           loading={data.length === 0 && (loading > 0 || syncing > 0)}
         />
       </div>
     </div>
   );
+};
+
+const gridDisplayedSamples = (
+  gridApi: GridApi<SampleRow>,
+): DisplayedSample[] => {
+  const displayedSamples: DisplayedSample[] = [];
+  const displayedRowCount = gridApi.getDisplayedRowCount();
+  for (let i = 0; i < displayedRowCount; i++) {
+    const node = gridApi.getDisplayedRowAtIndex(i);
+    if (node?.data) {
+      displayedSamples.push({
+        logFile: node.data.logFile,
+        sampleId: node.data.sampleId,
+        epoch: node.data.epoch,
+      });
+    }
+  }
+  return displayedSamples;
 };

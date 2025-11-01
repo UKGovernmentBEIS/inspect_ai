@@ -66,6 +66,12 @@ export interface AppState {
   logsSampleView: boolean;
 }
 
+export interface DisplayedSample {
+  logFile: string;
+  sampleId: string | number;
+  epoch: number;
+}
+
 export interface LogsState {
   logDir?: string;
   logs: LogHandle[];
@@ -82,6 +88,7 @@ export interface LogsState {
   };
   samplesListState: {
     gridState?: GridState;
+    displayedSamples?: Array<DisplayedSample>;
   };
 }
 

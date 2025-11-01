@@ -1,10 +1,14 @@
-import { FC, useEffect } from "react";
+import { FC, useCallback, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
 import { useLogs, useSelectedSampleSummary } from "../../state/hooks";
 import { useStore } from "../../state/store";
+import { directoryRelativeUrl } from "../../utils/uri";
+import { ApplicationIcons } from "../appearance/icons";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
-import { samplesUrl, useSamplesRouteParams } from "../routing/url";
+import { NavbarButton } from "../navbar/NavbarButton";
+import { samplesUrl, samplesSampleUrl, useSamplesRouteParams } from "../routing/url";
 import { InlineSampleDisplay } from "../samples/InlineSampleDisplay";
 
 import styles from "./SampleDetailView.module.css";
@@ -16,6 +20,7 @@ import styles from "./SampleDetailView.module.css";
 export const SampleDetailView: FC = () => {
   const { samplesPath, sampleId, epoch, tabId } = useSamplesRouteParams();
   const { loadLogs } = useLogs();
+  const navigate = useNavigate();
 
   const selectSample = useStore((state) => state.logActions.selectSample);
   const setSelectedLogFile = useStore(
@@ -24,6 +29,10 @@ export const SampleDetailView: FC = () => {
   const selectedSampleSummary = useSelectedSampleSummary();
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const initLogDir = useStore((state) => state.logsActions.initLogDir);
+  const logDir = useStore((state) => state.logs.logDir);
+  const displayedSamples = useStore(
+    (state) => state.logs.samplesListState.displayedSamples,
+  );
 
   const loadSample = useStore((state) => state.sampleActions.loadSample);
   const clearSelectedSample = useStore(
@@ -36,6 +45,47 @@ export const SampleDetailView: FC = () => {
   const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
   const showFind = useStore((state) => state.app.showFind);
   const setSampleTab = useStore((state) => state.appActions.setSampleTab);
+
+  // Find current sample in displayed samples list
+  const currentIndex = useMemo(() => {
+    if (!displayedSamples || !selectedLogFile || !sampleId || !epoch) {
+      return -1;
+    }
+    return displayedSamples.findIndex(
+      (s) =>
+        s.sampleId === sampleId &&
+        s.epoch === parseInt(epoch, 10) &&
+        s.logFile === selectedLogFile,
+    );
+  }, [displayedSamples, selectedLogFile, sampleId, epoch]);
+
+  const hasPrevious = currentIndex > 0;
+  const hasNext =
+    displayedSamples && currentIndex >= 0 && currentIndex < displayedSamples.length - 1;
+
+  const handlePrevious = useCallback(() => {
+    if (currentIndex > 0 && displayedSamples && samplesPath && logDir) {
+      const prev = displayedSamples[currentIndex - 1];
+      const relativePath = directoryRelativeUrl(prev.logFile, logDir);
+      const url = samplesSampleUrl(relativePath, prev.sampleId, prev.epoch, tabId);
+      navigate(url);
+    }
+  }, [currentIndex, displayedSamples, samplesPath, logDir, tabId, navigate]);
+
+  const handleNext = useCallback(() => {
+    if (
+      displayedSamples &&
+      currentIndex >= 0 &&
+      currentIndex < displayedSamples.length - 1 &&
+      samplesPath &&
+      logDir
+    ) {
+      const next = displayedSamples[currentIndex + 1];
+      const relativePath = directoryRelativeUrl(next.logFile, logDir);
+      const url = samplesSampleUrl(relativePath, next.sampleId, next.epoch, tabId);
+      navigate(url);
+    }
+  }, [currentIndex, displayedSamples, samplesPath, logDir, tabId, navigate]);
 
   useEffect(() => {
     // Set the sample tab if specified in the URL
@@ -67,6 +117,7 @@ export const SampleDetailView: FC = () => {
     loadLogs,
     setSelectedLogFile,
     selectSample,
+    initLogDir,
   ]);
 
   const setShowFind = useStore((state) => state.appActions.setShowFind);
@@ -75,6 +126,14 @@ export const SampleDetailView: FC = () => {
   // Global keydown handler for keyboard shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      // Don't handle keyboard events if focus is on an input, textarea, or select element
+      const activeElement = document.activeElement;
+      const isInputFocused =
+        activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.tagName === "SELECT");
+
       if ((e.ctrlKey || e.metaKey) && e.key === "f") {
         e.preventDefault(); // Always prevent browser find
         e.stopPropagation();
@@ -83,6 +142,19 @@ export const SampleDetailView: FC = () => {
         }
       } else if (e.key === "Escape") {
         hideFind();
+      } else if (!isInputFocused) {
+        // Navigation shortcuts (only when not in an input field)
+        if (e.key === "ArrowLeft") {
+          if (hasPrevious) {
+            e.preventDefault();
+            handlePrevious();
+          }
+        } else if (e.key === "ArrowRight") {
+          if (hasNext) {
+            e.preventDefault();
+            handleNext();
+          }
+        }
       }
     };
 
@@ -92,7 +164,7 @@ export const SampleDetailView: FC = () => {
     return () => {
       document.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
-  }, [setShowFind, hideFind]);
+  }, [setShowFind, hideFind, hasPrevious, hasNext, handlePrevious, handleNext]);
 
   useEffect(() => {
     const exec = async () => {

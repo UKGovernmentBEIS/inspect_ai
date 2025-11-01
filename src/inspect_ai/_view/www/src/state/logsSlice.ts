@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-table";
 import { GridState } from "ag-grid-community";
 import { EvalSet } from "../@types/log";
-import { LogsState } from "../app/types";
+import { DisplayedSample, LogsState } from "../app/types";
 import {
   EvalHeader,
   LogDetails,
@@ -62,6 +62,8 @@ export interface LogsSlice {
 
     setGridState: (gridState: GridState) => void;
     clearGridState: () => void;
+    setDisplayedSamples: (samples: Array<DisplayedSample>) => void;
+    clearDisplayedSamples: () => void;
   };
 }
 
@@ -145,6 +147,20 @@ export const createLogsSlice = (
       clearGridState: () => {
         set((state) => {
           state.logs.samplesListState.gridState = undefined;
+        });
+      },
+      setDisplayedSamples: (samples: Array<DisplayedSample>) => {
+        const currentDisplaySamples =
+          get().logs.samplesListState.displayedSamples;
+        set((state) => {
+          if (displaySamplesEqual(currentDisplaySamples, samples)) {
+            state.logs.samplesListState.displayedSamples = samples;
+          }
+        });
+      },
+      clearDisplayedSamples: () => {
+        set((state) => {
+          state.logs.samplesListState.displayedSamples = undefined;
         });
       },
       initLogDir: async () => {
@@ -446,4 +462,24 @@ export const initializeLogsSlice = <T extends LogsSlice>(
       state.logs = initialState;
     }
   });
+};
+
+const displaySamplesEqual = (
+  a: DisplayedSample[] | undefined,
+  b: DisplayedSample[] | undefined,
+): boolean => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].logFile !== b[i].logFile ||
+      a[i].sampleId !== b[i].sampleId ||
+      a[i].epoch !== b[i].epoch
+    ) {
+      return false;
+    }
+  }
+  return true;
 };

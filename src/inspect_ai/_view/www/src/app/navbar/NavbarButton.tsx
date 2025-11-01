@@ -1,15 +1,14 @@
 import clsx from "clsx";
-import { FC, ReactNode } from "react";
+import { ButtonHTMLAttributes, FC, ReactNode } from "react";
 import { ToolButton } from "../../components/ToolButton";
 
 import styles from "./NavbarButton.module.css";
 
-interface NavbarButtonProps {
+interface NavbarButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
   label: string | ReactNode;
   className?: string | string[];
   icon?: string;
   latched?: boolean;
-  onClick?: () => void;
 }
 
 export const NavbarButton: FC<NavbarButtonProps> = ({
@@ -17,7 +16,7 @@ export const NavbarButton: FC<NavbarButtonProps> = ({
   className,
   icon,
   latched,
-  onClick,
+  ...rest
 }) => {
   return (
     <ToolButton
@@ -25,7 +24,7 @@ export const NavbarButton: FC<NavbarButtonProps> = ({
       className={clsx(className, styles.navbarButton)}
       icon={icon}
       latched={latched}
-      onClick={onClick}
+      {...rest}
     />
   );
 };
