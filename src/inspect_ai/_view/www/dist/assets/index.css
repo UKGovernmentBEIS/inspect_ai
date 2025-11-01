@@ -15592,44 +15592,6 @@ so disabling selection can break that functionality */
   margin-right: 0.5rem;
   color: var(--bs-red);
 }
-._wrapper_1tajk_1 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 0;
-  overflow-y: visible;
-  overflow-x: visible;
-  text-align: center;
-}
-
-._container_1tajk_12 {
-  width: 100%;
-  height: 1px;
-  background-color: transparent;
-  position: sticky;
-  overflow: hidden;
-  z-index: 1200;
-}
-
-._animate_1tajk_21 {
-  width: 5%;
-  height: 1px;
-  animation: _leftToRight_1tajk_1 2s linear infinite;
-  background-color: #3b82f6;
-  position: absolute;
-  left: 0;
-  top: 0;
-}
-
-@keyframes _leftToRight_1tajk_1 {
-  0% {
-    transform: translateX(-100%);
-  }
-  100% {
-    transform: translateX(2000%);
-  }
-}
 ._container_1n7pm_1 {
   display: grid;
   grid-template-columns: max-content max-content;
@@ -16229,6 +16191,44 @@ a._citationLink_1ggvf_9:hover {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
+}
+._wrapper_1tajk_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 0;
+  overflow-y: visible;
+  overflow-x: visible;
+  text-align: center;
+}
+
+._container_1tajk_12 {
+  width: 100%;
+  height: 1px;
+  background-color: transparent;
+  position: sticky;
+  overflow: hidden;
+  z-index: 1200;
+}
+
+._animate_1tajk_21 {
+  width: 5%;
+  height: 1px;
+  animation: _leftToRight_1tajk_1 2s linear infinite;
+  background-color: #3b82f6;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+@keyframes _leftToRight_1tajk_1 {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(2000%);
+  }
 }
 ._button_1bbut_1 {
   border: none;

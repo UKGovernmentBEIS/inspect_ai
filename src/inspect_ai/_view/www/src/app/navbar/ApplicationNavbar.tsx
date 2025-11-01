@@ -1,4 +1,4 @@
-import { FC, ReactNode, useRef } from "react";
+import { FC, ReactNode, useMemo, useRef } from "react";
 import { ActivityBar } from "../../components/ActivityBar";
 import { useStore } from "../../state/store";
 import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
@@ -10,6 +10,7 @@ interface ApplicationNavbarProps {
   fnNavigationUrl: (file: string, log_dir?: string) => string;
   bordered?: boolean;
   children?: ReactNode;
+  showActivity?: "all" | "sample" | "log";
 }
 
 export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
@@ -17,6 +18,7 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
   fnNavigationUrl,
   bordered,
   children,
+  showActivity = "all",
 }) => {
   const optionsRef = useRef<HTMLButtonElement>(null);
   const loading = useStore((state) => state.app.status.loading);
@@ -26,6 +28,18 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
   const setShowing = useStore(
     (state) => state.appActions.setShowingOptionsDialog,
   );
+
+  const hasActivity = useMemo(() => {
+    if (showActivity === "all") {
+      return !!loading || sampleStatus === "loading";
+    } else if (showActivity === "log") {
+      return !!loading;
+    } else if (showActivity === "sample") {
+      return sampleStatus === "loading";
+    } else {
+      return false;
+    }
+  }, [showActivity, loading, sampleStatus]);
 
   return (
     <div>
@@ -46,7 +60,7 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
           setShowing={setShowing}
         />
       </Navbar>
-      <ActivityBar animating={!!loading || sampleStatus === "loading"} />
+      <ActivityBar animating={hasActivity} />
     </div>
   );
 };

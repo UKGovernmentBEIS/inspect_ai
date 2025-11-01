@@ -3,7 +3,6 @@ import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
 import { EvalSet } from "../../@types/log";
-import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
 import {
@@ -247,12 +246,14 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         handleKeyDown(e);
       }}
     >
-      <ApplicationNavbar fnNavigationUrl={logsUrl} currentPath={logPath}>
+      <ApplicationNavbar
+        fnNavigationUrl={logsUrl}
+        currentPath={logPath}
+        showActivity="log"
+      >
         <LogsFilterInput ref={filterRef} />
         <ViewSegmentedControl selectedSegment="logs" />
       </ApplicationNavbar>
-
-      <ActivityBar animating={!!loading} />
 
       <>
         <div className={clsx(styles.list, "text-size-smaller")}>

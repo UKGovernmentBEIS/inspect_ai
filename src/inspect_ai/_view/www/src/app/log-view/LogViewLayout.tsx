@@ -72,7 +72,11 @@ export const LogViewLayout: FC = () => {
       >
         {showFind ? <FindBand /> : ""}
         {!singleFileMode ? (
-          <ApplicationNavbar fnNavigationUrl={logsUrl} currentPath={logPath} />
+          <ApplicationNavbar
+            fnNavigationUrl={logsUrl}
+            currentPath={logPath}
+            showActivity="log"
+          />
         ) : (
           <ActivityBar animating={!!appStatus.loading} />
         )}
