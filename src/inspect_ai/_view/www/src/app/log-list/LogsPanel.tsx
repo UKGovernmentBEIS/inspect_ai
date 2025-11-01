@@ -48,7 +48,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const logPreviews = useStore((state) => state.logs.logPreviews);
   const { filteredCount } = useLogsListing();
 
-  const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.syncing);
 
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
