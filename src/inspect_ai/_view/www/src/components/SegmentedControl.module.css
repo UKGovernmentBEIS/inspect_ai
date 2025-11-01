@@ -1,0 +1,26 @@
+.rootControl {
+  background-color: var(--bs-secondary-bg);
+  border-radius: var(--bs-border-radius);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.segment.selected {
+  background-color: var(--bs-body-bg);
+  border-radius: var(--bs-border-radius);
+}
+
+button.segment {
+  margin: 1px;
+  background-color: var(--bs-secondary-bg);
+  border: none;
+  padding-block-end: 0;
+  padding-block-start: 0;
+  padding-inline-start: 5px;
+  padding-inline-end: 5px;
+}
+
+.segment i {
+  margin-right: 0.2em;
+}

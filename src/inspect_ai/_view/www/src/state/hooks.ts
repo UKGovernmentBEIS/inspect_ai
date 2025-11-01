@@ -598,15 +598,11 @@ export const useLogs = () => {
   const loadLogs = useCallback(
     async (logPath?: string) => {
       const exec = async () => {
-        setLoading(true);
-
         // Sync logs
         await syncLogs();
 
         // Sync eval set info
         await syncEvalSetInfo(logPath);
-
-        setLoading(false);
       };
       exec().catch((e) => {
         log.error("Error loading logs", e);

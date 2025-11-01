@@ -8,10 +8,18 @@ import { useLogSelection, usePrevious, useSampleData } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import styles from "./InlineSampleDisplay.module.css";
 
+interface InlineSampleDisplayProps {
+  showActivity?: boolean;
+  className?: string | string[];
+}
+
 /**
  * Inline Sample Display
  */
-export const InlineSampleDisplay: FC = () => {
+export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
+  showActivity,
+  className,
+}) => {
   // Sample hooks
   const sampleData = useSampleData();
   const loadSample = useStore((state) => state.sampleActions.loadSample);
@@ -67,12 +75,14 @@ export const InlineSampleDisplay: FC = () => {
   // Scroll ref
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
-    <div className={styles.container}>
-      <ActivityBar
-        animating={
-          sampleData.status === "loading" || sampleData.status === "streaming"
-        }
-      />
+    <div className={clsx(className, styles.container)}>
+      {showActivity && (
+        <ActivityBar
+          animating={
+            sampleData.status === "loading" || sampleData.status === "streaming"
+          }
+        />
+      )}
       <div className={clsx(styles.scroller)} ref={scrollRef}>
         <div className={styles.body}>
           {sampleData.error ? (

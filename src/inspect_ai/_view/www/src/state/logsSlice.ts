@@ -3,8 +3,9 @@ import {
   ColumnResizeMode,
   SortingState,
 } from "@tanstack/react-table";
+import { GridState } from "ag-grid-community";
 import { EvalSet } from "../@types/log";
-import { LogsState } from "../app/types";
+import { DisplayedSample, LogsState } from "../app/types";
 import {
   EvalHeader,
   LogDetails,
@@ -58,6 +59,11 @@ export interface LogsSlice {
     setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
     setSelectedRowIndex: (index: number | null) => void;
+
+    setGridState: (gridState: GridState) => void;
+    clearGridState: () => void;
+    setDisplayedSamples: (samples: Array<DisplayedSample>) => void;
+    clearDisplayedSamples: () => void;
   };
 }
 
@@ -74,6 +80,7 @@ const initialState: LogsState = {
     previewCount: 0,
     detailsCount: 0,
   },
+  samplesListState: {},
 };
 
 export const createLogsSlice = (
@@ -87,10 +94,14 @@ export const createLogsSlice = (
 
     // Actions
     logsActions: {
-      setLogDir: (logDir?: string) =>
+      setLogDir: (logDir?: string) => {
         set((state) => {
-          state.logs.logDir = logDir;
-        }),
+          if (logDir !== state.logs.logDir) {
+            state.logs.logDir = logDir;
+            state.logs.samplesListState.gridState = undefined;
+          }
+        });
+      },
       setLogHandles: (logs: LogHandle[]) =>
         set((state) => {
           state.logs.logs = logs;
@@ -128,6 +139,30 @@ export const createLogsSlice = (
             ...details,
           };
         }),
+      setGridState: (gridState: GridState | undefined) => {
+        set((state) => {
+          state.logs.samplesListState.gridState = gridState;
+        });
+      },
+      clearGridState: () => {
+        set((state) => {
+          state.logs.samplesListState.gridState = undefined;
+        });
+      },
+      setDisplayedSamples: (samples: Array<DisplayedSample>) => {
+        const currentDisplaySamples =
+          get().logs.samplesListState.displayedSamples;
+        set((state) => {
+          if (!displaySamplesEqual(currentDisplaySamples, samples)) {
+            state.logs.samplesListState.displayedSamples = samples;
+          }
+        });
+      },
+      clearDisplayedSamples: () => {
+        set((state) => {
+          state.logs.samplesListState.displayedSamples = undefined;
+        });
+      },
       initLogDir: async () => {
         const api = get().api;
         if (!api) {
@@ -164,13 +199,16 @@ export const createLogsSlice = (
           return [];
         }
 
-        get().appActions.setLoading(true);
+        const databaseService = get().databaseService;
+        const useProgress = !!databaseService?.getLogDir();
+        if (useProgress) {
+          get().appActions.setLoading(true);
+        }
 
         // Determine the log directory
         const logDir = await get().logsActions.initLogDir();
 
         // Setup up the database service
-        const databaseService = get().databaseService;
         const initDatabase =
           !databaseService || databaseService.getLogDir() !== logDir;
 
@@ -193,14 +231,18 @@ export const createLogsSlice = (
               return databaseService;
             } catch (e) {
               console.log(e);
-              get().appActions.setLoading(false, e as Error);
+              if (useProgress) {
+                get().appActions.setLoading(false, e as Error);
+              }
               return;
             }
           };
 
           // Don't enable syncing if there is no log directory
           if (!logDir || get().app.singleFileMode) {
-            get().appActions.setLoading(false);
+            if (useProgress) {
+              get().appActions.setLoading(false);
+            }
             return [];
           }
 
@@ -263,10 +305,12 @@ export const createLogsSlice = (
           );
         }
 
-        get().appActions.setLoading(false);
+        if (useProgress) {
+          get().appActions.setLoading(false);
+        }
 
         // Sync
-        return (await get().replicationService?.sync(true)) || [];
+        return (await get().replicationService?.sync(initDatabase)) || [];
       },
       syncEvalSetInfo: async (logPath?: string) => {
         const api = get().api;
@@ -418,4 +462,24 @@ export const initializeLogsSlice = <T extends LogsSlice>(
       state.logs = initialState;
     }
   });
+};
+
+const displaySamplesEqual = (
+  a: DisplayedSample[] | undefined,
+  b: DisplayedSample[] | undefined,
+): boolean => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].logFile !== b[i].logFile ||
+      a[i].sampleId !== b[i].sampleId ||
+      a[i].epoch !== b[i].epoch
+    ) {
+      return false;
+    }
+  }
+  return true;
 };

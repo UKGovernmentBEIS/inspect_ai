@@ -3,6 +3,7 @@ import {
   ColumnResizeMode,
   SortingState,
 } from "@tanstack/react-table";
+import { GridState } from "ag-grid-community";
 import { StateSnapshot } from "react-virtuoso";
 import {
   ApprovalEvent,
@@ -62,6 +63,13 @@ export interface AppState {
   pagination: Record<string, { page: number; pageSize: number }>;
   singleFileMode?: boolean;
   displayMode?: "rendered" | "raw";
+  logsSampleView: boolean;
+}
+
+export interface DisplayedSample {
+  logFile: string;
+  sampleId: string | number;
+  epoch: number;
 }
 
 export interface LogsState {
@@ -77,6 +85,10 @@ export interface LogsState {
     logCount: number;
     previewCount: number;
     detailsCount: number;
+  };
+  samplesListState: {
+    gridState?: GridState;
+    displayedSamples?: Array<DisplayedSample>;
   };
 }
 
@@ -110,6 +122,8 @@ export interface LogState {
   sort: string;
   selectedScores?: ScoreLabel[];
   scores?: ScoreLabel[];
+
+  filteredSampleCount?: number;
 }
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";

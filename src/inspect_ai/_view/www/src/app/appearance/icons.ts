@@ -105,6 +105,7 @@ export const ApplicationIcons = {
     back: "ii inspect-icon-back",
     forward: "ii inspect-icon-forward",
     inspectLogo: "ii inspect-icon-16",
+    tasks: "ii inspect-icon-tasks",
   },
 
   next: "bi bi-chevron-right",

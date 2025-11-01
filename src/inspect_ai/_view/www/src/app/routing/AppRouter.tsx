@@ -10,6 +10,7 @@ import { AppErrorBoundary } from "../AppErrorBoundary";
 import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { RouteDispatcher } from "./RouteDispatcher";
+import { SamplesRouter } from "./SamplesRouter";
 import {
   kLogRouteUrlPattern,
   kLogsRoutUrlPattern as kLogsRouteUrlPattern,
@@ -75,6 +76,10 @@ export const AppRouter = createHashRouter(
         {
           path: kSampleUuidRouteUrlPattern,
           element: <LogViewContainer />,
+        },
+        {
+          path: "/samples/*",
+          element: <SamplesRouter />,
         },
       ],
     },

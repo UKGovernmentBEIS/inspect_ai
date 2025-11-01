@@ -6,6 +6,7 @@
 - Inspect View: Improve display of grouped metrics
 - Inspect View: Don't render markdown images in the sample list input, target, or answer.
 - Inspect View: Add Copy UUID button to sample toolbar.
+- Inspect View: Add new samples view which displays a grid of all samples within a given folder of tasks (recursively).
 
 ## 0.3.143 (29 October 2025)
 

@@ -5,9 +5,8 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
 import { useStore } from "../../state/store";
-import { ViewerOptionsButton } from "../log-list/ViewerOptionsButton";
-import { ViewerOptionsPopover } from "../log-list/ViewerOptionsPopover";
-import { Navbar } from "../navbar/Navbar";
+import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
+import { logsUrl, useLogRouteParams } from "../routing/url";
 import { LogView } from "./LogView";
 
 /**
@@ -26,6 +25,9 @@ export const LogViewLayout: FC = () => {
   // Logs Data
   const logDir = useStore((state) => state.logs.logDir);
   const logFiles = useStore((state) => state.logs.logs);
+
+  // Route params
+  const { logPath } = useLogRouteParams();
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -56,12 +58,6 @@ export const LogViewLayout: FC = () => {
     };
   }, [setShowFind, hideFind]);
 
-  const optionsRef = useRef<HTMLButtonElement>(null);
-  const isShowing = useStore((state) => state.app.dialogs.options);
-  const setShowing = useStore(
-    (state) => state.appActions.setShowingOptionsDialog,
-  );
-
   return (
     <ExtendedFindProvider>
       <div
@@ -76,23 +72,14 @@ export const LogViewLayout: FC = () => {
       >
         {showFind ? <FindBand /> : ""}
         {!singleFileMode ? (
-          <Navbar>
-            {" "}
-            <ViewerOptionsButton
-              showing={isShowing}
-              setShowing={setShowing}
-              ref={optionsRef}
-            />
-            <ViewerOptionsPopover
-              positionEl={optionsRef.current}
-              showing={isShowing}
-              setShowing={setShowing}
-            />
-          </Navbar>
+          <ApplicationNavbar
+            fnNavigationUrl={logsUrl}
+            currentPath={logPath}
+            showActivity="log"
+          />
         ) : (
-          ""
+          <ActivityBar animating={!!appStatus.loading} />
         )}
-        <ActivityBar animating={!!appStatus.loading} />
         {appStatus.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."

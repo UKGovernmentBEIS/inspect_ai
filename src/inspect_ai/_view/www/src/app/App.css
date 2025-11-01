@@ -45,6 +45,20 @@ body:not([class^="vscode-"]) button {
   --bs-nav-link-color: black;
 }
 
+/* AG Grid Theming */
+body {
+  --ag-background-color: var(--bs-body-bg);
+  --ag-foreground-color: var(--bs-body-color);
+  --ag-header-background-color: var(--bs-light-bg);
+  --ag-header-font-size: var(--inspect-font-size-small);
+  --ag-header-font-weight: 500;
+  --ag-header-text-color: var(--bs-secondary);
+  --ag-font-family: var(--bs-body-font-family);
+  --ag-wrapper-border: none;
+  --ag-row-hover-color: var(--bs-secondary-bg-subtle);
+  --ag-selected-row-background-color: var(--bs-secondary-bg-subtle);
+}
+
 #app {
   height: 100vh;
   overflow-y: hidden;
@@ -54,7 +68,7 @@ body:not([class^="vscode-"]) button {
   display: grid;
   height: 100vh;
   overflow-y: hidden;
-  grid-template-rows: max-content max-content max-content 1fr;
+  grid-template-rows: max-content max-content 1fr;
 }
 
 a {
@@ -1227,6 +1241,17 @@ pre[class*="language-"] {
   vertical-align: middle;
   mask: url("../img/inspect-home.svg") no-repeat center / contain;
   -webkit-mask: url("../img/inspect-home.svg") no-repeat center / contain;
+}
+
+.inspect-icon-tasks::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+  margin-top: -2px;
+  mask: url("../img/tasks.svg") no-repeat center / contain;
+  -webkit-mask: url("../img/tasks.svg") no-repeat center / contain;
 }
 
 /* Use this very carefully, find relies upon checking the 

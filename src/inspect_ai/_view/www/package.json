@@ -87,6 +87,8 @@
     "@lezer/highlight": "^1.2.1",
     "@popperjs/core": "^2.11.8",
     "@tanstack/react-table": "^8.21.3",
+    "ag-grid-community": "^34.3.0",
+    "ag-grid-react": "^34.3.0",
     "ansi-output": "^0.0.9",
     "asciinema-player": "^3.11.1",
     "bootstrap": "^5.3.8",

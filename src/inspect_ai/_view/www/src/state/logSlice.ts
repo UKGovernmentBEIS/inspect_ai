@@ -14,6 +14,7 @@ export interface LogSlice {
   log: LogState;
   logActions: {
     selectSample: (sampleId: string | number, epoch: number) => void;
+    clearSelectedSample: () => void;
 
     // Set the selected log summary
     setSelectedLogDetails: (details: LogDetails) => void;
@@ -59,6 +60,9 @@ export interface LogSlice {
 
     // Clear the currently loaded log
     clearLog: () => void;
+
+    setFilteredSampleCount: (count: number) => void;
+    clearFilteredSampleCount: () => void;
   };
 }
 
@@ -109,7 +113,11 @@ export const createLogSlice = (
           state.log.selectedSampleHandle = { id: sampleId, epoch };
         });
       },
-
+      clearSelectedSample: () => {
+        set((state) => {
+          state.log.selectedSampleHandle = undefined;
+        });
+      },
       setSelectedLogDetails: (details: LogDetails) => {
         set((state) => {
           state.log.selectedScores = undefined;
@@ -286,6 +294,16 @@ export const createLogSlice = (
           log.error("Error refreshing log:", error);
           throw error;
         }
+      },
+      setFilteredSampleCount: (count: number) => {
+        set((state) => {
+          state.log.filteredSampleCount = count;
+        });
+      },
+      clearFilteredSampleCount: () => {
+        set((state) => {
+          state.log.filteredSampleCount = undefined;
+        });
       },
     },
   } as const;
