@@ -174,12 +174,16 @@ def view_server_app(
         if client_etag is not None:
             mtime, file_count = parse_log_token(client_etag)
         log_files_response: dict[str, Any] = await get_log_files(
-            log_dir,
+            await _map_file(request, log_dir),
             recursive=recursive,
             fs_options=fs_options,
             mtime=mtime,
             file_count=file_count,
         )
+        log_files_response["files"] = [
+            {**file, "name": await _unmap_file(request, file["name"])}
+            for file in log_files_response["files"]
+        ]
         return InspectJsonResponse(content=log_files_response)
 
     @app.get("/logs")
