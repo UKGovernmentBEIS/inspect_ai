@@ -153,7 +153,7 @@ export const createLogsSlice = (
         const currentDisplaySamples =
           get().logs.samplesListState.displayedSamples;
         set((state) => {
-          if (displaySamplesEqual(currentDisplaySamples, samples)) {
+          if (!displaySamplesEqual(currentDisplaySamples, samples)) {
             state.logs.samplesListState.displayedSamples = samples;
           }
         });

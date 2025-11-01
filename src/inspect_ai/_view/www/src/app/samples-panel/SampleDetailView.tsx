@@ -7,10 +7,14 @@ import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
-import { NavbarButton } from "../navbar/NavbarButton";
-import { samplesUrl, samplesSampleUrl, useSamplesRouteParams } from "../routing/url";
+import {
+  samplesSampleUrl,
+  samplesUrl,
+  useSamplesRouteParams,
+} from "../routing/url";
 import { InlineSampleDisplay } from "../samples/InlineSampleDisplay";
 
+import clsx from "clsx";
 import styles from "./SampleDetailView.module.css";
 
 /**
@@ -35,9 +39,6 @@ export const SampleDetailView: FC = () => {
   );
 
   const loadSample = useStore((state) => state.sampleActions.loadSample);
-  const clearSelectedSample = useStore(
-    (state) => state.sampleActions.clearSelectedSample,
-  );
   const clearSelectedLogDetails = useStore(
     (state) => state.logActions.clearSelectedLogDetails,
   );
@@ -61,13 +62,20 @@ export const SampleDetailView: FC = () => {
 
   const hasPrevious = currentIndex > 0;
   const hasNext =
-    displayedSamples && currentIndex >= 0 && currentIndex < displayedSamples.length - 1;
+    displayedSamples &&
+    currentIndex >= 0 &&
+    currentIndex < displayedSamples.length - 1;
 
   const handlePrevious = useCallback(() => {
     if (currentIndex > 0 && displayedSamples && samplesPath && logDir) {
       const prev = displayedSamples[currentIndex - 1];
       const relativePath = directoryRelativeUrl(prev.logFile, logDir);
-      const url = samplesSampleUrl(relativePath, prev.sampleId, prev.epoch, tabId);
+      const url = samplesSampleUrl(
+        relativePath,
+        prev.sampleId,
+        prev.epoch,
+        tabId,
+      );
       navigate(url);
     }
   }, [currentIndex, displayedSamples, samplesPath, logDir, tabId, navigate]);
@@ -82,7 +90,12 @@ export const SampleDetailView: FC = () => {
     ) {
       const next = displayedSamples[currentIndex + 1];
       const relativePath = directoryRelativeUrl(next.logFile, logDir);
-      const url = samplesSampleUrl(relativePath, next.sampleId, next.epoch, tabId);
+      const url = samplesSampleUrl(
+        relativePath,
+        next.sampleId,
+        next.epoch,
+        tabId,
+      );
       navigate(url);
     }
   }, [currentIndex, displayedSamples, samplesPath, logDir, tabId, navigate]);
@@ -177,13 +190,11 @@ export const SampleDetailView: FC = () => {
 
   useEffect(() => {
     return () => {
-      // Clear selected sample on unmount
-      clearSelectedSample();
       clearSelectedLogDetails();
       clearLog();
       clearSampleTab();
     };
-  }, [clearLog, clearSelectedSample, clearSelectedLogDetails]);
+  }, [clearLog, clearSelectedLogDetails]);
 
   return (
     <ExtendedFindProvider>
@@ -193,7 +204,27 @@ export const SampleDetailView: FC = () => {
           currentPath={samplesPath}
           fnNavigationUrl={samplesUrl}
           bordered={true}
-        />
+        >
+          <div className={clsx(styles.sampleNav)}>
+            <div
+              onClick={handlePrevious}
+              tabIndex={0}
+              className={clsx(!hasPrevious && styles.disabled, styles.nav)}
+            >
+              <i className={clsx(ApplicationIcons.previous)} />
+            </div>
+            <div className={clsx(styles.sampleInfo, "text-size-smallest")}>
+              Sample {sampleId} (Epoch {epoch})
+            </div>
+            <div
+              onClick={handleNext}
+              tabIndex={0}
+              className={clsx(!hasNext && styles.disabled, styles.nav)}
+            >
+              <i className={clsx(ApplicationIcons.next)} />
+            </div>
+          </div>
+        </ApplicationNavbar>
         <InlineSampleDisplay showActivity={false} className={styles.panel} />
       </div>
     </ExtendedFindProvider>

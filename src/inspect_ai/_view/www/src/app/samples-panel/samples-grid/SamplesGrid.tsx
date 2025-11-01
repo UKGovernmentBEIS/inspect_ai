@@ -44,15 +44,16 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const setFilteredSampleCount = useStore(
     (state) => state.logActions.setFilteredSampleCount,
   );
-  const displayedSamples = useStore(
-    (state) => state.logs.samplesListState.displayedSamples,
-  );
   const setDisplayedSamples = useStore(
     (state) => state.logsActions.setDisplayedSamples,
   );
   const clearDisplayedSamples = useStore(
     (state) => state.logsActions.clearDisplayedSamples,
   );
+  const clearSelectedSample = useStore(
+    (state) => state.sampleActions.clearSelectedSample,
+  );
+
   const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.loading);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
@@ -323,6 +324,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
     const rowId = `${selectedLogFile}-${selectedSampleHandle.id}-${selectedSampleHandle.epoch}`;
     const node = gridRef.current.api.getRowNode(rowId);
+
     if (node) {
       // Select the row
       gridRef.current.api.deselectAll();
@@ -404,6 +406,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           onFirstDataRendered={() => {
             // Select the current sample when the grid first renders data
             selectCurrentSample();
+            clearSelectedSample();
           }}
           loading={data.length === 0 && (loading > 0 || syncing > 0)}
         />
