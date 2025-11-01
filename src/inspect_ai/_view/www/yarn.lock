@@ -2055,6 +2055,23 @@
   dependencies:
     "@sinonjs/commons" "^3.0.1"
 
+"@solid-primitives/refs@^1.0.5":
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/@solid-primitives/refs/-/refs-1.1.2.tgz#1a37a825754bc8fe7f8845fc0c7664683646288e"
+  integrity sha512-K7tf2thy7L+YJjdqXspXOg5xvNEOH8tgEWsp0+1mQk3obHBRD6hEjYZk7p7FlJphSZImS35je3UfmWuD7MhDfg==
+  dependencies:
+    "@solid-primitives/utils" "^6.3.2"
+
+"@solid-primitives/transition-group@^1.0.2":
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/@solid-primitives/transition-group/-/transition-group-1.1.2.tgz#be9af05871a7ca6323277f9782f4aeb20cb7f73f"
+  integrity sha512-gnHS0OmcdjeoHN9n7Khu8KNrOlRc8a2weETDt2YT6o1zeW/XtUC6Db3Q9pkMU/9cCKdEmN4b0a/41MKAHRhzWA==
+
+"@solid-primitives/utils@^6.3.2":
+  version "6.3.2"
+  resolved "https://registry.yarnpkg.com/@solid-primitives/utils/-/utils-6.3.2.tgz#13d6126fc5a498965d7c45dd41c052e42dcfd7e1"
+  integrity sha512-hZ/M/qr25QOCcwDPOHtGjxTD8w2mNyVAYvcfgwzBHq2RwNqHNdDNsMZYap20+ruRwW4A3Cdkczyoz0TSxLCAPQ==
+
 "@tanstack/react-table@^8.21.3":
   version "8.21.3"
   resolved "https://registry.npmjs.org/@tanstack/react-table/-/react-table-8.21.3.tgz"
@@ -2739,13 +2756,14 @@ aria-query@^5.0.0:
   resolved "https://registry.npmjs.org/aria-query/-/aria-query-5.3.2.tgz"
   integrity sha512-COROpnaoap1E2F000S62r6A60uHZnmlvomhfyT2DlTcrY1OrBKn2UhH7qn5wTC9zMvD0AY7csdPSNwKP+7WiQw==
 
-asciinema-player@^3.10.0:
-  version "3.10.0"
-  resolved "https://registry.npmjs.org/asciinema-player/-/asciinema-player-3.10.0.tgz"
-  integrity sha512-shoOK6F606nDKZxDVM7JuGSCAyWLePoGRFNlV+FqiP5Sqvyn0BlE7wlbjZyd2X4P1iRhv/HKfVNtnQIxmgphRA==
+asciinema-player@^3.11.1:
+  version "3.12.1"
+  resolved "https://registry.yarnpkg.com/asciinema-player/-/asciinema-player-3.12.1.tgz#dec4a126aa2940f6ee095c6aca1f45a2181e36aa"
+  integrity sha512-X4tIjZEIsD7Keeu1cJbrsZZCbPSO85w2OiDRGui68JHQPjthIG2jh68TARDrf2CP2l1Lko4mevnBdwwmJfD0iw==
   dependencies:
     "@babel/runtime" "^7.21.0"
     solid-js "^1.3.0"
+    solid-transition-group "^0.2.3"
 
 babel-jest@30.1.2:
   version "30.1.2"
@@ -3204,10 +3222,10 @@ detect-newline@^3.1.0:
   resolved "https://registry.npmjs.org/detect-newline/-/detect-newline-3.1.0.tgz"
   integrity sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA==
 
-dexie@^4.2.0:
-  version "4.2.0"
-  resolved "https://registry.yarnpkg.com/dexie/-/dexie-4.2.0.tgz#c4df27c68f862dd833bf510415595bf4955148df"
-  integrity sha512-OSeyyWOUetDy9oFWeddJgi83OnRA3hSFh3RrbltmPgqHszE9f24eUCVLI4mPg0ifsWk0lQTdnS+jyGNrPMvhDA==
+dexie@^4.2.1:
+  version "4.2.1"
+  resolved "https://registry.yarnpkg.com/dexie/-/dexie-4.2.1.tgz#70d111ae8d2dabf53f424fca79f6f918c407e6db"
+  integrity sha512-Ckej0NS6jxQ4Po3OrSQBFddayRhTCic2DoCAG5zacOfOVB9P2Q5Xc5uL/nVa7ZVs+HdMnvUPzLFCB/JwpB6Csg==
 
 diff-sequences@^29.6.3:
   version "29.6.3"
@@ -5514,6 +5532,14 @@ solid-js@^1.3.0:
     csstype "^3.1.0"
     seroval "^1.1.0"
     seroval-plugins "^1.1.0"
+
+solid-transition-group@^0.2.3:
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/solid-transition-group/-/solid-transition-group-0.2.3.tgz#ef441d9e4620cddc4d29cdbc958b09f94db515c4"
+  integrity sha512-iB72c9N5Kz9ykRqIXl0lQohOau4t0dhel9kjwFvx81UZJbVwaChMuBuyhiZmK24b8aKEK0w3uFM96ZxzcyZGdg==
+  dependencies:
+    "@solid-primitives/refs" "^1.0.5"
+    "@solid-primitives/transition-group" "^1.0.2"
 
 source-map-js@^1.2.1:
   version "1.2.1"
