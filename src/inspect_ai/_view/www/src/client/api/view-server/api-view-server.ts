@@ -47,6 +47,9 @@ export function viewServerApi(
   };
 
   const get_log_dir = async () => {
+    if (logDir) {
+      return logDir;
+    }
     const obj = (await requestApi.fetchString("GET", "/log-dir")).parsed;
     return obj.log_dir as string | undefined;
   };
