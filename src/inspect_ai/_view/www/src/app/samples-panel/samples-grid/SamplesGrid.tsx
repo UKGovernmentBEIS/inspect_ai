@@ -99,6 +99,10 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     );
   }, [logDetails, samplesPath]);
 
+  useEffect(() => {
+    gridContainerRef.current?.focus();
+  }, []);
+
   // Transform logDetails into flat rows
   const data = useMemo(() => {
     const rows: SampleRow[] = [];
@@ -361,7 +365,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           }}
           autoSizeStrategy={{ type: "fitGridWidth" }}
           headerHeight={25}
-          rowSelection="single"
+          rowSelection={{ mode: "singleRow", checkboxes: false }}
           getRowId={(params) =>
             `${params.data.logFile}-${params.data.sampleId}-${params.data.epoch}`
           }
