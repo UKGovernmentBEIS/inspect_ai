@@ -107,7 +107,7 @@ export const useSampleColumns = (
         minWidth: 80,
         sortable: true,
         resizable: true,
-        filter: "true",
+        filter: true,
       },
       {
         field: "logFile",
