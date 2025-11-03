@@ -89,10 +89,17 @@ export function viewServerApi(
   };
 
   const get_eval_set = async (dir?: string) => {
+    const basePath = "/eval-set";
+    const params = new URLSearchParams();
     if (logDir) {
-      dir ??= logDir;
+      params.append("log_dir", logDir);
     }
-    const path = dir ? `/eval-set?dir=${encodeURIComponent(dir)}` : "/eval-set";
+    if (dir) {
+      params.append("dir", dir);
+    }
+    const query = params.toString();
+    const path = query ? `${basePath}?${query}` : basePath;
+
     try {
       const result = await requestApi.fetchString("GET", path);
       return result.parsed;
