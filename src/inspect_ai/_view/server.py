@@ -188,10 +188,12 @@ def view_server(
         else:
             request_log_dir = log_dir
 
-        # log dir can optionally be overridden by the request
         request_dir = request.query.getone("dir", None)
         if request_dir:
-            request_dir = request_log_dir + "/" + request_dir.lstrip("/")
+            if request_log_dir:
+                request_dir = request_log_dir + "/" + request_dir.lstrip("/")
+            else:
+                request_dir = request_dir.lstrip("/")
             validate_log_file_request(request_dir)
         else:
             request_dir = request_log_dir

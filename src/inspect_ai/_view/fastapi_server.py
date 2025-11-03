@@ -208,14 +208,19 @@ def view_server_app(
         log_dir: str = Query(None, alias="log_dir"),
         sub_dir: str = Query(None, alias="dir"),
     ) -> Response:
+        # resolve the eval-set directory (using the log_dir and dir params)
         base_dir = log_dir if log_dir else default_dir
-        if sub_dir:
+        if sub_dir and base_dir:
             eval_set_dir = base_dir + "/" + sub_dir.lstrip("/")
+        elif sub_dir:
+            eval_set_dir = sub_dir.lstrip("/")
         else:
             eval_set_dir = base_dir
 
+        # validate that the directory can be listed
         await _validate_list(request, eval_set_dir)
 
+        # return the eval set info for this directory
         eval_set = read_eval_set_info(
             await _map_file(request, eval_set_dir), fs_options=fs_options
         )
