@@ -11,6 +11,7 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
+import { useClientEvents } from "../../../state/clientEvents";
 import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
@@ -64,6 +65,15 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const internalGridRef = useRef<AgGridReact>(null);
   const gridRef = externalGridRef || internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  // Polling for updated log files
+  const { startPolling, stopPolling } = useClientEvents();
+  useEffect(() => {
+    startPolling([]);
+    return () => {
+      stopPolling();
+    };
+  }, [startPolling, stopPolling]);
 
   // Clear grid state when samplesPath changes
   const prevSamplesPath = usePrevious(samplesPath);
