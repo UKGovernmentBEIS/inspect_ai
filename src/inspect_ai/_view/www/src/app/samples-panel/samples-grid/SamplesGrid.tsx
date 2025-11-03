@@ -320,13 +320,25 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     };
   }, [handleKeyDown]);
 
+  const sampleRowId = (
+    logFile: string,
+    sampleId: string | number,
+    epoch: number,
+  ) => {
+    return `${logFile}-${sampleId}-${epoch}`.replace(/\s+/g, "_");
+  };
+
   // Helper function to select the current sample in the grid
   const selectCurrentSample = useCallback(() => {
     if (!gridRef.current?.api || !selectedSampleHandle || !selectedLogFile) {
       return;
     }
 
-    const rowId = `${selectedLogFile}-${selectedSampleHandle.id}-${selectedSampleHandle.epoch}`;
+    const rowId = sampleRowId(
+      selectedLogFile,
+      selectedSampleHandle.id,
+      selectedSampleHandle.epoch,
+    );
     const node = gridRef.current.api.getRowNode(rowId);
 
     if (node) {
@@ -367,7 +379,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           headerHeight={25}
           rowSelection={{ mode: "singleRow", checkboxes: false }}
           getRowId={(params) =>
-            `${params.data.logFile}-${params.data.sampleId}-${params.data.epoch}`
+            sampleRowId(
+              params.data.logFile,
+              params.data.sampleId,
+              params.data.epoch,
+            )
           }
           onGridColumnsChanged={(e: GridColumnsChangedEvent<SampleRow>) => {
             const cols = e.api.getColumnDefs();
