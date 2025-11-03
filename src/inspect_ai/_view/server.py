@@ -179,13 +179,22 @@ def view_server(
     @routes.get("/api/eval-set")
     async def eval_set(request: web.Request) -> web.Response:
         # log dir can optionally be overridden by the request
+        if authorization:
+            request_log_dir = request.query.getone("log_dir", None)
+            if request_log_dir:
+                request_log_dir = normalize_uri(request_log_dir)
+            else:
+                request_log_dir = log_dir
+        else:
+            request_log_dir = log_dir
 
+        # log dir can optionally be overridden by the request
         request_dir = request.query.getone("dir", None)
         if request_dir:
-            request_dir = log_dir + "/" + request_dir.lstrip("/")
+            request_dir = request_log_dir + "/" + request_dir.lstrip("/")
             validate_log_file_request(request_dir)
         else:
-            request_dir = log_dir
+            request_dir = request_log_dir
 
         eval_set = read_eval_set_info(request_dir, fs_options=fs_options)
         return web.json_response(to_jsonable_python(eval_set, exclude_none=True))

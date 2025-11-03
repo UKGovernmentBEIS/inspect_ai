@@ -204,16 +204,20 @@ def view_server_app(
 
     @app.get("/eval-set")
     async def eval_set(
-        request: Request, log_dir: str = Query(None, alias="dir")
+        request: Request,
+        log_dir: str = Query(None, alias="log_dir"),
+        sub_dir: str = Query(None, alias="dir"),
     ) -> Response:
-        if log_dir:
-            log_dir = default_dir + "/" + log_dir.lstrip("/")
-        elif log_dir is None:
-            log_dir = default_dir
-        await _validate_list(request, log_dir)
+        base_dir = log_dir if log_dir else default_dir
+        if sub_dir:
+            eval_set_dir = base_dir + "/" + sub_dir.lstrip("/")
+        else:
+            eval_set_dir = base_dir
+
+        await _validate_list(request, eval_set_dir)
 
         eval_set = read_eval_set_info(
-            await _map_file(request, log_dir), fs_options=fs_options
+            await _map_file(request, eval_set_dir), fs_options=fs_options
         )
         return InspectJsonResponse(
             content=eval_set.model_dump(exclude_none=True) if eval_set else None
