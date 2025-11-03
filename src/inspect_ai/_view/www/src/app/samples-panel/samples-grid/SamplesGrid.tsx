@@ -11,6 +11,7 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
+import { useClientEvents } from "../../../state/clientEvents";
 import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
@@ -64,6 +65,15 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const internalGridRef = useRef<AgGridReact>(null);
   const gridRef = externalGridRef || internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  // Polling for updated log files
+  const { startPolling, stopPolling } = useClientEvents();
+  useEffect(() => {
+    startPolling([]);
+    return () => {
+      stopPolling();
+    };
+  }, [startPolling, stopPolling]);
 
   // Clear grid state when samplesPath changes
   const prevSamplesPath = usePrevious(samplesPath);
@@ -320,13 +330,25 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     };
   }, [handleKeyDown]);
 
+  const sampleRowId = (
+    logFile: string,
+    sampleId: string | number,
+    epoch: number,
+  ) => {
+    return `${logFile}-${sampleId}-${epoch}`.replace(/\s+/g, "_");
+  };
+
   // Helper function to select the current sample in the grid
   const selectCurrentSample = useCallback(() => {
     if (!gridRef.current?.api || !selectedSampleHandle || !selectedLogFile) {
       return;
     }
 
-    const rowId = `${selectedLogFile}-${selectedSampleHandle.id}-${selectedSampleHandle.epoch}`;
+    const rowId = sampleRowId(
+      selectedLogFile,
+      selectedSampleHandle.id,
+      selectedSampleHandle.epoch,
+    );
     const node = gridRef.current.api.getRowNode(rowId);
 
     if (node) {
@@ -367,7 +389,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           headerHeight={25}
           rowSelection={{ mode: "singleRow", checkboxes: false }}
           getRowId={(params) =>
-            `${params.data.logFile}-${params.data.sampleId}-${params.data.epoch}`
+            sampleRowId(
+              params.data.logFile,
+              params.data.sampleId,
+              params.data.epoch,
+            )
           }
           onGridColumnsChanged={(e: GridColumnsChangedEvent<SampleRow>) => {
             const cols = e.api.getColumnDefs();
