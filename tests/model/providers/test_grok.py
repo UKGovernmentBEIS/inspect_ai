@@ -8,7 +8,7 @@ from inspect_ai.model import (
 )
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_grok_api() -> None:
     model = get_model(

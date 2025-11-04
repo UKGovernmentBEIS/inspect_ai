@@ -185,6 +185,7 @@ dev = [
   "trio",
   "pandas-stubs",
   "pyarrow-stubs",
+  "types-grpcio",
   "types-Markdown",
   "types-PyYAML",
   "types-beautifulsoup4",

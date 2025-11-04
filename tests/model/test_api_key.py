@@ -37,7 +37,7 @@ async def test_openai_api_key():
     await check_explicit_api_key("openai/gpt-4", "OPENAI_API_KEY")
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_grok_api_key():
     await check_explicit_api_key("grok/grok-3-mini", "GROK_API_KEY")
