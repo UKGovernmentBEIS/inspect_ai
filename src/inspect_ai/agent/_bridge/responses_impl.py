@@ -675,7 +675,10 @@ def responses_output_items_from_assistant_message(
                         ResponseOutputRefusal(type="refusal", refusal=content_text)
                         if content.refusal
                         else ResponseOutputText(
-                            type="output_text", text=content_text, annotations=[]
+                            type="output_text",
+                            text=content_text,
+                            annotations=[],
+                            logprobs=[],
                         )
                     ],
                     status="completed",
