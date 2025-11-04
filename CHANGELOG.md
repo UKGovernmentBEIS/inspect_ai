@@ -2,6 +2,7 @@
 
 - Eval Set: Task identifiers can now vary on `GenerateConfig` and `solver` (which enables sweeping over these variables).
 - Eval Logs: Don't resolve attachments within `ModelEvent.call` by default, which prevents O(N) memory footprint for reading transcripts.
+- OpenAI: Update for typing change to `ResponseOutputText` in v2.7.0 of `openai` package.
 - Inspect View: Fixed theming issue with the score selector control in VS Code.
 - Inspect View: Improve display of grouped metrics
 - Inspect View: Don't render markdown images in the sample list input, target, or answer.

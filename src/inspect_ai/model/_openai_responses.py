@@ -842,7 +842,7 @@ def _openai_input_items_from_chat_message_assistant(
                     ResponseOutputRefusalParam(type="refusal", refusal=text)
                     if refusal
                     else ResponseOutputTextParam(
-                        type="output_text", text=text, annotations=[]
+                        type="output_text", text=text, annotations=[], logprobs=[]
                     )
                 )
 
