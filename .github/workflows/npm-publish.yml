@@ -57,14 +57,18 @@ jobs:
       - name: Run quality checks
         run: yarn check-all
 
+      - name: Build library for prerelease
+        if: ${{ inputs.prerelease }}
+        run: yarn build:lib
+
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}
-        run: npm publish --dry-run --access public ${{ inputs.prerelease && '--tag beta' || '' }}
+        run: npm publish --dry-run --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to NPM
         if: ${{ !inputs.dry-run }}
-        run: npm publish --access public ${{ inputs.prerelease && '--tag beta' || '' }}
+        run: npm publish --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
