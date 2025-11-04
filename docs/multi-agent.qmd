@@ -101,7 +101,7 @@ supervisor = react(
 
 ## Handoffs {#handoffs}
 
-Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.
+Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off agent both visibility into the conversation history and the ability to append messages to it.
 
 Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.
 
