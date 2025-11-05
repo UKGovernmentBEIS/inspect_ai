@@ -197,6 +197,7 @@ dev = [
   "types-protobuf",
   "types-psutil",
   "types-python-dateutil",
+  "xai_sdk",
   "uvicorn",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
