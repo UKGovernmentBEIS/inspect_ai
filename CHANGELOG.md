@@ -9,6 +9,8 @@
 - Inspect View: Don't render markdown images in the sample list input, target, or answer.
 - Inspect View: Add Copy UUID button to sample toolbar.
 - Inspect View: Add new samples view which displays a grid of all samples within a given folder of tasks (recursively).
+- Inspect View: Invalidate client side caches for updates to statically deployed versions of the viewer.
+- Inspect View: Fix flash of error that can occur when viewing folders with no eval-set info in statically deployed versions of the viewer.
 
 ## 0.3.143 (29 October 2025)
 
