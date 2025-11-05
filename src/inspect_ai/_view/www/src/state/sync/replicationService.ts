@@ -245,35 +245,56 @@ export class ReplicationService {
     const staticList = logFiles.length > 0 && mtime === 0;
     if (staticList) {
       // There is no mtime data which means sync isn't possible
-      // just use the current list and activate it
-
-      // Activate the current log handles
-      this._applicationContext?.setLogHandles(logFiles);
-
-      // Schedule sync of missing previews or details
-      const previewTasks: LogHandle[] = [];
-      const previews = await this._database.findMissingPreviews(logFiles);
-      for (const p of previews) {
-        if (!previewTasks.find((t) => t.name === p.name)) {
-          previewTasks.push(p);
+      // check to ensure the file list hasn't changed (in which
+      // we will invlidate the whole thing)
+      const serverLogs = await this._api.get_logs(0, 0);
+      if (serverLogs.files.length !== logFiles.length) {
+        // Invalidate everything
+        for (const file of logFiles) {
+          this._database?.clearCacheForFile(file.name);
         }
-      }
-      this.queueLogPreviews(previewTasks);
 
-      const detailTasks: LogHandle[] = [];
-      const details = await this._database.findMissingDetails(logFiles);
-      for (const d of details) {
-        if (!detailTasks.find((t) => t.name === d.name)) {
-          detailTasks.push(d);
+        // Apply the new list
+        this._applicationContext?.setLogHandles(serverLogs.files);
+
+        // Schedule sync of missing previews or details
+        this.queueLogDetails(serverLogs.files);
+        this.queueLogPreviews(serverLogs.files);
+
+        if (progress) {
+          this._applicationContext.setLoading(false);
         }
-      }
-      this.queueLogDetails(detailTasks);
 
-      if (progress) {
-        this._applicationContext.setLoading(false);
-      }
+        return serverLogs.files;
+      } else {
+        // Activate the current log handles
+        this._applicationContext?.setLogHandles(logFiles);
 
-      return logFiles;
+        // Schedule sync of missing previews or details
+        const previewTasks: LogHandle[] = [];
+        const previews = await this._database.findMissingPreviews(logFiles);
+        for (const p of previews) {
+          if (!previewTasks.find((t) => t.name === p.name)) {
+            previewTasks.push(p);
+          }
+        }
+        this.queueLogPreviews(previewTasks);
+
+        const detailTasks: LogHandle[] = [];
+        const details = await this._database.findMissingDetails(logFiles);
+        for (const d of details) {
+          if (!detailTasks.find((t) => t.name === d.name)) {
+            detailTasks.push(d);
+          }
+        }
+        this.queueLogDetails(detailTasks);
+
+        if (progress) {
+          this._applicationContext.setLoading(false);
+        }
+
+        return logFiles;
+      }
     }
 
     // Fetch the updated list of logs from the server
