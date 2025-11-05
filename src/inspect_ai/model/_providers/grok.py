@@ -51,7 +51,14 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._json import json_schema_to_base_model
 
 from .._generate_config import GenerateConfig
-from .._model_output import ChatCompletionChoice, ModelUsage, StopReason
+from .._model_output import (
+    ChatCompletionChoice,
+    Logprob,
+    Logprobs,
+    ModelUsage,
+    StopReason,
+    TopLogprob,
+)
 from .openai_compatible import OpenAICompatibleAPI
 
 XAI_API_KEY = "XAI_API_KEY"
@@ -192,9 +199,50 @@ class GrokAPI(ModelAPI):
             # return
             return self._model_output_from_response(chat_response, tools), model_call()
         except grpc.RpcError as ex:
-            # TODO: model length errors, content filter errors, errors which should be retried
-            print(ex)
-            raise
+            if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
+                handled = self._handle_grpc_permission_denied(ex)
+                if handled:
+                    return handled, model_call()
+                else:
+                    raise ex
+            elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
+                return self._handle_grpc_bad_request(ex), model_call()
+            else:
+                raise ex
+
+    def is_auth_failure(self, ex: Exception) -> bool:
+        return (
+            isinstance(ex, grpc.RpcError)
+            and ex.code() == grpc.StatusCode.UNAUTHENTICATED
+        )
+
+    def should_retry(self, ex: BaseException) -> bool:
+        if isinstance(ex, grpc.RpcError):
+            return ex.code() in {
+                grpc.StatusCode.UNAVAILABLE,
+                grpc.StatusCode.DEADLINE_EXCEEDED,
+                grpc.StatusCode.RESOURCE_EXHAUSTED,
+            }
+        else:
+            return False
+
+    def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
+        details = ex.details() or ""
+        if "prompt_length" in details:
+            return ModelOutput.from_content(
+                model=self.model_name, content=details, stop_reason="model_length"
+            )
+        else:
+            return ex
+
+    def _handle_grpc_permission_denied(self, ex: grpc.RpcError) -> ModelOutput | None:
+        details = ex.details() or ""
+        if "safety_check" in details.lower():
+            return ModelOutput.from_content(
+                model=self.model_name, content=details, stop_reason="content_filter"
+            )
+        else:
+            return None
 
     def _grok_tool_choice(
         self, tool_choice: ToolChoice
@@ -278,11 +326,18 @@ class GrokAPI(ModelAPI):
     def _completion_choice_from_response(
         self, response: Response, tools: list[ToolInfo]
     ) -> ChatCompletionChoice:
-        # reasoning and content
+        # reasoning
         content: list[Content] = []
         if response.reasoning_content:
             content.append(ContentReasoning(reasoning=response.reasoning_content))
-        content.append(ContentText(text=response.content))
+
+        # content + citations
+        response_content = ContentText(text=response.content)
+        if response.citations:
+            response_content.citations = [
+                UrlCitation(url=url) for url in response.citations
+            ]
+        content.append(response_content)
 
         # tool calls
         tool_calls: list[ToolCall] | None = None
@@ -291,9 +346,8 @@ class GrokAPI(ModelAPI):
                 _tool_call_from_grok_call(tc, tools) for tc in response.tool_calls
             ]
 
-        # TODO: citations
-        # TODO: logprobs
-        # TODO: server tool uses
+        # logprobs
+        logprobs = _logprobs_from_grok_logprobs(response.logprobs)
 
         return ChatCompletionChoice(
             message=ChatMessageAssistant(
@@ -303,6 +357,7 @@ class GrokAPI(ModelAPI):
                 model=self.model_name,
             ),
             stop_reason=_stop_reason_from_finish_reason(response.finish_reason),
+            logprobs=logprobs,
         )
 
 
@@ -329,6 +384,26 @@ def _stop_reason_from_finish_reason(finish_reason: str) -> StopReason:
             return "max_tokens"
         case _:
             return "unknown"
+
+
+def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs | None:
+    if len(grok_logprobs.content) == 0:
+        return None
+
+    content = [
+        Logprob(
+            token=lp.token,
+            logprob=lp.logprob,
+            bytes=list(lp.bytes),
+            top_logprobs=[
+                TopLogprob(token=tlp.token, logprob=tlp.logprob, bytes=list(tlp.bytes))
+                for tlp in lp.top_logprobs
+            ],
+        )
+        for lp in grok_logprobs.content
+    ]
+
+    return Logprobs(content=content)
 
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
