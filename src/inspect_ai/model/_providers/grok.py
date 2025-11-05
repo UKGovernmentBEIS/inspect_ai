@@ -62,7 +62,7 @@ from .._model_output import (
 from .openai_compatible import OpenAICompatibleAPI
 
 XAI_API_KEY = "XAI_API_KEY"
-XAPI_BASE_URL = "XAPI_BASE_URL"
+XAI_BASE_URL = "XAI_BASE_URL"
 GROK_API_KEY = "GROK_API_KEY"
 GROK_BASE_URL = "GROK_BASE_URL"
 
@@ -96,7 +96,7 @@ class GrokAPI(ModelAPI):
 
         # resolve base url
         self.base_url = (
-            model_base_url(self.base_url, [XAPI_BASE_URL, GROK_BASE_URL]) or "api.x.ai"
+            model_base_url(self.base_url, [XAI_BASE_URL, GROK_BASE_URL]) or "api.x.ai"
         )
 
         # save model args
