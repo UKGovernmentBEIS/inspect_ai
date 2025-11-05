@@ -1,12 +1,10 @@
 import os
-from copy import copy
 import time
+from copy import copy
 from typing import Any, cast
 
 import grpc
 from google.protobuf.json_format import MessageToDict
-from openai import APIStatusError
-from openai.types.chat import ChatCompletion
 from pydantic import JsonValue
 from typing_extensions import override
 from xai_sdk import AsyncClient  # type: ignore
@@ -60,7 +58,6 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
-from .openai_compatible import OpenAICompatibleAPI
 
 XAI_API_KEY = "XAI_API_KEY"
 XAI_BASE_URL = "XAI_BASE_URL"
@@ -231,7 +228,7 @@ class GrokAPI(ModelAPI):
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
         details = ex.details() or ""
-        if "prompt_length" in details:
+        if "prompt length" in details:
             return ModelOutput.from_content(
                 model=self.model_name, content=details, stop_reason="model_length"
             )
@@ -446,12 +443,22 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
     if isinstance(content, ContentText):
         return chat_pb2.Content(text=content.text)
     elif isinstance(content, ContentImage):
+        match content.detail:
+            case "auto":
+                detail = "DETAIL_AUTO"
+            case "low":
+                detail = "DETAIL_LOW"
+            case "high":
+                detail = "DETAIL_HIGH"
+            case _:
+                detail = "DETAIL_AUTO"
+
         return chat_pb2.Content(
             image_url={
                 "image_url": content.image
                 if is_http_url(content.image)
                 else await file_as_data_uri(content.image),
-                "detail": content.detail,
+                "detail": detail,
             }
         )
     else:
@@ -464,157 +471,6 @@ def _grok_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(image_url=BASE_64_DATA_REMOVED)
     return value
-
-
-class GrokAPI1(OpenAICompatibleAPI):
-    def __init__(
-        self,
-        model_name: str,
-        base_url: str | None = None,
-        api_key: str | None = None,
-        config: GenerateConfig = GenerateConfig(),
-    ) -> None:
-        super().__init__(
-            model_name=model_name,
-            base_url=base_url,
-            api_key=api_key,
-            config=config,
-            service="Grok",
-            service_base_url="https://api.x.ai/v1",
-        )
-
-    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        # call super
-        params = super().completion_params(config, tools)
-
-        # only grok-3-mini supports reasoning effort:
-        # https://docs.x.ai/docs/guides/reasoning#control-how-hard-the-model-thinks
-        # further, reasoning effort must be either low or high
-        if "reasoning_effort" in params:
-            if "grok-3-mini" in self.model_name:
-                match params["reasoning_effort"]:
-                    case "minimal" | "low":
-                        params["reasoning_effort"] = "low"
-                    case "medium" | "high":
-                        params["reasoning_effort"] = "high"
-            else:
-                params.pop("reasoning_effort", None)
-        return params
-
-    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
-        if ex.status_code == 400:
-            # extract message
-            if isinstance(ex.body, dict) and "message" in ex.body.keys():
-                content = str(ex.body.get("message"))
-            else:
-                content = ex.message
-
-            if "prompt length" in content:
-                return ModelOutput.from_content(
-                    model=self.model_name, content=content, stop_reason="model_length"
-                )
-            else:
-                return ex
-        elif ex.status_code == 403:
-            # extract message
-            if isinstance(ex.body, dict) and "message" in ex.body.keys():
-                content = str(ex.body.get("message"))
-            else:
-                content = ex.message
-
-            if "Content violates usage guidelines" in content:
-                return ModelOutput.from_content(
-                    model=self.model_name,
-                    content=content,
-                    stop_reason="content_filter",
-                )
-            else:
-                return ex
-        else:
-            return ex
-
-    @override
-    def chat_choices_from_completion(
-        self, completion: ChatCompletion, tools: list[ToolInfo]
-    ) -> list[ChatCompletionChoice]:
-        result = super().chat_choices_from_completion(completion, tools)
-
-        return (
-            [_add_citations(choice, citations) for choice in result]
-            if (citations := _get_citations(completion))
-            else result
-        )
-
-    @override
-    def resolve_tools(
-        self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
-    ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
-        tools, tool_choice, config = super().resolve_tools(tools, tool_choice, config)
-
-        new_config = config.model_copy()
-        if new_config.extra_body is None:
-            new_config.extra_body = {}
-
-        grok_search_options, new_tools = _extract_web_search_options(
-            self.model_name, tools
-        )
-
-        force_web_search = (
-            isinstance(tool_choice, ToolFunction) and tool_choice.name == "web_search"
-        )
-
-        new_config.extra_body["search_parameters"] = (
-            {"mode": "off"}
-            if grok_search_options is None
-            else {
-                "mode": "on" if force_web_search else "auto",
-                **grok_search_options,
-            }
-        )
-
-        return (
-            new_tools,
-            "none" if force_web_search else tool_choice,
-            new_config,
-        )
-
-
-def _get_citations(completion: ChatCompletion) -> list[UrlCitation] | None:
-    """Extract citations from ChatCompletion model_extra."""
-    model_extra = completion.model_extra
-    grok_citations = model_extra.get("citations") if model_extra else None
-
-    return (
-        [
-            UrlCitation(url=url)
-            for url in [url for url in grok_citations if isinstance(url, str)]
-        ]
-        if grok_citations and isinstance(grok_citations, list)
-        else None
-    )
-
-
-def _extract_web_search_options(
-    model_name: str,
-    tools: list[ToolInfo],
-) -> tuple[dict[str, object] | None, list[ToolInfo]]:
-    """Extract Grok web search options from tools and return filtered tools.
-
-    Returns:
-        A tuple of (web_search_options, filtered_tools) where:
-        - web_search_options: The Grok options if a web_search tool is found, None otherwise
-        - filtered_tools: All tools except the web_search tool with Grok options
-    """
-    filtered_tools = []
-    web_search_options = None
-
-    for t in tools:
-        if (options := _get_grok_web_search_options(model_name, t)) is not None:
-            web_search_options = options
-        else:
-            filtered_tools.append(t)
-
-    return web_search_options, filtered_tools
 
 
 def _get_grok_web_search_options(
@@ -631,37 +487,3 @@ def _get_grok_web_search_options(
         )
         else None
     )
-
-
-def _add_citations(
-    choice: ChatCompletionChoice, citations: list[UrlCitation] | None
-) -> ChatCompletionChoice:
-    if not choice.message.content:
-        return choice
-
-    # Grok citations are in no way correlated to any subset of a ChatCompletionChoice.
-    # Because of this, we don't have any clue what cited text is relevant. This
-    # code simply adds the citations to the last non-empty text content in the message
-
-    updated_choice = choice.model_copy(deep=True)
-    content_list: list[Content] = (
-        [ContentText(text=updated_choice.message.content)]
-        if isinstance(updated_choice.message.content, str)
-        else updated_choice.message.content
-    )
-    updated_choice.message.content = content_list
-
-    # Find the last non-empty ContentText entry
-    last_text_content = next(
-        (
-            content
-            for content in reversed(content_list)
-            if isinstance(content, ContentText) and content.text.strip()
-        ),
-        None,
-    )
-
-    if last_text_content:
-        last_text_content.citations = citations
-
-    return updated_choice
