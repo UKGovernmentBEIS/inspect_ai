@@ -1,10 +1,12 @@
 import os
+from copy import copy
 from typing import Any, cast
 
 import grpc
 from google.protobuf.json_format import MessageToDict
 from openai import APIStatusError
 from openai.types.chat import ChatCompletion
+from pydantic import JsonValue
 from typing_extensions import override
 from xai_sdk import AsyncClient  # type: ignore
 from xai_sdk.chat import (  # type: ignore
@@ -21,6 +23,7 @@ from xai_sdk.chat import (  # type: ignore
 from xai_sdk.tools import web_search  # type: ignore
 
 from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -30,6 +33,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -41,6 +45,7 @@ from inspect_ai.model._model import ModelAPI
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util.util import model_base_url
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._json import json_schema_to_base_model
@@ -137,28 +142,47 @@ class GrokAPI(ModelAPI):
             return ModelCall.create(
                 request=request,
                 response=response,
-                # TODO: filters
-                # filter=openai_media_filter,
+                filter=_grok_media_filter,
+                # TODO: timing hooks
                 # time=self._http_hooks.end_request(request_id),
             )
 
         try:
-            chat = self.client.chat.create(
+            # prepare input for chat call
+            grok_messages = await _grok_messages(input)
+            grok_tools = [self._grok_tool(tool) for tool in tools]
+            grok_tool_choice = (
+                self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
+            )
+            grok_params = self._grok_params(config)
+
+            # update request (convert proto to dict)
+            request = dict(
                 model=self.model_name,
-                messages=await _grok_messages(input),
-                tools=[self._grok_tool(tool) for tool in tools],
-                tool_choice=self._grok_tool_choice(tool_choice)
-                if len(tools) > 0
-                else None,
-                **self._grok_config(config),
+                messages=[MessageToDict(m) for m in grok_messages],
+                tools=[MessageToDict(t) for t in grok_tools],
+                tool_choice=MessageToDict(grok_tool_choice)
+                if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
+                else grok_tool_choice,
+                **grok_params,
             )
 
+            # chat call
+            chat = self.client.chat.create(
+                model=self.model_name,
+                messages=grok_messages,
+                tools=grok_tools,
+                tool_choice=grok_tool_choice,
+                **grok_params,
+            )
+
+            # handle structured output
             if config.response_schema is not None:
                 chat_response, _ = await chat.parse(
                     json_schema_to_base_model(config.response_schema.json_schema)
                 )
+            # stream the reponse for improved connectivity for long requests
             else:
-                # stream the reponse for improved connectivity for long requests
                 async for chat_response, _ in chat.stream():
                     pass
 
@@ -166,7 +190,7 @@ class GrokAPI(ModelAPI):
             response = MessageToDict(chat_response._proto)
 
             # return
-            return self._model_output_from_response(chat_response), model_call()
+            return self._model_output_from_response(chat_response, tools), model_call()
         except grpc.RpcError as ex:
             # TODO: model length errors, content filter errors, errors which should be retried
             print(ex)
@@ -183,7 +207,9 @@ class GrokAPI(ModelAPI):
             case "none":
                 return "none"
             case ToolFunction(name=name):
-                return chat_pb2.ToolChoice(mode="required", function_name=name)
+                return chat_pb2.ToolChoice(
+                    mode="TOOL_MODE_REQUIRED", function_name=name
+                )
 
     def _grok_tool(self, tool_info: ToolInfo) -> chat_pb2.Tool:
         web_search_options = _get_grok_web_search_options(self.model_name, tool_info)
@@ -196,7 +222,7 @@ class GrokAPI(ModelAPI):
                 parameters=tool_info.parameters.model_dump(exclude_none=True),
             )
 
-    def _grok_config(self, config: GenerateConfig) -> dict[str, Any]:
+    def _grok_params(self, config: GenerateConfig) -> dict[str, Any]:
         gconfig: dict[str, Any] = {}
 
         if config.max_tokens is not None:
@@ -239,37 +265,70 @@ class GrokAPI(ModelAPI):
 
         return gconfig
 
-    def _model_output_from_response(self, response: Response) -> ModelOutput:
+    def _model_output_from_response(
+        self, response: Response, tools: list[ToolInfo]
+    ) -> ModelOutput:
         return ModelOutput(
             model=self.model_name,
-            choices=[self._completion_choice_from_response(response)],
+            choices=[self._completion_choice_from_response(response, tools)],
             completion=response.content,
             usage=_model_usage_from_sampling_usage(response.usage),
         )
 
     def _completion_choice_from_response(
-        self, response: Response
+        self, response: Response, tools: list[ToolInfo]
     ) -> ChatCompletionChoice:
+        # reasoning and content
         content: list[Content] = []
         if response.reasoning_content:
             content.append(ContentReasoning(reasoning=response.reasoning_content))
         content.append(ContentText(text=response.content))
 
+        # tool calls
+        tool_calls: list[ToolCall] | None = None
+        if response.tool_calls:
+            tool_calls = [
+                _tool_call_from_grok_call(tc, tools) for tc in response.tool_calls
+            ]
+
         # TODO: citations
         # TODO: logprobs
+        # TODO: server tool uses
 
         return ChatCompletionChoice(
-            message=ChatMessageAssistant(content=content),
+            message=ChatMessageAssistant(
+                source="generate",
+                content=content,
+                tool_calls=tool_calls,
+                model=self.model_name,
+            ),
             stop_reason=_stop_reason_from_finish_reason(response.finish_reason),
         )
 
 
+def _tool_call_from_grok_call(
+    tool_call: chat_pb2.ToolCall, tools: list[ToolInfo]
+) -> ToolCall:
+    return parse_tool_call(
+        id=tool_call.id,
+        function=tool_call.function.name,
+        arguments=tool_call.function.arguments,
+        tools=tools,
+    )
+
+
 def _stop_reason_from_finish_reason(finish_reason: str) -> StopReason:
     match finish_reason:
-        case "length":
+        case "REASON_STOP":
+            return "stop"
+        case "REASON_TOOL_CALLS":
+            return "tool_calls"
+        case "REASON_MAX_CONTEXT":
+            return "model_length"
+        case "REASON_MAX_LEN":
             return "max_tokens"
         case _:
-            return "stop"
+            return "unknown"
 
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
@@ -319,6 +378,14 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
         )
     else:
         raise ValueError(f"Unexpected content type for grok api: {type(content)}")
+
+
+def _grok_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove images from raw api call
+    if isinstance(value, dict) and "image_url" in value:
+        value = copy(value)
+        value.update(image_url=BASE_64_DATA_REMOVED)
+    return value
 
 
 class GrokAPI1(OpenAICompatibleAPI):
