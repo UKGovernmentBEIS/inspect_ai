@@ -6,7 +6,6 @@ from typing import Any, cast
 import grpc
 from google.protobuf.json_format import MessageToDict
 from pydantic import JsonValue
-from typing_extensions import override
 from xai_sdk import AsyncClient  # type: ignore
 from xai_sdk.chat import (  # type: ignore
     Response,
@@ -28,6 +27,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data_uri
@@ -103,23 +103,6 @@ class GrokAPI(ModelAPI):
         # create client
         self.initialize()
 
-    def _create_client(self) -> AsyncClient:
-        return AsyncClient(
-            api_key=self.api_key,
-            api_host=self.base_url,
-            timeout=3600,  # api docs show tweaking this up for reasoning models
-            **self.model_args,
-        )
-
-    def initialize(self) -> None:
-        super().initialize()
-        self.client = self._create_client()
-        # TODO: httpx hooks based on channel interceptors (see also modelcall)
-
-    @override
-    async def aclose(self) -> None:
-        await self.client.close()
-
     def is_grok_2(self) -> bool:
         return "grok-2" in self.model_name
 
@@ -132,6 +115,9 @@ class GrokAPI(ModelAPI):
     def is_grok_4(self) -> bool:
         return "grok-4" in self.model_name
 
+    def is_at_least_grok_4(self) -> bool:
+        return not self.is_grok_2() and not self.is_grok_3()
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -139,6 +125,14 @@ class GrokAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # create client
+        client = AsyncClient(
+            api_key=self.api_key,
+            api_host=self.base_url,
+            timeout=3600,  # api docs show tweaking this up for reasoning models
+            **self.model_args,
+        )
+
         # set start time
         start_time = time.monotonic()
 
@@ -175,7 +169,7 @@ class GrokAPI(ModelAPI):
             )
 
             # chat call
-            chat = self.client.chat.create(
+            chat = client.chat.create(
                 model=self.model_name,
                 messages=grok_messages,
                 tools=grok_tools,
@@ -260,7 +254,7 @@ class GrokAPI(ModelAPI):
                 )
 
     def _grok_tool(self, tool_info: ToolInfo) -> chat_pb2.Tool:
-        web_search_options = _get_grok_web_search_options(self.model_name, tool_info)
+        web_search_options = self._get_grok_web_search_options(tool_info)
         if web_search_options is not None:
             return web_search(**web_search_options)
         else:
@@ -331,6 +325,30 @@ class GrokAPI(ModelAPI):
         if response.reasoning_content:
             content.append(ContentReasoning(reasoning=response.reasoning_content))
 
+        # partition tool calls into server and client
+        server_tool_calls: list[chat_pb2.ToolCall] = []
+        client_tool_calls: list[chat_pb2.ToolCall] = []
+        for tool_call in response.tool_calls:
+            tool_info = next(
+                (tool for tool in tools if tool.name == "web_search"), None
+            )
+            if tool_info and self._is_internal_web_search_tool(tool_info):
+                server_tool_calls.append(tool_call)
+            else:
+                client_tool_calls.append(tool_call)
+
+        # render server tool calls
+        for tool_call in server_tool_calls:
+            content.append(
+                ContentToolUse(
+                    tool_type="web_search",
+                    id=tool_call.id,
+                    name=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                    result="",
+                )
+            )
+
         # content + citations
         response_content = ContentText(text=response.content)
         if response.citations:
@@ -339,11 +357,11 @@ class GrokAPI(ModelAPI):
             ]
         content.append(response_content)
 
-        # tool calls
+        # tool calls (exclude web search)
         tool_calls: list[ToolCall] | None = None
-        if response.tool_calls:
+        if client_tool_calls:
             tool_calls = [
-                _tool_call_from_grok_call(tc, tools) for tc in response.tool_calls
+                _tool_call_from_grok_call(tc, tools) for tc in client_tool_calls
             ]
 
         # logprobs
@@ -359,6 +377,22 @@ class GrokAPI(ModelAPI):
             stop_reason=_stop_reason_from_finish_reason(response.finish_reason),
             logprobs=logprobs,
         )
+
+    def _get_grok_web_search_options(self, tool: ToolInfo) -> dict[str, object] | None:
+        """Check if a tool is a Grok web search tool and return its options."""
+        return (
+            cast(dict[str, object], grok_options)
+            if (
+                self.is_at_least_grok_4()
+                and tool.name == "web_search"
+                and tool.options is not None
+                and (grok_options := tool.options.get("grok", None)) is not None
+            )
+            else None
+        )
+
+    def _is_internal_web_search_tool(self, tool: ToolInfo) -> bool:
+        return self._get_grok_web_search_options(tool) is not None
 
 
 def _tool_call_from_grok_call(
@@ -461,6 +495,8 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
                 "detail": detail,
             }
         )
+    elif isinstance(content, ContentToolUse):
+        return chat_pb2.Content(text=f"{content.name}: {content.arguments}")
     else:
         raise ValueError(f"Unexpected content type for grok api: {type(content)}")
 
@@ -471,19 +507,3 @@ def _grok_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(image_url=BASE_64_DATA_REMOVED)
     return value
-
-
-def _get_grok_web_search_options(
-    model_name: str, tool: ToolInfo
-) -> dict[str, object] | None:
-    """Check if a tool is a Grok web search tool and return its options."""
-    return (
-        cast(dict[str, object], grok_options)
-        if (
-            not model_name.startswith("grok-2")
-            and tool.name == "web_search"
-            and tool.options is not None
-            and (grok_options := tool.options.get("grok", None)) is not None
-        )
-        else None
-    )
