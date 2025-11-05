@@ -94,10 +94,15 @@ export const fetchManifest = async (
  */
 export const fetchJsonFile = async <T>(
   file: string,
+  handleError?: (response: Response) => boolean,
 ): Promise<T | undefined> => {
-  return fetchFile<T>(file, async (text) => {
-    return (await asyncJsonParse(text)) as T;
-  });
+  return fetchFile<T>(
+    file,
+    async (text) => {
+      return (await asyncJsonParse(text)) as T;
+    },
+    handleError,
+  );
 };
 
 /**

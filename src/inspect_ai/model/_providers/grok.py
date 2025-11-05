@@ -405,6 +405,24 @@ class GrokAPI1(OpenAICompatibleAPI):
             service_base_url="https://api.x.ai/v1",
         )
 
+    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+        # call super
+        params = super().completion_params(config, tools)
+
+        # only grok-3-mini supports reasoning effort:
+        # https://docs.x.ai/docs/guides/reasoning#control-how-hard-the-model-thinks
+        # further, reasoning effort must be either low or high
+        if "reasoning_effort" in params:
+            if "grok-3-mini" in self.model_name:
+                match params["reasoning_effort"]:
+                    case "minimal" | "low":
+                        params["reasoning_effort"] = "low"
+                    case "medium" | "high":
+                        params["reasoning_effort"] = "high"
+            else:
+                params.pop("reasoning_effort", None)
+        return params
+
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         if ex.status_code == 400:
             # extract message
