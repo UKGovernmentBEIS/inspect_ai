@@ -1,8 +1,11 @@
 import os
+from contextvars import ContextVar
 from copy import copy
-from typing import Any, cast
+from logging import getLogger
+from typing import Any, Awaitable, Callable, Optional, Sequence, cast
 
 import grpc
+import grpc.aio
 from google.protobuf.json_format import MessageToDict
 from openai import APIStatusError
 from openai.types.chat import ChatCompletion
@@ -20,10 +23,15 @@ from xai_sdk.chat import (  # type: ignore
     usage_pb2,
     user,
 )
+from xai_sdk.client import (  # type: ignore
+    UnaryStreamAioInterceptor,
+    UnaryUnaryAioInterceptor,
+    create_channel_credentials,
+)
 from xai_sdk.tools import web_search  # type: ignore
 
 from inspect_ai._util.citation import UrlCitation
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, HTTP
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -44,6 +52,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model import ModelAPI
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._providers.util.hooks import HttpHooks
 from inspect_ai.model._providers.util.util import model_base_url
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -60,6 +69,8 @@ from .._model_output import (
     TopLogprob,
 )
 from .openai_compatible import OpenAICompatibleAPI
+
+logger = getLogger(__name__)
 
 XAI_API_KEY = "XAI_API_KEY"
 XAI_BASE_URL = "XAI_BASE_URL"
@@ -115,8 +126,14 @@ class GrokAPI(ModelAPI):
 
     def initialize(self) -> None:
         super().initialize()
-        self.client = self._create_client()
-        # TODO: httpx hooks based on channel interceptors (see also modelcall)
+        self._http_hooks = GrpcHooks()
+        self.client = GrokAsyncClient(
+            api_key=self.api_key,
+            api_host=self.base_url,
+            timeout=3600,  # api docs show tweaking this up for reasoning models
+            grpc_hooks=self._http_hooks,
+            **self.model_args,
+        )
 
     @override
     async def aclose(self) -> None:
@@ -141,6 +158,10 @@ class GrokAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # start request
+        request_id = self._http_hooks.start_request()
+        self._http_hooks.set_request_id(request_id)
+
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
         response: dict[str, Any] = {}
@@ -150,8 +171,7 @@ class GrokAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=_grok_media_filter,
-                # TODO: timing hooks
-                # time=self._http_hooks.end_request(request_id),
+                time=self._http_hooks.end_request(request_id),
             )
 
         try:
@@ -662,3 +682,102 @@ def _add_citations(
         last_text_content.citations = citations
 
     return updated_choice
+
+
+class GrpcUnaryUnaryInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
+    """Interceptor for tracking unary-unary gRPC calls"""
+
+    def __init__(self, hooks: "GrpcHooks") -> None:
+        self.hooks = hooks
+
+    async def intercept_unary_unary(
+        self,
+        continuation: Callable[[grpc.aio.ClientCallDetails, Any], Awaitable[Any]],
+        client_call_details: grpc.aio.ClientCallDetails,
+        request: Any,
+    ) -> Any:
+        # Get request_id from context and update request time
+        request_id = self.hooks.get_request_id()
+        if request_id:
+            self.hooks.update_request_time(request_id)
+
+        # Make the call and log it
+        response = await continuation(client_call_details, request)
+        logger.log(HTTP, f"gRPC {client_call_details.method} - OK")
+        return response
+
+
+class GrpcUnaryStreamInterceptor(grpc.aio.UnaryStreamClientInterceptor):
+    """Interceptor for tracking unary-stream gRPC calls"""
+
+    def __init__(self, hooks: "GrpcHooks") -> None:
+        self.hooks = hooks
+
+    async def intercept_unary_stream(
+        self,
+        continuation: Callable[  # type: ignore[type-arg]
+            [grpc.aio.ClientCallDetails, Any], Awaitable[grpc.aio.UnaryStreamCall]
+        ],
+        client_call_details: grpc.aio.ClientCallDetails,
+        request: Any,
+    ) -> grpc.aio.UnaryStreamCall:  # type: ignore[type-arg]
+        # Get request_id from context and update request time
+        request_id = self.hooks.get_request_id()
+        if request_id:
+            self.hooks.update_request_time(request_id)
+
+        # Make the call and log it
+        response = await continuation(client_call_details, request)
+        logger.log(HTTP, f"gRPC Stream {client_call_details.method} - Started")
+        return response
+
+
+class GrpcHooks(HttpHooks):
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.unary_unary_interceptor: grpc.aio.UnaryUnaryClientInterceptor = (
+            GrpcUnaryUnaryInterceptor(self)
+        )
+        self.unary_stream_interceptor: grpc.aio.UnaryStreamClientInterceptor = (
+            GrpcUnaryStreamInterceptor(self)
+        )
+
+    def get_interceptors(self) -> list[grpc.aio.ClientInterceptor]:
+        return [self.unary_unary_interceptor, self.unary_stream_interceptor]
+
+    def set_request_id(self, request_id: str) -> None:
+        _request_id_var.set(request_id)
+
+    def get_request_id(self) -> str | None:
+        return _request_id_var.get()
+
+
+_request_id_var: ContextVar[str | None] = ContextVar("grpc_request_id", default=None)
+
+
+class GrokAsyncClient(AsyncClient):  # type: ignore[misc]
+    def __init__(self, *args: Any, grpc_hooks: GrpcHooks, **kwargs: Any) -> None:
+        self._grpc_hooks = grpc_hooks
+        super().__init__(*args, **kwargs)
+
+    def _make_grpc_channel(
+        self,
+        api_key: str,
+        api_host: str,
+        metadata: Optional[tuple[tuple[str, str]]],
+        channel_options: Sequence[tuple[str, Any]],
+        timeout: float,
+    ) -> grpc.aio.Channel:
+        """Creates a gRPC channel with a default timeout."""
+        channel = grpc.aio.secure_channel(
+            api_host,
+            create_channel_credentials(api_key, api_host, metadata),
+            options=channel_options,
+            interceptors=[
+                UnaryUnaryAioInterceptor(timeout),
+                UnaryStreamAioInterceptor(timeout),
+                *self._grpc_hooks.get_interceptors(),
+            ],  # type: ignore
+        )
+        return channel
