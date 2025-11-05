@@ -1,5 +1,6 @@
 import os
 from copy import copy
+import time
 from typing import Any, cast
 
 import grpc
@@ -141,6 +142,9 @@ class GrokAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # set start time
+        start_time = time.monotonic()
+
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
         response: dict[str, Any] = {}
@@ -150,8 +154,7 @@ class GrokAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=_grok_media_filter,
-                # TODO: timing hooks
-                # time=self._http_hooks.end_request(request_id),
+                time=time.monotonic() - start_time,
             )
 
         try:
