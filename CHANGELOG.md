@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.144 (05 November 2025)
 
 - Eval Set: Task identifiers can now vary on `GenerateConfig` and `solver` (which enables sweeping over these variables).
 - Eval Logs: Don't resolve attachments within `ModelEvent.call` by default, which prevents O(N) memory footprint for reading transcripts.
