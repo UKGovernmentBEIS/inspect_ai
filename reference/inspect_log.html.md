@@ -76,7 +76,7 @@ inspect log dump [OPTIONS] PATH
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `--header-only` | boolean | Read and print only the header of the log file (i.e. no samples). | `False` |
-| `--resolve-attachments` | boolean | Resolve attachments (duplicated content blocks) to their full content. | `False` |
+| `--resolve-attachments` | choice (`full` \| `core`) | Resolve attachments (duplicated content blocks) to their full content. | None |
 | `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect log convert
@@ -96,7 +96,7 @@ inspect log convert [OPTIONS] PATH
 | `--to` | choice (`eval` \| `json`) | Target format to convert to. | `Sentinel.UNSET` |
 | `--output-dir` | text | Directory to write converted log files to. | `Sentinel.UNSET` |
 | `--overwrite` | boolean | Overwrite files in the output directory. | `False` |
-| `--resolve-attachments` | boolean | Resolve attachments (duplicated content blocks) to their full content. | `False` |
+| `--resolve-attachments` | choice (`full` \| `core`) | Resolve attachments (duplicated content blocks) to their full content. | None |
 | `--stream` | text | Stream the samples through the conversion process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being converted. | `False` |
 | `--help` | boolean | Show this message and exit. | `False` |
 

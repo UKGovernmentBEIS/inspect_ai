@@ -619,7 +619,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="handoffs" class="level2">
 <h2 class="anchored" data-anchor-id="handoffs">Handoffs</h2>
-<p>Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.</p>
+<p>Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off agent both visibility into the conversation history and the ability to append messages to it.</p>
 <p>Handoffs are automatically presented to the model as tool calls with a <code>transfer_to</code> prefix (e.g.&nbsp;<code>transfer_to_web_surfer</code>) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.</p>
 <p>Create handoffs by enclosing an agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> function. These agents in turn are often simple <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agents with a tailored prompt and set of tools. For example, here we create a <code>web_surfer()</code> agent that we can handoff to:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent react</span>

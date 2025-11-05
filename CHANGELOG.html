@@ -149,7 +149,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#october-2025" id="toc-october-2025" class="nav-link active" data-scroll-target="#october-2025">0.3.143 (29 October 2025)</a></li>
+  <li><a href="#november-2025" id="toc-november-2025" class="nav-link active" data-scroll-target="#november-2025">0.3.144 (05 November 2025)</a></li>
+  <li><a href="#october-2025" id="toc-october-2025" class="nav-link" data-scroll-target="#october-2025">0.3.143 (29 October 2025)</a></li>
   <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.142 (27 October 2025)</a></li>
   <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.141 (27 October 2025)</a></li>
   <li><a href="#october-2025-3" id="toc-october-2025-3" class="nav-link" data-scroll-target="#october-2025-3">0.3.140 (20 October 2025)</a></li>
@@ -300,6 +301,22 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="november-2025" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025">0.3.144 (05 November 2025)</h2>
+<ul>
+<li>Eval Set: Task identifiers can now vary on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> and <code>solver</code> (which enables sweeping over these variables).</li>
+<li>Eval Logs: Don’t resolve attachments within <code>ModelEvent.call</code> by default, which prevents O(N) memory footprint for reading transcripts.</li>
+<li>OpenAI: Update for typing change to <code>ResponseOutputText</code> in v2.7.0 of <code>openai</code> package.</li>
+<li>Grok: Correct handling of <code>reasoning_effort</code> parameter (only supported by <code>grok-3-mini</code> and only <code>low</code> and <code>high</code>values are supported).</li>
+<li>Inspect View: Fixed theming issue with the score selector control in VS Code.</li>
+<li>Inspect View: Improve display of grouped metrics</li>
+<li>Inspect View: Don’t render markdown images in the sample list input, target, or answer.</li>
+<li>Inspect View: Add Copy UUID button to sample toolbar.</li>
+<li>Inspect View: Add new samples view which displays a grid of all samples within a given folder of tasks (recursively).</li>
+<li>Inspect View: Invalidate client side caches for updates to statically deployed versions of the viewer.</li>
+<li>Inspect View: Fix flash of error that can occur when viewing folders with no eval-set info in statically deployed versions of the viewer.</li>
+</ul>
+</section>
 <section id="october-2025" class="level2">
 <h2 class="anchored" data-anchor-id="october-2025">0.3.143 (29 October 2025)</h2>
 <ul>
