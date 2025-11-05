@@ -139,8 +139,18 @@ def mistral() -> type[ModelAPI]:
 
 @modelapi(name="grok")
 def grok() -> type[ModelAPI]:
-    # validate
-    validate_openai_client("Grok API")
+    FEATURE = "Grok API"
+    PACKAGE = "xai_sdk"
+    MIN_VERSION = "1.3.1"
+
+    # verify we have the package
+    try:
+        import xai_sdk  # type: ignore[import-untyped] # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
 
     # in the clear
     from .grok import GrokAPI

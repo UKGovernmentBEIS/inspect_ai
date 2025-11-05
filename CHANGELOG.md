@@ -1,3 +1,9 @@
+## Unreleased
+
+- Grok: Updated provider implementation using `xai_sdk` package (rather than using OpenAI compatible endpoint).
+- Grok: Support for server-side `web_search()` tool.
+- Grok: Support for generating structured outputs (outputs constrained by JSON Schema).
+
 ## 0.3.144 (05 November 2025)
 
 - Eval Set: Task identifiers can now vary on `GenerateConfig` and `solver` (which enables sweeping over these variables).

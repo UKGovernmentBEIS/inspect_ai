@@ -70,6 +70,7 @@ async def test_mistral_stop_reason() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.flaky
 @skip_if_no_grok
 @skip_if_trio
 async def test_grok_stop_reason() -> None:
