@@ -3617,6 +3617,7 @@
           "anyOf": [
             {
               "enum": [
+                "none",
                 "concise",
                 "detailed",
                 "auto"

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).
 - Grok: Updated provider implementation using `xai_sdk` package (rather than using OpenAI compatible endpoint).
 - Grok: Support for server-side `web_search()` tool.
 - Grok: Support for generating structured outputs (outputs constrained by JSON Schema).
