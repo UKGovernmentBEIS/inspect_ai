@@ -47,6 +47,9 @@ export function viewServerApi(
   };
 
   const get_log_dir = async () => {
+    if (logDir) {
+      return logDir;
+    }
     const obj = (await requestApi.fetchString("GET", "/log-dir")).parsed;
     return obj.log_dir as string | undefined;
   };
@@ -63,7 +66,7 @@ export function viewServerApi(
     return logs.parsed;
   };
 
-  const get_log_files = async (mtime: number, clientFileCount: number) => {
+  const get_logs = async (mtime: number, clientFileCount: number) => {
     const path = logDir
       ? `/log-files?log_dir=${encodeURIComponent(logDir)}`
       : "/log-files";
@@ -89,10 +92,17 @@ export function viewServerApi(
   };
 
   const get_eval_set = async (dir?: string) => {
+    const basePath = "/eval-set";
+    const params = new URLSearchParams();
     if (logDir) {
-      dir ??= logDir;
+      params.append("log_dir", logDir);
     }
-    const path = dir ? `/eval-set?dir=${encodeURIComponent(dir)}` : "/eval-set";
+    if (dir) {
+      params.append("dir", dir);
+    }
+    const query = params.toString();
+    const path = query ? `${basePath}?${query}` : basePath;
+
     try {
       const result = await requestApi.fetchString("GET", path);
       return result.parsed;
@@ -301,7 +311,7 @@ export function viewServerApi(
   return {
     client_events,
     get_log_root,
-    get_logs: get_log_files,
+    get_logs,
     get_log_dir,
     get_eval_set,
     get_log_contents,

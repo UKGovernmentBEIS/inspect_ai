@@ -1,10 +1,12 @@
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, model_validator
+from frozendict import deepfreeze
+from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
+from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
-from inspect_ai._util.constants import DESERIALIZING
+from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
@@ -53,6 +55,30 @@ class ChatMessageBase(BaseModel):
         # Generate ID if needed and not deserializing
         if self.id is None and not is_deserializing:
             self.id = uuid()
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _wrap(
+        cls,
+        data: dict[str, Any],
+        handler: ModelWrapValidatorHandler["ChatMessageBase"],
+        info: ValidationInfo,
+    ) -> "ChatMessageBase":
+        # Some parts of the eval log can be very repetitive. A sequence of model events will often
+        # duplicate the same ChatMessage many times. When the log is initially generated, this is not
+        # an issue, since the data structure will just contain a reference to the same object.
+        # When deserializing, however, we want to avoid creating a new ChatMessage object for each
+        # instance of the same message.
+        if info.context is None:
+            return handler(data)
+        cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
+        frozen = deepfreeze(data)
+        hit = cache.get(frozen)
+        if hit is not None:
+            return hit
+        res = handler(data)
+        cache[frozen] = res
+        return res
 
     @property
     def text(self) -> str:
@@ -198,9 +224,9 @@ class ChatMessageTool(ChatMessageBase):
 
     @model_validator(mode="before")
     @classmethod
-    def convert_tool_error_to_error(
-        cls: Type["ChatMessageTool"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def convert_tool_error_to_error(cls: Type["ChatMessageTool"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         tool_error = values.get("tool_error", None)
         if tool_error:
             values["error"] = ToolCallError("unknown", tool_error)

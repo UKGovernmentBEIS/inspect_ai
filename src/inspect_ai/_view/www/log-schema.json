@@ -2238,12 +2238,25 @@
         "commit": {
           "title": "Commit",
           "type": "string"
+        },
+        "dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dirty"
         }
       },
       "required": [
         "type",
         "origin",
-        "commit"
+        "commit",
+        "dirty"
       ],
       "title": "EvalRevision",
       "type": "object",
@@ -3604,6 +3617,7 @@
           "anyOf": [
             {
               "enum": [
+                "none",
                 "concise",
                 "detailed",
                 "auto"

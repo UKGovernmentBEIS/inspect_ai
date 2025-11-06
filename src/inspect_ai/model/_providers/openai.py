@@ -177,6 +177,10 @@ class OpenAIAPI(ModelAPI):
                     os.environ.get("OPENAI_API_VERSION", "2025-03-01-preview"),
                 )
 
+        # set initial reasoning_summaries bit (requires organizational verifification
+        # so we will probe for it on-demand if a request w/ reasoning summaries comes in)
+        self._reasoning_summaries: bool | None = None
+
         # store remaining model_args after extraction
         self.model_args = model_args
         self.initialize()
@@ -224,6 +228,10 @@ class OpenAIAPI(ModelAPI):
 
     def initialize(self) -> None:
         super().initialize()
+
+        if self.http_client.is_closed:
+            self.http_client = OpenAIAsyncHttpxClient()
+
         self.client = self._create_client()
 
         # TODO: Although we could enhance OpenAIBatcher to support requests with
@@ -341,6 +349,11 @@ class OpenAIAPI(ModelAPI):
         )
         self._resolve_batcher(config, use_responses)
 
+        # if reasoning summaries are unset then try to auto-detect
+        if config.reasoning_summary is None:
+            if not await self.reasoning_summaries():
+                config = config.model_copy(update={"reasoning_summary": "none"})
+
         return await (
             generate_responses(
                 client=self.client,
@@ -404,6 +417,28 @@ class OpenAIAPI(ModelAPI):
     def connection_key(self) -> str:
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
+
+    async def reasoning_summaries(self) -> bool:
+        # validate that reasoning summaries are supported for this account
+        # (needs to be a 'verified organization'). we do this by making a
+        # simple request with reasoning summaries and if it succeeds we
+        # set the reasoning_summaries bit (we do this once for the lifetime
+        # of the model provider instance)
+        if self._reasoning_summaries is None:
+            reasoning_summaries = False
+            if self.responses_api and self.has_reasoning_options():
+                try:
+                    await self.client.responses.create(
+                        model=self.service_model_name(),
+                        input="Please say 'hello, world'",
+                        reasoning={"effort": "low", "summary": "auto"},
+                    )
+                    reasoning_summaries = True
+                except Exception:
+                    pass
+            self._reasoning_summaries = reasoning_summaries
+
+        return self._reasoning_summaries
 
     def _resolve_batcher(self, config: GenerateConfig, for_responses_api: bool) -> None:
         def _resolve_retry_config() -> ModelRetryConfig:

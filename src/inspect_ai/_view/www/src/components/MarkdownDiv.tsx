@@ -6,12 +6,13 @@ import "./MarkdownDiv.css";
 
 interface MarkdownDivProps {
   markdown: string;
+  omitMedia?: boolean;
   style?: CSSProperties;
   className?: string | string[];
 }
 
 export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
-  ({ markdown, style, className }, ref) => {
+  ({ markdown, omitMedia, style, className }, ref) => {
     // Protect backslashes in LaTeX expressions
     const protectedContent = protectBackslashesInLatex(markdown);
 
@@ -32,6 +33,9 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
         breaks: true,
         html: true,
       });
+      if (omitMedia) {
+        md.disable(["image"]);
+      }
 
       // Add MathJax support
       md.use(markdownitMathjax3);

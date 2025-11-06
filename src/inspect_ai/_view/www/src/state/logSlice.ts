@@ -4,6 +4,7 @@ import { LogDetails, PendingSamples } from "../client/api/types";
 import { toLogPreview } from "../client/utils/type-utils";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
+import { isUri, join } from "../utils/uri";
 import { createLogPolling } from "./logPolling";
 import { StoreState } from "./store";
 
@@ -13,6 +14,7 @@ export interface LogSlice {
   log: LogState;
   logActions: {
     selectSample: (sampleId: string | number, epoch: number) => void;
+    clearSelectedSample: () => void;
 
     // Set the selected log summary
     setSelectedLogDetails: (details: LogDetails) => void;
@@ -58,6 +60,9 @@ export interface LogSlice {
 
     // Clear the currently loaded log
     clearLog: () => void;
+
+    setFilteredSampleCount: (count: number) => void;
+    clearFilteredSampleCount: () => void;
   };
 }
 
@@ -108,7 +113,11 @@ export const createLogSlice = (
           state.log.selectedSampleHandle = { id: sampleId, epoch };
         });
       },
-
+      clearSelectedSample: () => {
+        set((state) => {
+          state.log.selectedSampleHandle = undefined;
+        });
+      },
       setSelectedLogDetails: (details: LogDetails) => {
         set((state) => {
           state.log.selectedScores = undefined;
@@ -176,26 +185,36 @@ export const createLogSlice = (
         const state = get();
         const api = state.api;
 
+        // Ensure there is a log dir
+        let logDir = state.logs.logDir;
+        if (state.logs.logDir === undefined) {
+          logDir = await state.logsActions.initLogDir();
+        }
+
+        const logAbsPath = !isUri(logFileName)
+          ? join(logFileName, logDir)
+          : logFileName;
+
         if (!api) {
           console.error("API not initialized in Store");
           return;
         }
 
-        log.debug(`Load log: ${logFileName}`);
+        log.debug(`Load log: ${logAbsPath}`);
 
         // Try reading the data in the database first
         const dbService = state.databaseService;
         if (dbService && dbService.opened()) {
           try {
             const cachedInfo =
-              await dbService.readLogDetailsForFile(logFileName);
+              await dbService.readLogDetailsForFile(logAbsPath);
             if (cachedInfo) {
-              log.debug(`Using cached log info for: ${logFileName}`);
+              log.debug(`Using cached log info for: ${logAbsPath}`);
               state.logActions.setSelectedLogDetails(cachedInfo);
               // Still fetch fresh data in background to update cache
-              api.get_log_details(logFileName).then((logDetails) => {
+              api.get_log_details(logAbsPath).then((logDetails) => {
                 state.logActions.setSelectedLogDetails(logDetails);
-                dbService.writeLogDetails(logFileName, logDetails).catch(() => {
+                dbService.writeLogDetails(logAbsPath, logDetails).catch(() => {
                   // Silently ignore cache errors
                 });
               });
@@ -275,6 +294,16 @@ export const createLogSlice = (
           log.error("Error refreshing log:", error);
           throw error;
         }
+      },
+      setFilteredSampleCount: (count: number) => {
+        set((state) => {
+          state.log.filteredSampleCount = count;
+        });
+      },
+      clearFilteredSampleCount: () => {
+        set((state) => {
+          state.log.filteredSampleCount = undefined;
+        });
       },
     },
   } as const;

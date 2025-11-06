@@ -1,17 +1,59 @@
 ## Unreleased
 
+- OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).
+- OpenAI: Support for `logprobs` and `top_logprobs` in Responses API (note that logprobs are not supported for reasoning models).
+- Grok: Updated provider implementation using `xai_sdk` package (rather than using OpenAI compatible endpoint).
+- Grok: Support for server-side `web_search()` tool.
+- Grok: Support for generating structured outputs (outputs constrained by JSON Schema).
+- Eval Set: Enable optional explicit specification of `eval_set_id` 
+
+## 0.3.144 (05 November 2025)
+
+- Eval Set: Task identifiers can now vary on `GenerateConfig` and `solver` (which enables sweeping over these variables).
+- Eval Logs: Don't resolve attachments within `ModelEvent.call` by default, which prevents O(N) memory footprint for reading transcripts.
+- OpenAI: Update for typing change to `ResponseOutputText` in v2.7.0 of `openai` package.
+- Grok: Correct handling of `reasoning_effort` parameter (only supported by `grok-3-mini` and only `low` and `high`values are supported).
+- Inspect View: Fixed theming issue with the score selector control in VS Code.
+- Inspect View: Improve display of grouped metrics
+- Inspect View: Don't render markdown images in the sample list input, target, or answer.
+- Inspect View: Add Copy UUID button to sample toolbar.
+- Inspect View: Add new samples view which displays a grid of all samples within a given folder of tasks (recursively).
+- Inspect View: Invalidate client side caches for updates to statically deployed versions of the viewer.
+- Inspect View: Fix flash of error that can occur when viewing folders with no eval-set info in statically deployed versions of the viewer.
+
+## 0.3.143 (29 October 2025)
+
+- Google: Correct capture and playback of `thought_signature` in `ContentReasoning` blocks.
+- Anthropic: Set 4k as default max_token limit for Claude 3.5 (same as Claude 3.0).
+- Scoring: Support for using `@scanner` functions as scorers.
+- Bugfix: Prevent condensing of model event `output` during execution (only condense `call`).
+- Bugfix: Defer binding of default value for `logs` in data frame functions.
+
+## 0.3.142 (27 October 2025)
+
+- Google: Distribute citations from web search to individual ContentText parts (rather than concatenating into a single part).
+- Google: Support options (time interval) for Gemini Web Search.
+- Inspect View: Fix performance regression when loading a log view from an S3 bucket.
+- Inspect View: Fix flash of 'No events' message when loading sample transcripts.
+
+## 0.3.141 (27 October 2025)
+
 - OpenAI: Use `responses_store=false` by default (handling reasoning via the "reasoning.encrypted_content" include option).
 - OpenAI: Don't include "metadata" extra body parameter when `responses_store` is False.
 - Anthropic: Increase default `max_tokens` to 32,000 for Claude 4 models.
 - OpenRouter: Classify `JSONDecodeError` as a retry-able infrastructure error.
 - Remove Goodfire model provider (as the goodfire package has been archived/deprecated).
+- Eval logs: Track dirty working tree state in `EvalRevision` (includes `dirty` field indicating uncommitted changes or untracked files at eval time).
 - Inspect View: Display copy button for model events api request and response JSON.
 - Inspect View: Support selecting multiple scorers for display in the sample list.
 - Inspect View: Show multiple scores in sample view.
 - Inspect View: Fix issue where samples would jump around when viewing running evals with high concurrency.
 - Inspect View: Improve log and sample list performance by adding a persistent local cache.
+- Inspect View: Display a message when there are no events to display in a transcript.
 - Bugfix: Correctly resolve relative sandbox config paths in `eval-retry` when CWD differs from task directory.
 - Bugfix: Don't check working time limit when there is a model generation in flight.
+- Bugfix: Fix broken Pydantic @model_validator's that assumed the input was a dict.
+- Bugfix: Fix `run_coroutine` to exit internal catch handler before running the coroutine.
 
 ## 0.3.140 (20 October 2025)
 

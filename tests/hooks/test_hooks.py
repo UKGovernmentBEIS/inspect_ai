@@ -20,6 +20,7 @@ from inspect_ai.hooks._hooks import (
     SampleStart,
     TaskEnd,
     TaskStart,
+    has_api_key_override,
     hooks,
     override_api_key,
 )
@@ -261,6 +262,28 @@ def test_hooks_do_not_need_to_subscribe_to_all_events(
     eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
 
     assert len(hooks_minimal.run_start_events) == 1
+
+
+def test_has_api_key_override_true(mock_hooks: MockHooks) -> None:
+    res = has_api_key_override()
+    assert res is True
+
+
+def test_has_api_key_override_false(hooks_minimal: MockMinimalHooks) -> None:
+    res = has_api_key_override()
+    assert res is False
+
+
+def test_has_api_key_override_no_hooks() -> None:
+    res = has_api_key_override()
+    assert res is False
+
+
+def test_has_api_key_override_multiple_hooks(
+    mock_hooks: MockHooks, hooks_minimal: MockMinimalHooks
+) -> None:
+    res = has_api_key_override()
+    assert res is True
 
 
 def test_api_key_override(mock_hooks: MockHooks) -> None:

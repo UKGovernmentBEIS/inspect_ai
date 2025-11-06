@@ -174,12 +174,16 @@ def view_server_app(
         if client_etag is not None:
             mtime, file_count = parse_log_token(client_etag)
         log_files_response: dict[str, Any] = await get_log_files(
-            log_dir,
+            await _map_file(request, log_dir),
             recursive=recursive,
             fs_options=fs_options,
             mtime=mtime,
             file_count=file_count,
         )
+        log_files_response["files"] = [
+            {**file, "name": await _unmap_file(request, file["name"])}
+            for file in log_files_response["files"]
+        ]
         return InspectJsonResponse(content=log_files_response)
 
     @app.get("/logs")
@@ -199,20 +203,30 @@ def view_server_app(
             return Response(status_code=HTTP_404_NOT_FOUND)
         for file in listing["files"]:
             file["name"] = await _unmap_file(request, file["name"])
+        listing["log_dir"] = await _unmap_file(request, listing["log_dir"])
         return InspectJsonResponse(content=listing)
 
     @app.get("/eval-set")
     async def eval_set(
-        request: Request, log_dir: str = Query(None, alias="dir")
+        request: Request,
+        log_dir: str = Query(None, alias="log_dir"),
+        sub_dir: str = Query(None, alias="dir"),
     ) -> Response:
-        if log_dir:
-            log_dir = default_dir + "/" + log_dir.lstrip("/")
-        elif log_dir is None:
-            log_dir = default_dir
-        await _validate_list(request, log_dir)
+        # resolve the eval-set directory (using the log_dir and dir params)
+        base_dir = log_dir if log_dir else default_dir
+        if sub_dir and base_dir:
+            eval_set_dir = base_dir + "/" + sub_dir.lstrip("/")
+        elif sub_dir:
+            eval_set_dir = sub_dir.lstrip("/")
+        else:
+            eval_set_dir = base_dir
 
+        # validate that the directory can be listed
+        await _validate_list(request, eval_set_dir)
+
+        # return the eval set info for this directory
         eval_set = read_eval_set_info(
-            await _map_file(request, log_dir), fs_options=fs_options
+            await _map_file(request, eval_set_dir), fs_options=fs_options
         )
         return InspectJsonResponse(
             content=eval_set.model_dump(exclude_none=True) if eval_set else None
@@ -330,13 +344,13 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
     return AuthorizationMiddleware
 
 
-class OnlyLogDirAccessPolicy(AccessPolicy):
-    def __init__(self, log_dir: str) -> None:
+class OnlyDirAccessPolicy(AccessPolicy):
+    def __init__(self, dir: str) -> None:
         super().__init__()
-        self.log_dir = log_dir
+        self.dir = dir
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.log_dir) and ".." not in file
+        return file.startswith(self.dir) and ".." not in file
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
@@ -365,7 +379,7 @@ def view_server(
     # setup server
     api = view_server_app(
         mapping_policy=None,
-        access_policy=OnlyLogDirAccessPolicy(log_dir) if not authorization else None,
+        access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
         default_dir=log_dir,
         recursive=recursive,
         fs_options=fs_options,

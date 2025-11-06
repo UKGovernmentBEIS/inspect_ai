@@ -389,7 +389,9 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
 
     @model_validator(mode="before")
     @classmethod
-    def load_config_model(cls, data: dict[str, Any]) -> dict[str, Any]:
+    def load_config_model(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
         type = data["type"]
         config = data.get("config")
         # Pydantic won't know what concrete type to instantiate for config, so

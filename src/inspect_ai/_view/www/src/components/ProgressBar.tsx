@@ -7,12 +7,14 @@ interface ProgressBarProps {
   max: number;
   value: number;
   width?: string;
+  label?: string;
 }
 
 export const ProgressBar: FC<ProgressBarProps> = ({
   min,
   max,
   value,
+  label,
   width = "100px",
 }) => {
   return (
@@ -24,7 +26,7 @@ export const ProgressBar: FC<ProgressBarProps> = ({
         ></div>
       </div>
       <div className={clsx(styles.label, "text-size-smallest")}>
-        {value} / {max}
+        {value} / {max} {label || ""}
       </div>
     </div>
   );

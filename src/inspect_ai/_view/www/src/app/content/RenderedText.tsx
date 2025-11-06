@@ -8,12 +8,13 @@ interface RenderedTextProps {
   style?: CSSProperties;
   className?: string | string[];
   forceRender?: boolean;
+  omitMedia?: boolean;
 }
 
 export const RenderedText = forwardRef<
   HTMLDivElement | HTMLPreElement,
   RenderedTextProps
->(({ markdown, style, className, forceRender }, ref) => {
+>(({ markdown, style, className, forceRender, omitMedia }, ref) => {
   const displayMode = useStore((state) => state.app.displayMode);
   if (forceRender || displayMode === "rendered") {
     return (
@@ -22,6 +23,7 @@ export const RenderedText = forwardRef<
         markdown={markdown}
         style={style}
         className={className}
+        omitMedia={omitMedia}
       />
     );
   } else {

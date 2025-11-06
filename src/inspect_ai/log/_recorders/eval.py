@@ -11,7 +11,7 @@ import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
+from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import to_json_safe
@@ -250,7 +250,7 @@ class EvalRecorder(FileRecorder):
 
                     with zip.open(_sample_filename(id, epoch), "r") as f:
                         return EvalSample.model_validate(
-                            json.load(f), context=DESERIALIZING_CONTEXT
+                            json.load(f), context=get_deserializing_context()
                         )
                 except KeyError:
                     raise IndexError(
@@ -537,7 +537,7 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
             with zip.open(REDUCTIONS_JSON, "r") as f:
                 reductions = [
                     EvalSampleReductions.model_validate(
-                        reduction, context=DESERIALIZING_CONTEXT
+                        reduction, context=get_deserializing_context()
                     )
                     for reduction in json.load(f)
                 ]
@@ -552,7 +552,7 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
                     with zip.open(name, "r") as f:
                         samples.append(
                             EvalSample.model_validate(
-                                json.load(f), context=DESERIALIZING_CONTEXT
+                                json.load(f), context=get_deserializing_context()
                             ),
                         )
             sort_samples(samples)
@@ -588,7 +588,9 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[EvalSampleSummary]:
         summaries_raw = _read_json(zip, SUMMARIES_JSON)
         if isinstance(summaries_raw, list):
             return [
-                EvalSampleSummary.model_validate(value, context=DESERIALIZING_CONTEXT)
+                EvalSampleSummary.model_validate(
+                    value, context=get_deserializing_context()
+                )
                 for value in summaries_raw
             ]
         else:
@@ -605,7 +607,7 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[EvalSampleSummary]:
                 summaries.extend(
                     [
                         EvalSampleSummary.model_validate(
-                            value, context=DESERIALIZING_CONTEXT
+                            value, context=get_deserializing_context()
                         )
                         for value in summary
                     ]
@@ -621,12 +623,16 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
     # first see if the header is here
     if HEADER_JSON in zip.namelist():
         with zip.open(HEADER_JSON, "r") as f:
-            log = EvalLog.model_validate(json.load(f), context=DESERIALIZING_CONTEXT)
+            log = EvalLog.model_validate(
+                json.load(f), context=get_deserializing_context()
+            )
             log.location = location
             return log
     else:
         with zip.open(_journal_path(START_JSON), "r") as f:
-            start = LogStart.model_validate(json.load(f), context=DESERIALIZING_CONTEXT)
+            start = LogStart.model_validate(
+                json.load(f), context=get_deserializing_context()
+            )
         return EvalLog(
             version=start.version, eval=start.eval, plan=start.plan, location=location
         )

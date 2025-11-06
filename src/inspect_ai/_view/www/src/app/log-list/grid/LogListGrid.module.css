@@ -26,14 +26,18 @@
 
 .headerCell {
   padding: 0.1em 0.1em 0.1em 0.6em;
-  font-weight: 600;
-  font-size: 0.875rem;
+  font-weight: 500;
+  font-size: var(--inspect--inspect-font-size-small);
+  color: var(--bs-secondary);
+  height: 1em;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   border-right: 1px solid var(--bs-border-color-translucent);
   position: relative;
   box-sizing: border-box;
+  margin-top: 5px;
+  margin-bottom: 5px;
 }
 
 .headerCell:last-child {
@@ -46,7 +50,7 @@
 }
 
 .sortable:hover {
-  background-color: var(--bs-secondary-bg-subtle);
+  background-color: var(--bs-secondary);
 }
 
 .sortIndicator {

@@ -15,7 +15,7 @@
 }
 
 .eventLink {
-  color: var(--bs-body);
+  color: var(--bs-body-color);
   text-decoration: none;
   cursor: pointer;
 }

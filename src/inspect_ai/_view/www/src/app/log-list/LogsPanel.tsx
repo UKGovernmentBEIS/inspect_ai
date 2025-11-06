@@ -3,22 +3,25 @@ import { FC, KeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
 import { EvalSet } from "../../@types/log";
-import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
-import { useDocumentTitle, useLogs, usePagination } from "../../state/hooks";
+import {
+  useDocumentTitle,
+  useLogs,
+  useLogsListing,
+  usePagination,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
-import { Navbar } from "../navbar/Navbar";
-import { logUrl, useLogRouteParams } from "../routing/url";
+import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
+import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
+import { logsUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import { LogsFilterInput } from "./LogsFilterInput";
 import styles from "./LogsPanel.module.css";
-import { ViewerOptionsButton } from "./ViewerOptionsButton";
-import { ViewerOptionsPopover } from "./ViewerOptionsPopover";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -43,8 +46,8 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const logFiles = useStore((state) => state.logs.logs);
   const evalSet = useStore((state) => state.logs.evalSet);
   const logPreviews = useStore((state) => state.logs.logPreviews);
+  const { filteredCount } = useLogsListing();
 
-  const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.syncing);
 
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
@@ -54,12 +57,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<LogListGridHandle>(null);
-  const optionsRef = useRef<HTMLButtonElement>(null);
-
-  const isShowing = useStore((state) => state.app.dialogs.options);
-  const setShowing = useStore(
-    (state) => state.appActions.setShowingOptionsDialog,
-  );
 
   const { logPath } = useLogRouteParams();
 
@@ -101,7 +98,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       }
       previousWatchedLogs.current = watchedLogs;
     }
-  }, [watchedLogs]);
+  }, [watchedLogs, startPolling, stopPolling]);
 
   // All the items visible in the current directory (might span
   // multiple pages)
@@ -147,7 +144,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             id: fileOrFolderName,
             name: fileOrFolderName,
             type: "file",
-            url: logUrl(path, logDir),
+            url: logsUrl(path, logDir),
             log: logFile,
             logPreview: logPreviews[logFile.name],
           });
@@ -165,7 +162,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
               id: dirName,
               name: dirName,
               type: "folder",
-              url: logUrl(url, logDir),
+              url: logsUrl(url, logDir),
               itemCount: logFiles.filter((file) =>
                 file.name.startsWith(dirname(name)),
               ).length,
@@ -183,7 +180,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       > = collapseLogItems(evalSet, logItems);
 
       return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [logPath, logFiles, logPreviews, evalSet]);
+    }, [currentDir, logFiles, logPreviews, evalSet]);
 
   const progress = useMemo(() => {
     let pending = 0;
@@ -216,7 +213,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     if (currentDir !== loadedDir.current) {
       setPage(0);
     }
-  }, [currentDir]);
+  }, [currentDir, setPage]);
   const loadedDir = useRef<string | undefined>(currentDir);
 
   useEffect(() => {
@@ -248,39 +245,38 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         handleKeyDown(e);
       }}
     >
-      <Navbar>
+      <ApplicationNavbar
+        fnNavigationUrl={logsUrl}
+        currentPath={logPath}
+        showActivity="log"
+      >
         <LogsFilterInput ref={filterRef} />
-        <ViewerOptionsButton
-          showing={isShowing}
-          setShowing={setShowing}
-          ref={optionsRef}
-        />
-        <ViewerOptionsPopover
-          positionEl={optionsRef.current}
-          showing={isShowing}
-          setShowing={setShowing}
-        />
-      </Navbar>
+        <ViewSegmentedControl selectedSegment="logs" />
+      </ApplicationNavbar>
 
-      <ActivityBar animating={!!loading} />
-      <div className={clsx(styles.list, "text-size-smaller")}>
-        <LogListGrid ref={gridRef} items={logItems} />
-      </div>
-      <LogListFooter
-        logDir={currentDir}
-        itemCount={logItems.length}
-        progressText={syncing ? "Syncing data" : undefined}
-        progressBar={
-          progress.total !== progress.complete ? (
-            <ProgressBar
-              min={0}
-              max={progress.total}
-              value={progress.complete}
-              width="100px"
-            />
-          ) : undefined
-        }
-      />
+      <>
+        <div className={clsx(styles.list, "text-size-smaller")}>
+          <LogListGrid ref={gridRef} items={logItems} />
+        </div>
+        <LogListFooter
+          id={kLogsPaginationId}
+          itemCount={logItems.length}
+          filteredCount={filteredCount}
+          progressText={syncing ? "Syncing data" : undefined}
+          paginated={true}
+          pagesize={kDefaultPageSize}
+          progressBar={
+            progress.total !== progress.complete ? (
+              <ProgressBar
+                min={0}
+                max={progress.total}
+                value={progress.complete}
+                width="100px"
+              />
+            ) : undefined
+          }
+        />
+      </>
     </div>
   );
 };

@@ -1,5 +1,4 @@
 .header {
-  border-bottom: solid var(--bs-border-color) 1px;
   background: var(--bs-light);
   display: grid;
   grid-template-columns: 1fr max-content;
@@ -7,6 +6,10 @@
   padding: 0.2em 0.5em;
   --bs-breadcrumb-divider: ">";
   overflow: hidden;
+}
+
+.header.bordered {
+  border-bottom: solid var(--bs-border-color) 1px;
 }
 
 .breadcrumbs {
@@ -45,7 +48,7 @@
 }
 
 .toolbarButton {
-  color: var(--bs-body);
+  color: var(--bs-body-color);
 }
 
 .toolbarButton:hover {

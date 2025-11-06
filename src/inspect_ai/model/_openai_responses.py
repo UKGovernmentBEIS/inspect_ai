@@ -82,6 +82,9 @@ from openai.types.responses.response_output_text import (
     AnnotationFilePath,
     AnnotationURLCitation,
 )
+from openai.types.responses.response_output_text import (
+    Logprob as LogprobResponses,
+)
 from openai.types.responses.response_output_text_param import (
     Annotation as AnnotationParam,
 )
@@ -115,7 +118,14 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_output import ChatCompletionChoice, ModelUsage, StopReason
+from inspect_ai.model._model_output import (
+    ChatCompletionChoice,
+    Logprob,
+    Logprobs,
+    ModelUsage,
+    StopReason,
+    TopLogprob,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -352,10 +362,14 @@ def openai_responses_tools(
 def openai_responses_chat_choices(
     model: str, response: OpenAIResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
-    message, stop_reason = _chat_message_assistant_from_openai_response(
+    message, stop_reason, logprobs = _chat_message_assistant_from_openai_response(
         model, response, tools
     )
-    return [ChatCompletionChoice(message=message, stop_reason=stop_reason)]
+    return [
+        ChatCompletionChoice(
+            message=message, stop_reason=stop_reason, logprobs=logprobs
+        )
+    ]
 
 
 def is_native_tool_configured(
@@ -474,7 +488,7 @@ def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
 
 def _chat_message_assistant_from_openai_response(
     model: str, response: OpenAIResponse, tools: list[ToolInfo]
-) -> tuple[ChatMessageAssistant, StopReason]:
+) -> tuple[ChatMessageAssistant, StopReason, Logprobs | None]:
     """
     Transform OpenAI `Response` into an Inspect `ChatMessageAssistant` and `StopReason`.
 
@@ -496,11 +510,26 @@ def _chat_message_assistant_from_openai_response(
             stop_reason = "stop"
 
     # collect output and tool calls
+    logprobs: Logprobs | None = None
     message_content: list[Content] = []
     tool_calls: list[ToolCall] = []
     for output in response.output:
         match output:
             case ResponseOutputMessage(content=content, id=id):
+                # find logprobs in content if available
+                logprobs_content = next(
+                    (
+                        c
+                        for c in content
+                        if isinstance(c, ResponseOutputText) and c.logprobs is not None
+                    ),
+                    None,
+                )
+                if logprobs_content is not None:
+                    logprobs = _logprobs_from_responses_logprobs(
+                        logprobs_content.logprobs
+                    )
+
                 message_content.extend(
                     [
                         ContentText(
@@ -589,7 +618,32 @@ def _chat_message_assistant_from_openai_response(
             source="generate",
         ),
         stop_reason,
+        logprobs,
     )
+
+
+def _logprobs_from_responses_logprobs(
+    logprobs: list[LogprobResponses] | None,
+) -> Logprobs | None:
+    if logprobs is not None and len(logprobs) > 0:
+        return Logprobs(
+            content=[
+                Logprob(
+                    token=lp.token,
+                    logprob=lp.logprob,
+                    bytes=lp.bytes,
+                    top_logprobs=[
+                        TopLogprob(
+                            token=tlp.token, logprob=tlp.logprob, bytes=tlp.bytes
+                        )
+                        for tlp in lp.top_logprobs
+                    ],
+                )
+                for lp in logprobs
+            ]
+        )
+    else:
+        return None
 
 
 def reasoning_from_responses_reasoning(
@@ -842,7 +896,7 @@ def _openai_input_items_from_chat_message_assistant(
                     ResponseOutputRefusalParam(type="refusal", refusal=text)
                     if refusal
                     else ResponseOutputTextParam(
-                        type="output_text", text=text, annotations=[]
+                        type="output_text", text=text, annotations=[], logprobs=[]
                     )
                 )
 

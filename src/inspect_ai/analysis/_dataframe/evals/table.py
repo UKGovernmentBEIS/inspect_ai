@@ -35,7 +35,7 @@ EVAL_SUFFIX = "_eval"
 
 @overload
 def evals_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = EvalColumns,
     strict: Literal[True] = True,
     quiet: bool | None = None,
@@ -44,7 +44,7 @@ def evals_df(
 
 @overload
 def evals_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = EvalColumns,
     strict: Literal[False] = False,
     quiet: bool | None = None,
@@ -52,7 +52,7 @@ def evals_df(
 
 
 def evals_df(
-    logs: LogPaths = list_eval_logs(),
+    logs: LogPaths | None = None,
     columns: Sequence[Column] = EvalColumns,
     strict: bool = True,
     quiet: bool | None = None,
@@ -77,7 +77,7 @@ def evals_df(
     verify_prerequisites()
 
     # resolve logs
-    log_paths = resolve_logs(logs)
+    log_paths = resolve_logs(logs or list_eval_logs())
 
     # establish progress
     quiet = quiet if quiet is not None else running_in_notebook()

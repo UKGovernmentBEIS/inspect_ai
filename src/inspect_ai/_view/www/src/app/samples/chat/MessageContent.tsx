@@ -172,12 +172,21 @@ const messageRenderers: Record<string, MessageRenderer> = {
     render: (key, content, isLast, _context) => {
       const r = content as ContentReasoning;
 
+      let title = "Reasoning";
       let text = r.reasoning;
       if (r.redacted) {
         text = r.summary || "Reasoning encrypted by model provider.";
+        if (r.summary) {
+          title = "Reasoning (Summary)";
+        }
       } else if (!text) {
         text = r.summary || "Reasoning text not provided.";
+        if (r.summary) {
+          title = "Reasoning (Summary)";
+        }
       }
+
+      // title states
 
       return (
         <div key={key} className={clsx(styles.reasoning, "text-size-small")}>
@@ -188,7 +197,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
               isLast ? "no-last-para-padding" : "",
             )}
           >
-            Reasoning
+            {title}
           </div>
           <ExpandablePanel id={`${key}-reasoning`} collapse={true}>
             <RenderedText markdown={text} />{" "}

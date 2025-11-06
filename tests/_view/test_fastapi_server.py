@@ -17,6 +17,7 @@ import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._view import fastapi_server
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
+from inspect_ai.model._generate_config import GenerateConfig
 
 
 @pytest.fixture
@@ -200,6 +201,8 @@ def test_api_logs(test_client: TestClient):
     assert {"taskid1", "taskid2", "taskid3"} == {
         file["task_id"] for file in api_logs["files"]
     }
+    assert "log_dir" in api_logs
+    assert api_logs["log_dir"] == "eval_set_dir"
 
 
 @pytest.mark.parametrize(
@@ -331,6 +334,7 @@ def test_api_eval_set(test_client: TestClient):
             )
         ],
         all_logs=[],
+        config=GenerateConfig(),
     )
 
     response = test_client.request("GET", f"/eval-set?dir={eval_set_id}")

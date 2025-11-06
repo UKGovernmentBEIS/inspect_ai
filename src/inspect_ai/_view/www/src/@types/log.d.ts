@@ -55,7 +55,9 @@ export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("minimal" | "low" | "medium" | "high") | null;
 export type ReasoningTokens = number | null;
-export type ReasoningSummary = ("concise" | "detailed" | "auto") | null;
+export type ReasoningSummary =
+  | ("none" | "concise" | "detailed" | "auto")
+  | null;
 export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
 export type Name1 = string;
 export type Type1 =
@@ -123,6 +125,7 @@ export type ScoreDisplay = boolean | null;
 export type Type2 = "git";
 export type Origin = string;
 export type Commit = string;
+export type Dirty = boolean | null;
 export type Metadata = {
   [k: string]: unknown;
 } | null;
@@ -1011,6 +1014,7 @@ export interface EvalRevision {
   type: Type2;
   origin: Origin;
   commit: Commit;
+  dirty: Dirty;
 }
 export interface Packages {
   [k: string]: string;

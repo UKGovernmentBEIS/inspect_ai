@@ -3,8 +3,9 @@ import {
   ColumnResizeMode,
   SortingState,
 } from "@tanstack/react-table";
+import { GridState } from "ag-grid-community";
 import { EvalSet } from "../@types/log";
-import { LogsState } from "../app/types";
+import { DisplayedSample, LogsState } from "../app/types";
 import {
   EvalHeader,
   LogDetails,
@@ -13,6 +14,7 @@ import {
 } from "../client/api/types";
 import { DatabaseService } from "../client/database";
 import { createLogger } from "../utils/logger";
+import { isUri, join } from "../utils/uri";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
@@ -29,11 +31,13 @@ export interface LogsSlice {
 
     updateLogDetails: (details: Record<string, LogDetails>) => void;
 
-    setSelectedLogIndex: (index: number) => void;
-
     // Fetch or update logs
+    initLogDir: () => Promise<string | undefined>;
+    ensureReplication: () => Promise<void>;
     syncLogs: () => Promise<LogHandle[]>;
-    selectLogFile: (logUrl: string) => Promise<void>;
+
+    setSelectedLogFile: (logFile: string) => void;
+    clearSelectedLogFile: () => void;
 
     // Cross-file sample operations
     getAllCachedSamples: () => Promise<any[]>;
@@ -55,6 +59,11 @@ export interface LogsSlice {
     setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
     setSelectedRowIndex: (index: number | null) => void;
+
+    setGridState: (gridState: GridState) => void;
+    clearGridState: () => void;
+    setDisplayedSamples: (samples: Array<DisplayedSample>) => void;
+    clearDisplayedSamples: () => void;
   };
 }
 
@@ -63,7 +72,6 @@ const initialState: LogsState = {
   logs: [],
   logPreviews: {},
   logDetails: {},
-  selectedLogIndex: -1,
   selectedLogFile: undefined as string | undefined,
   listing: {},
   pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
@@ -72,6 +80,7 @@ const initialState: LogsState = {
     previewCount: 0,
     detailsCount: 0,
   },
+  samplesListState: {},
 };
 
 export const createLogsSlice = (
@@ -85,17 +94,17 @@ export const createLogsSlice = (
 
     // Actions
     logsActions: {
-      setLogDir: (logDir?: string) =>
+      setLogDir: (logDir?: string) => {
         set((state) => {
-          state.logs.logDir = logDir;
-        }),
+          if (logDir !== state.logs.logDir) {
+            state.logs.logDir = logDir;
+            state.logs.samplesListState.gridState = undefined;
+          }
+        });
+      },
       setLogHandles: (logs: LogHandle[]) =>
         set((state) => {
           state.logs.logs = logs;
-          state.logs.selectedLogFile =
-            state.logs.selectedLogIndex > -1
-              ? logs[state.logs.selectedLogIndex]?.name
-              : undefined;
         }),
       syncLogPreviews: async (logs: LogHandle[]) => {
         const state = get();
@@ -130,22 +139,36 @@ export const createLogsSlice = (
             ...details,
           };
         }),
-
-      setSelectedLogIndex: (selectedLogIndex: number) => {
+      setGridState: (gridState: GridState | undefined) => {
         set((state) => {
-          state.logs.selectedLogIndex = selectedLogIndex;
-          const file = state.logs.logs[selectedLogIndex];
-          state.logs.selectedLogFile = file ? file.name : undefined;
+          state.logs.samplesListState.gridState = gridState;
         });
       },
-      syncLogs: async () => {
+      clearGridState: () => {
+        set((state) => {
+          state.logs.samplesListState.gridState = undefined;
+        });
+      },
+      setDisplayedSamples: (samples: Array<DisplayedSample>) => {
+        const currentDisplaySamples =
+          get().logs.samplesListState.displayedSamples;
+        set((state) => {
+          if (!displaySamplesEqual(currentDisplaySamples, samples)) {
+            state.logs.samplesListState.displayedSamples = samples;
+          }
+        });
+      },
+      clearDisplayedSamples: () => {
+        set((state) => {
+          state.logs.samplesListState.displayedSamples = undefined;
+        });
+      },
+      initLogDir: async () => {
         const api = get().api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return [];
+          return undefined;
         }
-
-        get().appActions.setLoading(true);
 
         // Determine the log directory
         const loadLogDir = async () => {
@@ -160,7 +183,36 @@ export const createLogsSlice = (
         const logDir = await loadLogDir();
         if (get().logs.logDir !== logDir) {
           get().logsActions.setLogDir(logDir);
+        }
+        return logDir;
+      },
+      ensureReplication: async () => {
+        const state = get();
+        if (state.logs.logDir) {
+          await state.logsActions.syncLogs();
+        }
+      },
+      syncLogs: async () => {
+        const api = get().api;
+        if (!api) {
+          console.error("API not initialized in LogsStore");
+          return [];
+        }
 
+        const databaseService = get().databaseService;
+        const useProgress = !!databaseService?.getLogDir();
+        if (useProgress) {
+          get().appActions.setLoading(true);
+        }
+
+        // Determine the log directory
+        const logDir = await get().logsActions.initLogDir();
+
+        // Setup up the database service
+        const initDatabase =
+          !databaseService || databaseService.getLogDir() !== logDir;
+
+        if (initDatabase) {
           // Initialize the database
           const initializeDatabase = async (
             logDir?: string,
@@ -179,14 +231,18 @@ export const createLogsSlice = (
               return databaseService;
             } catch (e) {
               console.log(e);
-              get().appActions.setLoading(false, e as Error);
+              if (useProgress) {
+                get().appActions.setLoading(false, e as Error);
+              }
               return;
             }
           };
 
           // Don't enable syncing if there is no log directory
-          if (!logDir) {
-            get().appActions.setLoading(false);
+          if (!logDir || get().app.singleFileMode) {
+            if (useProgress) {
+              get().appActions.setLoading(false);
+            }
             return [];
           }
 
@@ -208,13 +264,16 @@ export const createLogsSlice = (
               },
               getSelectedLog: () => {
                 const state = get();
-                return state.logs.selectedLogIndex > -1
-                  ? state.logs.logs[state.logs.selectedLogIndex]
-                  : undefined;
+                if (!state.logs.selectedLogFile) {
+                  return undefined;
+                }
+                return state.logs.logs.find((handle) => {
+                  return handle.name.endsWith(state.logs.selectedLogFile!);
+                });
               },
-              setSelectedLogIndex: (index: number) => {
+              setSelectedLogFile: (logFile: string) => {
                 const state = get();
-                state.logsActions.setSelectedLogIndex(index);
+                state.logsActions.setSelectedLogFile(logFile);
               },
               updateLogPreviews: (previews: Record<string, LogPreview>) => {
                 const state = get();
@@ -246,10 +305,12 @@ export const createLogsSlice = (
           );
         }
 
-        get().appActions.setLoading(false);
+        if (useProgress) {
+          get().appActions.setLoading(false);
+        }
 
         // Sync
-        return (await get().replicationService?.sync(true)) || [];
+        return (await get().replicationService?.sync(initDatabase)) || [];
       },
       syncEvalSetInfo: async (logPath?: string) => {
         const api = get().api;
@@ -263,31 +324,35 @@ export const createLogsSlice = (
         });
       },
       // Select a specific log file
-      selectLogFile: async (logUrl: string) => {
+      setSelectedLogFile: async (logFile: string) => {
         const state = get();
-        const index = state.logs.logs.findIndex((val: { name: string }) =>
-          val.name.endsWith(logUrl),
-        );
+        const isInFileList =
+          state.logs.logs.findIndex((val: { name: string }) =>
+            val.name.endsWith(logFile),
+          ) !== -1;
 
-        // It is already loaded
-        if (index > -1) {
-          state.logsActions.setSelectedLogIndex(index);
-        } else {
-          if (state.replicationService?.isReplicating()) {
-            // It isn't yet loaded, so refresh the logs and try to load it from there
-            const logHandles = await state.logsActions.syncLogs();
-            const idx = logHandles.findIndex((file) =>
-              file.name.endsWith(logUrl),
+        if (!isInFileList) {
+          if (
+            state.replicationService?.isReplicating() &&
+            !state.app.singleFileMode
+          ) {
+            await state.logsActions.syncLogs();
+            const logHandle = state.logs.logs.find((val: { name: string }) =>
+              val.name.endsWith(logFile),
             );
-
-            state.logsActions.setSelectedLogIndex(
-              idx !== undefined && idx > -1 ? idx : 0,
-            );
+            if (!logHandle) {
+              throw new Error(`Log file not found: ${logFile}`);
+            }
           } else {
-            state.logsActions.setLogHandles([{ name: logUrl }]);
-            state.logsActions.setSelectedLogIndex(0);
+            state.logsActions.setLogHandles([{ name: logFile }]);
           }
         }
+        set((state) => {
+          const absoluteLogfile = isUri(logFile)
+            ? logFile
+            : join(logFile, state.logs.logDir);
+          state.logs.selectedLogFile = absoluteLogfile;
+        });
       },
       setSorting: (sorting: SortingState) => {
         set((state) => {
@@ -337,6 +402,12 @@ export const createLogsSlice = (
           state.logs.listing.selectedRowIndex = index;
         });
       },
+      clearSelectedLogFile: () => {
+        set((state) => {
+          state.logs.selectedLogFile = undefined;
+        });
+      },
+
       // Cross-file sample operations
       getAllCachedSamples: async () => {
         try {
@@ -391,4 +462,24 @@ export const initializeLogsSlice = <T extends LogsSlice>(
       state.logs = initialState;
     }
   });
+};
+
+const displaySamplesEqual = (
+  a: DisplayedSample[] | undefined,
+  b: DisplayedSample[] | undefined,
+): boolean => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].logFile !== b[i].logFile ||
+      a[i].sampleId !== b[i].sampleId ||
+      a[i].epoch !== b[i].epoch
+    ) {
+      return false;
+    }
+  }
+  return true;
 };

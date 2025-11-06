@@ -63,9 +63,9 @@ class LoggingMessage(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def convert_log_levels(
-        cls: Type["LoggingMessage"], values: dict[str, Any]
-    ) -> dict[str, Any]:
+    def convert_log_levels(cls: Type["LoggingMessage"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         if "level" in values:
             level = values["level"]
             if level == "tools" or level == "sandbox":

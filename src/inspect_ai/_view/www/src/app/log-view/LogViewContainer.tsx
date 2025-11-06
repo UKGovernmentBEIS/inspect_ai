@@ -10,7 +10,7 @@ import {
 } from "../../state/hooks";
 import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
-import { baseUrl, sampleUrl, useLogRouteParams } from "../routing/url";
+import { baseUrl, logSamplesUrl, useLogRouteParams } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
 
 /**
@@ -31,11 +31,9 @@ export const LogViewContainer: FC = () => {
   );
   const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
 
-  const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-
   const selectSample = useStore((state) => state.logActions.selectSample);
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
   );
 
   const clearSelectedLogSummary = useStore(
@@ -68,7 +66,12 @@ export const LogViewContainer: FC = () => {
       // Find the sample with the matching UUID
       const sample = sampleSummaries.find((s) => s.uuid === sampleUuid);
       if (sample) {
-        const url = sampleUrl(logPath, sample.id, sample.epoch, sampleTabId);
+        const url = logSamplesUrl(
+          logPath,
+          sample.id,
+          sample.epoch,
+          sampleTabId,
+        );
         const finalUrl = searchParams.toString()
           ? `${url}?${searchParams.toString()}`
           : url;
@@ -91,11 +94,15 @@ export const LogViewContainer: FC = () => {
   }, [initialState, evalSpec]);
 
   const prevLogPath = usePrevious<string | undefined>(logPath);
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
+  const initLogDir = useStore((state) => state.logsActions.initLogDir);
 
   useEffect(() => {
     const loadLogFromPath = async () => {
       if (logPath) {
-        await selectLogFile(logPath);
+        await initLogDir();
+        setSelectedLogFile(logPath);
+        void syncLogs();
 
         // Set the tab if specified in the URL
         if (tabId) {
@@ -116,7 +123,7 @@ export const LogViewContainer: FC = () => {
     };
 
     loadLogFromPath();
-  }, [logPath, tabId, selectLogFile, setWorkspaceTab, setSelectedLogIndex]);
+  }, [logPath, tabId, setSelectedLogFile, setWorkspaceTab]);
 
   // Handle sample selection from URL params
   useEffect(() => {

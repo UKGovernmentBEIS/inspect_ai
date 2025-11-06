@@ -439,13 +439,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--logprobs",
         type=bool,
         is_flag=True,
-        help="Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.",
+        help="Return log probabilities of the output tokens. OpenAI, Google, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.",
         envvar="INSPECT_EVAL_LOGPROBS",
     )
     @click.option(
         "--top-logprobs",
         type=int,
-        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only.",
+        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, TogetherAI, Huggingface, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(
@@ -490,8 +490,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--reasoning-summary",
-        type=click.Choice(["concise", "detailed", "auto"]),
-        help="Provide summary of reasoning steps (defaults to no summary). Use 'auto' to access the most detailed summarizer available for the current model. OpenAI reasoning models only.",
+        type=click.Choice(["none", "concise", "detailed", "auto"]),
+        help="Provide summary of reasoning steps (OpenAI reasoning models only). Use 'auto' to access the most detailed summarizer available for the current model (defaults to 'auto' if your organization is verified by OpenAI).",
         envvar="INSPECT_EVAL_REASONING_SUMMARY",
     )
     @click.option(
@@ -590,7 +590,7 @@ def eval_command(
     cache_prompt: str | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
-    reasoning_summary: Literal["concise", "detailed", "auto"] | None,
+    reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
     batch: int | str | None,
@@ -725,6 +725,12 @@ def eval_command(
     is_flag=True,
     help="Do not fail if the log-dir contains files that are not part of the eval set.",
 )
+@click.option(
+    "--id",
+    "eval_set_id",
+    type=str,
+    help="ID for the eval set. If not specified, a unique ID will be generated.",
+)
 @eval_options
 @click.pass_context
 def eval_set_command(
@@ -780,7 +786,7 @@ def eval_set_command(
     cache_prompt: str | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
-    reasoning_summary: Literal["concise", "detailed", "auto"] | None,
+    reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
     batch: int | str | None,
@@ -808,6 +814,7 @@ def eval_set_command(
     log_dir_allow_dirty: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
+    eval_set_id: str | None,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks with retries.
@@ -877,6 +884,7 @@ def eval_set_command(
         bundle_dir=bundle_dir,
         bundle_overwrite=True if bundle_overwrite else False,
         log_dir_allow_dirty=log_dir_allow_dirty,
+        eval_set_id=eval_set_id,
         **config,
     )
 
@@ -940,6 +948,7 @@ def eval_exec(
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
+    eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
@@ -1055,6 +1064,7 @@ def eval_exec(
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
+        params["eval_set_id"] = eval_set_id
         success, _ = eval_set(**params)
         return success
     else:

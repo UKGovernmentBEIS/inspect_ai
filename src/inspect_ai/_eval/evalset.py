@@ -17,6 +17,8 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._display import display as display_manager
+from inspect_ai._eval.task.log import plan_to_eval_plan
+from inspect_ai._eval.task.run import resolve_plan
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, file, filesystem
@@ -113,6 +115,7 @@ def eval_set(
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
+    eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -207,6 +210,7 @@ def eval_set(
         log_dir_allow_dirty: If True, allow the log directory to contain
             unrelated logs. If False, ensure that the log directory only contains logs
             for tasks in this eval set (defaults to False).
+        eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
         **kwargs: Model generation options.
 
     Returns:
@@ -300,7 +304,7 @@ def eval_set(
     fs.mkdir(log_dir, exist_ok=True)
 
     # get eval set id
-    eval_set_id = eval_set_id_for_log_dir(log_dir)
+    eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
 
     # resolve some parameters
     retry_connections = retry_connections or 1.0
@@ -346,13 +350,14 @@ def eval_set(
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
+        config = GenerateConfig(**kwargs)
         # resolve tasks
         resolved_tasks, _ = eval_resolve_tasks(
             tasks,
             task_args,
             models,
             model_roles,
-            GenerateConfig(**kwargs),
+            config,
             approval,
             sandbox,
             sample_shuffle,
@@ -367,20 +372,20 @@ def eval_set(
         #  (1) All tasks have a unique identifier
         #  (2) All logs have identifiers that map to tasks
         all_logs = validate_eval_set_prerequisites(
-            resolved_tasks, all_logs, log_dir_allow_dirty
+            resolved_tasks, all_logs, log_dir_allow_dirty, config
         )
 
         # write eval-set info containing data about
         # all the tasks that are a part of this eval set
         # (include all tasks, not just tasks that need to be
         # run in this pass)
-        write_eval_set_info(eval_set_id, log_dir, resolved_tasks, all_logs)
+        write_eval_set_info(eval_set_id, log_dir, resolved_tasks, all_logs, config)
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         # for those that haven't run, schedule them into models => tasks groups
         log_task_identifiers = [log.task_identifier for log in all_logs]
-        all_tasks = [(task_identifier(task), task) for task in resolved_tasks]
+        all_tasks = [(task_identifier(task, config), task) for task in resolved_tasks]
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
@@ -414,13 +419,13 @@ def eval_set(
                 failed_tasks = [
                     task
                     for task in resolved_tasks
-                    if task_identifier(task) in failed_task_identifiers
+                    if task_identifier(task, config) in failed_task_identifiers
                 ]
 
                 # run previous tasks (no models passed b/c previous task already carries its model)
                 retried_logs = run_eval(
                     eval_set_id=eval_set_id,
-                    tasks=as_previous_tasks(failed_tasks, failed_logs),
+                    tasks=as_previous_tasks(failed_tasks, failed_logs, config),
                 )
 
                 # return success
@@ -470,26 +475,32 @@ def eval_set(
     return success, results
 
 
-def eval_set_id_for_log_dir(log_dir: str) -> str:
+def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
     EVAL_SET_ID_FILE = ".eval-set-id"
     fs = filesystem(log_dir)
     eval_set_id_file = f"{log_dir}{fs.sep}{EVAL_SET_ID_FILE}"
     if fs.exists(eval_set_id_file):
         with file(eval_set_id_file, "r") as f:
-            return f.read().strip()
-    else:
+            eval_set_id_existing = f.read().strip()
+            if eval_set_id and eval_set_id != eval_set_id_existing:
+                raise PrerequisiteError(
+                    f"[bold]ERROR[/bold]: The eval set ID '{eval_set_id}' is not the same as the existing eval set ID '{eval_set_id_existing}'."
+                )
+            return eval_set_id_existing
+
+    if not eval_set_id:
         eval_set_id = uuid()
-        with file(eval_set_id_file, "w") as f:
-            f.write(eval_set_id)
-        return eval_set_id
+    with file(eval_set_id_file, "w") as f:
+        f.write(eval_set_id)
+    return eval_set_id
 
 
 # convert resolved tasks to previous tasks
 def as_previous_tasks(
-    tasks: list[ResolvedTask], failed_logs: list[Log]
+    tasks: list[ResolvedTask], failed_logs: list[Log], config: GenerateConfig
 ) -> list[PreviousTask]:
     def task_to_failed_log(task: ResolvedTask) -> Log:
-        resolved_task_identifier = task_identifier(task)
+        resolved_task_identifier = task_identifier(task, config)
         return next(
             log
             for log in failed_logs
@@ -536,7 +547,7 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 def list_all_eval_logs(log_dir: str) -> list[Log]:
     log_files = list_eval_logs(log_dir)
     log_headers = read_eval_log_headers(log_files)
-    task_identifiers = [task_identifier(log_header) for log_header in log_headers]
+    task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
     return [
         Log(info=info, header=header, task_identifier=task_identifier)
         for info, header, task_identifier in zip(
@@ -648,11 +659,12 @@ def validate_eval_set_prerequisites(
     resolved_tasks: list[ResolvedTask],
     all_logs: list[Log],
     log_dir_allow_dirty: bool,
+    config: GenerateConfig,
 ) -> list[Log]:
     # do all resolved tasks have unique identfiers?
     task_identifiers: Set[str] = set()
     for task in resolved_tasks:
-        identifier = task_identifier(task)
+        identifier = task_identifier(task, config)
         if identifier in task_identifiers:
             raise PrerequisiteError(
                 f"[bold]ERROR[/bold]: The task '{task.task.name}' is not distinct.\n\nTasks in an eval_set must have distinct names OR use the @task decorator and have distinct combinations of name and task args. Solvers passed to tasks should also use the @solver decorator."
@@ -675,47 +687,68 @@ def validate_eval_set_prerequisites(
         return all_logs
 
 
+# these generate config fields should not affect task identity
+_GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
+    "max_retries",
+    "timeout",
+    "attempt_timeout",
+    "max_connections",
+    "batch",
+}
+
+
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
-def task_identifier(task: ResolvedTask | EvalLog) -> str:
+def task_identifier(
+    task: ResolvedTask | EvalLog, eval_set_config: GenerateConfig | None
+) -> str:
     if isinstance(task, ResolvedTask):
+        assert eval_set_config is not None, (
+            "eval_set_config must be provided for ResolvedTask"
+        )
         task_file = task.task_file or ""
         task_name = task.task.name
         task_args = task.task_args
         model = str(task.model)
+        model_generate_config = task.model.config
         model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
+        plan = resolve_plan(task.task, task.task.solver)
+        eval_plan = plan_to_eval_plan(plan, task.task.config.merge(eval_set_config))
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
         task_args = task.eval.task_args_passed
         model = str(task.eval.model)
+        model_generate_config = task.eval.model_generate_config
         model_roles = task.eval.model_roles or {}
+        eval_plan = task.plan
 
     # hash for task args
     task_args_hash = hashlib.sha256(
         to_json(task_args, exclude_none=True, fallback=lambda _x: None)
     ).hexdigest()
 
+    # hash for eval plan
+    additional_hash_input = to_json_safe(
+        eval_plan,
+        exclude={"config": _GENERATE_CONFIG_FIELDS_TO_EXCLUDE},
+    )
+
+    # hash for model generate config
+    additional_hash_input += to_json_safe(
+        model_generate_config,
+        exclude=_GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
+    )
+
     # hash for model roles
     if len(model_roles):
-        model = (
-            model
-            + "/"
-            + hashlib.sha256(
-                to_json(model_roles, exclude_none=True, fallback=lambda _x: None)
-            ).hexdigest()
-        )
+        additional_hash_input += to_json_safe(model_roles)
+
+    additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
     if task_file:
-        return f"{task_file}@{task_name}#{task_args_hash}/{model}"
+        return f"{task_file}@{task_name}#{task_args_hash}/{model}/{additional_hash}"
     else:
-        return f"{task_name}#{task_args_hash}/{model}"
-
-
-def task_identifier_without_model(identifier: str) -> str:
-    parts = identifier.split("/")
-    parts = parts[:-2]
-    identifier = "/".join(parts)
-    return identifier
+        return f"{task_name}#{task_args_hash}/{model}/{additional_hash}"
 
 
 class ModelList:
@@ -774,7 +807,9 @@ class EvalSet(BaseModel):
     tasks: list[EvalSetTask]
 
 
-def to_eval_set_task(task: ResolvedTask, all_logs: list[Log]) -> EvalSetTask:
+def to_eval_set_task(
+    task: ResolvedTask, all_logs: list[Log], config: GenerateConfig
+) -> EvalSetTask:
     # resolve core model info
     model_name = str(ModelName(task.model))
     model_args = task.model.model_args
@@ -785,7 +820,7 @@ def to_eval_set_task(task: ResolvedTask, all_logs: list[Log]) -> EvalSetTask:
     )
 
     # see if there an existing task_id that should be used for this
-    eval_set_identifier = task_identifier(task)
+    eval_set_identifier = task_identifier(task, config)
     previous_task_ids = [
         log.info.task_id
         for log in all_logs
@@ -799,7 +834,7 @@ def to_eval_set_task(task: ResolvedTask, all_logs: list[Log]) -> EvalSetTask:
 
     return EvalSetTask(
         name=task.task.name,
-        task_id=existing_task_id or task.id or task_identifier(task),
+        task_id=existing_task_id or task.id or task_identifier(task, config),
         task_file=task.task_file,
         task_args=task.task_args,
         model=model_name,
@@ -809,9 +844,12 @@ def to_eval_set_task(task: ResolvedTask, all_logs: list[Log]) -> EvalSetTask:
     )
 
 
-def to_eval_set(id: str, tasks: list[ResolvedTask], all_logs: list[Log]) -> EvalSet:
+def to_eval_set(
+    id: str, tasks: list[ResolvedTask], all_logs: list[Log], config: GenerateConfig
+) -> EvalSet:
     return EvalSet(
-        eval_set_id=id, tasks=[to_eval_set_task(task, all_logs) for task in tasks]
+        eval_set_id=id,
+        tasks=[to_eval_set_task(task, all_logs, config) for task in tasks],
     )
 
 
@@ -820,6 +858,7 @@ def write_eval_set_info(
     log_dir: str,
     tasks: list[ResolvedTask],
     all_logs: list[Log],
+    config: GenerateConfig,
     fs_options: dict[str, Any] = {},
 ) -> None:
     # resolve log dir to full path
@@ -827,7 +866,7 @@ def write_eval_set_info(
     log_dir = fs.info(log_dir).name
 
     # get info
-    eval_set_info = to_eval_set(eval_set_id, tasks, all_logs)
+    eval_set_info = to_eval_set(eval_set_id, tasks, all_logs, config)
 
     # form target path and write
     manifest = f"{log_dir}{fs.sep}eval-set.json"

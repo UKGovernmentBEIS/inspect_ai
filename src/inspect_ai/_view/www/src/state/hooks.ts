@@ -494,8 +494,8 @@ export const usePrismHighlight = (
 };
 
 export const useSetSelectedLogIndex = () => {
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
   );
   const clearSelectedSample = useStore(
     (state) => state.sampleActions.clearSelectedSample,
@@ -506,16 +506,20 @@ export const useSetSelectedLogIndex = () => {
   const clearCollapsedEvents = useStore(
     (state) => state.sampleActions.clearCollapsedEvents,
   );
+  const allLogFiles = useStore((state) => state.logs.logs);
 
   return useCallback(
     (index: number) => {
       clearCollapsedEvents();
       clearSelectedSample();
       clearSelectedLogDetails();
-      setSelectedLogIndex(index);
+
+      const logHandle = allLogFiles[index];
+      setSelectedLogFile(logHandle.name);
     },
     [
-      setSelectedLogIndex,
+      allLogFiles,
+      setSelectedLogFile,
       clearSelectedLogDetails,
       clearSelectedSample,
       clearCollapsedEvents,
@@ -594,15 +598,11 @@ export const useLogs = () => {
   const loadLogs = useCallback(
     async (logPath?: string) => {
       const exec = async () => {
-        setLoading(true);
-
         // Sync logs
         await syncLogs();
 
         // Sync eval set info
         await syncEvalSetInfo(logPath);
-
-        setLoading(false);
       };
       exec().catch((e) => {
         log.error("Error loading logs", e);
