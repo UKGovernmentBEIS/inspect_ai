@@ -185,6 +185,7 @@ dev = [
   "trio",
   "pandas-stubs",
   "pyarrow-stubs",
+  "types-grpcio",
   "types-Markdown",
   "types-PyYAML",
   "types-beautifulsoup4",
@@ -196,6 +197,7 @@ dev = [
   "types-protobuf",
   "types-psutil",
   "types-python-dateutil",
+  "xai_sdk",
   "uvicorn",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]

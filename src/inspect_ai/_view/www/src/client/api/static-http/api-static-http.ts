@@ -85,8 +85,17 @@ function staticHttpApiForLog(logInfo: {
       if (dir) {
         dirSegments.push(dir);
       }
+
       return await fetchJsonFile<EvalSet>(
         joinURI(...dirSegments, "eval-set.json"),
+        (response) => {
+          if (response.status === 404) {
+            // Couldn't find a header file
+            return true;
+          } else {
+            return false;
+          }
+        },
       );
     },
     log_message: async (log_file: string, message: string) => {

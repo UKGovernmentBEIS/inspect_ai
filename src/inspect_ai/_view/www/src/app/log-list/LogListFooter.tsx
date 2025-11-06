@@ -26,8 +26,6 @@ export const LogListFooter: FC<LogListFooterProps> = ({
   // Get pagination info from the store
   const { page, itemsPerPage } = usePagination(id, pagesize || itemCount);
 
-  console.log({ progressBar });
-
   // Get filtered count from the store
   const effectiveItemCount = filteredCount ?? itemCount;
 

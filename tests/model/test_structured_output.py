@@ -2,6 +2,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from test_helpers.utils import (
     skip_if_no_google,
+    skip_if_no_grok,
     skip_if_no_mistral,
     skip_if_no_openai,
 )
@@ -165,3 +166,9 @@ def test_google_structured_output():
 def test_mistral_structured_output():
     check_color_structured_output("mistral/mistral-large-latest")
     check_nested_pydantic_output("mistral/mistral-large-latest")
+
+
+@skip_if_no_grok
+def test_grok_structured_output():
+    check_color_structured_output("grok/grok-4-fast-reasoning")
+    check_nested_pydantic_output("grok/grok-4-fast-reasoning")

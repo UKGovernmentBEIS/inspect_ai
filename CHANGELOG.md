@@ -1,12 +1,22 @@
 ## Unreleased
 
+- Grok: Updated provider implementation using `xai_sdk` package (rather than using OpenAI compatible endpoint).
+- Grok: Support for server-side `web_search()` tool.
+- Grok: Support for generating structured outputs (outputs constrained by JSON Schema).
+
+## 0.3.144 (05 November 2025)
+
 - Eval Set: Task identifiers can now vary on `GenerateConfig` and `solver` (which enables sweeping over these variables).
 - Eval Logs: Don't resolve attachments within `ModelEvent.call` by default, which prevents O(N) memory footprint for reading transcripts.
+- OpenAI: Update for typing change to `ResponseOutputText` in v2.7.0 of `openai` package.
+- Grok: Correct handling of `reasoning_effort` parameter (only supported by `grok-3-mini` and only `low` and `high`values are supported).
 - Inspect View: Fixed theming issue with the score selector control in VS Code.
 - Inspect View: Improve display of grouped metrics
 - Inspect View: Don't render markdown images in the sample list input, target, or answer.
 - Inspect View: Add Copy UUID button to sample toolbar.
 - Inspect View: Add new samples view which displays a grid of all samples within a given folder of tasks (recursively).
+- Inspect View: Invalidate client side caches for updates to statically deployed versions of the viewer.
+- Inspect View: Fix flash of error that can occur when viewing folders with no eval-set info in statically deployed versions of the viewer.
 
 ## 0.3.143 (29 October 2025)
 
