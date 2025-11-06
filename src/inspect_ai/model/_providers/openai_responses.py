@@ -287,8 +287,8 @@ def completion_params_responses(
         reasoning: dict[str, str] = {}
         if config.reasoning_effort is not None:
             reasoning["effort"] = config.reasoning_effort
-        if config.reasoning_summary is not None:
-            reasoning["summary"] = config.reasoning_summary
+        if config.reasoning_summary != "none":
+            reasoning["summary"] = config.reasoning_summary or "auto"
         if len(reasoning) > 0:
             params["reasoning"] = reasoning
     if config.response_schema is not None:

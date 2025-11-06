@@ -490,8 +490,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--reasoning-summary",
-        type=click.Choice(["concise", "detailed", "auto"]),
-        help="Provide summary of reasoning steps (defaults to no summary). Use 'auto' to access the most detailed summarizer available for the current model. OpenAI reasoning models only.",
+        type=click.Choice(["none", "concise", "detailed", "auto"]),
+        help="Provide summary of reasoning steps (OpenAI reasoning models only). Use 'auto' to access the most detailed summarizer available for the current model (defaults to 'auto' if your organization is verified by OpenAI).",
         envvar="INSPECT_EVAL_REASONING_SUMMARY",
     )
     @click.option(
@@ -590,7 +590,7 @@ def eval_command(
     cache_prompt: str | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
-    reasoning_summary: Literal["concise", "detailed", "auto"] | None,
+    reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
     batch: int | str | None,
@@ -780,7 +780,7 @@ def eval_set_command(
     cache_prompt: str | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
-    reasoning_summary: Literal["concise", "detailed", "auto"] | None,
+    reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
     batch: int | str | None,
