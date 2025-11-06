@@ -240,7 +240,9 @@ def completion_params_responses(
     if responses_store is not True:
         params["store"] = False
         if model_info.has_reasoning_options() or model_info.is_computer_use_preview():
-            params["include"] = ["reasoning.encrypted_content"]
+            if "include" not in params:
+                params["include"] = []
+            params["include"].append("reasoning.encrypted_content")
 
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
@@ -273,9 +275,11 @@ def completion_params_responses(
     if config.num_choices is not None:
         unsupported_warning("num_choices")
     if config.logprobs is not None:
-        unsupported_warning("logprobs")
+        if "include" not in params:
+            params["include"] = []
+        params["include"].append("message.output_text.logprobs")
     if config.top_logprobs is not None:
-        unsupported_warning("top_logprobs")
+        params["top_logprobs"] = config.top_logprobs
     if (
         tools
         and config.parallel_tool_calls is not None
