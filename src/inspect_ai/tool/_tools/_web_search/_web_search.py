@@ -18,7 +18,15 @@ from ._tavily import TavilyOptions, tavily_search_provider
 from ._web_search_provider import SearchProvider
 
 WebSearchProvider: TypeAlias = Literal[
-    "grok", "gemini", "openai", "anthropic", "perplexity", "tavily", "google", "exa"
+    "grok",
+    "gemini",
+    "openai",
+    "anthropic",
+    "mistral",
+    "perplexity",
+    "tavily",
+    "google",
+    "exa",
 ]
 valid_providers = set(get_args(WebSearchProvider))
 
@@ -36,7 +44,7 @@ class WebSearchProviders(TypedDict, total=False):
 
     The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
 
-    -   Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`, and `"perplexity"` - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
+    -   Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`, `"mistral"`, and `"perplexity"` - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
 
     -   External providers: `"tavily"`, `"exa"`, and `"google"`. These are external services that work with any model and require separate accounts and API keys. Note that "google" is different from "gemini" - "google" refers to Google's Programmable Search Engine service, while "gemini" refers to Google's built-in search capability for Gemini models.
 
@@ -54,6 +62,9 @@ class WebSearchProviders(TypedDict, total=False):
 
     gemini: dict[str, Any] | Literal[True]
     """Use Gemini internal provider. For available options see <https://ai.google.dev/gemini-api/docs/google-search>."""
+
+    mistral: dict[str, Any] | Literal[True]
+    """Use mistral internal provider. For documentation see <https://docs.mistral.ai/agents/tools/built-in/websearch>."""
 
     perplexity: dict[str, Any] | Literal[True]
     """Use Perplexity internal provider. For available options see <https://docs.perplexity.ai/api-reference/chat-completions-post>"""
@@ -73,6 +84,7 @@ class _NormalizedProviders(TypedDict, total=False):
     anthropic: dict[str, Any]
     grok: dict[str, Any]
     gemini: dict[str, Any]
+    mistral: dict[str, Any]
     perplexity: dict[str, Any]
     tavily: dict[str, Any]
     google: dict[str, Any]
@@ -100,7 +112,7 @@ def web_search(
     Web searches are executed using a provider. Providers are split
     into two categories:
 
-    - Internal providers: "openai", "anthropic", "grok", "gemini", "perplexity".
+    - Internal providers: "openai", "anthropic", "grok", "gemini", "mistral", "perplexity".
       These use the model's built-in search capability and do not require separate
       API keys. These work only for their respective model provider (e.g. the
       "openai" search provider works only for `openai/*` models).
@@ -117,8 +129,8 @@ def web_search(
 
     Args:
       providers: Configuration for the search providers to use. Currently supported
-        providers are "openai", "anthropic", "perplexity", "tavily", "gemini", "grok",
-        "google", and "exa". The `providers` parameter supports several formats
+        providers are "openai", "anthropic", "perplexity", "mistral", "tavily", "gemini",
+        "grok", "google", and "exa". The `providers` parameter supports several formats
         based on either a `str` specifying a provider or a `dict` whose keys are
         the provider names and whose values are the provider-specific options. A
         single value or a list of these can be passed. This arg is optional just
@@ -157,6 +169,9 @@ def web_search(
 
         - perplexity: Supports Perplexity's web search parameters.
           See https://docs.perplexity.ai/api-reference/chat-completions-post
+
+        - mistral: No options currently available.
+          See https://docs.mistral.ai/agents/tools/built-in/websearch
 
         - tavily: Supports options like `max_results`, `search_depth`, etc.
           See https://docs.tavily.com/documentation/api-reference/endpoint/search

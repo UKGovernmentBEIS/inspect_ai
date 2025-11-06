@@ -3,7 +3,9 @@ import json
 import os
 from typing import Any, Literal
 
+import anyio
 from mistralai import (
+    AgentCreationRequestTools,
     AudioChunk,
     ContentChunk,
     DocumentURLChunk,
@@ -17,9 +19,7 @@ from mistralai import (
     TextChunk,
     ThinkChunk,
 )
-from mistralai.models import (
-    AssistantMessage as MistralAssistantMessage,
-)
+from mistralai.models import AssistantMessage as MistralAssistantMessage
 from mistralai.models import (
     ChatCompletionChoice as MistralChatCompletionChoice,
 )
@@ -30,7 +30,7 @@ from mistralai.models import (
 from mistralai.models import (
     ResponseFormat as MistralResponseFormat,
 )
-from mistralai.models import SDKError
+from mistralai.models import SDKError, WebSearchTool
 from mistralai.models import SystemMessage as MistralSystemMessage
 from mistralai.models import Tool as MistralTool
 from mistralai.models import ToolCall as MistralToolCall
@@ -140,6 +140,9 @@ class MistralAPI(ModelAPI):
 
         self.model_args = model_args
 
+        self._agent_ids: dict[str, str] = {}
+        self._agent_lock = anyio.Lock()
+
     def is_azure(self) -> bool:
         return self.service == "azure"
 
@@ -152,13 +155,16 @@ class MistralAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
         with Mistral(api_key=self.api_key, **self.model_args) as client:
+            # partition tools and see if we need an agent for the server tools
+            server_tools, tools = partition_tools(tools)
+            agent_id = await self.agent_id_for_server_tools(client, server_tools)
+
             # create time tracker
             http_hooks = HttpxHooks(client.sdk_configuration.async_client)
 
             # build request
             request_id = http_hooks.start_request()
             request: dict[str, Any] = dict(
-                model=self.service_model_name(),
                 messages=await mistral_chat_messages(input),
                 tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
                 tool_choice=(
@@ -166,6 +172,11 @@ class MistralAPI(ModelAPI):
                 ),
                 http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             )
+            # set agent or model as appropriate
+            if agent_id is not None:
+                request["agent_id"] = agent_id
+            else:
+                request["model"] = self.service_model_name()
             if config.temperature is not None:
                 request["temperature"] = config.temperature
             if config.top_p is not None:
@@ -206,7 +217,10 @@ class MistralAPI(ModelAPI):
 
             # send request
             try:
-                completion = await client.chat.complete_async(**request)
+                if "agent_id" in request:
+                    completion = await client.agents.complete_async(**request)
+                else:
+                    completion = await client.chat.complete_async(**request)
                 response = completion.model_dump()
             except SDKError as ex:
                 if ex.status_code == 400:
@@ -225,14 +239,14 @@ class MistralAPI(ModelAPI):
                 model=completion.model,
                 choices=choices,
                 usage=ModelUsage(
-                    input_tokens=completion.usage.prompt_tokens,
+                    input_tokens=completion.usage.prompt_tokens or 0,
                     output_tokens=(
                         completion.usage.completion_tokens
                         if completion.usage.completion_tokens
-                        else completion.usage.total_tokens
-                        - completion.usage.prompt_tokens
+                        else (completion.usage.total_tokens or 0)
+                        - (completion.usage.prompt_tokens or 0)
                     ),
-                    total_tokens=completion.usage.total_tokens,
+                    total_tokens=completion.usage.total_tokens or 0,
                 ),
             ), model_call()
 
@@ -273,6 +287,61 @@ class MistralAPI(ModelAPI):
             )
         else:
             return ex
+
+    async def agent_id_for_server_tools(
+        self, client: Mistral, server_tools: list[ToolInfo]
+    ) -> str | None:
+        agent_tools: list[tuple[str, AgentCreationRequestTools]] = []
+        for tool in server_tools:
+            if tool.name == "web_search":
+                agent_tools.append(("ws", WebSearchTool()))
+        if len(agent_tools) > 0:
+            # determine agent name
+            agent_name = f"inspect_agent_{self.service_model_name()}-{'-'.join(t[0] for t in agent_tools)}"
+
+            # do we have an id for this already cached?
+            agent_id = self._agent_ids.get(agent_name, None)
+            if agent_id is not None:
+                return agent_id
+
+            # list agents to find one with this name
+            async with self._agent_lock:
+                # check again after acquiring lock (another client may
+                # have populated the cache while we were waiting)
+                agent_id = self._agent_ids.get(agent_name, None)
+                if agent_id is not None:
+                    return agent_id
+
+                agents = await client.beta.agents.list_async()
+                for agent in agents:
+                    if agent.name == agent_name:
+                        self._agent_ids[agent_name] = agent.id
+                        return agent.id
+
+                # we need to create a new agent
+                agent = await client.beta.agents.create_async(
+                    model=self.service_model_name(),
+                    name=agent_name,
+                    description=f"Agent for Inspect AI evals using {self.service_model_name()} with server side tools "
+                    + f"{', '.join([t[1].type or '' for t in agent_tools])}",
+                    tools=[t[1] for t in agent_tools],
+                )
+                self._agent_ids[agent_name] = agent.id
+                return agent.id
+        else:
+            return None
+
+
+def partition_tools(tools: list[ToolInfo]) -> tuple[list[ToolInfo], list[ToolInfo]]:
+    server_tools: list[ToolInfo] = []
+    client_tools: list[ToolInfo] = []
+    for tool in tools:
+        if tool.name == "web_search" and tool.options and "mistral" in tool.options:
+            server_tools.append(tool)
+        else:
+            client_tools.append(tool)
+
+    return server_tools, client_tools
 
 
 def mistral_model_call(
