@@ -70,7 +70,8 @@ def test_eval_set() -> None:
 
 
 @pytest.mark.slow
-def test_eval_set_dynamic() -> None:
+@pytest.mark.parametrize("eval_set_id", [None, "test-eval-set-id"])
+def test_eval_set_dynamic(eval_set_id: str | None) -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         dataset: list[Sample] = []
         for _ in range(0, 10):
@@ -93,12 +94,17 @@ def test_eval_set_dynamic() -> None:
             model=[get_model("mockllm/model"), get_model("mockllm/model2")],
             retry_attempts=10000,
             retry_wait=0.001,
+            eval_set_id=eval_set_id,
         )
         assert len(logs) == 4
         assert success
         eval_set_ids = [log.eval.eval_set_id for log in logs]
         assert eval_set_ids[0] is not None
         assert len(set(eval_set_ids)) == 1
+        if eval_set_id:
+            assert eval_set_ids[0] == eval_set_id
+        else:
+            assert eval_set_ids[0] is not None
 
 
 def test_eval_set_identifiers() -> None:

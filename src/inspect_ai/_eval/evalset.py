@@ -115,6 +115,7 @@ def eval_set(
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
+    eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -209,6 +210,7 @@ def eval_set(
         log_dir_allow_dirty: If True, allow the log directory to contain
             unrelated logs. If False, ensure that the log directory only contains logs
             for tasks in this eval set (defaults to False).
+        eval_set_id: ID for the eval set. If not specified, a unique ID will be generated.
         **kwargs: Model generation options.
 
     Returns:
@@ -302,7 +304,7 @@ def eval_set(
     fs.mkdir(log_dir, exist_ok=True)
 
     # get eval set id
-    eval_set_id = eval_set_id_for_log_dir(log_dir)
+    eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
 
     # resolve some parameters
     retry_connections = retry_connections or 1.0
@@ -473,18 +475,24 @@ def eval_set(
     return success, results
 
 
-def eval_set_id_for_log_dir(log_dir: str) -> str:
+def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
     EVAL_SET_ID_FILE = ".eval-set-id"
     fs = filesystem(log_dir)
     eval_set_id_file = f"{log_dir}{fs.sep}{EVAL_SET_ID_FILE}"
     if fs.exists(eval_set_id_file):
         with file(eval_set_id_file, "r") as f:
-            return f.read().strip()
-    else:
+            eval_set_id_existing = f.read().strip()
+            if eval_set_id and eval_set_id != eval_set_id_existing:
+                raise PrerequisiteError(
+                    f"[bold]ERROR[/bold]: The eval set ID '{eval_set_id}' is not the same as the existing eval set ID '{eval_set_id_existing}'."
+                )
+            return eval_set_id_existing
+
+    if not eval_set_id:
         eval_set_id = uuid()
-        with file(eval_set_id_file, "w") as f:
-            f.write(eval_set_id)
-        return eval_set_id
+    with file(eval_set_id_file, "w") as f:
+        f.write(eval_set_id)
+    return eval_set_id
 
 
 # convert resolved tasks to previous tasks

@@ -725,6 +725,12 @@ def eval_command(
     is_flag=True,
     help="Do not fail if the log-dir contains files that are not part of the eval set.",
 )
+@click.option(
+    "--id",
+    "eval_set_id",
+    type=str,
+    help="ID for the eval set. If not specified, a unique ID will be generated.",
+)
 @eval_options
 @click.pass_context
 def eval_set_command(
@@ -808,6 +814,7 @@ def eval_set_command(
     log_dir_allow_dirty: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
+    eval_set_id: str | None,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks with retries.
@@ -877,6 +884,7 @@ def eval_set_command(
         bundle_dir=bundle_dir,
         bundle_overwrite=True if bundle_overwrite else False,
         log_dir_allow_dirty=log_dir_allow_dirty,
+        eval_set_id=eval_set_id,
         **config,
     )
 
@@ -940,6 +948,7 @@ def eval_exec(
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
+    eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
@@ -1055,6 +1064,7 @@ def eval_exec(
         params["bundle_dir"] = bundle_dir
         params["bundle_overwrite"] = bundle_overwrite
         params["log_dir_allow_dirty"] = log_dir_allow_dirty
+        params["eval_set_id"] = eval_set_id
         success, _ = eval_set(**params)
         return success
     else:
