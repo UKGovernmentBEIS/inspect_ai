@@ -363,11 +363,16 @@ def generate_config_from_openai_responses(json_data: dict[str, Any]) -> Generate
 
     warn_unsupported("background")  # we don't proxy background polling requests
     warn_unsupported("prompt")  # prompt template
-    warn_unsupported("top_logprobs")  # don't have this yet for responses
+
+    # capture include if it exists
+    include = cast(list[str], json_data.get("include", []))
 
     config = GenerateConfig()
     config.system_message = json_data.get("instructions", None)
     config.max_tokens = json_data.get("max_output_tokens", None)
+    if "message.output_text.logprobs" in include:
+        config.logprobs = True
+    config.top_logprobs = json_data.get("top_logprobs", None)
     config.parallel_tool_calls = json_data.get("parallel_tool_calls", None)
     reasoning = json_data.get("reasoning", None)
     if reasoning:

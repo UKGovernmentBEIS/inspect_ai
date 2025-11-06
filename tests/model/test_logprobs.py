@@ -26,10 +26,19 @@ async def generate_with_logprobs(model_name, **model_kwargs) -> ModelOutput:
     return await model.generate(input=[message])
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_openai_logprobs() -> None:
     response = await generate_with_logprobs("openai/gpt-3.5-turbo")
+    assert response.choices[0].logprobs is not None
+    assert response.choices[0].logprobs.content[0].top_logprobs is not None
+    assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_openai_responses_logprobs() -> None:
+    response = await generate_with_logprobs("openai/gpt-4o-mini", responses_api=True)
     assert response.choices[0].logprobs is not None
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
