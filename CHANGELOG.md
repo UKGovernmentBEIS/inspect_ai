@@ -5,6 +5,7 @@
 - Grok: Updated provider implementation using `xai_sdk` package (rather than using OpenAI compatible endpoint).
 - Grok: Support for server-side `web_search()` tool.
 - Grok: Support for generating structured outputs (outputs constrained by JSON Schema).
+- OpenRouter: Add `reasoning_enabled` model arg to optionally disable reasoning for hybrid models.
 - Eval Set: Enable optional explicit specification of `eval_set_id` 
 
 ## 0.3.144 (05 November 2025)
