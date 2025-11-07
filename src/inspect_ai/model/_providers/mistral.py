@@ -42,6 +42,7 @@ from mistralai.models import UserMessage as MistralUserMessage
 from mistralai.models.chatcompletionresponse import (
     ChatCompletionResponse as MistralChatCompletionResponse,
 )
+from mistralai.types.basemodel import Unset
 from shortuuid import uuid
 from typing_extensions import override
 
@@ -53,6 +54,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
 )
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
@@ -156,7 +158,7 @@ class MistralAPI(ModelAPI):
         # create client
         with Mistral(api_key=self.api_key, **self.model_args) as client:
             # partition tools and see if we need an agent for the server tools
-            server_tools, tools = partition_tools(tools)
+            server_tools, client_tools = partition_tools(tools)
             agent_id = await self.agent_id_for_server_tools(client, server_tools)
 
             # create time tracker
@@ -166,9 +168,13 @@ class MistralAPI(ModelAPI):
             request_id = http_hooks.start_request()
             request: dict[str, Any] = dict(
                 messages=await mistral_chat_messages(input),
-                tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
+                tools=mistral_chat_tools(client_tools)
+                if len(client_tools) > 0
+                else None,
                 tool_choice=(
-                    mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
+                    mistral_chat_tool_choice(tool_choice)
+                    if len(client_tools) > 0
+                    else None
                 ),
                 http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             )
@@ -219,6 +225,8 @@ class MistralAPI(ModelAPI):
             try:
                 if "agent_id" in request:
                     completion = await client.agents.complete_async(**request)
+                    # need to use the conversation api straight up (model=)
+                    # conversation = await client.beta.conversations.start()
                 else:
                     completion = await client.chat.complete_async(**request)
                 response = completion.model_dump()
@@ -336,12 +344,51 @@ def partition_tools(tools: list[ToolInfo]) -> tuple[list[ToolInfo], list[ToolInf
     server_tools: list[ToolInfo] = []
     client_tools: list[ToolInfo] = []
     for tool in tools:
-        if tool.name == "web_search" and tool.options and "mistral" in tool.options:
+        if is_mistral_server_web_search(tool):
             server_tools.append(tool)
         else:
             client_tools.append(tool)
 
     return server_tools, client_tools
+
+
+def partition_mistral_tool_calls(
+    mistral_tool_calls: list[MistralToolCall] | Unset | None, tools: list[ToolInfo]
+) -> tuple[list[MistralToolCall], list[MistralToolCall]]:
+    server_tool_calls: list[MistralToolCall] = []
+    client_tool_calls: list[MistralToolCall] = []
+    if isinstance(mistral_tool_calls, list):
+        for tool_call in mistral_tool_calls:
+            if is_mistral_web_search_tool_call(tool_call, tools):
+                server_tool_calls.append(tool_call)
+            else:
+                client_tool_calls.append(tool_call)
+
+    return server_tool_calls, client_tool_calls
+
+
+def is_mistral_web_search_tool_call(
+    tool_call: MistralToolCall, tools: list[ToolInfo]
+) -> bool:
+    if tool_call.function.name == "web_search":
+        return (
+            next(
+                (tool for tool in tools if is_mistral_server_web_search(tool)),
+                None,
+            )
+            is not None
+        )
+
+    else:
+        return False
+
+
+def is_mistral_server_web_search(tool: ToolInfo) -> bool:
+    return (
+        tool.name == "web_search"
+        and tool.options is not None
+        and "mistral" in tool.options
+    )
 
 
 def mistral_model_call(
@@ -555,12 +602,15 @@ def completion_choice(
 ) -> ChatCompletionChoice:
     message = choice.message
     if message:
-        completion = completion_content(message.content or "")
+        server_tool_calls, client_tool_calls = partition_mistral_tool_calls(
+            message.tool_calls, tools
+        )
+        completion = completion_content(message.content or "", server_tool_calls)
         return ChatCompletionChoice(
             message=ChatMessageAssistant(
                 content=completion,
-                tool_calls=chat_tool_calls(message.tool_calls, tools)
-                if message.tool_calls
+                tool_calls=chat_tool_calls(client_tool_calls, tools)
+                if len(client_tool_calls) > 0
                 else None,
                 model=model,
                 source="generate",
@@ -577,11 +627,27 @@ def completion_choice(
         )
 
 
-def completion_content(content: str | list[ContentChunk]) -> str | list[Content]:
+def completion_content(
+    content: str | list[ContentChunk], server_tool_calls: list[MistralToolCall]
+) -> list[Content]:
     if isinstance(content, str):
-        return content
+        content_list: list[Content] = [ContentText(text=content)]
     else:
-        return [item for c in content for item in completion_content_chunks(c)]
+        content_list = [item for c in content for item in completion_content_chunks(c)]
+
+    for tool_call in server_tool_calls:
+        if tool_call.function.name == "web_search":
+            content_list.append(
+                ContentToolUse(
+                    id=tool_call.id or uuid(),
+                    tool_type="web_search",
+                    name="web_search",
+                    arguments=str(tool_call.function.arguments),
+                    result="",
+                )
+            )
+
+    return content_list
 
 
 def completion_content_chunks(content: ContentChunk) -> list[Content]:
