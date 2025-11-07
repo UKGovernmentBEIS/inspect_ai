@@ -1,6 +1,8 @@
 from test_helpers.tasks import minimal_task
 
 from inspect_ai import task_with
+from inspect_ai._eval.task.task import Task
+from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 
 
 def test_task_with_add_options():
@@ -29,3 +31,32 @@ def test_task_with_edit_options():
 def test_task_with_name_option():
     task = task_with(minimal_task(), name="changed")
     assert task.name == "changed"
+
+
+def test_task_with_approval_policy():
+    task = Task(
+        approval=ApprovalPolicyConfig(
+            approvers=[
+                ApproverPolicyConfig(name="human", tools="*"),
+                ApproverPolicyConfig(name="auto", tools="tool_1"),
+            ]
+        )
+    )
+    assert isinstance(task.approval, list)
+    assert len(task.approval) == 2
+    assert task.approval[0].tools == "*"
+    assert task.approval[1].tools == "tool_1"
+
+    task_with(
+        task,
+        approval=ApprovalPolicyConfig(
+            approvers=[
+                ApproverPolicyConfig(name="human", tools="new_tool"),
+                ApproverPolicyConfig(name="auto", tools="new_tool_2"),
+            ]
+        ),
+    )
+    assert isinstance(task.approval, list)
+    assert len(task.approval) == 2
+    assert task.approval[0].tools == "new_tool"
+    assert task.approval[1].tools == "new_tool_2"

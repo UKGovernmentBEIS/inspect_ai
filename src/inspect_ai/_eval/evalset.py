@@ -25,7 +25,7 @@ from inspect_ai._util.file import basename, file, filesystem
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent
-from inspect_ai.approval._policy import ApprovalPolicy
+from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
@@ -86,7 +86,7 @@ def eval_set(
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
-    approval: str | list[ApprovalPolicy] | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     score: bool = True,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -155,7 +155,7 @@ def eval_set(
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
-            Either a path to an approval policy config file or a list of approval policies.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
         score: Score output (defaults to True)
         log_level: Level for logging to the console: "debug", "http", "sandbox",
