@@ -90,7 +90,7 @@ def eval(
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
-    approval: str | list[ApprovalPolicy] | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -149,7 +149,7 @@ def eval(
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
-            Either a path to an approval policy config file or a list of approval policies.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
@@ -342,7 +342,7 @@ async def eval_async(
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         approval: Tool use approval policies.
-          Either a path to an approval policy config file or a list of approval policies.
+          Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
           Defaults to no approval policy.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
           "info", "warning", "error", "critical", or "notset" (defaults to "warning")
