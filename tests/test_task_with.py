@@ -2,6 +2,7 @@ from test_helpers.tasks import minimal_task
 
 from inspect_ai import task_with
 from inspect_ai._eval.task.task import Task
+from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 
 
@@ -60,3 +61,26 @@ def test_task_with_approval_policy():
     assert len(task.approval) == 2
     assert task.approval[0].tools == "new_tool"
     assert task.approval[1].tools == "new_tool_2"
+
+
+def test_task_with_version():
+    task = task_with(minimal_task(), version="1.0.0")
+    assert task.version == "1.0.0"
+    task = task_with(minimal_task(), version=2)
+    assert task.version == 2
+
+
+@agent
+def minimal_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        return state
+
+    return execute
+
+
+def test_task_with_agent_as_solver():
+    task = task_with(
+        minimal_task(),
+        solver=minimal_agent(),
+    )
+    assert str(task.solver).find("agent_to_solver") != -1
