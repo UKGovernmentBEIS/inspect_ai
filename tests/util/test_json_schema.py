@@ -3,7 +3,10 @@
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from inspect_ai.util._json import JSONSchema, json_schema_to_base_model
+from inspect_ai.util._json import (  # type: ignore[attr-defined]
+    JSONSchema,
+    json_schema_to_base_model,
+)
 
 
 def test_basic_string_type():

@@ -133,7 +133,7 @@ You can condition the amount of reasoning done by Grok 3 using the \[`reasoning_
 inspect eval math.py --model grok/grok-3-mini --reasoning-effort high
 ```
 
-Note that Grok 4 does not support the `--reasoning-effort` parameter so it is ignored if speicfied.
+Note that Grok 4 does not support the `--reasoning-effort` parameter so it is ignored if specified.
 
 ## DeepSeek-R1
 
