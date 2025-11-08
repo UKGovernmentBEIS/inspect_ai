@@ -439,19 +439,19 @@ credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
-export GROK_API_KEY=your-grok-api-key
+export XAI_API_KEY=your-grok-api-key
 inspect eval arc.py --model grok/grok-3-mini
 ```
 
 For the `grok` provider, custom model args (`-M`) are forwarded to the
-constructor of the `AsyncOpenAI` class.
+constructor of the `AsynClient` class.
 
 The following environment variables are supported by the Grok provider
 
 | Variable | Description |
 |----|----|
-| `GROK_API_KEY` | API key credentials (required). |
-| `GROK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.x.ai/v1`) |
+| `XAI_API_KEY` | API key credentials (required). |
+| `XAI_BASE_URL` | Base URL for requests (optional, defaults to `api.x.ai`, note no “https://” prefix is used for the base url). |
 
 ## AWS Bedrock
 
@@ -1116,6 +1116,7 @@ site):
 | [`models`](https://openrouter.ai/docs/features/model-routing#the-models-parameter) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
+| [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
 
 In addition, [Tool Emulation](#tool-emulation-openai) is available for
 models that don’t yet support tool calling in their API.

@@ -2767,13 +2767,13 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td><code>--logprobs</code></td>
 <td>boolean</td>
-<td>Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.</td>
+<td>Return log probabilities of the output tokens. OpenAI, Google, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.</td>
 <td><code>False</code></td>
 </tr>
 <tr class="even">
 <td><code>--top-logprobs</code></td>
 <td>integer</td>
-<td>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only.</td>
+<td>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, TogetherAI, Huggingface, and vLLM only.</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="odd">
@@ -2814,8 +2814,8 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><code>--reasoning-summary</code></td>
-<td>choice (<code>concise</code> | <code>detailed</code> | <code>auto</code>)</td>
-<td>Provide summary of reasoning steps (defaults to no summary). Use ‘auto’ to access the most detailed summarizer available for the current model. OpenAI reasoning models only.</td>
+<td>choice (<code>none</code> | <code>concise</code> | <code>detailed</code> | <code>auto</code>)</td>
+<td>Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI).</td>
 <td><code>Sentinel.UNSET</code></td>
 </tr>
 <tr class="even">

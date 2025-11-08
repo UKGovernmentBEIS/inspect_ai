@@ -509,8 +509,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#reasoning-content" id="toc-reasoning-content" class="nav-link" data-scroll-target="#reasoning-content">Reasoning Content</a></li>
   <li><a href="#reasoning-options" id="toc-reasoning-options" class="nav-link" data-scroll-target="#reasoning-options">Reasoning Options</a></li>
-  <li><a href="#openai-reasoning-models" id="toc-openai-reasoning-models" class="nav-link" data-scroll-target="#openai-reasoning-models">OpenAI Reasoning Models</a></li>
-  <li><a href="#claude-3.7-sonnet-and-claude-4" id="toc-claude-3.7-sonnet-and-claude-4" class="nav-link" data-scroll-target="#claude-3.7-sonnet-and-claude-4">Claude 3.7 Sonnet and Claude 4</a></li>
+  <li><a href="#openai-models" id="toc-openai-models" class="nav-link" data-scroll-target="#openai-models">OpenAI Models</a></li>
+  <li><a href="#anthropic-claude" id="toc-anthropic-claude" class="nav-link" data-scroll-target="#anthropic-claude">Anthropic Claude</a></li>
   <li><a href="#google-gemini" id="toc-google-gemini" class="nav-link" data-scroll-target="#google-gemini">Google Gemini</a></li>
   <li><a href="#grok" id="toc-grok" class="nav-link" data-scroll-target="#grok">Grok</a></li>
   <li><a href="#deepseek-r1" id="toc-deepseek-r1" class="nav-link" data-scroll-target="#deepseek-r1">DeepSeek-R1</a></li>
@@ -573,9 +573,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>reasoning_effort</code></td>
-<td>Constrains effort on reasoning for reasoning models (<code>low</code>, <code>medium</code>, or <code>high</code>)</td>
+<td>Constrains effort on reasoning for reasoning models (<code>minimal</code>, <code>low</code>, <code>medium</code>, or <code>high</code>)</td>
 <td><code>medium</code></td>
-<td>OpenAI o-series, Grok 3+</td>
+<td>OpenAI o-series, Grok 3</td>
 </tr>
 <tr class="even">
 <td><code>reasoning_tokens</code></td>
@@ -585,7 +585,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>reasoning_summary</code></td>
-<td>Provide summary of reasoning steps (<code>concise</code>, <code>detailed</code>, <code>auto</code>). Use “auto” to access the most detailed summarizer available for the current model.</td>
+<td>Provide summary of reasoning steps (<code>none</code>, <code>concise</code>, <code>detailed</code>, <code>auto</code>). Use “auto” to access the most detailed summarizer available for the current model.</td>
 <td>(none)</td>
 <td>OpenAI o-series</td>
 </tr>
@@ -603,12 +603,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"openai/o3-mini"</span>,<span class="st">"anthropic/claude-3-7-sonnet-20250219"</span>],</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    reasoning_effort<span class="op">=</span><span class="st">"medium"</span>,  <span class="co"># openai and grok specific</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens<span class="op">=</span><span class="dv">4096</span>       <span class="co"># anthropic and gemini specific</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    reasoning_summary<span class="op">=</span><span class="st">"auto"</span>,   <span class="co"># openai specific</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    reasoning_summary<span class="op">=</span><span class="st">"auto"</span>,   <span class="co"># openai and gemini specific</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a> )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>reasoning_history</code> option lets you control how much of the model’s previous reasoning is presented in the message history sent to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. The default is <code>auto</code>, which uses a provider-specific recommended default (normally <code>all</code>). Use <code>last</code> to not let the reasoning overwhelm the context window.</p>
 </section>
-<section id="openai-reasoning-models" class="level2">
-<h2 class="anchored" data-anchor-id="openai-reasoning-models">OpenAI Reasoning Models</h2>
+<section id="openai-models" class="level2">
+<h2 class="anchored" data-anchor-id="openai-models">OpenAI Models</h2>
 <p>OpenAI has several reasoning models available including the GPT-5 and o-series models. Learn more about the specific models available in the <a href="https://platform.openai.com/docs/models">OpenAI Models</a> documentation.</p>
 <section id="reasoning-effort" class="level4">
 <h4 class="anchored" data-anchor-id="reasoning-effort">Reasoning Effort</h4>
@@ -617,7 +617,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="reasoning-summary" class="level4">
 <h4 class="anchored" data-anchor-id="reasoning-summary">Reasoning Summary</h4>
-<p>You can see a summary of the model’s reasoning by specifying the <a href="https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries"><code>reasoning_summary</code></a> option. Availablle options are <code>concise</code>, <code>detailed</code>, and <code>auto</code> (<code>auto</code> is recommended to access the most detailed summarizer available for the current model). For example:</p>
+<p>You can see a summary of the model’s reasoning by specifying the <a href="https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries"><code>reasoning_summary</code></a> option. Availablle options are <code>none</code>, <code>concise</code>, <code>detailed</code>, and <code>auto</code> (<code>auto</code> is recommended to access the most detailed summarizer available for the current model). For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o3 <span class="at">--reasoning-summary</span> auto</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="callout callout-style-simple callout-warning no-icon">
 <div class="callout-body d-flex">
@@ -631,9 +631,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </section>
 </section>
-<section id="claude-3.7-sonnet-and-claude-4" class="level2">
-<h2 class="anchored" data-anchor-id="claude-3.7-sonnet-and-claude-4">Claude 3.7 Sonnet and Claude 4</h2>
-<p>Anthropic’s Claude 3.7 Sonnet and Claude 4 Sonnet/Opus models include optional support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking">extended thinking</a>. These are hybrid models that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the <code>reasoning_tokens</code> option, for example:</p>
+<section id="anthropic-claude" class="level2">
+<h2 class="anchored" data-anchor-id="anthropic-claude">Anthropic Claude</h2>
+<p>Anthropic’s Claude 3.7 Sonnet and Claude 4/4.5 Sonnet/Opus models include optional support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking">extended thinking</a>. These are hybrid models that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the <code>reasoning_tokens</code> option, for example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -654,10 +654,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h4 class="anchored" data-anchor-id="history">History</h4>
 <p>Note that Anthropic requests that all reasoning blocks and played back to the model in chat conversations (although they will only use the last reasoning block and will not bill for tokens on previous ones). Consequently, the <code>reasoning_history</code> option has no effect for Claude models (it effectively always uses <code>last</code>).</p>
 </section>
-<section id="tools" class="level4">
-<h4 class="anchored" data-anchor-id="tools">Tools</h4>
-<p>When using tools, you should read Anthropic’s documentation on <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-thinking-with-tool-use">extended thinking with tool use</a>. In short, thinking occurs on the first assistant turn and then the normal tool loop is run without additional thinking. Thinking is re-triggered when the tool loop is exited (i.e.&nbsp;a user message without a tool result is received).</p>
-</section>
 </section>
 <section id="google-gemini" class="level2">
 <h2 class="anchored" data-anchor-id="google-gemini">Google Gemini</h2>
@@ -675,15 +671,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="grok" class="level2">
 <h2 class="anchored" data-anchor-id="grok">Grok</h2>
-<p>Grok currently makes available two reasoning models:</p>
+<p>Grok currently makes available several reasoning models:</p>
 <ul>
 <li><code>grok/grok-4</code></li>
+<li><code>grok/grok-3</code></li>
 <li><code>grok/grok-3-mini</code></li>
-<li><code>grok/grok-3-mini-fast</code></li>
 </ul>
-<p>You can condition the amount of reasoning done by Grok using the [<code>reasoning_effort</code>]https://docs.x.ai/docs/guides/reasoning) option, which can be set to <code>low</code> or <code>high</code>.</p>
+<p>You can condition the amount of reasoning done by Grok 3 using the [<code>reasoning_effort</code>]https://docs.x.ai/docs/guides/reasoning) option, which can be set to <code>low</code> or <code>high</code>.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> grok/grok-3-mini <span class="at">--reasoning-effort</span> high</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note that Grok 4 does not yet support the <code>--reasoning-effort</code> parameter but is expected to soon.</p>
+<p>Note that Grok 4 does not support the <code>--reasoning-effort</code> parameter so it is ignored if speicfied.</p>
 </section>
 <section id="deepseek-r1" class="level2">
 <h2 class="anchored" data-anchor-id="deepseek-r1">DeepSeek-R1</h2>

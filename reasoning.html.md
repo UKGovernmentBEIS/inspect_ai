@@ -42,9 +42,9 @@ The following reasoning options are available from the CLI and within
 
 | Option | Description | Default | Models |
 |----|----|----|----|
-| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`) | `medium` | OpenAI o-series, Grok 3+ |
+| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`minimal`, `low`, `medium`, or `high`) | `medium` | OpenAI o-series, Grok 3 |
 | `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7+ and Gemini 2.5+ |
-| `reasoning_summary` | Provide summary of reasoning steps (`concise`, `detailed`, `auto`). Use “auto” to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
+| `reasoning_summary` | Provide summary of reasoning steps (`none`, `concise`, `detailed`, `auto`). Use “auto” to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
 | `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
 
 As you can see from above, models have different means of specifying the
@@ -59,7 +59,7 @@ you should specify both. For example:
     model=["openai/o3-mini","anthropic/claude-3-7-sonnet-20250219"],
     reasoning_effort="medium",  # openai and grok specific
     reasoning_tokens=4096       # anthropic and gemini specific
-    reasoning_summary="auto",   # openai specific
+    reasoning_summary="auto",   # openai and gemini specific
  )
 ```
 
@@ -69,7 +69,7 @@ previous reasoning is presented in the message history sent to
 recommended default (normally `all`). Use `last` to not let the
 reasoning overwhelm the context window.
 
-## OpenAI Reasoning Models
+## OpenAI Models
 
 OpenAI has several reasoning models available including the GPT-5 and
 o-series models. Learn more about the specific models available in the
@@ -90,9 +90,9 @@ inspect eval math.py --model openai/o3 --reasoning-effort high
 
 You can see a summary of the model’s reasoning by specifying the
 [`reasoning_summary`](https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries)
-option. Availablle options are `concise`, `detailed`, and `auto` (`auto`
-is recommended to access the most detailed summarizer available for the
-current model). For example:
+option. Availablle options are `none`, `concise`, `detailed`, and `auto`
+(`auto` is recommended to access the most detailed summarizer available
+for the current model). For example:
 
 ``` bash
 inspect eval math.py --model openai/o3 --reasoning-summary auto
@@ -104,10 +104,10 @@ inspect eval math.py --model openai/o3 --reasoning-summary auto
 > may need to complete [organization
 > verification](https://help.openai.com/en/articles/10910291-api-organization-verification).
 
-## Claude 3.7 Sonnet and Claude 4
+## Anthropic Claude
 
-Anthropic’s Claude 3.7 Sonnet and Claude 4 Sonnet/Opus models include
-optional support for [extended
+Anthropic’s Claude 3.7 Sonnet and Claude 4/4.5 Sonnet/Opus models
+include optional support for [extended
 thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking).
 These are hybrid models that supports both normal and reasoning modes.
 This means that you need to explicitly request reasoning by specifying
@@ -152,16 +152,6 @@ reasoning block and will not bill for tokens on previous ones).
 Consequently, the `reasoning_history` option has no effect for Claude
 models (it effectively always uses `last`).
 
-#### Tools
-
-When using tools, you should read Anthropic’s documentation on [extended
-thinking with tool
-use](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-thinking-with-tool-use).
-In short, thinking occurs on the first assistant turn and then the
-normal tool loop is run without additional thinking. Thinking is
-re-triggered when the tool loop is exited (i.e. a user message without a
-tool result is received).
-
 ## Google Gemini
 
 Google currently makes available several Gemini reasoning models, the
@@ -194,13 +184,13 @@ reasoning summary in model output.
 
 ## Grok
 
-Grok currently makes available two reasoning models:
+Grok currently makes available several reasoning models:
 
 - `grok/grok-4`
+- `grok/grok-3`
 - `grok/grok-3-mini`
-- `grok/grok-3-mini-fast`
 
-You can condition the amount of reasoning done by Grok using the
+You can condition the amount of reasoning done by Grok 3 using the
 \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option,
 which can be set to `low` or `high`.
 
@@ -208,8 +198,8 @@ which can be set to `low` or `high`.
 inspect eval math.py --model grok/grok-3-mini --reasoning-effort high
 ```
 
-Note that Grok 4 does not yet support the `--reasoning-effort` parameter
-but is expected to soon.
+Note that Grok 4 does not support the `--reasoning-effort` parameter so
+it is ignored if speicfied.
 
 ## DeepSeek-R1
 

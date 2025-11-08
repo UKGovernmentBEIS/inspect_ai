@@ -23,6 +23,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--bundle-dir` | text | Bundle viewer and logs into output directory | `Sentinel.UNSET` |
 | `--bundle-overwrite` | text | Overwrite existing bundle dir. | `Sentinel.UNSET` |
 | `--log-dir-allow-dirty` | boolean | Do not fail if the log-dir contains files that are not part of the eval set. | `False` |
+| `--id` | text | ID for the eval set. If not specified, a unique ID will be generated. | `Sentinel.UNSET` |
 | `--model` | text | Model used to evaluate tasks. | `Sentinel.UNSET` |
 | `--model-base-url` | text | Base URL for for model API | `Sentinel.UNSET` |
 | `-M` | text | One or more native model arguments (e.g. -M arg=value) | `Sentinel.UNSET` |
@@ -79,15 +80,15 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--top-p` | float | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. | `Sentinel.UNSET` |
 | `--top-k` | integer | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only. | `Sentinel.UNSET` |
 | `--num-choices` | integer | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only. | `Sentinel.UNSET` |
-| `--logprobs` | boolean | Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. | `False` |
-| `--top-logprobs` | integer | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only. | `Sentinel.UNSET` |
+| `--logprobs` | boolean | Return log probabilities of the output tokens. OpenAI, Google, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. | `False` |
+| `--top-logprobs` | integer | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, TogetherAI, Huggingface, and vLLM only. | `Sentinel.UNSET` |
 | `--parallel-tool-calls` / `--no-parallel-tool-calls` | boolean | Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only. | `True` |
 | `--internal-tools` / `--no-internal-tools` | boolean | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for anthropic). | `True` |
 | `--max-tool-output` | integer | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. | `Sentinel.UNSET` |
 | `--cache-prompt` | choice (`auto` \| `true` \| `false`) | Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools. | `Sentinel.UNSET` |
 | `--reasoning-effort` | choice (`minimal` \| `low` \| `medium` \| `high`) | Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series and gpt-5 models only. | `Sentinel.UNSET` |
 | `--reasoning-tokens` | integer | Maximum number of tokens to use for reasoning. Anthropic Claude models only. | `Sentinel.UNSET` |
-| `--reasoning-summary` | choice (`concise` \| `detailed` \| `auto`) | Provide summary of reasoning steps (defaults to no summary). Use ‘auto’ to access the most detailed summarizer available for the current model. OpenAI reasoning models only. | `Sentinel.UNSET` |
+| `--reasoning-summary` | choice (`none` \| `concise` \| `detailed` \| `auto`) | Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI). | `Sentinel.UNSET` |
 | `--reasoning-history` | choice (`none` \| `all` \| `last` \| `auto`) | Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider) | `Sentinel.UNSET` |
 | `--response-schema` | text | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. | `Sentinel.UNSET` |
 | `--batch` | text | Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify –batch to batch with default configuration, specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration. | None |
