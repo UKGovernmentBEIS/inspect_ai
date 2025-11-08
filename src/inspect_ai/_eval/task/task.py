@@ -21,7 +21,11 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
-from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_config
+from inspect_ai.approval._policy import (
+    ApprovalPolicy,
+    ApprovalPolicyConfig,
+    approval_policies_from_config,
+)
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
@@ -70,7 +74,7 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
-        approval: str | list[ApprovalPolicy] | None = None,
+        approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
@@ -100,7 +104,7 @@ class Task:
             model_roles: Named roles for use in `get_model()`.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
             approval: Tool use approval policies.
-                Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.
+                Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
             fail_on_error: `True` to fail on first sample error
@@ -212,7 +216,7 @@ def task_with(
     *,
     dataset: Dataset | Sequence[Sample] | None | NotGiven = NOT_GIVEN,
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
-    solver: Solver | list[Solver] | NotGiven = NOT_GIVEN,
+    solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
@@ -223,7 +227,11 @@ def task_with(
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
-    approval: str | list[ApprovalPolicy] | None | NotGiven = NOT_GIVEN,
+    approval: str
+    | ApprovalPolicyConfig
+    | list[ApprovalPolicy]
+    | None
+    | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
@@ -232,7 +240,7 @@ def task_with(
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
-    version: int | NotGiven = NOT_GIVEN,
+    version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
@@ -256,7 +264,7 @@ def task_with(
         model_roles: Named roles for use in `get_model()`.
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         approval: Tool use approval policies.
-            Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -365,11 +373,11 @@ class PreviousTask:
 
 
 def resolve_approval(
-    approval: str | list[ApprovalPolicy] | None,
+    approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None,
 ) -> list[ApprovalPolicy] | None:
     return (
         approval_policies_from_config(approval)
-        if isinstance(approval, str)
+        if isinstance(approval, str | ApprovalPolicyConfig)
         else approval
     )
 
