@@ -7,6 +7,7 @@
 - Grok: Support for generating structured outputs (outputs constrained by JSON Schema).
 - OpenRouter: Add `reasoning_enabled` model arg to optionally disable reasoning for hybrid models.
 - Eval Set: Enable optional explicit specification of `eval_set_id` 
+- Bugfix: Properly handle `content` of type `str` in Responses API agent bridge.
 
 ## 0.3.144 (05 November 2025)
 
