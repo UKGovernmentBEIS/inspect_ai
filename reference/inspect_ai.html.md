@@ -7,7 +7,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/eval.py#L79)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/eval.py#L79)
 
 ``` python
 def eval(
@@ -24,7 +24,7 @@ def eval(
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
-    approval: str | list[ApprovalPolicy] | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -104,9 +104,10 @@ Trace message interactions with evaluated model to terminal.
 `display` [DisplayType](inspect_ai.util.qmd#displaytype) \| None  
 Task display type (defaults to ‘full’).
 
-`approval` str \| list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| None  
+`approval` str \| list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| ApprovalPolicyConfig \| None  
 Tool use approval policies. Either a path to an approval policy config
-file or a list of approval policies. Defaults to no approval policy.
+file, an ApprovalPolicyConfig, or a list of approval policies. Defaults
+to no approval policy.
 
 `log_level` str \| None  
 Level for logging to the console: “debug”, “http”, “sandbox”, “info”,
@@ -232,7 +233,7 @@ Model generation options.
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/eval.py#L738)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/eval.py#L738)
 
 ``` python
 def eval_retry(
@@ -372,7 +373,7 @@ Model API)
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/evalset.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/evalset.py#L70)
 
 ``` python
 def eval_set(
@@ -394,7 +395,7 @@ def eval_set(
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
-    approval: str | list[ApprovalPolicy] | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     score: bool = True,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -493,9 +494,10 @@ Trace message interactions with evaluated model to terminal.
 `display` [DisplayType](inspect_ai.util.qmd#displaytype) \| None  
 Task display type (defaults to ‘full’).
 
-`approval` str \| list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| None  
+`approval` str \| list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| ApprovalPolicyConfig \| None  
 Tool use approval policies. Either a path to an approval policy config
-file or a list of approval policies. Defaults to no approval policy.
+file, an ApprovalPolicyConfig, or a list of approval policies. Defaults
+to no approval policy.
 
 `score` bool  
 Score output (defaults to True)
@@ -617,7 +619,7 @@ Model generation options.
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/score.py#L65)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/score.py#L65)
 
 ``` python
 def score(
@@ -657,7 +659,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/task/task.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/task/task.py#L57)
 
 ``` python
 class Task
@@ -668,7 +670,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/task/task.py#L59)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/task/task.py#L63)
 
 ``` python
 def __init__(
@@ -685,7 +687,7 @@ def __init__(
     config: GenerateConfig = GenerateConfig(),
     model_roles: dict[str, str | Model] | None = None,
     sandbox: SandboxEnvironmentType | None = None,
-    approval: str | list[ApprovalPolicy] | None = None,
+    approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
@@ -736,9 +738,10 @@ Named roles for use in `get_model()`.
 Sandbox environment type (or optionally a str or tuple with a shorthand
 spec)
 
-`approval` str \| list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| None  
+`approval` str \| ApprovalPolicyConfig \| list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| None  
 Tool use approval policies. Either a path to an approval policy config
-file or a list of approval policies. Defaults to no approval policy.
+file, an ApprovalPolicyConfig, or a list of approval policies. Defaults
+to no approval policy.
 
 `epochs` int \| [Epochs](inspect_ai.qmd#epochs) \| None  
 Epochs to repeat samples for and optional score reducer function(s) used
@@ -795,7 +798,7 @@ This function modifies the passed task in place and returns it. If you
 want to create multiple variations of a single task using `task_with()`
 you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/task/task.py#L210)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/task/task.py#L214)
 
 ``` python
 def task_with(
@@ -803,7 +806,7 @@ def task_with(
     *,
     dataset: Dataset | Sequence[Sample] | None | NotGiven = NOT_GIVEN,
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
-    solver: Solver | list[Solver] | NotGiven = NOT_GIVEN,
+    solver: Solver | Agent | list[Solver] | NotGiven = NOT_GIVEN,
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: "Scorers" | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric | dict[str, list[Metric]]]
@@ -814,7 +817,11 @@ def task_with(
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
-    approval: str | list[ApprovalPolicy] | None | NotGiven = NOT_GIVEN,
+    approval: str
+    | ApprovalPolicyConfig
+    | list[ApprovalPolicy]
+    | None
+    | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
@@ -823,7 +830,7 @@ def task_with(
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
-    version: int | NotGiven = NOT_GIVEN,
+    version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
 ) -> Task
 ```
@@ -837,7 +844,7 @@ Dataset to evaluate
 `setup` [Solver](inspect_ai.solver.qmd#solver) \| list\[[Solver](inspect_ai.solver.qmd#solver)\] \| None \| NotGiven  
 Setup step (always run even when the main `solver` is replaced).
 
-`solver` [Solver](inspect_ai.solver.qmd#solver) \| list\[[Solver](inspect_ai.solver.qmd#solver)\] \| NotGiven  
+`solver` [Solver](inspect_ai.solver.qmd#solver) \| [Agent](inspect_ai.agent.qmd#agent) \| list\[[Solver](inspect_ai.solver.qmd#solver)\] \| NotGiven  
 Solver or list of solvers. Defaults to generate(), a normal call to the
 model.
 
@@ -866,9 +873,10 @@ Named roles for use in `get_model()`.
 Sandbox environment type (or optionally a str or tuple with a shorthand
 spec)
 
-`approval` str \| list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| None \| NotGiven  
+`approval` str \| ApprovalPolicyConfig \| list\[[ApprovalPolicy](inspect_ai.approval.qmd#approvalpolicy)\] \| None \| NotGiven  
 Tool use approval policies. Either a path to an approval policy config
-file or a list of approval policies. Defaults to no approval policy.
+file, an ApprovalPolicyConfig, or a list of approval policies. Defaults
+to no approval policy.
 
 `epochs` int \| [Epochs](inspect_ai.qmd#epochs) \| None \| NotGiven  
 Epochs to repeat samples for and optional score reducer function(s) used
@@ -904,7 +912,7 @@ Task name. If not specified is automatically determined based on the
 name of the task directory (or “task”) if its anonymous task
 (e.g. created in a notebook and passed to eval() directly)
 
-`version` int \| NotGiven  
+`version` int \| str \| NotGiven  
 Version of task (to distinguish evolutions of the task spec or breaking
 changes to it)
 
@@ -919,7 +927,7 @@ Number of epochs to repeat samples over and optionally one or more
 reducers used to combine scores from samples across epochs. If not
 specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -936,7 +944,7 @@ One or more reducers used to combine scores from samples across epochs
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -953,7 +961,7 @@ One or more reducers used to combine scores from samples across epochs
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/task/task.py#L334)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/task/task.py#L342)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -979,7 +987,7 @@ including directory names, task functions, task classes, and task
 instances (a single task or list of tasks can be specified). None is a
 request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -1007,7 +1015,7 @@ Tasks: TypeAlias = (
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_view/view.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_view/view.py#L25)
 
 ``` python
 def view(
@@ -1051,7 +1059,7 @@ public S3 bucket with no credentials.
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7be07e289816f28120cabf344e969d207d9a2ec5/src/inspect_ai/_eval/registry.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/23dcfa4d85958efde7bb6c37d9e9ca4a2b0cefde/src/inspect_ai/_eval/registry.py#L97)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any

@@ -149,8 +149,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.144 (05 November 2025)</a></li>
+  <li><a href="#november-2025" id="toc-november-2025" class="nav-link active" data-scroll-target="#november-2025">0.3.145 (09 November 2025)</a></li>
+  <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.144 (05 November 2025)</a></li>
   <li><a href="#october-2025" id="toc-october-2025" class="nav-link" data-scroll-target="#october-2025">0.3.143 (29 October 2025)</a></li>
   <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.142 (27 October 2025)</a></li>
   <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.141 (27 October 2025)</a></li>
@@ -302,8 +302,8 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="november-2025" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025">0.3.145 (09 November 2025)</h2>
 <ul>
 <li>OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).</li>
 <li>OpenAI: Support for <code>logprobs</code> and <code>top_logprobs</code> in Responses API (note that logprobs are not supported for reasoning models).</li>
@@ -312,10 +312,11 @@ ul.task-list li input[type="checkbox"] {
 <li>Grok: Support for generating structured outputs (outputs constrained by JSON Schema).</li>
 <li>OpenRouter: Add <code>reasoning_enabled</code> model arg to optionally disable reasoning for hybrid models.</li>
 <li>Eval Set: Enable optional explicit specification of <code>eval_set_id</code></li>
+<li>Bugfix: Properly handle <code>content</code> of type <code>str</code> in Responses API agent bridge.</li>
 </ul>
 </section>
-<section id="november-2025" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025">0.3.144 (05 November 2025)</h2>
+<section id="november-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-1">0.3.144 (05 November 2025)</h2>
 <ul>
 <li>Eval Set: Task identifiers can now vary on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> and <code>solver</code> (which enables sweeping over these variables).</li>
 <li>Eval Logs: Don’t resolve attachments within <code>ModelEvent.call</code> by default, which prevents O(N) memory footprint for reading transcripts.</li>
