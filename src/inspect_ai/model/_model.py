@@ -406,7 +406,7 @@ class Model:
         tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
-        cache: bool | CachePolicy = False,
+        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
     ) -> ModelOutput:
         """Generate output from the model.
 
@@ -459,6 +459,10 @@ class Model:
 
         # merge passed config
         config = base_config.merge(config)
+
+        # resolve cache (prefer arg, fall back to config)
+        if isinstance(cache, NotGiven):
+            cache = config.cache or False
 
         # provide max_tokens from the model api if required
         if config.max_tokens is None:

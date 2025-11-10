@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.util._json import JSONSchema
 
 
@@ -139,6 +140,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
+    cache: CachePolicy | None
+    """Policy for caching of model generations."""
+
     batch: bool | int | BatchConfig | None
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
 
@@ -235,6 +239,9 @@ class GenerateConfig(BaseModel):
 
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    cache: CachePolicy | None = Field(default=None)
+    """Policy for caching of model generations."""
 
     batch: bool | int | BatchConfig | None = Field(default=None)
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
