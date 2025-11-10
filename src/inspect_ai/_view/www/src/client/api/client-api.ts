@@ -393,9 +393,12 @@ export const clientApi = (
         return api.download_file(download_file, file_contents);
       },
     ),
-    download_log: middleware("download_log", (log_file: string, format: "json" | "eval") => {
-      return api.download_log(log_file, format);
-    }),
+    download_log: middleware(
+      "download_log",
+      (log_file: string, format: "json" | "eval") => {
+        return api.download_log(log_file, format);
+      },
+    ),
     log_message: middleware(
       "log_message",
       (log_file: string, message: string) => {

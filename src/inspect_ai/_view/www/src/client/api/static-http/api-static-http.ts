@@ -167,14 +167,18 @@ function staticHttpApiForLog(logInfo: {
         throw new Error("Failed to load log file");
       }
 
-      const filename = log_file.split("/").pop()?.replace(/\.(json|eval)$/, "") || "log";
+      const filename =
+        log_file
+          .split("/")
+          .pop()
+          ?.replace(/\.(json|eval)$/, "") || "log";
 
       if (format === "json") {
         await download_file(`${filename}.json`, logContents.raw);
       } else {
         throw new Error(
           "Converting to .eval format is not supported in static mode. " +
-            "Please use server mode to download .eval files."
+            "Please use server mode to download .eval files.",
         );
       }
     },
