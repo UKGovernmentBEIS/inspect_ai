@@ -68,7 +68,6 @@ from inspect_ai.log._transcript import (
     transcript,
 )
 from inspect_ai.model import (
-    CachePolicy,
     GenerateConfig,
     GenerateConfigArgs,
     Model,
@@ -286,14 +285,13 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 async def generate(
                     state: TaskState,
                     tool_calls: Literal["loop", "single", "none"] = "loop",
-                    cache: bool | CachePolicy = False,
                     **kwargs: Unpack[GenerateConfigArgs],
                 ) -> TaskState:
                     return await task_generate(
                         model=model,
                         state=state,
                         tool_calls=tool_calls,
-                        cache=cache,
+                        cache=kwargs.get("cache", False) or False,
                         config=generate_config.merge(kwargs),
                     )
 

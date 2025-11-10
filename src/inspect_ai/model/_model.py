@@ -462,7 +462,10 @@ class Model:
 
         # resolve cache (prefer arg, fall back to config)
         if isinstance(cache, NotGiven):
-            cache = config.cache or False
+            if config.cache is not None:
+                cache = config.cache
+            else:
+                cache = False
 
         # provide max_tokens from the model api if required
         if config.max_tokens is None:

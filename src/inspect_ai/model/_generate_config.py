@@ -140,7 +140,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
-    cache: CachePolicy | None
+    cache: bool | CachePolicy | None
     """Policy for caching of model generations."""
 
     batch: bool | int | BatchConfig | None
@@ -240,8 +240,8 @@ class GenerateConfig(BaseModel):
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
-    cache: CachePolicy | None = Field(default=None)
-    """Policy for caching of model generations."""
+    cache: bool | CachePolicy | None = Field(default=None)
+    """Policy for caching of model generate output."""
 
     batch: bool | int | BatchConfig | None = Field(default=None)
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
