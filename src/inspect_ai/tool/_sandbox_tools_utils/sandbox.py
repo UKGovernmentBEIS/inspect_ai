@@ -103,7 +103,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
             # TODO: The first tuple member, filename, isn't currently used, but it will be
             await sandbox.write_file(SANDBOX_TOOLS_CLI, f.read())
             # .write_file used `tee` which dropped execute permissions
-            await sandbox.exec(["chmod", "+x", SANDBOX_TOOLS_CLI])
+            await sandbox.exec(["chmod", "+x", SANDBOX_TOOLS_CLI], user="root")
     except Exception as e:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {e}", cause=e
