@@ -312,7 +312,8 @@ export function viewServerApi(
     log_file: string,
     format: "json" | "eval",
   ): Promise<void> => {
-    const url = `/log-download/${encodeURIComponent(log_file)}?format=${format}`;
+    const baseUrl = apiBaseUrl || __VIEW_SERVER_API_URL__;
+    const url = `${baseUrl}/log-download/${encodeURIComponent(log_file)}?format=${format}`;
 
     const link = document.createElement("a");
     link.href = url;
