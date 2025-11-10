@@ -155,7 +155,7 @@ def _cache_key(entry: CacheEntry) -> str:
         entry.base_url,
         entry.tool_choice,
         entry.tools,
-        entry.policy.expiry,
+        _parse_expiry(entry.policy.expiry) if entry.policy.expiry is not None else None,
         entry.policy.scopes,
     ]
 
