@@ -378,7 +378,7 @@ def test_api_log_download_eval(test_client: TestClient):
     json_file = "test_dir/test_log.json"
     write_fake_eval_log(json_file.replace(".json", ".eval"))
 
-    fs = inspect_ai._util.file.filesystem("memory://")
+    _ = inspect_ai._util.file.filesystem("memory://")
     original_eval_path = f"memory://{json_file.replace('.json', '.eval')}"
     json_path = f"memory://{json_file}"
 
@@ -428,7 +428,9 @@ def test_api_log_download_same_format(test_client: TestClient, mock_s3_eval_file
     assert downloaded_log.model_dump() == original_log.model_dump()
 
 
-def test_api_log_download_invalid_format(test_client: TestClient, mock_s3_eval_file: str):
+def test_api_log_download_invalid_format(
+    test_client: TestClient, mock_s3_eval_file: str
+):
     """Test that invalid format parameter returns 400 error."""
     response = test_client.request(
         "GET", f"/log-download/{mock_s3_eval_file}?format=invalid"
@@ -438,6 +440,7 @@ def test_api_log_download_invalid_format(test_client: TestClient, mock_s3_eval_f
 
 def test_api_log_download_forbidden(test_client: TestClient, mock_s3_eval_file: str):
     """Test that download respects access control."""
+
     class no_read_policy(AccessPolicy):
         async def can_read(self, request: Request, file: str) -> bool:
             return False

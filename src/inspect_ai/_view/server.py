@@ -7,7 +7,9 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Literal,
     TypeVar,
+    cast,
 )
 
 from aiohttp import web
@@ -128,7 +130,8 @@ def view_server(
             return web.HTTPBadRequest(reason="Invalid format. Must be 'json' or 'eval'")
 
         # get the log contents in requested format
-        body = await download_log_with_format(file, format_param)
+        format: Literal["json", "eval"] = cast(Literal["json", "eval"], format_param)
+        body = await download_log_with_format(file, format)
 
         # determine filename
         base_name = Path(file).stem
@@ -141,9 +144,7 @@ def view_server(
         }
 
         content_type = (
-            "application/json"
-            if format_param == "json"
-            else "application/octet-stream"
+            "application/json" if format_param == "json" else "application/octet-stream"
         )
 
         return web.Response(body=body, headers=headers, content_type=content_type)

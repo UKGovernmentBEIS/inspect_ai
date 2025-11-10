@@ -3,7 +3,7 @@ import logging
 import urllib.parse
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, cast
 
 import anyio
 import uvicorn
@@ -161,7 +161,10 @@ def view_server_app(
                 status_code=400, detail="Invalid format. Must be 'json' or 'eval'"
             )
 
-        response = await download_log_with_format(await _map_file(request, file), format)
+        format_type: Literal["json", "eval"] = cast(Literal["json", "eval"], format)
+        response = await download_log_with_format(
+            await _map_file(request, file), format_type
+        )
 
         base_name = Path(file).stem
         filename = f"{base_name}.{format}"
