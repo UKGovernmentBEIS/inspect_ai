@@ -353,3 +353,140 @@ def test_api_eval_set(test_client: TestClient):
             "sequence": 0,
         }
     ]
+
+
+def test_api_log_download_json(test_client: TestClient, mock_s3_eval_file: str):
+    """Test downloading an .eval file as JSON format."""
+    response = test_client.request(
+        "GET", f"/log-download/{mock_s3_eval_file}?format=json"
+    )
+    response.raise_for_status()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    assert "content-disposition" in response.headers
+    assert 'attachment; filename="' in response.headers["content-disposition"]
+    assert ".json" in response.headers["content-disposition"]
+
+    original_log = inspect_ai.log.read_eval_log(f"memory://{mock_s3_eval_file}")
+    downloaded_log = inspect_ai.log.EvalLog.model_validate_json(response.content)
+    assert downloaded_log.model_dump() == original_log.model_dump()
+
+
+def test_api_log_download_eval(test_client: TestClient):
+    """Test downloading a .json file as eval format."""
+    json_file = "test_dir/test_log.json"
+    write_fake_eval_log(json_file.replace(".json", ".eval"))
+
+    fs = inspect_ai._util.file.filesystem("memory://")
+    original_eval_path = f"memory://{json_file.replace('.json', '.eval')}"
+    json_path = f"memory://{json_file}"
+
+    original_log = inspect_ai.log.read_eval_log(original_eval_path)
+    inspect_ai.log.write_eval_log(original_log, json_path, "json")
+
+    response = test_client.request("GET", f"/log-download/{json_file}?format=eval")
+    response.raise_for_status()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/octet-stream"
+    assert "content-disposition" in response.headers
+    assert 'attachment; filename="' in response.headers["content-disposition"]
+    assert ".eval" in response.headers["content-disposition"]
+
+    temp_path = "memory://temp_download.eval"
+    with cast(
+        ContextManager[IO[bytes]],
+        fsspec.open(temp_path, "wb"),
+    ) as f:
+        f.write(response.content)
+
+    downloaded_log = inspect_ai.log.read_eval_log(temp_path)
+    assert downloaded_log.model_dump() == original_log.model_dump()
+
+
+def test_api_log_download_same_format(test_client: TestClient, mock_s3_eval_file: str):
+    """Test downloading a file in the same format as the original."""
+    response = test_client.request(
+        "GET", f"/log-download/{mock_s3_eval_file}?format=eval"
+    )
+    response.raise_for_status()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/octet-stream"
+
+    original_log = inspect_ai.log.read_eval_log(f"memory://{mock_s3_eval_file}")
+
+    temp_path = "memory://temp_same_format.eval"
+    with cast(
+        ContextManager[IO[bytes]],
+        fsspec.open(temp_path, "wb"),
+    ) as f:
+        f.write(response.content)
+
+    downloaded_log = inspect_ai.log.read_eval_log(temp_path)
+    assert downloaded_log.model_dump() == original_log.model_dump()
+
+
+def test_api_log_download_invalid_format(test_client: TestClient, mock_s3_eval_file: str):
+    """Test that invalid format parameter returns 400 error."""
+    response = test_client.request(
+        "GET", f"/log-download/{mock_s3_eval_file}?format=invalid"
+    )
+    assert response.status_code == 400
+
+
+def test_api_log_download_forbidden(test_client: TestClient, mock_s3_eval_file: str):
+    """Test that download respects access control."""
+    class no_read_policy(AccessPolicy):
+        async def can_read(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_delete(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_list(self, request: Request, dir: str) -> bool:
+            return True
+
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"memory://{file}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix("memory://")
+
+    with fastapi.testclient.TestClient(
+        fastapi_server.view_server_app(
+            mapping_policy=mapping_policy(),
+            access_policy=no_read_policy(),
+        )
+    ) as restricted_client:
+        response = restricted_client.request(
+            "GET", f"/log-download/{mock_s3_eval_file}?format=json"
+        )
+        assert response.status_code == 403
+
+
+def test_api_log_download_headers(test_client: TestClient, mock_s3_eval_file: str):
+    """Test that download returns correct headers."""
+    response = test_client.request(
+        "GET", f"/log-download/{mock_s3_eval_file}?format=json"
+    )
+    response.raise_for_status()
+
+    assert "content-length" in response.headers
+    assert int(response.headers["content-length"]) > 0
+    assert int(response.headers["content-length"]) == len(response.content)
+
+    assert "content-disposition" in response.headers
+    disposition = response.headers["content-disposition"]
+    assert disposition.startswith('attachment; filename="')
+    assert ".json" in disposition
+
+    assert response.headers["content-type"] == "application/json"
+
+    response_eval = test_client.request(
+        "GET", f"/log-download/{mock_s3_eval_file}?format=eval"
+    )
+    response_eval.raise_for_status()
+    assert response_eval.headers["content-type"] == "application/octet-stream"
