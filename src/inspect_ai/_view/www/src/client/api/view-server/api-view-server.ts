@@ -308,6 +308,20 @@ export function viewServerApi(
     return result.parsed;
   };
 
+  const download_log = async (
+    log_file: string,
+    format: "json" | "eval",
+  ): Promise<void> => {
+    const url = `/log-download/${encodeURIComponent(log_file)}?format=${format}`;
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return {
     client_events,
     get_log_root,
@@ -320,6 +334,7 @@ export function viewServerApi(
     get_log_summaries,
     log_message,
     download_file,
+    download_log,
     open_log_file: async () => {},
     eval_pending_samples,
     eval_log_sample_data,

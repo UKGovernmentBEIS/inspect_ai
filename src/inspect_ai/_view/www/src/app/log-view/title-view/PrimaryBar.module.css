@@ -51,5 +51,6 @@
   margin-top: -0.1rem;
   padding-bottom: 0;
   display: grid;
-  grid-template-columns: minmax(0, max-content) max-content;
+  grid-template-columns: minmax(0, max-content) repeat(3, max-content);
+  gap: 0.5rem;
 }

@@ -27,6 +27,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._view import notify
 from inspect_ai._view.common import (
     delete_log,
+    download_log_with_format,
     get_log_bytes,
     get_log_dir,
     get_log_file,
@@ -144,6 +145,38 @@ def view_server_app(
             content=response,
             headers={"Content-Length": str(end - start + 1)},
             media_type="application/octet-stream",
+        )
+
+    @app.get("/log-download/{log:path}")
+    async def api_log_download(
+        request: Request,
+        log: str,
+        format: str = Query("json"),
+    ) -> Response:
+        file = normalize_uri(log)
+        await _validate_read(request, file)
+
+        if format not in ["json", "eval"]:
+            raise HTTPException(
+                status_code=400, detail="Invalid format. Must be 'json' or 'eval'"
+            )
+
+        response = await download_log_with_format(await _map_file(request, file), format)
+
+        base_name = Path(file).stem
+        filename = f"{base_name}.{format}"
+
+        content_type = (
+            "application/json" if format == "json" else "application/octet-stream"
+        )
+
+        return Response(
+            content=response,
+            headers={
+                "Content-Length": str(len(response)),
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+            media_type=content_type,
         )
 
     @app.get("/log-dir")

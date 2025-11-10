@@ -184,6 +184,10 @@ async function download_file() {
   throw Error("Downloading files is not supported in VS Code");
 }
 
+async function download_log() {
+  throw Error("Downloading logs is not supported in VS Code");
+}
+
 async function open_log_file(log_file: string, log_dir: string) {
   const msg = {
     type: "displayLogFile",
@@ -205,6 +209,7 @@ const api: LogViewAPI = {
   get_log_summaries,
   log_message,
   download_file,
+  download_log,
   open_log_file,
   eval_pending_samples,
   eval_log_sample_data,

@@ -27,6 +27,7 @@ from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from .common import (
     async_connection,
     delete_log,
+    download_log_with_format,
     get_log_bytes,
     get_log_dir,
     get_log_file,
@@ -114,6 +115,38 @@ def view_server(
         return web.Response(
             body=body, headers=headers, content_type="application/octet-stream"
         )
+
+    @routes.get("/api/log-download/{log}")
+    async def api_log_download(request: web.Request) -> web.Response:
+        # log file requested
+        file = normalize_uri(request.match_info["log"])
+        validate_log_file_request(file)
+
+        # get format from query params
+        format_param = request.query.get("format", "json")
+        if format_param not in ["json", "eval"]:
+            return web.HTTPBadRequest(reason="Invalid format. Must be 'json' or 'eval'")
+
+        # get the log contents in requested format
+        body = await download_log_with_format(file, format_param)
+
+        # determine filename
+        base_name = Path(file).stem
+        filename = f"{base_name}.{format_param}"
+
+        # set headers for download
+        headers = {
+            "Content-Length": str(len(body)),
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        }
+
+        content_type = (
+            "application/json"
+            if format_param == "json"
+            else "application/octet-stream"
+        )
+
+        return web.Response(body=body, headers=headers, content_type=content_type)
 
     @routes.get("/api/log-dir")
     async def api_log_dir(request: web.Request) -> web.Response:

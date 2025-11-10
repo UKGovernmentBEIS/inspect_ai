@@ -19,6 +19,7 @@ from inspect_ai.log._file import (
     log_file_info,
     log_files_from_ls,
     read_eval_log_async,
+    write_eval_log_async,
 )
 
 logger = getLogger(__name__)
@@ -155,6 +156,49 @@ async def get_log_bytes(log_file: str, start: int, end: int) -> bytes:
         res = fs.read_bytes(log_file, start, end + 1)
 
     return res
+
+
+async def download_log_with_format(
+    log_file: str, format: Literal["json", "eval"]
+) -> bytes:
+    """Download a log file in the specified format, converting if necessary.
+
+    Args:
+        log_file: Path to the log file
+        format: Desired output format ("json" or "eval")
+
+    Returns:
+        bytes: The log file contents in the requested format
+    """
+    import tempfile
+
+    from inspect_ai._util.path import chdir_python
+
+    # Read the log file
+    log = await read_eval_log_async(log_file, header_only=False)
+
+    if format == "json":
+        # For JSON, serialize the log object
+        return eval_log_json(log)
+    else:
+        # For eval format, write to temp file and read back
+        with tempfile.NamedTemporaryFile(
+            mode="wb", suffix=".eval", delete=False
+        ) as temp_file:
+            temp_path = temp_file.name
+
+        try:
+            # Write in eval format to temp file
+            with chdir_python(os.getcwd()):
+                await write_eval_log_async(log, temp_path, format="eval")
+
+            # Read the bytes back
+            with open(temp_path, "rb") as f:
+                return f.read()
+        finally:
+            # Clean up temp file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
 
 
 async def get_logs(
