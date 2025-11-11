@@ -116,44 +116,9 @@ class HttpxHooks(HttpHooks):
         if request_id:
             self.update_request_time(request_id)
 
-        # inject OpenTelemetry trace context for distributed tracing
-        self._inject_otel_context(request)
-
     async def response_hook(self, response: httpx.Response) -> None:
         message = f'{response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '
         logger.log(HTTP, message)
-
-    def _inject_otel_context(self, request: httpx.Request) -> None:
-        """Inject OpenTelemetry trace context into HTTP request headers.
-
-        This enables distributed tracing by propagating the current trace context
-        to external services via W3C Trace Context headers (traceparent, tracestate).
-
-        Args:
-            request: The httpx.Request to inject context into.
-        """
-        try:
-            from opentelemetry import trace
-            from opentelemetry.propagate import inject
-
-            # get current active OpenTelemetry span
-            current_span = trace.get_current_span()
-            if current_span and current_span.is_recording():
-                # inject W3C Trace Context headers into request
-                # this adds traceparent and tracestate headers
-                carrier = dict(request.headers)
-                inject(carrier)
-
-                # update request headers with injected trace context
-                for key, value in carrier.items():
-                    if key.lower() not in request.headers:
-                        request.headers[key] = value
-
-        except ImportError:
-            # OpenTelemetry not installed, skip
-            pass
-        except Exception as e:
-            logger.debug(f"Failed to inject OpenTelemetry context: {e}")
 
 
 def urllib3_hooks() -> HttpHooks:
