@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Memory Tool: Added a new `memory()` tool (conforms to Anthropic's native memory tool definition).
+- Added `cache` configuration to `GenerateConfig` (formerly was only available as a parameter to `generate()`).
+- OpenAI: Retries for `APIConnectionError`.
+
+## 0.3.145 (09 November 2025)
+
 - OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).
 - OpenAI: Support for `logprobs` and `top_logprobs` in Responses API (note that logprobs are not supported for reasoning models).
 - Grok: Updated provider implementation using `xai_sdk` package (rather than using OpenAI compatible endpoint).
@@ -7,7 +13,7 @@
 - Grok: Support for generating structured outputs (outputs constrained by JSON Schema).
 - OpenRouter: Add `reasoning_enabled` model arg to optionally disable reasoning for hybrid models.
 - Eval Set: Enable optional explicit specification of `eval_set_id` 
-- Memory Tool: Added a new memory tool. It conforms to Anthropic's native memory tool definition.
+- Bugfix: Properly handle `content` of type `str` in Responses API agent bridge.
 
 ## 0.3.144 (05 November 2025)
 

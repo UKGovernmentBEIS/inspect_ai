@@ -660,7 +660,13 @@ def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
 ) -> list[ResponseOutputItem]:
     output: list[ResponseOutputItem] = []
-    for content in message.content:
+    # normalize message content to list
+    message_content = (
+        [ContentText(text=message.content)]
+        if isinstance(message.content, str)
+        else message.content
+    )
+    for content in message_content:
         if isinstance(content, ContentText):
             # check for content.internal
             if content.internal:

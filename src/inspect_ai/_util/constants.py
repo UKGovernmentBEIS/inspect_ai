@@ -42,6 +42,7 @@ SANDBOX_SETUP_TIMEOUT = 300
 NO_CONTENT = "(no content)"
 MODEL_NONE = "none/none"
 DEFAULT_BATCH_SIZE = 100
+DEFAULT_CACHE_DAYS = 7
 
 DESERIALIZING = "deserializing"
 MESSAGE_CACHE = "message_cache"
