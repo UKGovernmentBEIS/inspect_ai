@@ -10,6 +10,7 @@ from openai import (
     DEFAULT_TIMEOUT,
     APIStatusError,
     APITimeoutError,
+    APIConnectionError,
     OpenAIError,
     RateLimitError,
 )
@@ -678,7 +679,7 @@ def openai_should_retry(ex: BaseException) -> bool:
         return is_retryable_http_status(ex.status_code)
     elif isinstance(ex, OpenAIResponseError):
         return ex.code in ["rate_limit_exceeded", "server_error"]
-    elif isinstance(ex, APITimeoutError):
+    elif isinstance(ex, APIConnectionError | APITimeoutError):
         return True
     else:
         return False
