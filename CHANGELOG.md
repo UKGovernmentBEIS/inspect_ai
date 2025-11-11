@@ -1,3 +1,7 @@
+## Unreleased
+
+- OpenAI: Retries for `APIConnectionError`.
+
 ## 0.3.145 (09 November 2025)
 
 - OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).
