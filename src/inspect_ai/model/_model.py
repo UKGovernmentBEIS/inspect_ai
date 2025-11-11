@@ -406,7 +406,7 @@ class Model:
         tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
-        cache: bool | CachePolicy = False,
+        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
     ) -> ModelOutput:
         """Generate output from the model.
 
@@ -459,6 +459,13 @@ class Model:
 
         # merge passed config
         config = base_config.merge(config)
+
+        # resolve cache (prefer arg, fall back to config)
+        if isinstance(cache, NotGiven):
+            if config.cache is not None:
+                cache = config.cache
+            else:
+                cache = False
 
         # provide max_tokens from the model api if required
         if config.max_tokens is None:
@@ -517,7 +524,7 @@ class Model:
         input: str | list[ChatMessage],
         tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource = [],
         config: GenerateConfig = GenerateConfig(),
-        cache: bool | CachePolicy = False,
+        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
     ) -> tuple[list[ChatMessage], ModelOutput]:
         """Generate output from the model, looping as long as the model calls tools.
 
@@ -567,7 +574,7 @@ class Model:
         tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
-        cache: bool | CachePolicy = False,
+        cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
     ) -> tuple[ModelOutput, BaseModel]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import emit_model_cache_usage, emit_model_usage
@@ -649,6 +656,12 @@ class Model:
         if self.api.collapse_assistant_messages():
             input = collapse_consecutive_assistant_messages(input)
 
+        # resolve cache policy
+        if isinstance(cache, NotGiven):
+            cache_policy: bool | CachePolicy | None = config.cache
+        else:
+            cache_policy = cache
+
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -664,9 +677,9 @@ class Model:
             assert tool_choice is not None
 
             cache_entry: CacheEntry | None
-            if cache:
-                if isinstance(cache, CachePolicy):
-                    policy = cache
+            if cache_policy:
+                if isinstance(cache_policy, CachePolicy):
+                    policy = cache_policy
                 else:
                     policy = CachePolicy()
 

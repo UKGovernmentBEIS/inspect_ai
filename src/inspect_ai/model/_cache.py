@@ -6,16 +6,16 @@ from datetime import datetime, timezone
 from hashlib import md5
 from pathlib import Path
 from shutil import rmtree
-from typing import Any
+from typing import Any, Optional
 
 from dateutil.relativedelta import relativedelta
+from pydantic import BaseModel, Field
 
 from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from ._chat_message import ChatMessage
-from ._generate_config import GenerateConfig
 from ._model_output import ModelOutput
 
 logger = logging.getLogger(__name__)
@@ -55,49 +55,37 @@ def _parse_expiry(period: str) -> int:
             raise ValueError(f"Invalid expiry: {period}")
 
 
-class CachePolicy:
-    """The `CachePolicy` is used to define various criteria that impact how model calls are cached.
+class CachePolicy(BaseModel):
+    """Caching options for model generation."""
 
-    `expiry`: Default "24h". The expiry time for the cache entry.
+    expiry: str | None = Field(default="1W")
+    """The expiry time for cache entries (Default "1W").
     This is a string of the format "12h" for 12 hours or "1W" for a week,
     etc. This is how long we will keep the cache entry, if we access it
     after this point we'll clear it. Setting to `None` will cache
-    indefinitely.
+    indefinitely."""
 
-    `per_epoch`: Default True. By default we cache responses separately
+    per_epoch: bool = Field(default=True)
+    """Default True. By default we cache responses separately
     for different epochs. The general use case is that if there are
     multiple epochs, we should cache each response separately because
     scorers will aggregate across epochs. However, sometimes a response
     can be cached regardless of epoch if the call being made isn't under
     test as part of the evaluation. If False, this option allows you to
-    bypass that and cache independently of the epoch.
+    bypass that and cache independently of the epoch."""
 
-    `scopes`: A dictionary of additional metadata that should
+    scopes: dict[str, str] = Field(default_factory=dict)
+    """A dictionary of additional metadata that should
     be included in the cache key. This allows for more fine-grained
-    control over the cache key generation.
-    """
+    control over the cache key generation."""
 
-    def __init__(
-        self,
-        expiry: str | None = "1W",
-        per_epoch: bool = True,
-        scopes: dict[str, str] | None = None,
-    ) -> None:
-        """Create a CachePolicy.
-
-        Args:
-           expiry: Expiry.
-           per_epoch: Per epoch
-           scopes: Scopes
-
-        """
-        self.per_epoch = per_epoch
-        self.scopes = scopes if scopes is not None else {}
-
-        if expiry is None:
-            self.expiry = None
-        else:
-            self.expiry = _parse_expiry(expiry)
+    @staticmethod
+    def from_string(expiry: str) -> Optional["CachePolicy"]:
+        try:
+            _parse_expiry(expiry)  # confirm this is a legit expiry
+            return CachePolicy(expiry=expiry)
+        except ValueError:
+            return None
 
 
 # The `epoch` is an essential part of the cache key for `generate` call. When
@@ -131,7 +119,7 @@ class CacheEntry:
     def __init__(
         self,
         base_url: str | None,
-        config: GenerateConfig,
+        config: BaseModel,
         input: list[ChatMessage],
         model: str,
         policy: CachePolicy,
@@ -156,6 +144,7 @@ def _cache_key(entry: CacheEntry) -> str:
                     "max_connections",
                     "max_retries",
                     "timeout",
+                    "cache",
                     "batch",
                 ]
             )
@@ -166,7 +155,7 @@ def _cache_key(entry: CacheEntry) -> str:
         entry.base_url,
         entry.tool_choice,
         entry.tools,
-        entry.policy.expiry,
+        _parse_expiry(entry.policy.expiry) if entry.policy.expiry is not None else None,
         entry.policy.scopes,
     ]
 
@@ -190,7 +179,7 @@ def _cache_expiry(policy: CachePolicy) -> datetime | None:
         return None
 
     expiry_time: datetime = datetime.now(timezone.utc) + relativedelta(
-        seconds=policy.expiry
+        seconds=_parse_expiry(policy.expiry)
     )
     return expiry_time
 
