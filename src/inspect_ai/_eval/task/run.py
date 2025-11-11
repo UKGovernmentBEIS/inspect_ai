@@ -31,6 +31,7 @@ from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
@@ -291,7 +292,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         model=model,
                         state=state,
                         tool_calls=tool_calls,
-                        cache=kwargs.get("cache", False) or False,
+                        cache=kwargs.get("cache", False) or NOT_GIVEN,
                         config=generate_config.merge(kwargs),
                     )
 
