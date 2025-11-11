@@ -65,12 +65,13 @@ Please proceed to the next step using your best judgement.
 """
 
 
-AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
+AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str | AgentState]]
 """Function called to determine whether the agent should continue.
 
 Returns `True` to continue (with no additional messages inserted),
 return `False` to stop. Returns `str` to continue with an additional
-custom user message inserted.
+custom user message inserted. Returns `AgentState` to continue with
+the specified state.
 """
 
 
