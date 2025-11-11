@@ -10,7 +10,7 @@ from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
-    DEFAULT_CACHE_WEEKS,
+    DEFAULT_CACHE_DAYS,
     DEFAULT_EPOCHS,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
     DEFAULT_LOG_SHARED,
@@ -514,7 +514,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=False,
         flag_value="true",
         default=None,
-        callback=int_bool_or_str_flag_callback(DEFAULT_CACHE_WEEKS, None),
+        callback=int_bool_or_str_flag_callback(DEFAULT_CACHE_DAYS, None),
         help=CACHE_HELP,
         envvar="INSPECT_EVAL_CACHE",
     )
@@ -1125,7 +1125,7 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                         else:
                             value = CachePolicy.model_validate(resolve_args(value))
                     case int():
-                        value = CachePolicy(expiry=f"{value}W")
+                        value = CachePolicy(expiry=f"{value}D")
 
             if key == "batch":
                 match value:
