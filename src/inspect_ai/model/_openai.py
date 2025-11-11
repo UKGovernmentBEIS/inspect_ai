@@ -8,9 +8,9 @@ import httpx
 from openai import (
     DEFAULT_CONNECTION_LIMITS,
     DEFAULT_TIMEOUT,
+    APIConnectionError,
     APIStatusError,
     APITimeoutError,
-    APIConnectionError,
     OpenAIError,
     RateLimitError,
 )
