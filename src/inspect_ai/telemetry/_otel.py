@@ -111,9 +111,7 @@ def configure_opentelemetry(
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
             # Create resource with service name
-            resource = Resource(attributes={
-                SERVICE_NAME: service_name
-            })
+            resource = Resource(attributes={SERVICE_NAME: service_name})
 
             # Create provider with resource
             provider = TracerProvider(resource=resource)
@@ -129,7 +127,7 @@ def configure_opentelemetry(
                 )
 
             elif exporter == "otlp":
-                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore[import-not-found]
                     OTLPSpanExporter,
                 )
 
@@ -141,7 +139,7 @@ def configure_opentelemetry(
                 )
 
             elif exporter == "jaeger":
-                from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+                from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore[import-not-found]
 
                 jaeger_exporter = JaegerExporter(
                     agent_host_name="localhost",
@@ -204,7 +202,7 @@ def is_otel_enabled() -> bool:
 
 # Context variables for OpenTelemetry configuration
 _otel_enabled: ContextVar[bool] = ContextVar("_otel_enabled", default=False)
-_otel_tracer: ContextVar[Any] = ContextVar("_otel_tracer", default=None)
+_otel_tracer: ContextVar["Tracer | None"] = ContextVar("_otel_tracer", default=None)
 _otel_trace_context: ContextVar["Context | None"] = ContextVar(
     "_otel_trace_context", default=None
 )

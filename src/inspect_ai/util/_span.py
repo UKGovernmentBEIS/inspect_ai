@@ -113,6 +113,7 @@ async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
                 # if no exception occurred, mark span as OK
                 if not exception_occurred:
                     from opentelemetry.trace import Status, StatusCode
+
                     otel_span.set_status(Status(StatusCode.OK))
 
                 otel_span.end()
