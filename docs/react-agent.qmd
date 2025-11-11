@@ -141,6 +141,7 @@ You can pass a different continuation message, or alternatively pass an `AgentCo
   - `True`: Agent loop continues with no messages appended.
   - `False`: Agent loop is exited early.
   - `str`: Agent loop continues and the returned user message will be appended regardless of whether a tool call was made in the previous assistant message. If your custom function only wants to append a message when there are no tool calls made then you should check `state.output.message.tool_calls` explicitly (returning `True` rather than `str` when you want no message appended).
+  - `AgentState`: Agent loop continues and the agent state is updated to the returned value.
 
 
 ### Submit Tool
