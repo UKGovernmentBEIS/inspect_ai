@@ -139,8 +139,8 @@ def configure_opentelemetry(
                 )
 
             elif exporter == "jaeger":
-                from opentelemetry.exporter.jaeger.thrift import (
-                    JaegerExporter,  # type: ignore[import-not-found]
+                from opentelemetry.exporter.jaeger.thrift import (  # type: ignore[import-not-found]
+                    JaegerExporter,
                 )
 
                 jaeger_exporter = JaegerExporter(
