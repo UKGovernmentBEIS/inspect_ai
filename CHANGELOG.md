@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Added `cache` configuration to `GenerateConfig` (formerly was only available as a parameter to `generate()`).
+- OpenAI: Retries for `APIConnectionError`.
 
 ## 0.3.145 (09 November 2025)
 
