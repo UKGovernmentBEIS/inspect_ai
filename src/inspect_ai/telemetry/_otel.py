@@ -4,7 +4,7 @@ import contextlib
 import os
 from contextvars import ContextVar
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 if TYPE_CHECKING:
     from opentelemetry.context import Context
@@ -139,7 +139,9 @@ def configure_opentelemetry(
                 )
 
             elif exporter == "jaeger":
-                from opentelemetry.exporter.jaeger.thrift import JaegerExporter  # type: ignore[import-not-found]
+                from opentelemetry.exporter.jaeger.thrift import (
+                    JaegerExporter,  # type: ignore[import-not-found]
+                )
 
                 jaeger_exporter = JaegerExporter(
                     agent_host_name="localhost",
