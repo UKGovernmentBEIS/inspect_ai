@@ -2,13 +2,17 @@ import asyncio
 import contextlib
 import os
 import urllib.parse
+from collections.abc import AsyncIterable
+from io import BytesIO
 from logging import getLogger
 from typing import Any, AsyncIterator, Literal, Tuple, cast
 
 import fsspec  # type: ignore
+from aiobotocore.response import StreamingBody
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from s3fs import S3FileSystem  # type: ignore
+from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai.log._file import (
@@ -144,17 +148,61 @@ async def delete_log(log_file: str) -> None:
     fs.rm(log_file)
 
 
-async def get_log_bytes(log_file: str, start: int, end: int) -> bytes:
+async def get_log_bytes(
+    log_file: str, start: int | None = None, end: int | None = None
+) -> bytes:
     # fetch bytes
+    adjusted_end = end + 1 if end is not None else None
     fs = filesystem(log_file)
     if fs.is_async():
         res: bytes = await async_connection(log_file)._cat_file(
-            log_file, start=start, end=end + 1
+            log_file, start=start, end=adjusted_end
         )
     else:
-        res = fs.read_bytes(log_file, start, end + 1)
+        res = fs.read_bytes(log_file, start, adjusted_end)
 
     return res
+
+
+async def stream_log_bytes(
+    log_file: str, start: int | None = None, end: int | None = None
+) -> AsyncIterable[bytes] | BytesIO:
+    if (start is None) != (end is None):
+        raise ValueError("start and end must be both specified or both None")
+
+    # fetch bytes
+    fs = filesystem(log_file)
+    if not fs.is_async() or not fs.is_s3():
+        # We only implement streaming for s3:
+        bs = await get_log_bytes(log_file, start, end)
+        return BytesIO(bs)
+
+    connection = async_connection(log_file)
+
+    if not isinstance(connection, S3FileSystem):
+        raise ValueError("Expected S3FileSystem")
+
+    bucket, key, vers = connection.split_path(log_file)
+
+    if start is not None and end is not None:
+        head = {"Range": f"bytes={start}-{end + 1}"}
+    else:
+        head = {}
+
+    async def _call_and_read() -> AsyncIterable[bytes]:
+        resp = await connection._call_s3(
+            "get_object",
+            Bucket=bucket,
+            Key=key,
+            **version_id_kw(vers),
+            **head,
+            **connection.req_kw,
+        )
+        return cast(StreamingBody, resp["Body"])
+
+    return cast(
+        StreamingBody, await _error_wrapper(_call_and_read, retries=connection.retries)
+    )
 
 
 async def get_logs(
@@ -264,7 +312,7 @@ async def list_eval_logs_async(
     fs = filesystem(log_dir, fs_options)
     if fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
-            if await async_fs._exists(log_dir):
+            try:
                 # prevent caching of listings
                 async_fs.invalidate_cache(log_dir)
                 # list logs
@@ -280,7 +328,7 @@ async def list_eval_logs_async(
                 logs = [fs._file_info(file) for file in files]
                 # resolve to eval logs
                 return log_files_from_ls(logs, formats, descending)
-            else:
+            except FileNotFoundError:
                 return []
     else:
         return list_eval_logs(
