@@ -185,7 +185,7 @@ async def stream_log_bytes(
     bucket, key, vers = connection.split_path(log_file)
 
     if start is not None and end is not None:
-        head = {"Range": f"bytes={start}-{end + 1}"}
+        head = {"Range": f"bytes={start}-{end}"}
     else:
         head = {}
 
