@@ -786,7 +786,7 @@ def tool_parse_error_message(arguments: str, ex: Exception) -> str:
 def parse_tool_call(
     id: str,
     function: str,
-    arguments: str,
+    arguments: str | None,
     tools: list[ToolInfo] | None = None,
     type: Literal["function", "custom"] = "function",
 ) -> ToolCall:
@@ -806,7 +806,7 @@ def parse_tool_call(
         logger.info(error)
 
     # if the arguments is a dict, then handle it with a plain json.loads
-    arguments = arguments.strip()
+    arguments = (arguments or "").strip()
     if arguments.startswith("{"):
         try:
             arguments_dict = json.loads(arguments)

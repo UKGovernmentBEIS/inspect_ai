@@ -3,6 +3,7 @@
 - Added `cache` configuration to `GenerateConfig` (formerly was only available as a parameter to `generate()`).
 - ReAct agent: `on_continue` can now return a new `AgentState`.
 - OpenAI: Retries for `APIConnectionError`.
+- Bugfix: Properly handle `None` as value of `arguments` when parsing tool calls.
 
 ## 0.3.145 (09 November 2025)
 
