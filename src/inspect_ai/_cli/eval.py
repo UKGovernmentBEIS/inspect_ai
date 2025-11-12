@@ -10,6 +10,7 @@ from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
+    DEFAULT_CACHE_DAYS,
     DEFAULT_EPOCHS,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
     DEFAULT_LOG_SHARED,
@@ -20,6 +21,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import BatchConfig, ResponseSchema
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
@@ -68,6 +70,7 @@ MAX_RETRIES_HELP = (
 )
 TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
+CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
 
 
@@ -507,6 +510,15 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_RESPONSE_SCHEMA",
     )
     @click.option(
+        "--cache",
+        is_flag=False,
+        flag_value="true",
+        default=None,
+        callback=int_bool_or_str_flag_callback(DEFAULT_CACHE_DAYS, None),
+        help=CACHE_HELP,
+        envvar="INSPECT_EVAL_CACHE",
+    )
+    @click.option(
         "--batch",
         is_flag=False,
         flag_value="true",
@@ -593,6 +605,7 @@ def eval_command(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    cache: int | str | None,
     batch: int | str | None,
     message_limit: int | None,
     token_limit: int | None,
@@ -789,6 +802,7 @@ def eval_set_command(
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
+    cache: int | str | None,
     batch: int | str | None,
     message_limit: int | None,
     token_limit: int | None,
@@ -1102,6 +1116,17 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
             if key == "response_schema":
                 if value is not None:
                     value = ResponseSchema.model_validate_json(value)
+            if key == "cache":
+                match value:
+                    case str():
+                        policy = CachePolicy.from_string(value)
+                        if policy is not None:
+                            value = policy
+                        else:
+                            value = CachePolicy.model_validate(resolve_args(value))
+                    case int():
+                        value = CachePolicy(expiry=f"{value}D")
+
             if key == "batch":
                 match value:
                     case str():

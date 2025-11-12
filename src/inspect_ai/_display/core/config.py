@@ -4,6 +4,7 @@ from rich.text import Text
 from inspect_ai._util.registry import is_model_dict, is_registry_dict
 from inspect_ai._util.text import truncate_text
 from inspect_ai.log._log import eval_config_defaults
+from inspect_ai.model._cache import CachePolicy
 
 from .display import TaskProfile
 
@@ -35,6 +36,15 @@ def task_config_str(profile: TaskProfile, generate_config: bool = True) -> str:
             config_print.append(
                 f"{name}: {','.join([approver['name'] for approver in value['approvers']])}"
             )
+        elif name == "cache":
+            value = (
+                profile.generate_config.cache.expiry
+                if isinstance(profile.generate_config.cache, CachePolicy)
+                else "1W"
+                if profile.generate_config.cache is True
+                else profile.generate_config.cache
+            )
+            config_print.append(f"{name}: {value}")
         elif name == "sample_id":
             value = value if isinstance(value, list) else [value]
             value = [str(v) for v in value]

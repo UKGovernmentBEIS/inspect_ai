@@ -269,6 +269,9 @@ def react(
                                 content=do_continue.format(submit=submit_tool.name)
                             )
                         )
+                    elif isinstance(do_continue, AgentState):
+                        state.messages = do_continue.messages
+                        state.output = do_continue.output
                     else:  # do_continue is False
                         break
 
@@ -353,6 +356,9 @@ def react_no_submit(
                             )
                     elif isinstance(do_continue, str):
                         state.messages.append(ChatMessageUser(content=do_continue))
+                    elif isinstance(do_continue, AgentState):
+                        state.messages = do_continue.messages
+                        state.output = do_continue.output
                     else:
                         break
                 elif not state.output.message.tool_calls:
@@ -467,7 +473,7 @@ def _model_generate(model: str | Model | None) -> Agent:
 
 async def _call_on_continue(
     on_continue: AgentContinue, state: AgentState
-) -> str | bool:
+) -> str | bool | AgentState:
     if not is_callable_coroutine(on_continue):
         raise ValueError("The on_continue function must be async.")
     return await on_continue(state)
