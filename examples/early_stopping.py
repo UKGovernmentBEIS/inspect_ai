@@ -36,11 +36,11 @@ class TestEarlyStopping(EarlyStopping):
     def __init__(self) -> None:
         self._completed_samples: list[int | str] = []
 
-    def start_task(self, task: EvalSpec) -> None:
+    async def start_task(self, task: EvalSpec) -> None:
         """Called at the beginning of an eval run to register the tasks that will be run."""
         pass
 
-    def schedule_sample(
+    async def schedule_sample(
         self, task: EvalSpec, id: str | int, epoch: int
     ) -> JsonValue | None:
         """Called prior to scheduling a sample (return False to prevent it from running)."""
@@ -54,12 +54,12 @@ class TestEarlyStopping(EarlyStopping):
         else:
             return None
 
-    def complete_sample(
+    async def complete_sample(
         self, task: EvalSpec, id: str | int, epoch: int, scores: dict[str, SampleScore]
     ) -> None:
         """Called when a sample is complete."""
         pass
 
-    def complete_task(self, task: EvalSpec) -> JsonValue:
+    async def complete_task(self, task: EvalSpec) -> JsonValue:
         """Called when the run is complete. Return a value for each task for inclusion in the task log file."""
         return dict()

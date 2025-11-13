@@ -7,7 +7,7 @@ from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import PurePath
-from typing import Callable, Literal
+from typing import Awaitable, Callable, Literal
 
 import anyio
 from anyio.abc import TaskGroup
@@ -280,7 +280,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
             # call early stopping if we have it
             if options.task.early_stopping is not None:
-                options.task.early_stopping.start_task(logger.eval)
+                await options.task.early_stopping.start_task(logger.eval)
 
             with td.progress() as p:
                 # forward progress
@@ -321,7 +321,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     display_metrics=profile.eval_config.score_display is not False,
                 )
 
-                def sample_complete(
+                async def sample_complete(
                     sample_id: int | str,
                     epoch: int,
                     sample_score: dict[str, SampleScore],
@@ -345,7 +345,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # call the early stopping hook
                     if options.task.early_stopping is not None:
-                        options.task.early_stopping.complete_sample(
+                        await options.task.early_stopping.complete_sample(
                             options.logger.eval, sample_id, epoch, sample_score
                         )
 
@@ -439,7 +439,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
             # call early stopping if we have it
             if options.task.early_stopping is not None:
-                options.task.early_stopping.complete_task(options.logger.eval)
+                await options.task.early_stopping.complete_task(options.logger.eval)
 
             # display task summary
             td.complete(
@@ -590,7 +590,9 @@ async def task_run_sample(
     log_images: bool,
     sample_source: EvalSampleSource | None,
     sample_error: SampleErrorHandler,
-    sample_complete: Callable[[int | str, int, dict[str, SampleScore]], None],
+    sample_complete: Callable[
+        [int | str, int, dict[str, SampleScore]], Awaitable[None]
+    ],
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
     retry_on_error: int,
@@ -632,12 +634,12 @@ async def task_run_sample(
                 if previous_sample.scores
                 else {}
             )
-            sample_complete(state.sample_id, state.epoch, sample_scores)
+            await sample_complete(state.sample_id, state.epoch, sample_scores)
             return sample_scores
 
     # check for early stopping
     if early_stopping is not None and logger is not None:
-        stopping = early_stopping.schedule_sample(
+        stopping = await early_stopping.schedule_sample(
             logger.eval, state.sample_id, state.epoch
         )
         if stopping is not None:
@@ -1055,7 +1057,7 @@ async def task_run_sample(
     elif error is None:
         # call sample_complete callback if we have score results
         if results is not None:
-            sample_complete(state.sample_id, state.epoch, results)
+            await sample_complete(state.sample_id, state.epoch, results)
         return results
 
     # we have an error and should raise it
