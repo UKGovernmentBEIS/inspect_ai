@@ -6,6 +6,7 @@
 - Bugfix: Properly load scorer metrics when using solver scoring.
 - Bugfix: Properly handle `None` as value of `arguments` when parsing tool calls.
 - Bugfix: Fix sandbox tools install for sandbox envs with non-root default user.
+- Bugfix: Fix model name preservation in eval logs for service-prefixed models.
 
 ## 0.3.145 (09 November 2025)
 
