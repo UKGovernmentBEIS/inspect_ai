@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Memory Tool: Added a new `memory()` tool (conforms to Anthropic's native memory tool definition).
 - Added `cache` configuration to `GenerateConfig` (formerly was only available as a parameter to `generate()`).
 - ReAct agent: `on_continue` can now return a new `AgentState`.
 - OpenAI: Retries for `APIConnectionError`.
