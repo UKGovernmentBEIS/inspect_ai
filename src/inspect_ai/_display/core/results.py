@@ -68,12 +68,21 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
 
     # note if some of our samples had errors
     if success.samples_completed < profile.samples:
-        sample_errors = profile.samples - success.samples_completed
-        sample_error_pct = int(float(sample_errors) / float(profile.samples) * 100)
-        message = f"\n[{theme.warning}]WARNING: {sample_errors} of {profile.samples} samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]\n"
-        return Group(grid, message)
-    else:
-        return grid
+        sample_errors = (
+            profile.samples
+            - success.samples_completed
+            - (
+                len(success.results.early_stopping.stopped_samples)
+                if success.results.early_stopping
+                else 0
+            )
+        )
+        if sample_errors > 0:
+            sample_error_pct = int(float(sample_errors) / float(profile.samples) * 100)
+            message = f"\n[{theme.warning}]WARNING: {sample_errors} of {profile.samples} samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]\n"
+            return Group(grid, message)
+
+    return grid
 
 
 SCORES_PER_ROW = 4

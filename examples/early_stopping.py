@@ -1,12 +1,15 @@
 from random import random
 
 from pydantic import JsonValue
+from typing_extensions import override
 
-from inspect_ai import EarlyStopping, Task, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, example_dataset
 from inspect_ai.log._log import EvalSpec
 from inspect_ai.scorer import SampleScore, match
 from inspect_ai.solver import generate, system_message
+from inspect_ai.util import EarlyStopping
+from inspect_ai.util._early_stopping import EarlyStop
 
 SYSTEM_MESSAGE = r"""
 Please note: In the following EXERCISE, it is important that you only respond with exactly "Yes" or "No"
@@ -36,21 +39,22 @@ class TestEarlyStopping(EarlyStopping):
     def __init__(self) -> None:
         self._completed_samples: list[int | str] = []
 
-    async def start_task(self, task: EvalSpec) -> None:
-        """Called at the beginning of an eval run to register the tasks that will be run."""
-        pass
+    @override
+    async def start_task(self, task: EvalSpec) -> str:
+        """Called at the beginning of an eval run to register the tasks that will be run.."""
+        return "test"
 
     async def schedule_sample(
         self, task: EvalSpec, id: str | int, epoch: int
-    ) -> JsonValue | None:
+    ) -> EarlyStop | None:
         """Called prior to scheduling a sample (return False to prevent it from running)."""
         # first check if this sample has no more epochs
         if id in self._completed_samples:
-            return dict()
+            return EarlyStop()
 
         if random() < 0.5:
             self._completed_samples.append(id)
-            return dict()
+            return EarlyStop()
         else:
             return None
 
@@ -60,6 +64,6 @@ class TestEarlyStopping(EarlyStopping):
         """Called when a sample is complete."""
         pass
 
-    async def complete_task(self, task: EvalSpec) -> JsonValue:
+    async def complete_task(self, task: EvalSpec) -> dict[str, JsonValue]:
         """Called when the run is complete. Return a value for each task for inclusion in the task log file."""
-        return dict()
+        return {}

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence, cast, overload
 
-from inspect_ai._eval.task._early_stopping import EarlyStopping
+from inspect_ai.util._early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
     from inspect_ai.scorer._scorers import Scorers
@@ -84,7 +84,7 @@ class Task:
         token_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
-        early_stopping: EarlyStopping | None = None,
+        early_stopping: "EarlyStopping" | None = None,
         display_name: str | None = None,
         name: str | None = None,
         version: int | str = 0,
