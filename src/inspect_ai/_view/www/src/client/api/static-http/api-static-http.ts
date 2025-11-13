@@ -161,7 +161,7 @@ function staticHttpApiForLog(logInfo: {
       );
     },
     download_file,
-    download_log: async (log_file: string) => {
+    download_log: async (_log_file: string) => {
       throw new Error(
         "Downloading .eval format is not supported in static mode. " +
           "Please use server mode to download log files.",

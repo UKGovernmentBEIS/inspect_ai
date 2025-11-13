@@ -34,7 +34,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
 
   const handleDownload = async () => {
-    if (!selectedLogFile) return;
+    if (!selectedLogFile || !api) return;
     try {
       await api.download_log(selectedLogFile);
     } catch (error) {
