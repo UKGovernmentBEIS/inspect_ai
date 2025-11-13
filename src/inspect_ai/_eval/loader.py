@@ -524,11 +524,11 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
     # See if the scorer doesn't have type annotations. Currently the registry will not load
     # the function without type annotations.
     # TODO: We could consider calling this ourselves if we're certain it is what we're looking for
-    def validate_scorer(scorer_fn: Scorer, task_name: str, task_path: str) -> None:
+    def validate_scorer(scorer_fn: Scorer, scorer_name: str, scorer_path: str) -> None:
         signature = inspect.signature(scorer_fn)
         if signature.return_annotation is inspect.Signature.empty:
             raise PrerequisiteError(
-                f"The function '{task_name}' in the file '{task_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
+                f"The function '{scorer_name}' in the file '{scorer_path}' requires a return type annotation. Please add a return type annotation to use this function with scoring."
             )
 
     def create_scorer(scorer_name: str, **kwargs: Any) -> Scorer:

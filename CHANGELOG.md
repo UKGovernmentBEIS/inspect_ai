@@ -3,6 +3,7 @@
 - Added `cache` configuration to `GenerateConfig` (formerly was only available as a parameter to `generate()`).
 - ReAct agent: `on_continue` can now return a new `AgentState`.
 - OpenAI: Retries for `APIConnectionError`.
+- Bugfix: Properly load scorer metrics when using solver scoring.
 - Bugfix: Properly handle `None` as value of `arguments` when parsing tool calls.
 - Bugfix: Fix sandbox tools install for sandbox envs with non-root default user.
 
