@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence, cast, overload
 
+from inspect_ai._eval.task._early_stopping import EarlyStopping
+
 if TYPE_CHECKING:
     from inspect_ai.scorer._scorers import Scorers
 
@@ -82,6 +84,7 @@ class Task:
         token_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
+        early_stopping: EarlyStopping | None = None,
         display_name: str | None = None,
         name: str | None = None,
         version: int | str = 0,
@@ -119,6 +122,7 @@ class Task:
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
+            early_stopping: Early stopping callbacks.
             name: Task name. If not specified is automatically
                 determined based on the registered name of the task.
             display_name: Task display name (e.g. for plotting). If not specified then defaults to the registered task name.
@@ -171,6 +175,7 @@ class Task:
         self.token_limit = token_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
+        self.early_stopping = early_stopping
         self.version = version
         self._display_name = display_name
         self._name = name
@@ -239,6 +244,7 @@ def task_with(
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
+    early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
@@ -279,6 +285,7 @@ def task_with(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        early_stopping: Early stopping callbacks.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to
@@ -328,6 +335,8 @@ def task_with(
         task.time_limit = time_limit
     if not isinstance(working_limit, NotGiven):
         task.working_limit = working_limit
+    if not isinstance(early_stopping, NotGiven):
+        task.early_stopping = early_stopping
     if not isinstance(version, NotGiven):
         task.version = version
     if not isinstance(name, NotGiven):
