@@ -60,6 +60,7 @@ async def test_openai_responses_compatible() -> None:
             "model_length",
             id="deepinfra_model_length",
         ),
+        pytest.param(400, "Bad Request", None, id="bad_request"),
         pytest.param(403, "Forbidden", None, id="forbidden"),
         pytest.param(500, "Internal Server Error", None, id="internal_server_error"),
     ],
