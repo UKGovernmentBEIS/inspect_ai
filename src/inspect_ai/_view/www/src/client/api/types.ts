@@ -169,7 +169,7 @@ export interface LogViewAPI {
     filename: string,
     filecontents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
   ) => Promise<void>;
-  download_log: (log_file: string, format: "json" | "eval") => Promise<void>;
+  download_log: (log_file: string) => Promise<void>;
   open_log_file: (logFile: string, log_dir: string) => Promise<void>;
   eval_pending_samples?: (
     log_file: string,
@@ -232,7 +232,7 @@ export interface ClientAPI {
     file_name: string,
     file_contents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
   ) => Promise<void>;
-  download_log: (log_file: string, format: "json" | "eval") => Promise<void>;
+  download_log: (log_file: string) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
 }
 

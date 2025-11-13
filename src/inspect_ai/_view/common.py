@@ -158,17 +158,14 @@ async def get_log_bytes(log_file: str, start: int, end: int) -> bytes:
     return res
 
 
-async def download_log_with_format(
-    log_file: str, format: Literal["json", "eval"]
-) -> bytes:
-    """Download a log file in the specified format, converting if necessary.
+async def download_log(log_file: str) -> bytes:
+    """Download a log file in eval format.
 
     Args:
         log_file: Path to the log file
-        format: Desired output format ("json" or "eval")
 
     Returns:
-        bytes: The log file contents in the requested format
+        bytes: The log file contents in eval format
     """
     import tempfile
 
@@ -177,28 +174,24 @@ async def download_log_with_format(
     # Read the log file
     log = await read_eval_log_async(log_file, header_only=False)
 
-    if format == "json":
-        # For JSON, serialize the log object
-        return eval_log_json(log)
-    else:
-        # For eval format, write to temp file and read back
-        with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".eval", delete=False
-        ) as temp_file:
-            temp_path = temp_file.name
+    # Write in eval format to temp file and read back
+    with tempfile.NamedTemporaryFile(
+        mode="wb", suffix=".eval", delete=False
+    ) as temp_file:
+        temp_path = temp_file.name
 
-        try:
-            # Write in eval format to temp file
-            with chdir_python(os.getcwd()):
-                await write_eval_log_async(log, temp_path, format="eval")
+    try:
+        # Write in eval format to temp file
+        with chdir_python(os.getcwd()):
+            await write_eval_log_async(log, temp_path, format="eval")
 
-            # Read the bytes back
-            with open(temp_path, "rb") as f:
-                return f.read()
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
+        # Read the bytes back
+        with open(temp_path, "rb") as f:
+            return f.read()
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 
 async def get_logs(

@@ -161,26 +161,11 @@ function staticHttpApiForLog(logInfo: {
       );
     },
     download_file,
-    download_log: async (log_file: string, format: "json" | "eval") => {
-      const logContents = await fetchLogFile(log_file);
-      if (!logContents) {
-        throw new Error("Failed to load log file");
-      }
-
-      const filename =
-        log_file
-          .split("/")
-          .pop()
-          ?.replace(/\.(json|eval)$/, "") || "log";
-
-      if (format === "json") {
-        await download_file(`${filename}.json`, logContents.raw);
-      } else {
-        throw new Error(
-          "Converting to .eval format is not supported in static mode. " +
-            "Please use server mode to download .eval files.",
-        );
-      }
+    download_log: async (log_file: string) => {
+      throw new Error(
+        "Downloading .eval format is not supported in static mode. " +
+          "Please use server mode to download log files.",
+      );
     },
     open_log_file,
   };

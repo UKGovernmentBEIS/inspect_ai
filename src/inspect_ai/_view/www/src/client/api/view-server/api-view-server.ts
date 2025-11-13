@@ -308,12 +308,9 @@ export function viewServerApi(
     return result.parsed;
   };
 
-  const download_log = async (
-    log_file: string,
-    format: "json" | "eval",
-  ): Promise<void> => {
+  const download_log = async (log_file: string): Promise<void> => {
     const baseUrl = apiBaseUrl || __VIEW_SERVER_API_URL__;
-    const url = `${baseUrl}/log-download/${encodeURIComponent(log_file)}?format=${format}`;
+    const url = `${baseUrl}/log-download/${encodeURIComponent(log_file)}`;
 
     const link = document.createElement("a");
     link.href = url;

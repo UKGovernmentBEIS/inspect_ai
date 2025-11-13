@@ -33,12 +33,12 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   const api = useStore((state) => state.api);
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
 
-  const handleDownload = async (format: "json" | "eval") => {
+  const handleDownload = async () => {
     if (!selectedLogFile) return;
     try {
-      await api.download_log(selectedLogFile, format);
+      await api.download_log(selectedLogFile);
     } catch (error) {
-      console.error(`Failed to download log as ${format}:`, error);
+      console.error("Failed to download log:", error);
     }
   };
 
@@ -92,18 +92,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             {selectedLogFile ? (
               <button
                 className="btn btn-sm btn-outline-secondary"
-                onClick={() => handleDownload("json")}
-                title="Download as JSON"
-              >
-                Download .json
-              </button>
-            ) : (
-              ""
-            )}
-            {selectedLogFile ? (
-              <button
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() => handleDownload("eval")}
+                onClick={handleDownload}
                 title="Download as EVAL"
               >
                 Download .eval
@@ -116,8 +105,8 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
-        (status === "started" && streamSamples && hasRunningMetrics) ||
-        (status === "error" && evalSpec?.config["continue_on_fail"]) ? (
+          (status === "started" && streamSamples && hasRunningMetrics) ||
+          (status === "error" && evalSpec?.config["continue_on_fail"]) ? (
           <ResultsPanel
             scorers={
               runningMetrics
