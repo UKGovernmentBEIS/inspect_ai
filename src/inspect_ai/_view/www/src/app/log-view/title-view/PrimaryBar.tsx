@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { EvalResults, EvalSpec, Status } from "../../../@types/log";
-import api from "../../../client/api";
 import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
 import { kModelNone } from "../../../constants";
@@ -31,7 +30,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
 }) => {
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-
+  const api = useStore((state) => state.api);
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
 
   const handleDownload = async (format: "json" | "eval") => {
