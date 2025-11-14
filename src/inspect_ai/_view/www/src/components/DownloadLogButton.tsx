@@ -77,7 +77,11 @@ export const DownloadLogButton = ({
   return (
     <button
       type="button"
-      className={clsx("download-log-button", styles.downloadLogButton, className)}
+      className={clsx(
+        "download-log-button",
+        styles.downloadLogButton,
+        className,
+      )}
       onClick={handleClick}
       aria-label={ariaLabel}
       disabled={downloadState !== "idle"}

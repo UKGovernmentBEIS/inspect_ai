@@ -136,6 +136,7 @@ export interface BasicSampleData {
 
 export interface Capabilities {
   downloadFiles: boolean;
+  downloadLogs: boolean;
   webWorkers: boolean;
   streamSamples: boolean;
   streamSampleData: boolean;

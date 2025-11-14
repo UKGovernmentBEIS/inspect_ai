@@ -30,8 +30,10 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   sampleCount,
 }) => {
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
+  const downloadLogs = useStore((state) => state.capabilities.downloadLogs);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
+  const isEvalFile = selectedLogFile?.endsWith(".eval");
 
   const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
 
@@ -80,18 +82,16 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
               {logFileName}
             </div>
             {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
-            {selectedLogFile ? (
+            {downloadLogs && isEvalFile ? (
               <DownloadLogButton log_file={selectedLogFile} />
-            ) : (
-              ""
-            )}
+            ) : null}
           </div>
         </div>
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
-          (status === "started" && streamSamples && hasRunningMetrics) ||
-          (status === "error" && evalSpec?.config["continue_on_fail"]) ? (
+        (status === "started" && streamSamples && hasRunningMetrics) ||
+        (status === "error" && evalSpec?.config["continue_on_fail"]) ? (
           <ResultsPanel
             scorers={
               runningMetrics
