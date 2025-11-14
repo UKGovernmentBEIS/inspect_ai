@@ -185,6 +185,24 @@ def test_api_log_bytes(test_client: TestClient, mock_s3_eval_file: str):
     assert len(api_log_bytes) == 100
 
 
+def test_api_log_dir(test_client: TestClient):
+    response = test_client.request("GET", "/log-dir?log_dir=eval_set_dir")
+    response.raise_for_status()
+
+    api_log_dir = response.json()
+    assert "log_dir" in api_log_dir
+    assert api_log_dir["log_dir"] == "eval_set_dir"
+
+
+def test_api_log_dir_with_non_existing_dir(test_client: TestClient):
+    response = test_client.request("GET", "/log-dir?log_dir=does_not_exist")
+    response.raise_for_status()
+
+    api_logs = response.json()
+    assert "log_dir" in api_logs
+    assert api_logs["log_dir"] == "does_not_exist"
+
+
 def test_api_logs(test_client: TestClient):
     write_fake_eval_log("eval_set_dir/2025-01-01T00-00-00+00-00_task1_taskid1.eval")
     write_fake_eval_log("eval_set_dir/2025-01-01T00-01-00+00-00_task2_taskid2.eval")
@@ -203,6 +221,18 @@ def test_api_logs(test_client: TestClient):
     }
     assert "log_dir" in api_logs
     assert api_logs["log_dir"] == "eval_set_dir"
+
+
+def test_api_logs_with_non_existing_dir(test_client: TestClient):
+    response = test_client.request("GET", "/logs?log_dir=does_not_exist")
+    response.raise_for_status()
+
+    api_logs = response.json()
+    assert "files" in api_logs
+    files = api_logs["files"]
+    assert len(files) == 0
+    assert "log_dir" in api_logs
+    assert api_logs["log_dir"] == "does_not_exist"
 
 
 @pytest.mark.parametrize(
