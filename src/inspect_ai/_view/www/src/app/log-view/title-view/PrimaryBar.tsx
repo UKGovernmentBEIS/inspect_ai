@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { EvalResults, EvalSpec, Status } from "../../../@types/log";
+import api from "../../../client/api";
 import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
 import { kModelNone } from "../../../constants";
@@ -32,6 +33,15 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
+
+  const handleDownload = async (format: "json" | "eval") => {
+    if (!selectedLogFile) return;
+    try {
+      await api.download_log(selectedLogFile, format);
+    } catch (error) {
+      console.error(`Failed to download log as ${format}:`, error);
+    }
+  };
 
   const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
 
@@ -80,6 +90,28 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
               {logFileName}
             </div>
             {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
+            {selectedLogFile ? (
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => handleDownload("json")}
+                title="Download as JSON"
+              >
+                Download .json
+              </button>
+            ) : (
+              ""
+            )}
+            {selectedLogFile ? (
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => handleDownload("eval")}
+                title="Download as EVAL"
+              >
+                Download .eval
+              </button>
+            ) : (
+              ""
+            )}
           </div>
         </div>
       </div>
