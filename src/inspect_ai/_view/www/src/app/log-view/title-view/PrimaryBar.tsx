@@ -3,6 +3,7 @@ import { FC } from "react";
 import { EvalResults, EvalSpec, Status } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
+import { DownloadLogButton } from "../../../components/DownloadLogButton";
 import { kModelNone } from "../../../constants";
 import { toDisplayScorers } from "../../../scoring/metrics";
 import { useStore } from "../../../state/store";
@@ -30,17 +31,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
 }) => {
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-  const api = useStore((state) => state.api);
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
-
-  const handleDownload = async () => {
-    if (!selectedLogFile || !api) return;
-    try {
-      await api.download_log(selectedLogFile);
-    } catch (error) {
-      console.error("Failed to download log:", error);
-    }
-  };
 
   const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
 
@@ -90,13 +81,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             </div>
             {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
             {selectedLogFile ? (
-              <button
-                className="btn btn-sm btn-outline-secondary"
-                onClick={handleDownload}
-                title="Download as EVAL"
-              >
-                Download .eval
-              </button>
+              <DownloadLogButton log_file={selectedLogFile} />
             ) : (
               ""
             )}
