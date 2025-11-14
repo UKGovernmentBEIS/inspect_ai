@@ -53,7 +53,9 @@ export type ParallelToolCalls = boolean | null;
 export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
-export type ReasoningEffort = ("minimal" | "low" | "medium" | "high") | null;
+export type ReasoningEffort =
+  | ("none" | "minimal" | "low" | "medium" | "high")
+  | null;
 export type ReasoningTokens = number | null;
 export type ReasoningSummary =
   | ("none" | "concise" | "detailed" | "auto")
