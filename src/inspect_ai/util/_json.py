@@ -228,6 +228,23 @@ def resolve_schema_references(schema: dict[str, Any]) -> dict[str, Any]:
     return cast(dict[str, Any], _resolve_refs(schema))
 
 
+def set_additional_properties_false(schema: JSONSchema) -> None:
+    # Set on top level
+    schema.additionalProperties = False
+
+    # Recursively process nested schemas
+    if schema.items:
+        set_additional_properties_false(schema.items)
+
+    if schema.properties:
+        for prop_schema in schema.properties.values():
+            set_additional_properties_false(prop_schema)
+
+    if schema.anyOf:
+        for any_schema in schema.anyOf:
+            set_additional_properties_false(any_schema)
+
+
 def json_schema_to_base_model(
     schema: JSONSchema | dict[str, Any], model_name: str = "DynamicModel"
 ) -> type[BaseModel]:

@@ -51,7 +51,7 @@ def test_openai_responses_images():
 
 @skip_if_no_anthropic
 def test_anthropic_images():
-    check_images("anthropic/claude-3-sonnet-20240229")
+    check_images("anthropic/claude-sonnet-4-5")
 
 
 @skip_if_no_mistral
