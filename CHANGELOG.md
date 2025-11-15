@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Support for [Structured Output](https://inspect.aisi.org.uk/structured.html) for Sonnet 4.5 and Opus 4.1.
 - Anthropic: Don't insert "(no content)" when replaying empty assistant messages with tool calls.
 
 ## 0.3.146 (15 November 2025)
