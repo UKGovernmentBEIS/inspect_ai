@@ -14618,20 +14618,20 @@ body[class^="vscode-"] .card {
 }
 
 body[class^="vscode-"] .nav-pills {
-  --bs-nav-pills-link-active-bg: var(--vscode-list-inactiveSelectionBackground);
-  --bs-nav-pills-link-active-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-pills-link-active-bg: var(--vscode-notifications-background);
+  --bs-nav-pills-link-active-color: var(--vscode-notifications-foreground);
 }
 
 body[class^="vscode-"] .nav-link {
-  --bs-nav-link-color: var(--vscode-editor-selectionForeground);
-  --bs-link-hover-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-link-color: var(--vscode-notificationLink-foreground);
+  --bs-link-hover-color: var(--vscode-notificationLink-foreground);
 }
 
 body[class^="vscode-"] .nav-link:hover {
-  --bs-nav-link-color: var(--vscode-editor-selectionForeground);
-  --bs-nav-link-hover-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-link-color: var(--vscode-notificationLink-foreground);
+  --bs-nav-link-hover-color: var(--vscode-notificationLink-foreground);
   --bs-nav-tabs-link-hover-border-color: var(
-    --vscode-editor-selectionForeground
+    --vscode-notificationLink-foreground
   );
 }
 
