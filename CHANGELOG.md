@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: Don't insert "(no content)" when replaying empty assistant messages with tool calls.
+
 ## 0.3.146 (15 November 2025)
 
 - Added `cache` configuration to `GenerateConfig` (formerly was only available as a parameter to `generate()`).
