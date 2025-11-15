@@ -285,8 +285,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # call early stopping if we have it
             stopping_manager: str = ""
             if options.task.early_stopping is not None:
+                # slice off just 1 instance of the samples
+                unique_samples = samples[0 : (len(samples) // epochs)]
                 stopping_manager = await options.task.early_stopping.start_task(
-                    logger.eval
+                    logger.eval, samples=unique_samples, epochs=epochs
                 )
 
             with td.progress() as p:
@@ -353,7 +355,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     # call the early stopping hook
                     if options.task.early_stopping is not None:
                         await options.task.early_stopping.complete_sample(
-                            options.logger.eval, sample_id, epoch, sample_score
+                            sample_id, epoch, sample_score
                         )
 
                 # initial progress
@@ -429,9 +431,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # call early stopping if we have it
             stopping_summary: EarlyStoppingSummary | None = None
             if options.task.early_stopping is not None:
-                stopping_metadata = await options.task.early_stopping.complete_task(
-                    options.logger.eval
-                )
+                stopping_metadata = await options.task.early_stopping.complete_task()
                 stopping_summary = EarlyStoppingSummary(
                     manager=stopping_manager,
                     stopped_samples=stopped_samples,
@@ -661,9 +661,7 @@ async def task_run_sample(
 
     # check for early stopping
     if early_stopping is not None and logger is not None:
-        early_stop = await early_stopping.schedule_sample(
-            logger.eval, state.sample_id, state.epoch
-        )
+        early_stop = await early_stopping.schedule_sample(state.sample_id, state.epoch)
         if early_stop is not None:
             return StoppedSample(
                 id=state.sample_id, epoch=state.epoch, early_stop=early_stop

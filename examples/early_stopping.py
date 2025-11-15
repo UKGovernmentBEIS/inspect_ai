@@ -5,6 +5,7 @@ from typing_extensions import override
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, example_dataset
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._log import EvalSpec
 from inspect_ai.scorer import SampleScore, match
 from inspect_ai.solver import generate, system_message
@@ -32,6 +33,8 @@ def popularity():
         solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=[match()],
         early_stopping=TestEarlyStopping(),
+        epochs=5,
+        model="mockllm/model",
     )
 
 
@@ -40,13 +43,13 @@ class TestEarlyStopping(EarlyStopping):
         self._completed_samples: list[int | str] = []
 
     @override
-    async def start_task(self, task: EvalSpec) -> str:
+    async def start_task(
+        self, task: EvalSpec, samples: list[Sample], epochs: int
+    ) -> str:
         """Called at the beginning of an eval run to register the tasks that will be run.."""
         return "test"
 
-    async def schedule_sample(
-        self, task: EvalSpec, id: str | int, epoch: int
-    ) -> EarlyStop | None:
+    async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
         """Called prior to scheduling a sample (return False to prevent it from running)."""
         # first check if this sample has no more epochs
         if id in self._completed_samples:
@@ -59,11 +62,11 @@ class TestEarlyStopping(EarlyStopping):
             return None
 
     async def complete_sample(
-        self, task: EvalSpec, id: str | int, epoch: int, scores: dict[str, SampleScore]
+        self, id: str | int, epoch: int, scores: dict[str, SampleScore]
     ) -> None:
         """Called when a sample is complete."""
         pass
 
-    async def complete_task(self, task: EvalSpec) -> dict[str, JsonValue]:
+    async def complete_task(self) -> dict[str, JsonValue]:
         """Called when the run is complete. Return a value for each task for inclusion in the task log file."""
         return {}

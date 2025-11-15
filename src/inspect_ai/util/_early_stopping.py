@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Protocol
 from pydantic import BaseModel, Field, JsonValue
 
 if TYPE_CHECKING:
+    from inspect_ai.dataset._dataset import Sample
     from inspect_ai.log._log import EvalSpec
     from inspect_ai.scorer._metric import SampleScore
 
@@ -44,24 +45,25 @@ class EarlyStoppingSummary(BaseModel):
 
 
 class EarlyStopping(Protocol):
-    async def start_task(self, task: "EvalSpec") -> str:
+    async def start_task(
+        self, task: "EvalSpec", samples: list["Sample"], epochs: int
+    ) -> str:
         """Called at the beginning of an eval run to register the tasks that will be run.
 
         Args:
             task: Task metadata.
+            samples: List of samples that will be executed for this task.
+            epochs: Number of epochs to run for each sample.
 
         Returns:
             Name of early stopping manager.
         """
         ...
 
-    async def schedule_sample(
-        self, task: "EvalSpec", id: str | int, epoch: int
-    ) -> EarlyStop | None:
+    async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
         """Called prior to scheduling a sample to cheeck for an early stop.
 
         Args:
-            task: Task metadata.
             id: Sample dataset id.
             epoch: Sample epoch.
 
@@ -72,7 +74,6 @@ class EarlyStopping(Protocol):
 
     async def complete_sample(
         self,
-        task: "EvalSpec",
         id: str | int,
         epoch: int,
         scores: dict[str, "SampleScore"],
@@ -80,18 +81,14 @@ class EarlyStopping(Protocol):
         """Called when a sample is complete.
 
         Args:
-           task: Task metadata.
            id: Sample dataset id.
            epoch: Sample epoch.
            scores: Scores for this sample.
         """
         ...
 
-    async def complete_task(self, task: "EvalSpec") -> dict[str, JsonValue]:
+    async def complete_task(self) -> dict[str, JsonValue]:
         """Called when the task is complete.
-
-        Args:
-           task: Task metadata.
 
         Returns:
             Metadata (e.g. diagnostics) about early stopping.
