@@ -156,6 +156,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 background=False,
                 service_tier=None,
                 prompt_cache_key=NOT_GIVEN,
+                prompt_cache_retention=NOT_GIVEN,
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
                 model_info=ModelInfo(),

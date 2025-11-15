@@ -57,6 +57,7 @@ async def generate_responses(
     background: bool | None,
     service_tier: str | None,
     prompt_cache_key: str | NotGiven,
+    prompt_cache_retention: str | NotGiven,
     safety_identifier: str | NotGiven,
     responses_store: bool | None,
     model_info: ResponsesModelInfo,
@@ -107,6 +108,7 @@ async def generate_responses(
             config=config,
             service_tier=service_tier,
             prompt_cache_key=prompt_cache_key,
+            prompt_cache_retention=prompt_cache_retention,
             safety_identifier=safety_identifier,
             responses_store=responses_store,
             tools=len(tools) > 0,
@@ -210,6 +212,7 @@ def completion_params_responses(
     config: GenerateConfig,
     service_tier: str | None,
     prompt_cache_key: str | NotGiven,
+    prompt_cache_retention: str | NotGiven,
     safety_identifier: str | NotGiven,
     responses_store: bool | None,
     tools: bool,
@@ -227,6 +230,8 @@ def completion_params_responses(
         params["service_tier"] = service_tier
     if isinstance(prompt_cache_key, str):
         params["prompt_cache_key"] = prompt_cache_key
+    if isinstance(prompt_cache_retention, str):
+        params["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
     if model_info.is_computer_use_preview():

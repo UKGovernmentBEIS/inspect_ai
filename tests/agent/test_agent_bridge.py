@@ -93,6 +93,7 @@ def check_openai_responses_log_json(log_json: str, tools: bool):
     assert r'"max_tool_calls": 5' in log_json
     assert r'"foo": "bar"' in log_json
     assert r'"prompt_cache_key": "42"' in log_json
+    assert r'"prompt_cache_retention": "24h"' in log_json
     assert r'"safety_identifier": "42"' in log_json
     assert r'"truncation": "auto"' in log_json
     if tools:
@@ -161,6 +162,7 @@ def responses_agent(tools: bool) -> Agent:
                 max_tool_calls=5,
                 metadata={"foo": "bar"},
                 prompt_cache_key="42",
+                prompt_cache_retention="24h",
                 safety_identifier="42",
                 truncation="auto",
             )
