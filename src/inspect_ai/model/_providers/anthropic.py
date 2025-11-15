@@ -28,7 +28,6 @@ from anthropic import (
     BadRequestError,
     NotGiven,
 )
-from anthropic._types import Body
 from anthropic.types import (
     Base64PDFSourceParam,
     ContentBlock,
@@ -110,6 +109,7 @@ from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
@@ -162,7 +162,7 @@ class AnthropicAPI(ModelAPI):
                 model_args.pop(name)
             return value
 
-        self.extra_body: Body | None = collect_model_arg("extra_body")
+        self.extra_body: dict[str, Any] | None = collect_model_arg("extra_body")
 
         # call super
         super().__init__(
@@ -281,7 +281,7 @@ class AnthropicAPI(ModelAPI):
                 request["tool_choice"] = message_tool_choice(tool_choice, config)
 
             # additional options
-            req, headers, betas = self.completion_config(config)
+            req, extra_body, headers, betas = self.completion_config(config)
             request = request | req
 
             # beta param for mcp tools
@@ -307,8 +307,8 @@ class AnthropicAPI(ModelAPI):
             request["extra_headers"] = extra_headers
 
             # extra_body
-            if self.extra_body is not None:
-                request["extra_body"] = self.extra_body
+            if len(extra_body) > 0 or self.extra_body is not None:
+                request["extra_body"] = extra_body | (self.extra_body or {})
 
             # mcp servers
             if len(mcp_servers_param) > 0:
@@ -413,10 +413,11 @@ class AnthropicAPI(ModelAPI):
 
     def completion_config(
         self, config: GenerateConfig
-    ) -> tuple[dict[str, Any], dict[str, str], list[str]]:
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = {}
+        extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
 
         # temperature not compatible with extended thinking
@@ -452,6 +453,16 @@ class AnthropicAPI(ModelAPI):
         if config.stop_seqs is not None:
             params["stop_sequences"] = config.stop_seqs
 
+        # structured output
+        if config.response_schema is not None:
+            schema = config.response_schema.json_schema.model_copy(deep=True)
+            set_additional_properties_false(schema)
+            betas.append("structured-outputs-2025-11-13")
+            extra_body["output_format"] = {
+                "type": "json_schema",
+                "schema": schema.model_dump(exclude_none=True),
+            }
+
         # look for any of our native fields not in GenerateConfig in extra_body
         if config.extra_body is not None:
             for field in anthropic_extra_body_fields():
@@ -459,7 +470,7 @@ class AnthropicAPI(ModelAPI):
                     params[field] = config.extra_body[field]
 
         # return config
-        return params, headers, betas
+        return params, extra_body, headers, betas
 
     @override
     def max_tokens(self) -> int | None:
