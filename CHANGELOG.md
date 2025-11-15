@@ -4,6 +4,7 @@
 - ReAct agent: `on_continue` can now return a new `AgentState`.
 - OpenAI: Retries for `APIConnectionError`.
 - OpenAI: Support for `reasoning_effort="none"` (now available with gpt-5.1).
+- Grok: Retries for 520 (UNKNOWN) errors.
 - Bugfix: Properly load scorer metrics when using solver scoring.
 - Bugfix: Properly handle `None` as value of `arguments` when parsing tool calls.
 - Bugfix: Fix sandbox tools install for sandbox envs with non-root default user.
