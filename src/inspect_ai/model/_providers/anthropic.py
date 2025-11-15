@@ -1042,8 +1042,14 @@ async def message_param(message: ChatMessage) -> MessageParam:
     # if content is empty that is going to result in an error when we replay
     # this message to claude, so in that case insert a NO_CONTENT message
     if isinstance(message.content, list) and len(message.content) == 0:
-        message = message.model_copy()
-        message.content = [ContentText(text=NO_CONTENT)]
+        # only do this for non-assistant messages or assistant message with no
+        # tool calls (asst. messages w/ tool calls are fine w/ no content)
+        if (
+            not isinstance(message, ChatMessageAssistant)
+            or len(message.tool_calls or []) == 0
+        ):
+            message = message.model_copy()
+            message.content = [ContentText(text=NO_CONTENT)]
 
     # no system role for anthropic (this is more like an assertion,
     # as these should have already been filtered out)
