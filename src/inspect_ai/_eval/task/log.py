@@ -145,7 +145,7 @@ class TaskLogger:
             solver=solver.solver if solver else None,
             tags=tags,
             solver_args=solver.args if solver else None,
-            model=f"{ModelName(model).api}/{model.api.canonical_name()}",
+            model=f"{ModelName(model).api}/{model.name}",
             model_generate_config=model.config,
             model_base_url=model.api.base_url,
             model_roles=model_roles_to_model_roles_config(model_roles),

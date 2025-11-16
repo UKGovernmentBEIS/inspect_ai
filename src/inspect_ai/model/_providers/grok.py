@@ -213,6 +213,7 @@ class GrokAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, grpc.RpcError):
             return ex.code() in {
+                grpc.StatusCode.UNKNOWN,
                 grpc.StatusCode.UNAVAILABLE,
                 grpc.StatusCode.DEADLINE_EXCEEDED,
                 grpc.StatusCode.RESOURCE_EXHAUSTED,
@@ -297,6 +298,10 @@ class GrokAPI(ModelAPI):
         # note that grok-3-mini is the only model which supports a reasoning effort parameter
         if config.reasoning_effort is not None and self.is_grok_3_mini():
             match config.reasoning_effort:
+                case "none":
+                    raise ValueError(
+                        "Grok models do not support 'none' for reasoning effort."
+                    )
                 case "minimal" | "low":
                     gconfig["reasoning_effort"] = "low"
                 case "medium" | "high":
