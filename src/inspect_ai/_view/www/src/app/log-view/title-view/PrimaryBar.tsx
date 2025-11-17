@@ -81,17 +81,19 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             <div className={clsx("navbar-secondary-text", "text-truncate")}>
               {logFileName}
             </div>
-            {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
-            {downloadLogs && isEvalFile ? (
-              <DownloadLogButton log_file={selectedLogFile} />
-            ) : null}
+            <div className={styles.buttonGroup}>
+              {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
+              {downloadLogs && selectedLogFile && isEvalFile ? (
+                <DownloadLogButton log_file={selectedLogFile} />
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
-        (status === "started" && streamSamples && hasRunningMetrics) ||
-        (status === "error" && evalSpec?.config["continue_on_fail"]) ? (
+          (status === "started" && streamSamples && hasRunningMetrics) ||
+          (status === "error" && evalSpec?.config["continue_on_fail"]) ? (
           <ResultsPanel
             scorers={
               runningMetrics
