@@ -23,7 +23,6 @@ from inspect_ai.log._file import (
     log_file_info,
     log_files_from_ls,
     read_eval_log_async,
-    write_eval_log_async,
 )
 
 logger = getLogger(__name__)

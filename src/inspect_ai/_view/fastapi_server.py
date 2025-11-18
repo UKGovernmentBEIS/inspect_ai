@@ -1,6 +1,7 @@
 import json
 import logging
 import urllib.parse
+from io import BytesIO
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Protocol
@@ -155,19 +156,31 @@ def view_server_app(
         file = normalize_uri(log)
         await _validate_read(request, file)
 
-        response = await stream_log_bytes(await _map_file(request, file))
+        mapped_file = await _map_file(request, file)
+
+        file_size = await get_log_size(mapped_file)
+        stream = await stream_log_bytes(mapped_file)
 
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
 
-        return Response(
-            content=response,
-            headers={
-                "Content-Length": str(len(response)),
-                "Content-Disposition": f'attachment; filename="{filename}"',
-            },
-            media_type="application/octet-stream",
-        )
+        headers = {
+            "Content-Length": str(file_size),
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        }
+
+        if isinstance(stream, BytesIO):
+            return Response(
+                content=stream.getvalue(),
+                headers=headers,
+                media_type="application/octet-stream",
+            )
+        else:
+            return StreamingResponse(
+                content=stream,
+                headers=headers,
+                media_type="application/octet-stream",
+            )
 
     @app.get("/log-dir")
     async def api_log_dir(

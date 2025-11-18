@@ -387,17 +387,15 @@ def test_api_eval_set(test_client: TestClient):
 
 def test_api_log_download_eval(test_client: TestClient):
     """Test downloading a log file in eval format."""
-    json_file = "test_dir/test_log.json"
-    write_fake_eval_log(json_file.replace(".json", ".eval"))
+    eval_file = "test_dir/test_log.eval"
+    write_fake_eval_log(eval_file)
 
     _ = inspect_ai._util.file.filesystem("memory://")
-    original_eval_path = f"memory://{json_file.replace('.json', '.eval')}"
-    json_path = f"memory://{json_file}"
+    original_eval_path = f"memory://{eval_file}"
 
     original_log = inspect_ai.log.read_eval_log(original_eval_path)
-    inspect_ai.log.write_eval_log(original_log, json_path, "json")
 
-    response = test_client.request("GET", f"/log-download/{json_file}")
+    response = test_client.request("GET", f"/log-download/{eval_file}")
     response.raise_for_status()
 
     assert response.status_code == 200
