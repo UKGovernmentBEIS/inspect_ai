@@ -37,7 +37,15 @@ The documentation for Inspect is built using [Quarto](https://quarto.org/) and i
 
 ### Setting up documentation development
 
-To work on documentation, you'll need to have Quarto installed. You can install it from <https://quarto.org/docs/get-started/>.
+To work on documentation for Inspect, install with the `-e` flag and `.[doc]` optional dependencies:
+
+```bash
+pip install -e ".[doc]"
+```
+
+### Install the Quarto VS Code Extension
+
+For developers using VS Code, we recommend installing the [Quarto VS Code Extension](https://marketplace.visualstudio.com/items?itemName=quarto.quarto)
 
 ### Previewing documentation changes
 
@@ -56,12 +64,3 @@ To build the documentation without starting a preview server:
 ```bash
 quarto render docs
 ```
-
-### Documentation structure
-
-- `docs/_quarto.yml` - Main configuration file for the documentation site
-- `docs/index.qmd` - Homepage and welcome guide
-- `docs/reference/` - API reference documentation
-- Other `.qmd` files in `docs/` contain various guides and tutorials
-
-When contributing documentation changes, please ensure your changes follow the existing style and structure.
