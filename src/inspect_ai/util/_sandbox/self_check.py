@@ -1,3 +1,6 @@
+import asyncio
+import random
+import string
 from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
 from unittest import mock
 
@@ -70,6 +73,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_exec_stderr,
         test_exec_returncode,
         test_exec_timeout,
+        test_exec_timeout_kills_process,
         test_exec_permission_error,
         test_exec_env_vars,
         test_exec_as_user,
@@ -413,6 +417,34 @@ async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
     with Raises(TimeoutError):
         await sandbox_env.exec(["sleep", "4"], timeout=2)
+
+
+async def test_exec_timeout_kills_process(sandbox_env: SandboxEnvironment) -> None:
+    # Use a unique random marker in the command that we can search for
+    # This avoids PID reuse issues and potential conflicts between test runs
+    unique_marker = "timeout_test_" + "".join(
+        random.choices(string.ascii_lowercase + string.digits, k=16)
+    )
+
+    # Execute a sleep command with a unique identifier using sh -c
+    # This ensures the process runs long enough to be killed
+    with Raises(TimeoutError):
+        await sandbox_env.exec(
+            ["sh", "-c", f"echo '{unique_marker}' > /dev/null && sleep 30"], timeout=2
+        )
+
+    # Wait for cleanup to complete
+    await asyncio.sleep(5)
+
+    # Check if any process containing our unique marker is still running
+    # Use ps with grep to search for the process
+    result = await sandbox_env.exec(
+        ["sh", "-c", f"ps aux | grep '{unique_marker}' | grep -v grep"]
+    )
+    assert not result.success or result.stdout.strip() == "", (
+        f"Process with marker '{unique_marker}' should have been killed after timeout, "
+        f"but it's still running. ps output: [{result.stdout}]"
+    )
 
 
 async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
