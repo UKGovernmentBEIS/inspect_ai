@@ -1,3 +1,23 @@
+## Unreleased
+
+- Anthropic: Support for [Structured Output](https://inspect.aisi.org.uk/structured.html) for Sonnet 4.5 and Opus 4.1.
+- Anthropic: Don't insert "(no content)" when replaying empty assistant messages with tool calls.
+- OpenAI: Add `prompt_cache_retention` custom model arg (bump required version of `openai` package to v2.8.0).
+- Inspect View: Streaming for log bytes requests in fastapi view server.
+- Bugfix: Fix incorrect approver behavior with multiple tool calls
+
+## 0.3.146 (15 November 2025)
+
+- Added `cache` configuration to `GenerateConfig` (formerly was only available as a parameter to `generate()`).
+- ReAct agent: `on_continue` can now return a new `AgentState`.
+- OpenAI: Retries for `APIConnectionError`.
+- OpenAI: Support for `reasoning_effort="none"` (now available with gpt-5.1).
+- Grok: Retries for 520 (UNKNOWN) errors.
+- Bugfix: Properly load scorer metrics when using solver scoring.
+- Bugfix: Properly handle `None` as value of `arguments` when parsing tool calls.
+- Bugfix: Fix sandbox tools install for sandbox envs with non-root default user.
+- Bugfix: Fix model name preservation in eval logs for service-prefixed models.
+
 ## 0.3.145 (09 November 2025)
 
 - OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).

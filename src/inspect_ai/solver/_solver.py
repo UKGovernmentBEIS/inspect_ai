@@ -25,7 +25,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
-from inspect_ai.model import CachePolicy, GenerateConfigArgs
+from inspect_ai.model import GenerateConfigArgs
 
 from ._task_state import TaskState, set_sample_state
 
@@ -36,7 +36,6 @@ class Generate(Protocol):
         self,
         state: TaskState,
         tool_calls: Literal["loop", "single", "none"] = "loop",
-        cache: bool | CachePolicy = False,
         **kwargs: Unpack[GenerateConfigArgs],
     ) -> TaskState:
         """Generate using the model and add the assistant message to the task state.
@@ -51,7 +50,6 @@ class Generate(Protocol):
                 - `"single"` resolves at most a single set of tool calls and then returns.
                 - `"none"` does not resolve tool calls at all (in this
                     case you will need to invoke `call_tools()` directly).
-            cache: Caching behaviour for generate responses (defaults to no caching).
             **kwargs: Optional generation config arguments.
 
         Returns:
@@ -261,7 +259,6 @@ def solver(
 @solver
 def generate(
     tool_calls: Literal["loop", "single", "none"] = "loop",
-    cache: bool | CachePolicy = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> Solver:
     r"""Generate output from the model and append it to task message history.
@@ -278,15 +275,12 @@ def generate(
         - `"none"` does not resolve tool calls at all (in this
             case you will need to invoke `call_tools()` directly).
 
-      cache: (bool | CachePolicy):
-        Caching behaviour for generate responses (defaults to no caching).
-
       **kwargs: Optional generation config arguments.
     """
 
     # call generate on the tasks
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        return await generate(state, tool_calls=tool_calls, cache=cache, **kwargs)
+        return await generate(state, tool_calls=tool_calls, **kwargs)
 
     # return solve
     return solve

@@ -277,7 +277,7 @@ def test_openai_responses_tool_types() -> None:
 
 @skip_if_no_anthropic
 def test_anthropoic_tool_types() -> None:
-    check_tool_types("anthropic/claude-3-5-sonnet-20240620")
+    check_tool_types("anthropic/claude-sonnet-4-5")
 
 
 @skip_if_no_google

@@ -307,8 +307,7 @@ async def execute_tools(
                 )
                 result_messages.append(tool_message)
             elif result is not None:
-                for message in result.messages:
-                    result_messages.append(message)
+                result_messages.extend(result.messages)
                 if result.output is not None:
                     result_output = result.output
 
@@ -779,14 +778,14 @@ def truncate_tool_output(
         return None
 
 
-def tool_parse_error_message(arguments: str, ex: Exception) -> str:
-    return f"Error parsing the following tool call arguments:\n\n{arguments}\n\nError details: {ex}"
+def tool_parse_error_message(arguments: str | None, ex: Exception) -> str:
+    return f"Error parsing the following tool call arguments:\n\n{arguments or ''}\n\nError details: {ex}"
 
 
 def parse_tool_call(
     id: str,
     function: str,
-    arguments: str,
+    arguments: str | None,
     tools: list[ToolInfo] | None = None,
     type: Literal["function", "custom"] = "function",
 ) -> ToolCall:
@@ -806,7 +805,7 @@ def parse_tool_call(
         logger.info(error)
 
     # if the arguments is a dict, then handle it with a plain json.loads
-    arguments = arguments.strip()
+    arguments = (arguments or "").strip()
     if arguments.startswith("{"):
         try:
             arguments_dict = json.loads(arguments)

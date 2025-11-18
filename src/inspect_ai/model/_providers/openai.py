@@ -80,6 +80,11 @@ class OpenAIAPI(ModelAPI):
             "prompt_cache_key", NOT_GIVEN
         )
 
+        # extract prompt_cache_retention model arg if provided
+        self.prompt_cache_retention: str | NotGiven = model_args.pop(
+            "prompt_cache_retention", NOT_GIVEN
+        )
+
         # extract safety_identifier model arg if provided
         self.safety_identifier: str | NotGiven = model_args.pop(
             "safety_identifier", NOT_GIVEN
@@ -366,6 +371,7 @@ class OpenAIAPI(ModelAPI):
                 background=self.background,
                 service_tier=self.service_tier,
                 prompt_cache_key=self.prompt_cache_key,
+                prompt_cache_retention=self.prompt_cache_retention,
                 safety_identifier=self.safety_identifier,
                 responses_store=self.responses_store,
                 model_info=self,
@@ -381,6 +387,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 prompt_cache_key=self.prompt_cache_key,
+                prompt_cache_retention=self.prompt_cache_retention,
                 safety_identifier=self.safety_identifier,
                 openai_api=self,
                 batcher=self._completions_batcher,

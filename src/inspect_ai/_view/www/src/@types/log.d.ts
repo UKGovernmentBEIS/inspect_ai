@@ -53,7 +53,9 @@ export type ParallelToolCalls = boolean | null;
 export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
-export type ReasoningEffort = ("minimal" | "low" | "medium" | "high") | null;
+export type ReasoningEffort =
+  | ("none" | "minimal" | "low" | "medium" | "high")
+  | null;
 export type ReasoningTokens = number | null;
 export type ReasoningSummary =
   | ("none" | "concise" | "detailed" | "auto")
@@ -77,6 +79,9 @@ export type Strict = boolean | null;
 export type ExtraBody = {
   [k: string]: unknown;
 } | null;
+export type Cache = boolean | CachePolicy | null;
+export type Expiry = string | null;
+export type PerEpoch = boolean;
 export type Batch = boolean | number | BatchConfig | null;
 export type Size = number | null;
 export type MaxSize = number | null;
@@ -545,7 +550,7 @@ export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name10 = string;
 export type Retries = number | null;
 export type Error2 = string | null;
-export type Cache = ("read" | "write") | null;
+export type Cache1 = ("read" | "write") | null;
 export type Time1 = number | null;
 export type Completed1 = string | null;
 export type WorkingTime = number | null;
@@ -896,6 +901,7 @@ export interface GenerateConfig {
   reasoning_history: ReasoningHistory;
   response_schema: ResponseSchema | null;
   extra_body: ExtraBody;
+  cache: Cache;
   batch: Batch;
 }
 /**
@@ -924,6 +930,17 @@ export interface JSONSchema {
 }
 export interface Default {
   [k: string]: unknown;
+}
+/**
+ * Caching options for model generation.
+ */
+export interface CachePolicy {
+  expiry: Expiry;
+  per_epoch: PerEpoch;
+  scopes: Scopes;
+}
+export interface Scopes {
+  [k: string]: string;
 }
 /**
  * Batch processing configuration.
@@ -1080,6 +1097,7 @@ export interface GenerateConfig1 {
   reasoning_history: ReasoningHistory;
   response_schema: ResponseSchema | null;
   extra_body: ExtraBody;
+  cache: Cache;
   batch: Batch;
 }
 /**
@@ -1573,7 +1591,7 @@ export interface ModelEvent {
   output: ModelOutput;
   retries: Retries;
   error: Error2;
-  cache: Cache;
+  cache: Cache1;
   call: ModelCall | null;
   completed: Completed1;
   working_time: WorkingTime;

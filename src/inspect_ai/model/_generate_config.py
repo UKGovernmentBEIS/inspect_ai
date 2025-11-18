@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.util._json import JSONSchema
 
 
@@ -121,8 +122,8 @@ class GenerateConfigArgs(TypedDict, total=False):
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
-    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None
-    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series and gpt-5 models only."""
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None
+    """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
 
     reasoning_tokens: int | None
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
@@ -138,6 +139,9 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    cache: bool | CachePolicy | None
+    """Policy for caching of model generations."""
 
     batch: bool | int | BatchConfig | None
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
@@ -212,10 +216,10 @@ class GenerateConfig(BaseModel):
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
-    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = Field(
-        default=None
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = (
+        Field(default=None)
     )
-    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series and gpt-5 models only."""
+    """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
 
     reasoning_tokens: int | None = Field(default=None)
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
@@ -235,6 +239,9 @@ class GenerateConfig(BaseModel):
 
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    cache: bool | CachePolicy | None = Field(default=None)
+    """Policy for caching of model generate output."""
 
     batch: bool | int | BatchConfig | None = Field(default=None)
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
