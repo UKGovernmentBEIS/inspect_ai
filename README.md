@@ -30,3 +30,37 @@ make test
 ```
 
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
+
+## Contributing to Documentation
+
+The documentation for Inspect is built using [Quarto](https://quarto.org/) and is located in the `docs/` directory. All documentation files use the `.qmd` format (Quarto Markdown).
+
+### Setting up documentation development
+
+To work on documentation for Inspect, install with the `-e` flag and `.[doc]` optional dependencies:
+
+```bash
+pip install -e ".[doc]"
+```
+
+### Install the Quarto VS Code Extension
+
+For developers using VS Code, we recommend installing the [Quarto VS Code Extension](https://marketplace.visualstudio.com/items?itemName=quarto.quarto)
+
+### Previewing documentation changes
+
+To start a local development server that watches for changes and automatically rebuilds the documentation:
+
+```bash
+quarto preview docs
+```
+
+This will serve the documentation at <http://localhost:4200> and automatically reload when you make changes to any `.qmd` files.
+
+### Building documentation
+
+To build the documentation without starting a preview server:
+
+```bash
+quarto render docs
+```
