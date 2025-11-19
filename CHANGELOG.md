@@ -8,6 +8,7 @@
 - Inspect View: Streaming for log bytes requests in fastapi view server.
 - Bugfix: Fix incorrect approver behavior with multiple tool calls
 - Bugfix: Correctly handle distinguishing eval set tasks based on `solver` passed to `eval_set()`.
+- Eval Set: Task identifiers can now vary on `model_args` (which enables sweeping over these variables).
 
 ## 0.3.146 (15 November 2025)
 
