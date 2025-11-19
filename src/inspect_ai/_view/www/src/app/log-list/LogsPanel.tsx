@@ -313,7 +313,9 @@ export const collapseLogItems = (
     let bestItem = items[0];
     for (const item of items) {
       const currentStatus = item.logPreview?.status;
+      const currentMtime = item.log.mtime ?? 0;
       const bestStatus = bestItem.logPreview?.status;
+      const bestMtime = bestItem.log.mtime ?? 0;
 
       // Prefer started over everything
       if (currentStatus === "started" && bestStatus !== "started") {
@@ -325,8 +327,8 @@ export const collapseLogItems = (
         bestItem = item;
       }
 
-      // If same status or current is error, prefer the last one (most recent)
-      else if (currentStatus === bestStatus) {
+      // If same status or current is error, prefer most recent
+      else if (currentStatus === bestStatus && currentMtime > bestMtime) {
         bestItem = item;
       }
     }
