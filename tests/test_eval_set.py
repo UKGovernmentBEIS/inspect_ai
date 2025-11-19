@@ -8,6 +8,7 @@ from test_helpers.utils import (
     failing_solver,
     failing_task,
     failing_task_deterministic,
+    identity_solver,
     keyboard_interrupt,
     skip_if_trio,
     sleep_for_solver,
@@ -31,7 +32,7 @@ from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
-from inspect_ai.solver import generate
+from inspect_ai.solver import Solver, generate
 
 
 def test_eval_set() -> None:
@@ -187,6 +188,7 @@ def test_validate_eval_set_prerequisites_ok() -> None:
         all_logs=all_logs,
         log_dir_allow_dirty=False,
         config=GenerateConfig(),
+        eval_set_solver=None,
     )
     assert len(all_logs) == 2
 
@@ -207,6 +209,7 @@ def test_validate_eval_set_prerequisites_mismatch() -> None:
             all_logs=all_logs,
             log_dir_allow_dirty=False,
             config=GenerateConfig(),
+            eval_set_solver=None,
         )
 
 
@@ -225,6 +228,7 @@ def test_validate_eval_set_prerequisites_mismatch_log_dir_allow_dirty() -> None:
         all_logs=all_logs,
         log_dir_allow_dirty=True,
         config=GenerateConfig(),
+        eval_set_solver=None,
     )
     assert len(all_logs) == 0
 
@@ -345,6 +349,7 @@ def sleep_for_3_task(task_arg: str):
 
 def run_eval_set(
     resolved_tasks: list[ResolvedTask],
+    solver: Solver | None = None,
     config: GenerateConfig = GenerateConfig(temperature=0.7),
 ) -> None:
     tasks = [task.task for task in resolved_tasks]
@@ -352,6 +357,7 @@ def run_eval_set(
         eval_set(
             tasks=tasks,
             log_dir=log_dir,
+            solver=solver,
             **config.model_dump(),
         )
 
@@ -362,18 +368,20 @@ def run_eval_set(
             all_logs=all_logs,
             log_dir_allow_dirty=False,
             config=config,
+            eval_set_solver=solver,
         )
-        assert len(all_logs) == 2
+        assert len(all_logs) == len(resolved_tasks)
 
         eval_set(
             tasks=tasks,
             log_dir=log_dir,
+            solver=solver,
             **config.model_dump(),
         )
 
 
 @task
-def hello_world():
+def hello_world(arg: str = "arg"):
     return Task(
         dataset=[
             Sample(
@@ -403,9 +411,9 @@ def test_task_identifier_with_model_configs():
     )
     resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
 
-    assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
-        resolved_tasks[1], GenerateConfig()
-    )
+    assert task_identifier(
+        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
+    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
     run_eval_set(resolved_tasks)
 
 
@@ -427,9 +435,9 @@ def test_task_identifier_with_model_roles_model_configs():
     )
     resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
 
-    assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
-        resolved_tasks[1], GenerateConfig()
-    )
+    assert task_identifier(
+        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
+    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
     run_eval_set(resolved_tasks)
 
 
@@ -450,9 +458,9 @@ def test_task_identifier_with_task_generate_configs():
         model_roles={"scorer": model1},
     )
     resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
-    assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
-        resolved_tasks[1], GenerateConfig()
-    )
+    assert task_identifier(
+        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
+    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
 
     with tempfile.TemporaryDirectory() as log_dir:
         config = GenerateConfig(temperature=0.7)
@@ -474,8 +482,8 @@ def test_task_identifier_with_task_generate_configs():
 def test_task_identifier_with_solvers():
     # test that tasks with different solvers produce different task identifiers
     model1 = get_model("mockllm/model")
-    task1 = sleep_for_1_task("arg")
-    task2 = sleep_for_1_task("arg")
+    task1 = hello_world()
+    task2 = hello_world()
     task_with(
         task1,
         model=model1,
@@ -483,10 +491,23 @@ def test_task_identifier_with_solvers():
     task_with(
         task2,
         model=model1,
-        solver=[sleep_for_solver(2)],
+        solver=[identity_solver(2)],
     )
     resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
-    assert task_identifier(resolved_tasks[0], GenerateConfig()) != task_identifier(
-        resolved_tasks[1], GenerateConfig()
-    )
+    assert task_identifier(
+        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
+    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
     run_eval_set(resolved_tasks)
+
+
+def test_task_identifier_with_solver_arg():
+    # test that tasks with different solvers produce different task identifiers
+    model1 = get_model("mockllm/model")
+    task1 = hello_world()
+    task_with(
+        task1,
+        model=model1,
+    )
+    id5 = identity_solver(5)
+    resolved_tasks = resolve_tasks([task1], {}, model1, None, None, None)
+    run_eval_set(resolved_tasks, solver=id5)

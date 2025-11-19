@@ -7,6 +7,7 @@
 - Eval Logs: Don't forward credentials when using aioboto3 with S3 (was preventing use of AWS credential chain).
 - Inspect View: Streaming for log bytes requests in fastapi view server.
 - Bugfix: Fix incorrect approver behavior with multiple tool calls
+- Bugfix: Correctly handle distinguishing eval set tasks based on `solver` passed to `eval_set()`.
 
 ## 0.3.146 (15 November 2025)
 
