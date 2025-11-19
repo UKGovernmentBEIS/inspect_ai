@@ -8,6 +8,7 @@ from test_helpers.utils import (
     failing_solver,
     failing_task,
     failing_task_deterministic,
+    identity_solver,
     keyboard_interrupt,
     skip_if_trio,
     sleep_for_solver,
@@ -380,7 +381,7 @@ def run_eval_set(
 
 
 @task
-def hello_world():
+def hello_world(arg: str = "arg"):
     return Task(
         dataset=[
             Sample(
@@ -481,8 +482,8 @@ def test_task_identifier_with_task_generate_configs():
 def test_task_identifier_with_solvers():
     # test that tasks with different solvers produce different task identifiers
     model1 = get_model("mockllm/model")
-    task1 = sleep_for_1_task("arg")
-    task2 = sleep_for_1_task("arg")
+    task1 = hello_world()
+    task2 = hello_world()
     task_with(
         task1,
         model=model1,
@@ -490,7 +491,7 @@ def test_task_identifier_with_solvers():
     task_with(
         task2,
         model=model1,
-        solver=[sleep_for_solver(2)],
+        solver=[identity_solver(2)],
     )
     resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
     assert task_identifier(
@@ -502,11 +503,11 @@ def test_task_identifier_with_solvers():
 def test_task_identifier_with_solver_arg():
     # test that tasks with different solvers produce different task identifiers
     model1 = get_model("mockllm/model")
-    task1 = sleep_for_1_task("arg")
+    task1 = hello_world()
     task_with(
         task1,
         model=model1,
     )
-    sleep5 = sleep_for_solver(5)
+    id5 = identity_solver(5)
     resolved_tasks = resolve_tasks([task1], {}, model1, None, None, None)
-    run_eval_set(resolved_tasks, solver=sleep5)
+    run_eval_set(resolved_tasks, solver=id5)
