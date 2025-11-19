@@ -741,6 +741,7 @@ def task_identifier(
         model = str(task.model)
         model_generate_config = task.model.config
         model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
+        model_args = task.model.model_args
         plan = resolve_plan(task.task, solver)
         eval_plan = plan_to_eval_plan(plan, task.task.config.merge(eval_set_config))
     else:
@@ -750,6 +751,7 @@ def task_identifier(
         model = str(task.eval.model)
         model_generate_config = task.eval.model_generate_config
         model_roles = task.eval.model_roles or {}
+        model_args = task.eval.model_args
         eval_plan = task.plan
 
     # hash for task args
@@ -772,6 +774,8 @@ def task_identifier(
     # hash for model roles
     if len(model_roles):
         additional_hash_input += to_json_safe(model_roles)
+
+    additional_hash_input += to_json_safe(model_args)
 
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 

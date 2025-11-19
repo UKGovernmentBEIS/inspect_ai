@@ -349,6 +349,7 @@ def sleep_for_3_task(task_arg: str):
 
 def run_eval_set(
     resolved_tasks: list[ResolvedTask],
+    model: str | None = None,
     solver: Solver | None = None,
     config: GenerateConfig = GenerateConfig(temperature=0.7),
 ) -> None:
@@ -358,6 +359,7 @@ def run_eval_set(
             tasks=tasks,
             log_dir=log_dir,
             solver=solver,
+            model=model,
             **config.model_dump(),
         )
 
@@ -376,6 +378,7 @@ def run_eval_set(
             tasks=tasks,
             log_dir=log_dir,
             solver=solver,
+            model=model,
             **config.model_dump(),
         )
 
@@ -511,3 +514,55 @@ def test_task_identifier_with_solver_arg():
     id5 = identity_solver(5)
     resolved_tasks = resolve_tasks([task1], {}, model1, None, None, None)
     run_eval_set(resolved_tasks, solver=id5)
+
+
+def test_task_identifier_with_model_args():
+    model1 = get_model("mockllm/model", max_tokens=100)
+    model2 = get_model("mockllm/model", max_tokens=200)
+    task1 = hello_world()
+    task2 = hello_world()
+    task_with(
+        task1,
+        model=model1,
+    )
+    task_with(
+        task2,
+        model=model2,
+    )
+    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    assert task_identifier(
+        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
+    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
+    run_eval_set(resolved_tasks)
+
+
+def test_task_identifier_with_model_args_arg():
+    model1 = get_model("mockllm/model", max_tokens=100)
+    task1 = hello_world()
+    task2 = hello_world()
+    task_with(
+        task1,
+        model=model1,
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+        )
+
+        all_logs = list_all_eval_logs(log_dir)
+        assert len(all_logs) == 2
+
+        eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+        )
+
+        all_logs = list_all_eval_logs(log_dir)
+        assert len(all_logs) == 2
