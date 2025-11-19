@@ -4,6 +4,7 @@
 - Anthropic: Don't insert "(no content)" when replaying empty assistant messages with tool calls.
 - OpenAI: Don't remove consecutive reasoning blocks (earlier versions of the API would give 400 errors, this no longer occurs).
 - OpenAI: Add `prompt_cache_retention` custom model arg (bump required version of `openai` package to v2.8.0).
+- Eval Logs: Don't forward credentails when using aioboto3 with S3 (was preventing use of AWS credential chain).
 - Inspect View: Streaming for log bytes requests in fastapi view server.
 - Bugfix: Fix incorrect approver behavior with multiple tool calls
 
