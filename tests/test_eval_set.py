@@ -349,7 +349,6 @@ def sleep_for_3_task(task_arg: str):
 
 def run_eval_set(
     resolved_tasks: list[ResolvedTask],
-    model: str | None = None,
     solver: Solver | None = None,
     config: GenerateConfig = GenerateConfig(temperature=0.7),
 ) -> None:
@@ -359,7 +358,6 @@ def run_eval_set(
             tasks=tasks,
             log_dir=log_dir,
             solver=solver,
-            model=model,
             **config.model_dump(),
         )
 
@@ -378,7 +376,6 @@ def run_eval_set(
             tasks=tasks,
             log_dir=log_dir,
             solver=solver,
-            model=model,
             **config.model_dump(),
         )
 
