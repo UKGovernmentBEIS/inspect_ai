@@ -79,12 +79,15 @@ o-series models. Learn more about the specific models available in the
 
 You can condition the amount of reasoning done via the
 [`reasoning_effort`](https://platform.openai.com/docs/guides/reasoning#reasoning-effort)
-option, which can be set to `minimal`, `low`, `medium`, or `high` (the
-default is `medium` if not specified). For example:
+option, which can be set to `none`, `minimal`, `low`, `medium`, or
+`high`. For example:
 
 ``` bash
 inspect eval math.py --model openai/o3 --reasoning-effort high
 ```
+
+Defaults vary by provider and model and not all models support all
+values (please consult provider documentation for details).
 
 #### Reasoning Summary
 

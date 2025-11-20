@@ -329,8 +329,8 @@ parallel as follows:
 from inspect_ai.model import get_model
 
 models = [
-  get_model("openai/gpt-4"),
-  get_model("anthropic/claude-3-sonnet-20240229"),
+  get_model("openai/gpt-5"),
+  get_model("anthropic/claude-sonnet-4-5"),
   get_model("mistral/mistral-large-latest")
 ]
 

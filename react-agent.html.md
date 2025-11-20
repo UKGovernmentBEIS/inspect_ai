@@ -191,6 +191,8 @@ agent loop for various inputs:
     message when there are no tool calls made then you should check
     `state.output.message.tool_calls` explicitly (returning `True`
     rather than `str` when you want no message appended).
+  - `AgentState`: Agent loop continues and the agent state is updated to
+    the returned value.
 
 ### Submit Tool
 

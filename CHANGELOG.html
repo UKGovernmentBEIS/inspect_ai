@@ -149,8 +149,10 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#november-2025" id="toc-november-2025" class="nav-link active" data-scroll-target="#november-2025">0.3.145 (09 November 2025)</a></li>
-  <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.144 (05 November 2025)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.146 (15 November 2025)</a></li>
+  <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.145 (09 November 2025)</a></li>
+  <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.144 (05 November 2025)</a></li>
   <li><a href="#october-2025" id="toc-october-2025" class="nav-link" data-scroll-target="#october-2025">0.3.143 (29 October 2025)</a></li>
   <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.142 (27 October 2025)</a></li>
   <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.141 (27 October 2025)</a></li>
@@ -302,8 +304,36 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Anthropic: Support for <a href="https://inspect.aisi.org.uk/structured.html">Structured Output</a> for Sonnet 4.5 and Opus 4.1.</li>
+<li>Anthropic: Don’t insert “(no content)” when replaying empty assistant messages with tool calls.</li>
+<li>OpenAI: Don’t remove consecutive reasoning blocks (earlier versions of the API would give 400 errors, this no longer occurs).</li>
+<li>OpenAI: Add <code>prompt_cache_retention</code> custom model arg (bump required version of <code>openai</code> package to v2.8.0).</li>
+<li>Eval Logs: Don’t forward credentials when using aioboto3 with S3 (was preventing use of AWS credential chain).</li>
+<li>Inspect View: Streaming for log bytes requests in fastapi view server.</li>
+<li>Bugfix: Fix incorrect approver behavior with multiple tool calls</li>
+<li>Bugfix: Correctly handle distinguishing eval set tasks based on <code>solver</code> passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>.</li>
+<li>Eval Set: Task identifiers can now vary on <code>model_args</code> (which enables sweeping over these variables).</li>
+</ul>
+</section>
 <section id="november-2025" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025">0.3.145 (09 November 2025)</h2>
+<h2 class="anchored" data-anchor-id="november-2025">0.3.146 (15 November 2025)</h2>
+<ul>
+<li>Added <code>cache</code> configuration to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> (formerly was only available as a parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>).</li>
+<li>ReAct agent: <code>on_continue</code> can now return a new <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span>.</li>
+<li>OpenAI: Retries for <code>APIConnectionError</code>.</li>
+<li>OpenAI: Support for <code>reasoning_effort="none"</code> (now available with gpt-5.1).</li>
+<li>Grok: Retries for 520 (UNKNOWN) errors.</li>
+<li>Bugfix: Properly load scorer metrics when using solver scoring.</li>
+<li>Bugfix: Properly handle <code>None</code> as value of <code>arguments</code> when parsing tool calls.</li>
+<li>Bugfix: Fix sandbox tools install for sandbox envs with non-root default user.</li>
+<li>Bugfix: Fix model name preservation in eval logs for service-prefixed models.</li>
+</ul>
+</section>
+<section id="november-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-1">0.3.145 (09 November 2025)</h2>
 <ul>
 <li>OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).</li>
 <li>OpenAI: Support for <code>logprobs</code> and <code>top_logprobs</code> in Responses API (note that logprobs are not supported for reasoning models).</li>
@@ -315,8 +345,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Properly handle <code>content</code> of type <code>str</code> in Responses API agent bridge.</li>
 </ul>
 </section>
-<section id="november-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-1">0.3.144 (05 November 2025)</h2>
+<section id="november-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-2">0.3.144 (05 November 2025)</h2>
 <ul>
 <li>Eval Set: Task identifiers can now vary on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> and <code>solver</code> (which enables sweeping over these variables).</li>
 <li>Eval Logs: Don’t resolve attachments within <code>ModelEvent.call</code> by default, which prevents O(N) memory footprint for reading transcripts.</li>

@@ -47,7 +47,7 @@ inspect log list [OPTIONS]
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--status` | choice (`started` \| `success` \| `cancelled` \| `error`) | List only log files with the indicated status. | `Sentinel.UNSET` |
+| `--status` | choice (`started` \| `success` \| `cancelled` \| `error`) | List only log files with the indicated status. | None |
 | `--absolute` | boolean | List absolute paths to log files (defaults to relative to the cwd). | `False` |
 | `--json` | boolean | Output listing as JSON | `False` |
 | `--no-recursive` | boolean | List log files recursively (defaults to True). | `False` |
@@ -55,7 +55,7 @@ inspect log list [OPTIONS]
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
 | `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
-| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |
@@ -93,8 +93,8 @@ inspect log convert [OPTIONS] PATH
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--to` | choice (`eval` \| `json`) | Target format to convert to. | `Sentinel.UNSET` |
-| `--output-dir` | text | Directory to write converted log files to. | `Sentinel.UNSET` |
+| `--to` | choice (`eval` \| `json`) | Target format to convert to. | \_required |
+| `--output-dir` | text | Directory to write converted log files to. | \_required |
 | `--overwrite` | boolean | Overwrite files in the output directory. | `False` |
 | `--resolve-attachments` | choice (`full` \| `core`) | Resolve attachments (duplicated content blocks) to their full content. | None |
 | `--stream` | text | Stream the samples through the conversion process instead of reading the entire log into memory. Useful for large logs. Set to an integer to limit the number of concurrent samples being converted. | `False` |

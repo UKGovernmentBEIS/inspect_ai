@@ -61,6 +61,7 @@ model args are forwarded to the constructor of the `AsyncOpenAI` class):
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
+| `prompt_cache_retention` | Retention policy for the prompt cache. |
 | `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
 
 For example:

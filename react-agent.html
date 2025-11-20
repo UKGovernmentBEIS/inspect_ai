@@ -648,6 +648,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><code>True</code>: Agent loop continues with no messages appended.</li>
 <li><code>False</code>: Agent loop is exited early.</li>
 <li><code>str</code>: Agent loop continues and the returned user message will be appended regardless of whether a tool call was made in the previous assistant message. If your custom function only wants to append a message when there are no tool calls made then you should check <code>state.output.message.tool_calls</code> explicitly (returning <code>True</code> rather than <code>str</code> when you want no message appended).</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span>: Agent loop continues and the agent state is updated to the returned value.</li>
 </ul></li>
 </ul>
 </section>

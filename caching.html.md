@@ -16,8 +16,8 @@ which currently works only for Anthropic models.
 
 ## Caching Basics
 
-Use the `cache` parameter on calls to `generate()` to activate the use
-of the cache. The keys for caching (what determines if a request can be
+Use the `cache` option of `GenerateConfig` to activate the use of the
+cache. The keys for caching (what determines if a request can be
 fulfilled from the cache) are as follows:
 
 - Model name and base URL (e.g. `openai/gpt-4-turbo`)
@@ -31,49 +31,28 @@ served from the cache. By default, model responses are cached for 1 week
 (see [Cache Policy](#cache-policy) below for details on customising
 this).
 
-For example, here we are iterating on our self critique template, so we
-cache the main call to `generate()`:
+Here are some example uses of `--cache` from the CLI:
 
-``` python
-@task
-def theory_of_mind():
-    return Task(
-        dataset=example_dataset("theory_of_mind"),
-        solver=[
-            chain_of_thought(),
-            generate(cache = True),
-            self_critique(CRITIQUE_TEMPLATE)
-        ]
-        scorer=model_graded_fact(),
-    )
+``` bash
+inspect eval arc.py --cache     # 7 day cache (default)
+inspect eval arc.py --cache 1D  # 1 day cache
+inspect eval arc.py --cache 4W  # 4 week cache
 ```
 
-You can similarly do this with the `generate` function passed into a
-`Solver`:
+Or alternatively from Python when calling `eval()`:
 
 ``` python
-@solver
-def custom_solver(cache):
-
-  async def solve(state, generate):
-
-    # (custom solver logic prior to generate)
-
-    return generate(state, cache)
-
-  return solve
+eval("arc.py", cache=True)
 ```
-
-You don’t strictly need to provide a `cache` argument for a custom
-solver that uses caching, but it’s generally good practice to enable
-users of the function to control caching behaviour.
 
 You can also use caching with lower-level `generate()` calls (e.g. a
 model instance you have obtained with `get_model()`. For example:
 
 ``` python
-model = get_model("anthropic/claude-3-opus-20240229")
-output = model.generate(input, cache = True)
+model = get_model("anthropic/claude-sonnet-4-20250514")
+output = model.generate(
+  input, config=GenerateConfig(cache = True)
+)
 ```
 
 ### Model Versions
