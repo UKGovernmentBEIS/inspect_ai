@@ -8,6 +8,7 @@ from typing import Any, Protocol
 import anyio
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic_core import to_jsonable_python
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
@@ -27,7 +28,6 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._view import notify
 from inspect_ai._view.common import (
     delete_log,
-    get_log_bytes,
     get_log_dir,
     get_log_file,
     get_log_files,
@@ -35,6 +35,7 @@ from inspect_ai._view.common import (
     get_logs,
     normalize_uri,
     parse_log_token,
+    stream_log_bytes,
 )
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
@@ -139,8 +140,8 @@ def view_server_app(
     ) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        response = await get_log_bytes(await _map_file(request, file), start, end)
-        return Response(
+        response = await stream_log_bytes(await _map_file(request, file), start, end)
+        return StreamingResponse(
             content=response,
             headers={"Content-Length": str(end - start + 1)},
             media_type="application/octet-stream",

@@ -213,6 +213,7 @@ class GrokAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, grpc.RpcError):
             return ex.code() in {
+                grpc.StatusCode.UNKNOWN,
                 grpc.StatusCode.UNAVAILABLE,
                 grpc.StatusCode.DEADLINE_EXCEEDED,
                 grpc.StatusCode.RESOURCE_EXHAUSTED,

@@ -30,3 +30,15 @@ make test
 ```
 
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
+
+***
+
+To work on the Inspect documentation, install the optional `[doc]` dependencies with the `-e` flag and build the docs:
+
+```
+pip install -e ".[doc]"
+cd docs
+quarto render # or 'quarto preview'
+```
+
+If you intend to work on the docs iteratively, you'll want to install the Quarto extension in VS Code.

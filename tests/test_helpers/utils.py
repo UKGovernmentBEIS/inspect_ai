@@ -371,7 +371,7 @@ def sleep_for_solver(seconds: int):
 
 
 @solver
-def identity_solver():
+def identity_solver(arg: int = 0):
     async def solve(state: TaskState, generate: Generate):
         return state
 

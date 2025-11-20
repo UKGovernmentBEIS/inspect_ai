@@ -307,8 +307,7 @@ async def execute_tools(
                 )
                 result_messages.append(tool_message)
             elif result is not None:
-                for message in result.messages:
-                    result_messages.append(message)
+                result_messages.extend(result.messages)
                 if result.output is not None:
                     result_output = result.output
 
