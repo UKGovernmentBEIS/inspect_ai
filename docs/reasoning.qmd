@@ -109,7 +109,20 @@ Google currently makes available several Gemini reasoning models, the most recen
 
 -   [Gemini 2.5 Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro): `google/gemini-2.5-pro`
 
-You can use the `--reasoning-tokens` option to control the amount of reasoning used by these models. For example:
+-   [Gemini 3.0 Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro): `google/gemini-3-pro-preview`
+
+For Gemini 3.0, you can use the `--reasoning-effort` option to control the amount of reasoning used by the model. For example:
+
+``` bash
+inspect eval math.py \
+  --model google/gemini-3-pro-preview \
+  --reasoning-effort low
+```
+
+Gemini 3 supports `thinking_level`s "low" and "high", so Inspect maps reasoning effort levels "minimal" or "low" to "low" and "medium" or "high" to "high" ([Gemini support for "medium" is coming soon](https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#thinking_level)).
+
+
+For Gemini 2.5, you can use the `--reasoning-tokens` option to control the amount of reasoning used by these models (this option is deprecated for Gemini 3 models). For example:
 
 ``` bash
 inspect eval math.py \

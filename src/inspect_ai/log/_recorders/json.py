@@ -245,8 +245,6 @@ async def _s3_read_with_etag(location: str, fs: FileSystem) -> tuple[str, str]:
     async with session.client(
         "s3",
         endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-        aws_access_key_id=fs.fs.key,
-        aws_secret_access_key=fs.fs.secret,
         region_name=fs.fs.client_kwargs.get("region_name"),
     ) as s3_client:
         response = await s3_client.get_object(Bucket=bucket, Key=key)

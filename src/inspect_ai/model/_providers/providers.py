@@ -68,7 +68,7 @@ def anthropic() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-genai"
-    MIN_VERSION = "1.16.1"
+    MIN_VERSION = "1.51.0"
 
     # verify we have the package
     try:
