@@ -37,6 +37,7 @@ from google.genai.types import (
     SafetySettingDict,
     Schema,
     ThinkingConfig,
+    ThinkingLevel,
     Tool,
     ToolConfig,
     ToolListUnion,
@@ -379,8 +380,13 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_2_5(self) -> bool:
         return "gemini-2.5" in self.service_model_name()
 
+    def is_gemini_3(self) -> bool:
+        return "gemini-3" in self.service_model_name()
+
     def is_gemini_thinking_only(self) -> bool:
-        return self.is_gemini_2_5() and "-pro" in self.service_model_name()
+        return (
+            self.is_gemini_2_5() or self.is_gemini_3()
+        ) and "-pro" in self.service_model_name()
 
     @override
     def emulate_reasoning_history(self) -> bool:
@@ -428,10 +434,12 @@ class GoogleGenAIAPI(ModelAPI):
             self.is_gemini() and not self.is_gemini_1_5() and not self.is_gemini_2_0()
         )
         if has_thinking_config:
-            if config.reasoning_tokens == 0:
+            # user is attempting to turn off reasoning, this only works for some models
+            # so we warn for those models where it can't be done.
+            if config.reasoning_tokens == 0 or config.reasoning_effort == "none":
                 if self.is_gemini_thinking_only():
                     # When reasoning_tokens is set to 0 and it's a thinking only model we don't
-                    # bother trying to shut down thining as this is not possible:
+                    # bother trying to shut down thinking as this is not possible:
                     #   https://ai.google.dev/gemini-api/docs/thinking#set-budget
                     # warn and return include_thoughts=True so the user sees what is happening
                     warn_once(
@@ -442,10 +450,29 @@ class GoogleGenAIAPI(ModelAPI):
                 else:
                     # otherwise do the disable
                     return ThinkingConfig(include_thoughts=False, thinking_budget=0)
-            else:
+
+            # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
+            elif config.reasoning_effort is not None:
+                match config.reasoning_effort:
+                    case "minimal" | "low":
+                        thinking_level: ThinkingLevel | None = ThinkingLevel.LOW
+                    case "medium" | "high":  # note: 'medium' thinking level coming soon
+                        thinking_level = ThinkingLevel.HIGH
+                    case _:
+                        thinking_level = None  # can't happen, keep mypy happy
+                return ThinkingConfig(
+                    include_thoughts=True, thinking_level=thinking_level
+                )
+
+            # enable thinking_budget if specified
+            elif config.reasoning_tokens is not None:
                 return ThinkingConfig(
                     include_thoughts=True, thinking_budget=config.reasoning_tokens
                 )
+
+            # generic thinking with defaults
+            else:
+                return ThinkingConfig(include_thoughts=True)
         else:
             return None
 
