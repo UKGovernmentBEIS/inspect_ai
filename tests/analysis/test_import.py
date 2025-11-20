@@ -174,14 +174,17 @@ def test_date_time_coercion() -> None:
     assert result["timestamp_dt"] == datetime.fromtimestamp(1714640400, tz=timezone.utc)
 
     assert isinstance(result["timestamp_d"], date)
-    assert result["timestamp_d"] == date.fromtimestamp(1714640400)
+    assert (
+        result["timestamp_d"]
+        == datetime.fromtimestamp(1714640400, tz=timezone.utc).date()
+    )
 
     assert isinstance(result["timestamp_t"], time)
     assert result["timestamp_t"].hour == 9
     assert result["timestamp_t"].minute == 0
 
     assert isinstance(result["iso_dt"], datetime)
-    expected_dt = datetime(2024, 5, 1, 12, 0, 0)
+    expected_dt = datetime(2024, 5, 1, 12, 0, 0, 0, timezone.utc)
     # Account for timezone differences in comparison
     assert result["iso_dt"].year == expected_dt.year
     assert result["iso_dt"].month == expected_dt.month
