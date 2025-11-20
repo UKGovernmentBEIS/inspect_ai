@@ -12,6 +12,13 @@
     - name: mask
       dataset_samples: 1000
 
+- title: "Animal Harm Benchmark (AHB)"
+  description: |
+    A dataset to assess large language models in their reasoning when considering animals and non-human entities.
+  path: src/inspect_evals/ahb
+  group: Compassion
+  contributors: ["darkness8i8, nishu-builder"]
+
 - title: "HumanEval: Python Function Generation from Instructions"
   description: |
     Assesses how accurately language models can write correct Python functions based solely on natural-language instructions provided as docstrings.
@@ -1088,7 +1095,7 @@
   dependency: "personality"
 
 - title: "SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language Models"
-  description: | 
+  description: |
     The Scientific Knowledge Evaluation benchmark is inspired by the profound principles outlined in the “Doctrine of the Mean” from ancient Chinese philosophy. This benchmark is designed to assess LLMs based on their proficiency in Studying Extensively, Enquiring Earnestly, Thinking Profoundly, Discerning Clearly, and Practicing Assiduously. Each of these dimensions offers a unique perspective on evaluating the capabilities of LLMs in handling scientific knowledge.
   path: src/inspect_evals/sciknoweval
   arxiv: https://arxiv.org/abs/2406.09098v2
@@ -1096,7 +1103,7 @@
   contributors: ["Esther-Guo"]
   tasks:
     - name: sciknoweval
-      dataset_samples: 70196 # we are using version 1 on huggingface, the version used in the linked paper, even though there are 2 versions 
+      dataset_samples: 70196 # we are using version 1 on huggingface, the version used in the linked paper, even though there are 2 versions
   dependency: "sciknoweval"
 
 - title: "ChemBench: Are large language models superhuman chemists?"
@@ -1126,7 +1133,7 @@
        dataset_samples: 1203
 
 - title: "SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge"
-  description: | 
+  description: |
     A regulation-grounded, hazard-focused benchmark encompassing six high-risk scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology. The benchmark comprises 3,000 prompts derived from real-world regulations and laws, systematically expanded via an LLM-assisted evolutionary pipeline that introduces diverse, realistic misuse scenarios (e.g., detailed explosive synthesis instructions involving advanced chemical formulas).
   path: src/inspect_evals/sosbench
   arxiv: https://arxiv.org/pdf/2505.21605
@@ -1135,7 +1142,7 @@
   tasks:
     - name: sosbench
       dataset_samples: 3000
-      
+
 - title: "BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents"
   description: |
     A benchmark for evaluating agents' ability to browse the web.

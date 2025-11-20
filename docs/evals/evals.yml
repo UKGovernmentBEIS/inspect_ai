@@ -1530,6 +1530,19 @@
     multiple social dimensions.
 
     '
+  group: Compassion
+  path: src/inspect_evals/ahb
+  tasks:
+  - ahb
+  title: 'Animal Harm Benchmark (AHB)'
+- categories:
+  - Compassion
+  contributors:
+  - darkness8i8
+  - nishu-builder
+  description: 'A dataset to assess large language models in their reasoning when considering animals and non-human entities.
+
+    '
   group: Bias
   path: src/inspect_evals/bbq
   tasks:
