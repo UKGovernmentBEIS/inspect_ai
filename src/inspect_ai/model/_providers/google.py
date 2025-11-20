@@ -383,6 +383,14 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_3(self) -> bool:
         return "gemini-3" in self.service_model_name()
 
+    def is_gemini_3_plus(self) -> bool:
+        return (
+            self.is_gemini()
+            and not self.is_gemini_1_5()
+            and not self.is_gemini_2_0()
+            and not self.is_gemini_2_5()
+        )
+
     def is_gemini_thinking_only(self) -> bool:
         return (
             self.is_gemini_2_5() or self.is_gemini_3()
@@ -452,7 +460,8 @@ class GoogleGenAIAPI(ModelAPI):
                     return ThinkingConfig(include_thoughts=False, thinking_budget=0)
 
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
-            elif config.reasoning_effort is not None:
+            # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
+            elif config.reasoning_effort is not None and self.is_gemini_3_plus():
                 match config.reasoning_effort:
                     case "minimal" | "low":
                         thinking_level: ThinkingLevel | None = ThinkingLevel.LOW
