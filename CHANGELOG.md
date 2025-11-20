@@ -5,6 +5,7 @@
 - OpenAI: Don't remove consecutive reasoning blocks (earlier versions of the API would give 400 errors, this no longer occurs).
 - OpenAI: Add `prompt_cache_retention` custom model arg (bump required version of `openai` package to v2.8.0).
 - Eval Logs: Don't forward credentials when using aioboto3 with S3 (was preventing use of AWS credential chain).
+- Inspect View: Compatibilty with Hugging Face filesystem (hf://).
 - Inspect View: Streaming for log bytes requests in fastapi view server.
 - Bugfix: Fix incorrect approver behavior with multiple tool calls
 - Bugfix: Correctly handle distinguishing eval set tasks based on `solver` passed to `eval_set()`.
