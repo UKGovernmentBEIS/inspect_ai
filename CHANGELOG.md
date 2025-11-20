@@ -3,6 +3,8 @@
 - Anthropic: Support for [Structured Output](https://inspect.aisi.org.uk/structured.html) for Sonnet 4.5 and Opus 4.1.
 - Anthropic: Don't insert "(no content)" when replaying empty assistant messages with tool calls.
 - OpenAI: Add `prompt_cache_retention` custom model arg (bump required version of `openai` package to v2.8.0).
+- OpenAI: Add native support for `apply_patch` tool calls in the Responses API, including status playback.
+- Tools: Introduce an `apply_patch` tool harness for applying V4A diffs in sandbox environments.
 - Inspect View: Streaming for log bytes requests in fastapi view server.
 - Bugfix: Fix incorrect approver behavior with multiple tool calls
 

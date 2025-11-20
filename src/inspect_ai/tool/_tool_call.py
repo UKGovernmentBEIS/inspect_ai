@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, TypedDict
+from typing import Any, Callable, Literal, Mapping, TypedDict
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -51,7 +51,7 @@ class ToolCall:
     view: ToolCallContent | None = field(default=None)
     """Custom view of tool call input."""
 
-    type: Literal["function", "custom"] = field(default="function")
+    type: Literal["function", "custom", "apply_patch"] = field(default="function")
     """Type of tool call."""
 
     @field_validator("type", mode="before")
@@ -61,6 +61,86 @@ class ToolCall:
         if v is None:
             return "function"
         return v
+
+
+ApplyPatchOperationType = Literal["create_file", "update_file", "delete_file"]
+"""Valid operation types for apply_patch calls."""
+
+
+APPLY_PATCH_ARGUMENT_KEY = "operation"
+"""Dictionary key used to store apply_patch operations in ToolCall.arguments."""
+
+
+@dataclass
+class ApplyPatchOperation:
+    """Operation payload for an apply_patch tool call."""
+
+    type: ApplyPatchOperationType
+    """Operation type (create_file, update_file, delete_file)."""
+
+    path: str
+    """Target filesystem path for the operation."""
+
+    diff: str | None = None
+    """Unified diff payload for create/update operations."""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.path, str) or not self.path:
+            raise ValueError("ApplyPatchOperation requires a non-empty string path.")
+        if self.type in ("create_file", "update_file"):
+            if not isinstance(self.diff, str) or self.diff == "":
+                raise ValueError(
+                    f"ApplyPatchOperation '{self.type}' requires a non-empty diff."
+                )
+        else:
+            if self.diff not in (None, ""):
+                raise ValueError("ApplyPatchOperation 'delete_file' must not include a diff.")
+            self.diff = None
+
+    def as_arguments(self) -> dict[str, Any]:
+        """Return operation payload formatted for ToolCall.arguments."""
+        payload: dict[str, Any] = {"type": self.type, "path": self.path}
+        if self.diff is not None:
+            payload["diff"] = self.diff
+        return {APPLY_PATCH_ARGUMENT_KEY: payload}
+
+
+def validate_apply_patch_operation(operation: Mapping[str, Any]) -> ApplyPatchOperation:
+    """Validate and normalise an apply_patch operation mapping."""
+    if not isinstance(operation, Mapping):
+        raise ValueError("ApplyPatch operation payload must be a mapping.")
+
+    try:
+        op_type = operation["type"]
+        path = operation["path"]
+    except KeyError as ex:
+        raise ValueError(f"Missing field '{ex.args[0]}' in apply_patch operation.") from ex
+
+    if op_type not in {"create_file", "update_file", "delete_file"}:
+        raise ValueError(f"Unsupported apply_patch operation type '{op_type}'.")
+
+    diff_value: str | None = operation.get("diff")
+    if diff_value is not None and not isinstance(diff_value, str):
+        raise ValueError("ApplyPatchOperation diff must be a string when provided.")
+
+    return ApplyPatchOperation(
+        type=op_type, path=path, diff=diff_value if diff_value is not None else None
+    )
+
+
+def parse_apply_patch_arguments(arguments: Mapping[str, Any]) -> ApplyPatchOperation:
+    """Extract and validate an apply_patch operation from tool call arguments."""
+    if not isinstance(arguments, Mapping):
+        raise ValueError("ToolCall arguments must be a mapping.")
+    try:
+        operation = arguments[APPLY_PATCH_ARGUMENT_KEY]
+    except KeyError as ex:
+        raise ValueError(
+            "apply_patch ToolCall arguments must include an 'operation' payload."
+        ) from ex
+    if not isinstance(operation, Mapping):
+        raise ValueError("apply_patch operation payload must be a mapping.")
+    return validate_apply_patch_operation(operation)
 
 
 @dataclass

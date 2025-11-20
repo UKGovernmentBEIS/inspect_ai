@@ -5,6 +5,8 @@ from functools import reduce
 from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
+    ApplyPatchToolParam,
+    ResponseApplyPatchToolCall,
     ComputerToolParam,
     CustomToolParam,
     EasyInputMessageParam,
@@ -33,6 +35,7 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseReasoningItemParam,
     ResponseUsage,
+    ToolChoiceApplyPatchParam,
     ToolChoiceFunctionParam,
     ToolChoiceMcpParam,
     ToolChoiceTypesParam,
@@ -55,6 +58,7 @@ from openai.types.responses.response_input_image_content_param import (
     ResponseInputImageContentParam,
 )
 from openai.types.responses.response_input_item_param import (
+    ApplyPatchCall,
     ComputerCallOutput,
     FunctionCallOutput,
     Message,
@@ -128,7 +132,12 @@ from inspect_ai.model._model_output import (
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import (
+    APPLY_PATCH_ARGUMENT_KEY,
+    ToolCall,
+    parse_apply_patch_arguments,
+    validate_apply_patch_operation,
+)
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -205,6 +214,20 @@ async def _openai_input_item_from_chat_message(
                     if message.error is not None
                     else await _openai_responses_custom_tool_call_output(message),
                 )
+            ]
+        elif (
+            responses_tool_call is not None
+            and responses_tool_call["type"] == "apply_patch_call"
+        ):
+            status = "failed" if message.error is not None else "completed"
+            output_text = _apply_patch_tool_output_text(message)
+            return [
+                {
+                    "type": "apply_patch_call_output",
+                    "call_id": message.tool_call_id or str(message.function),
+                    "status": status,
+                    "output": output_text,
+                }
             ]
         else:
             return [
@@ -346,6 +369,9 @@ def openai_responses_tool_choice(
                 ToolChoiceTypesParam(type="computer_use_preview")
                 if tool_choice.name == "computer"
                 and any(tool["type"] == "computer_use_preview" for tool in tools)
+                else ToolChoiceApplyPatchParam(type="apply_patch")
+                if tool_choice.name == "apply_patch"
+                and any(tool.get("type") == "apply_patch" for tool in tools)
                 else ToolChoiceTypesParam(type="web_search_preview")
                 if tool_choice.name == "web_search"
                 and any(tool["type"] == "web_search" for tool in tools)
@@ -418,7 +444,8 @@ class _AssistantInternal:
         str,
         ResponseFunctionToolCallParam
         | ResponseCustomToolCallParam
-        | ResponseComputerToolCallParam,
+        | ResponseComputerToolCallParam
+        | ApplyPatchCall,
     ] = field(default_factory=dict)
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
@@ -591,6 +618,33 @@ def _chat_message_assistant_from_openai_response(
                     )
 
                 tool_calls.append(tool_call_from_openai_computer_tool_call(output))
+            case ResponseApplyPatchToolCall():
+                stop_reason = "tool_calls"
+                operation_payload = output.operation.model_dump(exclude_none=True)
+                if output.id is not None:
+                    assistant_internal().tool_calls[output.call_id] = {
+                        "type": "apply_patch_call",
+                        "call_id": output.call_id,
+                        "status": output.status,
+                        "operation": operation_payload,
+                    }
+                parse_error: str | None = None
+                try:
+                    operation = validate_apply_patch_operation(operation_payload)
+                    arguments = operation.as_arguments()
+                except ValueError as ex:
+                    parse_error = str(ex)
+                    arguments = {APPLY_PATCH_ARGUMENT_KEY: operation_payload}
+
+                tool_calls.append(
+                    ToolCall(
+                        id=output.call_id,
+                        function="apply_patch",
+                        arguments=arguments,
+                        parse_error=parse_error,
+                        type="apply_patch",
+                    )
+                )
 
             case ResponseFunctionWebSearch():
                 assistant_internal().server_tool_uses[output.id] = cast(
@@ -926,7 +980,9 @@ def _maybe_native_tool_param(
     config: GenerateConfig,
 ) -> ToolParam | None:
     return (
-        (
+        ApplyPatchToolParam(type="apply_patch")
+        if tool.name == "apply_patch"
+        else (
             maybe_computer_use_preview_tool(tool)
             or maybe_web_search_tool(model_name, tool)
             or maybe_mcp_tool(tool)
@@ -951,17 +1007,55 @@ def _tool_call_items_from_assistant_message(
             tool_calls.append(assistant_internal_call)
         else:
             # create param
-            tool_call_param: ResponseFunctionToolCallParam = dict(
-                type="function_call",
-                call_id=call.id,
-                name=_responses_tool_alias(call.function),
-                arguments=json.dumps(call.arguments),
-            )
+            if call.type == "apply_patch":
+                operation = parse_apply_patch_arguments(call.arguments)
+                tool_calls.append(
+                    {
+                        "type": "apply_patch_call",
+                        "call_id": call.id,
+                        "status": "in_progress",
+                        "operation": operation.as_arguments()[APPLY_PATCH_ARGUMENT_KEY],
+                    }
+                )
+            else:
+                tool_call_param: ResponseFunctionToolCallParam = dict(
+                    type="function_call",
+                    call_id=call.id,
+                    name=_responses_tool_alias(call.function),
+                    arguments=json.dumps(call.arguments),
+                )
 
-            # append the param
-            tool_calls.append(tool_call_param)
+                # append the param
+                tool_calls.append(tool_call_param)
 
     return tool_calls
+
+
+def _apply_patch_tool_output_text(message: ChatMessageTool) -> str | None:
+    """Convert a ChatMessageTool payload into a textual summary for apply_patch."""
+    parts: list[str] = []
+
+    if isinstance(message.content, str):
+        if message.content.strip():
+            parts.append(message.content.strip())
+    elif isinstance(message.content, list):
+        text_parts = [
+            item.text.strip()
+            for item in message.content
+            if isinstance(item, ContentText) and item.text
+        ]
+        if text_parts:
+            parts.append("\n".join(text_parts))
+
+    if message.error and message.error.message:
+        error_text = message.error.message.strip()
+        if error_text and (not parts or error_text not in parts):
+            parts.append(error_text)
+
+    if not parts:
+        return None
+
+    return "\n\n".join(parts)
 
 
 _ResponseToolCallParam = (
