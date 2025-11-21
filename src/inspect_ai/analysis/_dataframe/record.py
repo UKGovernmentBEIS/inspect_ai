@@ -291,12 +291,13 @@ def _try_constructor(tp: Type[ColumnType], obj: Any) -> ColumnType:
 
 def _from_timestamp(tp: Type[ColumnType], ts: int | float) -> ColumnType | None:
     """Convert POSIX timestamp to the requested temporal type, UTC zone."""
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc)
     if tp is datetime:
-        return datetime.fromtimestamp(ts, tz=timezone.utc)
+        return dt
     if tp is date:
-        return date.fromtimestamp(ts)
-    if tp is time:  # derive from a datetime
-        return datetime.fromtimestamp(ts, tz=timezone.utc).time()
+        return dt.date()
+    if tp is time:
+        return dt.time()
     return None
 
 
