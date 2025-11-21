@@ -278,6 +278,7 @@ export interface LogPreview {
 export interface LogRoot {
   logs: LogHandle[];
   log_dir?: string;
+  multiLogDirs?: string[]; // For multi-eval-set mode where logs come from multiple directories
 }
 
 export interface LogHandle {
