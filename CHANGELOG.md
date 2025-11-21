@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.147 (21 November 2025)
 
 - Google: Support for `--reasoning-effort` on Gemini 3.0 models.
 - Anthropic: Support for [Structured Output](https://inspect.aisi.org.uk/structured.html) for Sonnet 4.5 and Opus 4.1.
