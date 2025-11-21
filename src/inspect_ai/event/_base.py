@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_serializer
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
+from inspect_ai._util.dateutil import datetime_now_utc, datetime_to_iso_format_safe
 from inspect_ai._util.working import sample_working_time
 
 
@@ -15,7 +16,7 @@ class BaseEvent(BaseModel):
     span_id: str | None = Field(default=None)
     """Span the event occurred within."""
 
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime_now_utc)
     """Clock time at which event occurred."""
 
     working_start: float = Field(default_factory=sample_working_time)
@@ -44,4 +45,4 @@ class BaseEvent(BaseModel):
 
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:
-        return dt.astimezone().isoformat()
+        return datetime_to_iso_format_safe(dt)

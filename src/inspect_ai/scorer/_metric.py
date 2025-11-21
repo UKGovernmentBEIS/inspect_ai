@@ -16,6 +16,7 @@ from typing import (
 
 from pydantic import BaseModel, Field
 
+from inspect_ai._util.dateutil import datetime_now_utc
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
@@ -62,7 +63,7 @@ UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 class ProvenanceData(BaseModel):
     """Metadata about who made an edit and why."""
 
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime_now_utc)
     """Timestamp when the edit was made."""
 
     author: str

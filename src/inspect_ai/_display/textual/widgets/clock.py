@@ -14,13 +14,13 @@ class Clock(Static):
     }
     """
 
-    time: reactive[float] = reactive(datetime.now().timestamp)
+    time: reactive[float] = reactive(datetime.now().timestamp)  # noqa: DTZ005
     timer: Timer | None = None
 
     def __init__(self, interval: int = 1) -> None:
         super().__init__()
         self.start_time: float | None = None
-        self.time = datetime.now().timestamp()
+        self.time = datetime.now().timestamp()  # noqa: DTZ005
         self.interval = interval
 
     def start(self, start_time: float) -> None:
@@ -49,7 +49,7 @@ class Clock(Static):
 
     def update_time(self) -> None:
         if self.start_time is not None:
-            self.time = datetime.now().timestamp() - self.start_time
+            self.time = datetime.now().timestamp() - self.start_time  # noqa: DTZ005
 
     def watch_time(self, time: float) -> None:
         self.update(format_progress_time(time))

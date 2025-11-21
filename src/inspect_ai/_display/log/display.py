@@ -1,11 +1,11 @@
 import contextlib
 import logging
-from datetime import datetime
 from typing import AsyncIterator, Callable, Coroutine, Iterator
 
 import anyio
 
 from inspect_ai._util._async import configured_async_backend, run_coroutine
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.log import EvalStats
 
@@ -85,8 +85,8 @@ class LogDisplay(Display):
 
     def _task_stats_str(self, stats: EvalStats) -> str:
         # eval time
-        started = datetime.fromisoformat(stats.started_at)
-        completed = datetime.fromisoformat(stats.completed_at)
+        started = datetime_from_iso_format_safe(stats.started_at)
+        completed = datetime_from_iso_format_safe(stats.completed_at)
         elapsed = completed - started
         res = f"total time: {elapsed}"
         # token usage

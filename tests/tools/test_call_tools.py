@@ -1,6 +1,6 @@
 import datetime
 from dataclasses import dataclass
-from datetime import date, time
+from datetime import date, time, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, TypedDict, Union
 
@@ -222,7 +222,9 @@ async def test_complex_tool_all_params():
     assert result["pm"] == {"name": "test", "id": 42}
 
     # date/time/any
-    assert result["timestamp"] == datetime.datetime(2025, 4, 17, 12, 0, 0)
+    assert result["timestamp"] == datetime.datetime(
+        2025, 4, 17, 12, 0, 0, 0, timezone.utc
+    )
     assert result["the_date"] == date(2025, 4, 17)
     assert result["the_time"] == time(12, 0, 0)
     assert result["anything"] == {"complex": ["structure", 123]}
