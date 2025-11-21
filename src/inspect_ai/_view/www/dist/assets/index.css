@@ -15592,30 +15592,6 @@ so disabling selection can break that functionality */
   margin-right: 0.5rem;
   color: var(--bs-red);
 }
-._container_1n7pm_1 {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  align-items: center;
-}
-
-._label_1n7pm_7 {
-  margin-left: 0.3em;
-}
-
-._outer_1n7pm_11 {
-  display: flex;
-  height: 1em;
-  border-radius: var(--bs-border-radius);
-  border: solid var(--bs-border-color) 1px;
-  overflow: hidden;
-  background-color: var(--bs-body-bg);
-}
-
-._inner_1n7pm_20 {
-  background-color: var(--bs-primary);
-  position: sticky;
-  opacity: 0.7;
-}
 ._circle_qymy9_1 {
   font-family: "Consola Regular";
   width: 40px;
@@ -16311,65 +16287,38 @@ a._citationLink_1ggvf_9:hover {
   background-color: #f8d7da;
   color: #721c24;
 }
-._header_1u3sd_1 {
-  background: var(--bs-light);
+._container_1n7pm_1 {
   display: grid;
-  grid-template-columns: 1fr max-content;
-  justify-content: space-between;
-  padding: 0.2em 0.5em;
-  --bs-breadcrumb-divider: ">";
-  overflow: hidden;
+  grid-template-columns: max-content max-content;
+  align-items: center;
 }
 
-._header_1u3sd_1._bordered_1u3sd_11 {
-  border-bottom: solid var(--bs-border-color) 1px;
+._label_1n7pm_7 {
+  margin-left: 0.3em;
 }
 
-._breadcrumbs_1u3sd_15 {
-  border-left: solid var(--bs-border-color) 1px;
-  padding-left: 0.5em;
-  margin-bottom: 0;
-  min-width: 0;
-  overflow: hidden;
-  width: max-content;
+._outer_1n7pm_11 {
   display: flex;
-  flex-wrap: nowrap;
-}
-
-._ellipsis_1u3sd_26 {
-  color: var(--bs-secondary);
-  font-weight: normal;
-}
-
-._left_1u3sd_31 {
-  display: grid;
-  grid-template-columns: max-content max-content 1fr;
-  align-items: center;
-  column-gap: 0.75em;
+  height: 1em;
+  border-radius: var(--bs-border-radius);
+  border: solid var(--bs-border-color) 1px;
   overflow: hidden;
-  min-width: 0;
-  max-width: 100%;
+  background-color: var(--bs-body-bg);
 }
 
-._right_1u3sd_41 {
-  display: grid;
-  grid-auto-columns: max-content;
-  grid-auto-flow: column;
-  justify-content: end;
-  align-items: center;
-  column-gap: 0.5em;
+._inner_1n7pm_20 {
+  background-color: var(--bs-primary);
+  position: sticky;
+  opacity: 0.7;
+}
+._button_1bbut_1 {
+  border: none;
+  padding: 0;
+  background-color: inherit;
 }
 
-._toolbarButton_1u3sd_50 {
+._viewerOptions_1bbut_7 {
   color: var(--bs-body-color);
-}
-
-._toolbarButton_1u3sd_50:hover {
-  color: var(--bs-link-hover-color);
-}
-
-._pathContainer_1u3sd_58 {
-  overflow-x: hidden;
 }
 ._rootControl_mhb7y_1 {
   background-color: var(--bs-secondary-bg);
@@ -16766,6 +16715,76 @@ button._segment_mhb7y_9 {
   overflow: hidden;
   height: 100%;
   min-height: 0;
+}
+._header_1u3sd_1 {
+  background: var(--bs-light);
+  display: grid;
+  grid-template-columns: 1fr max-content;
+  justify-content: space-between;
+  padding: 0.2em 0.5em;
+  --bs-breadcrumb-divider: ">";
+  overflow: hidden;
+}
+
+._header_1u3sd_1._bordered_1u3sd_11 {
+  border-bottom: solid var(--bs-border-color) 1px;
+}
+
+._breadcrumbs_1u3sd_15 {
+  border-left: solid var(--bs-border-color) 1px;
+  padding-left: 0.5em;
+  margin-bottom: 0;
+  min-width: 0;
+  overflow: hidden;
+  width: max-content;
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+._ellipsis_1u3sd_26 {
+  color: var(--bs-secondary);
+  font-weight: normal;
+}
+
+._left_1u3sd_31 {
+  display: grid;
+  grid-template-columns: max-content max-content 1fr;
+  align-items: center;
+  column-gap: 0.75em;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+}
+
+._right_1u3sd_41 {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: end;
+  align-items: center;
+  column-gap: 0.5em;
+}
+
+._toolbarButton_1u3sd_50 {
+  color: var(--bs-body-color);
+}
+
+._toolbarButton_1u3sd_50:hover {
+  color: var(--bs-link-hover-color);
+}
+
+._pathContainer_1u3sd_58 {
+  overflow-x: hidden;
+}
+._container_fvm77_1 {
+  display: grid;
+  grid-template-rows: max-content 1fr;
+  height: 100vh;
+}
+
+._panel_fvm77_7 {
+  margin: 0.5rem;
+  overflow-y: scroll;
 }
 .findBand {
   position: absolute;
