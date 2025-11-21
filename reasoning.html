@@ -662,11 +662,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash">Gemini 2.5 Flash</a>: <code>google/gemini-2.5-flash</code></p></li>
 <li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro">Gemini 2.5 Pro</a>: <code>google/gemini-2.5-pro</code></p></li>
+<li><p><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro">Gemini 3.0 Pro</a>: <code>google/gemini-3-pro-preview</code></p></li>
 </ul>
-<p>You can use the <code>--reasoning-tokens</code> option to control the amount of reasoning used by these models. For example:</p>
+<p>For Gemini 3.0, you can use the <code>--reasoning-effort</code> option to control the amount of reasoning used by the model. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> google/gemini-2.5-flash <span class="dt">\</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> google/gemini-3-pro-preview <span class="dt">\</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-effort</span> low</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Gemini 3 supports <code>thinking_level</code>s “low” and “high”, so Inspect maps reasoning effort levels “minimal” or “low” to “low” and “medium” or “high” to “high” (<a href="https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#thinking_level">Gemini support for “medium” is coming soon</a>).</p>
+<p>For Gemini 2.5, you can use the <code>--reasoning-tokens</code> option to control the amount of reasoning used by these models (this option is deprecated for Gemini 3 models). For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> google/gemini-2.5-flash <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that for Flash models you can disable reasoning with <code>--reasoning-tokens=0</code> (Gemini 2.5 Pro <a href="https://ai.google.dev/gemini-api/docs/thinking#set-budget">does not support</a> disabling reasoning).</p>
 <p>The most recent Gemini models also include support for including a reasoning summary in model output.</p>
 </section>
@@ -679,7 +685,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><code>grok/grok-3-mini</code></li>
 </ul>
 <p>You can condition the amount of reasoning done by Grok 3 using the [<code>reasoning_effort</code>]https://docs.x.ai/docs/guides/reasoning) option, which can be set to <code>low</code> or <code>high</code>.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> grok/grok-3-mini <span class="at">--reasoning-effort</span> high</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> grok/grok-3-mini <span class="at">--reasoning-effort</span> high</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that Grok 4 does not support the <code>--reasoning-effort</code> parameter so it is ignored if specified.</p>
 </section>
 <section id="deepseek-r1" class="level2">
