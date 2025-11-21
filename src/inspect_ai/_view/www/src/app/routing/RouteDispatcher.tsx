@@ -1,5 +1,4 @@
 import { FC } from "react";
-import { useSearchParams } from "react-router-dom";
 import { FlowPanel } from "../flow/FlowPanel";
 import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
@@ -7,20 +6,25 @@ import { useLogRouteParams } from "./url";
 
 /**
  * RouteDispatcher component that determines whether to show FlowPanel, LogsPanel or LogViewContainer
- * based on the logPath parameter and URL search params. If ?flow query param is present, it shows
- * the FlowPanel. If logPath ends with .eval or .json, it shows the individual log view.
+ * based on the logPath parameter. If the path ends with .yaml/.yml, it shows the FlowPanel.
+ * If logPath ends with .eval or .json, it shows the individual log view.
  * Otherwise, it shows the logs directory view.
  */
 export const RouteDispatcher: FC = () => {
   const { logPath } = useLogRouteParams();
-  const [searchParams] = useSearchParams();
 
-  // Check if the ?flow query parameter is present
-  const hasFlowParam = searchParams.has("flow");
-
-  // If no logPath is provided, show the logs directory view or flow panel
+  // If no logPath is provided, show the logs directory view
   if (!logPath) {
-    return hasFlowParam ? <FlowPanel /> : <LogsPanel />;
+    return <LogsPanel />;
+  }
+
+  // Check if the path ends with .yaml or .yml (indicating it's a flow file)
+  const isFlowFile =
+    logPath.endsWith(".yaml") || logPath.endsWith(".yml");
+
+  // If it's a flow file, show the FlowPanel
+  if (isFlowFile) {
+    return <FlowPanel />;
   }
 
   // Check if the path ends with .eval or .json (indicating it's a log file)
@@ -30,6 +34,6 @@ export const RouteDispatcher: FC = () => {
   if (isLogFile) {
     return <LogViewContainer />;
   } else {
-    return hasFlowParam ? <FlowPanel /> : <LogsPanel />;
+    return <LogsPanel />;
   }
 };

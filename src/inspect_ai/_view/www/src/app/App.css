@@ -1193,6 +1193,10 @@ pre[class*="language-"] {
 /* END PrismJS */
 
 /* SVG Icon styles - following Bootstrap Icons pattern */
+.ii:before {
+  background-color: var(--bs-body-color);
+}
+
 .inspect-icon-16::before {
   content: "";
   width: 1em;
@@ -1252,6 +1256,16 @@ pre[class*="language-"] {
   margin-top: -2px;
   mask: url("../img/tasks.svg") no-repeat center / contain;
   -webkit-mask: url("../img/tasks.svg") no-repeat center / contain;
+}
+
+.inspect-flow::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+  mask: url("../img/inspect-flow.svg") no-repeat center / contain;
+  -webkit-mask: url("../img/inspect-flow.svg") no-repeat center / contain;
 }
 
 /* Use this very carefully, find relies upon checking the 

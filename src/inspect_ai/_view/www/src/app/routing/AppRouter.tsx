@@ -4,11 +4,9 @@ import {
   Navigate,
   Outlet,
   useLocation,
-  useSearchParams,
 } from "react-router-dom";
 import { storeImplementation, useStore } from "../../state/store";
 import { AppErrorBoundary } from "../AppErrorBoundary";
-import { FlowPanel } from "../flow/FlowPanel";
 import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { RouteDispatcher } from "./RouteDispatcher";
@@ -52,18 +50,6 @@ const AppLayout = () => {
   );
 };
 
-// Component that checks for ?flow parameter and routes to FlowPanel or LogsPanel
-const LogsRouteHandler = () => {
-  const [searchParams] = useSearchParams();
-  const hasFlowParam = searchParams.has("flow");
-
-  if (hasFlowParam) {
-    return <FlowPanel />;
-  }
-
-  return <LogsPanel />;
-};
-
 // Create router with our routes (using hash router for static deployments)
 export const AppRouter = createHashRouter(
   [
@@ -77,7 +63,7 @@ export const AppRouter = createHashRouter(
         },
         {
           path: kLogsRouteUrlPattern,
-          element: <LogsRouteHandler />,
+          element: <LogsPanel />,
         },
         {
           path: kLogRouteUrlPattern,
