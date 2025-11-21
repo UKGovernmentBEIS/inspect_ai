@@ -1,5 +1,6 @@
 ## Unreleased
 - Infrastructure: Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+- Bugfix: Fix Google provider serialization of thought signatures on replay.
 
 ## 0.3.147 (21 November 2025)
 
@@ -14,7 +15,6 @@
 - Inspect View: Streaming for log bytes requests in fastapi view server.
 - Bugfix: Fix incorrect approver behavior with multiple tool calls
 - Bugfix: Correctly handle distinguishing eval set tasks based on `solver` passed to `eval_set()`.
-- Bugfix: Fix Google provider serialization of thought signatures on replay.
 
 ## 0.3.146 (15 November 2025)
 
