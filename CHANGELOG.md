@@ -1,3 +1,6 @@
+## Unreleased
+- Infrastructure: Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+
 ## 0.3.147 (21 November 2025)
 
 - Google: Support for `--reasoning-effort` on Gemini 3.0 models.
