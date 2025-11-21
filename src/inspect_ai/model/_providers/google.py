@@ -696,17 +696,12 @@ async def content(
         else:
             for i, content in enumerate(message.content):
                 if isinstance(content, ContentReasoning):
-                    # if this is encrytped reasoning, emit the part and save the
-                    # content block for applying the thought_signature to the next part
+                    # if this is encrypted reasoning, save it for applying the thought_signature
+                    # to the next part (don't emit a separate thought part during replay)
                     if content.redacted:
-                        content_parts.append(
-                            Part(
-                                text=content.summary,
-                                thought=True,
-                            )
-                        )
                         working_reasoning_block = content
                     else:
+                        # unencrypted reasoning (for older models or debugging)
                         content_parts.append(Part(text=content.reasoning, thought=True))
 
                 else:
