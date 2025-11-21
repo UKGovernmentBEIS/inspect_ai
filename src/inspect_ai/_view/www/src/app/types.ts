@@ -90,6 +90,8 @@ export interface LogsState {
     gridState?: GridState;
     displayedSamples?: Array<DisplayedSample>;
   };
+  flow?: string;
+  flowDir?: string;
 }
 
 export interface LogsListing {

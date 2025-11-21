@@ -2,7 +2,13 @@ import { EvalSet } from "../../../@types/log";
 import { fetchRange, fetchSize } from "../../remote/remoteZipFile";
 import { download_file } from "../shared/api-shared";
 import { Capabilities, LogPreview, LogRoot, LogViewAPI } from "../types";
-import { fetchJsonFile, fetchLogFile, fetchManifest, joinURI } from "./fetch";
+import {
+  fetchJsonFile,
+  fetchLogFile,
+  fetchManifest,
+  fetchTextFile,
+  joinURI,
+} from "./fetch";
 
 /**
  * This provides an API implementation that will serve a single
@@ -91,6 +97,27 @@ function staticHttpApiForLog(logInfo: {
         (response) => {
           if (400 <= response.status && response.status < 500) {
             // Couldn't find a header file
+            return true;
+          } else {
+            return false;
+          }
+        },
+      );
+    },
+    get_flow: async (dir?: string) => {
+      const dirSegments = [];
+      if (log_dir) {
+        dirSegments.push(log_dir);
+      }
+      if (dir) {
+        dirSegments.push(dir);
+      }
+
+      return await fetchTextFile(
+        joinURI(...dirSegments, "flow.yaml"),
+        (response) => {
+          if (400 <= response.status && response.status < 500) {
+            // Couldn't find a flow file
             return true;
           } else {
             return false;

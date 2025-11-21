@@ -374,6 +374,9 @@ export const clientApi = (
     get_eval_set: middleware("get_eval_set", (dir?: string) => {
       return api.get_eval_set(dir);
     }),
+    get_flow: middleware("get_flow", (dir?: string) => {
+      return api.get_flow(dir);
+    }),
     get_log_summaries: middleware("get_log_summaries", get_log_summaries),
     get_log_details: middleware("get_log_details", get_log_details),
     get_log_sample: middleware("get_log_sample", get_log_sample),

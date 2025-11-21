@@ -14,6 +14,8 @@ import {
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
+import { FlowButton } from "../flow/FlowButton";
+import { useFlowServerData } from "../flow/hooks";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { logsUrl, useLogRouteParams } from "../routing/url";
@@ -61,6 +63,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const { logPath } = useLogRouteParams();
 
   const currentDir = join(logPath || "", logDir);
+
+  useFlowServerData(logPath || "");
+  const flowData = useStore((state) => state.logs.flow);
 
   // Polling for client events
   const { startPolling, stopPolling } = useClientEvents();
@@ -252,6 +257,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       >
         <LogsFilterInput ref={filterRef} />
         <ViewSegmentedControl selectedSegment="logs" />
+        {flowData && <FlowButton />}
       </ApplicationNavbar>
 
       <>

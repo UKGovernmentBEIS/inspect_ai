@@ -233,6 +233,35 @@ def view_server_app(
             content=eval_set.model_dump(exclude_none=True) if eval_set else None
         )
 
+    @app.get("/flow")
+    async def flow(
+        request: Request,
+        log_dir: str = Query(None, alias="log_dir"),
+        sub_dir: str = Query(None, alias="dir"),
+    ) -> Response:
+        # resolve the eval-set directory (using the log_dir and dir params)
+        base_dir = log_dir if log_dir else default_dir
+        if sub_dir and base_dir:
+            flow_dir = base_dir + "/" + sub_dir.lstrip("/")
+        elif sub_dir:
+            flow_dir = sub_dir.lstrip("/")
+        else:
+            flow_dir = base_dir
+
+        # validate that the directory can be listed
+        await _validate_list(request, flow_dir)
+
+        fs = filesystem(flow_dir)
+        flow_file = f"{flow_dir}{fs.sep}flow.yaml"
+        if fs.exists(flow_file):
+            bytes = fs.read_bytes(flow_file)
+
+            return Response(
+                content=bytes.decode("utf-8"), status_code=200, media_type="text/yaml"
+            )
+        else:
+            return Response(status_code=HTTP_404_NOT_FOUND)
+
     @app.get("/log-headers")
     async def api_log_headers(
         request: Request, file: list[str] = Query([])
