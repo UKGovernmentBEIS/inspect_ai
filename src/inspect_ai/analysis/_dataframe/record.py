@@ -1,6 +1,6 @@
 import json
 from datetime import date, datetime, time, timezone
-from typing import Any, Callable, Literal, Sequence, Type, cast, overload
+from typing import Any, Literal, Sequence, Type, cast, overload
 
 import yaml
 from jsonpath_ng import JSONPath  # type: ignore
