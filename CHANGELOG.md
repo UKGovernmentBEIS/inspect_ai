@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.148 (21 November 2025)
 
 - Bugfix: Fix Google provider serialization of thought signatures on replay.
 
