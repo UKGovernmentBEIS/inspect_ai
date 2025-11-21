@@ -1,5 +1,5 @@
 import textwrap
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time
 
 from inspect_ai.log._util import thin_metadata
 
@@ -24,7 +24,7 @@ def test_thin_metadata_preserves_datetime_types():
     """Test that date, time, and datetime values are preserved as-is."""
     test_date = date(2024, 1, 1)
     test_time = time(12, 30, 45)
-    test_datetime = datetime(2024, 1, 1, 12, 30, 45, 0, timezone.utc)
+    test_datetime = datetime(2024, 1, 1, 12, 30, 45)
 
     metadata = {
         "date_value": test_date,
@@ -103,7 +103,7 @@ def test_thin_metadata_mixed_types():
         "number": 42,
         "text": "Short text",
         "long_text": "x" * 2000,
-        "date": datetime.now(tz=timezone.utc).date(),
+        "date": date.today(),
         "small_data": {"nested": "value"},
         "large_data": {"key": "x" * 1024},  # Should be > 1024 when serialized
         "boolean": True,

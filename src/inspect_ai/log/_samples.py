@@ -1,6 +1,6 @@
 import contextlib
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import AsyncGenerator, Iterator, Literal
 
 from anyio.abc import TaskGroup
@@ -54,11 +54,11 @@ class ActiveSample:
         self._limit_exceeded_error: LimitExceededError | None = None
 
     def start(self, tg: TaskGroup) -> None:
-        self.started = datetime.now(timezone.utc).timestamp()
+        self.started = datetime.now().timestamp()
         self.tg = tg
 
     def complete(self) -> None:
-        self.completed = datetime.now(timezone.utc).timestamp()
+        self.completed = datetime.now().timestamp()
 
     @property
     def running_time(self) -> float:
@@ -66,7 +66,7 @@ class ActiveSample:
             completed = (
                 self.completed
                 if self.completed is not None
-                else datetime.now(timezone.utc).timestamp()
+                else datetime.now().timestamp()
             )
             return completed - self.started
         else:

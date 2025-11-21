@@ -1,5 +1,5 @@
 ## Unreleased
-- Infrastructure: Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+
 - Bugfix: Fix Google provider serialization of thought signatures on replay.
 
 ## 0.3.147 (21 November 2025)

@@ -34,7 +34,7 @@ def setup_logging(name: str) -> None:
     log_dir = Path("release-logs")
     log_dir.mkdir(exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # noqa: DTZ005
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = log_dir / f"{name}_{timestamp}.log"
 
     # Configure logging

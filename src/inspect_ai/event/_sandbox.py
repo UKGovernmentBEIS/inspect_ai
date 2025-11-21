@@ -3,7 +3,6 @@ from typing import Literal
 
 from pydantic import Field, JsonValue, field_serializer
 
-from inspect_ai._util.dateutil import datetime_to_iso_format_safe
 from inspect_ai.event._base import BaseEvent
 
 
@@ -41,4 +40,4 @@ class SandboxEvent(BaseEvent):
     def serialize_completed(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
-        return datetime_to_iso_format_safe(dt)
+        return dt.astimezone().isoformat()

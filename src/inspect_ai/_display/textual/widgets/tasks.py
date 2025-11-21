@@ -254,7 +254,7 @@ class TaskProgressView(Widget):
         event.stop()
 
     def on_mount(self) -> None:
-        self.query_one(Clock).start(datetime.now().timestamp())  # noqa: DTZ005
+        self.query_one(Clock).start(datetime.now().timestamp())
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
