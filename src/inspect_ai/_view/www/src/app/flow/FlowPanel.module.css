@@ -8,3 +8,7 @@
   margin: 0.5rem;
   overflow-y: scroll;
 }
+
+.code {
+  background: transparent !important;
+}

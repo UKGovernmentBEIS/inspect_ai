@@ -24,6 +24,7 @@ export const ViewerOptionsButton = forwardRef<
         type="button"
         className={clsx(styles.button)}
         onClick={toggleShowing}
+        title={"Viewer information and options"}
       >
         <i
           ref={ref}

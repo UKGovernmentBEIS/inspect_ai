@@ -15485,6 +15485,10 @@ pre[class*="language-"] {
 /* END PrismJS */
 
 /* SVG Icon styles - following Bootstrap Icons pattern */
+.ii:before {
+  background-color: var(--bs-body-color);
+}
+
 .inspect-icon-16::before {
   content: "";
   width: 1em;
@@ -15546,6 +15550,16 @@ pre[class*="language-"] {
   -webkit-mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 16 16%22%3E  %3Cdefs%3E    %3Cstyle%3E      .cls-1 %7B        fill%3A %23231f20%3B      %7D    %3C%2Fstyle%3E  %3C%2Fdefs%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%222.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%227.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%2212.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C4.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C9.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C14.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
 }
 
+.inspect-flow::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: middle;
+  mask: url("data:image/svg+xml,%3Csvg  xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22  viewBox%3D%220 0 100 100%22%3E  %3C!-- Outer circle --%3E  %3Ccircle    cx%3D%2250%22    cy%3D%2250%22    r%3D%2246%22    fill%3D%22none%22    stroke%3D%22black%22    stroke-width%3D%224%22  %2F%3E  %3C!-- Left curly bracket --%3E  %3Cpath    d%3D%22      M 32 32      C 28 32 28 36 28 38      C 28 40 26 42 24 42      C 26 42 28 44 28 46      C 28 48 28 52 32 52      M 32 52      C 28 52 28 56 28 58      C 28 60 26 62 24 62      C 26 62 28 64 28 66      C 28 68 28 72 32 72    %22    fill%3D%22none%22    stroke%3D%22black%22    stroke-width%3D%223%22    stroke-linecap%3D%22round%22    stroke-linejoin%3D%22round%22  %2F%3E  %3C!-- Right curly bracket (mirrored) --%3E  %3Cpath    d%3D%22      M 68 32      C 72 32 72 36 72 38      C 72 40 74 42 76 42      C 74 42 72 44 72 46      C 72 48 72 52 68 52      M 68 52      C 72 52 72 56 72 58      C 72 60 74 62 76 62      C 74 62 72 64 72 66      C 72 68 72 72 68 72    %22    fill%3D%22none%22    stroke%3D%22black%22    stroke-width%3D%223%22    stroke-linecap%3D%22round%22    stroke-linejoin%3D%22round%22  %2F%3E  %3C!-- 3x3 matrix grid --%3E  %3Cg    stroke%3D%22black%22    stroke-width%3D%222.5%22    fill%3D%22none%22  %3E    %3C!-- row 1 --%3E    %3Crect x%3D%2240%22 y%3D%2240%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2247%22 y%3D%2240%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2254%22 y%3D%2240%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3C!-- row 2 --%3E    %3Crect x%3D%2240%22 y%3D%2247%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2247%22 y%3D%2247%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2254%22 y%3D%2247%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3C!-- row 3 --%3E    %3Crect x%3D%2240%22 y%3D%2254%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2247%22 y%3D%2254%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2254%22 y%3D%2254%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg  xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22  viewBox%3D%220 0 100 100%22%3E  %3C!-- Outer circle --%3E  %3Ccircle    cx%3D%2250%22    cy%3D%2250%22    r%3D%2246%22    fill%3D%22none%22    stroke%3D%22black%22    stroke-width%3D%224%22  %2F%3E  %3C!-- Left curly bracket --%3E  %3Cpath    d%3D%22      M 32 32      C 28 32 28 36 28 38      C 28 40 26 42 24 42      C 26 42 28 44 28 46      C 28 48 28 52 32 52      M 32 52      C 28 52 28 56 28 58      C 28 60 26 62 24 62      C 26 62 28 64 28 66      C 28 68 28 72 32 72    %22    fill%3D%22none%22    stroke%3D%22black%22    stroke-width%3D%223%22    stroke-linecap%3D%22round%22    stroke-linejoin%3D%22round%22  %2F%3E  %3C!-- Right curly bracket (mirrored) --%3E  %3Cpath    d%3D%22      M 68 32      C 72 32 72 36 72 38      C 72 40 74 42 76 42      C 74 42 72 44 72 46      C 72 48 72 52 68 52      M 68 52      C 72 52 72 56 72 58      C 72 60 74 62 76 62      C 74 62 72 64 72 66      C 72 68 72 72 68 72    %22    fill%3D%22none%22    stroke%3D%22black%22    stroke-width%3D%223%22    stroke-linecap%3D%22round%22    stroke-linejoin%3D%22round%22  %2F%3E  %3C!-- 3x3 matrix grid --%3E  %3Cg    stroke%3D%22black%22    stroke-width%3D%222.5%22    fill%3D%22none%22  %3E    %3C!-- row 1 --%3E    %3Crect x%3D%2240%22 y%3D%2240%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2247%22 y%3D%2240%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2254%22 y%3D%2240%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3C!-- row 2 --%3E    %3Crect x%3D%2240%22 y%3D%2247%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2247%22 y%3D%2247%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2254%22 y%3D%2247%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3C!-- row 3 --%3E    %3Crect x%3D%2240%22 y%3D%2254%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2247%22 y%3D%2254%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E    %3Crect x%3D%2254%22 y%3D%2254%22 width%3D%225%22 height%3D%225%22 rx%3D%221%22 %2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
+}
+
 /* Use this very carefully, find relies upon checking the 
 document selection to determine if it should skip a find match
 so disabling selection can break that functionality */
@@ -15591,6 +15605,30 @@ so disabling selection can break that functionality */
 .error-icon {
   margin-right: 0.5rem;
   color: var(--bs-red);
+}
+._container_1n7pm_1 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+}
+
+._label_1n7pm_7 {
+  margin-left: 0.3em;
+}
+
+._outer_1n7pm_11 {
+  display: flex;
+  height: 1em;
+  border-radius: var(--bs-border-radius);
+  border: solid var(--bs-border-color) 1px;
+  overflow: hidden;
+  background-color: var(--bs-body-bg);
+}
+
+._inner_1n7pm_20 {
+  background-color: var(--bs-primary);
+  position: sticky;
+  opacity: 0.7;
 }
 ._circle_qymy9_1 {
   font-family: "Consola Regular";
@@ -16168,6 +16206,15 @@ a._citationLink_1ggvf_9:hover {
   margin-right: 0.3em;
   margin-left: 0.2em;
 }
+._button_1bbut_1 {
+  border: none;
+  padding: 0;
+  background-color: inherit;
+}
+
+._viewerOptions_1bbut_7 {
+  color: var(--bs-body-color);
+}
 ._wrapper_1tajk_1 {
   display: flex;
   align-items: center;
@@ -16287,38 +16334,65 @@ a._citationLink_1ggvf_9:hover {
   background-color: #f8d7da;
   color: #721c24;
 }
-._container_1n7pm_1 {
+._header_1u3sd_1 {
+  background: var(--bs-light);
   display: grid;
-  grid-template-columns: max-content max-content;
-  align-items: center;
-}
-
-._label_1n7pm_7 {
-  margin-left: 0.3em;
-}
-
-._outer_1n7pm_11 {
-  display: flex;
-  height: 1em;
-  border-radius: var(--bs-border-radius);
-  border: solid var(--bs-border-color) 1px;
+  grid-template-columns: 1fr max-content;
+  justify-content: space-between;
+  padding: 0.2em 0.5em;
+  --bs-breadcrumb-divider: ">";
   overflow: hidden;
-  background-color: var(--bs-body-bg);
 }
 
-._inner_1n7pm_20 {
-  background-color: var(--bs-primary);
-  position: sticky;
-  opacity: 0.7;
-}
-._button_1bbut_1 {
-  border: none;
-  padding: 0;
-  background-color: inherit;
+._header_1u3sd_1._bordered_1u3sd_11 {
+  border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._viewerOptions_1bbut_7 {
+._breadcrumbs_1u3sd_15 {
+  border-left: solid var(--bs-border-color) 1px;
+  padding-left: 0.5em;
+  margin-bottom: 0;
+  min-width: 0;
+  overflow: hidden;
+  width: max-content;
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+._ellipsis_1u3sd_26 {
+  color: var(--bs-secondary);
+  font-weight: normal;
+}
+
+._left_1u3sd_31 {
+  display: grid;
+  grid-template-columns: max-content max-content 1fr;
+  align-items: center;
+  column-gap: 0.75em;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+}
+
+._right_1u3sd_41 {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  justify-content: end;
+  align-items: center;
+  column-gap: 0.5em;
+}
+
+._toolbarButton_1u3sd_50 {
   color: var(--bs-body-color);
+}
+
+._toolbarButton_1u3sd_50:hover {
+  color: var(--bs-link-hover-color);
+}
+
+._pathContainer_1u3sd_58 {
+  overflow-x: hidden;
 }
 ._rootControl_mhb7y_1 {
   background-color: var(--bs-secondary-bg);
@@ -16512,7 +16586,7 @@ button._segment_mhb7y_9 {
   color: var(--bs-link-hover-color);
   text-decoration: underline;
 }
-._iconCell_1jobp_1 {
+._iconCell_1qfra_1 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16520,7 +16594,7 @@ button._segment_mhb7y_9 {
   color: var(--bs-gray-600);
 }
 
-.ii:before {
+._iconCell_1qfra_1 .ii:before {
   background-color: var(--bs-gray-600);
 }
 ._modelCell_1lo5p_1 {
@@ -16715,76 +16789,6 @@ button._segment_mhb7y_9 {
   overflow: hidden;
   height: 100%;
   min-height: 0;
-}
-._header_1u3sd_1 {
-  background: var(--bs-light);
-  display: grid;
-  grid-template-columns: 1fr max-content;
-  justify-content: space-between;
-  padding: 0.2em 0.5em;
-  --bs-breadcrumb-divider: ">";
-  overflow: hidden;
-}
-
-._header_1u3sd_1._bordered_1u3sd_11 {
-  border-bottom: solid var(--bs-border-color) 1px;
-}
-
-._breadcrumbs_1u3sd_15 {
-  border-left: solid var(--bs-border-color) 1px;
-  padding-left: 0.5em;
-  margin-bottom: 0;
-  min-width: 0;
-  overflow: hidden;
-  width: max-content;
-  display: flex;
-  flex-wrap: nowrap;
-}
-
-._ellipsis_1u3sd_26 {
-  color: var(--bs-secondary);
-  font-weight: normal;
-}
-
-._left_1u3sd_31 {
-  display: grid;
-  grid-template-columns: max-content max-content 1fr;
-  align-items: center;
-  column-gap: 0.75em;
-  overflow: hidden;
-  min-width: 0;
-  max-width: 100%;
-}
-
-._right_1u3sd_41 {
-  display: grid;
-  grid-auto-columns: max-content;
-  grid-auto-flow: column;
-  justify-content: end;
-  align-items: center;
-  column-gap: 0.5em;
-}
-
-._toolbarButton_1u3sd_50 {
-  color: var(--bs-body-color);
-}
-
-._toolbarButton_1u3sd_50:hover {
-  color: var(--bs-link-hover-color);
-}
-
-._pathContainer_1u3sd_58 {
-  overflow-x: hidden;
-}
-._container_fvm77_1 {
-  display: grid;
-  grid-template-rows: max-content 1fr;
-  height: 100vh;
-}
-
-._panel_fvm77_7 {
-  margin: 0.5rem;
-  overflow-y: scroll;
 }
 .findBand {
   position: absolute;
@@ -21410,6 +21414,20 @@ thead th {
 ._navbarInnerWrapper_838qu_51 {
   display: grid;
   grid-template-columns: 1fr auto;
+}
+._container_ovp9s_1 {
+  display: grid;
+  grid-template-rows: max-content 1fr;
+  height: 100vh;
+}
+
+._panel_ovp9s_7 {
+  margin: 0.5rem;
+  overflow-y: scroll;
+}
+
+._code_ovp9s_12 {
+  background: transparent !important;
 }
 ._navbarButton_1gksz_1 {
   font-size: 0.6rem;
