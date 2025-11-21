@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import Field, field_serializer
 
-from inspect_ai._util.dateutil import datetime_to_iso_format_safe
+from inspect_ai._util.dateutil import UtcDatetime, datetime_to_iso_format_safe
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
@@ -53,7 +53,7 @@ class ModelEvent(BaseEvent):
     call: ModelCall | None = Field(default=None)
     """Raw call made to model API."""
 
-    completed: datetime | None = Field(default=None)
+    completed: UtcDatetime | None = Field(default=None)
     """Time that model call completed (see `timestamp` for started)"""
 
     working_time: float | None = Field(default=None)

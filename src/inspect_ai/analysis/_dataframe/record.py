@@ -1,11 +1,12 @@
 import json
 from datetime import date, datetime, time, timezone
-from typing import Any, Callable, Literal, Sequence, Type, cast, overload
+from typing import Any, Literal, Sequence, Type, cast, overload
 
 import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai.analysis._dataframe.events.columns import EventColumn
 from inspect_ai.analysis._dataframe.messages.columns import MessageColumn
 from inspect_ai.analysis._dataframe.samples.columns import SampleColumn
@@ -22,12 +23,14 @@ from .extract import model_to_record
 @overload
 def import_record(
     log: EvalLog,
-    record: EvalLog
-    | EvalSampleSummary
-    | EvalSample
-    | ChatMessage
-    | Event
-    | dict[str, JsonValue],
+    record: (
+        EvalLog
+        | EvalSampleSummary
+        | EvalSample
+        | ChatMessage
+        | Event
+        | dict[str, JsonValue]
+    ),
     columns: Sequence[Column],
     strict: Literal[True] = True,
 ) -> dict[str, ColumnType]: ...
@@ -36,12 +39,14 @@ def import_record(
 @overload
 def import_record(
     log: EvalLog,
-    record: EvalLog
-    | EvalSampleSummary
-    | EvalSample
-    | ChatMessage
-    | Event
-    | dict[str, JsonValue],
+    record: (
+        EvalLog
+        | EvalSampleSummary
+        | EvalSample
+        | ChatMessage
+        | Event
+        | dict[str, JsonValue]
+    ),
     columns: Sequence[Column],
     strict: Literal[False],
 ) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
@@ -49,12 +54,14 @@ def import_record(
 
 def import_record(
     log: EvalLog,
-    record: EvalLog
-    | EvalSampleSummary
-    | EvalSample
-    | ChatMessage
-    | Event
-    | dict[str, JsonValue],
+    record: (
+        EvalLog
+        | EvalSampleSummary
+        | EvalSample
+        | ChatMessage
+        | Event
+        | dict[str, JsonValue]
+    ),
     columns: Sequence[Column],
     strict: bool = True,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
@@ -291,14 +298,27 @@ def _try_constructor(tp: Type[ColumnType], obj: Any) -> ColumnType:
 
 def _from_timestamp(tp: Type[ColumnType], ts: int | float) -> ColumnType | None:
     """Convert POSIX timestamp to the requested temporal type, UTC zone."""
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-    if tp is datetime:
-        return dt
-    if tp is date:
-        return dt.date()
-    if tp is time:
+    if tp in (datetime, date, time):
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(timezone.utc)
+        if tp is datetime:
+            return dt
+        if tp is date:
+            return dt.date()
         return dt.time()
-    return None
+    else:
+        return None
+
+
+def _from_iso(tp: Type[ColumnType], iso: str) -> ColumnType | None:
+    if tp in (datetime, date, time):
+        dt = datetime_from_iso_format_safe(iso).astimezone(timezone.utc)
+        if tp is datetime:
+            return dt
+        if tp is date:
+            return dt.date()
+        return dt.time()
+    else:
+        return None
 
 
 def _coerce_from_str(tp: Type[ColumnType], text: str) -> ColumnType:
@@ -319,6 +339,8 @@ def _coerce_from_str(tp: Type[ColumnType], text: str) -> ColumnType:
     if parsed is not None:
         # exact match?
         if isinstance(parsed, tp) and not _is_bool_int_mismatch(tp, parsed):
+            if isinstance(parsed, datetime):
+                parsed = parsed.astimezone(timezone.utc)
             return cast(ColumnType, parsed)
         # try constructor on the YAML result (e.g. str→float via YAML "1.5")
         coerced = _try_constructor(tp, parsed)
@@ -326,12 +348,11 @@ def _coerce_from_str(tp: Type[ColumnType], text: str) -> ColumnType:
             return coerced
 
     # 2) fromisoformat — only on temporal types and str itself
-    from_iso: Callable[[str], datetime] | None = getattr(tp, "fromisoformat", None)
-    if callable(from_iso):
-        try:
-            return from_iso(text)
-        except Exception:
-            pass
+    try:
+        if (parsed := _from_iso(tp, text)) is not None:
+            return parsed
+    except Exception:
+        pass
 
     # 3) numeric string timestamp?
     try:

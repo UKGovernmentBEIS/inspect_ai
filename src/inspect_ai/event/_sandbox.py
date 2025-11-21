@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import Field, JsonValue, field_serializer
 
-from inspect_ai._util.dateutil import datetime_to_iso_format_safe
+from inspect_ai._util.dateutil import UtcDatetime, datetime_to_iso_format_safe
 from inspect_ai.event._base import BaseEvent
 
 
@@ -34,7 +34,7 @@ class SandboxEvent(BaseEvent):
     output: str | None = Field(default=None)
     """Output (for exec and read_file). Truncated to 100 lines."""
 
-    completed: datetime | None = Field(default=None)
+    completed: UtcDatetime | None = Field(default=None)
     """Time that sandbox action completed (see `timestamp` for started)"""
 
     @field_serializer("completed")
