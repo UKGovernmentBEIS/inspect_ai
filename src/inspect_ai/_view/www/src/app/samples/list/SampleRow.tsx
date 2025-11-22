@@ -22,7 +22,7 @@ interface SampleRowProps {
   sampleUrl?: string;
 }
 
-const kMaxRowTextSize = 1024 * 25;
+const kMaxRowTextSize = 1024 * 5;
 
 export const SampleRow: FC<SampleRowProps> = ({
   id,

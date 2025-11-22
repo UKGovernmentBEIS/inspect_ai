@@ -10,7 +10,7 @@ import { RenderedText } from "../content/RenderedText";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
-const kMaxRowTextSize = 1024 * 25;
+const kMaxRowTextSize = 1024 * 5;
 
 interface SampleSummaryViewProps {
   parent_id: string;
