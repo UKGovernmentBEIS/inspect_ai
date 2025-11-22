@@ -1,3 +1,8 @@
+## Unreleased
+
+- Bugfix: Truncate large target fields in sample summaries.
+- Inspect View: Truncate display of large sample summary fields to improve performance.
+
 ## 0.3.148 (21 November 2025)
 
 - Bugfix: Fix Google provider serialization of thought signatures on replay.
