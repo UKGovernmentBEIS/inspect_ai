@@ -2,6 +2,7 @@
 
 - Inspect View: Truncate display of large sample summary fields to improve performance.
 - Inspect View: Improve reliability of 'View Log' link handling in VS Code.
+- Inspect View: Fix regression in displaying S3 log files in VS Code.
 - Bugfix: Truncate large target fields in sample summaries.
 
 ## 0.3.148 (21 November 2025)
