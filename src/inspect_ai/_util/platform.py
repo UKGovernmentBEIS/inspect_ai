@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import sys
 
 from inspect_ai._util._async import init_nest_asyncio
 
@@ -59,12 +60,20 @@ def is_running_in_vscode() -> bool:
     ):
         return True
     # Check if running in a VS Code terminal
-    if os.getenv("TERM_PROGRAM") == "vscode":
+    if is_running_in_vscode_terminal():
         return True
 
     # If none of the conditions are met, we assume it's not running in VS Code
     return False
 
 
+def is_running_in_vscode_terminal() -> bool:
+    return os.getenv("TERM_PROGRAM") == "vscode"
+
+
 def is_windows() -> bool:
     return os.name == "nt"
+
+
+def is_macos() -> bool:
+    return sys.platform == "darwin"

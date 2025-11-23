@@ -27,7 +27,7 @@ from textual.widgets import (
 from textual.widgets.option_list import Option, OptionDoesNotExist
 
 from inspect_ai._display.textual.widgets.port_mappings import get_url
-from inspect_ai._display.textual.widgets.vscode import conditional_vscode_link
+from inspect_ai._display.textual.widgets.vscode import conditional_vscode_command_link
 from inspect_ai._util.file import to_uri
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.port_names import get_service_by_port
@@ -346,7 +346,7 @@ class SampleInfo(Vertical):
 
             link_container = self.query_one("#sample-link")
             link_container.remove_children()
-            link = conditional_vscode_link(
+            link = conditional_vscode_command_link(
                 "[View Log]",
                 VSCodeCommand(
                     command="inspect.openLogViewer",

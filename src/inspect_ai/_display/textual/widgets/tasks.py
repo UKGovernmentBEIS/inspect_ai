@@ -17,11 +17,8 @@ from inspect_ai._display.core.results import task_metric
 from inspect_ai._display.textual.widgets.clock import Clock
 from inspect_ai._display.textual.widgets.task_detail import TaskDetail
 from inspect_ai._display.textual.widgets.toggle import Toggle
-from inspect_ai._display.textual.widgets.vscode import conditional_vscode_link
-from inspect_ai._util.file import to_uri
-from inspect_ai._util.vscode import (
-    VSCodeCommand,
-)
+from inspect_ai._display.textual.widgets.vscode import conditional_vscode_cli_link
+from inspect_ai._util.path import pretty_path
 
 from ...core.display import (
     Progress,
@@ -210,14 +207,11 @@ class TaskProgressView(Widget):
 
         self.sample_count_width: int = sample_count_width
         self.display_metrics = display_metrics
-        self.view_log_link = conditional_vscode_link(
+        self.view_log_link = conditional_vscode_cli_link(
             "[View Log]",
-            VSCodeCommand(
-                command="inspect.openLogViewer",
-                args=[to_uri(task.profile.log_location)]
-                if task.profile.log_location
-                else [],
-            ),
+            [pretty_path(task.profile.log_location)]
+            if task.profile.log_location
+            else [],
         )
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
