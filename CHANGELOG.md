@@ -1,7 +1,7 @@
 ## Unreleased
 
-- Bugfix: Truncate large target fields in sample summaries.
 - Inspect View: Truncate display of large sample summary fields to improve performance.
+- Bugfix: Truncate large target fields in sample summaries.
 
 ## 0.3.148 (21 November 2025)
 
