@@ -33,8 +33,8 @@ section for details on interactively exploring logs.
 ## Log Analysis
 
 This article will focus primarily on configuring Inspect’s logging
-behavior (location, format, content, etc). Beyond that, analyzing data
-in log files is in:
+behavior (location, format, content, etc). Beyond that, there are a
+variety of tools available for analyzing data in log files:
 
 1.  [Log File API](#log-file-api) — API for accessing all data recorded
     in the log.
@@ -42,7 +42,10 @@ in log files is in:
 2.  [Log Dataframes](dataframe.qmd) — API for extracting data frames
     from log files.
 
-3.  [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) — Data
+3.  [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) —
+    Transcript analysis tool that can work directly with Inspect logs.
+
+4.  [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) — Data
     visualization framework built to work with Inspect logs.
 
 ## Log Location
