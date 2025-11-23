@@ -1,4 +1,5 @@
 import contextlib
+import shutil
 from datetime import datetime
 from typing import Iterator, cast
 
@@ -17,8 +18,14 @@ from inspect_ai._display.core.results import task_metric
 from inspect_ai._display.textual.widgets.clock import Clock
 from inspect_ai._display.textual.widgets.task_detail import TaskDetail
 from inspect_ai._display.textual.widgets.toggle import Toggle
-from inspect_ai._display.textual.widgets.vscode import conditional_vscode_cli_link
+from inspect_ai._display.textual.widgets.vscode import (
+    VSCodeCLILink,
+    conditional_vscode_command_link,
+)
+from inspect_ai._util.file import to_uri
 from inspect_ai._util.path import pretty_path
+from inspect_ai._util.platform import is_running_in_vscode_terminal
+from inspect_ai._util.vscode import VSCodeCommand
 
 from ...core.display import (
     Progress,
@@ -207,12 +214,7 @@ class TaskProgressView(Widget):
 
         self.sample_count_width: int = sample_count_width
         self.display_metrics = display_metrics
-        self.view_log_link = conditional_vscode_cli_link(
-            "[View Log]",
-            [pretty_path(task.profile.log_location)]
-            if task.profile.log_location
-            else [],
-        )
+        self.view_log_link = conditional_vscode_logview_link(task.profile.log_location)
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
     metrics_width: reactive[int | None] = reactive(None)
@@ -372,3 +374,17 @@ class TaskProgress(Progress):
     def complete(self) -> None:
         if self.progress_bar.total is not None:
             self.progress_bar.update(progress=self.progress_bar.total)
+
+
+def conditional_vscode_logview_link(log_file: str) -> Widget:
+    VIEW_LOG = "[View Log]"
+    if log_file:
+        if is_running_in_vscode_terminal() and shutil.which("code"):
+            return VSCodeCLILink(VIEW_LOG, [pretty_path(log_file)])
+        else:
+            return conditional_vscode_command_link(
+                VIEW_LOG,
+                VSCodeCommand(command="inspect.openLogViewer", args=[to_uri(log_file)]),
+            )
+    else:
+        return Static()
