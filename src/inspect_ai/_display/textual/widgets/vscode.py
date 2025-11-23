@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 
 from textual.widget import Widget
@@ -11,8 +12,12 @@ from inspect_ai._util.vscode import (
 )
 
 
+def can_execute_vscode_cli() -> bool:
+    return is_running_in_vscode_terminal() and shutil.which("code") is not None
+
+
 def conditional_vscode_cli_link(text: str, cli_args: list[str]) -> Widget:
-    if is_running_in_vscode_terminal() and cli_args:
+    if can_execute_vscode_cli() and cli_args:
         vscode_link = VSCodeCLILink(text, cli_args)
         return vscode_link
     else:

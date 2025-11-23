@@ -1,5 +1,4 @@
 import contextlib
-import shutil
 from datetime import datetime
 from typing import Iterator, cast
 
@@ -20,11 +19,11 @@ from inspect_ai._display.textual.widgets.task_detail import TaskDetail
 from inspect_ai._display.textual.widgets.toggle import Toggle
 from inspect_ai._display.textual.widgets.vscode import (
     VSCodeCLILink,
+    can_execute_vscode_cli,
     conditional_vscode_command_link,
 )
 from inspect_ai._util.file import to_uri
 from inspect_ai._util.path import pretty_path
-from inspect_ai._util.platform import is_running_in_vscode_terminal
 from inspect_ai._util.vscode import VSCodeCommand
 
 from ...core.display import (
@@ -379,7 +378,7 @@ class TaskProgress(Progress):
 def conditional_vscode_logview_link(log_file: str) -> Widget:
     VIEW_LOG = "[View Log]"
     if log_file:
-        if is_running_in_vscode_terminal() and shutil.which("code"):
+        if can_execute_vscode_cli():
             return VSCodeCLILink(VIEW_LOG, [pretty_path(log_file)])
         else:
             return conditional_vscode_command_link(
