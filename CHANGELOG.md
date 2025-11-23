@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.149 (23 November 2025)
 
 - Inspect View: Truncate display of large sample summary fields to improve performance.
 - Inspect View: Fix regression in displaying S3 log files in VS Code.
