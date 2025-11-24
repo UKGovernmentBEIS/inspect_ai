@@ -225,8 +225,7 @@ def view_server(
 
         fs = filesystem(request_dir)
         flow_file = f"{request_dir}{fs.sep}flow.yaml"
-        if fs.exists(f"{request_dir}{fs.sep}_flow.yaml"):
-            flow_file = f"{request_dir}{fs.sep}_flow.yaml"
+        if fs.exists(flow_file):
             bytes = fs.read_bytes(flow_file)
 
             return web.Response(
