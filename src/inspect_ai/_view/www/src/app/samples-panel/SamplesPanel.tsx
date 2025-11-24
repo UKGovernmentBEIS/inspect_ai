@@ -8,6 +8,8 @@ import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { join } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
+import { FlowButton } from "../flow/FlowButton";
+import { useFlowServerData } from "../flow/hooks";
 import { LogListFooter } from "../log-list/LogListFooter";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { NavbarButton } from "../navbar/NavbarButton";
@@ -35,6 +37,9 @@ export const SamplesPanel: FC = () => {
       gridRef.current.api.setFilterModel(null);
     }
   };
+
+  useFlowServerData(samplesPath || "");
+  const flowData = useStore((state) => state.logs.flow);
 
   const currentDir = join(samplesPath || "", logDir);
 
@@ -103,6 +108,7 @@ export const SamplesPanel: FC = () => {
         )}
 
         <ViewSegmentedControl selectedSegment="samples" />
+        {flowData && <FlowButton />}
       </ApplicationNavbar>
 
       <ActivityBar animating={!!loading} />

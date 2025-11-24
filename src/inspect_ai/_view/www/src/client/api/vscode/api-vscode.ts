@@ -76,6 +76,10 @@ async function get_eval_set(): Promise<undefined> {
   return undefined;
 }
 
+async function get_flow(): Promise<undefined> {
+  return undefined;
+}
+
 async function get_log_contents(
   log_file: string,
   headerOnly?: number,
@@ -199,6 +203,7 @@ const api: LogViewAPI = {
   get_log_dir,
   get_logs,
   get_eval_set,
+  get_flow,
   get_log_contents,
   get_log_size,
   get_log_bytes,

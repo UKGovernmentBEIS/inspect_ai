@@ -105,7 +105,7 @@ export const Navbar: FC<NavbarProps> = ({
                         isLast ? "active" : undefined,
                       )}
                     >
-                      {segment.url ? (
+                      {segment.url && !isLast ? (
                         <Link to={segment.url}>{segment.text}</Link>
                       ) : (
                         <span className={clsx(styles.pathSegment)}>
