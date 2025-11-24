@@ -1,7 +1,9 @@
 ## Unreleased
 
 - OpenAI: Limit reasoning summary capability probe to 1 request.
+- Grok: Correctly handle web_search tool intermixed with other tool types.
 - Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
+- Registry: Add `RegistryInfo` and `registry_info()` to the public API. 
 - Bugfix: Ensure that `prompt_cache_retention` is correctly forwarded by agent bridge to responses API.
 
 ## 0.3.149 (23 November 2025)
