@@ -20,6 +20,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.deprecation import relocated_module_attribute
 
+from ._anthropic_convert import messages_from_anthropic, model_output_from_anthropic
 from ._cache import (
     CachePolicy,
     cache_clear,
@@ -65,8 +66,10 @@ from ._model_output import (
 )
 from ._openai_convert import (
     messages_from_openai,
+    messages_from_openai_responses,
     messages_to_openai,
-    messages_to_openai_responses,
+    model_output_from_openai,
+    model_output_from_openai_responses,
 )
 from ._prompt import user_prompt
 from ._providers.providers import *
@@ -99,8 +102,12 @@ __all__ = [
     "ChatMessageTool",
     "ChatCompletionChoice",
     "messages_from_openai",
+    "messages_from_openai_responses",
+    "messages_from_anthropic",
+    "model_output_from_openai",
+    "model_output_from_openai_responses",
+    "model_output_from_anthropic",
     "messages_to_openai",
-    "messages_to_openai_responses",
     "ModelCall",
     "ModelOutput",
     "ModelConversation",

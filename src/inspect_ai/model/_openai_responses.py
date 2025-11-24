@@ -361,8 +361,9 @@ def openai_responses_tools(
 
 
 def openai_responses_chat_choices(
-    model: str, response: OpenAIResponse, tools: list[ToolInfo]
+    model: str | None, response: OpenAIResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
+    model = model or response.model
     message, stop_reason, logprobs = _chat_message_assistant_from_openai_response(
         model, response, tools
     )
