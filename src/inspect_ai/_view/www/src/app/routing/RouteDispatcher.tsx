@@ -19,8 +19,7 @@ export const RouteDispatcher: FC = () => {
   }
 
   // Check if the path ends with .yaml or .yml (indicating it's a flow file)
-  const isFlowFile =
-    logPath.endsWith(".yaml") || logPath.endsWith(".yml");
+  const isFlowFile = logPath.endsWith(".yaml") || logPath.endsWith(".yml");
 
   // If it's a flow file, show the FlowPanel
   if (isFlowFile) {

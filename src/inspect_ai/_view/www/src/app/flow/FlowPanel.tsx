@@ -6,11 +6,7 @@ import { useLogs, usePrismHighlight } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname } from "../../utils/path";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
-import {
-  logsUrl,
-  samplesUrl,
-  useLogOrSampleRouteParams,
-} from "../routing/url";
+import { logsUrl, samplesUrl, useLogOrSampleRouteParams } from "../routing/url";
 import styles from "./FlowPanel.module.css";
 import { useFlowServerData } from "./hooks";
 export const FlowPanel: FC = () => {
