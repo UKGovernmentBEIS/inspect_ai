@@ -15485,6 +15485,10 @@ pre[class*="language-"] {
 /* END PrismJS */
 
 /* SVG Icon styles - following Bootstrap Icons pattern */
+.ii:before {
+  background-color: var(--bs-body-color);
+}
+
 .inspect-icon-16::before {
   content: "";
   width: 1em;
@@ -15544,6 +15548,17 @@ pre[class*="language-"] {
   margin-top: -2px;
   mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 16 16%22%3E  %3Cdefs%3E    %3Cstyle%3E      .cls-1 %7B        fill%3A %23231f20%3B      %7D    %3C%2Fstyle%3E  %3C%2Fdefs%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%222.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%227.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%2212.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C4.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C9.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C14.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
   -webkit-mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 16 16%22%3E  %3Cdefs%3E    %3Cstyle%3E      .cls-1 %7B        fill%3A %23231f20%3B      %7D    %3C%2Fstyle%3E  %3C%2Fdefs%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%222.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%227.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E    %3Crect class%3D%22cls-1%22 x%3D%227.07%22 y%3D%2212.57%22 width%3D%227.02%22 height%3D%221%22 rx%3D%22.5%22 ry%3D%22.5%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C4.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C9.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E    %3Cpath class%3D%22cls-1%22 d%3D%22M3.54%2C14.87c-.09%2C0-.17-.02-.24-.06-.07-.04-.14-.1-.21-.19l-1.05-1.34c-.08-.11-.12-.22-.12-.33%2C0-.12.04-.22.12-.3.08-.08.18-.13.29-.13.08%2C0%2C.14.02.21.05.06.03.13.09.19.17l.8%2C1.1%2C1.23-2.58c.1-.16.22-.24.38-.24.11%2C0%2C.21.04.3.11.09.07.13.17.13.28%2C0%2C.06-.01.12-.04.18-.03.06-.06.11-.09.16l-1.46%2C2.87c-.11.17-.25.25-.43.25Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
+}
+
+.inspect-flow::before {
+  content: "";
+  margin-top: -4px;
+  width: 1.05em;
+  height: 1.05em;
+  display: inline-block;
+  vertical-align: middle;
+  mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 24 24%22%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Cpath d%3D%22M12.46%2C3c5.24%2C0%2C9.5%2C4.26%2C9.5%2C9.5s-4.26%2C9.5-9.5%2C9.5S2.96%2C17.74%2C2.96%2C12.5%2C7.22%2C3%2C12.46%2C3M12.46%2C1.5C6.38%2C1.5%2C1.46%2C6.42%2C1.46%2C12.5s4.92%2C11%2C11%2C11%2C11-4.92%2C11-11S18.53%2C1.5%2C12.46%2C1.5h0Z%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath d%3D%22M2.5%2C11.49h1.19c2.36%2C0%2C2.64-4%2C6.47-4%2C.76%2C0%2C.6%2C0%2C.6%2C0v2h-.51c-3.14%2C0-3.07%2C4-6.55%2C4h-1.2v-2Z%22%2F%3E    %3Cpath d%3D%22M2.5%2C13.49h1.19c2.36%2C0%2C2.64%2C4%2C6.47%2C4%2C.76%2C0%2C.6%2C0%2C.6%2C0v-2h-.51c-3.14%2C0-3.07-4-6.55-4h-1.2v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C7.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.5%2C5.47-2.5h2.6l2%2C2h-4.51c-3.14%2C0-2.07%2C2.5-5.55%2C2.5-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C9.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.49%2C5.47%2C2.49h6.6v-2h-6.51c-3.14%2C0-2.07-2.49-5.55-2.49-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C15.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.51%2C5.47-2.51h6.6v2h-6.51c-3.14%2C0-2.07%2C2.51-5.55%2C2.51-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C17.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.51%2C5.47%2C2.51h2.6l2-2h-4.51c-3.14%2C0-2.07-2.51-5.55-2.51-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
+  -webkit-mask: url("data:image/svg+xml,%3C%3Fxml version%3D%221.0%22 encoding%3D%22UTF-8%22%3F%3E%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 viewBox%3D%220 0 24 24%22%3E  %3Cg id%3D%22Layer_5%22 data-name%3D%22Layer 5%22%3E    %3Cpath d%3D%22M12.46%2C3c5.24%2C0%2C9.5%2C4.26%2C9.5%2C9.5s-4.26%2C9.5-9.5%2C9.5S2.96%2C17.74%2C2.96%2C12.5%2C7.22%2C3%2C12.46%2C3M12.46%2C1.5C6.38%2C1.5%2C1.46%2C6.42%2C1.46%2C12.5s4.92%2C11%2C11%2C11%2C11-4.92%2C11-11S18.53%2C1.5%2C12.46%2C1.5h0Z%22%2F%3E  %3C%2Fg%3E  %3Cg id%3D%22Layer_4%22 data-name%3D%22Layer 4%22%3E    %3Cpath d%3D%22M2.5%2C11.49h1.19c2.36%2C0%2C2.64-4%2C6.47-4%2C.76%2C0%2C.6%2C0%2C.6%2C0v2h-.51c-3.14%2C0-3.07%2C4-6.55%2C4h-1.2v-2Z%22%2F%3E    %3Cpath d%3D%22M2.5%2C13.49h1.19c2.36%2C0%2C2.64%2C4%2C6.47%2C4%2C.76%2C0%2C.6%2C0%2C.6%2C0v-2h-.51c-3.14%2C0-3.07-4-6.55-4h-1.2v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C7.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.5%2C5.47-2.5h2.6l2%2C2h-4.51c-3.14%2C0-2.07%2C2.5-5.55%2C2.5-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C9.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.49%2C5.47%2C2.49h6.6v-2h-6.51c-3.14%2C0-2.07-2.49-5.55-2.49-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C15.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64-2.51%2C5.47-2.51h6.6v2h-6.51c-3.14%2C0-2.07%2C2.51-5.55%2C2.51-.46%2C0-.2%2C0-.2%2C0v-2Z%22%2F%3E    %3Cpath d%3D%22M10.5%2C17.49s-.35%2C0%2C.19%2C0c2.36%2C0%2C1.64%2C2.51%2C5.47%2C2.51h2.6l2-2h-4.51c-3.14%2C0-2.07-2.51-5.55-2.51-.46%2C0-.2%2C0-.2%2C0v2Z%22%2F%3E  %3C%2Fg%3E%3C%2Fsvg%3E") no-repeat center / contain;
 }
 
 /* Use this very carefully, find relies upon checking the 
@@ -16192,6 +16207,15 @@ a._citationLink_1ggvf_9:hover {
   margin-right: 0.3em;
   margin-left: 0.2em;
 }
+._button_1bbut_1 {
+  border: none;
+  padding: 0;
+  background-color: inherit;
+}
+
+._viewerOptions_1bbut_7 {
+  color: var(--bs-body-color);
+}
 ._wrapper_1tajk_1 {
   display: flex;
   align-items: center;
@@ -16563,7 +16587,7 @@ button._segment_mhb7y_9 {
   color: var(--bs-link-hover-color);
   text-decoration: underline;
 }
-._iconCell_1jobp_1 {
+._iconCell_1qfra_1 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16571,7 +16595,7 @@ button._segment_mhb7y_9 {
   color: var(--bs-gray-600);
 }
 
-.ii:before {
+._iconCell_1qfra_1 .ii:before {
   background-color: var(--bs-gray-600);
 }
 ._modelCell_1lo5p_1 {
@@ -21391,6 +21415,20 @@ thead th {
 ._navbarInnerWrapper_838qu_51 {
   display: grid;
   grid-template-columns: 1fr auto;
+}
+._container_ovp9s_1 {
+  display: grid;
+  grid-template-rows: max-content 1fr;
+  height: 100vh;
+}
+
+._panel_ovp9s_7 {
+  margin: 0.5rem;
+  overflow-y: scroll;
+}
+
+._code_ovp9s_12 {
+  background: transparent !important;
 }
 ._navbarButton_1gksz_1 {
   font-size: 0.6rem;
