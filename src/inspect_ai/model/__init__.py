@@ -45,6 +45,7 @@ from ._generate_config import (
     GenerateConfigArgs,
     ResponseSchema,
 )
+from ._google_convert import messages_from_google, model_output_from_google
 from ._model import (
     GenerateFilter,
     GenerateInput,
@@ -104,9 +105,11 @@ __all__ = [
     "messages_from_openai",
     "messages_from_openai_responses",
     "messages_from_anthropic",
+    "messages_from_google",
     "model_output_from_openai",
     "model_output_from_openai_responses",
     "model_output_from_anthropic",
+    "model_output_from_google",
     "messages_to_openai",
     "ModelCall",
     "ModelOutput",

@@ -358,12 +358,16 @@ website:
           href: reference/inspect_ai.model.qmd#messages_from_openai_responses
         - text: messages_from_anthropic
           href: reference/inspect_ai.model.qmd#messages_from_anthropic
+        - text: messages_from_google
+          href: reference/inspect_ai.model.qmd#messages_from_google
         - text: model_output_from_openai
           href: reference/inspect_ai.model.qmd#model_output_from_openai
         - text: model_output_from_openai_responses
           href: reference/inspect_ai.model.qmd#model_output_from_openai_responses
         - text: model_output_from_anthropic
           href: reference/inspect_ai.model.qmd#model_output_from_anthropic
+        - text: model_output_from_google
+          href: reference/inspect_ai.model.qmd#model_output_from_google
         - text: messages_to_openai
           href: reference/inspect_ai.model.qmd#messages_to_openai
         - text: modelapi
