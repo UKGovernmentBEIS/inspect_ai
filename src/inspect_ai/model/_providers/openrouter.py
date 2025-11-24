@@ -146,10 +146,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             reasoning = dict()
             # openrouter supports one of max_tokens or effort, prefer max_tokens
             if config.reasoning_effort is not None:
-                if config.reasoning_effort == "none":
-                    reasoning["enabled"] = False
-                else:
-                    reasoning["effort"] = config.reasoning_effort
+                reasoning["effort"] = config.reasoning_effort
                 if config.reasoning_tokens is not None:
                     warn_once(
                         logger,
