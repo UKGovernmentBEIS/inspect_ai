@@ -2,6 +2,7 @@
 
 - OpenAI: Limit reasoning summary capability probe to 1 request.
 - Grok: Correctly handle web_search tool intermixed with other tool types.
+- Model API: Conversion functions for translating raw model input and output into Inspect types.
 - Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
 - Registry: Add `RegistryInfo` and `registry_info()` to the public API. 
 - Bugfix: Ensure that `prompt_cache_retention` is correctly forwarded by agent bridge to responses API.
