@@ -705,7 +705,7 @@ end.
 
 ### Hooks Usage
 
-Here is a hypothetical integration with Weights & Biases.
+Here is a very simple hypothetical integration with Weights & Biases.
 
 ``` python
 import wandb
@@ -728,6 +728,11 @@ class WBHooks(Hooks):
               "scores": scores
           })
 ```
+
+For a more complete example of creating hooks to integrate with Weights
+& Biases Weave, see the
+[wandb_weave.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/wandb_weave.py)
+example.
 
 See the `Hooks` class for more documentation and the full list of
 available hook events.

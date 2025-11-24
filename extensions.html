@@ -1084,7 +1084,7 @@ pyproject.toml</code></pre>
 <p>Hooks enable you to run arbitrary code during certain events of Inspect’s lifecycle, for example when runs, tasks or samples start and end.</p>
 <section id="hooks-usage" class="level3">
 <h3 class="anchored" data-anchor-id="hooks-usage">Hooks Usage</h3>
-<p>Here is a hypothetical integration with Weights &amp; Biases.</p>
+<p>Here is a very simple hypothetical integration with Weights &amp; Biases.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> wandb</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.hooks <span class="im">import</span> Hooks, RunEnd, RunStart, SampleEnd, hooks</span>
@@ -1104,6 +1104,7 @@ pyproject.toml</code></pre>
 <span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>              <span class="st">"sample_id"</span>: data.sample_id,</span>
 <span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>              <span class="st">"scores"</span>: scores</span>
 <span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>          })</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>For a more complete example of creating hooks to integrate with Weights &amp; Biases Weave, see the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/wandb_weave.py">wandb_weave.py</a> example.</p>
 <p>See the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#hooks">Hooks</a></span> class for more documentation and the full list of available hook events.</p>
 <p>Each set of hooks (i.e.&nbsp;each <code>@hooks</code>-decorated class) can register for any events (even if they’re overlapping).</p>
 <p>Alternatively, you may decorate a function which returns the type of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#hooks">Hooks</a></span> subclass to create a layer of indirection so that you can separate the registration of hooks from the importing of libraries they require (important for limiting dependencies).</p>
