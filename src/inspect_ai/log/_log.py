@@ -29,7 +29,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ..event._event import Event
-from ._util import thin_input, thin_metadata, thin_text
+from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
 
@@ -232,6 +232,9 @@ class EvalSampleSummary(BaseModel):
     def thin_data(self) -> "EvalSampleSummary":
         # thin input
         self.input = thin_input(self.input)
+
+        # thin target
+        self.target = thin_target(self.target)
 
         # thin metadata
         self.metadata = thin_metadata(self.metadata)

@@ -363,6 +363,9 @@ def registry_info(o: object) -> RegistryInfo:
 
     Returns:
         RegistryInfo for object.
+
+    Raises:
+        ValueError if the object does not have registry info.
     """
     info = getattr(o, REGISTRY_INFO, None)
     if info is not None:

@@ -213,6 +213,7 @@ class GrokAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, grpc.RpcError):
             return ex.code() in {
+                grpc.StatusCode.UNKNOWN,
                 grpc.StatusCode.UNAVAILABLE,
                 grpc.StatusCode.DEADLINE_EXCEEDED,
                 grpc.StatusCode.RESOURCE_EXHAUSTED,
@@ -297,6 +298,10 @@ class GrokAPI(ModelAPI):
         # note that grok-3-mini is the only model which supports a reasoning effort parameter
         if config.reasoning_effort is not None and self.is_grok_3_mini():
             match config.reasoning_effort:
+                case "none":
+                    raise ValueError(
+                        "Grok models do not support 'none' for reasoning effort."
+                    )
                 case "minimal" | "low":
                     gconfig["reasoning_effort"] = "low"
                 case "medium" | "high":
@@ -329,11 +334,14 @@ class GrokAPI(ModelAPI):
         server_tool_calls: list[chat_pb2.ToolCall] = []
         client_tool_calls: list[chat_pb2.ToolCall] = []
         for tool_call in response.tool_calls:
-            tool_info = next(
-                (tool for tool in tools if tool.name == "web_search"), None
-            )
-            if tool_info and self._is_internal_web_search_tool(tool_info):
-                server_tool_calls.append(tool_call)
+            if tool_call.function.name == "web_search":
+                tool_info = next(
+                    (tool for tool in tools if tool.name == "web_search"), None
+                )
+                if tool_info and self._is_internal_web_search_tool(tool_info):
+                    server_tool_calls.append(tool_call)
+                else:
+                    client_tool_calls.append(tool_call)
             else:
                 client_tool_calls.append(tool_call)
 

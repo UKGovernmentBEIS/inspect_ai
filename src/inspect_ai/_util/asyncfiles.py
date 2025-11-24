@@ -145,7 +145,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 response = await (await self.s3_client_async()).get_object(
                     Bucket=bucket, Key=key
                 )
-                return cast(bytes, await response["Body"].read())
+                body = response["Body"]
+                try:
+                    return cast(bytes, await body.read())
+                finally:
+                    body.close()
+
             else:
                 return await anyio.to_thread.run_sync(
                     s3_read_file, self.s3_client(), bucket, key

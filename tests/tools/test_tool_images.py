@@ -68,7 +68,7 @@ def test_google_tool_image_result():
 
 @skip_if_no_anthropic
 def test_anthropic_tool_image_result():
-    check_tool_image_result("anthropic/claude-3-5-sonnet-20240620")
+    check_tool_image_result("anthropic/claude-sonnet-4-5")
 
 
 def check_tool_image_result(model):

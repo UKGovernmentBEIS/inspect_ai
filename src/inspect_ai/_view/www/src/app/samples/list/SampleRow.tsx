@@ -22,6 +22,8 @@ interface SampleRowProps {
   sampleUrl?: string;
 }
 
+const kMaxRowTextSize = 1024 * 5;
+
 export const SampleRow: FC<SampleRowProps> = ({
   id,
   sample,
@@ -93,7 +95,9 @@ export const SampleRow: FC<SampleRowProps> = ({
       >
         {!showingSampleDialog ? (
           <RenderedText
-            markdown={inputString(sample.input).join(" ")}
+            markdown={inputString(sample.input)
+              .join(" ")
+              .slice(0, kMaxRowTextSize)}
             forceRender={true}
             omitMedia={true}
           />
@@ -102,7 +106,7 @@ export const SampleRow: FC<SampleRowProps> = ({
       <div className={clsx("sample-target", "three-line-clamp", styles.cell)}>
         {sample?.target && !showingSampleDialog ? (
           <RenderedText
-            markdown={arrayToString(sample.target)}
+            markdown={arrayToString(sample.target).slice(0, kMaxRowTextSize)}
             className={clsx("no-last-para-padding", styles.noLeft)}
             forceRender={true}
             omitMedia={true}
@@ -112,7 +116,7 @@ export const SampleRow: FC<SampleRowProps> = ({
       <div className={clsx("sample-answer", "three-line-clamp", styles.cell)}>
         {sample && !showingSampleDialog ? (
           <RenderedText
-            markdown={answer || ""}
+            markdown={(answer || "").slice(0, kMaxRowTextSize)}
             className={clsx("no-last-para-padding", styles.noLeft)}
             forceRender={true}
             omitMedia={true}

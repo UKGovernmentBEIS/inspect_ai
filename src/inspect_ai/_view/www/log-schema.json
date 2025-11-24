@@ -285,6 +285,43 @@
       ],
       "additionalProperties": false
     },
+    "CachePolicy": {
+      "description": "Caching options for model generation.",
+      "properties": {
+        "expiry": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": "1W",
+          "title": "Expiry"
+        },
+        "per_epoch": {
+          "default": true,
+          "title": "Per Epoch",
+          "type": "boolean"
+        },
+        "scopes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Scopes",
+          "type": "object"
+        }
+      },
+      "title": "CachePolicy",
+      "type": "object",
+      "required": [
+        "expiry",
+        "per_epoch",
+        "scopes"
+      ],
+      "additionalProperties": false
+    },
     "ChatCompletionChoice": {
       "description": "Choice generated for completion.",
       "properties": {
@@ -2143,6 +2180,7 @@
             "reasoning_history": null,
             "response_schema": null,
             "extra_body": null,
+            "cache": null,
             "batch": null
           }
         }
@@ -3587,6 +3625,7 @@
           "anyOf": [
             {
               "enum": [
+                "none",
                 "minimal",
                 "low",
                 "medium",
@@ -3673,6 +3712,21 @@
           "default": null,
           "title": "Extra Body"
         },
+        "cache": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/CachePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache"
+        },
         "batch": {
           "anyOf": [
             {
@@ -3723,6 +3777,7 @@
         "reasoning_history",
         "response_schema",
         "extra_body",
+        "cache",
         "batch"
       ],
       "additionalProperties": false

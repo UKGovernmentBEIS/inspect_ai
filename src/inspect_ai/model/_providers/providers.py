@@ -68,7 +68,7 @@ def anthropic() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-genai"
-    MIN_VERSION = "1.16.1"
+    MIN_VERSION = "1.51.0"
 
     # verify we have the package
     try:
@@ -309,7 +309,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.0.0"
+    MIN_VERSION = "2.8.0"
 
     # verify we have the package
     try:

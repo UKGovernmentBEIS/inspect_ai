@@ -31,6 +31,7 @@ from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
@@ -68,7 +69,6 @@ from inspect_ai.log._transcript import (
     transcript,
 )
 from inspect_ai.model import (
-    CachePolicy,
     GenerateConfig,
     GenerateConfigArgs,
     Model,
@@ -286,14 +286,13 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 async def generate(
                     state: TaskState,
                     tool_calls: Literal["loop", "single", "none"] = "loop",
-                    cache: bool | CachePolicy = False,
                     **kwargs: Unpack[GenerateConfigArgs],
                 ) -> TaskState:
                     return await task_generate(
                         model=model,
                         state=state,
                         tool_calls=tool_calls,
-                        cache=cache,
+                        cache=kwargs.get("cache", False) or NOT_GIVEN,
                         config=generate_config.merge(kwargs),
                     )
 
@@ -742,26 +741,6 @@ async def task_run_sample(
                                 # monitor working limit in the background
                                 monitor_working_limit()
 
-                                # emit/log sample start
-                                sample_summary = EvalSampleSummary(
-                                    id=sample_id,
-                                    epoch=state.epoch,
-                                    input=sample.input,
-                                    target=sample.target,
-                                    metadata=sample.metadata or {},
-                                )
-                                if logger is not None:
-                                    await logger.start_sample(sample_summary)
-                                # only emit the sample start once: not on retries
-                                if not error_retries:
-                                    await emit_sample_start(
-                                        eval_set_id,
-                                        run_id,
-                                        task_id,
-                                        state.uuid,
-                                        sample_summary,
-                                    )
-
                                 # set progress for plan then run it
                                 async with span("solvers"):
                                     state = await plan(state, generate)
@@ -820,6 +799,27 @@ async def task_run_sample(
                                 tg.cancel_scope.cancel()
 
                         try:
+                            # emit/log sample start
+                            sample_summary = EvalSampleSummary(
+                                id=sample_id,
+                                epoch=state.epoch,
+                                input=sample.input,
+                                target=sample.target,
+                                metadata=sample.metadata or {},
+                            )
+                            if logger is not None:
+                                await logger.start_sample(sample_summary)
+
+                            # only emit the sample start once: not on retries
+                            if not error_retries:
+                                await emit_sample_start(
+                                    eval_set_id,
+                                    run_id,
+                                    task_id,
+                                    state.uuid,
+                                    sample_summary,
+                                )
+
                             async with anyio.create_task_group() as tg:
                                 tg.start_soon(run, tg)
                         except Exception as ex:
