@@ -327,6 +327,7 @@ def responses_extra_body_fields() -> list[str]:
         "metadata",
         "previous_response_id",
         "prompt_cache_key",
+        "prompt_cache_retention",
         "safety_identifier",
         "truncation",
         "store",

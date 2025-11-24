@@ -2,6 +2,7 @@
 
 - OpenAI: Limit reasoning summary capability probe to 1 request.
 - Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
+- Bugfix: Ensure that `prompt_cache_retention` is correctly forwarded by agent bridge to responses API.
 
 ## 0.3.149 (23 November 2025)
 
