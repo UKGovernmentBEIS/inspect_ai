@@ -1234,8 +1234,8 @@ _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
 
 
 async def model_output_from_message(
-    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
-    model: str,
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex | None,
+    model: str | None,
     message: Message,
     tools: list[ToolInfo],
 ) -> tuple[ModelOutput, bool]:
@@ -1246,11 +1246,12 @@ async def model_output_from_message(
 
     # count reasoning tokens
     reasoning_tokens = 0
-    for content_block in message.content:
-        if isinstance(content_block, ThinkingBlock):
-            reasoning_tokens += await count_tokens(
-                client, model, content_block.thinking
-            )
+    if client and model:
+        for content_block in message.content:
+            if isinstance(content_block, ThinkingBlock):
+                reasoning_tokens += await count_tokens(
+                    client, model, content_block.thinking
+                )
 
     # resolve choice
     stop_reason, pause_turn = message_stop_reason(message)
