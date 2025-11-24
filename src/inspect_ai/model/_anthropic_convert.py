@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, Union
 
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageSystem
 
 if TYPE_CHECKING:
     from anthropic.types import Message, MessageParam
@@ -9,12 +9,14 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.providers import validate_anthropic_client
 
 
-async def messages_from_anthropic(messages: "list[MessageParam]") -> list[ChatMessage]:
+async def messages_from_anthropic(
+    messages: "list[MessageParam]", system_message: str | None = None
+) -> list[ChatMessage]:
     """Convert OpenAI Responses API messages into Inspect messages.
 
     Args:
         messages: OpenAI Responses API Messages
-        model: Optional model name to tag assistant messages with.
+        system_message: System message accompanying messages (optional).
     """
     validate_anthropic_client("messages_from_anthropic()")
 
@@ -22,7 +24,10 @@ async def messages_from_anthropic(messages: "list[MessageParam]") -> list[ChatMe
         messages_from_anthropic_input,
     )
 
-    return await messages_from_anthropic_input(messages, tools=[])
+    chat_messages = await messages_from_anthropic_input(messages, tools=[])
+    if system_message:
+        chat_messages.insert(0, ChatMessageSystem(content=system_message))
+    return chat_messages
 
 
 async def model_output_from_anthropic(
