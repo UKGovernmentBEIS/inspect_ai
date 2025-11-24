@@ -339,8 +339,6 @@ async def _s3_conditional_put_object(
     async with session.client(
         "s3",
         endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-        aws_access_key_id=fs.fs.key,
-        aws_secret_access_key=fs.fs.secret,
         region_name=fs.fs.client_kwargs.get("region_name"),
     ) as s3_client:
         await s3_client.put_object(
@@ -368,8 +366,6 @@ async def _s3_download_with_etag(
     async with session.client(
         "s3",
         endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-        aws_access_key_id=fs.fs.key,
-        aws_secret_access_key=fs.fs.secret,
         region_name=fs.fs.client_kwargs.get("region_name"),
     ) as s3_client:
         response = await s3_client.get_object(Bucket=bucket, Key=key)

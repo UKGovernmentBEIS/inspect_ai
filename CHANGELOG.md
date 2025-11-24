@@ -1,10 +1,32 @@
 ## Unreleased
 
+- OpenAI: Limit reasoning summary capability probe to 1 request.
+- Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
+- Bugfix: Ensure that `prompt_cache_retention` is correctly forwarded by agent bridge to responses API.
+
+## 0.3.149 (23 November 2025)
+
+- Inspect View: Truncate display of large sample summary fields to improve performance.
+- Inspect View: Fix regression in displaying S3 log files in VS Code.
+- Bugfix: Truncate large target fields in sample summaries.
+
+## 0.3.148 (21 November 2025)
+
+- Bugfix: Fix Google provider serialization of thought signatures on replay.
+
+## 0.3.147 (21 November 2025)
+
+- Google: Support for `--reasoning-effort` on Gemini 3.0 models.
 - Anthropic: Support for [Structured Output](https://inspect.aisi.org.uk/structured.html) for Sonnet 4.5 and Opus 4.1.
 - Anthropic: Don't insert "(no content)" when replaying empty assistant messages with tool calls.
+- OpenAI: Don't remove consecutive reasoning blocks (earlier versions of the API would give 400 errors, this no longer occurs).
 - OpenAI: Add `prompt_cache_retention` custom model arg (bump required version of `openai` package to v2.8.0).
+- Eval Set: Task identifiers can now vary on `model_args` (which enables sweeping over these variables).
+- Eval Logs: Compatibility with Hugging Face filesystem (hf://).
+- Eval Logs: Don't forward credentials when using aioboto3 with S3 (was preventing use of AWS credential chain).
 - Inspect View: Streaming for log bytes requests in fastapi view server.
 - Bugfix: Fix incorrect approver behavior with multiple tool calls
+- Bugfix: Correctly handle distinguishing eval set tasks based on `solver` passed to `eval_set()`.
 
 ## 0.3.146 (15 November 2025)
 

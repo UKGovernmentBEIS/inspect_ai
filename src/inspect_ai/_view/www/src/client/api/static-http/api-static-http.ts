@@ -89,7 +89,7 @@ function staticHttpApiForLog(logInfo: {
       return await fetchJsonFile<EvalSet>(
         joinURI(...dirSegments, "eval-set.json"),
         (response) => {
-          if (response.status === 404) {
+          if (400 <= response.status && response.status < 500) {
             // Couldn't find a header file
             return true;
           } else {

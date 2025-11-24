@@ -365,6 +365,7 @@ def test_api_eval_set(test_client: TestClient):
         ],
         all_logs=[],
         config=GenerateConfig(),
+        eval_set_solver=None,
     )
 
     response = test_client.request("GET", f"/eval-set?dir={eval_set_id}")

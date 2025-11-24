@@ -158,17 +158,17 @@ class ResponsesModelInfo(Protocol):
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], model_info: ResponsesModelInfo | None = None
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message)
+        for item in await _openai_input_item_from_chat_message(message, model_info)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage,
+    message: ChatMessage, model_info: ResponsesModelInfo | None = None
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -182,7 +182,7 @@ async def _openai_input_item_from_chat_message(
             )
         ]
     elif message.role == "assistant":
-        return _openai_input_items_from_chat_message_assistant(message)
+        return _openai_input_items_from_chat_message_assistant(message, model_info)
     elif message.role == "tool":
         # see if we need to recover the call id for the computer tool calls
         responses_tool_call = assistant_internal().tool_calls.get(
@@ -327,6 +327,7 @@ def responses_extra_body_fields() -> list[str]:
         "metadata",
         "previous_response_id",
         "prompt_cache_key",
+        "prompt_cache_retention",
         "safety_identifier",
         "truncation",
         "store",
@@ -795,7 +796,7 @@ def tool_use_to_web_search_param(
 
 
 def _openai_input_items_from_chat_message_assistant(
-    message: ChatMessageAssistant,
+    message: ChatMessageAssistant, model_info: ResponsesModelInfo | None = None
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -848,7 +849,11 @@ def _openai_input_items_from_chat_message_assistant(
         pending_response_output_id = None
         pending_response_output.clear()
 
-    for content in _filter_consecutive_reasoning_blocks(content_items):
+    # filter consecutive reasoning blocks if we have a model that demands it
+    if model_info is not None and model_info.is_o1_early():
+        content_items = _filter_consecutive_reasoning_blocks(content_items)
+
+    for content in content_items:
         # flush if we aren't ContentText
         if not isinstance(content, ContentText):
             flush_pending_context_text()

@@ -10,6 +10,8 @@ import { RenderedText } from "../content/RenderedText";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
+const kMaxRowTextSize = 1024 * 5;
+
 interface SampleSummaryViewProps {
   parent_id: string;
   sample: SampleSummary | EvalSample;
@@ -117,7 +119,11 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
 
   columns.push({
     label: "Input",
-    value: <RenderedText markdown={fields.input.join(" ")} />,
+    value: (
+      <RenderedText
+        markdown={fields.input.join(" ").slice(0, kMaxRowTextSize)}
+      />
+    ),
     size: `minmax(auto, 5fr)`,
     clamp: true,
   });
@@ -127,7 +133,10 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       label: "Target",
       value: (
         <RenderedText
-          markdown={arrayToString(fields?.target || "none")}
+          markdown={arrayToString(fields?.target || "none").slice(
+            0,
+            kMaxRowTextSize,
+          )}
           className={clsx("no-last-para-padding", styles.target)}
         />
       ),
@@ -141,7 +150,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       label: "Answer",
       value: sample ? (
         <RenderedText
-          markdown={fields.answer || ""}
+          markdown={(fields.answer || "").slice(0, kMaxRowTextSize)}
           className={clsx("no-last-para-padding", styles.answer)}
         />
       ) : (

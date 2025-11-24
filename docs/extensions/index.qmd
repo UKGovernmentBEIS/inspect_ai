@@ -17,6 +17,7 @@ aliases:
 ```{=html}
 <style type="text/css">
 td:nth-child(1) { width: 155px; }
+td:nth-child(3) { width: 120px; }
 </style>
 ```
 

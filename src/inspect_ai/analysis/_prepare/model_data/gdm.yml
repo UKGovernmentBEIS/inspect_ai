@@ -1,6 +1,16 @@
 google:
   display_name: Google
   models:
+    gemini-3-pro:
+      display_name: "Gemini 3.0 Pro"
+      release_date: 2025-11-18
+      knowledge_cutoff_date: 2025-01-01
+      context_length: 1048576
+      output_tokens: 65536
+      reasoning: True
+      versions:
+        gemini-3-pro-preview:
+          snapshot: "preview"
     gemini-2.5-pro:
       display_name: "Gemini 2.5 Pro"
       release_date: 2025-03-25
