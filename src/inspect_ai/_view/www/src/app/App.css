@@ -1260,8 +1260,9 @@ pre[class*="language-"] {
 
 .inspect-flow::before {
   content: "";
-  width: 1em;
-  height: 1em;
+  margin-top: -4px;
+  width: 1.05em;
+  height: 1.05em;
   display: inline-block;
   vertical-align: middle;
   mask: url("../img/inspect-flow.svg") no-repeat center / contain;

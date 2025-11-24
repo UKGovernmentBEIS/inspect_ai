@@ -37,7 +37,7 @@ export const FlowButton = forwardRef<HTMLButtonElement, FlowButtonProps>(
         >
           <i
             ref={ref}
-            className={clsx(ApplicationIcons.fork, styles.viewerOptions)}
+            className={clsx(ApplicationIcons.flow, styles.viewerOptions)}
           />
         </button>
       </div>
