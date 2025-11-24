@@ -199,7 +199,6 @@ dev = [
   "types-python-dateutil",
   "xai_sdk",
   "uvicorn",
-  "weave"
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe", "click>=8.2.0"]
