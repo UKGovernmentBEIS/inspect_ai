@@ -47,7 +47,7 @@ from ._tool_with import tool_with
 from ._tools._bash_session import bash_session
 from ._tools._computer import computer
 from ._tools._execute import bash, python
-from ._tools import apply_patch_tool
+from ._tools._apply_patch import apply_patch
 from ._tools._text_editor import text_editor
 from ._tools._think import think
 from ._tools._web_browser import web_browser
@@ -58,7 +58,7 @@ __all__ = [
     "bash_session",
     "computer",
     "python",
-    "apply_patch_tool",
+    "apply_patch",
     "web_browser",
     "web_search",
     "WebSearchProviders",

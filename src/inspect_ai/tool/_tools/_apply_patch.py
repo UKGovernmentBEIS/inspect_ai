@@ -7,10 +7,10 @@ from typing import Literal, Sequence
 from inspect_ai.tool import ToolResult
 from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.tool._tool_call import ApplyPatchOperation, validate_apply_patch_operation
-from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
+from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-__all__ = ["apply_patch_tool", "ApplyPatchError"]
+__all__ = ["apply_patch", "ApplyPatchError"]
 
 
 class ApplyPatchError(ToolError):
@@ -84,13 +84,14 @@ class _Workspace:
 
 
 @tool(name="apply_patch", parallel=False)
-def apply_patch_tool(user: str | None = None) -> Tool:
+def apply_patch(user: str | None = None, sandbox: str | None = None) -> Tool:
     """Apply create, update, and delete operations described via V4A diffs.
 
     Operates within the sandbox environment, making it compatible with other
     sandbox tools like bash and python.
 
     Args:
+        sandbox: Optional sandbox environment name.
         user: Optional user to run operations as in the sandbox.
 
     Returns:
@@ -104,10 +105,10 @@ def apply_patch_tool(user: str | None = None) -> Tool:
                 Responses `apply_patch` tool schema.
         """
         # Get the sandbox environment
-        sandbox = await sandbox_with_injected_tools()
-        
+        environment = sandbox_env(sandbox)
+
         # Create workspace bound to sandbox
-        workspace = _Workspace(sandbox=sandbox, user=user)
+        workspace = _Workspace(sandbox=environment, user=user)
         
         patch_operation = validate_apply_patch_operation(operation)
         if patch_operation.type == "create_file":
@@ -225,9 +226,8 @@ def _parse_unified_hunks(lines: Sequence[str]) -> list[_UnifiedHunk]:
                 dst_len = int(match.group(4)) if match.group(4) else 1
             elif line.strip() == "@@":
                 # V4A format: @@ without line numbers
-                # Use dummy values - we'll apply based on context matching
                 src_start = 1
-                src_len = 0  # Unknown length, will be determined by hunk content
+                src_len = 0
                 dst_start = 1
                 dst_len = 0
             else:
