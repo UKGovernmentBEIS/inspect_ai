@@ -1914,12 +1914,10 @@ export interface EvalSampleScore {
   history: History1;
   sample_id: SampleId1;
 }
-
 export interface EvalSet {
   eval_set_id: EvalSetId1;
   tasks: Tasks;
 }
-
 export interface EvalSetTask {
   name: Name15;
   task_id: TaskId1;
