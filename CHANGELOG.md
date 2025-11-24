@@ -1,6 +1,7 @@
 ## 0.3.149 (23 November 2025)
 
 - OpenAI: Limit reasoning summary capability probe to 1 request.
+- Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
 - Inspect View: Truncate display of large sample summary fields to improve performance.
 - Inspect View: Fix regression in displaying S3 log files in VS Code.
 - Bugfix: Truncate large target fields in sample summaries.
