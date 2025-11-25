@@ -68,7 +68,7 @@ def check_max_tokens(max_tokens: int | None, reasoning_tokens: int, check_tokens
     assert log.status == "success"
 
 
-DEFAULT_MAX_TOKENS = 4096
+DEFAULT_MAX_TOKENS = 32000
 
 
 @skip_if_no_anthropic

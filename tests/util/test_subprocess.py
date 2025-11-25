@@ -109,3 +109,79 @@ def _process_found(pattern: str) -> bool:
         pattern in " ".join(p.info["cmdline"] or [])
         for p in psutil.process_iter(["cmdline"])
     )
+
+
+@pytest.mark.anyio
+async def test_subprocess_output_limit_under_limit():
+    """Test that output under the limit is returned fully."""
+    result = await subprocess(
+        ["python3", "-c", "print('hello')"],
+        output_limit=1000,
+    )
+    assert result.success is True
+    assert result.stdout.strip() == "hello"
+
+
+@pytest.mark.anyio
+async def test_subprocess_output_limit_keeps_trailing():
+    """Test that output_limit keeps trailing bytes, not leading."""
+    # Generate output: "0" * 100 + "1" * 100 + ... + "9" * 100 = 1000 bytes total
+    script = """
+import sys
+for i in range(10):
+    sys.stdout.write(str(i) * 100)
+    sys.stdout.flush()
+"""
+    result = await subprocess(
+        ["python3", "-c", script],
+        output_limit=250,
+        text=False,
+    )
+    assert result.success is True
+    # Should contain trailing digits (7s, 8s, 9s), not leading (0s, 1s)
+    assert result.stdout[-100:] == b"9" * 100
+    assert b"0" * 50 not in result.stdout  # Leading 0s should be gone
+
+
+@pytest.mark.anyio
+async def test_subprocess_output_limit_process_completes():
+    """Test that process completes even when output exceeds limit."""
+    # Script that produces output then a final marker
+    script = """
+import sys
+for i in range(100):
+    print("x" * 100)  # 10KB+ of output
+print("COMPLETED")
+"""
+    result = await subprocess(
+        ["python3", "-c", script],
+        output_limit=500,
+    )
+    # Process should complete and return "COMPLETED" in trailing output
+    assert "COMPLETED" in result.stdout
+    assert result.success is True
+
+
+@pytest.mark.anyio
+async def test_subprocess_output_limit_binary():
+    """Test output_limit with binary mode."""
+    result = await subprocess(
+        ["python3", "-c", "import sys; sys.stdout.buffer.write(b'x' * 100)"],
+        text=False,
+        output_limit=50,
+    )
+    assert result.success is True
+    assert len(result.stdout) == 50
+    assert result.stdout == b"x" * 50
+
+
+@pytest.mark.anyio
+async def test_subprocess_output_limit_no_limit():
+    """Test that no output_limit returns all output."""
+    script = "print('a' * 1000)"
+    result = await subprocess(
+        ["python3", "-c", script],
+        output_limit=None,
+    )
+    assert result.success is True
+    assert len(result.stdout.strip()) == 1000

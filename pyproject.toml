@@ -40,7 +40,6 @@ select = [
   "SIM101", # duplicate isinstance
   # "RET", # flake8-return
   # "RUF", # ruff rules
-  "DTZ",
 ]
 ignore = [
   "E203",
@@ -85,6 +84,7 @@ exclude = [
   "build",
   "(?:^|/)_resources/",
   "examples/bridge",
+  "examples/hooks",
   "src/inspect_tool_support",
   "src/inspect_sandbox_tools",
 ]

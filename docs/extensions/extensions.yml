@@ -28,6 +28,12 @@
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_swe)"
   categories: ["Agents"]
 
+- name: "[Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/)"
+  description: |
+    Transcript analysis for Inspect evalutions.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_scout)"
+  categories: ["Analysis"]
+
 - name: "[Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/)"
   description: |
     Interactive data visualization for Inspect evalutions.
@@ -45,6 +51,12 @@
     Integration with Weights and Biases platform.
   author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
+
+- name: "[Evaljobs](https://github.com/dvsrepo/evaljobs)"
+  description: |
+    Run evals on Hugging Face and share results and code on Hugging Face Hub.
+  author: "[Hugging Face](https://github.com/dvsrepo/evaljobs)"
+  categories: ["Tooling"]
 
 - name: "[OpenBench](https://github.com/groq/openbench)"
   description: |

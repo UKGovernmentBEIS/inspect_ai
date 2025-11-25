@@ -1,12 +1,14 @@
 import { FC } from "react";
+import { FlowPanel } from "../flow/FlowPanel";
 import { LogsPanel } from "../log-list/LogsPanel";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { useLogRouteParams } from "./url";
 
 /**
- * RouteDispatcher component that determines whether to show LogsView or LogViewContainer
- * based on the logPath parameter. If logPath ends with .eval or .json, it shows the
- * individual log view. Otherwise, it shows the logs directory view.
+ * RouteDispatcher component that determines whether to show FlowPanel, LogsPanel or LogViewContainer
+ * based on the logPath parameter. If the path ends with .yaml/.yml, it shows the FlowPanel.
+ * If logPath ends with .eval or .json, it shows the individual log view.
+ * Otherwise, it shows the logs directory view.
  */
 export const RouteDispatcher: FC = () => {
   const { logPath } = useLogRouteParams();
@@ -14,6 +16,14 @@ export const RouteDispatcher: FC = () => {
   // If no logPath is provided, show the logs directory view
   if (!logPath) {
     return <LogsPanel />;
+  }
+
+  // Check if the path ends with .yaml or .yml (indicating it's a flow file)
+  const isFlowFile = logPath.endsWith(".yaml") || logPath.endsWith(".yml");
+
+  // If it's a flow file, show the FlowPanel
+  if (isFlowFile) {
+    return <FlowPanel />;
   }
 
   // Check if the path ends with .eval or .json (indicating it's a log file)

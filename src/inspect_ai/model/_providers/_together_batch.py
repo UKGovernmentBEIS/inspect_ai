@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import functools
 import sys
 from typing import IO, TypedDict, cast
@@ -10,7 +11,6 @@ from openai.types import Batch as OpenAIBatch
 from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
-from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._generate_config import BatchConfig
@@ -132,7 +132,7 @@ def _iso_to_unix(input: OpenAIBatch, field: str) -> int | None:
         None
         if value is None
         else int(
-            datetime_from_iso_format_safe(
+            datetime.datetime.fromisoformat(
                 cast(str, value).replace("Z", "+00:00")
             ).timestamp()
         )

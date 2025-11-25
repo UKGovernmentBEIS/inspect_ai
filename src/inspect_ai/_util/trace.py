@@ -218,7 +218,7 @@ class TraceFormatter(logging.Formatter):
 
     def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
         # ISO format with timezone
-        dt = datetime.datetime.fromtimestamp(record.created).astimezone()
+        dt = datetime.datetime.fromtimestamp(record.created)
         return dt.isoformat()
 
 

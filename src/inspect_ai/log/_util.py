@@ -61,6 +61,14 @@ def thin_input(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
         return truncate_text(inputs)
 
 
+def thin_target(target: str | list[str]) -> str | list[str]:
+    """Thin the target by truncating if necessary."""
+    if isinstance(target, list):
+        return [truncate_text(t) for t in target]
+    else:
+        return truncate_text(target)
+
+
 def truncate_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
     """Truncate text to a maximum length, appending as ellipsis if truncated."""
     if len(text) > max_length:

@@ -10,6 +10,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._dataset import Dataset
+from inspect_ai.dataset._util import normalise_sample_id
 from inspect_ai.model import ChatMessage, ChatMessageUser
 
 from ..task import Task
@@ -48,19 +49,14 @@ def slice_dataset(
     limit: int | tuple[int, int] | None,
     sample_id: str | int | list[str] | list[int] | list[str | int] | None,
 ) -> Dataset:
-    def normalise(id: str | int | None) -> str:
-        if isinstance(id, str) and id.isdigit():
-            id = int(id)
-        return id if isinstance(id, str) else str(id).zfill(20)
-
     if sample_id is not None:
         # reduce to list of normalized sample ids
         sample_ids = sample_id if isinstance(sample_id, list) else [sample_id]
-        sample_id = [normalise(id) for id in sample_ids]
+        sample_id = [normalise_sample_id(id) for id in sample_ids]
 
         # validate all the sample ids and warn if they aren't in the dataset
         all_sample_ids_raw = [sample.id for sample in dataset]
-        all_sample_ids = [normalise(id) for id in all_sample_ids_raw]
+        all_sample_ids = [normalise_sample_id(id) for id in all_sample_ids_raw]
         for id in sample_id:
             if id not in all_sample_ids:
                 warn_once(
@@ -69,7 +65,7 @@ def slice_dataset(
 
         # helper to check for a matching sample id
         def include_sample(sample: Sample) -> bool:
-            id = normalise(sample.id)
+            id = normalise_sample_id(sample.id)
             return any(fnmatch(id, pat) for pat in sample_id)
 
         # filter the dataset

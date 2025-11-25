@@ -7,7 +7,7 @@ import os
 import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
-from datetime import datetime, timezone
+from datetime import datetime
 from types import TracebackType
 from typing import (
     Any,
@@ -486,7 +486,7 @@ class Model:
             input = [ChatMessageSystem(content=config.system_message)] + input
 
         # enforce concurrency limits
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now()
         working_start = sample_working_time()
         async with self._connection_concurrency(config):
             # generate
@@ -508,7 +508,7 @@ class Model:
             assert isinstance(event, ModelEvent)
             event.timestamp = start_time
             event.working_start = working_start
-            completed = datetime.now(timezone.utc)
+            completed = datetime.now()
             event.completed = completed
             event.working_time = (
                 output.time
