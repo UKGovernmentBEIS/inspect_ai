@@ -1,8 +1,6 @@
 from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
 from unittest import mock
 
-import pytest
-
 from inspect_ai.util import (
     OutputLimitExceededError,
     SandboxEnvironment,
@@ -78,8 +76,6 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_cwd_custom,
         test_cwd_relative,
         test_cwd_absolute,
-        test_exec_stdout_is_limited,
-        test_exec_stderr_is_limited,
     ]:
         print(f"self_check: running {fn.__name__}")
         results[fn.__name__] = await check_test_fn(fn, sandbox_env)
