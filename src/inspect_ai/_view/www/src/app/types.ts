@@ -37,6 +37,7 @@ import {
 
 export interface AppState {
   status: AppStatus;
+  nativeFind?: boolean;
   showFind: boolean;
   tabs: {
     workspace: string;

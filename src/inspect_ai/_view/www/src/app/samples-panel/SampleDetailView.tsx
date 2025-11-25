@@ -135,6 +135,7 @@ export const SampleDetailView: FC = () => {
 
   const setShowFind = useStore((state) => state.appActions.setShowFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
+  const nativeFind = useStore((state) => state.app.nativeFind);
 
   // Global keydown handler for keyboard shortcuts
   useEffect(() => {
@@ -148,13 +149,17 @@ export const SampleDetailView: FC = () => {
           activeElement.tagName === "SELECT");
 
       if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        e.preventDefault(); // Always prevent browser find
-        e.stopPropagation();
-        if (setShowFind) {
-          setShowFind(true);
+        if (!nativeFind) {
+          e.preventDefault(); // Always prevent browser find
+          e.stopPropagation();
+          if (setShowFind) {
+            setShowFind(true);
+          }
         }
       } else if (e.key === "Escape") {
-        hideFind();
+        if (!nativeFind) {
+          hideFind();
+        }
       } else if (!isInputFocused) {
         // Navigation shortcuts (only when not in an input field)
         if (e.key === "ArrowLeft") {
@@ -177,7 +182,15 @@ export const SampleDetailView: FC = () => {
     return () => {
       document.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
-  }, [setShowFind, hideFind, hasPrevious, hasNext, handlePrevious, handleNext]);
+  }, [
+    setShowFind,
+    hideFind,
+    hasPrevious,
+    hasNext,
+    nativeFind,
+    handlePrevious,
+    handleNext,
+  ]);
 
   useEffect(() => {
     const exec = async () => {
