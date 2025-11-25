@@ -147,7 +147,7 @@ We'll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/
 ```{python}
 @task
 def hellaswag():
-
+   
     # dataset
     dataset = hf_dataset(
         path="hellaswag",
@@ -210,8 +210,8 @@ def record_to_sample(record):
     target = answer.pop().strip()
     reasoning = DELIM.join(answer)
     return Sample(
-        input=input,
-        target=target,
+        input=input, 
+        target=target, 
         metadata={"reasoning": reasoning.strip()}
     )
 
@@ -231,13 +231,13 @@ Here's the prompt we'll used to elicit a chain of thought answer in the right fo
 # setup for problem + instructions for providing answer
 MATH_PROMPT_TEMPLATE = """
 Solve the following math problem step by step. The last line of your
-response should be of the form "ANSWER: $ANSWER" (without quotes)
+response should be of the form "ANSWER: $ANSWER" (without quotes) 
 where $ANSWER is the answer to the problem.
 
 {prompt}
 
 Remember to put your answer on its own line at the end in the form
-"ANSWER: $ANSWER" (without quotes) where $ANSWER is the answer to
+"ANSWER: $ANSWER" (without quotes) where $ANSWER is the answer to 
 the problem, and you do not need to use a \\boxed command.
 
 Reasoning:
@@ -323,8 +323,8 @@ from inspect_ai.scorer import (
     scorer,
 )
 from inspect_ai.solver import (
-    TaskState,
-    generate,
+    TaskState, 
+    generate, 
     prompt_template
 )
 
@@ -353,7 +353,7 @@ def math(shuffle=True):
             "HuggingFaceH4/MATH-500",
             split="test",
             sample_fields=FieldSpec(
-                input="problem",
+                input="problem", 
                 target="solution"
             ),
             shuffle=shuffle,
@@ -406,7 +406,7 @@ We are making a separate call to the model to assess equivalence. We prompt for 
 ``` python
 EQUIVALENCE_TEMPLATE = r"""
 Look at the following two expressions (answers to a math problem)
-and judge whether they are equivalent. Only perform trivial
+and judge whether they are equivalent. Only perform trivial 
 simplifications
 
 Examples:
