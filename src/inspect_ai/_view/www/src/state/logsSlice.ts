@@ -217,8 +217,7 @@ export const createLogsSlice = (
           const initializeDatabase = async (
             logDir?: string,
           ): Promise<DatabaseService | undefined> => {
-            // Allow empty string for multi-eval mode - use a default database name
-            if (logDir === undefined || logDir === null) {
+            if (!logDir) {
               // No database service available
               return undefined;
             }
@@ -228,9 +227,7 @@ export const createLogsSlice = (
               if (!databaseService) {
                 return undefined;
               }
-              // Use special database name for multi-eval mode (empty string log_dir)
-              const dbName = logDir || '__multi_eval_db__';
-              await databaseService.openDatabase(dbName);
+              await databaseService.openDatabase(logDir);
               return databaseService;
             } catch (e) {
               console.log(e);
