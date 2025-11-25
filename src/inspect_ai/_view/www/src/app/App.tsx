@@ -8,6 +8,7 @@ import "prismjs/components/prism-clike";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
+import "prismjs/components/prism-yaml";
 import "prismjs/themes/prism.css";
 import "./App.css";
 
@@ -16,6 +17,8 @@ import { FC, useCallback, useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { ClientAPI, HostMessage } from "../client/api/types.ts";
 import { useStore } from "../state/store.ts";
+import { basename, dirname } from "../utils/path.ts";
+import { isUri } from "../utils/uri.ts";
 import { AppRouter } from "./routing/AppRouter.tsx";
 
 interface AppProps {
@@ -34,7 +37,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const loadedLogFile = useStore((state) => state.log.loadedLog);
   const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
 
-  const setIntialState = useStore((state) => state.appActions.setInitialState);
+  const setInitialState = useStore((state) => state.appActions.setInitialState);
   const setLoading = useStore((state) => state.appActions.setLoading);
 
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
@@ -99,7 +102,16 @@ export const App: FC<AppProps> = ({ api }) => {
         case "updateState": {
           if (e.data.url) {
             const decodedUrl = decodeURIComponent(e.data.url);
-            setIntialState(decodedUrl, e.data.sample_id, e.data.sample_epoch);
+
+            let targetFile = decodedUrl;
+            if (isUri(targetFile)) {
+              // If it's a URI, just set the log file directly
+              const dir = dirname(targetFile);
+              targetFile = basename(targetFile);
+              setLogDir(dir);
+            }
+
+            setInitialState(targetFile, e.data.sample_id, e.data.sample_epoch);
           }
           break;
         }

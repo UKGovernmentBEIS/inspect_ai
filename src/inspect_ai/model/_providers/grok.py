@@ -334,11 +334,14 @@ class GrokAPI(ModelAPI):
         server_tool_calls: list[chat_pb2.ToolCall] = []
         client_tool_calls: list[chat_pb2.ToolCall] = []
         for tool_call in response.tool_calls:
-            tool_info = next(
-                (tool for tool in tools if tool.name == "web_search"), None
-            )
-            if tool_info and self._is_internal_web_search_tool(tool_info):
-                server_tool_calls.append(tool_call)
+            if tool_call.function.name == "web_search":
+                tool_info = next(
+                    (tool for tool in tools if tool.name == "web_search"), None
+                )
+                if tool_info and self._is_internal_web_search_tool(tool_info):
+                    server_tool_calls.append(tool_call)
+                else:
+                    client_tool_calls.append(tool_call)
             else:
                 client_tool_calls.append(tool_call)
 

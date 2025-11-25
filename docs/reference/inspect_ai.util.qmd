@@ -57,7 +57,9 @@ title: "inspect_ai.util"
 
 ## Registry
 
+### registry_info
 ### registry_create
+### RegistryInfo
 ### RegistryType
 
 ## JSON

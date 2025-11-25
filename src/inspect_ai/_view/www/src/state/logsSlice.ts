@@ -50,6 +50,8 @@ export interface LogsSlice {
     // Try to fetch an eval-set
     syncEvalSetInfo: (logPath?: string) => Promise<EvalSet | undefined>;
 
+    updateFlowData: (flowPath: string, flowData?: string) => void;
+
     setSorting: (sorting: SortingState) => void;
     setFiltering: (filtering: ColumnFiltersState) => void;
     setGlobalFilter: (globalFilter: string) => void;
@@ -321,6 +323,12 @@ export const createLogsSlice = (
         const info = await api.get_eval_set(logPath);
         set((state) => {
           state.logs.evalSet = info;
+        });
+      },
+      updateFlowData: (flowPath: string, flowData?: string) => {
+        set((state) => {
+          state.logs.flowDir = flowPath;
+          state.logs.flow = flowData;
         });
       },
       // Select a specific log file

@@ -42,7 +42,6 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
-from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
@@ -672,7 +671,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             if input.endswith("Z"):
                 # convert trailing Z to +00:00
                 input = input[:-1] + "+00:00"
-            return datetime_from_iso_format_safe(input)
+            return datetime.fromisoformat(input)
         elif type_hint == date:
             return date.fromisoformat(input)
         elif type_hint == time:

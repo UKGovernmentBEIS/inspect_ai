@@ -1,5 +1,34 @@
 ## Unreleased
-- Infrastructure: Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+
+- Memory tool: Added `memory()` tool and bound it to native definitions for providers that support it (currently only Anthropic).
+- Sandboxes: For "local" and "docker" sandbox providers, treat `output_limit` as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).
+- Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
+- Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
+- Inspect View: Improve markdown rendering performance.
+- Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.
+
+## 0.3.150 (25 November 2025)
+
+- Anthropic: Enable [interleaved-thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking) by default for Claude 4 models.
+- Anthropic: Smarter `max_tokens` handling to prevent exceeding model max tokens when reasoning tokens are specified. 
+- OpenAI: Limit reasoning summary capability probe to 1 request.
+- Google: Attach thought signature to first function call, even if a message also has text.
+- Grok: Correctly handle web_search tool intermixed with other tool types.
+- OpenRouter: Pass reasoning_effort = "none" through to models rather enabled=False.
+- Model API: Conversion functions for translating raw model input and output into Inspect types.
+- Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
+- Registry: Add `RegistryInfo` and `registry_info()` to the public API. 
+- Bugfix: Ensure that `prompt_cache_retention` is correctly forwarded by agent bridge to responses API.
+
+## 0.3.149 (23 November 2025)
+
+- Inspect View: Truncate display of large sample summary fields to improve performance.
+- Inspect View: Fix regression in displaying S3 log files in VS Code.
+- Bugfix: Truncate large target fields in sample summaries.
+
+## 0.3.148 (21 November 2025)
+
+- Bugfix: Fix Google provider serialization of thought signatures on replay.
 
 ## 0.3.147 (21 November 2025)
 

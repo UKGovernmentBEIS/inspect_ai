@@ -37,6 +37,7 @@ import {
 
 export interface AppState {
   status: AppStatus;
+  nativeFind?: boolean;
   showFind: boolean;
   tabs: {
     workspace: string;
@@ -90,6 +91,8 @@ export interface LogsState {
     gridState?: GridState;
     displayedSamples?: Array<DisplayedSample>;
   };
+  flow?: string;
+  flowDir?: string;
 }
 
 export interface LogsListing {

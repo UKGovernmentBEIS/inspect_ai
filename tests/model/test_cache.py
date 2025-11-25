@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 
 from test_helpers.utils import run_example
 
@@ -26,7 +26,7 @@ def test_cache():
             > 0
         )
 
-    timestamp = str(datetime.now(timezone.utc))
+    timestamp = str(datetime.now())
 
     def check_eval_with_cache(cache_hit: bool):
         log = eval(
