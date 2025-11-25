@@ -46,6 +46,7 @@ async def generate_completions(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     prompt_cache_key: str | NotGiven,
+    prompt_cache_retention: str | NotGiven,
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[ChatCompletion] | None,
@@ -98,6 +99,8 @@ async def generate_completions(
     )
     if isinstance(prompt_cache_key, str):
         request["prompt_cache_key"] = prompt_cache_key
+    if isinstance(prompt_cache_retention, str):
+        request["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         request["safety_identifier"] = safety_identifier
 

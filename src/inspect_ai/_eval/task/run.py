@@ -741,26 +741,6 @@ async def task_run_sample(
                                 # monitor working limit in the background
                                 monitor_working_limit()
 
-                                # emit/log sample start
-                                sample_summary = EvalSampleSummary(
-                                    id=sample_id,
-                                    epoch=state.epoch,
-                                    input=sample.input,
-                                    target=sample.target,
-                                    metadata=sample.metadata or {},
-                                )
-                                if logger is not None:
-                                    await logger.start_sample(sample_summary)
-                                # only emit the sample start once: not on retries
-                                if not error_retries:
-                                    await emit_sample_start(
-                                        eval_set_id,
-                                        run_id,
-                                        task_id,
-                                        state.uuid,
-                                        sample_summary,
-                                    )
-
                                 # set progress for plan then run it
                                 async with span("solvers"):
                                     state = await plan(state, generate)
@@ -819,6 +799,27 @@ async def task_run_sample(
                                 tg.cancel_scope.cancel()
 
                         try:
+                            # emit/log sample start
+                            sample_summary = EvalSampleSummary(
+                                id=sample_id,
+                                epoch=state.epoch,
+                                input=sample.input,
+                                target=sample.target,
+                                metadata=sample.metadata or {},
+                            )
+                            if logger is not None:
+                                await logger.start_sample(sample_summary)
+
+                            # only emit the sample start once: not on retries
+                            if not error_retries:
+                                await emit_sample_start(
+                                    eval_set_id,
+                                    run_id,
+                                    task_id,
+                                    state.uuid,
+                                    sample_summary,
+                                )
+
                             async with anyio.create_task_group() as tg:
                                 tg.start_soon(run, tg)
                         except Exception as ex:

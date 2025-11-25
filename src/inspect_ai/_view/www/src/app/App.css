@@ -326,20 +326,20 @@ body[class^="vscode-"] .card {
 }
 
 body[class^="vscode-"] .nav-pills {
-  --bs-nav-pills-link-active-bg: var(--vscode-list-inactiveSelectionBackground);
-  --bs-nav-pills-link-active-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-pills-link-active-bg: var(--vscode-notifications-background);
+  --bs-nav-pills-link-active-color: var(--vscode-notifications-foreground);
 }
 
 body[class^="vscode-"] .nav-link {
-  --bs-nav-link-color: var(--vscode-editor-selectionForeground);
-  --bs-link-hover-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-link-color: var(--vscode-notificationLink-foreground);
+  --bs-link-hover-color: var(--vscode-notificationLink-foreground);
 }
 
 body[class^="vscode-"] .nav-link:hover {
-  --bs-nav-link-color: var(--vscode-editor-selectionForeground);
-  --bs-nav-link-hover-color: var(--vscode-editor-selectionForeground);
+  --bs-nav-link-color: var(--vscode-notificationLink-foreground);
+  --bs-nav-link-hover-color: var(--vscode-notificationLink-foreground);
   --bs-nav-tabs-link-hover-border-color: var(
-    --vscode-editor-selectionForeground
+    --vscode-notificationLink-foreground
   );
 }
 
@@ -1193,6 +1193,10 @@ pre[class*="language-"] {
 /* END PrismJS */
 
 /* SVG Icon styles - following Bootstrap Icons pattern */
+.ii:before {
+  background-color: var(--bs-body-color);
+}
+
 .inspect-icon-16::before {
   content: "";
   width: 1em;
@@ -1252,6 +1256,17 @@ pre[class*="language-"] {
   margin-top: -2px;
   mask: url("../img/tasks.svg") no-repeat center / contain;
   -webkit-mask: url("../img/tasks.svg") no-repeat center / contain;
+}
+
+.inspect-flow::before {
+  content: "";
+  margin-top: -4px;
+  width: 1.05em;
+  height: 1.05em;
+  display: inline-block;
+  vertical-align: middle;
+  mask: url("../img/inspect-flow.svg") no-repeat center / contain;
+  -webkit-mask: url("../img/inspect-flow.svg") no-repeat center / contain;
 }
 
 /* Use this very carefully, find relies upon checking the 

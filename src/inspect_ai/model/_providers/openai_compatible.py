@@ -156,6 +156,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 background=False,
                 service_tier=None,
                 prompt_cache_key=NOT_GIVEN,
+                prompt_cache_retention=NOT_GIVEN,
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
                 model_info=ModelInfo(),
@@ -286,6 +287,14 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         """Hook for subclasses to do bad request handling"""
+        # Handle DeepInfra input length errors
+        if ex.status_code == 400:
+            content = str(ex)
+            if "input length" in content:
+                return ModelOutput.from_content(
+                    self.model_name, content=content, stop_reason="model_length"
+                )
+
         return openai_handle_bad_request(self.service_model_name(), ex)
 
 

@@ -1,4 +1,9 @@
-from inspect_ai._util.registry import RegistryType, registry_create
+from inspect_ai._util.registry import (
+    RegistryInfo,
+    RegistryType,
+    registry_create,
+    registry_info,
+)
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
@@ -95,6 +100,8 @@ __all__ = [
     "working_limit",
     "trace_action",
     "trace_message",
+    "RegistryInfo",
     "RegistryType",
     "registry_create",
+    "registry_info",
 ]

@@ -8,6 +8,7 @@ from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
 )
+from inspect_ai.model._providers.openai_compatible import ModelInfo
 from inspect_ai.solver import generate, user_message
 
 
@@ -67,7 +68,12 @@ def test_openai_responses_no_store():
 
 
 def test_multiple_consecutive_reasoning_blocks_filtering():
-    """Test that multiple consecutive ContentReasoning blocks are filtered to keep only the last one."""
+    """Test that multiple consecutive ContentReasoning blocks are all preserved."""
+
+    class O1EarlyModelInfo(ModelInfo):
+        def is_o1_early(self):
+            return True
+
     message = ChatMessageAssistant(
         content=[
             ContentText(text="First text"),
@@ -80,11 +86,18 @@ def test_multiple_consecutive_reasoning_blocks_filtering():
         source="generate",
     )
 
-    items = _openai_input_items_from_chat_message_assistant(message)
+    # test that when using o-series we still collapse
+    items = _openai_input_items_from_chat_message_assistant(message, O1EarlyModelInfo())
     reasoning_items = [item for item in items if item.get("type") == "reasoning"]
-
     assert len(reasoning_items) == 1
     assert reasoning_items[0]["id"] == "r3"
+
+    # test that when not using o-series we don't collapse
+    items = _openai_input_items_from_chat_message_assistant(message)
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert len(reasoning_items) == 3
+    ids = {item["id"] for item in reasoning_items}
+    assert ids == {"r1", "r2", "r3"}
 
 
 def test_non_consecutive_reasoning_blocks_filtering():
@@ -108,7 +121,7 @@ def test_non_consecutive_reasoning_blocks_filtering():
 
 
 def test_mixed_reasoning_blocks_filtering():
-    """Test that mixed consecutive and non-consecutive ContentReasoning blocks are properly filtered."""
+    """Test that all ContentReasoning blocks are preserved regardless of position."""
     message = ChatMessageAssistant(
         content=[
             ContentReasoning(reasoning="First reasoning", signature="r1"),
@@ -126,6 +139,6 @@ def test_mixed_reasoning_blocks_filtering():
     items = _openai_input_items_from_chat_message_assistant(message)
     reasoning_items = [item for item in items if item.get("type") == "reasoning"]
 
-    assert len(reasoning_items) == 3
+    assert len(reasoning_items) == 5
     ids = {item["id"] for item in reasoning_items}
-    assert ids == {"r1", "r4", "r5"}
+    assert ids == {"r1", "r2", "r3", "r4", "r5"}

@@ -1,8 +1,57 @@
 ## Unreleased
 
-- Memory Tool: Added a new `memory()` tool (conforms to Anthropic's native memory tool definition).
+- Memory tool: Added `memory()` tool and bound it to native definitions for providers that support it (currently only Anthropic).
+- Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
+- Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
+
+## 0.3.150 (25 November 2025)
+
+- Anthropic: Enable [interleaved-thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking) by default for Claude 4 models.
+- Anthropic: Smarter `max_tokens` handling to prevent exceeding model max tokens when reasoning tokens are specified. 
+- OpenAI: Limit reasoning summary capability probe to 1 request.
+- Google: Attach thought signature to first function call, even if a message also has text.
+- Grok: Correctly handle web_search tool intermixed with other tool types.
+- OpenRouter: Pass reasoning_effort = "none" through to models rather enabled=False.
+- Model API: Conversion functions for translating raw model input and output into Inspect types.
+- Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
+- Registry: Add `RegistryInfo` and `registry_info()` to the public API. 
+- Bugfix: Ensure that `prompt_cache_retention` is correctly forwarded by agent bridge to responses API.
+
+## 0.3.149 (23 November 2025)
+
+- Inspect View: Truncate display of large sample summary fields to improve performance.
+- Inspect View: Fix regression in displaying S3 log files in VS Code.
+- Bugfix: Truncate large target fields in sample summaries.
+
+## 0.3.148 (21 November 2025)
+
+- Bugfix: Fix Google provider serialization of thought signatures on replay.
+
+## 0.3.147 (21 November 2025)
+
+- Google: Support for `--reasoning-effort` on Gemini 3.0 models.
+- Anthropic: Support for [Structured Output](https://inspect.aisi.org.uk/structured.html) for Sonnet 4.5 and Opus 4.1.
+- Anthropic: Don't insert "(no content)" when replaying empty assistant messages with tool calls.
+- OpenAI: Don't remove consecutive reasoning blocks (earlier versions of the API would give 400 errors, this no longer occurs).
+- OpenAI: Add `prompt_cache_retention` custom model arg (bump required version of `openai` package to v2.8.0).
+- Eval Set: Task identifiers can now vary on `model_args` (which enables sweeping over these variables).
+- Eval Logs: Compatibility with Hugging Face filesystem (hf://).
+- Eval Logs: Don't forward credentials when using aioboto3 with S3 (was preventing use of AWS credential chain).
+- Inspect View: Streaming for log bytes requests in fastapi view server.
+- Bugfix: Fix incorrect approver behavior with multiple tool calls
+- Bugfix: Correctly handle distinguishing eval set tasks based on `solver` passed to `eval_set()`.
+
+## 0.3.146 (15 November 2025)
+
 - Added `cache` configuration to `GenerateConfig` (formerly was only available as a parameter to `generate()`).
+- ReAct agent: `on_continue` can now return a new `AgentState`.
 - OpenAI: Retries for `APIConnectionError`.
+- OpenAI: Support for `reasoning_effort="none"` (now available with gpt-5.1).
+- Grok: Retries for 520 (UNKNOWN) errors.
+- Bugfix: Properly load scorer metrics when using solver scoring.
+- Bugfix: Properly handle `None` as value of `arguments` when parsing tool calls.
+- Bugfix: Fix sandbox tools install for sandbox envs with non-root default user.
+- Bugfix: Fix model name preservation in eval logs for service-prefixed models.
 
 ## 0.3.145 (09 November 2025)
 

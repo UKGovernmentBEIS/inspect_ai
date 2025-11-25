@@ -28,7 +28,6 @@ from anthropic import (
     BadRequestError,
     NotGiven,
 )
-from anthropic._types import Body
 from anthropic.types import (
     Base64PDFSourceParam,
     ContentBlock,
@@ -111,6 +110,7 @@ from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
@@ -163,7 +163,7 @@ class AnthropicAPI(ModelAPI):
                 model_args.pop(name)
             return value
 
-        self.extra_body: Body | None = collect_model_arg("extra_body")
+        self.extra_body: dict[str, Any] | None = collect_model_arg("extra_body")
 
         # call super
         super().__init__(
@@ -282,12 +282,16 @@ class AnthropicAPI(ModelAPI):
                 request["tool_choice"] = message_tool_choice(tool_choice, config)
 
             # additional options
-            req, headers, betas = self.completion_config(config)
+            req, extra_body, headers, betas = self.completion_config(config)
             request = request | req
 
             # beta param for mcp tools
             if len(mcp_servers_param) > 0:
                 betas.append("mcp-client-2025-04-04")
+
+            # beta param for interleaved thinking
+            if self.is_using_thinking(config) and self.is_claude_4():
+                betas.append("interleaved-thinking-2025-05-14")
 
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
@@ -310,8 +314,8 @@ class AnthropicAPI(ModelAPI):
             request["extra_headers"] = extra_headers
 
             # extra_body
-            if self.extra_body is not None:
-                request["extra_body"] = self.extra_body
+            if len(extra_body) > 0 or self.extra_body is not None:
+                request["extra_body"] = extra_body | (self.extra_body or {})
 
             # mcp servers
             if len(mcp_servers_param) > 0:
@@ -416,10 +420,11 @@ class AnthropicAPI(ModelAPI):
 
     def completion_config(
         self, config: GenerateConfig
-    ) -> tuple[dict[str, Any], dict[str, str], list[str]]:
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = {}
+        extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
 
         # temperature not compatible with extended thinking
@@ -455,6 +460,16 @@ class AnthropicAPI(ModelAPI):
         if config.stop_seqs is not None:
             params["stop_sequences"] = config.stop_seqs
 
+        # structured output
+        if config.response_schema is not None:
+            schema = config.response_schema.json_schema.model_copy(deep=True)
+            set_additional_properties_false(schema)
+            betas.append("structured-outputs-2025-11-13")
+            extra_body["output_format"] = {
+                "type": "json_schema",
+                "schema": schema.model_dump(exclude_none=True),
+            }
+
         # look for any of our native fields not in GenerateConfig in extra_body
         if config.extra_body is not None:
             for field in anthropic_extra_body_fields():
@@ -462,7 +477,7 @@ class AnthropicAPI(ModelAPI):
                     params[field] = config.extra_body[field]
 
         # return config
-        return params, headers, betas
+        return params, extra_body, headers, betas
 
     @override
     def max_tokens(self) -> int | None:
@@ -484,6 +499,13 @@ class AnthropicAPI(ModelAPI):
         max_tokens = cast(int, self.max_tokens())
         if self.is_thinking_model() and config.reasoning_tokens is not None:
             max_tokens = max_tokens + config.reasoning_tokens
+            # after bumping for reasoning, make sure we don't exceed model max tokens
+            if self.is_claude_4_opus():
+                max_tokens = min(max_tokens, 32000)
+            elif self.is_claude_3_7():
+                max_tokens = min(max_tokens, 128000)
+            else:
+                max_tokens = min(max_tokens, 64000)
         return max_tokens
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
@@ -509,6 +531,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_4(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4", self.service_model_name()) is not None
+
+    def is_claude_4_opus(self) -> bool:
+        return self.is_claude_4() and "opus" in self.service_model_name()
 
     def is_claude_4_5(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4-5", self.service_model_name()) is not None
@@ -1077,8 +1102,14 @@ async def message_param(message: ChatMessage) -> MessageParam:
     # if content is empty that is going to result in an error when we replay
     # this message to claude, so in that case insert a NO_CONTENT message
     if isinstance(message.content, list) and len(message.content) == 0:
-        message = message.model_copy()
-        message.content = [ContentText(text=NO_CONTENT)]
+        # only do this for non-assistant messages or assistant message with no
+        # tool calls (asst. messages w/ tool calls are fine w/ no content)
+        if (
+            not isinstance(message, ChatMessageAssistant)
+            or len(message.tool_calls or []) == 0
+        ):
+            message = message.model_copy()
+            message.content = [ContentText(text=NO_CONTENT)]
 
     # no system role for anthropic (this is more like an assertion,
     # as these should have already been filtered out)
@@ -1263,8 +1294,8 @@ _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
 
 
 async def model_output_from_message(
-    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
-    model: str,
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex | None,
+    model: str | None,
     message: Message,
     tools: list[ToolInfo],
 ) -> tuple[ModelOutput, bool]:
@@ -1275,11 +1306,12 @@ async def model_output_from_message(
 
     # count reasoning tokens
     reasoning_tokens = 0
-    for content_block in message.content:
-        if isinstance(content_block, ThinkingBlock):
-            reasoning_tokens += await count_tokens(
-                client, model, content_block.thinking
-            )
+    if client and model:
+        for content_block in message.content:
+            if isinstance(content_block, ThinkingBlock):
+                reasoning_tokens += await count_tokens(
+                    client, model, content_block.thinking
+                )
 
     # resolve choice
     stop_reason, pause_turn = message_stop_reason(message)
