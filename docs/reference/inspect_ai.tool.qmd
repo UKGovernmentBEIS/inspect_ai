@@ -8,6 +8,7 @@ title: "inspect_ai.tool"
 ### python
 ### bash_session
 ### text_editor
+### memory
 ### web_browser
 ### computer
 ### web_search

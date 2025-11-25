@@ -1,7 +1,10 @@
 ## Unreleased
 
-- Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+- Memory tool: Added `memory()` tool and bound it to native definitions for providers that support it (currently only Anthropic).
+- Sandboxes: For "local" and "docker" sandbox providers, treat `output_limit` as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).
 - Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
+- Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
+- Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
 
 ## 0.3.150 (25 November 2025)
 

@@ -79,6 +79,8 @@ website:
           href: reference/inspect_ai.tool.qmd#bash_session
         - text: text_editor
           href: reference/inspect_ai.tool.qmd#text_editor
+        - text: memory
+          href: reference/inspect_ai.tool.qmd#memory
         - text: web_browser
           href: reference/inspect_ai.tool.qmd#web_browser
         - text: computer

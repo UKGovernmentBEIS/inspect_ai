@@ -3,6 +3,7 @@ import functools
 import io
 import os
 import shlex
+from collections import deque
 from contextvars import ContextVar
 from dataclasses import dataclass
 from logging import getLogger
@@ -97,8 +98,9 @@ async def subprocess(
        env (dict[str, str]): Additional environment variables.
        capture_output (bool): Capture stderr and stdout into ExecResult
           (if False, then output is redirected to parent stderr/stdout)
-       output_limit (int | None): Stop reading output if it exceeds
-          the specified limit (in bytes).
+       output_limit (int | None): Maximum bytes to retain from stdout/stderr.
+          If output exceeds this limit, only the most recent bytes are kept
+          (older output is discarded). The process continues to completion.
        timeout (int | None): Timeout. If the timeout expires then
           a `TimeoutError` will be raised.
        concurrency: Request that the `concurrency()` function is used
@@ -134,22 +136,23 @@ async def subprocess(
                 await process.stdin.send(input)
                 await process.stdin.aclose()
 
-            # read streams incrementally so we can check output limits
+            # read streams, using circular buffer if output_limit is set
             async def read_stream(stream: ByteReceiveStream | None) -> bytes:
-                # return early for no stream
                 if stream is None:
                     return bytes()
 
-                written = 0
-                buffer = io.BytesIO()
-                async for chunk in stream:
-                    buffer.write(chunk)
-                    written += len(chunk)
-                    if output_limit is not None and written > output_limit:
-                        process.kill()
-                        break
-
-                return buffer.getvalue()
+                if output_limit is None:
+                    # No limit: use simple BytesIO
+                    bytesio = io.BytesIO()
+                    async for chunk in stream:
+                        bytesio.write(chunk)
+                    return bytesio.getvalue()
+                else:
+                    # Limited: use circular buffer to cap memory
+                    circular = CircularByteBuffer(output_limit)
+                    async for chunk in stream:
+                        circular.write(chunk)
+                    return circular.getvalue()
 
             stdout, stderr = await tg_collect(
                 [
@@ -164,8 +167,8 @@ async def subprocess(
                 return ExecResult[str](
                     success=success,
                     returncode=returncode,
-                    stdout=stdout.decode() if capture_output else "",
-                    stderr=stderr.decode() if capture_output else "",
+                    stdout=stdout.decode(errors="replace") if capture_output else "",
+                    stderr=stderr.decode(errors="replace") if capture_output else "",
                 )
             else:
                 return ExecResult[bytes](
@@ -260,3 +263,34 @@ async def drain_stream(stream: ByteReceiveStream | None) -> None:
 max_subprocesses_context_var = ContextVar[int](
     "max_subprocesses", default=default_max_subprocesses()
 )
+
+
+class CircularByteBuffer:
+    """Memory-efficient circular buffer that keeps only the most recent bytes."""
+
+    def __init__(self, max_bytes: int) -> None:
+        if max_bytes <= 0:
+            raise ValueError("max_bytes must be positive")
+        self._max_bytes = max_bytes
+        self._chunks: deque[bytes] = deque()
+        self._total_bytes = 0
+
+    def write(self, data: bytes) -> None:
+        if not data:
+            return
+        self._chunks.append(data)
+        self._total_bytes += len(data)
+
+        # Discard oldest chunks until under limit
+        while self._total_bytes > self._max_bytes and len(self._chunks) > 1:
+            removed = self._chunks.popleft()
+            self._total_bytes -= len(removed)
+
+        # If single chunk still over limit, truncate from front
+        if self._total_bytes > self._max_bytes and self._chunks:
+            excess = self._total_bytes - self._max_bytes
+            self._chunks[0] = self._chunks[0][excess:]
+            self._total_bytes = self._max_bytes
+
+    def getvalue(self) -> bytes:
+        return b"".join(self._chunks)

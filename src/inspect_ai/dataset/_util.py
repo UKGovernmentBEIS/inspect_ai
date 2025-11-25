@@ -21,6 +21,12 @@ from ._dataset import (
 )
 
 
+def normalise_sample_id(id: str | int | None) -> str:
+    if isinstance(id, str) and id.isdigit():
+        id = int(id)
+    return id if isinstance(id, str) else str(id).zfill(20)
+
+
 # determine how we will go from file records to samples. if there is
 # no field spec, we assume the column names "input" and "target",
 # otherwise use the provided field spec or custom converter function
