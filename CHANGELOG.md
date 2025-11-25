@@ -1,3 +1,7 @@
+## Unreleased
+
+- Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
+
 ## 0.3.150 (25 November 2025)
 
 - Anthropic: Enable [interleaved-thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking) by default for Claude 4 models.
@@ -10,7 +14,6 @@
 - Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
 - Registry: Add `RegistryInfo` and `registry_info()` to the public API. 
 - Bugfix: Ensure that `prompt_cache_retention` is correctly forwarded by agent bridge to responses API.
-- Bugfix: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
 
 ## 0.3.149 (23 November 2025)
 
