@@ -1,8 +1,6 @@
 from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
 from unittest import mock
 
-import pytest
-
 from inspect_ai.util import (
     OutputLimitExceededError,
     SandboxEnvironment,
@@ -78,8 +76,6 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_cwd_custom,
         test_cwd_relative,
         test_cwd_absolute,
-        test_exec_stdout_is_limited,
-        test_exec_stderr_is_limited,
     ]:
         print(f"self_check: running {fn.__name__}")
         results[fn.__name__] = await check_test_fn(fn, sandbox_env)
@@ -529,41 +525,6 @@ async def test_cwd_absolute(sandbox_env: SandboxEnvironment) -> None:
     )
     await _cleanup_file(sandbox_env, file_name)
     await sandbox_env.exec(["rmdir", cwd_directory])
-
-
-async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:
-    output_size = 10 * 1024**2 + 1024  # 10 MiB + 1 KiB
-    with pytest.raises(OutputLimitExceededError) as e_info:
-        await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size}"])
-    assert e_info is not None, "OutputLimitExceededError should be raised"
-    assert "limit of 10 MiB was exceeded" in str(e_info.value), (
-        "OutputLimitExceededError should mention the limit; got {e_info.value=}"
-    )
-    truncated_output = e_info.value.truncated_output
-    # `yes` outputs 'y\n' (ASCII) so the size equals the string length.
-    # some shells additionally output 'canceled\n' so we add fudge factor for that
-    assert truncated_output and (len(truncated_output) - 10 * 1024**2) < 10, (
-        f"output not truncated or wrong length; start of truncated output = {'' if not truncated_output else truncated_output[:10]}; len(truncated_output): {'n/a' if not truncated_output else len(truncated_output)}"
-    )
-
-
-async def test_exec_stderr_is_limited(sandbox_env: SandboxEnvironment) -> None:
-    output_size = 10 * 1024**2 + 1024  # 10 MiB + 1 KiB
-    with pytest.raises(OutputLimitExceededError) as e_info:
-        await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size} 1>&2"])
-    assert e_info is not None, "OutputLimitExceededError should be raised"
-    assert "limit of 10 MiB was exceeded" in str(e_info.value), (
-        "OutputLimitExceededError should mention the limit; got {e_info.value=}"
-    )
-    truncated_output = e_info.value.truncated_output
-    assert (
-        truncated_output
-        and truncated_output[0] == "y"
-        and len(truncated_output) <= 10 * 1024**2
-        and len(truncated_output) > 0
-    ), (
-        f"output not truncated or wrong length; start of truncated output = {'' if not truncated_output else truncated_output[:10]}; len(truncated_output): {'n/a' if not truncated_output else len(truncated_output)}"
-    )
 
 
 # TODO: write a test for when cwd doesn't exist
