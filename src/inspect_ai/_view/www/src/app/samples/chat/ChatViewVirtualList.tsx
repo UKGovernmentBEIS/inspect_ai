@@ -18,6 +18,7 @@ import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import { ChatViewToolCallStyle } from "./types";
 
 import { ContextProp, ItemProps, VirtuosoHandle } from "react-virtuoso";
+import { useStore } from "../../../state/store";
 import { ChatView } from "./ChatView";
 import styles from "./ChatViewVirtualList.module.css";
 
@@ -54,8 +55,15 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     running,
     allowLinking = true,
   }) => {
-    const listHandle = useRef<VirtuosoHandle>(null);
+    // Support either virtualized or normal mode rendering based upon message count
     const useVirtuoso = running || messages.length > 200;
+    const listHandle = useRef<VirtuosoHandle>(null);
+
+    // Use native find support when possible
+    const setNativeFind = useStore((state) => state.appActions.setNativeFind);
+    useEffect(() => {
+      setNativeFind(!useVirtuoso);
+    }, [useVirtuoso]);
 
     useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {

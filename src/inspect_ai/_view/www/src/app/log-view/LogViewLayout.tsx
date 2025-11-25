@@ -19,6 +19,7 @@ export const LogViewLayout: FC = () => {
   // Find
   const showFind = useStore((state) => state.app.showFind);
   const setShowFind = useStore((state) => state.appActions.setShowFind);
+  const nativeFind = useStore((state) => state.app.nativeFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
   const singleFileMode = useStore((state) => state.app.singleFileMode);
 
@@ -38,6 +39,10 @@ export const LogViewLayout: FC = () => {
 
   // Global keydown handler for keyboard shortcuts
   useEffect(() => {
+    if (nativeFind) {
+      return;
+    }
+
     const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "f") {
         e.preventDefault(); // Always prevent browser find
@@ -56,7 +61,7 @@ export const LogViewLayout: FC = () => {
     return () => {
       document.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
-  }, [setShowFind, hideFind]);
+  }, [setShowFind, hideFind, nativeFind]);
 
   return (
     <ExtendedFindProvider>
