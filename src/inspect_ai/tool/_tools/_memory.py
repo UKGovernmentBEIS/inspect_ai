@@ -92,8 +92,8 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
         store = store_as(MemoryStore)
         if not store.seeding_complete:
             if initial_data:
-                for path, value in initial_data.items():
-                    _create(store, path, resource(value))
+                for seed_path, value in initial_data.items():
+                    _create(store, seed_path, resource(value))
             store.seeding_complete = True
 
         match command:
