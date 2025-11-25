@@ -3,6 +3,7 @@
 - Anthropic: Enable [interleaved-thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking) by default for Claude 4 models.
 - Anthropic: Smarter `max_tokens` handling to prevent exceeding model max tokens when reasoning tokens are specified. 
 - OpenAI: Limit reasoning summary capability probe to 1 request.
+- Google: Attach thought signature to first function call, even if a message also has text.
 - Grok: Correctly handle web_search tool intermixed with other tool types.
 - OpenRouter: Pass reasoning_effort = "none" through to models rather enabled=False.
 - Model API: Conversion functions for translating raw model input and output into Inspect types.
