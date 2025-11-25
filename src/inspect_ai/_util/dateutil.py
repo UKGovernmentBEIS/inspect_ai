@@ -1,3 +1,4 @@
+import sys
 from datetime import date, datetime, time, timedelta, timezone
 from logging import getLogger
 from pathlib import Path
@@ -16,6 +17,25 @@ def iso_now(
 
 
 logger = getLogger(__name__)
+
+
+def _normalize_iso_z_suffix(input: str) -> str:
+    """Normalize Z suffix in ISO format strings for Python 3.10 compatibility.
+
+    Python 3.10's fromisoformat() doesn't support Z suffix for UTC.
+    Python 3.11+ handles Z natively.
+
+    Args:
+        input: ISO format string (may end with Z or z)
+
+    Returns:
+        ISO format string with Z/z replaced by +00:00 (if Python < 3.11)
+    """
+    return (
+        input
+        if sys.version_info >= (3, 11) or not input.endswith(("Z", "z"))
+        else input[:-1] + "+00:00"
+    )
 
 
 def is_file_older_than(path: str | Path, delta: timedelta, *, default: bool) -> bool:
@@ -61,7 +81,9 @@ def datetime_from_iso_format_safe(
         Timezone-aware datetime object. If input has timezone, uses it; otherwise
         applies fallback_tz.
     """
-    return datetime_safe(datetime.fromisoformat(input), fallback_tz)
+    return datetime_safe(
+        datetime.fromisoformat(_normalize_iso_z_suffix(input)), fallback_tz
+    )
 
 
 def datetime_safe(dt: datetime, fallback_tz: timezone = timezone.utc) -> "UtcDatetime":
@@ -113,7 +135,7 @@ def _before_validate_utc_datetime(v: Any) -> Any:
 def _before_validate_utc_date(v: Any) -> Any:
     """Pre-validation coercion for UtcDate."""
     if isinstance(v, str):
-        return date.fromisoformat(v)
+        return date.fromisoformat(_normalize_iso_z_suffix(v))
     if isinstance(v, datetime):
         return v.date()
     if isinstance(v, date):
@@ -125,7 +147,7 @@ def _before_validate_utc_date(v: Any) -> Any:
 def _before_validate_utc_time(v: Any) -> Any:
     """Pre-validation coercion for UtcTime."""
     if isinstance(v, str):
-        return time.fromisoformat(v)
+        return time.fromisoformat(_normalize_iso_z_suffix(v))
     if isinstance(v, datetime):
         return v.timetz() if v.tzinfo else v.time()
     if isinstance(v, time):
