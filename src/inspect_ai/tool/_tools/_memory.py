@@ -22,6 +22,9 @@ class MemoryStore(StoreModel):
 def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
     """Memory tool for managing persistent information.
 
+    The description for the memory tool is based on the documentation for the Claude
+    [system prompt](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool#prompting-guidance) associated with the use of the memory tool.
+
     Args:
         initial_data: Optional dict mapping file paths to content for pre-seeding
             the memory store. Keys should be valid /memories paths (e.g.,
@@ -45,7 +48,17 @@ def memory(*, initial_data: dict[str, str] | None = None) -> Tool:
         old_path: str | None = None,
         new_path: str | None = None,
     ) -> str:
-        """Execute memory command.
+        """Memory tool for managing persistent information.
+
+        IMPORTANT: ALWAYS VIEW YOUR MEMORY DIRECTORY BEFORE DOING ANYTHING ELSE.
+
+        MEMORY PROTOCOL:
+        1. Use the `view` command of your `memory` tool to check for earlier progress.
+        2. ... (work on the task) ...
+            - As you make progress, record status / progress / thoughts etc in your memory.
+        ASSUME INTERRUPTION: Your context window might be reset at any moment, so you risk losing any progress that is not recorded in your memory directory.
+
+        Note: when editing your memory folder, always try to keep its content up-to-date, coherent and organized. You can rename or delete files that are no longer relevant. Do not create new files unless necessary.
 
         Args:
             command: Command to execute (view, create, str_replace, insert, delete,
