@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import markdownit from "markdown-it";
 import markdownitMathjax3 from "markdown-it-mathjax3";
-import { CSSProperties, forwardRef } from "react";
+import { CSSProperties, forwardRef, useEffect, useRef, useState } from "react";
 import "./MarkdownDiv.css";
 
 interface MarkdownDivProps {
@@ -13,60 +13,205 @@ interface MarkdownDivProps {
 
 export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
   ({ markdown, omitMedia, style, className }, ref) => {
-    // Protect backslashes in LaTeX expressions
-    const protectedContent = protectBackslashesInLatex(markdown);
+    // Initialize with escaped markdown text
+    const [renderedHtml, setRenderedHtml] = useState<string>(() => {
+      return markdown.replace(/\n/g, "<br/>");
+    });
+    const internalRef = useRef<HTMLDivElement>(null);
+    const divRef =
+      (typeof ref === "function" ? internalRef : ref) || internalRef;
 
-    // Escape all tags
-    const escaped = escapeHtmlCharacters(protectedContent);
+    useEffect(() => {
+      // Create cache key from markdown and options
+      const cacheKey = `${markdown}:${omitMedia}`;
 
-    // Pre-render any text that isn't handled by markdown
-    const preRendered = preRenderText(escaped);
-
-    const protectedText = protectMarkdown(preRendered);
-
-    // Restore backslashes for LaTeX processing
-    const preparedForMarkdown = restoreBackslashesForLatex(protectedText);
-
-    let renderedHtml = preparedForMarkdown;
-    try {
-      const md = markdownit({
-        breaks: true,
-        html: true,
-      });
-      if (omitMedia) {
-        md.disable(["image"]);
+      // Check cache first
+      const cached = renderCache.get(cacheKey);
+      if (cached) {
+        setRenderedHtml(cached);
+        return;
       }
 
-      // Add MathJax support
-      md.use(markdownitMathjax3);
+      // Reset to raw markdown text when markdown changes
+      setRenderedHtml(markdown.replace(/\n/g, "<br/>"));
 
-      renderedHtml = md.render(preparedForMarkdown);
-    } catch (ex) {
-      console.log("Unable to markdown render content");
-      console.error(ex);
-    }
+      // Process markdown asynchronously using the queue
+      const { promise, cancel } = renderQueue.enqueue(async () => {
+        // Protect backslashes in LaTeX expressions
+        const protectedContent = protectBackslashesInLatex(markdown);
 
-    const unescaped = unprotectMarkdown(renderedHtml);
+        // Escape all tags
+        const escaped = escapeHtmlCharacters(protectedContent);
 
-    // For `code` tags, reverse the escaping if we can
-    const withCode = unescapeCodeHtmlEntities(unescaped);
+        // Pre-render any text that isn't handled by markdown
+        const preRendered = preRenderText(escaped);
 
-    // For `sup` tags, reverse the escaping if we can
-    const withSup = unescapeSupHtmlEntities(withCode);
+        const protectedText = protectMarkdown(preRendered);
 
-    // Return the rendered markdown
-    const markup = { __html: withSup };
+        // Restore backslashes for LaTeX processing
+        const preparedForMarkdown = restoreBackslashesForLatex(protectedText);
+
+        let html = preparedForMarkdown;
+        try {
+          // Use pre-initialized markdown-it instance
+          const md = omitMedia ? mdInstanceNoMedia : mdInstance;
+          html = md.render(preparedForMarkdown);
+        } catch (ex) {
+          console.log("Unable to markdown render content");
+          console.error(ex);
+        }
+
+        const unescaped = unprotectMarkdown(html);
+
+        // For `code` tags, reverse the escaping if we can
+        const withCode = unescapeCodeHtmlEntities(unescaped);
+
+        // For `sup` tags, reverse the escaping if we can
+        const withSup = unescapeSupHtmlEntities(withCode);
+
+        return withSup;
+      });
+
+      // Update state when rendering completes
+      promise
+        .then((result) => {
+          if (renderCache.size >= MAX_CACHE_SIZE) {
+            // Purge oldest entry
+            const firstKey = renderCache.keys().next().value;
+            if (firstKey) {
+              renderCache.delete(firstKey);
+            }
+          }
+          renderCache.set(cacheKey, result);
+
+          setRenderedHtml(result);
+        })
+        .catch((error) => {
+          console.error("Markdown rendering error:", error);
+        });
+
+      return () => {
+        // Cancel rendering if component unmounts
+        cancel();
+      };
+    }, [markdown, omitMedia]);
 
     return (
       <div
-        ref={ref}
-        dangerouslySetInnerHTML={markup}
+        ref={divRef}
+        dangerouslySetInnerHTML={{ __html: renderedHtml }}
         style={style}
         className={clsx(className, "markdown-content")}
       />
     );
   },
 );
+
+// Cache for rendered markdown to avoid re-processing identical content
+const renderCache = new Map<string, string>();
+const MAX_CACHE_SIZE = 500;
+
+// Pre-initialize markdown-it instances
+const mdInstance = markdownit({ breaks: true, html: true }).use(
+  markdownitMathjax3,
+);
+const mdInstanceNoMedia = markdownit({ breaks: true, html: true })
+  .use(markdownitMathjax3)
+  .disable(["image"]);
+
+// Markdown rendering queue to make markdown rendering async while limiting concurrency
+interface QueueTask {
+  task: () => Promise<void>;
+  cancelled: boolean;
+}
+
+class MarkdownRenderQueue {
+  private queue: QueueTask[] = [];
+  private activeCount = 0;
+  private readonly maxConcurrent: number;
+
+  constructor(maxConcurrent: number = 10) {
+    this.maxConcurrent = maxConcurrent;
+  }
+
+  enqueue<T>(task: () => Promise<T>): {
+    promise: Promise<T>;
+    cancel: () => void;
+  } {
+    let cancelled = false;
+
+    const promise = new Promise<T>((resolve, reject) => {
+      const wrappedTask = async () => {
+        // Skip if cancelled before execution
+        if (cancelled) {
+          return;
+        }
+
+        try {
+          const result = await task();
+          if (!cancelled) {
+            resolve(result);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            reject(error);
+          }
+        }
+      };
+
+      const queueTask: QueueTask = {
+        task: wrappedTask,
+        cancelled: false,
+      };
+
+      this.queue.push(queueTask);
+      this.processQueue();
+    });
+
+    const cancel = () => {
+      cancelled = true;
+      // Mark task as cancelled in queue
+      const index = this.queue.findIndex((t) => !t.cancelled);
+      if (index !== -1) {
+        this.queue[index].cancelled = true;
+      }
+    };
+
+    return { promise, cancel };
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.activeCount >= this.maxConcurrent || this.queue.length === 0) {
+      return;
+    }
+
+    // Find next non-cancelled task
+    let queueTask: QueueTask | undefined;
+    while (this.queue.length > 0) {
+      const task = this.queue.shift();
+      if (task && !task.cancelled) {
+        queueTask = task;
+        break;
+      }
+    }
+
+    if (!queueTask) {
+      return;
+    }
+
+    this.activeCount++;
+
+    try {
+      await queueTask.task();
+    } finally {
+      this.activeCount--;
+      this.processQueue();
+    }
+  }
+}
+
+// Shared rendering queue
+const renderQueue = new MarkdownRenderQueue(10);
 
 const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
 const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
