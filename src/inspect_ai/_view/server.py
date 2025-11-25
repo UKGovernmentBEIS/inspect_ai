@@ -232,11 +232,7 @@ def view_server(
                 text=bytes.decode("utf-8"), content_type="application/yaml", status=200
             )
         else:
-            return web.Response(
-                status=404,
-                reason="Flow file not found",
-                content_type="application/yaml",
-            )
+            return web.Response(status=404, reason="Flow file not found")
 
     @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:

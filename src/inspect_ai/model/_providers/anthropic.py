@@ -288,6 +288,10 @@ class AnthropicAPI(ModelAPI):
             if len(mcp_servers_param) > 0:
                 betas.append("mcp-client-2025-04-04")
 
+            # beta param for interleaved thinking
+            if self.is_using_thinking(config) and self.is_claude_4():
+                betas.append("interleaved-thinking-2025-05-14")
+
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
             if any(
@@ -492,6 +496,13 @@ class AnthropicAPI(ModelAPI):
         max_tokens = cast(int, self.max_tokens())
         if self.is_thinking_model() and config.reasoning_tokens is not None:
             max_tokens = max_tokens + config.reasoning_tokens
+            # after bumping for reasoning, make sure we don't exceed model max tokens
+            if self.is_claude_4_opus():
+                max_tokens = min(max_tokens, 32000)
+            elif self.is_claude_3_7():
+                max_tokens = min(max_tokens, 128000)
+            else:
+                max_tokens = min(max_tokens, 64000)
         return max_tokens
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
@@ -517,6 +528,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_4(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4", self.service_model_name()) is not None
+
+    def is_claude_4_opus(self) -> bool:
+        return self.is_claude_4() and "opus" in self.service_model_name()
 
     def is_claude_4_5(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4-5", self.service_model_name()) is not None
@@ -1234,8 +1248,8 @@ _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
 
 
 async def model_output_from_message(
-    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
-    model: str,
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex | None,
+    model: str | None,
     message: Message,
     tools: list[ToolInfo],
 ) -> tuple[ModelOutput, bool]:
@@ -1246,11 +1260,12 @@ async def model_output_from_message(
 
     # count reasoning tokens
     reasoning_tokens = 0
-    for content_block in message.content:
-        if isinstance(content_block, ThinkingBlock):
-            reasoning_tokens += await count_tokens(
-                client, model, content_block.thinking
-            )
+    if client and model:
+        for content_block in message.content:
+            if isinstance(content_block, ThinkingBlock):
+                reasoning_tokens += await count_tokens(
+                    client, model, content_block.thinking
+                )
 
     # resolve choice
     stop_reason, pause_turn = message_stop_reason(message)

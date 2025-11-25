@@ -85,6 +85,7 @@ exclude = [
   "build",
   "(?:^|/)_resources/",
   "examples/bridge",
+  "examples/hooks",
   "src/inspect_tool_support",
   "src/inspect_sandbox_tools",
 ]

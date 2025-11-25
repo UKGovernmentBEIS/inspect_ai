@@ -1,7 +1,16 @@
 ## Unreleased
 
+- Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
+
+## 0.3.150 (25 November 2025)
+
+- Anthropic: Enable [interleaved-thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking) by default for Claude 4 models.
+- Anthropic: Smarter `max_tokens` handling to prevent exceeding model max tokens when reasoning tokens are specified. 
 - OpenAI: Limit reasoning summary capability probe to 1 request.
+- Google: Attach thought signature to first function call, even if a message also has text.
 - Grok: Correctly handle web_search tool intermixed with other tool types.
+- OpenRouter: Pass reasoning_effort = "none" through to models rather enabled=False.
+- Model API: Conversion functions for translating raw model input and output into Inspect types.
 - Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
 - Registry: Add `RegistryInfo` and `registry_info()` to the public API. 
 - Bugfix: Ensure that `prompt_cache_retention` is correctly forwarded by agent bridge to responses API.
