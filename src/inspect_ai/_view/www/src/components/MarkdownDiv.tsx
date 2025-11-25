@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import markdownit from "markdown-it";
 import markdownitMathjax3 from "markdown-it-mathjax3";
-import { CSSProperties, forwardRef, useEffect, useRef, useState } from "react";
+import { CSSProperties, forwardRef, memo, startTransition, useEffect, useState } from "react";
 import "./MarkdownDiv.css";
 
 interface MarkdownDivProps {
@@ -11,28 +11,33 @@ interface MarkdownDivProps {
   className?: string | string[];
 }
 
-export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
+const MarkdownDivComponent = forwardRef<HTMLDivElement, MarkdownDivProps>(
   ({ markdown, omitMedia, style, className }, ref) => {
-    // Initialize with escaped markdown text
+    // Check cache for rendered content
+    const cacheKey = `${markdown}:${omitMedia ? "1" : "0"}`;
+    const cachedHtml = renderCache.get(cacheKey);
+
+    // Initialize with content (cached or unrendered markdown)
     const [renderedHtml, setRenderedHtml] = useState<string>(() => {
+      if (cachedHtml) {
+        return cachedHtml;
+      }
       return markdown.replace(/\n/g, "<br/>");
     });
-    const internalRef = useRef<HTMLDivElement>(null);
-    const divRef =
-      (typeof ref === "function" ? internalRef : ref) || internalRef;
 
     useEffect(() => {
-      // Create cache key from markdown and options
-      const cacheKey = `${markdown}:${omitMedia}`;
-
-      // Check cache first
-      const cached = renderCache.get(cacheKey);
-      if (cached) {
-        setRenderedHtml(cached);
+      // If already cached, no need to re-render
+      if (cachedHtml) {
+        // Only update state if it's different (avoid unnecessary re-render)
+        if (renderedHtml !== cachedHtml) {
+          startTransition(() => {
+            setRenderedHtml(cachedHtml);
+          });
+        }
         return;
       }
 
-      // Reset to raw markdown text when markdown changes
+      // Reset to raw markdown text when markdown changes (keep this synchronous for immediate feedback)
       setRenderedHtml(markdown.replace(/\n/g, "<br/>"));
 
       // Process markdown asynchronously using the queue
@@ -75,8 +80,9 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
       // Update state when rendering completes
       promise
         .then((result) => {
+          // Update cache (with simple size limit)
           if (renderCache.size >= MAX_CACHE_SIZE) {
-            // Purge oldest entry
+            // Remove oldest entry (first key)
             const firstKey = renderCache.keys().next().value;
             if (firstKey) {
               renderCache.delete(firstKey);
@@ -84,7 +90,10 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
           }
           renderCache.set(cacheKey, result);
 
-          setRenderedHtml(result);
+          // Use startTransition to mark this as a non-urgent update
+          startTransition(() => {
+            setRenderedHtml(result);
+          });
         })
         .catch((error) => {
           console.error("Markdown rendering error:", error);
@@ -94,11 +103,11 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
         // Cancel rendering if component unmounts
         cancel();
       };
-    }, [markdown, omitMedia]);
+    }, [markdown, omitMedia, cachedHtml, renderedHtml]);
 
     return (
       <div
-        ref={divRef}
+        ref={ref}
         dangerouslySetInnerHTML={{ __html: renderedHtml }}
         style={style}
         className={clsx(className, "markdown-content")}
@@ -107,11 +116,14 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
   },
 );
 
+// Memoize component to prevent re-renders when props haven't changed
+export const MarkdownDiv = memo(MarkdownDivComponent);
+
 // Cache for rendered markdown to avoid re-processing identical content
 const renderCache = new Map<string, string>();
 const MAX_CACHE_SIZE = 500;
 
-// Pre-initialize markdown-it instances
+// Pre-initialize markdown-it instances to avoid recreation overhead
 const mdInstance = markdownit({ breaks: true, html: true }).use(
   markdownitMathjax3,
 );
