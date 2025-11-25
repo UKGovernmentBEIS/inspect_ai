@@ -1,7 +1,14 @@
 import clsx from "clsx";
 import markdownit from "markdown-it";
 import markdownitMathjax3 from "markdown-it-mathjax3";
-import { CSSProperties, forwardRef, memo, startTransition, useEffect, useState } from "react";
+import {
+  CSSProperties,
+  forwardRef,
+  memo,
+  startTransition,
+  useEffect,
+  useState,
+} from "react";
 import "./MarkdownDiv.css";
 
 interface MarkdownDivProps {
