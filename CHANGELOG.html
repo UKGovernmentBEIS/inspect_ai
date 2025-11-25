@@ -149,13 +149,13 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.149 (23 November 2025)</a></li>
-  <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.148 (21 November 2025)</a></li>
-  <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.147 (21 November 2025)</a></li>
-  <li><a href="#november-2025-3" id="toc-november-2025-3" class="nav-link" data-scroll-target="#november-2025-3">0.3.146 (15 November 2025)</a></li>
-  <li><a href="#november-2025-4" id="toc-november-2025-4" class="nav-link" data-scroll-target="#november-2025-4">0.3.145 (09 November 2025)</a></li>
-  <li><a href="#november-2025-5" id="toc-november-2025-5" class="nav-link" data-scroll-target="#november-2025-5">0.3.144 (05 November 2025)</a></li>
+  <li><a href="#november-2025" id="toc-november-2025" class="nav-link active" data-scroll-target="#november-2025">0.3.150 (25 November 2025)</a></li>
+  <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.149 (23 November 2025)</a></li>
+  <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.148 (21 November 2025)</a></li>
+  <li><a href="#november-2025-3" id="toc-november-2025-3" class="nav-link" data-scroll-target="#november-2025-3">0.3.147 (21 November 2025)</a></li>
+  <li><a href="#november-2025-4" id="toc-november-2025-4" class="nav-link" data-scroll-target="#november-2025-4">0.3.146 (15 November 2025)</a></li>
+  <li><a href="#november-2025-5" id="toc-november-2025-5" class="nav-link" data-scroll-target="#november-2025-5">0.3.145 (09 November 2025)</a></li>
+  <li><a href="#november-2025-6" id="toc-november-2025-6" class="nav-link" data-scroll-target="#november-2025-6">0.3.144 (05 November 2025)</a></li>
   <li><a href="#october-2025" id="toc-october-2025" class="nav-link" data-scroll-target="#october-2025">0.3.143 (29 October 2025)</a></li>
   <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.142 (27 October 2025)</a></li>
   <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.141 (27 October 2025)</a></li>
@@ -307,35 +307,37 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="november-2025" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025">0.3.150 (25 November 2025)</h2>
 <ul>
 <li>Anthropic: Enable <a href="https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking">interleaved-thinking</a> by default for Claude 4 models.</li>
 <li>Anthropic: Smarter <code>max_tokens</code> handling to prevent exceeding model max tokens when reasoning tokens are specified.</li>
 <li>OpenAI: Limit reasoning summary capability probe to 1 request.</li>
+<li>Google: Attach thought signature to first function call, even if a message also has text.</li>
 <li>Grok: Correctly handle web_search tool intermixed with other tool types.</li>
+<li>OpenRouter: Pass reasoning_effort = “none” through to models rather enabled=False.</li>
 <li>Model API: Conversion functions for translating raw model input and output into Inspect types.</li>
 <li>Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.</li>
 <li>Registry: Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#registryinfo">RegistryInfo</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#registry_info">registry_info()</a></span> to the public API.</li>
 <li>Bugfix: Ensure that <code>prompt_cache_retention</code> is correctly forwarded by agent bridge to responses API.</li>
 </ul>
 </section>
-<section id="november-2025" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025">0.3.149 (23 November 2025)</h2>
+<section id="november-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-1">0.3.149 (23 November 2025)</h2>
 <ul>
 <li>Inspect View: Truncate display of large sample summary fields to improve performance.</li>
 <li>Inspect View: Fix regression in displaying S3 log files in VS Code.</li>
 <li>Bugfix: Truncate large target fields in sample summaries.</li>
 </ul>
 </section>
-<section id="november-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-1">0.3.148 (21 November 2025)</h2>
+<section id="november-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-2">0.3.148 (21 November 2025)</h2>
 <ul>
 <li>Bugfix: Fix Google provider serialization of thought signatures on replay.</li>
 </ul>
 </section>
-<section id="november-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-2">0.3.147 (21 November 2025)</h2>
+<section id="november-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-3">0.3.147 (21 November 2025)</h2>
 <ul>
 <li>Google: Support for <code>--reasoning-effort</code> on Gemini 3.0 models.</li>
 <li>Anthropic: Support for <a href="https://inspect.aisi.org.uk/structured.html">Structured Output</a> for Sonnet 4.5 and Opus 4.1.</li>
@@ -350,8 +352,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Correctly handle distinguishing eval set tasks based on <code>solver</code> passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>.</li>
 </ul>
 </section>
-<section id="november-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-3">0.3.146 (15 November 2025)</h2>
+<section id="november-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-4">0.3.146 (15 November 2025)</h2>
 <ul>
 <li>Added <code>cache</code> configuration to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> (formerly was only available as a parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>).</li>
 <li>ReAct agent: <code>on_continue</code> can now return a new <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span>.</li>
@@ -364,8 +366,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix model name preservation in eval logs for service-prefixed models.</li>
 </ul>
 </section>
-<section id="november-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-4">0.3.145 (09 November 2025)</h2>
+<section id="november-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-5">0.3.145 (09 November 2025)</h2>
 <ul>
 <li>OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).</li>
 <li>OpenAI: Support for <code>logprobs</code> and <code>top_logprobs</code> in Responses API (note that logprobs are not supported for reasoning models).</li>
@@ -377,8 +379,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Properly handle <code>content</code> of type <code>str</code> in Responses API agent bridge.</li>
 </ul>
 </section>
-<section id="november-2025-5" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-5">0.3.144 (05 November 2025)</h2>
+<section id="november-2025-6" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-6">0.3.144 (05 November 2025)</h2>
 <ul>
 <li>Eval Set: Task identifiers can now vary on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> and <code>solver</code> (which enables sweeping over these variables).</li>
 <li>Eval Logs: Don’t resolve attachments within <code>ModelEvent.call</code> by default, which prevents O(N) memory footprint for reading transcripts.</li>

@@ -2334,53 +2334,53 @@
     "href": "CHANGELOG.html",
     "title": "Inspect",
     "section": "",
-    "text": "Anthropic: Enable interleaved-thinking by default for Claude 4 models.\nAnthropic: Smarter max_tokens handling to prevent exceeding model max tokens when reasoning tokens are specified.\nOpenAI: Limit reasoning summary capability probe to 1 request.\nGrok: Correctly handle web_search tool intermixed with other tool types.\nModel API: Conversion functions for translating raw model input and output into Inspect types.\nHooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.\nRegistry: Add RegistryInfo and registry_info() to the public API.\nBugfix: Ensure that prompt_cache_retention is correctly forwarded by agent bridge to responses API."
-  },
-  {
-    "objectID": "CHANGELOG.html#unreleased",
-    "href": "CHANGELOG.html#unreleased",
-    "title": "Inspect",
-    "section": "",
-    "text": "Anthropic: Enable interleaved-thinking by default for Claude 4 models.\nAnthropic: Smarter max_tokens handling to prevent exceeding model max tokens when reasoning tokens are specified.\nOpenAI: Limit reasoning summary capability probe to 1 request.\nGrok: Correctly handle web_search tool intermixed with other tool types.\nModel API: Conversion functions for translating raw model input and output into Inspect types.\nHooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.\nRegistry: Add RegistryInfo and registry_info() to the public API.\nBugfix: Ensure that prompt_cache_retention is correctly forwarded by agent bridge to responses API."
+    "text": "Anthropic: Enable interleaved-thinking by default for Claude 4 models.\nAnthropic: Smarter max_tokens handling to prevent exceeding model max tokens when reasoning tokens are specified.\nOpenAI: Limit reasoning summary capability probe to 1 request.\nGoogle: Attach thought signature to first function call, even if a message also has text.\nGrok: Correctly handle web_search tool intermixed with other tool types.\nOpenRouter: Pass reasoning_effort = “none” through to models rather enabled=False.\nModel API: Conversion functions for translating raw model input and output into Inspect types.\nHooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.\nRegistry: Add RegistryInfo and registry_info() to the public API.\nBugfix: Ensure that prompt_cache_retention is correctly forwarded by agent bridge to responses API."
   },
   {
     "objectID": "CHANGELOG.html#november-2025",
     "href": "CHANGELOG.html#november-2025",
     "title": "Inspect",
-    "section": "0.3.149 (23 November 2025)",
-    "text": "0.3.149 (23 November 2025)\n\nInspect View: Truncate display of large sample summary fields to improve performance.\nInspect View: Fix regression in displaying S3 log files in VS Code.\nBugfix: Truncate large target fields in sample summaries."
+    "section": "",
+    "text": "Anthropic: Enable interleaved-thinking by default for Claude 4 models.\nAnthropic: Smarter max_tokens handling to prevent exceeding model max tokens when reasoning tokens are specified.\nOpenAI: Limit reasoning summary capability probe to 1 request.\nGoogle: Attach thought signature to first function call, even if a message also has text.\nGrok: Correctly handle web_search tool intermixed with other tool types.\nOpenRouter: Pass reasoning_effort = “none” through to models rather enabled=False.\nModel API: Conversion functions for translating raw model input and output into Inspect types.\nHooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.\nRegistry: Add RegistryInfo and registry_info() to the public API.\nBugfix: Ensure that prompt_cache_retention is correctly forwarded by agent bridge to responses API."
   },
   {
     "objectID": "CHANGELOG.html#november-2025-1",
     "href": "CHANGELOG.html#november-2025-1",
     "title": "Inspect",
-    "section": "0.3.148 (21 November 2025)",
-    "text": "0.3.148 (21 November 2025)\n\nBugfix: Fix Google provider serialization of thought signatures on replay."
+    "section": "0.3.149 (23 November 2025)",
+    "text": "0.3.149 (23 November 2025)\n\nInspect View: Truncate display of large sample summary fields to improve performance.\nInspect View: Fix regression in displaying S3 log files in VS Code.\nBugfix: Truncate large target fields in sample summaries."
   },
   {
     "objectID": "CHANGELOG.html#november-2025-2",
     "href": "CHANGELOG.html#november-2025-2",
     "title": "Inspect",
-    "section": "0.3.147 (21 November 2025)",
-    "text": "0.3.147 (21 November 2025)\n\nGoogle: Support for --reasoning-effort on Gemini 3.0 models.\nAnthropic: Support for Structured Output for Sonnet 4.5 and Opus 4.1.\nAnthropic: Don’t insert “(no content)” when replaying empty assistant messages with tool calls.\nOpenAI: Don’t remove consecutive reasoning blocks (earlier versions of the API would give 400 errors, this no longer occurs).\nOpenAI: Add prompt_cache_retention custom model arg (bump required version of openai package to v2.8.0).\nEval Set: Task identifiers can now vary on model_args (which enables sweeping over these variables).\nEval Logs: Compatibility with Hugging Face filesystem (hf://).\nEval Logs: Don’t forward credentials when using aioboto3 with S3 (was preventing use of AWS credential chain).\nInspect View: Streaming for log bytes requests in fastapi view server.\nBugfix: Fix incorrect approver behavior with multiple tool calls\nBugfix: Correctly handle distinguishing eval set tasks based on solver passed to eval_set()."
+    "section": "0.3.148 (21 November 2025)",
+    "text": "0.3.148 (21 November 2025)\n\nBugfix: Fix Google provider serialization of thought signatures on replay."
   },
   {
     "objectID": "CHANGELOG.html#november-2025-3",
     "href": "CHANGELOG.html#november-2025-3",
     "title": "Inspect",
-    "section": "0.3.146 (15 November 2025)",
-    "text": "0.3.146 (15 November 2025)\n\nAdded cache configuration to GenerateConfig (formerly was only available as a parameter to generate()).\nReAct agent: on_continue can now return a new AgentState.\nOpenAI: Retries for APIConnectionError.\nOpenAI: Support for reasoning_effort=\"none\" (now available with gpt-5.1).\nGrok: Retries for 520 (UNKNOWN) errors.\nBugfix: Properly load scorer metrics when using solver scoring.\nBugfix: Properly handle None as value of arguments when parsing tool calls.\nBugfix: Fix sandbox tools install for sandbox envs with non-root default user.\nBugfix: Fix model name preservation in eval logs for service-prefixed models."
+    "section": "0.3.147 (21 November 2025)",
+    "text": "0.3.147 (21 November 2025)\n\nGoogle: Support for --reasoning-effort on Gemini 3.0 models.\nAnthropic: Support for Structured Output for Sonnet 4.5 and Opus 4.1.\nAnthropic: Don’t insert “(no content)” when replaying empty assistant messages with tool calls.\nOpenAI: Don’t remove consecutive reasoning blocks (earlier versions of the API would give 400 errors, this no longer occurs).\nOpenAI: Add prompt_cache_retention custom model arg (bump required version of openai package to v2.8.0).\nEval Set: Task identifiers can now vary on model_args (which enables sweeping over these variables).\nEval Logs: Compatibility with Hugging Face filesystem (hf://).\nEval Logs: Don’t forward credentials when using aioboto3 with S3 (was preventing use of AWS credential chain).\nInspect View: Streaming for log bytes requests in fastapi view server.\nBugfix: Fix incorrect approver behavior with multiple tool calls\nBugfix: Correctly handle distinguishing eval set tasks based on solver passed to eval_set()."
   },
   {
     "objectID": "CHANGELOG.html#november-2025-4",
     "href": "CHANGELOG.html#november-2025-4",
     "title": "Inspect",
-    "section": "0.3.145 (09 November 2025)",
-    "text": "0.3.145 (09 November 2025)\n\nOpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).\nOpenAI: Support for logprobs and top_logprobs in Responses API (note that logprobs are not supported for reasoning models).\nGrok: Updated provider implementation using xai_sdk package (rather than using OpenAI compatible endpoint).\nGrok: Support for server-side web_search() tool.\nGrok: Support for generating structured outputs (outputs constrained by JSON Schema).\nOpenRouter: Add reasoning_enabled model arg to optionally disable reasoning for hybrid models.\nEval Set: Enable optional explicit specification of eval_set_id\nBugfix: Properly handle content of type str in Responses API agent bridge."
+    "section": "0.3.146 (15 November 2025)",
+    "text": "0.3.146 (15 November 2025)\n\nAdded cache configuration to GenerateConfig (formerly was only available as a parameter to generate()).\nReAct agent: on_continue can now return a new AgentState.\nOpenAI: Retries for APIConnectionError.\nOpenAI: Support for reasoning_effort=\"none\" (now available with gpt-5.1).\nGrok: Retries for 520 (UNKNOWN) errors.\nBugfix: Properly load scorer metrics when using solver scoring.\nBugfix: Properly handle None as value of arguments when parsing tool calls.\nBugfix: Fix sandbox tools install for sandbox envs with non-root default user.\nBugfix: Fix model name preservation in eval logs for service-prefixed models."
   },
   {
     "objectID": "CHANGELOG.html#november-2025-5",
     "href": "CHANGELOG.html#november-2025-5",
+    "title": "Inspect",
+    "section": "0.3.145 (09 November 2025)",
+    "text": "0.3.145 (09 November 2025)\n\nOpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).\nOpenAI: Support for logprobs and top_logprobs in Responses API (note that logprobs are not supported for reasoning models).\nGrok: Updated provider implementation using xai_sdk package (rather than using OpenAI compatible endpoint).\nGrok: Support for server-side web_search() tool.\nGrok: Support for generating structured outputs (outputs constrained by JSON Schema).\nOpenRouter: Add reasoning_enabled model arg to optionally disable reasoning for hybrid models.\nEval Set: Enable optional explicit specification of eval_set_id\nBugfix: Properly handle content of type str in Responses API agent bridge."
+  },
+  {
+    "objectID": "CHANGELOG.html#november-2025-6",
+    "href": "CHANGELOG.html#november-2025-6",
     "title": "Inspect",
     "section": "0.3.144 (05 November 2025)",
     "text": "0.3.144 (05 November 2025)\n\nEval Set: Task identifiers can now vary on GenerateConfig and solver (which enables sweeping over these variables).\nEval Logs: Don’t resolve attachments within ModelEvent.call by default, which prevents O(N) memory footprint for reading transcripts.\nOpenAI: Update for typing change to ResponseOutputText in v2.7.0 of openai package.\nGrok: Correct handling of reasoning_effort parameter (only supported by grok-3-mini and only low and highvalues are supported).\nInspect View: Fixed theming issue with the score selector control in VS Code.\nInspect View: Improve display of grouped metrics\nInspect View: Don’t render markdown images in the sample list input, target, or answer.\nInspect View: Add Copy UUID button to sample toolbar.\nInspect View: Add new samples view which displays a grid of all samples within a given folder of tasks (recursively).\nInspect View: Invalidate client side caches for updates to statically deployed versions of the viewer.\nInspect View: Fix flash of error that can occur when viewing folders with no eval-set info in statically deployed versions of the viewer."
