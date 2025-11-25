@@ -122,7 +122,7 @@ def test_normalize_config_empty_dict_options() -> None:
 @pytest.mark.parametrize("provider", ["openai", "anthropic", "google", "grok", "bash"])
 def test_normalize_config_disable_each_provider(provider: str) -> None:
     """Test that each provider can be individually disabled."""
-    result = _normalize_config({provider: False})
+    result = _normalize_config({provider: False})  # type: ignore[arg-type, misc]
 
     assert provider not in result
     all_providers = {"openai", "anthropic", "google", "grok", "bash"}
