@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
+- Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
 
 ## 0.3.150 (25 November 2025)
 
