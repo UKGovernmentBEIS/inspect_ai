@@ -12,6 +12,7 @@ export interface AppSlice {
     setLoading: (loading: boolean, error?: Error) => void;
     setShowFind: (show: boolean) => void;
     hideFind: () => void;
+    setNativeFind: (nativeFind: boolean) => void;
 
     setShowingSampleDialog: (showing: boolean) => void;
     setShowingTranscriptFilterDialog: (showing: boolean) => void;
@@ -140,6 +141,10 @@ export const createAppSlice = (
           state.app.showFind = false;
         });
       },
+      setNativeFind: (nativeFind: boolean) =>
+        set((state) => {
+          state.app.nativeFind = nativeFind;
+        }),
       setShowingSampleDialog: (showing: boolean) => {
         const state = get();
         const isShowing = state.app.dialogs.sample;

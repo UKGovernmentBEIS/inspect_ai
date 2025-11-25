@@ -224,6 +224,9 @@ export const EventPanel: FC<EventPanelProps> = ({
         {filteredArrChildren?.map((child, index) => {
           const id = pillId(index);
           const isSelected = id === selectedNav;
+          if (!isSelected) {
+            return null;
+          }
 
           return (
             <div
