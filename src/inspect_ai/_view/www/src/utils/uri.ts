@@ -1,6 +1,6 @@
 export const directoryRelativeUrl = (file: string, dir?: string): string => {
   if (!dir) {
-    return encodeURIComponent(file);
+    return uriEncodePathSegments(file);
   }
 
   // Normalize paths to ensure consistent directory separators
@@ -27,8 +27,13 @@ export const directoryRelativeUrl = (file: string, dir?: string): string => {
     return encodedSegments.join("/");
   }
 
-  // If path can't be made relative, return undefined
-  return encodeURIComponent(file);
+  return uriEncodePathSegments(normalizedFile);
+};
+
+const uriEncodePathSegments = (path: string): string => {
+  // encode each path segment separately
+  const segments = path.split("/");
+  return segments.map((segment) => encodeURIComponent(segment)).join("/");
 };
 
 export const join = (file: string, dir?: string): string => {
@@ -39,6 +44,11 @@ export const join = (file: string, dir?: string): string => {
   // Normalize paths to ensure consistent directory separators
   const normalizedFile = file.replace(/\\/g, "/");
   const normalizedLogDir = dir.replace(/\\/g, "/");
+
+  // If file already contains path separators, treat it as a complete path
+  if (normalizedFile.includes("/")) {
+    return normalizedFile;
+  }
 
   // Ensure log_dir ends with a trailing slash
   const dirWithSlash = normalizedLogDir.endsWith("/")
