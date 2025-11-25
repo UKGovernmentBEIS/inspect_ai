@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.150 (25 November 2025)
 
 - Anthropic: Enable [interleaved-thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking) by default for Claude 4 models.
 - Anthropic: Smarter `max_tokens` handling to prevent exceeding model max tokens when reasoning tokens are specified. 
