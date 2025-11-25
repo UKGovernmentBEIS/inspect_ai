@@ -18,6 +18,7 @@ import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import { ChatViewToolCallStyle } from "./types";
 
 import { ContextProp, ItemProps, VirtuosoHandle } from "react-virtuoso";
+import { ChatView } from "./ChatView";
 import styles from "./ChatViewVirtualList.module.css";
 
 interface ChatViewVirtualListProps {
@@ -54,28 +55,40 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     allowLinking = true,
   }) => {
     const listHandle = useRef<VirtuosoHandle>(null);
+    const useVirtuoso = running || messages.length > 200;
 
     useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
         if (event.metaKey || event.ctrlKey) {
           if (event.key === "ArrowUp") {
-            listHandle.current?.scrollToIndex({ index: 0, align: "center" });
+            if (useVirtuoso) {
+              listHandle.current?.scrollToIndex({ index: 0, align: "center" });
+            } else {
+              scrollRef?.current?.scrollTo({ top: 0, behavior: "instant" });
+            }
             event.preventDefault();
           } else if (event.key === "ArrowDown") {
-            listHandle.current?.scrollToIndex({
-              index: Math.min(messages.length - 5, 0),
-              align: "center",
-            });
-
-            // This is needed to allow measurement to complete before finding
-            // the last item to scroll to it properly. The timing isn't magical sadly
-            // it is just a heuristic.
-            setTimeout(() => {
+            if (useVirtuoso) {
               listHandle.current?.scrollToIndex({
-                index: messages.length - 1,
-                align: "end",
+                index: Math.min(messages.length - 5, 0),
+                align: "center",
               });
-            }, 250);
+
+              // This is needed to allow measurement to complete before finding
+              // the last item to scroll to it properly. The timing isn't magical sadly
+              // it is just a heuristic.
+              setTimeout(() => {
+                listHandle.current?.scrollToIndex({
+                  index: messages.length - 1,
+                  align: "end",
+                });
+              }, 250);
+            } else {
+              scrollRef?.current?.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: "instant",
+              });
+            }
             event.preventDefault();
           }
         }
@@ -95,22 +108,36 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
       }
     }, [scrollRef, messages]);
 
-    return (
-      <ChatViewVirtualListComponent
-        id={id}
-        listHandle={listHandle}
-        className={className}
-        scrollRef={scrollRef}
-        messages={messages}
-        initialMessageId={initialMessageId}
-        topOffset={topOffset}
-        toolCallStyle={toolCallStyle}
-        indented={indented}
-        numbered={numbered}
-        running={running}
-        allowLinking={allowLinking}
-      />
-    );
+    if (!useVirtuoso) {
+      return (
+        <ChatView
+          id={id}
+          messages={messages}
+          allowLinking={allowLinking}
+          indented={indented}
+          numbered={numbered}
+          toolCallStyle={toolCallStyle}
+          className={className}
+        />
+      );
+    } else {
+      return (
+        <ChatViewVirtualListComponent
+          id={id}
+          listHandle={listHandle}
+          className={className}
+          scrollRef={scrollRef}
+          messages={messages}
+          initialMessageId={initialMessageId}
+          topOffset={topOffset}
+          toolCallStyle={toolCallStyle}
+          indented={indented}
+          numbered={numbered}
+          running={running}
+          allowLinking={allowLinking}
+        />
+      );
+    }
   },
 );
 

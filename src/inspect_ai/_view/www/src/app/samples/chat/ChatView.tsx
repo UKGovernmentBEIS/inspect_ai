@@ -52,6 +52,7 @@ export const ChatView: FC<ChatViewProps> = ({
             indented={indented}
             toolCallStyle={toolCallStyle}
             allowLinking={allowLinking}
+            highlightUserMessage={true}
           />
         );
       })}
