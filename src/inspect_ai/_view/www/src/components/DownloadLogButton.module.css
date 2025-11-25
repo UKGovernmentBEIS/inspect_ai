@@ -4,6 +4,7 @@
   opacity: 0.75;
   padding-top: 0;
   transition: opacity 0.2s;
+  padding-left: 0;
 }
 
 .downloadLogButton:hover {
