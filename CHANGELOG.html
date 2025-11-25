@@ -149,7 +149,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#november-2025" id="toc-november-2025" class="nav-link active" data-scroll-target="#november-2025">0.3.150 (25 November 2025)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.150 (25 November 2025)</a></li>
   <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.149 (23 November 2025)</a></li>
   <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.148 (21 November 2025)</a></li>
   <li><a href="#november-2025-3" id="toc-november-2025-3" class="nav-link" data-scroll-target="#november-2025-3">0.3.147 (21 November 2025)</a></li>
@@ -307,6 +308,15 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Memory tool: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool and bound it to native definitions for providers that support it (currently only Anthropic).</li>
+<li>Sandboxes: For “local” and “docker” sandbox providers, treat <code>output_limit</code> as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).</li>
+<li>Dependencies: Move from unmaintained <code>nest_asyncio</code>, which is fundamentally incompatible with Python 3.14, to <code>nest_asyncio2</code>, which has explicit 3.14 compatibility.</li>
+<li>Bugfix: Correct normalization of sample id for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span> with JSON log files.</li>
+</ul>
+</section>
 <section id="november-2025" class="level2">
 <h2 class="anchored" data-anchor-id="november-2025">0.3.150 (25 November 2025)</h2>
 <ul>

@@ -19,6 +19,9 @@ Inspect has several standard tools built-in, including:
 - [Text Editor](tools-standard.qmd#sec-text-editor) which enables
   viewing, creating and editing text files.
 
+- [Memory](tools-standard.qmd#sec-memory) which enables storing and
+  retrieving information through a memory file directory.
+
 - [Web Browser](tools-standard.qmd#sec-web-browser), which provides the
   model with a headless Chromium web browser that supports navigation,
   history, and mouse/keyboard interactions.
@@ -368,6 +371,75 @@ type](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-t
 The `text_editor()` works with all models that support tool calling, but
 when using Claude, the text editor tool will automatically bind to the
 native Claude tool definition.
+
+## Memory
+
+> [!NOTE]
+>
+> The memory tool described below is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The memory tool enables models to store and retrieve information into a
+`/memories` file directory. Models can create, read, update, and delete
+files, enabling them to preserve knowledge over time without keeping
+everything in the context window.
+
+### Task Setup
+
+A task configured to use the memory tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash, memory
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=180), memory()]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+### Seeding Memories
+
+You can seed the memories from sample data by passing `initial_data` to
+the `memory()` tool. For example:
+
+``` python
+memory(
+    initial_data = {
+        "/memories/notes.md": "<text or file path>",
+        "/memories/theories.md": "<text or file path>"
+    }
+)
+```
+
+Keys should be valid `/memories` paths (e.g. “/memories/notes.md”).
+Values are resolved via `resource()`, supporting inline strings, file
+paths, or remote resources (s3://, https://). Seeding happens once on
+first tool execution. The model is prompted to read any pre-seeded
+memories before beginning work.
+
+### Tool Binding
+
+The schema for the `memory()` tool is based on the standard Anthropic
+[memory tool
+type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool).
+The `memory()` works with all models that support tool calling, but when
+using Claude, the text editor tool will automatically bind to the native
+Claude tool definition.
 
 ## Web Browser
 

@@ -653,8 +653,8 @@ that do most of the heavy lifting:
     describe this function in more detail below.
 
 ``` python
-from dataset import read_dataset
 from inspect_ai import Task, task
+from inspect_ai.scorer import includes
 
 @task
 def intercode_ctf(attempts=3, message_limit=30, shuffle=False):
@@ -674,7 +674,7 @@ Here is the definition of the agent:
 
 ``` python
 from textwrap import dedent
-from inspect_ai.agent import react
+from inspect_ai.agent import react, agent
 from inspect_ai.tool import bash, python
 
 @agent
@@ -691,7 +691,7 @@ def ctf_agent(attempts=3):
     """)
 
     return react(
-        prompt=SYSTEM_MESSAGE,
+        prompt=PROMPT,
         tools=[bash(timeout=180), python(timeout=180)],
         attempts=attempts,
     )
