@@ -223,7 +223,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             }, 1250);
           }
         },
-        Messages: () => {
+        Transcript: () => {
           if (sample?.messages) {
             navigator.clipboard.writeText(messagesToStr(sample.messages));
             setIcon(ApplicationIcons.confirm);
