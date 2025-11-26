@@ -113,8 +113,13 @@ export const SamplesPanel: FC = () => {
       <LogListFooter
         id={"samples-list-footer"}
         itemCount={filteredSamplesCount ?? 0}
+        itemCountLabel={filteredSamplesCount === 1 ? "sample" : "samples"}
         paginated={false}
-        progressText={syncing ? "Syncing..." : undefined}
+        progressText={
+          syncing
+            ? `Syncing${filteredSamplesCount ? ` (${filteredSamplesCount.toLocaleString()} samples)` : ""}`
+            : undefined
+        }
         progressBar={
           totalTaskCount !== completedTaskCount ? (
             <ProgressBar
