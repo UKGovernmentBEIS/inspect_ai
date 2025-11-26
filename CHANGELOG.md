@@ -6,6 +6,7 @@
 - Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
 - Inspect View: Improve markdown rendering performance.
 - Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.
+- Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
 
 ## 0.3.150 (25 November 2025)
 
