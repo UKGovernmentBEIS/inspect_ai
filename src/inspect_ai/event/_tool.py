@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Literal
 
 from pydantic import ConfigDict, Field, JsonValue, field_serializer
 
+from inspect_ai._util.dateutil import UtcDatetime, datetime_to_iso_format_safe
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 
@@ -48,7 +49,7 @@ class ToolEvent(BaseEvent):
     compatibility with transcripts that have sub-events.
     """
 
-    completed: datetime | None = Field(default=None)
+    completed: UtcDatetime | None = Field(default=None)
     """Time that tool call completed (see `timestamp` for started)"""
 
     working_time: float | None = Field(default=None)
@@ -77,7 +78,7 @@ class ToolEvent(BaseEvent):
         self.truncated = truncated
         self.error = error
         self.pending = None
-        completed = datetime.now()
+        completed = datetime.now(timezone.utc)
         self.completed = completed
         self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
         self.agent = agent
@@ -114,4 +115,4 @@ class ToolEvent(BaseEvent):
     def serialize_completed(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
-        return dt.astimezone().isoformat()
+        return datetime_to_iso_format_safe(dt)

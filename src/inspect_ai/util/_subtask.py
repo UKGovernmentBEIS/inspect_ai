@@ -1,5 +1,5 @@
 import inspect
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from logging import getLogger
 from typing import (
@@ -135,7 +135,7 @@ def subtask(
                         result = await func(*args, **kwargs)
 
                         # time accounting
-                        completed = datetime.now()
+                        completed = datetime.now(timezone.utc)
                         waiting_time_end = sample_waiting_time()
                         event.completed = completed
                         event.working_time = (

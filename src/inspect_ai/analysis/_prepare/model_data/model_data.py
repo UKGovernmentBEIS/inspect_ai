@@ -1,17 +1,18 @@
-from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from inspect_ai._util.dateutil import UtcDate
+
 
 class BaseModelDefinition(BaseModel):
     """Base model definition with common fields"""
 
     display_name: Optional[str] = None
-    release_date: Optional[date] = None
-    knowledge_cutoff_date: Optional[date] = None
+    release_date: Optional[UtcDate] = None
+    knowledge_cutoff_date: Optional[UtcDate] = None
     context_length: Optional[float] = None
     output_tokens: Optional[float] = None
     reasoning: Optional[bool] = None
@@ -82,10 +83,10 @@ class ModelInfo(BaseModel):
     snapshot: str | None = None
     """A snapshot (version) string, if available (e.g. “latest” or “20240229”).."""
 
-    release_date: date | None = None
+    release_date: UtcDate | None = None
     """The mode's release date."""
 
-    knowledge_cutoff_date: date | None = None
+    knowledge_cutoff_date: UtcDate | None = None
     context_length: float | None = None
     output_tokens: float | None = None
 
