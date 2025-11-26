@@ -68,6 +68,7 @@ from anthropic.types.beta import (
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
     BetaMCPToolUseBlockParam,
+    BetaMemoryTool20250818Param,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
     BetaRequestMCPToolResultBlockParam,
@@ -288,6 +289,10 @@ class AnthropicAPI(ModelAPI):
             if len(mcp_servers_param) > 0:
                 betas.append("mcp-client-2025-04-04")
 
+            # beta param for interleaved thinking
+            if self.is_using_thinking(config) and self.is_claude_4():
+                betas.append("interleaved-thinking-2025-05-14")
+
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
             if any(
@@ -300,6 +305,8 @@ class AnthropicAPI(ModelAPI):
                 betas.append("computer-use-2025-01-24")
             if any("20241022" in str(tool.get("type", "")) for tool in tools_param):
                 betas.append("computer-use-2024-10-22")
+            if any(tool.get("type", None) == "memory_20250818" for tool in tools_param):
+                betas.append("context-management-2025-06-27")
             if len(betas) > 0:
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
@@ -492,6 +499,13 @@ class AnthropicAPI(ModelAPI):
         max_tokens = cast(int, self.max_tokens())
         if self.is_thinking_model() and config.reasoning_tokens is not None:
             max_tokens = max_tokens + config.reasoning_tokens
+            # after bumping for reasoning, make sure we don't exceed model max tokens
+            if self.is_claude_4_opus():
+                max_tokens = min(max_tokens, 32000)
+            elif self.is_claude_3_7():
+                max_tokens = min(max_tokens, 128000)
+            else:
+                max_tokens = min(max_tokens, 64000)
         return max_tokens
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
@@ -517,6 +531,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_4(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4", self.service_model_name()) is not None
+
+    def is_claude_4_opus(self) -> bool:
+        return self.is_claude_4() and "opus" in self.service_model_name()
 
     def is_claude_4_5(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4-5", self.service_model_name()) is not None
@@ -765,6 +782,7 @@ class AnthropicAPI(ModelAPI):
                 self.computer_use_tool_param(tool)
                 or self.text_editor_tool_param(tool)
                 or self.web_search_tool_param(tool)
+                or self.memory_tool_param(tool)
             )
             if config.internal_tools is not False
             else None
@@ -874,6 +892,36 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
+    def memory_tool_param(self, tool: ToolInfo) -> BetaMemoryTool20250818Param | None:
+        # check for compatible 'memory' tool
+        if tool.name == "memory" and (
+            sorted(tool.parameters.properties.keys())
+            == sorted(
+                [
+                    "command",
+                    "file_text",
+                    "insert_line",
+                    "insert_text",
+                    "new_path",
+                    "new_str",
+                    "old_path",
+                    "old_str",
+                    "path",
+                    "view_range",
+                ]
+            )
+        ):
+            # memory tool supported on Claude 4+ models
+            if _supports_memory(self.model_name):
+                return BetaMemoryTool20250818Param(
+                    type="memory_20250818",
+                    name="memory",
+                )
+            else:
+                return None
+        else:
+            return None
+
 
 def _supports_web_search(model_name: str) -> bool:
     """Check if the model supports Anthropic's native web search tool."""
@@ -883,6 +931,12 @@ def _supports_web_search(model_name: str) -> bool:
     return model_name.startswith(
         ("claude-opus-4", "claude-sonnet-4", "claude-3-7-sonnet")
     ) or model_name in ("claude-3-5-sonnet-latest", "claude-3-5-haiku-latest")
+
+
+def _supports_memory(model_name: str) -> bool:
+    """Check if the model supports Anthropic's native memory tool."""
+    # https://docs.claude.com/en/docs/agents-and-tools/tool-use/memory-tool
+    return model_name.startswith(("claude-sonnet-4", "claude-opus-4", "claude-haiku-4"))
 
 
 def _web_search_tool_param(
@@ -924,6 +978,7 @@ ToolParamDef = (
     | BetaToolTextEditor20250429Param
     | BetaToolTextEditor20250728Param
     | WebSearchTool20250305Param
+    | BetaMemoryTool20250818Param
 )
 
 
@@ -956,6 +1011,10 @@ def is_web_search_tool(param: ToolParamDef) -> TypeGuard[WebSearchTool20250305Pa
     return param.get("name") == "web_search" and not is_tool_param(param)
 
 
+def is_memory_tool(param: ToolParamDef) -> TypeGuard[BetaMemoryTool20250818Param]:
+    return param.get("name") == "memory" and not is_tool_param(param)
+
+
 def add_cache_control(
     param: TextBlockParam
     | ToolParam
@@ -965,6 +1024,7 @@ def add_cache_control(
     | BetaToolTextEditor20250429Param
     | BetaToolTextEditor20250728Param
     | WebSearchTool20250305Param
+    | BetaMemoryTool20250818Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -1234,8 +1294,8 @@ _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
 
 
 async def model_output_from_message(
-    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
-    model: str,
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex | None,
+    model: str | None,
     message: Message,
     tools: list[ToolInfo],
 ) -> tuple[ModelOutput, bool]:
@@ -1246,11 +1306,12 @@ async def model_output_from_message(
 
     # count reasoning tokens
     reasoning_tokens = 0
-    for content_block in message.content:
-        if isinstance(content_block, ThinkingBlock):
-            reasoning_tokens += await count_tokens(
-                client, model, content_block.thinking
-            )
+    if client and model:
+        for content_block in message.content:
+            if isinstance(content_block, ThinkingBlock):
+                reasoning_tokens += await count_tokens(
+                    client, model, content_block.thinking
+                )
 
     # resolve choice
     stop_reason, pause_turn = message_stop_reason(message)

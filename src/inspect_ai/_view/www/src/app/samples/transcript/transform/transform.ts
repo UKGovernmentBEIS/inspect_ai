@@ -171,9 +171,6 @@ const elevateChildNode = (
   );
 
   if (targetIndex === -1) {
-    console.log(
-      `No ${childEventType} event found in a span, this is very unexpected.`,
-    );
     return null;
   }
 

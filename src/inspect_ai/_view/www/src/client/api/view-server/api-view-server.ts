@@ -119,6 +119,34 @@ export function viewServerApi(
     }
   };
 
+  const get_flow = async (dir?: string) => {
+    const basePath = "/flow";
+    const params = new URLSearchParams();
+    if (logDir) {
+      params.append("log_dir", logDir);
+    }
+    if (dir) {
+      params.append("dir", dir);
+    }
+    const query = params.toString();
+    const path = query ? `${basePath}?${query}` : basePath;
+
+    try {
+      const bytes = await requestApi.fetchBytes("GET", path);
+      return new TextDecoder().decode(bytes);
+    } catch (error) {
+      // if the eval set is not found, no biggee as not all
+      // log directories will have an eval set.
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.status === 403)
+      ) {
+        return undefined;
+      }
+      throw error;
+    }
+  };
+
   const get_log_contents = async (
     file: string,
     headerOnly?: number,
@@ -326,6 +354,7 @@ export function viewServerApi(
     get_logs,
     get_log_dir,
     get_eval_set,
+    get_flow,
     get_log_contents,
     get_log_size,
     get_log_bytes,

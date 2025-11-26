@@ -2,6 +2,9 @@
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.4em;
+  border: solid var(--bs-border-color) 1px;
+  border-radius: var(--bs-border-radius);
+  margin-bottom: 0.7rem;
 }
 
 .number {

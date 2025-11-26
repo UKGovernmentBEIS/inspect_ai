@@ -1,3 +1,7 @@
+import asyncio
+import base64
+from unittest.mock import MagicMock
+
 from google.genai.types import Candidate, Content, FinishReason, FunctionCall, Part
 from test_helpers.utils import skip_if_no_google
 
@@ -11,13 +15,16 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.model import ChatMessageAssistant
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
 from inspect_ai.model._providers.google import (
     completion_choice_from_candidate,
+    content,
 )
 from inspect_ai.scorer import includes
+from inspect_ai.tool import ToolCall
 
 
 @skip_if_no_google
@@ -340,3 +347,46 @@ def test_distribute_citations_preserves_citation_metadata():
     assert citation.title == "Example Source"
     assert citation.cited_text == (0, 7)
     assert citation.internal == {"custom_field": "custom_value"}
+
+
+def test_thought_signature_on_tool_call():
+    """Test that thought_signature is correctly applied to tool calls, not intermediate text."""
+    # Create a mock client
+    mock_client = MagicMock()
+
+    # Create a message with reasoning + text + tool call
+    # This simulates what Inspect stores after parsing a Gemini response
+    # where the tool call had a thought_signature
+    thought_sig = b"fake_thought_signature_bytes"
+    encoded_sig = base64.b64encode(thought_sig).decode()
+
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning=encoded_sig, redacted=True),
+            ContentText(text="I'll use the bash tool."),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="bash_123",
+                function="bash",
+                arguments={"command": "ls"},
+            )
+        ],
+    )
+
+    # Convert to Google format
+    result = asyncio.run(content(mock_client, message))
+
+    # The result should be a Content object with parts
+    assert result.role == "model"
+    assert result.parts is not None
+    assert len(result.parts) == 2  # text part + function call part
+
+    # First part should be text WITHOUT thought_signature
+    assert result.parts[0].text == "I'll use the bash tool."
+    assert result.parts[0].thought_signature is None
+
+    # Second part should be function call WITH thought_signature
+    assert result.parts[1].function_call is not None
+    assert result.parts[1].function_call.name == "bash"
+    assert result.parts[1].thought_signature == thought_sig

@@ -3,6 +3,7 @@ from typing import Any, Literal
 
 from pydantic import Field, field_serializer, field_validator
 
+from inspect_ai._util.dateutil import UtcDatetime, datetime_to_iso_format_safe
 from inspect_ai.event._base import BaseEvent
 
 
@@ -41,7 +42,7 @@ class SubtaskEvent(BaseEvent):
     compatibility with transcripts that have sub-events.
     """
 
-    completed: datetime | None = Field(default=None)
+    completed: UtcDatetime | None = Field(default=None)
     """Time that subtask completed (see `timestamp` for started)"""
 
     working_time: float | None = Field(default=None)
@@ -51,4 +52,4 @@ class SubtaskEvent(BaseEvent):
     def serialize_completed(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
-        return dt.astimezone().isoformat()
+        return datetime_to_iso_format_safe(dt)

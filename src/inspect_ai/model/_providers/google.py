@@ -708,7 +708,12 @@ async def content(
                     part_to_append = await content_part(client, content)
                     # If previously there was a reasoning block, we need to set the "thought_signature"
                     # using the reasoning from that block.
-                    if working_reasoning_block is not None:
+                    # However, if there are tool calls in this message, the signature should go on
+                    # the first tool call instead, not on text parts (per Gemini API docs).
+                    if (
+                        working_reasoning_block is not None
+                        and message.tool_calls is None
+                    ):
                         if (
                             working_reasoning_block.reasoning is not None
                             and working_reasoning_block.redacted
@@ -726,10 +731,12 @@ async def content(
 
         # Now handle tool calls
         if message.tool_calls is not None:
-            # Note that if each tool call had its own reasoning block in a message with
-            # multiple reasoning blocks, we wouldn't know which reasoning block corresponded
-            # to which tool call. That said, to date we have not observed Gemini using
-            # a reasoning block per-tool so this isn't likely a practical concern
+            # Per Gemini API docs: thought_signature goes on the first tool call in a message.
+            # For parallel function calls, only the first FC gets the signature.
+            # For sequential function calls (multi-step), each step is a separate message,
+            # so each will have its own reasoning block and signature.
+            # The loop below applies the signature to the first tool call (when working_reasoning_block
+            # is not None), then clears it so subsequent tool calls don't get it.
             for tool_call in message.tool_calls:
                 # extract the part
                 part = Part.from_function_call(

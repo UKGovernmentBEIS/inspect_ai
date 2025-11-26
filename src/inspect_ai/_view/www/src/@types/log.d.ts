@@ -190,8 +190,8 @@ export type Scores = EvalScore[];
 export type Metadata4 = {
   [k: string]: unknown;
 } | null;
-export type StartedAt = string;
-export type CompletedAt = string;
+export type StartedAt = string | "";
+export type CompletedAt = string | "";
 export type InputTokens = number;
 export type OutputTokens = number;
 export type TotalTokens = number;

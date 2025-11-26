@@ -62,9 +62,16 @@ the `registry_create()` function.
 
 
 class RegistryInfo(BaseModel):
+    """Registry information for registered object (e.g. solver, scorer, etc.)."""
+
     type: RegistryType
+    """Type of registry object."""
+
     name: str
+    """Registered name."""
+
     metadata: dict[str, Any] = Field(default_factory=dict)
+    """Additional registry metadata."""
 
 
 def registry_add(o: object, info: RegistryInfo) -> None:
@@ -363,6 +370,9 @@ def registry_info(o: object) -> RegistryInfo:
 
     Returns:
         RegistryInfo for object.
+
+    Raises:
+        ValueError: If the object does not have registry info.
     """
     info = getattr(o, REGISTRY_INFO, None)
     if info is not None:

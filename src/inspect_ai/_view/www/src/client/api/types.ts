@@ -145,6 +145,7 @@ export interface Capabilities {
 export interface LogViewAPI {
   client_events: () => Promise<any[]>;
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
+  get_flow: (dir?: string) => Promise<string | undefined>;
   get_log_dir?: () => Promise<string | undefined>;
   get_logs?: (
     mtime: number,
@@ -201,6 +202,10 @@ export interface ClientAPI {
 
   // Read eval set
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
+
+  // Read flow data
+  get_flow: (dir?: string) => Promise<string | undefined>;
+
   get_log_summaries: (log_files: string[]) => Promise<LogPreview[]>;
   get_log_details: (log_file: string) => Promise<LogDetails>;
 
