@@ -350,6 +350,7 @@ def view_server(
         print=display().print,
         access_log_format='%a %t "%r" %s %b (%Tf)',
         shutdown_timeout=1,
+        keepalive_timeout=15,
     )
 
 

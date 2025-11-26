@@ -431,7 +431,9 @@ def view_server(
     display().print(f"Inspect View: {log_dir}")
 
     async def run_server() -> None:
-        config = uvicorn.Config(app, host=host, port=port, log_config=None)
+        config = uvicorn.Config(
+            app, host=host, port=port, log_config=None, timeout_keep_alive=15
+        )
         server = uvicorn.Server(config)
 
         async def announce_when_ready() -> None:

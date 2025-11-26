@@ -237,7 +237,7 @@ describe("Database Service", () => {
       });
 
       // Cache the log info
-      await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo);
+      await databaseService.writeLogDetail("/test/logs/eval1.json", logInfo);
 
       // Retrieve cached log info
       const cached = await databaseService.readLogDetailsForFile(
@@ -271,7 +271,7 @@ describe("Database Service", () => {
       });
 
       // Cache the log info
-      await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo);
+      await databaseService.writeLogDetail("/test/logs/eval1.json", logInfo);
 
       // Get samples for the file
       const retrievedSamples = await databaseService.readSampleSummariesForFile(
@@ -303,8 +303,8 @@ describe("Database Service", () => {
         sampleSummaries: [createTestSampleSummary({ id: 3 })],
       });
 
-      await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo1);
-      await databaseService.writeLogDetails("/test/logs/eval2.json", logInfo2);
+      await databaseService.writeLogDetail("/test/logs/eval1.json", logInfo1);
+      await databaseService.writeLogDetail("/test/logs/eval2.json", logInfo2);
 
       const allSamples = await databaseService.readAllSampleSummaries();
       expect(allSamples).toHaveLength(3);
@@ -356,7 +356,7 @@ describe("Database Service", () => {
       ];
 
       const logInfo = createTestLogInfo({ sampleSummaries: samples });
-      await databaseService.writeLogDetails("/test/logs/eval1.json", logInfo);
+      await databaseService.writeLogDetail("/test/logs/eval1.json", logInfo);
 
       // Test completed filter
       const completedSamples = await databaseService.querySampleSummaries({
@@ -402,7 +402,7 @@ describe("Database Service", () => {
         ["/test/logs/eval1.json"],
       );
 
-      await databaseService.writeLogDetails(
+      await databaseService.writeLogDetail(
         "/test/logs/eval1.json",
         createTestLogInfo({
           sampleSummaries: [createTestSampleSummary()],
@@ -425,7 +425,7 @@ describe("Database Service", () => {
 
     test("should count sample summaries correctly", async () => {
       // Cache multiple log info with different number of samples
-      await databaseService.writeLogDetails(
+      await databaseService.writeLogDetail(
         "/test/logs/eval1.json",
         createTestLogInfo({
           sampleSummaries: [
@@ -435,7 +435,7 @@ describe("Database Service", () => {
         }),
       );
 
-      await databaseService.writeLogDetails(
+      await databaseService.writeLogDetail(
         "/test/logs/eval2.json",
         createTestLogInfo({
           sampleSummaries: [
