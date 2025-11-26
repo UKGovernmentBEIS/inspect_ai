@@ -7,6 +7,7 @@
 - Inspect View: Improve markdown rendering performance.
 - Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.
 - Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+- OpenRouter: [preserve reasoning blocks](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#preserving-reasoning-blocks).
 
 ## 0.3.150 (25 November 2025)
 

@@ -42,7 +42,7 @@ async def test_reasoning_content_openai():
 @skip_if_no_openai
 @skip_if_no_openrouter
 async def test_reasoning_content_openrouter_openai():
-    await check_reasoning_content("openrouter/openai/o4-mini")
+    await check_reasoning_content("openrouter/openrouter/openai/o4-mini")
 
 
 @pytest.mark.slow
@@ -81,7 +81,9 @@ async def check_reasoning_content(
         tool_choice=tool_choice,
     )
     assert "<think>" not in output.completion
-    content = output.choices[0].message.content
+    message = output.choices[0].message
+    assert message.metadata and "reasoning_details" in message.metadata
+    content = message.content
     assert isinstance(content, list)
     assert isinstance(content[0], ContentReasoning)
 

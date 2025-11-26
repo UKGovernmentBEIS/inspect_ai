@@ -177,18 +177,17 @@ async def openai_chat_message(
             ),
         )
     elif message.role == "assistant":
+        result = ChatCompletionAssistantMessageParam(
+            role=message.role, content=openai_assistant_content(message)
+        )
         if message.tool_calls:
-            return ChatCompletionAssistantMessageParam(
-                role=message.role,
-                content=openai_assistant_content(message),
-                tool_calls=[
-                    openai_chat_tool_call_param(call) for call in message.tool_calls
-                ],
-            )
-        else:
-            return ChatCompletionAssistantMessageParam(
-                role=message.role, content=openai_assistant_content(message)
-            )
+            result["tool_calls"] = [
+                openai_chat_tool_call_param(call) for call in message.tool_calls
+            ]
+        # Preserve reasoning_details when using OpenRouter API
+        if message.metadata and "reasoning_details" in message.metadata:
+            result["reasoning_details"] = message.metadata["reasoning_details"]  # type: ignore[typeddict-unknown-key]
+        return result
     elif message.role == "tool":
         return ChatCompletionToolMessageParam(
             role=message.role,
@@ -300,6 +299,12 @@ def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
         message = ChatCompletionMessage(
             role="assistant", content=content, tool_calls=tool_calls
         )
+
+        # Preserve reasoning_details when using OpenRouter API
+        if choice.message.metadata and "reasoning_details" in choice.message.metadata:
+            reasoning_details = choice.message.metadata["reasoning_details"]
+            setattr(message, "reasoning_details", reasoning_details)
+
         oai_choices.append(
             Choice(
                 finish_reason=openai_finish_reason(choice.stop_reason),
@@ -395,6 +400,8 @@ async def messages_from_openai(
 
     for message in messages:
         content: str | list[Content] = []
+        metadata: dict[str, Any] | None = None
+
         if message["role"] == "system" or message["role"] == "developer":
             sys_content = message["content"]
             if isinstance(sys_content, str):
@@ -457,6 +464,10 @@ async def messages_from_openai(
                 # insert reasoning
                 content.insert(0, ContentReasoning(reasoning=str(reasoning)))
 
+            # Preserve reasoning_details when using OpenRouter API
+            if reasoning_details := message.get("reasoning_details"):
+                metadata = {"reasoning_details": reasoning_details}
+
             # return message
             if "tool_calls" in message:
                 tool_calls: list[ToolCall] = []
@@ -476,6 +487,7 @@ async def messages_from_openai(
                     tool_calls=tool_calls or None,
                     model=model,
                     source="generate",
+                    metadata=metadata,
                 )
             )
         elif message["role"] == "tool":
@@ -614,11 +626,17 @@ def chat_message_assistant_from_openai(
     else:
         content = msg_content
 
+    # Preserve reasoning_details when using OpenRouter API
+    metadata: dict[str, Any] | None = None
+    if reasoning_details := getattr(message, "reasoning_details", None):
+        metadata = {"reasoning_details": reasoning_details}
+
     return ChatMessageAssistant(
         content=content,
         model=model,
         source="generate",
         tool_calls=chat_tool_calls_from_openai(message, tools),
+        metadata=metadata,
     )
 
 
