@@ -8,6 +8,7 @@
 - Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
 - Inspect View: Improve markdown rendering performance.
 - Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.
+- Inspect View: Add support for copying sample messages (as text).
 - Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
 
 ## 0.3.150 (25 November 2025)
