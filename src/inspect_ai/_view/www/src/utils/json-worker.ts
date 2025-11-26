@@ -1,5 +1,9 @@
+import JSON5 from "json5";
+
 // Pool of workers to parse JSON/JSON5 off the main thread
 class JsonWorkerPool {
+  private readonly encoder = new TextEncoder();
+  private readonly decoder = new TextDecoder();
   private workers: Worker[] = [];
   private blobURL: string | null = null;
   private nextRequestId = 0;
@@ -19,6 +23,12 @@ class JsonWorkerPool {
         worker.onmessage = (e) => this.handleMessage(e);
         worker.onerror = (error) => this.handleError(error);
         this.workers.push(worker);
+
+        // one-time JSON5 init message
+        worker.postMessage({
+          type: "init",
+          scriptContent: kJson5ScriptBase64,
+        });
       }
     }
   }
@@ -32,8 +42,7 @@ class JsonWorkerPool {
 
     if (success) {
       if (serialized) {
-        const decoder = new TextDecoder();
-        const resultString = decoder.decode(result);
+        const resultString = this.decoder.decode(result);
         pending.resolve(JSON.parse(resultString));
       } else {
         pending.resolve(result);
@@ -46,29 +55,27 @@ class JsonWorkerPool {
   }
 
   private handleError(error: ErrorEvent) {
-    // Find any pending request and reject them all
-    for (const [id, pending] of this.pendingRequests.entries()) {
-      pending.reject(new Error(`Worker error: ${error.message}`));
-      this.pendingRequests.delete(id);
+    const err = new Error(`Worker error: ${error.message}`);
+    for (const pending of this.pendingRequests.values()) {
+      pending.reject(err);
     }
+    this.pendingRequests.clear();
   }
 
   async parse(text: string): Promise<any> {
     this.ensureWorkers();
 
-    const encoder = new TextEncoder();
-    const encodedText = encoder.encode(text);
+    const encodedText = this.encoder.encode(text);
     const requestId = this.nextRequestId++;
 
     return new Promise((resolve, reject) => {
       this.pendingRequests.set(requestId, { resolve, reject });
 
-      // Use round-robin to distribute work
       const worker = this.workers[requestId % this.workers.length];
-      worker.postMessage(
+      worker?.postMessage(
         {
+          type: "parse",
           requestId,
-          scriptContent: kJson5ScriptBase64,
           encodedText,
         },
         [encodedText.buffer],
@@ -89,68 +96,102 @@ class JsonWorkerPool {
 
 const workerPool = new JsonWorkerPool();
 
-export const asyncJsonParse = async (text: string): Promise<any> => {
-  return workerPool.parse(text);
+export const asyncJsonParse = async <T>(text: string): Promise<T> => {
+  // The overhead of using a web worker does have
+  // diminishing returns, so for small JSON that will serialize
+  // very quickly, just do it immediately on the main thread.
+  if (text.length < 50000) {
+    let result = undefined;
+    try {
+      // Optimistically, try a regular JSON parse first (this is much faster)
+      result = JSON.parse(text);
+    } catch {
+      result = JSON5.parse(text);
+    }
+    return Promise.resolve(result) as T;
+  } else {
+    return workerPool.parse(text);
+  }
+};
+
+export const jsonParse = <T>(text: string): Promise<T> => {
+  return Promise.resolve(JSON.parse(text));
 };
 
 const kWorkerCode = `
 // Store the JSON5 parser once loaded
 let JSON5 = null;
+const decoder = new TextDecoder();
+const encoder = new TextEncoder();
 
 self.onmessage = function (e) {
-  const { requestId, encodedText, scriptContent } = e.data;
+  const { type } = e.data || {};
 
-  try {
-    // Only load the JSON5 script if we haven't done so yet
-    if (!JSON5) {
-      const script = atob(scriptContent);
-
-      new Function(script)();
-      // Verify it was loaded properly
-      if (typeof self.JSON5 !== 'object' || typeof self.JSON5.parse !== 'function') {
-        throw new Error('Failed to initialize JSON5 parser');
+  if (type === 'init') {
+    const { scriptContent } = e.data;
+    try {
+      if (!JSON5) {
+        const script = atob(scriptContent);
+        new Function(script)();
+        if (typeof self.JSON5 !== 'object' || typeof self.JSON5.parse !== 'function') {
+          throw new Error('Failed to initialize JSON5 parser');
+        }
+        JSON5 = self.JSON5;
       }
-      JSON5 = self.JSON5;
+    } catch (err) {
+      // nothing to respond to yet; worker will fail on first parse if init failed
+      console.error('JSON5 init error in worker', err);
     }
+    return;
+  }
 
-    // Decode the text using TextDecoder
-    const decoder = new TextDecoder();
-    const text = decoder.decode(encodedText);
+  if (type === 'parse') {
+    const { requestId, encodedText, scriptContent } = e.data;
 
-    // Parse with JSON5
-    const result = JSON5.parse(text);
+    try {
+      
+      // Decode the text using TextDecoder
+      const text = decoder.decode(encodedText);
 
-    if (result && typeof result === 'object' &&
-        (Array.isArray(result) ? result.length > 10000 : Object.keys(result).length > 10000)) {
+      // Parse with JSON/JSON5
+      let result = undefined;
+      try {
+        // Optimistically, try a regular JSON parse first (this is much faster)
+        result = JSON.parse(text);
+      } catch {
+        result = JSON5.parse(text);
+      }
 
-      // Large result, use transferrable object
-      const resultString = JSON.stringify(result);
-      const encoder = new TextEncoder();
-      const serialized = encoder.encode(resultString);
+      if (result && typeof result === 'object' &&
+          (Array.isArray(result) ? result.length > 10000 : Object.keys(result).length > 10000)) {
 
+        // Large result, use transferrable object
+        const resultString = JSON.stringify(result);
+        const serialized = encoder.encode(resultString);
+
+        postMessage({
+          requestId,
+          success: true,
+          serialized: true,
+          result: serialized
+        }, [serialized.buffer]);
+      } else {
+        // Small results, send directly
+        postMessage({
+          requestId,
+          success: true, 
+          serialized: false, 
+          result: result 
+        });
+      }
+    } catch (err) {
       postMessage({
-      requestId,
         requestId,
-        success: true,
-        serialized: true,
-        result: serialized
-      }, [serialized.buffer]);
-    } else {
-      // Small results, send directly
-      postMessage({
-        requestId,
-        success: true, 
-        serialized: false, 
-        result: result 
+        success: false, 
+        error: err.message,
+        stack: err.stack || ''
       });
     }
-  } catch (err) {
-    postMessage({
-        requestId,
-      success: false, 
-      error: err.message,
-      stack: err.stack || ''
-    });
   }
 };`;
 
