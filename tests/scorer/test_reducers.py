@@ -1,6 +1,6 @@
 from collections import namedtuple
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from functools import reduce
 from typing import Any
@@ -216,7 +216,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(timezone.utc),
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},
@@ -234,7 +234,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(timezone.utc),
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},
@@ -252,7 +252,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(timezone.utc),
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},

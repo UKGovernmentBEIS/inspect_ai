@@ -16124,22 +16124,25 @@ a._citationLink_1ggvf_9:hover {
 ._codeCompact_1b2jp_5 {
   color: unset !important;
 }
-._grid_rmdrx_1 {
+._grid_3x3ql_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.4em;
+  border: solid var(--bs-border-color) 1px;
+  border-radius: var(--bs-border-radius);
+  margin-bottom: 0.7rem;
 }
 
-._number_rmdrx_7 {
+._number_3x3ql_10 {
   margin-top: 0.1em;
 }
 
-._user_rmdrx_11 {
+._user_3x3ql_14 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
 }
 
-._container_rmdrx_16 {
+._container_3x3ql_19 {
   padding: 0.4em 0.4em 0.4em 0.4em;
 }
 ._grid_14885_1 {
@@ -17346,13 +17349,9 @@ button._segment_mhb7y_9 {
 ._progressText_1cjjr_9 {
   margin-left: 0.4em;
 }
-._list_5fj0m_1 {
+._list_1emnm_1 {
   width: 100%;
   margin-top: 1em;
-}
-
-._item_5fj0m_6 {
-  padding-bottom: 1em;
 }
 ._tabPanel_6o9gh_1 {
   padding-bottom: 1em;

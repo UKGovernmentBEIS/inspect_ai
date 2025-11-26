@@ -40,6 +40,7 @@ select = [
   "SIM101", # duplicate isinstance
   # "RET", # flake8-return
   # "RUF", # ruff rules
+  "DTZ",
 ]
 ignore = [
   "E203",
