@@ -1,13 +1,16 @@
 ## Unreleased
 
+- Grok: Correctly reconstruct assistant tool calls when replaying messages to API.
+- Grok: Round trip encrypted reasoning (made available in v1.4.0 of `xai_sdk`, which is now required).
 - Memory tool: Added `memory()` tool and bound it to native definitions for providers that support it (currently only Anthropic).
 - Sandboxes: For "local" and "docker" sandbox providers, treat `output_limit` as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).
+- Prevent querying of local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
 - Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
-- Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
 - Inspect View: Improve markdown rendering performance.
 - Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.
-- Stop unnecessarily implicitly querying local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
 - OpenRouter: [preserve reasoning blocks](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#preserving-reasoning-blocks).
+- Inspect View: Add support for copying sample messages (as text).
+- Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
 
 ## 0.3.150 (25 November 2025)
 
