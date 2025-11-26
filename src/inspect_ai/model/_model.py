@@ -4,7 +4,6 @@ import functools
 import json
 import logging
 import os
-import re
 import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
@@ -1009,103 +1008,6 @@ class ModelName:
             return (None, model)
 
 
-def extract_deployment_from_azure_url(base_url: str) -> str | None:
-    """
-    Extract the deployment name from an Azure OpenAI base URL.
-
-    Returns:
-        Deployment name if found, None otherwise
-
-    Examples:
-        >>> extract_deployment_from_azure_url("https://example.openai.azure.com/openai/deployments/gpt-4")
-        'gpt-4'
-        >>> extract_deployment_from_azure_url("https://example.openai.azure.com/openai/deployments/o4-mini/chat/completions")
-        'o4-mini'
-    """
-    if not base_url:
-        return None
-
-    # Pattern to match Azure OpenAI deployment URLs
-    # Matches: /deployments/{deployment_name}/ or /deployments/{deployment_name}
-    pattern = r"/deployments/([^/]+)"
-    match = re.search(pattern, base_url)
-
-    if match:
-        return match.group(1)
-
-    return None
-
-
-def normalize_model_name(model_name: str) -> str:
-    """
-    Normalize model names for comparison.
-
-    Handles common variations:
-    - Case differences (GPT-4 vs gpt-4)
-    - Version format differences (gpt-3.5-turbo vs gpt-35-turbo)
-
-    Args:
-        model_name: Model name to normalize
-
-    Returns:
-        Normalized model name
-    """
-    if not model_name:
-        return ""
-
-    # Convert to lowercase for case-insensitive comparison
-    normalized = model_name.lower()
-
-    # Normalize version format: gpt-3.5 <-> gpt-35
-    normalized = normalized.replace("gpt-3.5", "gpt-35")
-
-    return normalized
-
-
-def check_azure_model_mismatch(
-    api_name: str, model_name: str, base_url: str | None, original_model: str
-) -> None:
-    """
-    Check for mismatches between specified model and Azure deployment URL.
-
-    Logs a warning if the model parameter doesn't match the deployment
-    in the Azure base URL environment variable.
-    """
-    # Only check Azure OpenAI models
-    if api_name != "openai" or "/azure/" not in original_model:
-        return
-
-    if not model_name or not model_name.strip():
-        return
-
-    # Get the Azure base URL from environment if not explicitly provided
-    azure_base_url = base_url or os.getenv("AZUREAI_OPENAI_BASE_URL")
-
-    if not azure_base_url:
-        return
-
-    # Extract deployment name from URL
-    url_deployment = extract_deployment_from_azure_url(azure_base_url)
-
-    if not url_deployment:
-        return
-
-    # Remove "azure/" prefix from model_name if present for comparison
-    clean_model_name = model_name.replace("azure/", "")
-
-    # Normalize both names for comparison
-    normalized_model = normalize_model_name(clean_model_name)
-    normalized_deployment = normalize_model_name(url_deployment)
-
-    # Check for mismatch
-    if normalized_model != normalized_deployment:
-        logger.warning(
-            f"Model mismatch detected: model parameter specifies '{clean_model_name}' "
-            f"but AZUREAI_OPENAI_BASE_URL points to deployment '{url_deployment}'. "
-            f"The deployment from the URL ('{url_deployment}') will be used for API calls."
-        )
-
-
 def get_model(
     model: str | Model | None = None,
     *,
@@ -1239,9 +1141,6 @@ def get_model(
     # find a matching model type
     modelapi_types = registry_find(match_modelapi_type)
     if len(modelapi_types) > 0:
-        # Check for Azure model/URL mismatch before creating the model
-        if api_name is not None and model is not None and original_model is not None:
-            check_azure_model_mismatch(api_name, model, base_url, original_model)
         # create the model (init_hooks here in case the model api
         # is being used as a stadalone model interface outside of evals)
         init_hooks()

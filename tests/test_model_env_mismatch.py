@@ -16,9 +16,12 @@ from inspect_ai.model import get_model
 class TestModelEnvironmentMismatch:
     """Tests for model/environment variable conflict detection."""
 
-    def test_azure_model_url_mismatch_logs_warning(self, monkeypatch, mocker, capsys):
-        # Test that using model=openai/azure/o3 with AZUREAI_OPENAI_BASE_URL pointing to o4-mini logs a mismatch warning.
+    def test_azure_model_url_mismatch_logs_warning(
+        self, monkeypatch, mocker, capsys, caplog
+    ):
+        import logging
 
+        # Test that using model=openai/azure/o3 with AZUREAI_OPENAI_BASE_URL pointing to o4-mini logs a mismatch warning.
         # Set up environment variable pointing to o4-mini
         monkeypatch.setenv(
             "AZUREAI_OPENAI_BASE_URL",
@@ -26,35 +29,48 @@ class TestModelEnvironmentMismatch:
         )
         monkeypatch.setenv("AZUREAI_OPENAI_API_KEY", "test-key")
 
-        # Mock the API to avoid real network calls
-        mocker.patch("inspect_ai.model._providers.openai.OpenAIAPI")
+        # Mock the Azure client creation instead of the entire API class
+        mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
+        mocker.patch("inspect_ai.model._providers.openai.OpenAIAsyncHttpxClient")
 
         # Call get_model to trigger the mismatch warning
-        try:
-            get_model("openai/azure/o3", memoize=False)
-        except Exception:
-            # Ignore other exceptions; we just want the warning output
-            pass
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            try:
+                get_model("openai/azure/o3", memoize=False)
+            except Exception:
+                # Ignore other exceptions; we just want the warning output
+                pass
 
-        # Capture stdout/stderr where Rich console outputs
+        # Check both caplog (for isolated runs) and capsys (for full suite runs)
+        warning_messages = [
+            r.message.lower() for r in caplog.records if r.levelname == "WARNING"
+        ]
         captured = capsys.readouterr()
-        output = captured.out + captured.err
+        output = (captured.out + captured.err).lower()
 
-        # Check that the warning is printed
-        assert "mismatch" in output.lower(), (
-            f"Expected 'mismatch' in output. Got: {output}"
+        # The warning should appear in EITHER caplog OR capsys
+        has_mismatch = (
+            any("mismatch" in msg for msg in warning_messages) or "mismatch" in output
         )
-        assert "o3" in output.lower(), f"Expected 'o3' in output. Got: {output}"
-        assert "o4-mini" in output.lower(), (
-            f"Expected 'o4-mini' in output. Got: {output}"
+        has_o3 = any("o3" in msg for msg in warning_messages) or "o3" in output
+        has_o4_mini = (
+            any("o4-mini" in msg for msg in warning_messages) or "o4-mini" in output
+        )
+
+        assert has_mismatch, (
+            f"Expected 'mismatch' in warnings. caplog: {warning_messages}, capsys: {output}"
+        )
+        assert has_o3, (
+            f"Expected 'o3' in warnings. caplog: {warning_messages}, capsys: {output}"
+        )
+        assert has_o4_mini, (
+            f"Expected 'o4-mini' in warnings. caplog: {warning_messages}, capsys: {output}"
         )
 
     def test_azure_model_url_mismatch_with_eval(self, monkeypatch, mocker, capsys):
-        """
-        Test that eval() logs warning about model/URL mismatch.
+        # Test that eval() logs warning about model/URL mismatch.
 
-        This ensures the mismatch is detected at the evaluation level.
-        """
         from inspect_ai import Task
         from inspect_ai.dataset import Sample
         from inspect_ai.scorer import match
@@ -67,8 +83,9 @@ class TestModelEnvironmentMismatch:
         )
         monkeypatch.setenv("AZUREAI_OPENAI_API_KEY", "test-key")
 
-        # Mock the API to avoid actual calls
-        mocker.patch("inspect_ai.model._providers.openai.OpenAIAPI")
+        # Mock the Azure client creation instead of the entire API class
+        mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
+        mocker.patch("inspect_ai.model._providers.openai.OpenAIAsyncHttpxClient")
 
         # Create a minimal task with proper solver and scorer
         task = Task(
@@ -250,19 +267,17 @@ class TestModelEnvironmentMismatch:
         )
 
     def test_warning_message_contains_both_models(self, monkeypatch, mocker, capsys):
-        """
-        Test that the warning message includes both the requested and actual models.
+        # Test that the warning message includes both the requested and actual models.
 
-        This helps users identify exactly what the mismatch is.
-        """
         monkeypatch.setenv(
             "AZUREAI_OPENAI_BASE_URL",
             "https://example.openai.azure.com/openai/deployments/o4-mini",
         )
         monkeypatch.setenv("AZUREAI_OPENAI_API_KEY", "test-key")
 
-        # Mock the API to avoid real calls
-        mocker.patch("inspect_ai.model._providers.openai.OpenAIAPI")
+        # Mock the Azure client creation instead of the entire API class
+        mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
+        mocker.patch("inspect_ai.model._providers.openai.OpenAIAsyncHttpxClient")
 
         try:
             # Disable memoization to ensure fresh model creation
