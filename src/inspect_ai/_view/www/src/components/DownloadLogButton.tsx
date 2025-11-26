@@ -8,16 +8,12 @@ type DownloadState = "idle" | "downloading" | "success" | "error";
 
 interface DownloadLogButtonProps {
   log_file: string;
-  onDownloadSuccess?: () => void;
-  onDownloadError?: (error: Error) => void;
   className?: string;
   ariaLabel?: string;
 }
 
 export const DownloadLogButton = ({
   log_file,
-  onDownloadSuccess,
-  onDownloadError,
   className = "",
   ariaLabel = "Download log as EVAL",
 }: DownloadLogButtonProps): JSX.Element => {
@@ -25,25 +21,17 @@ export const DownloadLogButton = ({
   const api = useStore((state) => state.api);
 
   const handleClick = async (): Promise<void> => {
-    if (!api) return;
+    if (!api?.download_log) return;
 
     setDownloadState("downloading");
 
     try {
       await api.download_log(log_file);
       setDownloadState("success");
-      onDownloadSuccess?.();
-
-      setTimeout(() => {
-        setDownloadState("idle");
-      }, 1250);
     } catch (error) {
       console.error("Failed to download log:", error);
       setDownloadState("error");
-      onDownloadError?.(
-        error instanceof Error ? error : new Error("Failed to download log"),
-      );
-
+    } finally {
       setTimeout(() => {
         setDownloadState("idle");
       }, 1250);
