@@ -1,8 +1,12 @@
 from typing import Any, Literal, TypeAlias, TypedDict, get_args
 
+from pydantic import Field
+
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._execute import bash, code_viewer
+from inspect_ai.util import resource, sandbox
+from inspect_ai.util._store_model import StoreModel, store_as
 
 CodeExecutionProvider: TypeAlias = Literal[
     "openai", "anthropic", "google", "grok", "bash"
@@ -37,7 +41,7 @@ class CodeExecutionProviders(TypedDict, total=False):
     """Use Grok native code execution. Defaults to `True`. Pass `False` to use a sandbox instead."""
 
     bash: dict[str, Any] | bool
-    """Use `bash()` tool as a fallback for providers that don't support code execution. Defaults to `True`. Pass `False` to disable the fallback. Pass `dict` with `bash()` tool options (`timeout`, `user`, and `sandbox`)"""
+    """Use `bash()` tool as a fallback for providers that don't support code execution. Defaults to `True`. Pass `False` to disable the fallback. Pass `dict` with `bash()` tool options (`timeout` and `sandbox`)"""
 
 
 @tool(viewer=code_viewer("bash", "cmd"))
@@ -84,8 +88,13 @@ def code_execution(
 
     # default implementation is just the bash tool
     bash_tool: Tool | None = None
+    bash_sandbox: str | None = None
+    bash_timeout: int | None = None
     if "bash" in normalized_providers.keys():
-        bash_tool = bash(**normalized_providers["bash"])
+        bash_options = normalized_providers["bash"]
+        bash_timeout = bash_options.get("timeout", None)
+        bash_sandbox = bash_options.get("sandbox", None)
+        bash_tool = bash(timeout=bash_timeout, sandbox=bash_sandbox)
 
     async def execute(cmd: str) -> ToolResult:
         """
@@ -97,9 +106,16 @@ def code_execution(
         Returns:
           The output of the command.
         """
-        # TODO: copying of files to container
-
         if bash_tool is not None:
+            # copy files to container if necessary
+            if files and len(files) > 0:
+                bash_files = store_as(BashFiles)
+                if not bash_files.copied:
+                    for file, content in files.items():
+                        await sandbox(bash_sandbox).write_file(file, resource(content))
+                    bash_files.copied = True
+
+            # execute tool
             return await bash_tool(cmd)
         else:
             raise RuntimeError(
@@ -107,8 +123,14 @@ def code_execution(
             )
 
     return ToolDef(
-        execute, name="code_execution", options=dict(normalized_providers)
+        execute,
+        name="code_execution",
+        options=dict(providers=normalized_providers, files=files),
     ).as_tool()
+
+
+class BashFiles(StoreModel):
+    copied: bool = Field(default=False)
 
 
 class _NormalizedProviders(TypedDict, total=False):
