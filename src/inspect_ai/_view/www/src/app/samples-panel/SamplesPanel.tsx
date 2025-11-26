@@ -89,12 +89,6 @@ export const SamplesPanel: FC = () => {
   const filterModel = gridRef.current?.api?.getFilterModel();
   const hasFilter = filterModel && Object.keys(filterModel).length > 0;
 
-  console.log({
-    totalTaskCount,
-    completedTaskCount,
-    showBar: totalTaskCount !== completedTaskCount,
-  });
-
   return (
     <div className={clsx(styles.panel)}>
       <ApplicationNavbar currentPath={samplesPath} fnNavigationUrl={samplesUrl}>
