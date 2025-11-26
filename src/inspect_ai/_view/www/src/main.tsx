@@ -14,6 +14,7 @@ const applicationStorage = storage;
 const vscode = getVscodeApi();
 let capabilities: Capabilities = {
   downloadFiles: true,
+  downloadLogs: !!applicationApi.download_log,
   webWorkers: true,
   streamSamples: !!applicationApi.get_log_pending_samples,
   streamSampleData: !!applicationApi.get_log_sample_data,

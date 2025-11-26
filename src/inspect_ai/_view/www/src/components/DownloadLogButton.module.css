@@ -1,0 +1,12 @@
+.downloadLogButton {
+  border: none;
+  background-color: inherit;
+  opacity: 0.75;
+  padding-top: 0;
+  padding-left: 0;
+  transition: opacity 0.2s;
+}
+
+.downloadLogButton:hover {
+  opacity: 0.75;
+}
