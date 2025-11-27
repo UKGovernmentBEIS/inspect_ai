@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import (
     Any,
     Literal,
@@ -121,11 +122,12 @@ def json_changes(
     patch = jsonpatch.make_patch(before, after)
     if patch:
         changes: list[JsonChange] = []
+        current = deepcopy(before)
         for change in cast(list[Any], patch):
             json_change = JsonChange(**change)
             if json_change.op == "replace":
                 paths = json_change.path.split("/")[1:]
-                replaced = before
+                replaced = current
                 for path in paths:
                     decoded_path = decode_json_pointer_segment(path)
                     if isinstance(replaced, list):
@@ -139,6 +141,7 @@ def json_changes(
                     replaced = replaced[index]
                 json_change.replaced = replaced
             changes.append(json_change)
+            current = jsonpatch.apply_patch(current, [change])
         return changes
     else:
         return None
