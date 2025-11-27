@@ -37,6 +37,7 @@ export const SampleDetailView: FC = () => {
   const displayedSamples = useStore(
     (state) => state.logs.samplesListState.displayedSamples,
   );
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
   const loadSample = useStore((state) => state.sampleActions.loadSample);
   const clearSelectedLogDetails = useStore(
@@ -238,7 +239,10 @@ export const SampleDetailView: FC = () => {
             </div>
           </div>
         </ApplicationNavbar>
-        <InlineSampleDisplay showActivity={false} className={styles.panel} />
+        <InlineSampleDisplay
+          showActivity={sampleStatus === "loading"}
+          className={styles.panel}
+        />
       </div>
     </ExtendedFindProvider>
   );
