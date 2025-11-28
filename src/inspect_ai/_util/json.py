@@ -212,8 +212,7 @@ def json_changes(
         after: The modified dictionary.
 
     Returns:
-        A list of JsonChange objects (which mimic JSON patch ops but include
-        the 'replaced' field), or None if there are no changes.
+        A list of JsonChange objects (which mimic JSON patch ops but include the 'replaced' field), or None if there are no changes.
     """
     patch_list = list(jsonpatch.make_patch(before, after))
     if not patch_list:

@@ -82,11 +82,6 @@ def test_array_insert_shifts_indices_fast_path():
 def test_array_remove_shifts_indices():
     """Test that removing an item correctly shifts subsequent lookups.
 
-    Note: jsonpatch generates an *optimal* patch. For before=["a", "b", "c"] -> after=["a", "z"]:
-      1. replace /x/1 with "z" (b -> z)
-      2. remove /x/2 (c)
-    Result: ["a", "z"]
-
     The key test is that `replaced` correctly captures "b" (the value at index 1 before replacement).
     """
     before = {"x": ["a", "b", "c"]}
