@@ -95,6 +95,7 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.error import exception_message
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data, file_as_data_uri
 from inspect_ai._util.json import to_json_str_safe
@@ -1271,6 +1272,7 @@ async def assistant_message_block_params(
 
 @dataclass
 class _AssistantInternal:
+    thinking_signatures: dict[str, str] = field(default_factory=dict)
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
@@ -1494,6 +1496,14 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
             )
         elif isinstance(content_block, ThinkingBlock):
+            # also record the thinking signature for this thinking in the side list
+            # this is b/c if we are operating within a bridge then scaffolds (e.g.
+            # responses with store=False) will not send back the id/signature.
+            assistant_internal().thinking_signatures[
+                mm3_hash(content_block.thinking)
+            ] = content_block.signature
+
+            # append the content
             content.append(
                 ContentReasoning(
                     reasoning=content_block.thinking, signature=content_block.signature
@@ -1609,13 +1619,19 @@ async def message_block_params(
                 )
             ]
         else:
-            if content.signature is None:
-                raise ValueError("Thinking content without signature.")
+            signature = content.signature
+            if signature is None:
+                # see if we can get it from assistant_internal()
+                signature = assistant_internal().thinking_signatures.get(
+                    mm3_hash(content.reasoning), None
+                )
+                if signature is None:
+                    raise ValueError("Thinking content without signature.")
             return [
                 ThinkingBlockParam(
                     type="thinking",
                     thinking=content.reasoning,
-                    signature=content.signature,
+                    signature=signature,
                 )
             ]
 
