@@ -290,7 +290,7 @@ class OpenAICompatibleAPI(ModelAPI):
         # Handle DeepInfra input length errors
         if ex.status_code == 400:
             content = str(ex)
-            if "input length" in content:
+            if "input length" in content or "maximum context length" in content:
                 return ModelOutput.from_content(
                     self.model_name, content=content, stop_reason="model_length"
                 )
