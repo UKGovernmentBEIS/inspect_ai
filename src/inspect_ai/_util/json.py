@@ -8,7 +8,10 @@ from typing import (
 )
 
 import jsonpatch
-from jsonpointer import JsonPointerException, resolve_pointer
+from jsonpointer import (  # type: ignore  # jsonpointer is already a dependency of jsonpatch
+    JsonPointerException,
+    resolve_pointer,
+)
 from pydantic import BaseModel, Field, JsonValue
 from pydantic_core import PydanticSerializationError, to_json, to_jsonable_python
 
