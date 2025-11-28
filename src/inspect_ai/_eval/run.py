@@ -26,7 +26,7 @@ from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.dataset._dataset import Dataset
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
-from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.model import GenerateConfigArgs, ModelUsage
 from inspect_ai.model._model import ModelName
 from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
@@ -72,6 +72,7 @@ async def eval_run(
     debug_errors: bool = False,
     run_samples: bool = True,
     score: bool = True,
+    initial_model_usage: dict[str, ModelUsage] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     # are sandboxes in play?
@@ -246,6 +247,7 @@ async def eval_run(
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
+                        initial_model_usage=initial_model_usage,
                         kwargs=kwargs,
                     )
                 )
