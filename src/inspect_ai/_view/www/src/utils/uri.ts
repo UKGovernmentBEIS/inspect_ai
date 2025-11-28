@@ -45,7 +45,7 @@ export const join = (file: string, dir?: string): string => {
   const normalizedFile = file.replace(/\\/g, "/");
   const normalizedLogDir = dir.replace(/\\/g, "/");
 
-  // Ensure log_dir ends with a trailing slash for prefix checking
+  // Ensure log_dir ends with a trailing slash
   const dirWithSlash = normalizedLogDir.endsWith("/")
     ? normalizedLogDir
     : normalizedLogDir + "/";
