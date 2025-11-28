@@ -45,15 +45,15 @@ export const join = (file: string, dir?: string): string => {
   const normalizedFile = file.replace(/\\/g, "/");
   const normalizedLogDir = dir.replace(/\\/g, "/");
 
-  // If file already contains path separators, treat it as a complete path
-  if (normalizedFile.includes("/")) {
-    return normalizedFile;
-  }
-
-  // Ensure log_dir ends with a trailing slash
+  // Ensure log_dir ends with a trailing slash for prefix checking
   const dirWithSlash = normalizedLogDir.endsWith("/")
     ? normalizedLogDir
     : normalizedLogDir + "/";
+
+  // If file already starts with the logDir, it's already an absolute path, don't join again
+  if (normalizedFile.startsWith(dirWithSlash)) {
+    return normalizedFile;
+  }
 
   return dirWithSlash + normalizedFile;
 };
