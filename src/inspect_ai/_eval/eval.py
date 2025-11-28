@@ -390,6 +390,7 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        initial_model_usage: Initial model usage to continue token counting from a previous eval log.
         **kwargs: Model generation options.
 
     Returns:
@@ -1081,7 +1082,11 @@ async def eval_retry_async(
         config.max_connections = max_connections or config.max_connections
 
         # extract previous model usage to continue token counting (make a deep copy to avoid modifying the original log)
-        initial_model_usage = copy.deepcopy(eval_log.stats.model_usage) if eval_log.stats.model_usage else None
+        initial_model_usage = (
+            copy.deepcopy(eval_log.stats.model_usage)
+            if eval_log.stats.model_usage
+            else None
+        )
 
         # run the eval
         log = (

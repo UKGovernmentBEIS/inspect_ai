@@ -9,11 +9,11 @@ from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log._samples import init_active_samples
 from inspect_ai.model import GenerateConfig, Model
 from inspect_ai.model._model import (
-    ModelUsage,
     init_active_model,
     init_model_roles,
     init_model_usage,
 )
+from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util._concurrency import init_concurrency
 from inspect_ai.util._subprocess import init_max_subprocesses
 
