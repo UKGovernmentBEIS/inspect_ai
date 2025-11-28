@@ -528,6 +528,10 @@ async def _grok_assistant_message(message: ChatMessageAssistant) -> chat_pb2.Mes
                 )
             )
 
+    # if content and tool calls are empty then fill with an empty assistant message
+    if len(content) == 0 and (tool_calls is None or len(tool_calls) == 0):
+        content.append(chat_pb2.Content(text=""))
+
     # return message
     return chat_pb2.Message(
         role=chat_pb2.MessageRole.ROLE_ASSISTANT,
