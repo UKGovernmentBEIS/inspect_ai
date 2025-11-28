@@ -103,8 +103,11 @@ Tools communicate through a two-layer RPC architecture:
 
 ## Testing
 
-When running `pytest` with inspect to test interactions with this package, you may wish to test your _local_ version of the `inspect_tool_support` code instead of the latest published package. Passing the flag `--local-inspect-tools` to pytest when running tests from `test_inspect_container_tools.py` will build and install the package from source, for example:
+If you use the "local" sandbox, you can skip building the package entirely. You need to make sure
+the server component is up and running, with
 
 ```sh
-pytest tests/tools/test_inspect_container_tools.py --runslow --local-inspect-tools
+python src/inspect_sandbox_tools/_cli/server.py
 ```
+
+This will obviously not hot-reload on python code changes, so Ctrl-C and restart as and when necessary.
