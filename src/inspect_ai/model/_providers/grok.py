@@ -417,16 +417,7 @@ class GrokAPI(ModelAPI):
 
     def _is_internal_code_execution_tool(self, tool: ToolInfo) -> bool:
         if tool.name == "code_execution" and tool.options is not None:
-            providers = tool.options.get("providers", {})
-            files: dict[str, str] | None = tool.options.get("files", None)
-            if "grok" in providers:
-                if files and len(files) > 0:
-                    raise RuntimeError(
-                        "grok provider doesn't support files for code_execution() tool."
-                    )
-                return True
-            else:
-                return False
+            return "grok" in tool.options.get("providers", {})
         else:
             return False
 

@@ -1,12 +1,8 @@
 from typing import Any, Literal, TypeAlias, TypedDict, get_args
 
-from pydantic import Field
-
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._execute import bash, code_viewer
-from inspect_ai.util import resource, sandbox
-from inspect_ai.util._store_model import StoreModel, store_as
 
 CodeExecutionProvider: TypeAlias = Literal[
     "openai", "anthropic", "google", "grok", "bash"
@@ -47,7 +43,6 @@ class CodeExecutionProviders(TypedDict, total=False):
 @tool(viewer=code_viewer("python", "cmd", title="code_execution"))
 def code_execution(
     *,
-    files: dict[str, str] | None = None,
     providers: CodeExecutionProviders | None = None,
 ) -> Tool:
     """Code execution tool.
@@ -63,7 +58,6 @@ def code_execution(
     See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution>.
 
     Args:
-      files: Optional dict mapping file paths to content for copying to the execution environment. Content values are resolved via `resource()`, supporting inline strings, file paths, or remote resources (s3://, https://).
       providers: Configuration for the code execution providers to use. Currently supported providers are "openai", "anthropic", "google", "grok", and "bash". For example:
 
         ```python
@@ -107,15 +101,6 @@ def code_execution(
           The output of the command.
         """
         if bash_tool is not None:
-            # copy files to container if necessary
-            if files and len(files) > 0:
-                bash_files = store_as(BashFiles)
-                if not bash_files.copied:
-                    for file, content in files.items():
-                        await sandbox(bash_sandbox).write_file(file, resource(content))
-                    bash_files.copied = True
-
-            # execute tool
             return await bash_tool(cmd)
         else:
             raise RuntimeError(
@@ -125,12 +110,8 @@ def code_execution(
     return ToolDef(
         execute,
         name="code_execution",
-        options=dict(providers=normalized_providers, files=files),
+        options=dict(providers=normalized_providers),
     ).as_tool()
-
-
-class BashFiles(StoreModel):
-    copied: bool = Field(default=False)
 
 
 class _NormalizedProviders(TypedDict, total=False):
