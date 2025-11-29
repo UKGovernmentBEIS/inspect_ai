@@ -1,5 +1,5 @@
 import pytest
-from test_helpers.utils import skip_if_no_docker, skip_if_no_grok
+from test_helpers.utils import skip_if_no_docker, skip_if_no_google, skip_if_no_grok
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.content import ContentToolUse
@@ -69,6 +69,18 @@ def test_grok_code_execution() -> None:
 @skip_if_no_docker
 def test_grok_code_execution_bash() -> None:
     check_bash_code_execution("grok", "grok-4-fast")
+
+
+@skip_if_no_google
+def test_google_code_execution() -> None:
+    check_code_execution("google/gemini-3-pro-preview")
+
+
+@pytest.mark.slow
+@skip_if_no_google
+@skip_if_no_docker
+def test_google_code_execution_bash() -> None:
+    check_bash_code_execution("google", "gemini-3-pro-preview")
 
 
 def test_normalize_config_default_all_providers_enabled() -> None:
