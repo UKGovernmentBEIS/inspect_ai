@@ -41,7 +41,7 @@ class CodeExecutionProviders(TypedDict, total=False):
     """Use Grok native code execution. Defaults to `True`. Pass `False` to use a sandbox instead."""
 
     bash: dict[str, Any] | bool
-    """Use `bash()` tool as a fallback for providers that don't support code execution. Defaults to `True`. Pass `False` to disable the fallback. Pass `dict` with `bash()` tool options (`timeout` and `sandbox`)"""
+    """Use `bash()` tool as a fallback for providers that don't support code execution. Defaults to `True`. Pass `False` to disable the fallback or pass a `dict` with `bash()` tool options (`timeout` and `sandbox`)"""
 
 
 @tool(viewer=code_viewer("bash", "cmd"))
