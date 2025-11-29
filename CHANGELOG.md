@@ -13,6 +13,7 @@
 - Inspect View: Add support for copying sample messages (as text).
 - Inspect View: Improved JSON parsing performance & scalability.
 - Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
+- Bugfix: Correctly handle more complex list operations when detecting changes in state and store.
 
 ## 0.3.150 (25 November 2025)
 
