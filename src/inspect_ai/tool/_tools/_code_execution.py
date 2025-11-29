@@ -44,7 +44,7 @@ class CodeExecutionProviders(TypedDict, total=False):
     """Use `bash()` tool as a fallback for providers that don't support code execution. Defaults to `True`. Pass `False` to disable the fallback or pass a `dict` with `bash()` tool options (`timeout` and `sandbox`)"""
 
 
-@tool(viewer=code_viewer("bash", "cmd"))
+@tool(viewer=code_viewer("python", "cmd", title="code_execution"))
 def code_execution(
     *,
     files: dict[str, str] | None = None,

@@ -1,8 +1,74 @@
-"""Tests for code_execution tool."""
-
 import pytest
+from test_helpers.utils import skip_if_no_docker, skip_if_no_grok
 
-from inspect_ai.tool._tools._code_execution import _normalize_config
+from inspect_ai import Task, eval, task
+from inspect_ai._util.content import ContentToolUse
+from inspect_ai.dataset import Sample
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.solver import generate, use_tools, user_message
+from inspect_ai.tool import code_execution
+from inspect_ai.tool._tools._code_execution import (
+    CodeExecutionProviders,
+    _normalize_config,
+)
+
+
+@task
+def code_execution_task(providers: CodeExecutionProviders | None = None):
+    return Task(
+        dataset=[
+            Sample(
+                "Please use your available tools to execute Python code that adds 435678 + 23457 and then prints the result."
+            )
+        ],
+        solver=[
+            use_tools(code_execution(providers=providers)),
+            generate(),
+            user_message(
+                "Now, use your available tools to execute Python code that adds 34125 and 98267 and prints the result."
+            ),
+            generate(),
+        ],
+    )
+
+
+def check_code_execution(model: str, sandbox: str | None = None) -> None:
+    log = eval(code_execution_task(), model=model, sandbox=sandbox)[0]
+    assert log.status == "success"
+
+    assert log.samples
+    output = log.samples[0].output
+    assert isinstance(output.message.content, list)
+    tool_use = next(
+        (c for c in output.message.content if isinstance(c, ContentToolUse)), None
+    )
+    assert tool_use
+    assert tool_use.tool_type == "code_execution"
+
+
+def check_bash_code_execution(provider: str, model: str) -> None:
+    log = eval(
+        code_execution_task(providers=CodeExecutionProviders({provider: False})),  # type: ignore[misc]
+        model=f"{provider}/{model}",
+        sandbox="docker",
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+    tool_events = [ev for ev in log.samples[0].events if isinstance(ev, ToolEvent)]
+    assert len(tool_events) == 2
+    assert all(ev.function == "code_execution" for ev in tool_events)
+
+
+@skip_if_no_grok
+def test_grok_code_execution() -> None:
+    check_code_execution("grok/grok-4-fast")
+
+
+@pytest.mark.slow
+@skip_if_no_grok
+@skip_if_no_docker
+def test_grok_code_execution_bash() -> None:
+    check_bash_code_execution("grok", "grok-4-fast")
 
 
 def test_normalize_config_default_all_providers_enabled() -> None:
