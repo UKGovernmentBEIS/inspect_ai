@@ -6,6 +6,7 @@ from subprocess import Popen
 from typing import Any
 
 from openai import APIStatusError
+from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
 
 from inspect_ai._util.content import (
@@ -212,6 +213,10 @@ class VLLMAPI(OpenAICompatibleAPI):
     @override
     def collapse_assistant_messages(self) -> bool:
         return True
+
+    @override
+    def retry_wait(self) -> WaitBaseT | None:
+        return wait_fixed(5)
 
     def _cleanup_server(self) -> None:
         """Cleanup method to terminate server process when Python exits."""
