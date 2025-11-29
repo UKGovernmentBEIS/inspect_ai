@@ -1,7 +1,7 @@
 import clsx from "clsx";
 
 import { AgGridReact } from "ag-grid-react";
-import { FC, useEffect, useMemo, useRef } from "react";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useLogs } from "../../state/hooks";
@@ -16,6 +16,8 @@ import { NavbarButton } from "../navbar/NavbarButton";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
+import { ColumnSelector } from "./samples-grid/ColumnSelector";
+import { useSampleColumns } from "./samples-grid/hooks";
 import styles from "./SamplesPanel.module.css";
 
 export const SamplesPanel: FC = () => {
@@ -31,6 +33,10 @@ export const SamplesPanel: FC = () => {
   );
 
   const gridRef = useRef<AgGridReact>(null);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+
+  const logDetails = useStore((state) => state.logs.logDetails);
+  const { columns, setColumnVisibility } = useSampleColumns(logDetails);
 
   const handleResetFilters = () => {
     if (gridRef.current?.api) {
@@ -101,13 +107,31 @@ export const SamplesPanel: FC = () => {
           />
         )}
 
+        <NavbarButton
+          key="choose-columns"
+          label="Choose Columns"
+          icon={ApplicationIcons.options}
+          onClick={() => setShowColumnSelector(true)}
+        />
+
         <ViewSegmentedControl selectedSegment="samples" />
         {flowData && <FlowButton />}
       </ApplicationNavbar>
 
+      <ColumnSelector
+        showing={showColumnSelector}
+        setShowing={setShowColumnSelector}
+        columns={columns}
+        onVisibilityChange={setColumnVisibility}
+      />
+
       <ActivityBar animating={!!loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
-        <SamplesGrid samplesPath={samplesPath} gridRef={gridRef} />
+        <SamplesGrid
+          samplesPath={samplesPath}
+          gridRef={gridRef}
+          columns={columns}
+        />
       </div>
 
       <LogListFooter

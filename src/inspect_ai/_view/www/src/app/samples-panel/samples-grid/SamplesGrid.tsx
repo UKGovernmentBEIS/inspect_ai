@@ -1,4 +1,5 @@
 import type {
+  ColDef,
   GridApi,
   GridColumnsChangedEvent,
   RowClickedEvent,
@@ -19,7 +20,6 @@ import { debounce } from "../../../utils/sync";
 import { join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
-import { useSampleColumns } from "./hooks";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
 
@@ -30,12 +30,14 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 interface SamplesGridProps {
   samplesPath?: string;
   gridRef?: RefObject<AgGridReact | null>;
+  columns: ColDef<SampleRow>[];
 }
 
 // Sample Grid
 export const SamplesGrid: FC<SamplesGridProps> = ({
   samplesPath,
   gridRef: externalGridRef,
+  columns,
 }) => {
   const logDetails = useStore((state) => state.logs.logDetails);
   const gridState = useStore((state) => state.logs.samplesListState.gridState);
@@ -149,9 +151,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
     return rows;
   }, [filteredLogDetails]);
-
-  // Compute the columns
-  const columns = useSampleColumns(data, filteredLogDetails);
 
   const resizeGridColumns = useCallback(
     debounce(() => {
@@ -367,6 +366,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
   // Keep track of the max column count to avoid redundant resizing
   const maxColCount = useRef(0);
+
+  // Resize grid columns when columns prop changes (e.g., when columns are hidden/unhidden)
+  useEffect(() => {
+    resizeGridColumns();
+  }, [columns, resizeGridColumns]);
 
   return (
     <div className={styles.gridWrapper}>
