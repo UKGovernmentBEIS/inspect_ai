@@ -29,6 +29,7 @@ from tenacity import (
     RetryCallState,
     retry,
 )
+from tenacity.wait import WaitBaseT
 
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
@@ -263,6 +264,9 @@ class ModelAPI(abc.ABC):
            ex: Exception to check for retry
         """
         return False
+
+    def retry_wait(self) -> WaitBaseT | None:
+        return None
 
     def is_auth_failure(self, ex: Exception) -> bool:
         """Check if this exception indicates an authentication failure.
@@ -670,6 +674,7 @@ class Model:
                 self.should_retry,
                 self.before_retry,
                 log_model_retry,
+                self.api.retry_wait(),
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
