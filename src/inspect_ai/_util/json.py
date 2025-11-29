@@ -158,10 +158,16 @@ def _get_active_container(
     if not tracked_paths:
         return None, None
 
+    # Find the most specific (longest) matching container to handle nested arrays
+    best_match: str | None = None
     for container in tracked_paths:
         if path.startswith(container + "/"):
-            # Return container and the path relative to it (stripping the slash)
-            return container, path[len(container) + 1 :]
+            if best_match is None or len(container) > len(best_match):
+                best_match = container
+
+    if best_match is not None:
+        # Return container and the path relative to it (stripping the slash)
+        return best_match, path[len(best_match) + 1 :]
 
     return None, None
 
@@ -191,7 +197,7 @@ def _apply_fast_list_op(target: list[Any], op: dict[str, Any], rel_path: str) ->
 
 
 def json_changes(
-    before: dict[str, Any], after: dict[str, Any]
+    before: dict[str, Any] | list[Any], after: dict[str, Any] | list[Any]
 ) -> list[JsonChange] | None:
     """Calculates JSON changes including the 'replaced' value for replace operations.
 

@@ -208,3 +208,64 @@ def test_no_changes():
     after = {"a": [1, 2]}
     changes = json_changes(before, after)
     assert changes is None or len(changes) == 0
+
+
+def test_nested_arrays_with_structural_changes():
+    """Test that nested arrays are tracked correctly with structural changes and replaces.
+
+    This tests a scenario where a nested array (/items/0/tags) has both structural
+    changes (add/remove) and replace operations, requiring correct index tracking.
+    """
+    before = {
+        "items": [
+            {"tags": ["a", "b", "c"]},
+            {"tags": ["x", "y"]},
+        ]
+    }
+    after = {
+        "items": [
+            {
+                "tags": ["z", "a", "NEW"]
+            },  # Insert "z" at 0, remove "b", replace "c" with "NEW"
+            {"tags": ["x", "y"]},
+            {"tags": ["p", "q"]},  # New item added at end
+        ]
+    }
+
+    changes = json_changes(before, after)
+    assert changes is not None
+    ops = {c.path: c for c in changes}
+
+    # The replace at /items/0/tags/2 should have the correct replaced value
+    # After add at index 0 and remove at index 2, the shadow is ["z", "a", "c"]
+    # So replace at index 2 replaces "c" with "NEW"
+    assert "/items/0/tags/2" in ops
+    assert ops["/items/0/tags/2"].op == "replace"
+    assert ops["/items/0/tags/2"].value == "NEW"
+    assert ops["/items/0/tags/2"].replaced == "c"
+
+
+def test_get_active_container_selects_longest_match():
+    """Test that _get_active_container returns the most specific (longest) matching container.
+
+    This is a unit test for the internal function to ensure correct behavior
+    when there are overlapping tracked containers.
+    """
+    from inspect_ai._util.json import _get_active_container
+
+    tracked = {"/items", "/items/0/tags"}
+
+    # Path under nested container should match the nested one
+    container, rel_path = _get_active_container("/items/0/tags/2", tracked)
+    assert container == "/items/0/tags"
+    assert rel_path == "2"
+
+    # Path under parent but not nested should match parent
+    container, rel_path = _get_active_container("/items/1/name", tracked)
+    assert container == "/items"
+    assert rel_path == "1/name"
+
+    # Path not under any container
+    container, rel_path = _get_active_container("/other/path", tracked)
+    assert container is None
+    assert rel_path is None
