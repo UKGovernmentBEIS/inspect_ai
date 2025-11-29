@@ -1682,7 +1682,7 @@ requires-dist = [
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
-    { name = "jsonpath-ng", specifier = ">=1.7.0" },
+    { name = "jsonpath-ng", specifier = ">=1.6.0" },
     { name = "jsonpath-ng", marker = "extra == 'dev'" },
     { name = "jsonref", specifier = ">=1.1.0" },
     { name = "jsonschema", specifier = ">3.1.1" },

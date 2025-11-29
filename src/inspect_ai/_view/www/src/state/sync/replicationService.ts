@@ -5,6 +5,7 @@ import {
   LogPreview,
 } from "../../client/api/types";
 import { DatabaseService } from "../../client/database";
+import { throttle } from "../../utils/sync";
 import { WorkPriority, WorkQueue } from "../../utils/workQueue";
 
 export interface ApplicationContext {
@@ -23,26 +24,56 @@ export interface ApplicationContext {
 }
 
 export class ReplicationService {
-  private _database: DatabaseService | undefined = undefined;
+  // For remote data retrieval
   private _api: ClientAPI | undefined = undefined;
+
+  // For storage
+  private _database: DatabaseService | undefined = undefined;
+
+  // To update application state
   private _applicationContext: ApplicationContext | undefined = undefined;
+
+  // The work queues
   private _previewQueue: WorkQueue<LogHandle, LogPreview>;
   private _detailQueue: WorkQueue<LogHandle, LogDetails>;
   private _processingCount: number;
+
+  // Track sync requests (so we wait on already running requests before syncing again)
   private _pendingSync: Promise<LogHandle[]> | null = null;
   private _syncQueued: boolean = false;
 
+  // Batched DB updates
+  private _pendingPreviewUpdates: Record<string, LogPreview> = {};
+  private _pendingDetailUpdates: Record<string, LogDetails> = {};
+  private _flushingPreview = false;
+  private _flushingDetail = false;
+  private _throttledFlushPreviewBatch: () => void;
+  private _throttledFlushDetailBatch: () => void;
+  private _throttledUpdateDbStats: () => void;
+
   constructor() {
     this._processingCount = 0;
+    this._throttledUpdateDbStats = throttle(() => this.updateDbStats(), 1000);
+    this._throttledFlushPreviewBatch = throttle(
+      () => this.flushPreviewBatch(),
+      100,
+    );
+    this._throttledFlushDetailBatch = throttle(
+      () => this.flushDetailBatch(),
+      100,
+    );
 
     this._previewQueue = new WorkQueue<LogHandle, LogPreview>({
       name: "Log-Preview-Queue",
-      batchSize: 10,
-      processingDelay: 100,
+      concurrency: 2,
+      batchSize: 6,
+      processingDelay: 20,
       onProcessingChanged: this.processingChanged,
       getId: (log) => log.name,
       worker: async (logHandles: LogHandle[]) => {
-        if (!this._api) throw new Error("API not available");
+        if (!this._api) {
+          throw new Error("API not available");
+        }
 
         const previews = await this._api.get_log_summaries(
           logHandles.map((log) => log.name),
@@ -51,34 +82,23 @@ export class ReplicationService {
         return previews;
       },
       onComplete: async (previews: LogPreview[], inputs: LogHandle[]) => {
-        // Build preview map
-        const previewMap: Record<string, LogPreview> = {};
+        // Add to pending batch
         inputs.forEach((log, i) => {
           if (previews[i]) {
-            previewMap[log.name] = previews[i];
+            this._pendingPreviewUpdates[log.name] = previews[i];
           }
         });
 
-        // Update store
-        this._applicationContext?.updateLogPreviews(previewMap);
-
-        // Optionally cache to database
-        if (this._database && Object.keys(previewMap).length > 0) {
-          await this._database
-            .writeLogPreviews(
-              Object.values(previewMap),
-              Object.keys(previewMap),
-            )
-            .catch(() => {});
-          await this.updateDbStats();
-        }
+        // Schedule batched update
+        this._throttledFlushPreviewBatch();
       },
     });
 
     this._detailQueue = new WorkQueue<LogHandle, LogDetails>({
       name: "Log-Detail-Queue",
-      batchSize: 3,
-      processingDelay: 50,
+      concurrency: 10,
+      batchSize: 1,
+      processingDelay: 0,
       onProcessingChanged: this.processingChanged,
       getId: (log) => log.name,
       worker: async (logHandles: LogHandle[]) => {
@@ -99,28 +119,15 @@ export class ReplicationService {
         return allResults;
       },
       onComplete: async (details: LogDetails[], inputs: LogHandle[]) => {
-        if (this._database && details.length > 0) {
-          // Build preview map
-          const detailMap: Record<string, LogDetails> = {};
-          inputs.forEach((log, i) => {
-            if (details[i]) {
-              detailMap[log.name] = details[i];
-            }
-          });
-
-          // Update store
-          this._applicationContext?.updateLogDetails(detailMap);
-
-          for (const [i, detail] of details.entries()) {
-            const input = inputs[i];
-            if (detail && input) {
-              await this._database
-                .writeLogDetails(input.name, detail)
-                .catch(() => {});
-              this.updateDbStats();
-            }
+        // Add to pending batch
+        inputs.forEach((log, i) => {
+          if (details[i]) {
+            this._pendingDetailUpdates[log.name] = details[i];
           }
-        }
+        });
+
+        // Schedule batched update
+        this._throttledFlushDetailBatch();
       },
     });
   }
@@ -133,6 +140,68 @@ export class ReplicationService {
       this._applicationContext?.setBackgroundSyncing(false);
     }
   };
+
+  private async flushPreviewBatch() {
+    if (this._flushingPreview) {
+      return;
+    }
+    this._flushingPreview = true;
+
+    try {
+      const updates = { ...this._pendingPreviewUpdates };
+      this._pendingPreviewUpdates = {};
+
+      if (Object.keys(updates).length === 0) {
+        return;
+      }
+
+      // Write to database
+      if (this._database) {
+        await this._database
+          .writeLogPreviews(Object.values(updates), Object.keys(updates))
+          .catch(() => {});
+        this._throttledUpdateDbStats();
+      }
+
+      // Update store
+      setTimeout(() => {
+        this._applicationContext?.updateLogPreviews(updates);
+      }, 0);
+    } finally {
+      this._flushingPreview = false;
+    }
+  }
+
+  private async flushDetailBatch() {
+    // Prevent concurrent flushes
+    if (this._flushingDetail) {
+      return;
+    }
+    this._flushingDetail = true;
+
+    try {
+      const updates = { ...this._pendingDetailUpdates };
+      this._pendingDetailUpdates = {};
+
+      if (Object.keys(updates).length === 0) {
+        // Nothing to flush
+        return;
+      }
+
+      if (this._database) {
+        // Write to the database
+        await this._database.writeLogDetails(updates);
+        this._throttledUpdateDbStats();
+      }
+
+      setTimeout(() => {
+        // Update store
+        this._applicationContext?.updateLogDetails(updates);
+      }, 0);
+    } finally {
+      this._flushingDetail = false;
+    }
+  }
 
   private async updateDbStats() {
     if (!this._database || !this._applicationContext) return;
@@ -351,7 +420,8 @@ export class ReplicationService {
         previewTasks.push(p);
       }
     }
-    this.queueLogPreviews(previewTasks);
+    this.queueLogPreviews(previewTasks.slice(0, 25), WorkPriority.High);
+    this.queueLogPreviews(previewTasks.slice(25), WorkPriority.Medium);
 
     // Schedule preview fetching for new logs
     const detailTasks = [...toInvalidate];
@@ -361,7 +431,7 @@ export class ReplicationService {
         detailTasks.push(d);
       }
     }
-    this.queueLogDetails(detailTasks);
+    this.queueLogDetails(detailTasks, WorkPriority.High);
 
     if (progress) {
       this._applicationContext.setLoading(false);

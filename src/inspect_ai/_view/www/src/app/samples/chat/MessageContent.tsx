@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-import { FC, ReactNode } from "react";
+import { FC, Fragment, ReactNode } from "react";
 import {
   ContentAudio,
   ContentData,
@@ -154,16 +154,15 @@ const messageRenderers: Record<string, MessageRenderer> = {
         return <JsonMessageContent id={`${key}-json`} json={obj} />;
       } else {
         return (
-          <>
+          <Fragment key={key}>
             <RenderedText
-              key={key}
               markdown={purgeInternalContainers(c.text) || ""}
               className={isLast ? "no-last-para-padding" : ""}
             />
             {c.citations ? (
               <MessageCitations citations={c.citations as Citation[]} />
             ) : undefined}
-          </>
+          </Fragment>
         );
       }
     },

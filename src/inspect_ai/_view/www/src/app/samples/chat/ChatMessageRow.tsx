@@ -59,10 +59,6 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
             allowLinking={allowLinking}
           />
         </div>
-
-        {resolvedMessage.message.role === "user" ? (
-          <div style={{ height: "10px" }}></div>
-        ) : undefined}
       </>
     );
   } else {

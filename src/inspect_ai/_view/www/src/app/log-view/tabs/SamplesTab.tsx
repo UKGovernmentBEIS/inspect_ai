@@ -49,7 +49,7 @@ export const useSamplesTabConfig = (
         !samplesDescriptor
           ? undefined
           : totalSampleCount === 1
-            ? [<ScoreFilterTools />]
+            ? [<ScoreFilterTools key="sample-score-tool" />]
             : [
                 <SampleTools key="sample-tools" />,
                 evalStatus === "started" && !streamSamples && (
@@ -107,6 +107,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const groupByOrder = useGroupByOrder();
   const selectedScores = useSelectedScores();
   const selectSample = useStore((state) => state.logActions.selectSample);
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
   const sampleListHandle = useRef<VirtuosoHandle | null>(null);
 
@@ -214,7 +215,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     return (
       <Fragment>
         {samplesDescriptor && totalSampleCount === 1 ? (
-          <InlineSampleDisplay />
+          <InlineSampleDisplay showActivity={sampleStatus === "loading"} />
         ) : undefined}
         {samplesDescriptor && totalSampleCount > 1 ? (
           <SampleList
