@@ -90,7 +90,7 @@ def test_google_code_execution_bash() -> None:
 
 @skip_if_no_openai
 def test_openai_code_execution() -> None:
-    check_code_execution("openai/openai")
+    check_code_execution("openai/gpt-5-mini")
 
 
 @pytest.mark.slow
