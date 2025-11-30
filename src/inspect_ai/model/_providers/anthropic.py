@@ -1453,18 +1453,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
     ] = []
     for block in content_blocks_input:
         if isinstance(block, dict):
-            if block["type"] == "server_tool_use":
-                content_blocks.append(BetaServerToolUseBlock.model_validate(block))
-            elif block["type"] == "bash_code_execution_tool_result":
-                content_blocks.append(
-                    BetaBashCodeExecutionToolResultBlock.model_validate(block)
-                )
-            elif block["type"] == "text_editor_code_execution_tool_result":  # type: ignore[comparison-overlap]
-                content_blocks.append(
-                    BetaTextEditorCodeExecutionToolResultBlock.model_validate(block)
-                )
-            else:
-                content_blocks.append(content_block_adapter.validate_python(block))
+            content_blocks.append(content_block_adapter.validate_python(block))
         else:
             content_blocks.append(block)
 
