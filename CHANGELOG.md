@@ -5,6 +5,7 @@
 - Anthropic: Protect against signature not being replayed (can occur for agent bridge) by saving a side list of signatures.
 - Memory tool: Added `memory()` tool and bound it to native definitions for providers that support it (currently only Anthropic).
 - Sandboxes: For "local" and "docker" sandbox providers, treat `output_limit` as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).
+- Sandboxes: Added `evals_in_eval` example for running Inspect evaluations inside other evaluations.
 - Model API: Enable model providers to have custom retry wait strategies (use 5 second fixed wait for vllm).
 - Prevent querying of local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
 - Dependencies: Change jsonpath-ng requirement to >=1.6.0 (formerly required >= 1.7.0).
