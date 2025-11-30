@@ -14,6 +14,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
@@ -124,6 +125,12 @@ def resolve_web_search_providers(
 def internal_web_search_providers() -> WebSearchProviders:
     return WebSearchProviders(
         openai=True, anthropic=True, grok=True, gemini=True, perplexity=True
+    )
+
+
+def default_code_execution_providers() -> CodeExecutionProviders:
+    return CodeExecutionProviders(
+        openai={}, anthropic=True, google=True, grok=True, bash={}
     )
 
 

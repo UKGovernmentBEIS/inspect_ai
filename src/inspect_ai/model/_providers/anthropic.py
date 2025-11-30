@@ -65,7 +65,6 @@ from anthropic.types import (
     WebSearchToolResultError,
 )
 from anthropic.types.beta import (
-    BetaBashCodeExecutionResultBlockParam,
     BetaBashCodeExecutionToolResultBlock,
     BetaBashCodeExecutionToolResultBlockParam,
     BetaCodeExecutionTool20250825Param,
@@ -1248,7 +1247,6 @@ MessageBlockParam = Union[
     | WebSearchToolResultBlockParam
     | BetaMCPToolUseBlockParam
     | BetaRequestMCPToolResultBlockParam
-    | BetaBashCodeExecutionResultBlockParam
     | BetaTextEditorCodeExecutionToolResultBlockParam
 ]
 
@@ -1269,6 +1267,14 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
             blocks.append(ServerToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "web_search_tool_result":
             blocks.append(WebSearchToolResultBlock.model_validate(block_param))
+        elif block_param["type"] == "bash_code_execution_tool_result":
+            blocks.append(
+                BetaBashCodeExecutionToolResultBlock.model_validate(block_param)
+            )
+        elif block_param["type"] == "text_editor_code_execution_tool_result":
+            blocks.append(
+                BetaTextEditorCodeExecutionToolResultBlock.model_validate(block_param)
+            )
         elif block_param["type"] == "mcp_tool_use":
             blocks.append(BetaMCPToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "mcp_tool_result":

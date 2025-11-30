@@ -1214,6 +1214,12 @@ def is_response_web_search_call(
     return param["type"] == "web_search_call"
 
 
+def is_response_code_interpreter_call(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseCodeInterpreterToolCallParam]:
+    return param["type"] == "code_interpreter_call"
+
+
 def is_response_function_tool_call(
     param: ResponseInputItemParam,
 ) -> TypeGuard[ResponseFunctionToolCallParam]:
@@ -1250,6 +1256,12 @@ def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam
 
 def is_web_search_tool_param(tool_param: ToolParam) -> TypeGuard[WebSearchToolParam]:
     return tool_param.get("type") in ["web_search", "web_search_2025_08_26"]
+
+
+def is_code_interpreter_tool_param(
+    tool_param: ToolParam,
+) -> TypeGuard[CodeInterpreter]:
+    return tool_param.get("type") == "code_interpreter"
 
 
 def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
