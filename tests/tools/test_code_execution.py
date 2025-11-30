@@ -1,5 +1,6 @@
 import pytest
 from test_helpers.utils import (
+    skip_if_no_anthropic,
     skip_if_no_docker,
     skip_if_no_google,
     skip_if_no_grok,
@@ -98,6 +99,18 @@ def test_openai_code_execution() -> None:
 @skip_if_no_docker
 def test_openai_code_execution_bash() -> None:
     check_bash_code_execution("openai", "gpt-5-mini")
+
+
+@skip_if_no_anthropic
+def test_anthropic_code_execution() -> None:
+    check_code_execution("anthropic/claude-sonnet-4-5")
+
+
+@pytest.mark.slow
+@skip_if_no_anthropic
+@skip_if_no_docker
+def test_anthropic_code_execution_bash() -> None:
+    check_bash_code_execution("anthropic", "claude-sonnet-4-5")
 
 
 def test_normalize_config_default_all_providers_enabled() -> None:
