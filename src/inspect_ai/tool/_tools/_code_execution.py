@@ -74,7 +74,7 @@ def code_execution(
         code_interpeter({ "openai" { "memory_limit": "4g" }})
 
         # provider openai options and disable bash fallback
-        code_interpeter({ "openai" { "memory_limit": "4g" }, "bash": False })
+        code_interpeter({ "openai": { "memory_limit": "4g" }, "bash": False })
         ```
     """
     # normalize various config syntaxes

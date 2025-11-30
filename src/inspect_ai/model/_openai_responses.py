@@ -9,6 +9,8 @@ from openai.types.responses import (
     CustomToolParam,
     EasyInputMessageParam,
     FunctionToolParam,
+    ResponseCodeInterpreterToolCall,
+    ResponseCodeInterpreterToolCallParam,
     ResponseComputerToolCall,
     ResponseComputerToolCallParam,
     ResponseCustomToolCall,
@@ -41,6 +43,13 @@ from openai.types.responses import (
 )
 from openai.types.responses import Response as OpenAIResponse
 from openai.types.responses.response import IncompleteDetails
+from openai.types.responses.response_code_interpreter_tool_call import (
+    OutputImage,
+    OutputLogs,
+)
+from openai.types.responses.response_code_interpreter_tool_call_param import (
+    OutputLogs as OutputLogsParam,
+)
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
@@ -94,7 +103,11 @@ from openai.types.responses.response_usage import (
     InputTokensDetails,
     OutputTokensDetails,
 )
-from openai.types.responses.tool_param import Mcp
+from openai.types.responses.tool_param import (
+    CodeInterpreter,
+    CodeInterpreterContainerCodeInterpreterToolAuto,
+    Mcp,
+)
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
@@ -420,7 +433,9 @@ class _AssistantInternal:
         str,
         ResponseFunctionToolCallParam
         | ResponseCustomToolCallParam
-        | ResponseComputerToolCallParam,
+        | ResponseComputerToolCallParam
+        | ResponseFunctionWebSearchParam
+        | ResponseCodeInterpreterToolCallParam,
     ] = field(default_factory=dict)
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
@@ -599,6 +614,8 @@ def _chat_message_assistant_from_openai_response(
                     ResponseFunctionWebSearchParam, output.model_dump(exclude_none=True)
                 )
                 message_content.append(web_search_to_tool_use(output))
+            case ResponseCodeInterpreterToolCall():
+                message_content.append(code_interpreter_to_tool_use(output))
             case McpListTools():
                 assistant_internal().server_tool_uses[output.id] = cast(
                     McpListToolsParam, output.model_dump()
@@ -875,7 +892,17 @@ def _openai_input_items_from_chat_message_assistant(
                         items.append(tool_use_to_mcp_call_param(content))
                 elif tool_type == "web_search":
                     items.append(tool_use_to_web_search_param(content))
-
+                elif tool_type == "code_execution":
+                    # openai raises an error if we try to replay code_interpreter
+                    # message params when store=False so we just do it as text
+                    pending_response_output.append(
+                        ResponseOutputTextParam(
+                            type="output_text",
+                            text=f"code_interpreter: {content.arguments}\n\n{content.error or content.result}",
+                            annotations=[],
+                            logprobs=[],
+                        )
+                    )
                 else:
                     raise ValueError(
                         f"OpenAI Responses: Unspected tool_type '{tool_type}'"
@@ -936,10 +963,11 @@ def _maybe_native_tool_param(
             maybe_computer_use_preview_tool(tool)
             or maybe_web_search_tool(model_name, tool)
             or maybe_mcp_tool(tool)
+            or maybe_code_interpreter_tool(model_name, tool)
             # or self.text_editor_tool_param(tool)
             # or self.bash_tool_param(tool)
         )
-        if config.internal_tools or True
+        if config.internal_tools is not False
         else None
     )
 
@@ -1234,3 +1262,70 @@ def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam
 
 def is_custom_tool_param(tool_param: ToolParam) -> TypeGuard[CustomToolParam]:
     return tool_param.get("type") == "custom"
+
+
+def maybe_code_interpreter_tool(
+    model_name: str, tool: ToolInfo
+) -> CodeInterpreter | None:
+    COMPATIBLE_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3", "o4-mini", "gpt-5"]
+    if (
+        tool.name == "code_execution"
+        and tool.options
+        and any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
+    ):
+        providers: dict[str, Any] = tool.options.get("providers", {})
+        container_options: CodeInterpreterContainerCodeInterpreterToolAuto | bool = (
+            providers.get("openai", False)
+        )
+        if container_options is False:
+            return None
+        if container_options is True:
+            container_options = CodeInterpreterContainerCodeInterpreterToolAuto(
+                type="auto"
+            )
+        if "type" not in container_options:
+            container_options["type"] = "auto"
+        return CodeInterpreter(
+            type="code_interpreter",
+            container=container_options,
+        )
+
+    else:
+        return None
+
+
+def code_interpreter_to_tool_use(
+    code_interpreter: ResponseCodeInterpreterToolCall,
+) -> ContentToolUse:
+    return ContentToolUse(
+        type="tool_use",
+        tool_type="code_execution",
+        id=code_interpreter.id,
+        name=code_interpreter.type,
+        arguments=code_interpreter.code or "",
+        result=_outputs_to_result(code_interpreter.outputs),
+        error="failed" if code_interpreter.status == "failed" else None,
+    )
+
+
+def tool_use_to_code_interpreter_param(
+    content: ContentToolUse,
+) -> ResponseCodeInterpreterToolCallParam:
+    return ResponseCodeInterpreterToolCallParam(
+        type="code_interpreter_call",
+        id=content.id,
+        code=content.arguments,
+        container_id="",
+        outputs=[OutputLogsParam(type="logs", logs=content.result)],
+        status="failed" if content.error else "completed",
+    )
+
+
+def _outputs_to_result(outputs: list[OutputLogs | OutputImage] | None) -> str:
+    if outputs is not None:
+        return "\n\n".join(
+            output.logs if isinstance(output, OutputLogs) else f"image: {output.url}"
+            for output in outputs
+        )
+    else:
+        return ""

@@ -10,7 +10,11 @@ from openai import (
     NotGiven,
 )
 from openai._types import NOT_GIVEN
-from openai.types.responses import Response, ResponseFormatTextJSONSchemaConfigParam
+from openai.types.responses import (
+    Response,
+    ResponseFormatTextJSONSchemaConfigParam,
+    ToolParam,
+)
 from tenacity import (
     retry,
     retry_if_exception,
@@ -112,6 +116,7 @@ async def generate_responses(
             safety_identifier=safety_identifier,
             responses_store=responses_store,
             tools=len(tools) > 0,
+            tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
         ),
     )
     if isinstance(background, bool):
@@ -220,6 +225,7 @@ def completion_params_responses(
     safety_identifier: str | NotGiven,
     responses_store: bool | None,
     tools: bool,
+    tool_params: list[ToolParam],
 ) -> dict[str, Any]:
     # TODO: we'll need a computer_use_preview bool for the 'include'
     # and 'reasoning' parameters
@@ -229,7 +235,7 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    params: dict[str, Any] = dict(model=model_name)
+    params: dict[str, Any] = dict(model=model_name, include=[])
     if service_tier is not None:
         params["service_tier"] = service_tier
     if isinstance(prompt_cache_key, str):
@@ -249,8 +255,6 @@ def completion_params_responses(
     if responses_store is not True:
         params["store"] = False
         if model_info.has_reasoning_options() or model_info.is_computer_use_preview():
-            if "include" not in params:
-                params["include"] = []
             params["include"].append("reasoning.encrypted_content")
 
     if config.max_tokens is not None:
@@ -284,8 +288,6 @@ def completion_params_responses(
     if config.num_choices is not None:
         unsupported_warning("num_choices")
     if config.logprobs is not None:
-        if "include" not in params:
-            params["include"] = []
         params["include"].append("message.output_text.logprobs")
     if config.top_logprobs is not None:
         params["top_logprobs"] = config.top_logprobs
@@ -315,6 +317,9 @@ def completion_params_responses(
                 strict=config.response_schema.strict,
             )
         )
+
+    if any(tp.get("type") == "code_interpreter" for tp in tool_params):
+        params["include"].append("code_interpreter_call.outputs")
 
     # look for any of our native fields not in GenerateConfig in extra_body
     if config.extra_body is not None:
