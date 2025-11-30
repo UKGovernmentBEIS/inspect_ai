@@ -205,6 +205,28 @@ def responses_web_search_agent() -> Agent:
 
 
 @agent
+def responses_code_interpreter_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge() as bridge:
+            client = AsyncOpenAI()
+
+            await client.responses.create(
+                model="inspect",
+                tools=[
+                    {
+                        "type": "code_interpreter",
+                        "container": {"type": "auto"},
+                    }
+                ],
+                input=user_prompt(state.messages).text,
+            )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
 def anthropic_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
         def tools_param() -> Any:
@@ -281,6 +303,30 @@ def anthropic_web_search_agent() -> Agent:
     return execute
 
 
+@agent
+def anthropic_code_execution_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            client = AsyncAnthropic()
+
+            await client.messages.create(
+                model="inspect",
+                max_tokens=1024,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": user_prompt(state.messages).text,
+                    }
+                ],
+                tools=[{"type": "code_execution_20250825", "name": "code_execution"}],  # type: ignore
+                extra_headers={"anthropic-beta": "code-execution-2025-08-25"},
+            )
+
+            return bridge.state
+
+    return execute
+
+
 @task
 def bridged_task(agent: Agent):
     return Task(
@@ -306,6 +352,18 @@ def web_search_task(agent: Agent):
         ],
         solver=agent,
         scorer=includes(),
+    )
+
+
+@task
+def code_execution_task(agent: Agent):
+    return Task(
+        dataset=[
+            Sample(
+                input="Please use your available tools to execute Python code that adds 435678 + 23457 and then prints the result.",
+            )
+        ],
+        solver=agent,
     )
 
 
@@ -410,7 +468,16 @@ def test_bridged_web_search_tool_openai():
     log = eval(web_search_task(responses_web_search_agent()), model="openai/gpt-5")[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"search_context_size": "low"' in log_json
-    check_web_search_tool_use(log, "web_search")
+    check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_openai
+def test_bridged_code_execution_tool_openai():
+    log = eval(
+        code_execution_task(responses_code_interpreter_agent()),
+        model="openai/gpt-5-mini",
+    )[0]
+    check_server_tool_use(log, "code_execution")
 
 
 @skip_if_no_anthropic
@@ -437,7 +504,16 @@ def test_bridged_web_search_tool_anthropic():
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"max_uses": 5' in log_json
-    check_web_search_tool_use(log, "web_search")
+    check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_anthropic
+def test_bridged_code_execution_tool_anthropic():
+    log = eval(
+        code_execution_task(anthropic_code_execution_agent()),
+        model="anthropic/claude-sonnet-4-5",
+    )[0]
+    check_server_tool_use(log, "code_execution")
 
 
 @skip_if_no_anthropic
@@ -447,7 +523,7 @@ def test_bridged_web_search_tool_openai_to_anthropic():
         web_search_task(responses_web_search_agent()),
         model="anthropic/claude-sonnet-4-5",
     )[0]
-    check_web_search_tool_use(log, "web_search")
+    check_server_tool_use(log, "web_search")
 
 
 @skip_if_no_anthropic
@@ -459,10 +535,10 @@ def test_bridged_web_search_tool_anthropic_to_openai():
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"max_uses": 5' in log_json
-    check_web_search_tool_use(log, "web_search")
+    check_server_tool_use(log, "web_search")
 
 
-def check_web_search_tool_use(log: EvalLog, tool_name: str):
+def check_server_tool_use(log: EvalLog, tool_name: str):
     assert log.status == "success"
     assert log.samples
     model_event = next(

@@ -130,7 +130,7 @@ async def inspect_anthropic_api_request_impl(
     bridge._track_state(messages, output)
 
     # return message
-    message = Message(
+    message = Message.model_construct(
         id=output.message.id or uuid(),
         content=await assistant_message_blocks(output.message),  # type: ignore[arg-type]
         model=output.model,

@@ -75,6 +75,7 @@ from anthropic.types.beta import (
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
     BetaRequestMCPToolResultBlockParam,
+    BetaServerToolUseBlock,
     BetaServerToolUseBlockParam,
     BetaTextBlockParam,
     BetaTextEditorCodeExecutionToolResultBlock,
@@ -1227,6 +1228,7 @@ MessageBlock = Union[
     | RedactedThinkingBlock
     | ToolUseBlock
     | ServerToolUseBlock
+    | BetaServerToolUseBlock
     | WebSearchToolResultBlock
     | BetaMCPToolUseBlock
     | BetaMCPToolResultBlock
@@ -1264,7 +1266,7 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
         elif block_param["type"] == "tool_use":
             blocks.append(ToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "server_tool_use":
-            blocks.append(ServerToolUseBlock.model_validate(block_param))
+            blocks.append(BetaServerToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "web_search_tool_result":
             blocks.append(WebSearchToolResultBlock.model_validate(block_param))
         elif block_param["type"] == "bash_code_execution_tool_result":
@@ -1420,29 +1422,49 @@ async def model_output_from_message(
 
 
 content_block_adapter = TypeAdapter[
-    BetaBashCodeExecutionToolResultBlock
+    BetaServerToolUseBlock
+    | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
     | ContentBlock,
 ](
-    BetaBashCodeExecutionToolResultBlock
+    BetaServerToolUseBlock
+    | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
     | ContentBlock,
 )
 
 
 def content_and_tool_calls_from_assistant_content_blocks(
-    content_blocks_input: Sequence[ContentBlockParam | ContentBlock],
+    content_blocks_input: Sequence[
+        BetaServerToolUseBlockParam
+        | BetaBashCodeExecutionToolResultBlockParam
+        | BetaTextEditorCodeExecutionToolResultBlock
+        | ContentBlockParam
+        | ContentBlock
+    ],
     tools: list[ToolInfo],
 ) -> tuple[list[Content], list[ToolCall] | None]:
     # resolve params to blocks
     content_blocks: list[
-        BetaBashCodeExecutionToolResultBlock
+        BetaServerToolUseBlock
+        | BetaBashCodeExecutionToolResultBlock
         | BetaTextEditorCodeExecutionToolResultBlock
         | ContentBlock
     ] = []
     for block in content_blocks_input:
         if isinstance(block, dict):
-            content_blocks.append(content_block_adapter.validate_python(block))
+            if block["type"] == "server_tool_use":
+                content_blocks.append(BetaServerToolUseBlock.model_validate(block))
+            elif block["type"] == "bash_code_execution_tool_result":
+                content_blocks.append(
+                    BetaBashCodeExecutionToolResultBlock.model_validate(block)
+                )
+            elif block["type"] == "text_editor_code_execution_tool_result":  # type: ignore[comparison-overlap]
+                content_blocks.append(
+                    BetaTextEditorCodeExecutionToolResultBlock.model_validate(block)
+                )
+            else:
+                content_blocks.append(content_block_adapter.validate_python(block))
         else:
             content_blocks.append(block)
 
