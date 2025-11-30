@@ -65,6 +65,7 @@ from anthropic.types import (
     WebSearchToolResultError,
 )
 from anthropic.types.beta import (
+    BetaBashCodeExecutionResultBlockParam,
     BetaBashCodeExecutionToolResultBlock,
     BetaBashCodeExecutionToolResultBlockParam,
     BetaCodeExecutionTool20250825Param,
@@ -1821,35 +1822,31 @@ async def message_block_params(
                 ),
             ]
         elif content.tool_type == "code_execution":
-            # coerce arguments to dict
-            input = json.loads(content.arguments)
-            if not isinstance(input, dict):
-                input = dict(input=input)
-
-            if content.name == "bash_code_execution":
-                result: MessageBlockParam = BetaBashCodeExecutionToolResultBlockParam(
-                    type="bash_code_execution_tool_result",
-                    tool_use_id=content.id,
-                    content=json.loads(content.result),
-                )
-            elif content.name == "text_editor_code_execution":
-                result = BetaTextEditorCodeExecutionToolResultBlockParam(
-                    type="text_editor_code_execution_tool_result",
-                    tool_use_id=content.id,
-                    content=json.loads(content.result),
-                )
-            else:
-                raise ValueError(f"Unexpected server tool use: {content.name}")
-
+            # if this is a native anthropic code execution it will have been handled
+            # by plucking the blocks from assistant_internal().server_code_executions.
+            # therefore, this is a code execution from another system which we need to
+            # normalize to the anthropic schema (i.e. we can't just parse its arguments
+            # and result or rely on its name to match one of our tools)
             return [
                 BetaServerToolUseBlockParam(
                     type="server_tool_use",
                     id=content.id,
-                    name=content.name,  # type: ignore[typeddict-item]
-                    input=input,
+                    name="bash_code_execution",
+                    input={"input": content.arguments},
                 ),
-                result,
+                BetaBashCodeExecutionToolResultBlockParam(
+                    type="bash_code_execution_tool_result",
+                    tool_use_id=content.id,
+                    content=BetaBashCodeExecutionResultBlockParam(
+                        type="bash_code_execution_result",
+                        return_code=0,
+                        stdout=content.result,
+                        stderr=content.error or "",
+                        content=[],
+                    ),
+                ),
             ]
+
         else:
             raise RuntimeError(
                 f"Unexpected tool use: {content.tool_type}/{content.name}"

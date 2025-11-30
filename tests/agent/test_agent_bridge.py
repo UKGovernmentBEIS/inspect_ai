@@ -538,6 +538,26 @@ def test_bridged_web_search_tool_anthropic_to_openai():
     check_server_tool_use(log, "web_search")
 
 
+@skip_if_no_anthropic
+@skip_if_no_openai
+def test_bridged_code_execution_tool_openai_to_anthropic():
+    log = eval(
+        code_execution_task(responses_code_interpreter_agent()),
+        model="anthropic/claude-sonnet-4-5",
+    )[0]
+    check_server_tool_use(log, "code_execution")
+
+
+@skip_if_no_anthropic
+@skip_if_no_openai
+def test_bridged_code_execution_tool_anthropic_to_openai():
+    log = eval(
+        code_execution_task(anthropic_code_execution_agent()),
+        model="openai/gpt-5-mini",
+    )[0]
+    check_server_tool_use(log, "code_execution")
+
+
 def check_server_tool_use(log: EvalLog, tool_name: str):
     assert log.status == "success"
     assert log.samples
