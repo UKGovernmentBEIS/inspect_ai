@@ -472,16 +472,16 @@ Here are some example configurations:
 
 ``` python
 # default (native where supported, python as fallback):
-code_interpeter()
+code_interpreter()
 
 # selectively disable native (will fallback to python)
-code_interpeter({ "grok": False, "openai": False })
+code_interpreter({ "grok": False, "openai": False })
 
 # disable python fallback
-code_interpeter({ "python": False })
+code_interpreter({ "python": False })
 
 # provide openai container options
-code_interpeter(
+code_interpreter(
     {"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
 )
 ```
