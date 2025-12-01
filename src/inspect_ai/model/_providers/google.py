@@ -37,6 +37,7 @@ from google.genai.types import (
     SafetySettingDict,
     Schema,
     ThinkingConfig,
+    ThinkingLevel,
     Tool,
     ToolConfig,
     ToolListUnion,
@@ -379,8 +380,21 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_2_5(self) -> bool:
         return "gemini-2.5" in self.service_model_name()
 
+    def is_gemini_3(self) -> bool:
+        return "gemini-3" in self.service_model_name()
+
+    def is_gemini_3_plus(self) -> bool:
+        return (
+            self.is_gemini()
+            and not self.is_gemini_1_5()
+            and not self.is_gemini_2_0()
+            and not self.is_gemini_2_5()
+        )
+
     def is_gemini_thinking_only(self) -> bool:
-        return self.is_gemini_2_5() and "-pro" in self.service_model_name()
+        return (
+            self.is_gemini_2_5() or self.is_gemini_3()
+        ) and "-pro" in self.service_model_name()
 
     @override
     def emulate_reasoning_history(self) -> bool:
@@ -428,10 +442,12 @@ class GoogleGenAIAPI(ModelAPI):
             self.is_gemini() and not self.is_gemini_1_5() and not self.is_gemini_2_0()
         )
         if has_thinking_config:
-            if config.reasoning_tokens == 0:
+            # user is attempting to turn off reasoning, this only works for some models
+            # so we warn for those models where it can't be done.
+            if config.reasoning_tokens == 0 or config.reasoning_effort == "none":
                 if self.is_gemini_thinking_only():
                     # When reasoning_tokens is set to 0 and it's a thinking only model we don't
-                    # bother trying to shut down thining as this is not possible:
+                    # bother trying to shut down thinking as this is not possible:
                     #   https://ai.google.dev/gemini-api/docs/thinking#set-budget
                     # warn and return include_thoughts=True so the user sees what is happening
                     warn_once(
@@ -442,10 +458,30 @@ class GoogleGenAIAPI(ModelAPI):
                 else:
                     # otherwise do the disable
                     return ThinkingConfig(include_thoughts=False, thinking_budget=0)
-            else:
+
+            # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
+            # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
+            elif config.reasoning_effort is not None and self.is_gemini_3_plus():
+                match config.reasoning_effort:
+                    case "minimal" | "low":
+                        thinking_level: ThinkingLevel | None = ThinkingLevel.LOW
+                    case "medium" | "high":  # note: 'medium' thinking level coming soon
+                        thinking_level = ThinkingLevel.HIGH
+                    case _:
+                        thinking_level = None  # can't happen, keep mypy happy
+                return ThinkingConfig(
+                    include_thoughts=True, thinking_level=thinking_level
+                )
+
+            # enable thinking_budget if specified
+            elif config.reasoning_tokens is not None:
                 return ThinkingConfig(
                     include_thoughts=True, thinking_budget=config.reasoning_tokens
                 )
+
+            # generic thinking with defaults
+            else:
+                return ThinkingConfig(include_thoughts=True)
         else:
             return None
 
@@ -660,24 +696,24 @@ async def content(
         else:
             for i, content in enumerate(message.content):
                 if isinstance(content, ContentReasoning):
-                    # if this is encrytped reasoning, emit the part and save the
-                    # content block for applying the thought_signature to the next part
+                    # if this is encrypted reasoning, save it for applying the thought_signature
+                    # to the next part (don't emit a separate thought part during replay)
                     if content.redacted:
-                        content_parts.append(
-                            Part(
-                                text=content.summary,
-                                thought=True,
-                            )
-                        )
                         working_reasoning_block = content
                     else:
+                        # unencrypted reasoning (for older models or debugging)
                         content_parts.append(Part(text=content.reasoning, thought=True))
 
                 else:
                     part_to_append = await content_part(client, content)
                     # If previously there was a reasoning block, we need to set the "thought_signature"
                     # using the reasoning from that block.
-                    if working_reasoning_block is not None:
+                    # However, if there are tool calls in this message, the signature should go on
+                    # the first tool call instead, not on text parts (per Gemini API docs).
+                    if (
+                        working_reasoning_block is not None
+                        and message.tool_calls is None
+                    ):
                         if (
                             working_reasoning_block.reasoning is not None
                             and working_reasoning_block.redacted
@@ -695,10 +731,12 @@ async def content(
 
         # Now handle tool calls
         if message.tool_calls is not None:
-            # Note that if each tool call had its own reasoning block in a message with
-            # multiple reasoning blocks, we wouldn't know which reasoning block corresponded
-            # to which tool call. That said, to date we have not observed Gemini using
-            # a reasoning block per-tool so this isn't likely a practical concern
+            # Per Gemini API docs: thought_signature goes on the first tool call in a message.
+            # For parallel function calls, only the first FC gets the signature.
+            # For sequential function calls (multi-step), each step is a separate message,
+            # so each will have its own reasoning block and signature.
+            # The loop below applies the signature to the first tool call (when working_reasoning_block
+            # is not None), then clears it so subsequent tool calls don't get it.
             for tool_call in message.tool_calls:
                 # extract the part
                 part = Part.from_function_call(

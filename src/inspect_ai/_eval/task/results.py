@@ -36,6 +36,7 @@ from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
+    ScorerSpec,
     scorer_metrics,
     unique_scorer_name,
 )
@@ -62,7 +63,22 @@ class ScorerInfo:
 
     @staticmethod
     def from_name(name: str) -> "ScorerInfo":
-        return ScorerInfo(name=name, metrics=[accuracy(), stderr()])
+        from inspect_ai._eval.loader import scorer_from_spec
+
+        # load the scorer to gather that scorer's metrics
+        try:
+            scorer = scorer_from_spec(ScorerSpec(scorer=name), task_path=None)
+        except Exception:
+            scorer = None
+
+        # use the metrics if we were able to load the scorer
+        # otherwise, use the default metrics
+        if scorer is not None:
+            metrics = scorer_metrics(scorer)
+        else:
+            metrics = [accuracy(), stderr()]
+
+        return ScorerInfo(name=name, metrics=metrics)
 
 
 def eval_results(

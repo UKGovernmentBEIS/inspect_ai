@@ -24,7 +24,8 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, file, filesystem
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai.agent._agent import Agent
+from inspect_ai.agent._agent import Agent, is_agent
+from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
@@ -43,6 +44,7 @@ from inspect_ai.model import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_config import model_roles_to_model_roles_config
+from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._display import (
@@ -52,7 +54,7 @@ from inspect_ai.util._display import (
 )
 
 from .eval import eval, eval_init, eval_resolve_tasks
-from .loader import resolve_task_args
+from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask
 from .task.task import PreviousTask, resolve_epochs
@@ -149,7 +151,7 @@ def eval_set(
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
         solver: Alternative solver(s) for
-            evaluating task(s). ptional (uses task solver by default).
+            evaluating task(s). Optional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
@@ -372,20 +374,24 @@ def eval_set(
         #  (1) All tasks have a unique identifier
         #  (2) All logs have identifiers that map to tasks
         all_logs = validate_eval_set_prerequisites(
-            resolved_tasks, all_logs, log_dir_allow_dirty, config
+            resolved_tasks, all_logs, log_dir_allow_dirty, config, solver
         )
 
         # write eval-set info containing data about
         # all the tasks that are a part of this eval set
         # (include all tasks, not just tasks that need to be
         # run in this pass)
-        write_eval_set_info(eval_set_id, log_dir, resolved_tasks, all_logs, config)
+        write_eval_set_info(
+            eval_set_id, log_dir, resolved_tasks, all_logs, config, solver
+        )
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         # for those that haven't run, schedule them into models => tasks groups
         log_task_identifiers = [log.task_identifier for log in all_logs]
-        all_tasks = [(task_identifier(task, config), task) for task in resolved_tasks]
+        all_tasks = [
+            (task_identifier(task, config, solver), task) for task in resolved_tasks
+        ]
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
@@ -419,13 +425,13 @@ def eval_set(
                 failed_tasks = [
                     task
                     for task in resolved_tasks
-                    if task_identifier(task, config) in failed_task_identifiers
+                    if task_identifier(task, config, solver) in failed_task_identifiers
                 ]
 
                 # run previous tasks (no models passed b/c previous task already carries its model)
                 retried_logs = run_eval(
                     eval_set_id=eval_set_id,
-                    tasks=as_previous_tasks(failed_tasks, failed_logs, config),
+                    tasks=as_previous_tasks(failed_tasks, failed_logs, config, solver),
                 )
 
                 # return success
@@ -497,10 +503,13 @@ def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str
 
 # convert resolved tasks to previous tasks
 def as_previous_tasks(
-    tasks: list[ResolvedTask], failed_logs: list[Log], config: GenerateConfig
+    tasks: list[ResolvedTask],
+    failed_logs: list[Log],
+    config: GenerateConfig,
+    eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
 ) -> list[PreviousTask]:
     def task_to_failed_log(task: ResolvedTask) -> Log:
-        resolved_task_identifier = task_identifier(task, config)
+        resolved_task_identifier = task_identifier(task, config, eval_set_solver)
         return next(
             log
             for log in failed_logs
@@ -547,7 +556,9 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 def list_all_eval_logs(log_dir: str) -> list[Log]:
     log_files = list_eval_logs(log_dir)
     log_headers = read_eval_log_headers(log_files)
-    task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
+    task_identifiers = [
+        task_identifier(log_header, None, None) for log_header in log_headers
+    ]
     return [
         Log(info=info, header=header, task_identifier=task_identifier)
         for info, header, task_identifier in zip(
@@ -660,11 +671,12 @@ def validate_eval_set_prerequisites(
     all_logs: list[Log],
     log_dir_allow_dirty: bool,
     config: GenerateConfig,
+    eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
 ) -> list[Log]:
     # do all resolved tasks have unique identfiers?
     task_identifiers: Set[str] = set()
     for task in resolved_tasks:
-        identifier = task_identifier(task, config)
+        identifier = task_identifier(task, config, eval_set_solver)
         if identifier in task_identifiers:
             raise PrerequisiteError(
                 f"[bold]ERROR[/bold]: The task '{task.task.name}' is not distinct.\n\nTasks in an eval_set must have distinct names OR use the @task decorator and have distinct combinations of name and task args. Solvers passed to tasks should also use the @solver decorator."
@@ -697,21 +709,40 @@ _GENERATE_CONFIG_FIELDS_TO_EXCLUDE = {
 }
 
 
+def resolve_solver(
+    solver: Solver | SolverSpec | Agent | list[Solver] | None,
+) -> Solver | None:
+    # resolve solver
+    if isinstance(solver, list):
+        return chain(solver)
+    elif is_agent(solver):
+        return as_solver(solver)
+    elif isinstance(solver, SolverSpec):
+        return solver_from_spec(solver)
+    else:
+        return cast(Solver | None, solver)
+
+
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
 def task_identifier(
-    task: ResolvedTask | EvalLog, eval_set_config: GenerateConfig | None
+    task: ResolvedTask | EvalLog,
+    eval_set_config: GenerateConfig | None,
+    eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
 ) -> str:
     if isinstance(task, ResolvedTask):
         assert eval_set_config is not None, (
             "eval_set_config must be provided for ResolvedTask"
         )
+        solver = resolve_solver(eval_set_solver)
+
         task_file = task.task_file or ""
         task_name = task.task.name
         task_args = task.task_args
         model = str(task.model)
         model_generate_config = task.model.config
         model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
-        plan = resolve_plan(task.task, task.task.solver)
+        model_args = task.model.model_args
+        plan = resolve_plan(task.task, solver)
         eval_plan = plan_to_eval_plan(plan, task.task.config.merge(eval_set_config))
     else:
         task_file = task.eval.task_file or ""
@@ -720,6 +751,7 @@ def task_identifier(
         model = str(task.eval.model)
         model_generate_config = task.eval.model_generate_config
         model_roles = task.eval.model_roles or {}
+        model_args = task.eval.model_args
         eval_plan = task.plan
 
     # hash for task args
@@ -742,6 +774,8 @@ def task_identifier(
     # hash for model roles
     if len(model_roles):
         additional_hash_input += to_json_safe(model_roles)
+
+    additional_hash_input += to_json_safe(model_args)
 
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
@@ -808,7 +842,10 @@ class EvalSet(BaseModel):
 
 
 def to_eval_set_task(
-    task: ResolvedTask, all_logs: list[Log], config: GenerateConfig
+    task: ResolvedTask,
+    all_logs: list[Log],
+    config: GenerateConfig,
+    eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
 ) -> EvalSetTask:
     # resolve core model info
     model_name = str(ModelName(task.model))
@@ -820,7 +857,7 @@ def to_eval_set_task(
     )
 
     # see if there an existing task_id that should be used for this
-    eval_set_identifier = task_identifier(task, config)
+    eval_set_identifier = task_identifier(task, config, eval_set_solver)
     previous_task_ids = [
         log.info.task_id
         for log in all_logs
@@ -834,7 +871,7 @@ def to_eval_set_task(
 
     return EvalSetTask(
         name=task.task.name,
-        task_id=existing_task_id or task.id or task_identifier(task, config),
+        task_id=existing_task_id or task.id or eval_set_identifier,
         task_file=task.task_file,
         task_args=task.task_args,
         model=model_name,
@@ -845,11 +882,17 @@ def to_eval_set_task(
 
 
 def to_eval_set(
-    id: str, tasks: list[ResolvedTask], all_logs: list[Log], config: GenerateConfig
+    id: str,
+    tasks: list[ResolvedTask],
+    all_logs: list[Log],
+    config: GenerateConfig,
+    eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
 ) -> EvalSet:
     return EvalSet(
         eval_set_id=id,
-        tasks=[to_eval_set_task(task, all_logs, config) for task in tasks],
+        tasks=[
+            to_eval_set_task(task, all_logs, config, eval_set_solver) for task in tasks
+        ],
     )
 
 
@@ -859,6 +902,7 @@ def write_eval_set_info(
     tasks: list[ResolvedTask],
     all_logs: list[Log],
     config: GenerateConfig,
+    eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
     fs_options: dict[str, Any] = {},
 ) -> None:
     # resolve log dir to full path
@@ -866,7 +910,7 @@ def write_eval_set_info(
     log_dir = fs.info(log_dir).name
 
     # get info
-    eval_set_info = to_eval_set(eval_set_id, tasks, all_logs, config)
+    eval_set_info = to_eval_set(eval_set_id, tasks, all_logs, config, eval_set_solver)
 
     # form target path and write
     manifest = f"{log_dir}{fs.sep}eval-set.json"

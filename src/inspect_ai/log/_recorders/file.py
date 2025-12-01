@@ -7,6 +7,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import MODEL_NONE
 from inspect_ai._util.file import clean_filename_component, filesystem
 from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai.dataset._util import normalise_sample_id
 
 from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from .recorder import Recorder
@@ -51,11 +52,16 @@ class FileRecorder(Recorder):
             raise IndexError(f"No samples found in log {location}")
 
         # find the sample
+        id = normalise_sample_id(id) if id is not None else id
         eval_sample = next(
             (
                 sample
                 for sample in (eval_log.samples)
-                if (id and sample.id == id and sample.epoch == epoch)
+                if (
+                    id
+                    and normalise_sample_id(sample.id) == id
+                    and sample.epoch == epoch
+                )
                 or (uuid and sample.uuid == uuid)
             ),
             None,

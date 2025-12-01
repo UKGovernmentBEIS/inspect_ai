@@ -57,6 +57,7 @@ async def generate_responses(
     background: bool | None,
     service_tier: str | None,
     prompt_cache_key: str | NotGiven,
+    prompt_cache_retention: str | NotGiven,
     safety_identifier: str | NotGiven,
     responses_store: bool | None,
     model_info: ResponsesModelInfo,
@@ -95,7 +96,7 @@ async def generate_responses(
         else NOT_GIVEN
     )
     request = dict(
-        input=await openai_responses_inputs(input),
+        input=await openai_responses_inputs(input, model_info),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
@@ -107,6 +108,7 @@ async def generate_responses(
             config=config,
             service_tier=service_tier,
             prompt_cache_key=prompt_cache_key,
+            prompt_cache_retention=prompt_cache_retention,
             safety_identifier=safety_identifier,
             responses_store=responses_store,
             tools=len(tools) > 0,
@@ -146,25 +148,29 @@ async def generate_responses(
         return ModelOutput(
             model=model_response.model,
             choices=choices,
-            usage=(
-                ModelUsage(
-                    input_tokens=model_response.usage.input_tokens,
-                    output_tokens=model_response.usage.output_tokens,
-                    input_tokens_cache_read=(
-                        model_response.usage.input_tokens_details.cached_tokens
-                    ),
-                    reasoning_tokens=model_response.usage.output_tokens_details.reasoning_tokens,
-                    total_tokens=model_response.usage.total_tokens,
-                )
-                if model_response.usage
-                else None
-            ),
+            usage=model_usage_from_response(model_response),
         ), model_call()
     except BadRequestError as e:
         if handle_bad_request:
             return handle_bad_request(e), model_call()
         else:
             return openai_handle_bad_request(model_name, e), model_call()
+
+
+def model_usage_from_response(model_response: Response) -> ModelUsage | None:
+    return (
+        ModelUsage(
+            input_tokens=model_response.usage.input_tokens,
+            output_tokens=model_response.usage.output_tokens,
+            input_tokens_cache_read=(
+                model_response.usage.input_tokens_details.cached_tokens
+            ),
+            reasoning_tokens=model_response.usage.output_tokens_details.reasoning_tokens,
+            total_tokens=model_response.usage.total_tokens,
+        )
+        if model_response.usage
+        else None
+    )
 
 
 async def wait_for_background_response(
@@ -210,6 +216,7 @@ def completion_params_responses(
     config: GenerateConfig,
     service_tier: str | None,
     prompt_cache_key: str | NotGiven,
+    prompt_cache_retention: str | NotGiven,
     safety_identifier: str | NotGiven,
     responses_store: bool | None,
     tools: bool,
@@ -227,6 +234,8 @@ def completion_params_responses(
         params["service_tier"] = service_tier
     if isinstance(prompt_cache_key, str):
         params["prompt_cache_key"] = prompt_cache_key
+    if isinstance(prompt_cache_retention, str):
+        params["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
     if model_info.is_computer_use_preview():

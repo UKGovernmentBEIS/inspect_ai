@@ -6,7 +6,7 @@ from logging import Logger
 from typing import Any, Awaitable, Callable, Coroutine, Iterable, Literal, TypeVar, cast
 
 import anyio
-import nest_asyncio  # type: ignore
+import nest_asyncio2 as nest_asyncio  # type: ignore
 import sniffio
 
 if sys.version_info >= (3, 11):

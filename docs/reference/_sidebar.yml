@@ -79,6 +79,8 @@ website:
           href: reference/inspect_ai.tool.qmd#bash_session
         - text: text_editor
           href: reference/inspect_ai.tool.qmd#text_editor
+        - text: memory
+          href: reference/inspect_ai.tool.qmd#memory
         - text: web_browser
           href: reference/inspect_ai.tool.qmd#web_browser
         - text: computer
@@ -352,10 +354,24 @@ website:
           href: reference/inspect_ai.model.qmd#cache_prune
         - text: cache_path
           href: reference/inspect_ai.model.qmd#cache_path
+        - text: messages_from_openai
+          href: reference/inspect_ai.model.qmd#messages_from_openai
+        - text: messages_from_openai_responses
+          href: reference/inspect_ai.model.qmd#messages_from_openai_responses
+        - text: messages_from_anthropic
+          href: reference/inspect_ai.model.qmd#messages_from_anthropic
+        - text: messages_from_google
+          href: reference/inspect_ai.model.qmd#messages_from_google
+        - text: model_output_from_openai
+          href: reference/inspect_ai.model.qmd#model_output_from_openai
+        - text: model_output_from_openai_responses
+          href: reference/inspect_ai.model.qmd#model_output_from_openai_responses
+        - text: model_output_from_anthropic
+          href: reference/inspect_ai.model.qmd#model_output_from_anthropic
+        - text: model_output_from_google
+          href: reference/inspect_ai.model.qmd#model_output_from_google
         - text: messages_to_openai
           href: reference/inspect_ai.model.qmd#messages_to_openai
-        - text: messages_to_openai_responses
-          href: reference/inspect_ai.model.qmd#messages_to_openai_responses
         - text: modelapi
           href: reference/inspect_ai.model.qmd#modelapi
         - text: ModelAPI
@@ -668,8 +684,12 @@ website:
           href: reference/inspect_ai.util.qmd#sandboxenv
         - text: sandbox_service
           href: reference/inspect_ai.util.qmd#sandbox_service
+        - text: registry_info
+          href: reference/inspect_ai.util.qmd#registry_info
         - text: registry_create
           href: reference/inspect_ai.util.qmd#registry_create
+        - text: RegistryInfo
+          href: reference/inspect_ai.util.qmd#registryinfo
         - text: RegistryType
           href: reference/inspect_ai.util.qmd#registrytype
         - text: JSONType

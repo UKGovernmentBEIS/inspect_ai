@@ -3,6 +3,7 @@ import re
 from logging import getLogger
 from typing import Any
 
+import anyio
 from openai import (
     APIStatusError,
     AsyncAzureOpenAI,
@@ -78,6 +79,11 @@ class OpenAIAPI(ModelAPI):
         # extract prompt_cache_key model arg if provided
         self.prompt_cache_key: str | NotGiven = model_args.pop(
             "prompt_cache_key", NOT_GIVEN
+        )
+
+        # extract prompt_cache_retention model arg if provided
+        self.prompt_cache_retention: str | NotGiven = model_args.pop(
+            "prompt_cache_retention", NOT_GIVEN
         )
 
         # extract safety_identifier model arg if provided
@@ -180,6 +186,7 @@ class OpenAIAPI(ModelAPI):
         # set initial reasoning_summaries bit (requires organizational verifification
         # so we will probe for it on-demand if a request w/ reasoning summaries comes in)
         self._reasoning_summaries: bool | None = None
+        self._reasoning_summaries_lock = anyio.Lock()
 
         # store remaining model_args after extraction
         self.model_args = model_args
@@ -366,6 +373,7 @@ class OpenAIAPI(ModelAPI):
                 background=self.background,
                 service_tier=self.service_tier,
                 prompt_cache_key=self.prompt_cache_key,
+                prompt_cache_retention=self.prompt_cache_retention,
                 safety_identifier=self.safety_identifier,
                 responses_store=self.responses_store,
                 model_info=self,
@@ -381,6 +389,7 @@ class OpenAIAPI(ModelAPI):
                 tool_choice=tool_choice,
                 config=config,
                 prompt_cache_key=self.prompt_cache_key,
+                prompt_cache_retention=self.prompt_cache_retention,
                 safety_identifier=self.safety_identifier,
                 openai_api=self,
                 batcher=self._completions_batcher,
@@ -423,22 +432,24 @@ class OpenAIAPI(ModelAPI):
         # (needs to be a 'verified organization'). we do this by making a
         # simple request with reasoning summaries and if it succeeds we
         # set the reasoning_summaries bit (we do this once for the lifetime
-        # of the model provider instance)
-        if self._reasoning_summaries is None:
-            reasoning_summaries = False
-            if self.responses_api and self.has_reasoning_options():
-                try:
-                    await self.client.responses.create(
-                        model=self.service_model_name(),
-                        input="Please say 'hello, world'",
-                        reasoning={"effort": "low", "summary": "auto"},
-                    )
-                    reasoning_summaries = True
-                except Exception:
-                    pass
-            self._reasoning_summaries = reasoning_summaries
+        # of the model provider instance). use the lock to guard against
+        # multiple samples doing this concurrently at startup
+        async with self._reasoning_summaries_lock:
+            if self._reasoning_summaries is None:
+                reasoning_summaries = False
+                if self.responses_api and self.has_reasoning_options():
+                    try:
+                        await self.client.responses.create(
+                            model=self.service_model_name(),
+                            input="Please say 'hello, world'",
+                            reasoning={"effort": "low", "summary": "auto"},
+                        )
+                        reasoning_summaries = True
+                    except Exception:
+                        pass
+                self._reasoning_summaries = reasoning_summaries
 
-        return self._reasoning_summaries
+            return self._reasoning_summaries
 
     def _resolve_batcher(self, config: GenerateConfig, for_responses_api: bool) -> None:
         def _resolve_retry_config() -> ModelRetryConfig:

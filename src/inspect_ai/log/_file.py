@@ -11,6 +11,7 @@ from pydantic import (
 
 from inspect_ai._util._async import current_async_backend, run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
+from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
@@ -68,8 +69,8 @@ class LogOverview(BaseModel):
 
     model: str
 
-    started_at: str
-    completed_at: str
+    started_at: UtcDatetimeStr | Literal[""]
+    completed_at: UtcDatetimeStr | Literal[""]
 
     primary_metric: EvalMetric | None = Field(default=None)
 

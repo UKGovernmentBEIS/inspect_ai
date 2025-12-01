@@ -8,6 +8,8 @@ import {
   LogPreview,
   LogViewAPI,
   PendingSampleResponse,
+  PendingSamples,
+  SampleData,
   SampleDataResponse,
 } from "../types";
 import { ApiError, HeaderProvider, Request, serverRequestApi } from "./request";
@@ -106,6 +108,34 @@ export function viewServerApi(
     try {
       const result = await requestApi.fetchString("GET", path);
       return result.parsed;
+    } catch (error) {
+      // if the eval set is not found, no biggee as not all
+      // log directories will have an eval set.
+      if (
+        error instanceof ApiError &&
+        (error.status === 404 || error.status === 403)
+      ) {
+        return undefined;
+      }
+      throw error;
+    }
+  };
+
+  const get_flow = async (dir?: string) => {
+    const basePath = "/flow";
+    const params = new URLSearchParams();
+    if (logDir) {
+      params.append("log_dir", logDir);
+    }
+    if (dir) {
+      params.append("dir", dir);
+    }
+    const query = params.toString();
+    const path = query ? `${basePath}?${query}` : basePath;
+
+    try {
+      const bytes = await requestApi.fetchBytes("GET", path);
+      return new TextDecoder().decode(bytes);
     } catch (error) {
       // if the eval set is not found, no biggee as not all
       // log directories will have an eval set.
@@ -230,7 +260,9 @@ export function viewServerApi(
     const request: Request<PendingSampleResponse> = {
       headers,
       parse: async (text: string) => {
-        const pendingSamples = await asyncJsonParse(text);
+        const pendingSamples = await asyncJsonParse<PendingSamples | undefined>(
+          text,
+        );
         return {
           status: "OK",
           pendingSamples,
@@ -280,7 +312,7 @@ export function viewServerApi(
     const request: Request<SampleDataResponse> = {
       headers: {},
       parse: async (text: string) => {
-        const sampleData = await asyncJsonParse(text);
+        const sampleData = await asyncJsonParse<SampleData | undefined>(text);
         return {
           status: "OK",
           sampleData,
@@ -314,6 +346,7 @@ export function viewServerApi(
     get_logs,
     get_log_dir,
     get_eval_set,
+    get_flow,
     get_log_contents,
     get_log_size,
     get_log_bytes,

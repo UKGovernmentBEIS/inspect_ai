@@ -20,8 +20,6 @@ class SandboxEnvironment:
             decoding the command output.
           PermissionError: If the user does not have
             permission to execute the command.
-          OutputLimitExceededError: If an output stream
-            exceeds the 10 MiB limit.
         """
         ...
 
@@ -61,6 +59,10 @@ class SandboxEnvironment:
            ConnectionError: If sandbox is not currently running.
         """
 ```
+
+The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (currently 10MB) and front-truncate its output to the limit when it is exceeded.
+
+The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (currently 100MB) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don't exist.
 

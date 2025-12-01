@@ -201,6 +201,39 @@ def view_server(
         eval_set = read_eval_set_info(request_dir, fs_options=fs_options)
         return web.json_response(to_jsonable_python(eval_set, exclude_none=True))
 
+    @routes.get("/api/flow")
+    async def flow(request: web.Request) -> web.Response:
+        # log dir can optionally be overridden by the request
+        if authorization:
+            request_log_dir = request.query.getone("log_dir", None)
+            if request_log_dir:
+                request_log_dir = normalize_uri(request_log_dir)
+            else:
+                request_log_dir = log_dir
+        else:
+            request_log_dir = log_dir
+
+        request_dir = request.query.getone("dir", None)
+        if request_dir:
+            if request_log_dir:
+                request_dir = request_log_dir + "/" + request_dir.lstrip("/")
+            else:
+                request_dir = request_dir.lstrip("/")
+            validate_log_file_request(request_dir)
+        else:
+            request_dir = request_log_dir
+
+        fs = filesystem(request_dir)
+        flow_file = f"{request_dir}{fs.sep}flow.yaml"
+        if fs.exists(flow_file):
+            bytes = fs.read_bytes(flow_file)
+
+            return web.Response(
+                text=bytes.decode("utf-8"), content_type="application/yaml", status=200
+            )
+        else:
+            return web.Response(status=404, reason="Flow file not found")
+
     @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:
         files = request.query.getall("file", [])
@@ -317,6 +350,7 @@ def view_server(
         print=display().print,
         access_log_format='%a %t "%r" %s %b (%Tf)',
         shutdown_timeout=1,
+        keepalive_timeout=15,
     )
 
 

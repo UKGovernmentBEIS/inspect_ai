@@ -14,6 +14,7 @@ from rich.console import Console
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
+from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
@@ -30,7 +31,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ..event._event import Event
-from ._util import thin_input, thin_metadata, thin_text
+from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
 
@@ -233,6 +234,9 @@ class EvalSampleSummary(BaseModel):
     def thin_data(self) -> "EvalSampleSummary":
         # thin input
         self.input = thin_input(self.input)
+
+        # thin target
+        self.target = thin_target(self.target)
 
         # thin metadata
         self.metadata = thin_metadata(self.metadata)
@@ -713,7 +717,7 @@ class EvalSpec(BaseModel):
     run_id: str = Field(default_factory=str)
     """Unique run id"""
 
-    created: str
+    created: UtcDatetimeStr
     """Time created."""
 
     task: str
@@ -861,11 +865,11 @@ def eval_error(
 class EvalStats(BaseModel):
     """Timing and usage statistics."""
 
-    started_at: str = Field(default_factory=str)
-    """Evaluation start time."""
+    started_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """Evaluation start time. Empty string if eval interrupted before start time set."""
 
-    completed_at: str = Field(default_factory=str)
-    """Evaluation completion time."""
+    completed_at: UtcDatetimeStr | Literal[""] = Field(default_factory=str)
+    """Evaluation completion time. Empty string if eval interrupted before completion."""
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""

@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Sequence, Set
 
 import numpy as np
@@ -6,6 +5,7 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
+from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.rich import rich_traceback
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import EvalScore
@@ -193,8 +193,8 @@ def task_stats(stats: EvalStats) -> RenderableType:
     table.add_column()
 
     # eval time
-    started = datetime.fromisoformat(stats.started_at)
-    completed = datetime.fromisoformat(stats.completed_at)
+    started = datetime_from_iso_format_safe(stats.started_at)
+    completed = datetime_from_iso_format_safe(stats.completed_at)
     elapsed = completed - started
     table.add_row(Text("total time:", style="bold"), f"  {elapsed}", style=theme.light)
 

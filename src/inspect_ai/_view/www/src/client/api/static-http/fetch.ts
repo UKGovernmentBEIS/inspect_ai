@@ -1,7 +1,31 @@
 import { EvalLog } from "../../../@types/log";
 import { asyncJsonParse } from "../../../utils/json-worker";
 import { encodePathParts } from "../../../utils/uri";
-import { LogContents, LogFilesFetchResponse } from "../types";
+import { LogContents, LogFilesFetchResponse, LogPreview } from "../types";
+
+/**
+ * Fetches a file from the specified URL as a string
+ */
+export async function fetchTextFile(
+  url: string,
+  handleError?: (response: Response) => boolean,
+): Promise<string | undefined> {
+  const safe_url = encodePathParts(url);
+  const response = await fetch(`${safe_url}`, { method: "GET" });
+  if (response.ok) {
+    const text = await response.text();
+    return text;
+  } else if (response.status !== 200) {
+    if (handleError && handleError(response)) {
+      return undefined;
+    }
+    const message = (await response.text()) || response.statusText;
+    const error = new Error(`${response.status}: ${message})`);
+    throw error;
+  } else {
+    throw new Error(`${response.status} - ${response.statusText} `);
+  }
+}
 
 /**
  * Fetches a file from the specified URL and parses its content.
@@ -71,7 +95,7 @@ export const fetchManifest = async (
   const logs = await fetchFile<LogFilesFetchResponse>(
     log_dir + "/listing.json",
     async (text) => {
-      const parsed = await asyncJsonParse(text);
+      const parsed = await asyncJsonParse<Record<string, LogPreview>>(text);
       return {
         raw: text,
         parsed,

@@ -53,7 +53,9 @@ export type ParallelToolCalls = boolean | null;
 export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
-export type ReasoningEffort = ("minimal" | "low" | "medium" | "high") | null;
+export type ReasoningEffort =
+  | ("none" | "minimal" | "low" | "medium" | "high")
+  | null;
 export type ReasoningTokens = number | null;
 export type ReasoningSummary =
   | ("none" | "concise" | "detailed" | "auto")
@@ -197,8 +199,8 @@ export type Scores = EvalScore[];
 export type Metadata6 = {
   [k: string]: unknown;
 } | null;
-export type StartedAt = string;
-export type CompletedAt = string;
+export type StartedAt = string | "";
+export type CompletedAt = string | "";
 export type InputTokens = number;
 export type OutputTokens = number;
 export type TotalTokens = number;

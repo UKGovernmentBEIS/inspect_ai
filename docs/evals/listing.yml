@@ -1,6 +1,5 @@
 # Groups: Assistants Bias Coding Cybersecurity Knowledge Mathematics Multimodal Personality Reasoning Safeguards Scheming Writing
 
-
 - title: "MASK: Disentangling Honesty from Accuracy in AI Systems"
   description: |
     Evaluates honesty in large language models by testing whether they contradict their own beliefs when pressured to lie.
@@ -71,6 +70,7 @@
     - name: mle_bench_lite
       dataset_samples: 22
   dependency: "mle_bench"
+  dependency-group: "mle_bench"
   tags: ["Agent"]
   metadata:
     sandbox: ["solver"]
@@ -174,6 +174,42 @@
     sandbox: ["solver"]
     requires_internet: true
 
+- title: "CVEBench:  Benchmark for AI Agents Ability to Exploit Real-World Web Application Vulnerabilities"
+  description: |
+    Characterises an AI Agent's capability to exploit real-world web application vulnerabilities. Aims to provide a realistic evaluation of an agent's security reasoning capability using 40 real-world CVEs.
+  path: src/inspect_evals/cve_bench
+  group: Cybersecurity
+  contributors:
+    [
+      "yuxuan18",
+      "aokellermann",
+      "dylanbowman314",
+      "pli482004",
+      "akulguptax",
+      "adarshdanda06",
+      "rightegg",
+      "rightegg",
+      "jensen",
+      "eihli",
+      "JasonBenn",
+      "inigo",
+      "dhir",
+      "SudhitRao",
+      "YuVictor123",
+      "Cloakless",
+      "ddkang",
+      "Scott-Simmons",
+    ]
+  arxiv: https://arxiv.org/abs/2503.17332
+  tasks:
+    - name: cve_bench
+      dataset_samples: 40
+  tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
+    requires_internet: false
+  dependency: "cvebench"
+
 - title: "Cybench: Capture-The-Flag Cybersecurity Challenges"
   description: |
     Tests language models on cybersecurity skills using 40 practical, professional-level challenges taken from cybersecurity competitions, designed to cover various difficulty levels and security concepts.
@@ -226,7 +262,7 @@
     - name: cyse2_vulnerability_exploit
       dataset_samples: 585
   metadata:
-    sandbox: ["scorer", "solver"]  # (only cyse2_vulnerability_exploit is sandboxed)
+    sandbox: ["scorer", "solver"] # (only cyse2_vulnerability_exploit is sandboxed)
 
 - title: "CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities in Large Language Models"
   description: |
@@ -274,7 +310,7 @@
   path: src/inspect_evals/gdm_capabilities/self_reasoning
   arxiv: https://arxiv.org/abs/2505.01420
   group: Scheming
-  contributors: ["ZiyueWang25","XkunW"]
+  contributors: ["ZiyueWang25", "XkunW"]
   tasks:
     - name: gdm_approved_directories
       dataset_samples: 2
@@ -317,6 +353,7 @@
     - name: gdm_strategic_rule_breaking
       dataset_samples: 1
   tags: ["Agent"]
+  dependency: "stealth"
 
 - title: "Agentic Misalignment: How LLMs could be insider threats"
   description: |
@@ -433,6 +470,17 @@
     - name: wmdp_cyber
       dataset_samples: 1987
 
+- title: "AHB: Animal Harm Benchmark"
+  description: |
+    Evaluates how models consider the welfare of animals in situations that may present them harm.
+  path: src/inspect_evals/ahb
+  arxiv: https://arxiv.org/abs/2503.04804
+  group: Safeguards
+  contributors: ["nishu-builder", "akanepajs"]
+  tasks:
+    - name: ahb
+      dataset_samples: 26
+
 - title: "MATH: Measuring Mathematical Problem Solving"
   description: |
     Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers. NOTE: The dataset has been taken down due to a DMCA notice from The Art of Problem Solving.
@@ -489,13 +537,24 @@
 
 - title: "AIME 2024: Problems from the American Invitational Mathematics Examination"
   description: |
-    A benchmark for evaluating AI's ability to solve challenging mathematics problems from AIME - a prestigious high school mathematics competition.
+    A benchmark for evaluating AI's ability to solve challenging mathematics problems from the 2024 AIME - a prestigious high school mathematics competition.
   path: src/inspect_evals/aime2024
   arxiv: https://huggingface.co/datasets/Maxwell-Jia/AIME_2024
   group: Mathematics
   contributors: ["tamazgadaev"]
   tasks:
     - name: aime2024
+      dataset_samples: 30
+
+- title: "AIME 2025: Problems from the American Invitational Mathematics Examination"
+  description: |
+    A benchmark for evaluating AI's ability to solve challenging mathematics problems from the 2025 AIME - a prestigious high school mathematics competition.
+  path: src/inspect_evals/aime2025
+  arxiv: https://huggingface.co/datasets/math-ai/aime25
+  group: Mathematics
+  contributors: ["jannalulu"]
+  tasks:
+    - name: aime2025
       dataset_samples: 30
 
 - title: "V*Bench: A Visual QA Benchmark with Detailed High-resolution Images"
@@ -523,7 +582,6 @@
       dataset_samples: 2376
     - name: arc_challenge
       dataset_samples: 1172
-  dependency: "math"
 
 - title: "HellaSwag: Commonsense Event Continuation"
   description: |
@@ -685,7 +743,7 @@
   arxiv: https://arxiv.org/abs/2311.07911
   group: Reasoning
   contributors: ["adil-a"]
-  dependency: "ifeval"
+  dependency-group: "ifeval"
   tasks:
     - name: ifeval
       dataset_samples: 541
@@ -792,6 +850,20 @@
     - name: truthfulqa
       dataset_samples: 817
 
+- title: "Uganda Cultural and Cognitive Benchmark (UCCB)"
+  description: |
+    The first comprehensive question-answering dataset designed to evaluate cultural understanding
+    and reasoning abilities of Large Language Models concerning Uganda's multifaceted environment
+    across 24 cultural domains including education, traditional medicine, media, economy, literature,
+    and social norms.
+  path: src/inspect_evals/uccb
+  arxiv: https://huggingface.co/datasets/CraneAILabs/UCCB
+  group: Knowledge
+  contributors: ["katostevenmubiru"]
+  tasks:
+    - name: uccb
+      dataset_samples: 1039
+
 - title: "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's"
   description: |
     Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.
@@ -802,6 +874,17 @@
   tasks:
     - name: xstest
       dataset_samples: 250
+
+- title: "The Art of Saying No: Contextual Noncompliance in Language Models"
+  description: |
+    Dataset with 1001 samples to test noncompliance capabilities of language models. Contrast set of 379 samples.
+  path: src/inspect_evals/coconot
+  arxiv: https://arxiv.org/abs/2407.12043
+  group: Safeguards
+  contributors: ["ransomr"]
+  tasks:
+    - name: coconot
+      dataset_samples: 1001
 
 - title: "PubMedQA: A Dataset for Biomedical Research Question Answering"
   description: |
@@ -882,6 +965,7 @@
     - name: livebench
       dataset_samples: 910
   dependency: "livebench"
+  dependency-group: "livebench"
 
 - title: "O-NET: A high-school student knowledge test"
   description: |
@@ -903,6 +987,7 @@
   tasks:
     - name: bbq
       dataset_samples: 58492
+  dependency: "bbq"
 
 - title: "BOLD: Bias in Open-ended Language Generation Dataset"
   description: |
@@ -914,6 +999,7 @@
   tasks:
     - name: bold
       dataset_samples: 7200
+  dependency: "bold"
 
 - title: "Humanity's Last Exam"
   description: |
@@ -950,16 +1036,18 @@
   metadata:
     sandbox: ["scorer"]
 
-- title: "SimpleQA: Measuring short-form factuality in large language models"
+- title: "SimpleQA/SimpleQA Verified: Measuring short-form factuality in large language models"
   description: |
     A benchmark that evaluates the ability of language models to answer short, fact-seeking questions.
   path: src/inspect_evals/simpleqa
-  arxiv: https://arxiv.org/abs/2411.04368
+  arxiv: https://arxiv.org/abs/2411.04368,https://arxiv.org/abs/2509.07968
   group: Knowledge
-  contributors: ["osc245"]
+  contributors: ["osc245", "jeqcho"]
   tasks:
     - name: simpleqa
       dataset_samples: 4326
+    - name: simpleqa_verified
+      dataset_samples: 1000
 
 - title: "AgentBench: Evaluate LLMs as Agents"
   description: A benchmark designed to evaluate LLMs as Agents
@@ -968,8 +1056,8 @@
   group: Coding
   contributors: ["Felhof", "hannagabor", "shaheenahmedc"]
   tasks:
-     - name: agent_bench_os
-       dataset_samples: 26
+    - name: agent_bench_os
+      dataset_samples: 26
   dependency: "agent_bench"
 
 - title: "Pre-Flight: Aviation Operations Knowledge Evaluation"
@@ -1088,7 +1176,7 @@
   dependency: "personality"
 
 - title: "SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language Models"
-  description: | 
+  description: |
     The Scientific Knowledge Evaluation benchmark is inspired by the profound principles outlined in the “Doctrine of the Mean” from ancient Chinese philosophy. This benchmark is designed to assess LLMs based on their proficiency in Studying Extensively, Enquiring Earnestly, Thinking Profoundly, Discerning Clearly, and Practicing Assiduously. Each of these dimensions offers a unique perspective on evaluating the capabilities of LLMs in handling scientific knowledge.
   path: src/inspect_evals/sciknoweval
   arxiv: https://arxiv.org/abs/2406.09098v2
@@ -1096,7 +1184,7 @@
   contributors: ["Esther-Guo"]
   tasks:
     - name: sciknoweval
-      dataset_samples: 70196 # we are using version 1 on huggingface, the version used in the linked paper, even though there are 2 versions 
+      dataset_samples: 70196 # we are using version 1 on huggingface, the version used in the linked paper, even though there are 2 versions
   dependency: "sciknoweval"
 
 - title: "ChemBench: Are large language models superhuman chemists?"
@@ -1120,13 +1208,13 @@
   group: Reasoning
   contributors: ["am-bean", "jkhouja"]
   tasks:
-     - name: lingoly
-       dataset_samples: 408
-     - name: lingoly_too
-       dataset_samples: 1203
+    - name: lingoly
+      dataset_samples: 408
+    - name: lingoly_too
+      dataset_samples: 1203
 
 - title: "SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge"
-  description: | 
+  description: |
     A regulation-grounded, hazard-focused benchmark encompassing six high-risk scientific domains: chemistry, biology, medicine, pharmacology, physics, and psychology. The benchmark comprises 3,000 prompts derived from real-world regulations and laws, systematically expanded via an LLM-assisted evolutionary pipeline that introduces diverse, realistic misuse scenarios (e.g., detailed explosive synthesis instructions involving advanced chemical formulas).
   path: src/inspect_evals/sosbench
   arxiv: https://arxiv.org/pdf/2505.21605
@@ -1135,7 +1223,7 @@
   tasks:
     - name: sosbench
       dataset_samples: 3000
-      
+
 - title: "BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents"
   description: |
     A benchmark for evaluating agents' ability to browse the web.
@@ -1204,6 +1292,16 @@
     - name: bbeh_mini
       dataset_samples: 460
 
+- title: "MakeMeSay"
+  description: |
+    Tests a model’s ability to generate persuasive or manipulative text, specifically in the setting of a game where one AI system has to get the other party (an AI system simulating a human) to say a specific codeword without arousing suspicion.
+  path: src/inspect_evals/makemesay
+  group: Safeguards
+  contributors: ["bndxn"]
+  tasks:
+    - name: make-me-say
+      dataset_samples: 189
+
 - title: "Make Me Pay"
   description: |
     Evaluates an AI models' susceptibility to social engineering attacks by testing whether a "con-artist" model can persuade a "mark" model to donate money through manipulation and persuasion tactics.
@@ -1224,6 +1322,7 @@
   tasks:
     - name: abstention_bench
       dataset_samples: 39558
+  dependency: "abstention_bench"
 
 - title: "Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM Agent Cyber Offense Capabilities"
   description: |
@@ -1235,4 +1334,99 @@
   tasks:
     - name: threecb
       dataset_samples: 13
+  tags: ["Agent"]
+
+- title: "BFCL: Berkeley Function-Calling Leaderboard"
+  description: |
+    Evaluates LLM function/tool-calling ability on a simplified split of the Berkeley Function-Calling Leaderboard (BFCL).
+  path: src/inspect_evals/bfcl
+  group: Assistants
+  contributors: ["alex-remedios-aisi"]
+  tasks:
+    - name: bfcl
+      dataset_samples: 100
+
+- title: "WorldSense: Grounded Reasoning Benchmark"
+  description: |
+    Measures grounded reasoning over synthetic world descriptions while controlling for dataset bias. Includes three problem types (Infer, Compl, Consist) and two grades (trivial, normal).
+  path: src/inspect_evals/worldsense
+  arxiv: https://arxiv.org/pdf/2311.15930
+  group: Reasoning
+  contributors: ["mjbroerman"]
+  tasks:
+    - name: worldsense
+      dataset_samples: 87048
+  metadata:
+    requires_internet: true
+  dependency: worldsense
+
+- title: "GDM Dangerous Capabilities: Self-proliferation"
+  description: |
+    Ten real-world–inspired tasks from Google DeepMind's Dangerous Capabilities Evaluations assessing self-proliferation behaviors (e.g., email setup, model installation, web agent setup, wallet operations). Supports end-to-end, milestones, and expert best-of-N modes.
+  path: src/inspect_evals/gdm_capabilities/self_proliferation
+  arxiv: https://arxiv.org/pdf/2403.13793
+  group: Scheming
+  contributors: ["XkunW", "MariaIzobava", "kohankhaki"]
+  tasks:
+    - name: gdm_sp01_e2e
+      dataset_samples: 1
+    - name: gdm_sp02_e2e
+      dataset_samples: 1
+    - name: gdm_sp03_e2e
+      dataset_samples: 1
+    - name: gdm_sp04_e2e
+      dataset_samples: 1
+    - name: gdm_sp05_e2e
+      dataset_samples: 1
+    - name: gdm_sp07_e2e
+      dataset_samples: 1
+    - name: gdm_sp08_e2e
+      dataset_samples: 1
+    - name: gdm_sp09_e2e
+      dataset_samples: 1
+    - name: gdm_sp10_e2e
+      dataset_samples: 1
+    - name: gdm_sp12_e2e
+      dataset_samples: 1
+  tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
+    requires_internet: true
+
+- title: "VimGolf: Evaluating LLMs in Vim Editing Proficiency"
+  description: |
+    A benchmark that evaluates LLMs in their ability to operate Vim editor and complete editing challenges. This benchmark contrasts with common CUA benchmarks by focusing on Vim-specific editing capabilities.
+  path: src/inspect_evals/vimgolf_challenges
+  group: Reasoning
+  contributors: ["james4ever0"]
+  tasks:
+    - name: vimgolf_single_turn
+      dataset_samples: 612
+  tags: ["Vim", "Editing", "Game"]
+  metadata:
+    sandbox: ["scorer"]
+
+- title: "FORTRESS"
+  description: |
+    A dataset of 500 expert-crafted adversarial prompts with instance-based rubrics of 4-7 binary questions for automated evaluation across 3 domains relevant to national security and public safety (NSPS).
+  path: src/inspect_evals/fortress
+  group: Safeguards
+  arxiv: https://arxiv.org/abs/2506.14922
+  contributors: ["jeqcho"]
+  tasks:
+    - name: fortress_adversarial
+      dataset_samples: 500
+    - name: fortress_benign
+      dataset_samples: 500
+
+- title: "Mind2Web-SC"
+  description: |
+    Tests whether an AI system can act as a safety guardrail by generating and executing code to protect web navigation agents from unsafe actions based on user constraints.
+  path: src/inspect_evals/mind2web_sc
+  arxiv: https://arxiv.org/abs/2406.09187
+  group: Safeguards
+  contributors: ["PranshuSrivastava"]
+  tasks:
+    - name: mind2web_sc
+      dataset_samples: 200
   tags: ["Agent"]

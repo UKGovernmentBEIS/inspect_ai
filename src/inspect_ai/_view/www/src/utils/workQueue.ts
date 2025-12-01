@@ -14,7 +14,8 @@ interface WorkItem<T> {
 
 interface WorkQueueOptions<TInput, TOutput> {
   name: string;
-  batchSize: number;
+  concurrency: number;
+  batchSize?: number;
   processingDelay?: number;
   maxRetries?: number;
   getId: (item: TInput) => string;
@@ -25,12 +26,12 @@ interface WorkQueueOptions<TInput, TOutput> {
 
 export class WorkQueue<TInput, TOutput> {
   private itemsById = new Map<string, WorkItem<TInput>>();
-  private processing = false;
-  private consecutiveErrors = 0;
+  private activeWorkers = 0;
   private options: Required<WorkQueueOptions<TInput, TOutput>>;
 
   constructor(options: WorkQueueOptions<TInput, TOutput>) {
     this.options = {
+      batchSize: 1,
       processingDelay: 100,
       maxRetries: 3,
       onProcessingChanged: (_processing: boolean) => {},
@@ -41,6 +42,7 @@ export class WorkQueue<TInput, TOutput> {
   enqueue(items: TInput[], priority: WorkPriority = WorkPriority.Medium) {
     const now = Date.now();
 
+    let newItemsCount = 0;
     for (const item of items) {
       const id = this.options.getId(item);
       const existing = this.itemsById.get(id);
@@ -59,9 +61,9 @@ export class WorkQueue<TInput, TOutput> {
           addedAt: now,
           retries: 0,
         });
+        newItemsCount++;
       }
     }
-
     void this.startProcessing();
   }
 
@@ -71,68 +73,81 @@ export class WorkQueue<TInput, TOutput> {
   }
 
   private async startProcessing() {
-    if (this.processing) {
-      return;
+    // Start new workers up to concurrency limit
+    while (
+      this.activeWorkers < this.options.concurrency &&
+      this.itemsById.size > 0
+    ) {
+      this.activeWorkers++;
+
+      // The first worker to start triggers the processing changed callback
+      if (this.activeWorkers === 1) {
+        try {
+          this.options.onProcessingChanged(true);
+        } catch (error) {
+          console.error("onProcessingChanged callback error:", error);
+        }
+      }
+
+      // Run the worker
+      void this.runWorker();
     }
+  }
 
-    this.processing = true;
-
-    try {
-      this.options.onProcessingChanged(true);
-    } catch (error) {
-      console.error("onProcessingChanged callback error:", error);
-    }
-
+  private async runWorker() {
     try {
       while (this.itemsById.size > 0) {
-        // Get next batch (sorted by priority, then age)
-        const batch = this.getNextBatch();
+        // Get next batch (sorted by priority, then age) and remove from queue immediately
+        const batch = this.claimNextBatch();
+
+        // No work, audi 5000
+        if (batch.length === 0) {
+          break;
+        }
 
         const inputs = batch.map((item) => item.data);
 
         try {
           const results = await this.options.worker(inputs);
-          await this.options.onComplete(results, inputs);
 
-          // Remove successful items
-          batch.forEach((item) => this.itemsById.delete(item.id));
-          this.consecutiveErrors = 0;
+          this.options.onComplete(results, inputs);
         } catch (error) {
           console.error("Work queue processing error:", error);
 
           // Retry or remove items
           for (const item of batch) {
             if (item.retries < this.options.maxRetries) {
-              // Retry this item
+              // Retry this item - add it back to the queue
               item.retries++;
-            } else {
-              // Item has been retried too many times, remove it
-              this.itemsById.delete(item.id);
+              this.itemsById.set(item.id, item);
             }
+            // Otherwise item is just dropped (already removed from queue)
           }
-
-          this.consecutiveErrors++;
         }
 
         // Delay between batches
-        if (this.itemsById.size > 0) {
-          const delay = this.getBackoffDelay();
-          if (delay > 0) {
-            await new Promise((resolve) => setTimeout(resolve, delay));
-          }
+        if (this.itemsById.size > 0 && this.options.processingDelay > 0) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, this.options.processingDelay),
+          );
         }
       }
     } finally {
-      this.processing = false;
-      try {
-        this.options.onProcessingChanged(false);
-      } catch (error) {
-        console.error("onProcessingChanged callback error:", error);
+      // This worker is stopping
+      this.activeWorkers--;
+
+      if (this.activeWorkers === 0) {
+        try {
+          this.options.onProcessingChanged(false);
+        } catch (error) {
+          console.error("onProcessingChanged callback error:", error);
+        }
       }
     }
   }
 
-  private getNextBatch(): WorkItem<TInput>[] {
+  private claimNextBatch(): WorkItem<TInput>[] {
+    // Fetch the highest priority, oldest items
     const items = Array.from(this.itemsById.values()).sort((a, b) => {
       if (a.priority !== b.priority) {
         // Higher priority first
@@ -141,15 +156,13 @@ export class WorkQueue<TInput, TOutput> {
       // Older first
       return a.addedAt - b.addedAt;
     });
-    return items.slice(0, this.options.batchSize);
-  }
 
-  private getBackoffDelay(): number {
-    if (this.consecutiveErrors === 0) {
-      return this.options.processingDelay;
-    }
-    const multiplier = Math.min(Math.pow(2, this.consecutiveErrors - 1), 16);
-    return multiplier * this.options.processingDelay;
+    // Slice into a batch
+    const batch = items.slice(0, this.options.batchSize);
+
+    // Remove claimed items from the queue immediately
+    batch.forEach((item) => this.itemsById.delete(item.id));
+    return batch;
   }
 
   clear() {
@@ -161,6 +174,6 @@ export class WorkQueue<TInput, TOutput> {
   }
 
   get isProcessing() {
-    return this.processing;
+    return this.activeWorkers > 0;
   }
 }
