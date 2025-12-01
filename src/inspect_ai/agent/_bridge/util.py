@@ -130,7 +130,7 @@ def internal_web_search_providers() -> WebSearchProviders:
 
 def default_code_execution_providers() -> CodeExecutionProviders:
     return CodeExecutionProviders(
-        openai={}, anthropic=True, google=True, grok=True, bash={}
+        openai={}, anthropic=True, google=True, grok=True, python={}
     )
 
 
