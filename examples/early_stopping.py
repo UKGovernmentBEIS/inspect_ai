@@ -9,8 +9,7 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._log import EvalSpec
 from inspect_ai.scorer import SampleScore, match
 from inspect_ai.solver import generate, system_message
-from inspect_ai.util import EarlyStopping
-from inspect_ai.util._early_stopping import EarlyStop
+from inspect_ai.util import EarlyStop, EarlyStopping
 
 SYSTEM_MESSAGE = r"""
 Please note: In the following EXERCISE, it is important that you only respond with exactly "Yes" or "No"
@@ -49,6 +48,12 @@ class TestEarlyStopping(EarlyStopping):
         """Called at the beginning of an eval run to register the tasks that will be run.."""
         return "test"
 
+    async def complete_sample(
+        self, id: str | int, epoch: int, scores: dict[str, SampleScore]
+    ) -> None:
+        """Called when a sample is complete."""
+        pass
+
     async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
         """Called prior to scheduling a sample (return False to prevent it from running)."""
         # first check if this sample has no more epochs
@@ -61,12 +66,6 @@ class TestEarlyStopping(EarlyStopping):
         else:
             return None
 
-    async def complete_sample(
-        self, id: str | int, epoch: int, scores: dict[str, SampleScore]
-    ) -> None:
-        """Called when a sample is complete."""
-        pass
-
     async def complete_task(self) -> dict[str, JsonValue]:
-        """Called when the run is complete. Return a value for each task for inclusion in the task log file."""
+        """Called when the run is complete. Return custom metadata for recording in the log file."""
         return {}
