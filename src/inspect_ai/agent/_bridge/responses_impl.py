@@ -5,6 +5,7 @@ from typing import Any, Iterable, Set, cast
 
 from openai.types.responses import (
     Response,
+    ResponseCodeInterpreterToolCall,
     ResponseComputerToolCall,
     ResponseCustomToolCall,
     ResponseFunctionCallOutputItemListParam,
@@ -50,6 +51,7 @@ from openai.types.responses.response_output_item import (
     McpListTools,
     McpListToolsTool,
 )
+from openai.types.responses.tool_param import CodeInterpreter
 from pydantic import TypeAdapter, ValidationError
 from shortuuid import uuid
 
@@ -83,8 +85,10 @@ from inspect_ai.model._internal import (
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
+    code_interpreter_to_tool_use,
     content_from_response_input_content_param,
     is_assistant_message_param,
+    is_code_interpreter_tool_param,
     is_computer_call_output,
     is_computer_tool_param,
     is_custom_tool_call_output,
@@ -92,6 +96,7 @@ from inspect_ai.model._openai_responses import (
     is_function_call_output,
     is_function_tool_param,
     is_mcp_tool_param,
+    is_response_code_interpreter_call,
     is_response_computer_tool_call,
     is_response_custom_tool_call,
     is_response_function_tool_call,
@@ -114,6 +119,7 @@ from inspect_ai.model._openai_responses import (
     responses_model_usage,
     responses_reasoning_from_reasoning,
     to_inspect_citation,
+    tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
     web_search_to_tool_use,
@@ -129,6 +135,10 @@ from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tool_util import tool_to_tool_info
+from inspect_ai.tool._tools._code_execution import (
+    CodeExecutionProviders,
+    code_execution,
+)
 from inspect_ai.tool._tools._computer._computer import computer
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -149,6 +159,7 @@ logger = getLogger(__name__)
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
     web_search: WebSearchProviders,
+    code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
 ) -> Response:
     # resolve model
@@ -164,7 +175,7 @@ async def inspect_responses_api_request_impl(
     # non openai models as they don't know how to handle them)
     responses_tools: list[ToolParam] = json_data.get("tools", [])
     tools = [
-        tool_from_responses_tool(tool, web_search)
+        tool_from_responses_tool(tool, web_search, code_execution)
         for tool in responses_tools
         if is_openai or tool["type"] != "custom"
     ]
@@ -252,7 +263,12 @@ def tool_choice_from_responses_tool_choice(
         elif tool_choice.get("type") == "custom":
             raise RuntimeError("ToolChoiceCustomParam not supported by agent bridge")
         elif "type" in tool_choice:
-            inspect_tool_choice = ToolFunction(name=str(tool_choice.get("type")))
+            tool_type = str(tool_choice.get("type"))
+            if tool_type in ["web_search_preview", "web_search_preview_2025_03_11"]:
+                tool_type = "web_search"
+            elif tool_type == "code_interpreter":
+                tool_type = "code_execution"
+            inspect_tool_choice = ToolFunction(name=tool_type)
 
     return inspect_tool_choice
 
@@ -270,7 +286,9 @@ def responses_tool_choice_param_to_tool_choice(
 
 
 def tool_from_responses_tool(
-    tool_param: ToolParam, web_search_providers: WebSearchProviders
+    tool_param: ToolParam,
+    web_search_providers: WebSearchProviders,
+    code_execution_providers: CodeExecutionProviders,
 ) -> ToolInfo | Tool:
     if is_function_tool_param(tool_param):
         return ToolInfo(
@@ -291,6 +309,12 @@ def tool_from_responses_tool(
     elif is_web_search_tool_param(tool_param):
         return web_search(
             resolve_web_search_providers(tool_param, web_search_providers)
+        )
+    elif is_code_interpreter_tool_param(tool_param):
+        return code_execution(
+            providers=resolve_code_interpreter_providers(
+                tool_param, code_execution_providers
+            )
         )
     elif is_computer_tool_param(tool_param):
         return computer()
@@ -314,6 +338,20 @@ def tool_from_responses_tool(
         )
     else:
         raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
+
+
+def resolve_code_interpreter_providers(
+    tool_param: CodeInterpreter,
+    code_execution: CodeExecutionProviders,
+) -> CodeExecutionProviders:
+    # pass through openai options if there is no special openai config
+    openai_options = code_execution.get("openai", False)
+    if openai_options is True or (
+        isinstance(openai_options, dict) and len(openai_options) == 0
+    ):
+        code_execution["openai"] = {"container": tool_param["container"]}
+
+    return code_execution
 
 
 def resolve_web_search_providers(
@@ -505,6 +543,11 @@ def messages_from_responses_input(
                         action["type"] = "find"
                     web_search = ResponseFunctionWebSearch.model_validate(param)
                     content.append(web_search_to_tool_use(web_search))
+                elif is_response_code_interpreter_call(param):
+                    code_execution = ResponseCodeInterpreterToolCall.model_validate(
+                        param
+                    )
+                    content.append(code_interpreter_to_tool_use(code_execution))
                 elif is_response_mcp_list_tools(param):
                     mcp_list_tools = McpListTools.model_validate(param)
                     content.append(mcp_list_tools_to_tool_use(mcp_list_tools))
@@ -722,6 +765,14 @@ def responses_output_items_from_assistant_message(
                         status="failed" if content.error else "completed",
                     )
                 )
+            elif content.tool_type == "code_execution":
+                code_interpreter_param = tool_use_to_code_interpreter_param(content)
+                output.append(
+                    ResponseCodeInterpreterToolCall.model_validate(
+                        code_interpreter_param
+                    )
+                )
+
             elif content.name == "mcp_list_tools":
                 # currently this is only ever done by OpenAI Responses so
                 # it is safe to read in a validated way (unlike web search)

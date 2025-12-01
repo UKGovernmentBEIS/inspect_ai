@@ -71,6 +71,8 @@ website:
       - section: inspect_ai.tool
         href: reference/inspect_ai.tool.qmd
         contents:
+        - text: web_search
+          href: reference/inspect_ai.tool.qmd#web_search
         - text: bash
           href: reference/inspect_ai.tool.qmd#bash
         - text: python
@@ -79,16 +81,16 @@ website:
           href: reference/inspect_ai.tool.qmd#bash_session
         - text: text_editor
           href: reference/inspect_ai.tool.qmd#text_editor
-        - text: memory
-          href: reference/inspect_ai.tool.qmd#memory
-        - text: web_browser
-          href: reference/inspect_ai.tool.qmd#web_browser
         - text: computer
           href: reference/inspect_ai.tool.qmd#computer
-        - text: web_search
-          href: reference/inspect_ai.tool.qmd#web_search
+        - text: code_execution
+          href: reference/inspect_ai.tool.qmd#code_execution
+        - text: memory
+          href: reference/inspect_ai.tool.qmd#memory
         - text: think
           href: reference/inspect_ai.tool.qmd#think
+        - text: web_browser
+          href: reference/inspect_ai.tool.qmd#web_browser
         - text: mcp_connection
           href: reference/inspect_ai.tool.qmd#mcp_connection
         - text: mcp_server_stdio
@@ -135,6 +137,8 @@ website:
           href: reference/inspect_ai.tool.qmd#toolsource
         - text: WebSearchProviders
           href: reference/inspect_ai.tool.qmd#websearchproviders
+        - text: CodeExecutionProviders
+          href: reference/inspect_ai.tool.qmd#codeexecutionproviders
         - text: tool
           href: reference/inspect_ai.tool.qmd#tool
       - section: inspect_ai.agent

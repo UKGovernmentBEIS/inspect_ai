@@ -65,6 +65,10 @@ from anthropic.types import (
     WebSearchToolResultError,
 )
 from anthropic.types.beta import (
+    BetaBashCodeExecutionResultBlockParam,
+    BetaBashCodeExecutionToolResultBlock,
+    BetaBashCodeExecutionToolResultBlockParam,
+    BetaCodeExecutionTool20250825Param,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
     BetaMCPToolUseBlockParam,
@@ -72,7 +76,11 @@ from anthropic.types.beta import (
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
     BetaRequestMCPToolResultBlockParam,
+    BetaServerToolUseBlock,
+    BetaServerToolUseBlockParam,
     BetaTextBlockParam,
+    BetaTextEditorCodeExecutionToolResultBlock,
+    BetaTextEditorCodeExecutionToolResultBlockParam,
     BetaToolComputerUse20250124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
@@ -308,6 +316,11 @@ class AnthropicAPI(ModelAPI):
                 betas.append("computer-use-2024-10-22")
             if any(tool.get("type", None) == "memory_20250818" for tool in tools_param):
                 betas.append("context-management-2025-06-27")
+            if any(
+                tool.get("type", None) == "code_execution_20250825"
+                for tool in tools_param
+            ):
+                betas.append("code-execution-2025-08-25")
             if len(betas) > 0:
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
@@ -784,6 +797,7 @@ class AnthropicAPI(ModelAPI):
                 or self.text_editor_tool_param(tool)
                 or self.web_search_tool_param(tool)
                 or self.memory_tool_param(tool)
+                or self.code_execution_tool_param(tool)
             )
             if config.internal_tools is not False
             else None
@@ -893,6 +907,21 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
+    def code_execution_tool_param(
+        self, tool: ToolInfo
+    ) -> BetaCodeExecutionTool20250825Param | None:
+        if (
+            tool.name == "code_execution"
+            and _supports_web_search(self.model_name)
+            and tool.options
+            and "anthropic" in tool.options.get("providers", {})
+        ):
+            return BetaCodeExecutionTool20250825Param(
+                name="code_execution", type="code_execution_20250825"
+            )
+        else:
+            return None
+
     def memory_tool_param(self, tool: ToolInfo) -> BetaMemoryTool20250818Param | None:
         # check for compatible 'memory' tool
         if tool.name == "memory" and (
@@ -930,8 +959,20 @@ def _supports_web_search(model_name: str) -> bool:
     # https://docs.anthropic.com/en/docs/about-claude/models/overview#model-aliases
     # https://docs.anthropic.com/en/docs/about-claude/model-deprecations
     return model_name.startswith(
-        ("claude-opus-4", "claude-sonnet-4", "claude-3-7-sonnet")
+        ("claude-opus-4", "claude-sonnet-4", "claude-haiku-4", "claude-3-7-sonnet")
     ) or model_name in ("claude-3-5-sonnet-latest", "claude-3-5-haiku-latest")
+
+
+def _supports_code_interpreter(model_name: str) -> bool:
+    return model_name.startswith(
+        (
+            "claude-opus-4",
+            "claude-sonnet-4",
+            "claude-haiku-4",
+            "claude-3-7-sonnet",
+            "claude-3-5-haiku-latest",
+        )
+    )
 
 
 def _supports_memory(model_name: str) -> bool:
@@ -980,6 +1021,7 @@ ToolParamDef = (
     | BetaToolTextEditor20250728Param
     | WebSearchTool20250305Param
     | BetaMemoryTool20250818Param
+    | BetaCodeExecutionTool20250825Param
 )
 
 
@@ -1016,6 +1058,12 @@ def is_memory_tool(param: ToolParamDef) -> TypeGuard[BetaMemoryTool20250818Param
     return param.get("name") == "memory" and not is_tool_param(param)
 
 
+def is_code_execution_tool(
+    param: ToolParamDef,
+) -> TypeGuard[BetaCodeExecutionTool20250825Param]:
+    return param.get("name") == "code_execution" and not is_tool_param(param)
+
+
 def add_cache_control(
     param: TextBlockParam
     | ToolParam
@@ -1026,6 +1074,7 @@ def add_cache_control(
     | BetaToolTextEditor20250728Param
     | WebSearchTool20250305Param
     | BetaMemoryTool20250818Param
+    | BetaCodeExecutionTool20250825Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -1180,9 +1229,12 @@ MessageBlock = Union[
     | RedactedThinkingBlock
     | ToolUseBlock
     | ServerToolUseBlock
+    | BetaServerToolUseBlock
     | WebSearchToolResultBlock
     | BetaMCPToolUseBlock
     | BetaMCPToolResultBlock
+    | BetaBashCodeExecutionToolResultBlock
+    | BetaTextEditorCodeExecutionToolResultBlock
 ]
 
 MessageBlockParam = Union[
@@ -1193,9 +1245,12 @@ MessageBlockParam = Union[
     | ImageBlockParam
     | ToolUseBlockParam
     | ServerToolUseBlockParam
+    | BetaServerToolUseBlockParam
+    | BetaBashCodeExecutionToolResultBlockParam
     | WebSearchToolResultBlockParam
     | BetaMCPToolUseBlockParam
     | BetaRequestMCPToolResultBlockParam
+    | BetaTextEditorCodeExecutionToolResultBlockParam
 ]
 
 
@@ -1212,9 +1267,17 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
         elif block_param["type"] == "tool_use":
             blocks.append(ToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "server_tool_use":
-            blocks.append(ServerToolUseBlock.model_validate(block_param))
+            blocks.append(BetaServerToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "web_search_tool_result":
             blocks.append(WebSearchToolResultBlock.model_validate(block_param))
+        elif block_param["type"] == "bash_code_execution_tool_result":
+            blocks.append(
+                BetaBashCodeExecutionToolResultBlock.model_validate(block_param)
+            )
+        elif block_param["type"] == "text_editor_code_execution_tool_result":
+            blocks.append(
+                BetaTextEditorCodeExecutionToolResultBlock.model_validate(block_param)
+            )
         elif block_param["type"] == "mcp_tool_use":
             blocks.append(BetaMCPToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "mcp_tool_result":
@@ -1279,6 +1342,14 @@ class _AssistantInternal:
     ] = field(default_factory=dict)
     server_web_searches: dict[
         str, tuple[ServerToolUseBlockParam, WebSearchToolResultBlockParam]
+    ] = field(default_factory=dict)
+    server_code_executions: dict[
+        str,
+        tuple[
+            ServerToolUseBlockParam,
+            BetaBashCodeExecutionToolResultBlockParam
+            | BetaTextEditorCodeExecutionToolResultBlockParam,
+        ],
     ] = field(default_factory=dict)
 
 
@@ -1351,15 +1422,36 @@ async def model_output_from_message(
     )
 
 
-content_block_adapter = TypeAdapter[ContentBlock](ContentBlock)
+content_block_adapter = TypeAdapter[
+    BetaServerToolUseBlock
+    | BetaBashCodeExecutionToolResultBlock
+    | BetaTextEditorCodeExecutionToolResultBlock
+    | ContentBlock,
+](
+    BetaServerToolUseBlock
+    | BetaBashCodeExecutionToolResultBlock
+    | BetaTextEditorCodeExecutionToolResultBlock
+    | ContentBlock,
+)
 
 
 def content_and_tool_calls_from_assistant_content_blocks(
-    content_blocks_input: Sequence[ContentBlockParam | ContentBlock],
+    content_blocks_input: Sequence[
+        BetaServerToolUseBlockParam
+        | BetaBashCodeExecutionToolResultBlockParam
+        | BetaTextEditorCodeExecutionToolResultBlock
+        | ContentBlockParam
+        | ContentBlock
+    ],
     tools: list[ToolInfo],
 ) -> tuple[list[Content], list[ToolCall] | None]:
-    # reoslve params to blocks
-    content_blocks: list[ContentBlock] = []
+    # resolve params to blocks
+    content_blocks: list[
+        BetaServerToolUseBlock
+        | BetaBashCodeExecutionToolResultBlock
+        | BetaTextEditorCodeExecutionToolResultBlock
+        | ContentBlock
+    ] = []
     for block in content_blocks_input:
         if isinstance(block, dict):
             content_blocks.append(content_block_adapter.validate_python(block))
@@ -1414,7 +1506,43 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     error="error" if tool_result_block.is_error else None,
                 )
             )
+        elif (
+            content_block.type == "bash_code_execution_tool_result"
+            or content_block.type == "text_editor_code_execution_tool_result"
+        ):
+            # confirm that there is a pending tool use
+            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            if pending_tool_use is None:
+                raise RuntimeError(
+                    "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
+                )
+
+            # record in internal
+            assistant_internal().server_code_executions[pending_tool_use.id] = (
+                cast(
+                    ServerToolUseBlockParam,
+                    pending_tool_use.model_dump(exclude_none=True),
+                ),
+                cast(
+                    BetaBashCodeExecutionToolResultBlockParam
+                    | BetaTextEditorCodeExecutionToolResultBlockParam,
+                    content_block.model_dump(exclude_none=True),
+                ),
+            )
+
+            # append to content
+            content.append(
+                ContentToolUse(
+                    tool_type="code_execution",
+                    id=pending_tool_use.id,
+                    name=pending_tool_use.name,
+                    arguments=to_json_str_safe(pending_tool_use.input),
+                    result=to_json_str_safe(content_block.content),
+                )
+            )
         elif isinstance(content_block, TextBlock):
+            if content_block.text is None:
+                continue
             # if this was a tool call then remove <result></result> tags that
             # claude sometimes likes to insert!
             content_text = content_block.text
@@ -1642,6 +1770,9 @@ async def message_block_params(
         elif content.id in assistant_internal().server_web_searches:
             return list(assistant_internal().server_web_searches[content.id])
 
+        elif content.id in assistant_internal().server_code_executions:
+            return list(assistant_internal().server_code_executions[content.id])
+
         if content.tool_type == "web_search":
             # we might be parsing an openai web search result so defend ourselves accordingly
             try:
@@ -1690,6 +1821,32 @@ async def message_block_params(
                     is_error=content.error is not None and len(content.error) > 0,
                 ),
             ]
+        elif content.tool_type == "code_execution":
+            # if this is a native anthropic code execution it will have been handled
+            # by plucking the blocks from assistant_internal().server_code_executions.
+            # therefore, this is a code execution from another system which we need to
+            # normalize to the anthropic schema (i.e. we can't just parse its arguments
+            # and result or rely on its name to match one of our tools)
+            return [
+                BetaServerToolUseBlockParam(
+                    type="server_tool_use",
+                    id=content.id,
+                    name="bash_code_execution",
+                    input={"input": content.arguments},
+                ),
+                BetaBashCodeExecutionToolResultBlockParam(
+                    type="bash_code_execution_tool_result",
+                    tool_use_id=content.id,
+                    content=BetaBashCodeExecutionResultBlockParam(
+                        type="bash_code_execution_result",
+                        return_code=0,
+                        stdout=content.result,
+                        stderr=content.error or "",
+                        content=[],
+                    ),
+                ),
+            ]
+
         else:
             raise RuntimeError(
                 f"Unexpected tool use: {content.tool_type}/{content.name}"

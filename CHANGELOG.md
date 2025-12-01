@@ -1,3 +1,7 @@
+## Unreleased
+
+- [Code execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
+
 ## 0.3.151 (30 November 2025)
 
 - Memory tool: Added [memory()](https://inspect.aisi.org.uk/tools-standard.html#sec-memory) tool and bound it to native definitions for providers that support it (currently only Anthropic).
