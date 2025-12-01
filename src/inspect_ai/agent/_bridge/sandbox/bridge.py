@@ -10,6 +10,7 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SANDBOX_TOOLS_CLI,
     sandbox_with_injected_tools,
 )
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
@@ -17,7 +18,7 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._sandbox import SandboxEnvironment
 
 from ..._agent import AgentState
-from ..util import internal_web_search_providers
+from ..util import default_code_execution_providers, internal_web_search_providers
 from .service import MODEL_SERVICE, run_model_service
 from .types import SandboxAgentBridge
 
@@ -34,6 +35,7 @@ async def sandbox_agent_bridge(
     sandbox: str | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
+    code_execution: CodeExecutionProviders | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -61,6 +63,12 @@ async def sandbox_agent_bridge(
             Anthropic, Gemini, Grok, and Perplxity). Pass an alternate
             configuration to use to use an external provider like
             Tavili or Exa for models that don't support internal search.
+        code_execution: Configuration for mapping model internal
+            code_execution tools to Inspect. By default, will map to the
+            internal provider of the target model (supported for OpenAI,
+            Anthropic, Google, and Grok). If the provider does not support
+            native code execution then the bash() tool will be provided
+            (note that this requires a sandbox by declared for the task).
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -68,8 +76,9 @@ async def sandbox_agent_bridge(
     # resolve sandbox
     sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
 
-    # resolve web search config
+    # resolve internal services
     web_search = web_search or internal_web_search_providers()
+    code_execution = code_execution or default_code_execution_providers()
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -90,7 +99,13 @@ async def sandbox_agent_bridge(
 
             # sandbox service that receives model requests
             tg.start_soon(
-                run_model_service, sandbox_env, web_search, bridge, instance, started
+                run_model_service,
+                sandbox_env,
+                web_search,
+                code_execution,
+                bridge,
+                instance,
+                started,
             )
 
             # proxy server that runs in container and forwards to sandbox service

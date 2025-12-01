@@ -1,0 +1,27 @@
+services:
+  default:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Connect to the dind sidecar's Docker daemon
+      - DOCKER_HOST=tcp://docker:2375
+    working_dir: /workspace
+    command: tail -f /dev/null
+    depends_on:
+      docker:
+        condition: service_healthy
+
+  docker:
+    image: docker:dind
+    privileged: true
+    environment:
+      # Disable TLS for simplicity (internal network only)
+      - DOCKER_TLS_CERTDIR=
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Expose Docker daemon on port 2375
+    command: ["dockerd", "--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock"]

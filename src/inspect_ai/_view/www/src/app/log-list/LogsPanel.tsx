@@ -291,7 +291,16 @@ export const collapseLogItems = (
   evalSet: EvalSet | undefined,
   logItems: (FileLogItem | FolderLogItem | PendingTaskItem)[],
 ): (FileLogItem | FolderLogItem | PendingTaskItem)[] => {
+  // If this isn't an eval set, don't filter it
   if (!evalSet) {
+    return logItems;
+  }
+
+  // If nothing is running, don't filter at all
+  const running = logItems.some(
+    (l) => l.type === "file" && l.logPreview?.status === "started",
+  );
+  if (!running) {
     return logItems;
   }
 
