@@ -1,3 +1,7 @@
+## Future
+
+- [Code execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
+
 ## Unreleased
 
 - Grok: Correctly reconstruct assistant tool calls when replaying messages to API.
