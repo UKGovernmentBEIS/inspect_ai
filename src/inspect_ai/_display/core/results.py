@@ -73,7 +73,7 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
 
         # early stopped
         samples_early_stopped = (
-            len(success.results.early_stopping.stopped_samples)
+            len(success.results.early_stopping.early_stops)
             if success.results.early_stopping
             else 0
         )
