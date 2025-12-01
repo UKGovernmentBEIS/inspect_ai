@@ -4,15 +4,16 @@ title: "inspect_ai.tool"
 
 ## Tools
 
+### web_search
 ### bash
 ### python
 ### bash_session
 ### text_editor
-### memory
-### web_browser
 ### computer
-### web_search
+### code_execution
+### memory
 ### think
+### web_browser
 
 ## MCP
 
@@ -45,6 +46,7 @@ title: "inspect_ai.tool"
 ### ToolParam
 ### ToolSource
 ### WebSearchProviders
+### CodeExecutionProviders
 
 ## Decorator
 

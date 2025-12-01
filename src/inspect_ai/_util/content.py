@@ -57,7 +57,7 @@ class ContentToolUse(ContentBase):
     type: Literal["tool_use"] = Field(default="tool_use")
     """Type."""
 
-    tool_type: Literal["web_search", "mcp_call"]
+    tool_type: Literal["web_search", "mcp_call", "code_execution"]
     """The type of the tool call."""
 
     id: str

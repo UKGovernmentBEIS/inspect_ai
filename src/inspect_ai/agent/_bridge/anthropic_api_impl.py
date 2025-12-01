@@ -44,6 +44,7 @@ from inspect_ai.model._providers.anthropic import (
     anthropic_extra_body_fields,
     assistant_message_blocks,
     content_and_tool_calls_from_assistant_content_blocks,
+    is_code_execution_tool,
     is_computer_tool,
     is_text_editor_tool,
     is_tool_param,
@@ -56,6 +57,10 @@ from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tool_util import tool_to_tool_info
+from inspect_ai.tool._tools._code_execution import (
+    CodeExecutionProviders,
+    code_execution,
+)
 from inspect_ai.tool._tools._computer._computer import computer
 from inspect_ai.tool._tools._text_editor import text_editor
 from inspect_ai.tool._tools._web_search._web_search import (
@@ -77,6 +82,7 @@ logger = getLogger(__name__)
 async def inspect_anthropic_api_request_impl(
     json_data: dict[str, Any],
     web_search: WebSearchProviders,
+    code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
 ) -> Message:
     # resolve model
@@ -89,7 +95,7 @@ async def inspect_anthropic_api_request_impl(
         json_data.get("mcp_servers", None)
     )
     tools = tools_from_anthropic_tools(
-        anthropic_tools, anthropic_mcp_servers, web_search
+        anthropic_tools, anthropic_mcp_servers, web_search, code_execution
     )
 
     # tool choice
@@ -124,7 +130,7 @@ async def inspect_anthropic_api_request_impl(
     bridge._track_state(messages, output)
 
     # return message
-    message = Message(
+    message = Message.model_construct(
         id=output.message.id or uuid(),
         content=await assistant_message_blocks(output.message),  # type: ignore[arg-type]
         model=output.model,
@@ -179,6 +185,7 @@ def tools_from_anthropic_tools(
     anthropic_tools: list[ToolParamDef] | None,
     anthropic_mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] | None,
     web_search_providers: WebSearchProviders,
+    code_execution_providers: CodeExecutionProviders,
 ) -> list[ToolInfo | Tool]:
     tools: list[ToolInfo | Tool] = []
 
@@ -203,6 +210,8 @@ def tools_from_anthropic_tools(
                     resolve_web_search_providers(anthropic_tool, web_search_providers)
                 )
             )
+        elif is_code_execution_tool(anthropic_tool):
+            tools.append(code_execution(providers=code_execution_providers))
         else:
             raise RuntimeError(
                 f"ToolParam of type {anthropic_tool['type']} not supported by agent bridge."

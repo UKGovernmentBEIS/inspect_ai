@@ -1255,7 +1255,8 @@
         "tool_type": {
           "enum": [
             "web_search",
-            "mcp_call"
+            "mcp_call",
+            "code_execution"
           ],
           "title": "Tool Type",
           "type": "string"

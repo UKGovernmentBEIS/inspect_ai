@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._providers.providers import validate_anthropic_client
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 
 if TYPE_CHECKING:
@@ -13,10 +14,13 @@ if TYPE_CHECKING:
 async def inspect_anthropic_api_request(
     json_data: dict[str, Any],
     web_search: WebSearchProviders,
+    code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
 ) -> "Message":
     validate_anthropic_client("agent bridge")
 
     from .anthropic_api_impl import inspect_anthropic_api_request_impl
 
-    return await inspect_anthropic_api_request_impl(json_data, web_search, bridge)
+    return await inspect_anthropic_api_request_impl(
+        json_data, web_search, code_execution, bridge
+    )
