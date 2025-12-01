@@ -62,16 +62,16 @@ def code_execution(
 
         ```python
         # default (native interpreter for all providers, `python()` as fallback):
-        code_interpeter()
+        code_interpreter()
 
         # disable native code interpeter for some providers:
-        code_interpeter({ "grok": False, "openai": False })
+        code_interpreter({ "grok": False, "openai": False })
 
         # disable python fallback
-        code_interpeter({ "python": False })
+        code_interpreter({ "python": False })
 
         # provide openai container options
-        code_interpeter(
+        code_interpreter(
             {"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
         )
         ```
