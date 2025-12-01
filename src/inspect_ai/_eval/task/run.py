@@ -92,9 +92,9 @@ from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._early_stopping import (
+    EarlyStop,
     EarlyStopping,
     EarlyStoppingSummary,
-    StoppedSample,
 )
 from inspect_ai.util._limit import (
     LimitExceededError,
@@ -372,7 +372,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                 async def run_sample(
                     sample: Sample, state: TaskState
-                ) -> dict[str, SampleScore] | StoppedSample | None:
+                ) -> dict[str, SampleScore] | EarlyStop | None:
                     return await task_run_sample(
                         task_name=task.name,
                         log_location=profile.log_location,
@@ -422,10 +422,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 if isinstance(score_dict, dict)
             ]
 
-            stopped_samples = [
+            early_stops = [
                 stopped_sample
                 for stopped_sample in sample_results
-                if isinstance(stopped_sample, StoppedSample)
+                if isinstance(stopped_sample, EarlyStop)
             ]
 
             # call early stopping if we have it
@@ -434,7 +434,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 stopping_metadata = await options.task.early_stopping.complete_task()
                 stopping_summary = EarlyStoppingSummary(
                     manager=stopping_manager,
-                    stopped_samples=stopped_samples,
+                    early_stops=early_stops,
                     metadata=stopping_metadata,
                 )
 
@@ -625,7 +625,7 @@ async def task_run_sample(
     eval_set_id: str | None,
     run_id: str,
     task_id: str,
-) -> dict[str, SampleScore] | StoppedSample | None:
+) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.hooks._hooks import (
         emit_sample_end,
         emit_sample_scoring,
@@ -663,9 +663,7 @@ async def task_run_sample(
     if early_stopping is not None and logger is not None:
         early_stop = await early_stopping.schedule_sample(state.sample_id, state.epoch)
         if early_stop is not None:
-            return StoppedSample(
-                id=state.sample_id, epoch=state.epoch, early_stop=early_stop
-            )
+            return early_stop
 
     # copy variables that we may pass back to ourselves on a retry
     initial_state = deepcopy(state)

@@ -13,6 +13,12 @@ if TYPE_CHECKING:
 class EarlyStop(BaseModel):
     """Directive to stop a sample early."""
 
+    id: str | int
+    """Sample dataset id."""
+
+    epoch: int
+    """Sample epoch."""
+
     reason: str | None = Field(default=None)
     """Reason for the early stop."""
 
@@ -20,24 +26,13 @@ class EarlyStop(BaseModel):
     """Metadata related to early stop."""
 
 
-class StoppedSample(BaseModel):
-    """Record of early stop for a sample/epoch."""
-
-    id: str | int
-    """Sample dataset id."""
-
-    epoch: int
-    """Sample epoch."""
-
-    early_stop: EarlyStop
-    """Early stop directive."""
-
-
 class EarlyStoppingSummary(BaseModel):
+    """Summary of early stopping applied to task."""
+
     manager: str
     """Name of early stopping manager."""
 
-    stopped_samples: list[StoppedSample]
+    early_stops: list[EarlyStop]
     """Samples that were stopped early."""
 
     metadata: dict[str, JsonValue]
@@ -45,6 +40,8 @@ class EarlyStoppingSummary(BaseModel):
 
 
 class EarlyStopping(Protocol):
+    """Early stopping manager for skipping selected samples/epochs."""
+
     async def start_task(
         self, task: "EvalSpec", samples: list["Sample"], epochs: int
     ) -> str:

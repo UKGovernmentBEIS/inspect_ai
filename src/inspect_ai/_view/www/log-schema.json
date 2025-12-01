@@ -1472,6 +1472,21 @@
     "EarlyStop": {
       "description": "Directive to stop a sample early.",
       "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Id"
+        },
+        "epoch": {
+          "title": "Epoch",
+          "type": "integer"
+        },
         "reason": {
           "anyOf": [
             {
@@ -1500,25 +1515,28 @@
           "title": "Metadata"
         }
       },
-      "title": "EarlyStop",
-      "type": "object",
       "required": [
+        "id",
+        "epoch",
         "reason",
         "metadata"
       ],
+      "title": "EarlyStop",
+      "type": "object",
       "additionalProperties": false
     },
     "EarlyStoppingSummary": {
+      "description": "Summary of early stopping applied to task.",
       "properties": {
         "manager": {
           "title": "Manager",
           "type": "string"
         },
-        "stopped_samples": {
+        "early_stops": {
           "items": {
-            "$ref": "#/$defs/StoppedSample"
+            "$ref": "#/$defs/EarlyStop"
           },
-          "title": "Stopped Samples",
+          "title": "Early Stops",
           "type": "array"
         },
         "metadata": {
@@ -1531,7 +1549,7 @@
       },
       "required": [
         "manager",
-        "stopped_samples",
+        "early_stops",
         "metadata"
       ],
       "title": "EarlyStoppingSummary",
@@ -6419,37 +6437,6 @@
         "name"
       ],
       "title": "StepEvent",
-      "type": "object",
-      "additionalProperties": false
-    },
-    "StoppedSample": {
-      "description": "Record of early stop for a sample/epoch.",
-      "properties": {
-        "id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "integer"
-            }
-          ],
-          "title": "Id"
-        },
-        "epoch": {
-          "title": "Epoch",
-          "type": "integer"
-        },
-        "early_stop": {
-          "$ref": "#/$defs/EarlyStop"
-        }
-      },
-      "required": [
-        "id",
-        "epoch",
-        "early_stop"
-      ],
-      "title": "StoppedSample",
       "type": "object",
       "additionalProperties": false
     },

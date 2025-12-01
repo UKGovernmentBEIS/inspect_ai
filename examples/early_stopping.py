@@ -53,11 +53,11 @@ class TestEarlyStopping(EarlyStopping):
         """Called prior to scheduling a sample (return False to prevent it from running)."""
         # first check if this sample has no more epochs
         if id in self._completed_samples:
-            return EarlyStop()
+            return EarlyStop(id=id, epoch=epoch)
 
         if random() < 0.5:
             self._completed_samples.append(id)
-            return EarlyStop()
+            return EarlyStop(id=id, epoch=epoch)
         else:
             return None
 

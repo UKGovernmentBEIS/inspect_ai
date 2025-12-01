@@ -22,7 +22,6 @@ from ._early_stopping import (
     EarlyStop,
     EarlyStopping,
     EarlyStoppingSummary,
-    StoppedSample,
 )
 from ._json import JSONSchema, JSONType, json_schema
 from ._panel import InputPanel, input_panel
@@ -105,6 +104,5 @@ __all__ = [
     "registry_create",
     "EarlyStopping",
     "EarlyStop",
-    "StoppedSample",
     "EarlyStoppingSummary",
 ]

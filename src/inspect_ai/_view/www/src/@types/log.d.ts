@@ -179,7 +179,7 @@ export type Metadata2 = {
   [k: string]: JsonValue;
 } | null;
 export type JsonValue = unknown;
-export type StoppedSamples = StoppedSample[];
+export type EarlyStops = EarlyStop[];
 export type Name6 = string;
 export type Scorer = string;
 export type Reducer = string | null;
@@ -1116,23 +1116,20 @@ export interface EvalResults {
   scores: Scores;
   metadata: Metadata6;
 }
+/**
+ * Summary of early stopping applied to task.
+ */
 export interface EarlyStoppingSummary {
   manager: Manager;
-  stopped_samples: StoppedSamples;
+  early_stops: EarlyStops;
   metadata: Metadata3;
-}
-/**
- * Record of early stop for a sample/epoch.
- */
-export interface StoppedSample {
-  id: Id;
-  epoch: Epoch;
-  early_stop: EarlyStop;
 }
 /**
  * Directive to stop a sample early.
  */
 export interface EarlyStop {
+  id: Id;
+  epoch: Epoch;
   reason: Reason;
   metadata: Metadata2;
 }
