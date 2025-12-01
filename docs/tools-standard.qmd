@@ -422,6 +422,15 @@ inspect eval computer.py --no-internal-tools
 
 ## Code Execution {#sec-code-execution}
 
+::: callout-note
+The code execution tool described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+
 ### Overview
 
 The `code_execution()` tool provides models with the ability to execute Python code within a sandboxed environment. There are two significant differences between code execution and the `python()` tool described above:
