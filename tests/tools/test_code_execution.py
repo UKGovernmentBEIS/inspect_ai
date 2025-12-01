@@ -140,7 +140,7 @@ def test_normalize_config_disable_single_provider() -> None:
     """Test that False removes a provider from the result."""
     result = _normalize_config({"python": False})
 
-    assert "bash" not in result
+    assert "python" not in result
     assert "openai" in result
     assert "anthropic" in result
     assert "google" in result
@@ -155,7 +155,7 @@ def test_normalize_config_disable_multiple_providers() -> None:
     assert "openai" not in result
     assert "anthropic" in result
     assert "google" in result
-    assert "bash" in result
+    assert "python" in result
 
 
 def test_normalize_config_disable_all_providers() -> None:
@@ -184,8 +184,8 @@ def test_normalize_config_dict_options_for_openai() -> None:
     assert result["python"] == {}
 
 
-def test_normalize_config_dict_options_for_bash() -> None:
-    """Test providing dict options for bash."""
+def test_normalize_config_dict_options_for_python() -> None:
+    """Test providing dict options for python."""
     options = {"timeout": 60, "sandbox": "foo"}
     result = _normalize_config({"python": options})
 
@@ -227,12 +227,14 @@ def test_normalize_config_empty_dict_options() -> None:
     assert "openai" in result
 
 
-@pytest.mark.parametrize("provider", ["openai", "anthropic", "google", "grok", "bash"])
+@pytest.mark.parametrize(
+    "provider", ["openai", "anthropic", "google", "grok", "python"]
+)
 def test_normalize_config_disable_each_provider(provider: str) -> None:
     """Test that each provider can be individually disabled."""
     result = _normalize_config({provider: False})  # type: ignore[arg-type, misc]
 
     assert provider not in result
-    all_providers = {"openai", "anthropic", "google", "grok", "bash"}
+    all_providers = {"openai", "anthropic", "google", "grok", "python"}
     for other in all_providers - {provider}:
         assert other in result
