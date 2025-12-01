@@ -490,14 +490,6 @@ When falling back to the `python()` provider you should ensure that your `Task` 
 
 ## Memory {#sec-memory}
 
-::: callout-note
-The memory tool described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The memory tool enables models to store and retrieve information into a `/memories` file directory. Models can create, read, update, and delete files, enabling them to preserve knowledge over time without keeping everything in the context window.
 
 ### Task Setup
