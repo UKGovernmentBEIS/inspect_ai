@@ -1295,11 +1295,11 @@ def maybe_code_interpreter_tool(
                 container=CodeInterpreterContainerCodeInterpreterToolAuto(type="auto"),
             )
         else:
-            container = options.get("container", None)
-            if container is None:
-                raise ValueError(
-                    "You must provide a 'container' in openai code interpreter options."
-                )
+            container = options.get(
+                "container",
+                CodeInterpreterContainerCodeInterpreterToolAuto(type="auto"),
+            )
+
             return CodeInterpreter(
                 type="code_interpreter",
                 container=container,
