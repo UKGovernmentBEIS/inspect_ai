@@ -150,13 +150,14 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.150 (25 November 2025)</a></li>
-  <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.149 (23 November 2025)</a></li>
-  <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.148 (21 November 2025)</a></li>
-  <li><a href="#november-2025-3" id="toc-november-2025-3" class="nav-link" data-scroll-target="#november-2025-3">0.3.147 (21 November 2025)</a></li>
-  <li><a href="#november-2025-4" id="toc-november-2025-4" class="nav-link" data-scroll-target="#november-2025-4">0.3.146 (15 November 2025)</a></li>
-  <li><a href="#november-2025-5" id="toc-november-2025-5" class="nav-link" data-scroll-target="#november-2025-5">0.3.145 (09 November 2025)</a></li>
-  <li><a href="#november-2025-6" id="toc-november-2025-6" class="nav-link" data-scroll-target="#november-2025-6">0.3.144 (05 November 2025)</a></li>
+  <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.151 (30 November 2025)</a></li>
+  <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.150 (25 November 2025)</a></li>
+  <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.149 (23 November 2025)</a></li>
+  <li><a href="#november-2025-3" id="toc-november-2025-3" class="nav-link" data-scroll-target="#november-2025-3">0.3.148 (21 November 2025)</a></li>
+  <li><a href="#november-2025-4" id="toc-november-2025-4" class="nav-link" data-scroll-target="#november-2025-4">0.3.147 (21 November 2025)</a></li>
+  <li><a href="#november-2025-5" id="toc-november-2025-5" class="nav-link" data-scroll-target="#november-2025-5">0.3.146 (15 November 2025)</a></li>
+  <li><a href="#november-2025-6" id="toc-november-2025-6" class="nav-link" data-scroll-target="#november-2025-6">0.3.145 (09 November 2025)</a></li>
+  <li><a href="#november-2025-7" id="toc-november-2025-7" class="nav-link" data-scroll-target="#november-2025-7">0.3.144 (05 November 2025)</a></li>
   <li><a href="#october-2025" id="toc-october-2025" class="nav-link" data-scroll-target="#october-2025">0.3.143 (29 October 2025)</a></li>
   <li><a href="#october-2025-1" id="toc-october-2025-1" class="nav-link" data-scroll-target="#october-2025-1">0.3.142 (27 October 2025)</a></li>
   <li><a href="#october-2025-2" id="toc-october-2025-2" class="nav-link" data-scroll-target="#october-2025-2">0.3.141 (27 October 2025)</a></li>
@@ -311,14 +312,32 @@ ul.task-list li input[type="checkbox"] {
 <section id="unreleased" class="level2">
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
-<li>Memory tool: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool and bound it to native definitions for providers that support it (currently only Anthropic).</li>
-<li>Sandboxes: For “local” and “docker” sandbox providers, treat <code>output_limit</code> as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).</li>
-<li>Dependencies: Move from unmaintained <code>nest_asyncio</code>, which is fundamentally incompatible with Python 3.14, to <code>nest_asyncio2</code>, which has explicit 3.14 compatibility.</li>
-<li>Bugfix: Correct normalization of sample id for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span> with JSON log files.</li>
+<li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution">Code execution</a> tool for executing Python code in a stateless sandbox running on model provider servers.</li>
 </ul>
 </section>
 <section id="november-2025" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025">0.3.150 (25 November 2025)</h2>
+<h2 class="anchored" data-anchor-id="november-2025">0.3.151 (30 November 2025)</h2>
+<ul>
+<li>Memory tool: Added <a href="https://inspect.aisi.org.uk/tools-standard.html#sec-memory">memory()</a> tool and bound it to native definitions for providers that support it (currently only Anthropic).</li>
+<li>Grok: Correctly reconstruct assistant tool calls when replaying messages to API.</li>
+<li>Grok: Round trip encrypted reasoning (made available in v1.4.0 of <code>xai_sdk</code>, which is now required).</li>
+<li>Anthropic: Protect against signature not being replayed (can occur for agent bridge) by saving a side list of signatures.</li>
+<li>Sandboxes: For “local” and “docker” sandbox providers, treat <code>output_limit</code> as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).</li>
+<li>Sandboxes: Added <code>evals_in_eval</code> example for running Inspect evaluations inside other evaluations.</li>
+<li>Model API: Enable model providers to have custom retry wait strategies (use 5 second fixed wait for vllm).</li>
+<li>Prevent querying of local timezone and forbid naïve <code>datetime</code>’s via DTZ lint rule.</li>
+<li>Dependencies: Change jsonpath-ng requirement to &gt;=1.6.0 (formerly required &gt;= 1.7.0).</li>
+<li>Dependencies: Move from unmaintained <code>nest_asyncio</code>, which is fundamentally incompatible with Python 3.14, to <code>nest_asyncio2</code>, which has explicit 3.14 compatibility.</li>
+<li>Inspect View: Improve markdown rendering performance.</li>
+<li>Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.</li>
+<li>Inspect View: Add support for copying sample messages (as text).</li>
+<li>Inspect View: Improved JSON parsing performance &amp; scalability.</li>
+<li>Bugfix: Correct normalization of sample id for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span> with JSON log files.</li>
+<li>Bugfix: Correctly handle more complex list operations when detecting changes in state and store.</li>
+</ul>
+</section>
+<section id="november-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-1">0.3.150 (25 November 2025)</h2>
 <ul>
 <li>Anthropic: Enable <a href="https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking">interleaved-thinking</a> by default for Claude 4 models.</li>
 <li>Anthropic: Smarter <code>max_tokens</code> handling to prevent exceeding model max tokens when reasoning tokens are specified.</li>
@@ -332,22 +351,22 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Ensure that <code>prompt_cache_retention</code> is correctly forwarded by agent bridge to responses API.</li>
 </ul>
 </section>
-<section id="november-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-1">0.3.149 (23 November 2025)</h2>
+<section id="november-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-2">0.3.149 (23 November 2025)</h2>
 <ul>
 <li>Inspect View: Truncate display of large sample summary fields to improve performance.</li>
 <li>Inspect View: Fix regression in displaying S3 log files in VS Code.</li>
 <li>Bugfix: Truncate large target fields in sample summaries.</li>
 </ul>
 </section>
-<section id="november-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-2">0.3.148 (21 November 2025)</h2>
+<section id="november-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-3">0.3.148 (21 November 2025)</h2>
 <ul>
 <li>Bugfix: Fix Google provider serialization of thought signatures on replay.</li>
 </ul>
 </section>
-<section id="november-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-3">0.3.147 (21 November 2025)</h2>
+<section id="november-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-4">0.3.147 (21 November 2025)</h2>
 <ul>
 <li>Google: Support for <code>--reasoning-effort</code> on Gemini 3.0 models.</li>
 <li>Anthropic: Support for <a href="https://inspect.aisi.org.uk/structured.html">Structured Output</a> for Sonnet 4.5 and Opus 4.1.</li>
@@ -362,8 +381,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Correctly handle distinguishing eval set tasks based on <code>solver</code> passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>.</li>
 </ul>
 </section>
-<section id="november-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-4">0.3.146 (15 November 2025)</h2>
+<section id="november-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-5">0.3.146 (15 November 2025)</h2>
 <ul>
 <li>Added <code>cache</code> configuration to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> (formerly was only available as a parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>).</li>
 <li>ReAct agent: <code>on_continue</code> can now return a new <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span>.</li>
@@ -376,8 +395,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix model name preservation in eval logs for service-prefixed models.</li>
 </ul>
 </section>
-<section id="november-2025-5" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-5">0.3.145 (09 November 2025)</h2>
+<section id="november-2025-6" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-6">0.3.145 (09 November 2025)</h2>
 <ul>
 <li>OpenAI: Show reasoning summaries by default (auto-detect whether current account is capable of reasoning summaries and fallback as required).</li>
 <li>OpenAI: Support for <code>logprobs</code> and <code>top_logprobs</code> in Responses API (note that logprobs are not supported for reasoning models).</li>
@@ -389,8 +408,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Properly handle <code>content</code> of type <code>str</code> in Responses API agent bridge.</li>
 </ul>
 </section>
-<section id="november-2025-6" class="level2">
-<h2 class="anchored" data-anchor-id="november-2025-6">0.3.144 (05 November 2025)</h2>
+<section id="november-2025-7" class="level2">
+<h2 class="anchored" data-anchor-id="november-2025-7">0.3.144 (05 November 2025)</h2>
 <ul>
 <li>Eval Set: Task identifiers can now vary on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> and <code>solver</code> (which enables sweeping over these variables).</li>
 <li>Eval Logs: Don’t resolve attachments within <code>ModelEvent.call</code> by default, which prevents O(N) memory footprint for reading transcripts.</li>

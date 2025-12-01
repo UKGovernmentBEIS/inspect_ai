@@ -19,20 +19,24 @@ Inspect has several standard tools built-in, including:
 - [Text Editor](tools-standard.qmd#sec-text-editor) which enables
   viewing, creating and editing text files.
 
-- [Memory](tools-standard.qmd#sec-memory) which enables storing and
-  retrieving information through a memory file directory.
-
-- [Web Browser](tools-standard.qmd#sec-web-browser), which provides the
-  model with a headless Chromium web browser that supports navigation,
-  history, and mouse/keyboard interactions.
-
 - [Computer](tools-standard.qmd#sec-computer), which provides the model
   with a desktop computer (viewed through screenshots) that supports
   mouse and keyboard interaction.
 
+- [Code Execution](tools-standard.qmd#sec-code-execution), which gives
+  models a sandboxed Python code execution environment running within
+  the model provider’s infrastructure.
+
+- [Memory](tools-standard.qmd#sec-memory) which enables storing and
+  retrieving information through a memory file directory.
+
 - [Think](tools-standard.qmd#sec-think), which provides models the
   ability to include an additional thinking step as part of getting to
   its final answer.
+
+- [Web Browser](tools-standard.qmd#sec-web-browser), which provides the
+  model with a headless Chromium web browser that supports navigation,
+  history, and mouse/keyboard interactions.
 
 ## Web Search
 
@@ -372,190 +376,6 @@ The `text_editor()` works with all models that support tool calling, but
 when using Claude, the text editor tool will automatically bind to the
 native Claude tool definition.
 
-## Memory
-
-> [!NOTE]
->
-> The memory tool described below is available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
-The memory tool enables models to store and retrieve information into a
-`/memories` file directory. Models can create, read, update, and delete
-files, enabling them to preserve knowledge over time without keeping
-everything in the context window.
-
-### Task Setup
-
-A task configured to use the memory tool might look like this:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.scorer import includes
-from inspect_ai.solver import generate, system_message, use_tools
-from inspect_ai.tool import bash, memory
-
-@task
-def intercode_ctf():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            system_message("system.txt"),
-            use_tools([bash(timeout=180), memory()]),
-            generate(),
-        ],
-        scorer=includes(),
-        sandbox=("docker", "compose.yaml")
-    )
-```
-
-### Seeding Memories
-
-You can seed the memories from sample data by passing `initial_data` to
-the `memory()` tool. For example:
-
-``` python
-memory(
-    initial_data = {
-        "/memories/notes.md": "<text or file path>",
-        "/memories/theories.md": "<text or file path>"
-    }
-)
-```
-
-Keys should be valid `/memories` paths (e.g. “/memories/notes.md”).
-Values are resolved via `resource()`, supporting inline strings, file
-paths, or remote resources (s3://, https://). Seeding happens once on
-first tool execution. The model is prompted to read any pre-seeded
-memories before beginning work.
-
-### Tool Binding
-
-The schema for the `memory()` tool is based on the standard Anthropic
-[memory tool
-type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool).
-The `memory()` works with all models that support tool calling, but when
-using Claude, the text editor tool will automatically bind to the native
-Claude tool definition.
-
-## Web Browser
-
-The web browser tools provides models with the ability to browse the web
-using a headless Chromium browser. Navigation, history, and
-mouse/keyboard interactions are all supported.
-
-### Configuration
-
-Under the hood, the web browser is an instance of
-[Chromium](https://www.chromium.org/chromium-projects/) orchestrated by
-[Playwright](https://playwright.dev/), and runs in a [Sandbox
-Environment](sandboxing.qmd). In addition, you’ll need some dependencies
-installed in the sandbox container. Please see **Sandbox Dependencies**
-below for additional instructions.
-
-Note that Playwright (used for the `web_browser()` tool) does not
-support some versions of Linux (e.g. Kali Linux).
-
-> [!NOTE]
->
-> ### Sandbox Dependencies
->
-> You should add the following to your sandbox `Dockerfile` in order to
-> use the web browser tool:
->
-> ``` dockerfile
-> RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/*
-> ENV PATH="$PATH:/opt/inspect/bin"
-> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
->     pipx install inspect-tool-support && \
->     chmod -R 755 /opt/inspect && \
->     inspect-tool-support post-install
-> ```
->
-> If you don’t have a custom Dockerfile, you can alternatively use the
-> pre-built `aisiuk/inspect-tool-support` image:
->
-> **compose.yaml**
->
-> ``` yaml
-> services:
->   default:
->     image: aisiuk/inspect-tool-support
->     init: true
-> ```
-
-### Task Setup
-
-A task configured to use the web browser tools might look like this:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.scorer import match
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import bash, python, web_browser
-
-@task
-def browser_task():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            use_tools([bash(), python()] + web_browser()),
-            generate(),
-        ],
-        scorer=match(),
-        sandbox=("docker", "compose.yaml"),
-    )
-```
-
-Unlike some other tool functions like `bash()`, the `web_browser()`
-function returns a list of tools. Therefore, we concatenate it with a
-list of the other tools we are using in the call to `use_tools()`.
-
-Note that a separate web browser process is created within the sandbox
-for each instance of the web browser tool. See the `web_browser()`
-reference docs for details on customizing this behavior.
-
-### Browsing
-
-If you review the transcripts of a sample with access to the web browser
-tool, you’ll notice that there are several distinct tools made available
-for control of the web browser. These tools include:
-
-| Tool | Description |
-|----|----|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
-| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
-
-The return value of each of these tools is a [web accessibility
-tree](https://web.dev/articles/the-accessibility-tree) for the page,
-which provides a clean view of the content, links, and form fields
-available on the page (you can look at the accessibility tree for any
-web page using [Chrome Developer
-Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
-
-### Disabling Interactions
-
-You can use the web browser tools with page interactions disabled by
-specifying `interactive=False`, for example:
-
-``` python
-use_tools(web_browser(interactive=False))
-```
-
-In this mode, the interactive tools (`web_browser_click()`,
-`web_browser_type()`, and `web_browser_type_submit()`) are not made
-available to the model.
-
 ## Computer
 
 The `computer()` tool provides models with a computer desktop
@@ -778,6 +598,155 @@ specify the `--no-internal-tools` generation option as follows:
 inspect eval computer.py --no-internal-tools
 ```
 
+## Code Execution
+
+> [!NOTE]
+>
+> The code execution tool described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+### Overview
+
+The `code_execution()` tool provides models with the ability to execute
+Python code within a sandboxed environment. There are two significant
+differences between code execution and the `python()` tool described
+above:
+
+1.  Code runs in a sandbox on the model provider’s server (as opposed to
+    e.g. a locally managed Docker container).
+2.  Code runs in a *stateless* environment (each execution is
+    independent of others and no file-system state is preserved across
+    calls).
+
+Since the code execution tool is stateless, it is more suitable as a
+means to assist with problem solving that for more stateful agentic
+tasks.
+
+Here is a simple example using the `code_execution()` tool:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.agent import react
+from inspect_ai.tool import code_execution
+
+@task
+def code_execution_task():
+    return Task(
+        dataset=[Sample("Add 435678 + 23457")],
+        solver=react(tools=[code_execution())
+    )
+```
+
+### Availability
+
+[OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter),
+[Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool),
+[Google](https://ai.google.dev/gemini-api/docs/code-execution), and
+[Grok](https://docs.x.ai/docs/guides/tools/code-execution-tool) models
+all have support for native server-side Python code execution. Note that
+Anthropic can additionally execute bash and text editor commands, but
+the primary execution language used is still Python.
+
+> [!IMPORTANT]
+>
+> Note that some providers bill separately for code execution, so you
+> should consult their documentation for details before enabling this
+> feature.
+
+#### Fallback
+
+If you are using a provider that doesn’t support code execution then a
+fallback using the `python()` tool is provided. Additionally, you can
+optionally disable code execution for a provider with a native
+implementation and use the `python()` tool instead.
+
+Here are some example configurations:
+
+``` python
+# default (native where supported, python as fallback):
+code_interpreter()
+
+# selectively disable native (will fallback to python)
+code_interpreter({ "grok": False, "openai": False })
+
+# disable python fallback
+code_interpreter({ "python": False })
+
+# provide openai container options
+code_interpreter(
+    {"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
+)
+```
+
+When falling back to the `python()` provider you should ensure that your
+`Task` has a `sandbox` with access to Python enabled.
+
+## Memory
+
+The memory tool enables models to store and retrieve information into a
+`/memories` file directory. Models can create, read, update, and delete
+files, enabling them to preserve knowledge over time without keeping
+everything in the context window.
+
+### Task Setup
+
+A task configured to use the memory tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash, memory
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=180), memory()]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+### Seeding Memories
+
+You can seed the memories from sample data by passing `initial_data` to
+the `memory()` tool. For example:
+
+``` python
+memory(
+    initial_data = {
+        "/memories/notes.md": "<text or file path>",
+        "/memories/theories.md": "<text or file path>"
+    }
+)
+```
+
+Keys should be valid `/memories` paths (e.g. “/memories/notes.md”).
+Values are resolved via `resource()`, supporting inline strings, file
+paths, or remote resources (s3://, https://). Seeding happens once on
+first tool execution. The model is prompted to read any pre-seeded
+memories before beginning work.
+
+### Tool Binding
+
+The schema for the `memory()` tool is based on the standard Anthropic
+[memory tool
+type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool).
+The `memory()` works with all models that support tool calling, but when
+using Claude, the text editor tool will automatically bind to the native
+Claude tool definition.
+
 ## Think
 
 The `think()` tool provides models with the ability to include an
@@ -930,3 +899,118 @@ def swe_bench():
 Note that the effectivess of using the system prompt will vary
 considerably across tasks, tools, and models, so should definitely be
 the subject of experimentation.
+
+## Web Browser
+
+The web browser tools provides models with the ability to browse the web
+using a headless Chromium browser. Navigation, history, and
+mouse/keyboard interactions are all supported.
+
+### Configuration
+
+Under the hood, the web browser is an instance of
+[Chromium](https://www.chromium.org/chromium-projects/) orchestrated by
+[Playwright](https://playwright.dev/), and runs in a [Sandbox
+Environment](sandboxing.qmd). In addition, you’ll need some dependencies
+installed in the sandbox container. Please see **Sandbox Dependencies**
+below for additional instructions.
+
+Note that Playwright (used for the `web_browser()` tool) does not
+support some versions of Linux (e.g. Kali Linux).
+
+> [!NOTE]
+>
+> ### Sandbox Dependencies
+>
+> You should add the following to your sandbox `Dockerfile` in order to
+> use the web browser tool:
+>
+> ``` dockerfile
+> RUN apt-get update && apt-get install -y pipx && \
+>     apt-get clean && rm -rf /var/lib/apt/lists/*
+> ENV PATH="$PATH:/opt/inspect/bin"
+> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
+>     pipx install inspect-tool-support && \
+>     chmod -R 755 /opt/inspect && \
+>     inspect-tool-support post-install
+> ```
+>
+> If you don’t have a custom Dockerfile, you can alternatively use the
+> pre-built `aisiuk/inspect-tool-support` image:
+>
+> **compose.yaml**
+>
+> ``` yaml
+> services:
+>   default:
+>     image: aisiuk/inspect-tool-support
+>     init: true
+> ```
+
+### Task Setup
+
+A task configured to use the web browser tools might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import bash, python, web_browser
+
+@task
+def browser_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([bash(), python()] + web_browser()),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+Unlike some other tool functions like `bash()`, the `web_browser()`
+function returns a list of tools. Therefore, we concatenate it with a
+list of the other tools we are using in the call to `use_tools()`.
+
+Note that a separate web browser process is created within the sandbox
+for each instance of the web browser tool. See the `web_browser()`
+reference docs for details on customizing this behavior.
+
+### Browsing
+
+If you review the transcripts of a sample with access to the web browser
+tool, you’ll notice that there are several distinct tools made available
+for control of the web browser. These tools include:
+
+| Tool | Description |
+|----|----|
+| `web_browser_go(url)` | Navigate the web browser to a URL. |
+| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
+| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
+| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
+| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
+| `web_browser_back()` | Navigate the web browser back in the browser history. |
+| `web_browser_refresh()` | Refresh the current page of the web browser. |
+
+The return value of each of these tools is a [web accessibility
+tree](https://web.dev/articles/the-accessibility-tree) for the page,
+which provides a clean view of the content, links, and form fields
+available on the page (you can look at the accessibility tree for any
+web page using [Chrome Developer
+Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
+
+### Disabling Interactions
+
+You can use the web browser tools with page interactions disabled by
+specifying `interactive=False`, for example:
+
+``` python
+use_tools(web_browser(interactive=False))
+```
+
+In this mode, the interactive tools (`web_browser_click()`,
+`web_browser_type()`, and `web_browser_type_submit()`) are not made
+available to the model.
