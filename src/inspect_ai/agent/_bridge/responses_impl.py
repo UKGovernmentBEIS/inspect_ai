@@ -349,11 +349,7 @@ def resolve_code_interpreter_providers(
     if openai_options is True or (
         isinstance(openai_options, dict) and len(openai_options) == 0
     ):
-        code_execution["openai"] = (
-            {"type": tool_param["container"]}
-            if isinstance(tool_param["container"], str)
-            else dict(tool_param["container"])
-        )
+        code_execution["openai"] = {"container": tool_param["container"]}
 
     return code_execution
 

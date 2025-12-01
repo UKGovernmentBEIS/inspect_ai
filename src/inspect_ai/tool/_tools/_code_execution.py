@@ -25,7 +25,7 @@ class CodeExecutionProviders(TypedDict, total=False):
     """
 
     openai: dict[str, Any] | bool
-    """Use OpenAI native code interpreter. Defaults to `True`. Pass `False` to use a sandbox instead or pass a `dict` of OpenAI container options (see  <https://platform.openai.com/docs/guides/tools-code-interpreter> options)."""
+    """Use OpenAI native code interpreter. Defaults to `True`. Pass `False` to use a sandbox instead or pass a `dict` with custom options (see  <https://platform.openai.com/docs/guides/tools-code-interpreter>)."""
 
     anthropic: bool
     """Use Anthropoic native code execution. Defaults to `True`. Pass `False` to use a sandbox instead."""
@@ -71,10 +71,9 @@ def code_execution(
         code_interpeter({ "bash": False })
 
         # provide openai container options
-        code_interpeter({ "openai" { "memory_limit": "4g" }})
-
-        # provider openai options and disable bash fallback
-        code_interpeter({ "openai": { "memory_limit": "4g" }, "bash": False })
+        code_interpeter(
+            {"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
+        )
         ```
     """
     # normalize various config syntaxes

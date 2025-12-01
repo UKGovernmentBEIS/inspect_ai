@@ -215,7 +215,7 @@ def responses_code_interpreter_agent() -> Agent:
                 tools=[
                     {
                         "type": "code_interpreter",
-                        "container": {"type": "auto"},
+                        "container": {"type": "auto", "memory_limit": "1g"},
                     }
                 ],
                 input=user_prompt(state.messages).text,

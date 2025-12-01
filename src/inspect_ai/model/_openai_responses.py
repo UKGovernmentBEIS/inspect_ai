@@ -1286,21 +1286,24 @@ def maybe_code_interpreter_tool(
         and any(model_name.startswith(model) for model in COMPATIBLE_MODELS)
     ):
         providers: dict[str, Any] = tool.options.get("providers", {})
-        container_options: CodeInterpreterContainerCodeInterpreterToolAuto | bool = (
-            providers.get("openai", False)
-        )
-        if container_options is False:
+        options: dict[str, Any] | bool = providers.get("openai", False)
+        if options is False:
             return None
-        if container_options is True:
-            container_options = CodeInterpreterContainerCodeInterpreterToolAuto(
-                type="auto"
+        if options is True:
+            return CodeInterpreter(
+                type="code_interpreter",
+                container=CodeInterpreterContainerCodeInterpreterToolAuto(type="auto"),
             )
-        if "type" not in container_options:
-            container_options["type"] = "auto"
-        return CodeInterpreter(
-            type="code_interpreter",
-            container=container_options,
-        )
+        else:
+            container = options.get("container", None)
+            if container is None:
+                raise ValueError(
+                    "You must provide a 'container' in openai code interpreter options."
+                )
+            return CodeInterpreter(
+                type="code_interpreter",
+                container=container,
+            )
 
     else:
         return None
