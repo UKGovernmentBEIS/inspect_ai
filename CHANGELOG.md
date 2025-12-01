@@ -2,6 +2,7 @@
 
 - [Code execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
 - VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg `retry_delay`).
+- Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.
 
 ## 0.3.151 (30 November 2025)
 
