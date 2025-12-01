@@ -10,7 +10,7 @@ Inspect has several standard tools built-in, including:
 
 -   [Computer](tools-standard.qmd#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.
 
--   [Code Execution](tools-standard.qmd#sec-code-execution), which gives models a stateless code execution environment (in most cases running within the provider's infrastructure).
+-   [Code Execution](tools-standard.qmd#sec-code-execution), which gives models a sandboxed Python code execution environment running within the model provider's infrastructure.
 
 -   [Memory](tools-standard.qmd#sec-memory) which enables storing and retrieving information through a memory file directory.
 

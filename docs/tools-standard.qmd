@@ -319,7 +319,7 @@ inspect eval computer.py --model openai/computer-use-preview
 The computer tool supports the following options:
 
 | Option | Description |
-|------------------------|------------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
 | `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
 
@@ -422,37 +422,62 @@ inspect eval computer.py --no-internal-tools
 
 ## Code Execution {#sec-code-execution}
 
-The `code_execution()` tool provides models the ability to execute code using a sandboxed environment. Several model providers including OpenAI, Anthropic, Google, and Grok have native support for code execution (where the code is executed on the provider's servers):
+### Overview
 
-| Provider | Language/Runtime |
-|----|----|
-| [OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter) | Python |
-| Anthropic | Bash/Python |
-| Google |  |
-| Grok |  |
+The `code_execution()` tool provides models with the ability to execute Python code within a sandboxed environment. There are two significant differences between code execution and the `python()` tool described above:
 
-By default, native code execution is enabled for all providers that support it. If you are using a provider that doesn't support code execution then a fallback using the `bash()` tool is available. Additionally, you can optionally disable code execution for a provider with a native implementation and use the `bash()` tool instead.
+1.  Code runs in a sandbox on the model provider's server (as opposed to e.g. a locally managed Docker container).
+2.  Code runs in a *stateless* environment (each execution is independent of others and no file-system state is preserved across calls).
 
-The `providers` option enables selective disabling of native code execution for providers. For some providers (e.g. OpenAI) a `dict` of provider specific options may also be provided.
+Since the code execution tool is stateless, it is more suitable as a means to assist with problem solving that for more stateful agentic tasks.
 
-When falling back to the `bash()` provider you should ensure that your `Task` has a `sandbox` enabled.
+Here is a simple example using the `code_execution()` tool:
 
 ``` python
-# default (native interpreter for all providers, `bash` as fallback):
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.agent import react
+from inspect_ai.tool import code_execution
+
+@task
+def code_execution_task():
+    return Task(
+        dataset=[Sample("Add 435678 + 23457")],
+        solver=react(tools=[code_execution())
+    )
+```
+
+### Availability
+
+[OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter), [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool), [Google](https://ai.google.dev/gemini-api/docs/code-execution), and [Grok](https://docs.x.ai/docs/guides/tools/code-execution-tool) models all have support for native server-side Python code execution. Note that Anthropic can additionally execute bash and text editor commands, but the primary execution language used is still Python.
+
+::: callout-important
+Note that some providers bill separately for code execution, so you should consult their documentation for details before enabling this feature.
+:::
+
+#### Fallback
+
+If you are using a provider that doesn't support code execution then a fallback using the `python()` tool is provided. Additionally, you can optionally disable code execution for a provider with a native implementation and use the `python()` tool instead.
+
+Here are some example configurations:
+
+``` python
+# default (native where supported, python as fallback):
 code_interpeter()
 
-# disable native code interpeter for some providers:
+# selectively disable native (will fallback to python)
 code_interpeter({ "grok": False, "openai": False })
 
-# disable bash fallback
-code_interpeter({ "bash": False })
+# disable python fallback
+code_interpeter({ "python": False })
 
 # provide openai container options
-code_interpeter({ "openai" { "memory_limit": "4g" }})
-
-# provider openai options and disable bash fallback
-code_interpeter({ "openai": { "memory_limit": "4g" }, "bash": False })
+code_interpeter(
+    {"openai": {"container": {"type": "auto", "memory_limit": "4g" }}}
+)
 ```
+
+When falling back to the `python()` provider you should ensure that your `Task` has a `sandbox` with access to Python enabled.
 
 ## Memory {#sec-memory}
 

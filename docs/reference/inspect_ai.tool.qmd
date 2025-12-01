@@ -46,6 +46,7 @@ title: "inspect_ai.tool"
 ### ToolParam
 ### ToolSource
 ### WebSearchProviders
+### CodeExecutionProviders
 
 ## Decorator
 

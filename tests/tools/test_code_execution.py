@@ -52,7 +52,7 @@ def check_code_execution(model: str, sandbox: str | None = None) -> None:
     assert tool_use.tool_type == "code_execution"
 
 
-def check_bash_code_execution(provider: str, model: str) -> None:
+def check_python_code_execution(provider: str, model: str) -> None:
     log = eval(
         code_execution_task(providers=CodeExecutionProviders({provider: False})),  # type: ignore[misc]
         model=f"{provider}/{model}",
@@ -73,8 +73,8 @@ def test_grok_code_execution() -> None:
 @pytest.mark.slow
 @skip_if_no_grok
 @skip_if_no_docker
-def test_grok_code_execution_bash() -> None:
-    check_bash_code_execution("grok", "grok-4-fast")
+def test_grok_code_execution_python() -> None:
+    check_python_code_execution("grok", "grok-4-fast")
 
 
 @skip_if_no_google
@@ -85,8 +85,8 @@ def test_google_code_execution() -> None:
 @pytest.mark.slow
 @skip_if_no_google
 @skip_if_no_docker
-def test_google_code_execution_bash() -> None:
-    check_bash_code_execution("google", "gemini-3-pro-preview")
+def test_google_code_execution_python() -> None:
+    check_python_code_execution("google", "gemini-3-pro-preview")
 
 
 @skip_if_no_openai
@@ -97,8 +97,8 @@ def test_openai_code_execution() -> None:
 @pytest.mark.slow
 @skip_if_no_openai
 @skip_if_no_docker
-def test_openai_code_execution_bash() -> None:
-    check_bash_code_execution("openai", "gpt-5-mini")
+def test_openai_code_execution_python() -> None:
+    check_python_code_execution("openai", "gpt-5-mini")
 
 
 @skip_if_no_anthropic
@@ -109,8 +109,8 @@ def test_anthropic_code_execution() -> None:
 @pytest.mark.slow
 @skip_if_no_anthropic
 @skip_if_no_docker
-def test_anthropic_code_execution_bash() -> None:
-    check_bash_code_execution("anthropic", "claude-sonnet-4-5")
+def test_anthropic_code_execution_python() -> None:
+    check_python_code_execution("anthropic", "claude-sonnet-4-5")
 
 
 def test_normalize_config_default_all_providers_enabled() -> None:
@@ -121,13 +121,13 @@ def test_normalize_config_default_all_providers_enabled() -> None:
     assert "anthropic" in result
     assert "google" in result
     assert "grok" in result
-    assert "bash" in result
+    assert "python" in result
 
     assert result["openai"] == {}
     assert result["anthropic"] == {}
     assert result["google"] == {}
     assert result["grok"] == {}
-    assert result["bash"] == {}
+    assert result["python"] == {}
 
 
 def test_normalize_config_empty_dict_same_as_none() -> None:
@@ -138,7 +138,7 @@ def test_normalize_config_empty_dict_same_as_none() -> None:
 
 def test_normalize_config_disable_single_provider() -> None:
     """Test that False removes a provider from the result."""
-    result = _normalize_config({"bash": False})
+    result = _normalize_config({"python": False})
 
     assert "bash" not in result
     assert "openai" in result
@@ -166,7 +166,7 @@ def test_normalize_config_disable_all_providers() -> None:
             "anthropic": False,
             "google": False,
             "grok": False,
-            "bash": False,
+            "python": False,
         }
     )
     assert result == {}
@@ -181,15 +181,15 @@ def test_normalize_config_dict_options_for_openai() -> None:
     assert result["anthropic"] == {}
     assert result["google"] == {}
     assert result["grok"] == {}
-    assert result["bash"] == {}
+    assert result["python"] == {}
 
 
 def test_normalize_config_dict_options_for_bash() -> None:
     """Test providing dict options for bash."""
-    options = {"timeout": 60, "user": "sandbox"}
-    result = _normalize_config({"bash": options})
+    options = {"timeout": 60, "sandbox": "foo"}
+    result = _normalize_config({"python": options})
 
-    assert result["bash"] == options
+    assert result["python"] == options
     assert result["openai"] == {}
 
 
@@ -208,7 +208,7 @@ def test_normalize_config_mixed_configuration() -> None:
             "openai": {"memory_limit": "8g"},
             "anthropic": True,
             "grok": False,
-            "bash": {"timeout": 120},
+            "python": {"timeout": 120},
         }
     )
 
@@ -216,7 +216,7 @@ def test_normalize_config_mixed_configuration() -> None:
     assert result["anthropic"] == {}
     assert "grok" not in result
     assert result["google"] == {}
-    assert result["bash"] == {"timeout": 120}
+    assert result["python"] == {"timeout": 120}
 
 
 def test_normalize_config_empty_dict_options() -> None:

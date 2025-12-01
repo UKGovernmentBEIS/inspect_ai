@@ -137,6 +137,8 @@ website:
           href: reference/inspect_ai.tool.qmd#toolsource
         - text: WebSearchProviders
           href: reference/inspect_ai.tool.qmd#websearchproviders
+        - text: CodeExecutionProviders
+          href: reference/inspect_ai.tool.qmd#codeexecutionproviders
         - text: tool
           href: reference/inspect_ai.tool.qmd#tool
       - section: inspect_ai.agent

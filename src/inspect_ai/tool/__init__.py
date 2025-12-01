@@ -45,7 +45,7 @@ from ._tool_info import ToolInfo
 from ._tool_params import ToolParam, ToolParams
 from ._tool_with import tool_with
 from ._tools._bash_session import bash_session
-from ._tools._code_execution import code_execution
+from ._tools._code_execution import CodeExecutionProviders, code_execution
 from ._tools._computer import computer
 from ._tools._execute import bash, python
 from ._tools._memory import memory
@@ -58,6 +58,7 @@ __all__ = [
     "bash",
     "bash_session",
     "code_execution",
+    "CodeExecutionProviders",
     "computer",
     "memory",
     "python",
