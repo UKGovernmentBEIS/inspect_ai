@@ -1,3 +1,5 @@
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
+
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
@@ -16,7 +18,6 @@ from ._types import (
     AgentPrompt,
     AgentSubmit,
 )
-from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 
 __all__ = [
     "react",
