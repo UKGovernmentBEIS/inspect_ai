@@ -119,7 +119,7 @@ The [Claude Code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examp
 
 ## Bridged Tools
 
-You can expose host-side Inspect tools to sandboxed agents via the MCP protocol using the `bridged_tools` parameter. This is useful when you have Inspect tools that need to run on the host (e.g. tools that access host resources, databases, or APIs) but want them available to agents running inside a sandbox.
+Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the `bridged_tools` parameter. This is useful when you have Inspect tools that need to run on the host (e.g. tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.
 
 To bridge tools, wrap them in a `BridgedToolsSpec` and pass to `sandbox_agent_bridge()`:
 
@@ -138,7 +138,7 @@ def search_database():
         Args:
             query: The search query.
         """
-        # This runs on the host, not in the sandbox
+        # Runs on the host, not the sandbox
         return f"Results for: {query}"
     return execute
 
@@ -147,57 +147,25 @@ def my_agent() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with sandbox_agent_bridge(
             state,
-            bridged_tools=[  # <1>
+            bridged_tools=[
                 BridgedToolsSpec(
-                    name="host_tools",  # <2>
-                    tools=[search_database()]  # <3>
+                    name="host_tools",
+                    tools=[search_database()]
                 )
             ]
         ) as bridge:
-            # bridge.mcp_server_configs contains MCPServerConfigStdio  # <4>
+            # bridge.mcp_server_configs contains resolved MCPServerConfigStdio
             # objects that can be passed to CLI agents
-
-            result = await sandbox().exec(
-                cmd=["/opt/my_agent", "--mcp-config", ...],
-                env={"OPENAI_BASE_URL": f"http://localhost:{bridge.port}/v1"}
-            )
-
             return bridge.state
 
     return execute
 ```
-
-1.  Pass a list of `BridgedToolsSpec` to expose host tools via MCP.
-2.  The `name` identifies the MCP server (visible to agents as tool prefix).
-3.  Pass Inspect `Tool` instances to expose.
-4.  The resolved `MCPServerConfigStdio` configs are available on the bridge for passing to CLI agents.
 
 The bridge handles:
 
 - Starting a host-side service that executes the Inspect tools
 - Writing an MCP server script to the sandbox that forwards tool calls to the host
 - Returning `MCPServerConfigStdio` configs that CLI agents can use to connect
-
-This architecture allows tools to execute on the host while the agent runs isolated in the sandbox:
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           HOST                                      │
-│                                                                     │
-│  BridgedToolsSpec ──▶ tools_bridge_service (executes Inspect tools) │
-│                              ▲                                      │
-├──────────────────────────────┼──────────────────────────────────────┤
-│                    Filesystem IPC                                   │
-├──────────────────────────────┼──────────────────────────────────────┤
-│                           SANDBOX                                   │
-│                              │                                      │
-│  MCP Server Script ◀─────────┘                                      │
-│        │                                                            │
-│        │ JSON-RPC (stdio)                                           │
-│        ▼                                                            │
-│  CLI Agent (Codex/Claude)                                           │
-└─────────────────────────────────────────────────────────────────────┘
-```
 
 ## Models
 
