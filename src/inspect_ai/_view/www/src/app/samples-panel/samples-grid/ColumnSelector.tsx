@@ -1,15 +1,15 @@
 import { ColDef } from "ag-grid-community";
-import { FC, useMemo, useState, useEffect, useCallback } from "react";
-import { Modal } from "../../../components/Modal";
+import { FC, useMemo } from "react";
+import { PopOver } from "../../../components/PopOver";
 import { getFieldKey } from "./hooks";
 import { SampleRow } from "./types";
-import styles from "./ColumnSelector.module.css";
 
 interface ColumnSelectorProps {
   showing: boolean;
   setShowing: (showing: boolean) => void;
   columns: ColDef<SampleRow>[];
   onVisibilityChange: (visibility: Record<string, boolean>) => void;
+  positionEl: HTMLElement | null;
 }
 
 export const ColumnSelector: FC<ColumnSelectorProps> = ({
@@ -17,8 +17,10 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
   setShowing,
   columns,
   onVisibilityChange,
+  positionEl,
 }) => {
-  const initLocalVisibility = useCallback(
+  // Get current visibility directly from columns
+  const currentVisibility = useMemo(
     () =>
       columns.reduce<Record<string, boolean>>(
         (acc, col) => ({ ...acc, [getFieldKey(col)]: !col.hide }),
@@ -26,28 +28,12 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
       ),
     [columns],
   );
-  const [localVisibility, setLocalVisibility] = useState<
-    Record<string, boolean>
-  >({});
-  useEffect(() => {
-    showing && setLocalVisibility(initLocalVisibility());
-  }, [showing, initLocalVisibility]);
 
   const handleToggle = (field: string) => {
-    setLocalVisibility((prev) => ({
-      ...prev,
-      [field]: !prev[field],
-    }));
-  };
-
-  const handleApply = () => {
-    onVisibilityChange(localVisibility);
-    setShowing(false);
-  };
-
-  const handleCancel = () => {
-    setLocalVisibility(initLocalVisibility());
-    setShowing(false);
+    onVisibilityChange({
+      ...currentVisibility,
+      [field]: !currentVisibility[field],
+    });
   };
 
   // Group columns by category - merge optional into base for this dialog
@@ -59,48 +45,50 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
   }, [columns]);
 
   const handleSelectAllBase = () => {
-    setLocalVisibility((prev) => ({
-      ...prev,
+    onVisibilityChange({
+      ...currentVisibility,
       ...Object.fromEntries(
         columnGroups.base.map((col) => [getFieldKey(col), true]),
       ),
-    }));
+    });
   };
   const handleDeselectAllBase = () => {
-    setLocalVisibility((prev) => ({
-      ...prev,
+    onVisibilityChange({
+      ...currentVisibility,
       ...Object.fromEntries(
         columnGroups.base.map((col) => [getFieldKey(col), false]),
       ),
-    }));
+    });
   };
   const handleSelectAllScores = () => {
-    setLocalVisibility((prev) => ({
-      ...prev,
+    onVisibilityChange({
+      ...currentVisibility,
       ...Object.fromEntries(
         columnGroups.scores.map((col) => [getFieldKey(col), true]),
       ),
-    }));
+    });
   };
   const handleDeselectAllScores = () => {
-    setLocalVisibility((prev) => ({
-      ...prev,
+    onVisibilityChange({
+      ...currentVisibility,
       ...Object.fromEntries(
         columnGroups.scores.map((col) => [getFieldKey(col), false]),
       ),
-    }));
+    });
   };
 
   const renderColumnCheckbox = (col: ColDef<SampleRow>) => {
     const field = getFieldKey(col);
     return (
-      <div key={field} className={styles.checkboxItem}>
-        <label className={styles.checkboxLabel}>
+      <div key={field} style={{ marginBottom: "0.5rem" }}>
+        <label
+          style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+        >
           <input
             type="checkbox"
-            checked={localVisibility[field]}
+            checked={currentVisibility[field]}
             onChange={() => handleToggle(field)}
-            className={styles.checkboxInput}
+            style={{ marginRight: "0.5rem", cursor: "pointer" }}
           />
           <span>{col.headerName || field}</span>
         </label>
@@ -109,76 +97,83 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
   };
 
   return (
-    <Modal
-      id="column-selector-modal"
-      title="Choose Columns"
-      showing={showing}
-      setShowing={setShowing}
-      hideFooter
-      className={styles.modal}
+    <PopOver
+      id="column-selector-popover"
+      isOpen={showing}
+      setIsOpen={setShowing}
+      positionEl={positionEl}
+      placement="bottom-start"
+      showArrow={false}
+      hoverDelay={0}
+      styles={{ width: "500px" }}
     >
-      <div className={styles.scrollableContent}>
-        <div className={styles.columnGroup}>
-          <div className={styles.columnHeaderRow}>
-            <h6 className={styles.columnHeader}>Base Columns</h6>
-            <div className={styles.buttonGroup}>
+      <div style={{ maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: "2rem",
+            }}
+          >
+            <b>Base</b>
+            <div style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0" }}>
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
                 onClick={handleSelectAllBase}
               >
-                Select All
+                All
               </button>
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
                 onClick={handleDeselectAllBase}
               >
-                Deselect All
+                None
               </button>
             </div>
           </div>
-          {columnGroups.base.map((col) => renderColumnCheckbox(col))}
+          <div style={{ columns: 2 }}>
+            {columnGroups.base.map((col) => renderColumnCheckbox(col))}
+          </div>
         </div>
 
         {columnGroups.scores.length > 0 && (
-          <div className={styles.columnGroup}>
-            <div className={styles.columnHeaderRow}>
-              <h6 className={styles.columnHeader}>Score Columns</h6>
-              <div className={styles.buttonGroup}>
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: "2rem",
+              }}
+            >
+              <b>Scorers</b>
+              <div
+                style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0" }}
+              >
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
                   onClick={handleSelectAllScores}
                 >
-                  Select All
+                  All
                 </button>
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
                   onClick={handleDeselectAllScores}
                 >
-                  Deselect All
+                  None
                 </button>
               </div>
             </div>
-            {columnGroups.scores.map((col) => renderColumnCheckbox(col))}
+            <div style={{ columns: 2 }}>
+              {columnGroups.scores.map((col) => renderColumnCheckbox(col))}
+            </div>
           </div>
         )}
       </div>
-
-      <div className={styles.footerButtons}>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={handleCancel}
-        >
-          Cancel
-        </button>
-        <button type="button" className="btn btn-primary" onClick={handleApply}>
-          Apply
-        </button>
-      </div>
-    </Modal>
+    </PopOver>
   );
 };

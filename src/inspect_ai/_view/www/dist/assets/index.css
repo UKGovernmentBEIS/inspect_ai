@@ -21514,63 +21514,6 @@ thead th {
   color: var(--bs-secondary-color);
   font-size: 1rem;
 }
-._modal_a5dps_1 {
-  max-width: 400px;
-  justify-self: right;
-  position: absolute;
-  right: 0;
-  top: 0;
-  pointer-events: none;
-}
-
-._scrollableContent_a5dps_10 {
-  max-height: calc(100vh - 13rem);
-  overflow-y: auto;
-}
-
-._columnGroup_a5dps_15 {
-  margin-bottom: 20px;
-}
-
-._columnHeaderRow_a5dps_19 {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-._columnHeader_a5dps_19 {
-  margin: 0;
-  font-weight: bold;
-}
-
-._buttonGroup_a5dps_31 {
-  display: flex;
-  gap: 8px;
-}
-
-._checkboxItem_a5dps_36 {
-  margin-bottom: 8px;
-}
-
-._checkboxLabel_a5dps_40 {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-}
-
-._checkboxInput_a5dps_47 {
-  margin-right: 8px;
-  cursor: pointer;
-}
-
-._footerButtons_a5dps_52 {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
 ._panel_18nhs_1 {
   height: 100vh;
   width: 100vw;

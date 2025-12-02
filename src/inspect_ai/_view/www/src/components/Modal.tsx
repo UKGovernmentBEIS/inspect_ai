@@ -9,7 +9,6 @@ interface ModalProps {
   title?: string;
   children: ReactNode;
   className?: string | string[];
-  hideFooter?: boolean;
 }
 
 export const Modal: FC<ModalProps> = ({
@@ -19,7 +18,6 @@ export const Modal: FC<ModalProps> = ({
   setShowing,
   children,
   className,
-  hideFooter = false,
 }) => {
   return (
     <>
@@ -59,20 +57,18 @@ export const Modal: FC<ModalProps> = ({
               ></button>
             </div>
             <div className="modal-body">{children}</div>
-            {!hideFooter && (
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  data-bs-dismiss="modal"
-                  onClick={() => {
-                    setShowing(!showing);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            )}
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-bs-dismiss="modal"
+                onClick={() => {
+                  setShowing(!showing);
+                }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>

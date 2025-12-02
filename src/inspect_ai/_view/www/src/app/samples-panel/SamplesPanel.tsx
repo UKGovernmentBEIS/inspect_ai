@@ -34,6 +34,7 @@ export const SamplesPanel: FC = () => {
 
   const gridRef = useRef<AgGridReact>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const columnButtonRef = useRef<HTMLButtonElement>(null);
 
   const logDetails = useStore((state) => state.logs.logDetails);
   const { columns, setColumnVisibility } = useSampleColumns(logDetails);
@@ -109,9 +110,13 @@ export const SamplesPanel: FC = () => {
 
         <NavbarButton
           key="choose-columns"
+          ref={columnButtonRef}
           label="Choose Columns"
           icon={ApplicationIcons.options}
-          onClick={() => setShowColumnSelector(true)}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            setShowColumnSelector((prev) => !prev);
+          }}
         />
 
         <ViewSegmentedControl selectedSegment="samples" />
@@ -123,6 +128,7 @@ export const SamplesPanel: FC = () => {
         setShowing={setShowColumnSelector}
         columns={columns}
         onVisibilityChange={setColumnVisibility}
+        positionEl={columnButtonRef.current}
       />
 
       <ActivityBar animating={!!loading} />
