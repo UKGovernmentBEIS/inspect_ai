@@ -1,5 +1,6 @@
 ## Unreleased
 
+- MCP Tools Bridge: Added `BridgedToolsSpec` and `bridged_tools` parameter to `sandbox_agent_bridge()` for exposing host-side Inspect tools to sandboxed agents via MCP protocol.
 - [Code execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
 - Anthropic: Include native `web_fetch` tool as part of `web_search()` implementation (matching capability of other providers that have native web search).
 - VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg `retry_delay`).

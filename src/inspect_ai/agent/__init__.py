@@ -16,6 +16,7 @@ from ._types import (
     AgentPrompt,
     AgentSubmit,
 )
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 
 __all__ = [
     "react",
@@ -29,6 +30,7 @@ __all__ = [
     "sandbox_agent_bridge",
     "AgentBridge",
     "SandboxAgentBridge",
+    "BridgedToolsSpec",
     "content_only",
     "last_message",
     "remove_tools",
