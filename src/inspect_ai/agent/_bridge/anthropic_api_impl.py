@@ -48,6 +48,7 @@ from inspect_ai.model._providers.anthropic import (
     is_computer_tool,
     is_text_editor_tool,
     is_tool_param,
+    is_web_fetch_tool,
     is_web_search_tool,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -210,6 +211,9 @@ def tools_from_anthropic_tools(
                     resolve_web_search_providers(anthropic_tool, web_search_providers)
                 )
             )
+        elif is_web_fetch_tool(anthropic_tool):
+            # web fetch tool is collapsed into web_search for inspect
+            pass
         elif is_code_execution_tool(anthropic_tool):
             tools.append(code_execution(providers=code_execution_providers))
         else:
