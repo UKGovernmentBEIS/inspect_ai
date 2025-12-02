@@ -61,6 +61,7 @@ export interface LogsSlice {
     setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
     setSelectedRowIndex: (index: number | null) => void;
+    setCollapseLogs: (collapseLogs: boolean) => void;
 
     setGridState: (gridState: GridState) => void;
     clearGridState: () => void;
@@ -408,6 +409,11 @@ export const createLogsSlice = (
       setSelectedRowIndex: (index: number | null) => {
         set((state) => {
           state.logs.listing.selectedRowIndex = index;
+        });
+      },
+      setCollapseLogs: (collapseLogs: boolean) => {
+        set((state) => {
+          state.logs.listing.collapseLogs = collapseLogs;
         });
       },
       clearSelectedLogFile: () => {

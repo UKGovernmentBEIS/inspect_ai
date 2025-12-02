@@ -304,10 +304,10 @@ export const useCollapseSampleEvent = (
 export const useCollapsibleIds = (
   key: string,
 ): [
-  Record<string, boolean>,
-  (id: string, value: boolean) => void,
-  () => void,
-] => {
+    Record<string, boolean>,
+    (id: string, value: boolean) => void,
+    () => void,
+  ] => {
   const collapsedIds = useStore(
     (state) => state.sample.collapsedIdBuckets[key],
   );
@@ -703,6 +703,11 @@ export const useLogsListing = () => {
     (state) => state.logsActions.setSelectedRowIndex,
   );
 
+  const collapseLogs = useStore((state) => state.logs.listing.collapseLogs);
+  const setCollapseLogs = useStore(
+    (state) => state.logsActions.setCollapseLogs,
+  );
+
   return {
     sorting,
     setSorting,
@@ -718,6 +723,8 @@ export const useLogsListing = () => {
     setFilteredCount,
     selectedRowIndex,
     setSelectedRowIndex,
+    collapseLogs,
+    setCollapseLogs,
   };
 };
 

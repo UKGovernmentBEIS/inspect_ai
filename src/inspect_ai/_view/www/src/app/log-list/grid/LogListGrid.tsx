@@ -181,7 +181,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
     useEffect(() => {
       const filteredRowCount = table.getFilteredRowModel().rows.length;
       setFilteredCount(filteredRowCount);
-    }, [setFilteredCount, table]);
+    }, [setFilteredCount, table, items, globalFilter, filtering]);
 
     // Load all headers when globalFilter changes
     const filterText = useRef(globalFilter);

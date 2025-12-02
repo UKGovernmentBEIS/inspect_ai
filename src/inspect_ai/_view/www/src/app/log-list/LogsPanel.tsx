@@ -19,6 +19,7 @@ import { useFlowServerData } from "../flow/hooks";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { logsUrl, useLogRouteParams } from "../routing/url";
+import { CollapseLogsToggle } from "./CollapseLogsToggle";
 import { LogListGrid, LogListGridHandle } from "./grid/LogListGrid";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
@@ -48,7 +49,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const logFiles = useStore((state) => state.logs.logs);
   const evalSet = useStore((state) => state.logs.evalSet);
   const logPreviews = useStore((state) => state.logs.logPreviews);
-  const { filteredCount } = useLogsListing();
+  const { filteredCount, collapseLogs, setCollapseLogs } = useLogsListing();
 
   const syncing = useStore((state) => state.app.status.syncing);
 
@@ -90,9 +91,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       previousWatchedLogs.current === undefined
         ? undefined
         : previousWatchedLogs.current
-            ?.map((log) => log.name)
-            .sort()
-            .join(",") || "";
+          ?.map((log) => log.name)
+          .sort()
+          .join(",") || "";
 
     if (current !== previous) {
       // Always stop current polling first when logs change
@@ -177,15 +178,12 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         }
       }
 
-      // Ensure there is only one entry for each task id, preferring to
-      // always show running or complete tasks (over error tasks). Ensure that the
-      // order of all items isn't changed
       const collapsedLogItems: Array<
         FileLogItem | FolderLogItem | PendingTaskItem
-      > = collapseLogItems(evalSet, logItems);
+      > = collapseLogItems(evalSet, logItems, collapseLogs);
 
       return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [evalSet, logFiles, currentDir, logDir, logPreviews]);
+    }, [evalSet, logFiles, currentDir, logDir, logPreviews, collapseLogs]);
 
   const progress = useMemo(() => {
     let pending = 0;
@@ -255,6 +253,10 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         currentPath={logPath}
         showActivity="log"
       >
+        {evalSet && <CollapseLogsToggle
+          collapseLogs={collapseLogs ?? true}
+          onToggle={setCollapseLogs}
+        />}
         <LogsFilterInput ref={filterRef} />
         <ViewSegmentedControl selectedSegment="logs" />
         {flowData && <FlowButton />}
@@ -290,17 +292,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 export const collapseLogItems = (
   evalSet: EvalSet | undefined,
   logItems: (FileLogItem | FolderLogItem | PendingTaskItem)[],
+  collapseLogs: boolean = true,
 ): (FileLogItem | FolderLogItem | PendingTaskItem)[] => {
-  // If this isn't an eval set, don't filter it
-  if (!evalSet) {
-    return logItems;
-  }
-
-  // If nothing is running, don't filter at all
-  const running = logItems.some(
-    (l) => l.type === "file" && l.logPreview?.status === "started",
-  );
-  if (!running) {
+  if (!evalSet || !collapseLogs) {
     return logItems;
   }
 
