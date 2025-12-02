@@ -1,3 +1,4 @@
+/* eslint react-hooks/exhaustive-deps: "error" */
 import { ColDef } from "ag-grid-community";
 import { useEffect, useMemo } from "react";
 import { useStore } from "../../../state/store";
@@ -253,7 +254,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
     });
 
     return columnsWithVisibility;
-  }, [allColumns, columnVisibility]);
+  }, [allColumns, columnVisibility, optionalColumnsHaveAnyData]);
 
   return {
     columns,
