@@ -6,6 +6,7 @@ from subprocess import Popen
 from typing import Any
 
 from openai import APIStatusError
+from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
 
 from inspect_ai._util.content import (
@@ -16,6 +17,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.local_server import (
+    DEFAULT_RETRY_DELAY,
     configure_devices,
     merge_env_server_args,
     start_local_server,
@@ -81,6 +83,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         is_mistral: bool = False,
+        retry_delay: int | None = None,
         **server_args: Any,
     ) -> None:
         # Validate inputs
@@ -88,6 +91,9 @@ class VLLMAPI(OpenAICompatibleAPI):
             raise ValueError("base_url and port cannot both be provided.")
         if port:
             base_url = f"http://localhost:{port}/v1"
+
+        # save retry delay
+        self.retry_delay = retry_delay or DEFAULT_RETRY_DELAY
 
         # Initialize server process and port variables
         self.is_mistral = is_mistral
@@ -212,6 +218,10 @@ class VLLMAPI(OpenAICompatibleAPI):
     @override
     def collapse_assistant_messages(self) -> bool:
         return True
+
+    @override
+    def retry_wait(self) -> WaitBaseT | None:
+        return wait_fixed(self.retry_delay)
 
     def _cleanup_server(self) -> None:
         """Cleanup method to terminate server process when Python exits."""

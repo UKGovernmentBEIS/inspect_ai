@@ -1,17 +1,30 @@
 ## Unreleased
 
+- [Update Plan](https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan) tool for tracking steps and progress across longer horizon tasks.
+- [Code Execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
+- Anthropic: Include native `web_fetch` tool as part of `web_search()` implementation (matching capability of other providers that have native web search).
+- VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg `retry_delay`).
+- Dependencies: Update to `mcp` package version 1.23.0.
+- Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.
+
+## 0.3.151 (30 November 2025)
+
+- Memory tool: Added [memory()](https://inspect.aisi.org.uk/tools-standard.html#sec-memory) tool and bound it to native definitions for providers that support it (currently only Anthropic).
 - Grok: Correctly reconstruct assistant tool calls when replaying messages to API.
 - Grok: Round trip encrypted reasoning (made available in v1.4.0 of `xai_sdk`, which is now required).
 - Anthropic: Protect against signature not being replayed (can occur for agent bridge) by saving a side list of signatures.
-- Memory tool: Added `memory()` tool and bound it to native definitions for providers that support it (currently only Anthropic).
 - Sandboxes: For "local" and "docker" sandbox providers, treat `output_limit` as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).
+- Sandboxes: Added `evals_in_eval` example for running Inspect evaluations inside other evaluations.
+- Model API: Enable model providers to have custom retry wait strategies (use 5 second fixed wait for vllm).
 - Prevent querying of local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+- Dependencies: Change jsonpath-ng requirement to >=1.6.0 (formerly required >= 1.7.0).
 - Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
 - Inspect View: Improve markdown rendering performance.
 - Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.
 - Inspect View: Add support for copying sample messages (as text).
 - Inspect View: Improved JSON parsing performance & scalability.
 - Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
+- Bugfix: Correctly handle more complex list operations when detecting changes in state and store.
 
 ## 0.3.150 (25 November 2025)
 
