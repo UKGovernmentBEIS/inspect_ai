@@ -12,6 +12,8 @@ understanding. Core features of Inspect include:
 
 - A set of straightforward interfaces for implementing evaluations and
   re-using components across evaluations.
+- A collection of over 100 pre-built evaluations ready to run on any
+  model.
 - Extensive tooling, including a web-based Inspect View tool for
   monitoring and visualizing evaluations and a VS Code Extension that
   assists with authoring and debugging.
@@ -19,8 +21,8 @@ understanding. Core features of Inspect include:
   built-in bash, python, text editing, web search, web browsing, and
   computer tools.
 - Support for agent evaluations, including flexible built-in agents,
-  multi-agent primitives, the ability to run arbitrary external agents,
-  and agent observability in Inspect View.
+  multi-agent primitives, the ability to run arbitrary external agents
+  like Claude Code and Codex CLI.
 - A sandboxing system that supports running untrusted model code in
   Docker, Kubernetes, Proxmox, and other systems via an extension API.
 
@@ -29,6 +31,11 @@ on to learn the basics, then read the documentation on
 [Datasets](datasets.qmd), [Solvers](solvers.qmd),
 [Scorers](scorers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) to
 learn how to create more advanced evaluations.
+
+If you are primarily interested in running evaluations rather than
+developing new evaluations, [Inspect
+Evals](https://ukgovernmentbeis.github.io/inspect_evals/) provides
+implementations for a large collection of popular benchmarks.
 
 ## Getting Started
 

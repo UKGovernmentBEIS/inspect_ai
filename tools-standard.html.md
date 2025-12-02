@@ -3,40 +3,38 @@
 
 ## Overview
 
-Inspect has several standard tools built-in, including:
+Inspect has built-in tools for computing and agentic planning. Computing
+tools include:
 
 - [Web Search](tools-standard.qmd#sec-web-search), which uses a search
   provider (either built in to the model or external) to execute and
   summarize web searches.
-
 - [Bash and Python](tools-standard.qmd#sec-bash-and-python) for
   executing arbitrary shell and Python code.
-
 - [Bash Session](tools-standard.qmd#sec-bash-session) for creating a
   stateful bash shell that retains its state across calls from the
   model.
-
 - [Text Editor](tools-standard.qmd#sec-text-editor) which enables
   viewing, creating and editing text files.
-
 - [Computer](tools-standard.qmd#sec-computer), which provides the model
   with a desktop computer (viewed through screenshots) that supports
   mouse and keyboard interaction.
-
 - [Code Execution](tools-standard.qmd#sec-code-execution), which gives
   models a sandboxed Python code execution environment running within
   the model provider’s infrastructure.
-
-- [Memory](tools-standard.qmd#sec-memory) which enables storing and
-  retrieving information through a memory file directory.
-
-- [Think](tools-standard.qmd#sec-think), which provides models the
-  ability to include an additional thinking step as part of getting to
-  its final answer.
-
 - [Web Browser](tools-standard.qmd#sec-web-browser), which provides the
   model with a headless Chromium web browser that supports navigation,
   history, and mouse/keyboard interactions.
+
+Agentic tools include:
+
+- [Update Plan](tools-standard.qmd#sec-update-plan) which helps the
+  model tracks steps and progress across longer horizon tasks.
+- [Memory](tools-standard.qmd#sec-memory) which enables storing and
+  retrieving information through a memory file directory.
+- [Think](tools-standard.qmd#sec-think), which provides models the
+  ability to include an additional thinking step as part of getting to
+  its final answer.
 
 ## Web Search
 
@@ -687,6 +685,171 @@ code_interpreter(
 When falling back to the `python()` provider you should ensure that your
 `Task` has a `sandbox` with access to Python enabled.
 
+## Web Browser
+
+The web browser tools provides models with the ability to browse the web
+using a headless Chromium browser. Navigation, history, and
+mouse/keyboard interactions are all supported.
+
+### Configuration
+
+Under the hood, the web browser is an instance of
+[Chromium](https://www.chromium.org/chromium-projects/) orchestrated by
+[Playwright](https://playwright.dev/), and runs in a [Sandbox
+Environment](sandboxing.qmd). In addition, you’ll need some dependencies
+installed in the sandbox container. Please see **Sandbox Dependencies**
+below for additional instructions.
+
+Note that Playwright (used for the `web_browser()` tool) does not
+support some versions of Linux (e.g. Kali Linux).
+
+> [!NOTE]
+>
+> ### Sandbox Dependencies
+>
+> You should add the following to your sandbox `Dockerfile` in order to
+> use the web browser tool:
+>
+> ``` dockerfile
+> RUN apt-get update && apt-get install -y pipx && \
+>     apt-get clean && rm -rf /var/lib/apt/lists/*
+> ENV PATH="$PATH:/opt/inspect/bin"
+> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
+>     pipx install inspect-tool-support && \
+>     chmod -R 755 /opt/inspect && \
+>     inspect-tool-support post-install
+> ```
+>
+> If you don’t have a custom Dockerfile, you can alternatively use the
+> pre-built `aisiuk/inspect-tool-support` image:
+>
+> **compose.yaml**
+>
+> ``` yaml
+> services:
+>   default:
+>     image: aisiuk/inspect-tool-support
+>     init: true
+> ```
+
+### Task Setup
+
+A task configured to use the web browser tools might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import bash, python, web_browser
+
+@task
+def browser_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([bash(), python()] + web_browser()),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+Unlike some other tool functions like `bash()`, the `web_browser()`
+function returns a list of tools. Therefore, we concatenate it with a
+list of the other tools we are using in the call to `use_tools()`.
+
+Note that a separate web browser process is created within the sandbox
+for each instance of the web browser tool. See the `web_browser()`
+reference docs for details on customizing this behavior.
+
+### Browsing
+
+If you review the transcripts of a sample with access to the web browser
+tool, you’ll notice that there are several distinct tools made available
+for control of the web browser. These tools include:
+
+| Tool | Description |
+|----|----|
+| `web_browser_go(url)` | Navigate the web browser to a URL. |
+| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
+| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
+| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
+| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
+| `web_browser_back()` | Navigate the web browser back in the browser history. |
+| `web_browser_refresh()` | Refresh the current page of the web browser. |
+
+The return value of each of these tools is a [web accessibility
+tree](https://web.dev/articles/the-accessibility-tree) for the page,
+which provides a clean view of the content, links, and form fields
+available on the page (you can look at the accessibility tree for any
+web page using [Chrome Developer
+Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
+
+### Disabling Interactions
+
+You can use the web browser tools with page interactions disabled by
+specifying `interactive=False`, for example:
+
+``` python
+use_tools(web_browser(interactive=False))
+```
+
+In this mode, the interactive tools (`web_browser_click()`,
+`web_browser_type()`, and `web_browser_type_submit()`) are not made
+available to the model.
+
+## Update Plan
+
+> [!NOTE]
+>
+> The update plan tool described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `update_plan()` tool provides models with a way to track steps and
+progress in longer horizon tasks where it might otherwise lose track of
+where it is or forget earlier goals as context grows. It can also make
+agent behavior more interpretable, since you can inspect the plan to
+understand what the model thinks it’s trying to accomplish.
+
+Note though that for simpler tasks, plan maintenance is just overhead,
+and some models may fixate on updating the plan rather than actually
+executing it.
+
+### Task Setup
+
+A task configured to use the update_plan tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.agent import react
+from inspect_ai.tool import bash, update_plan
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            react(tools=[bash(timeout=180), update_plan()]),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+The update_plan tool is based on the update_plan tool used by [Codex
+CLI](https://github.com/openai/codex). The default tool description is
+taken from the GPT 5.1 system prompt for Codex. Pass a custom
+`description` to override this.
+
 ## Memory
 
 The memory tool enables models to store and retrieve information into a
@@ -701,7 +864,7 @@ A task configured to use the memory tool might look like this:
 ``` python
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
-from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.agent import react
 from inspect_ai.tool import bash, memory
 
 @task
@@ -710,8 +873,7 @@ def intercode_ctf():
         dataset=read_dataset(),
         solver=[
             system_message("system.txt"),
-            use_tools([bash(timeout=180), memory()]),
-            generate(),
+            react(tools=[bash(timeout=180), memory()]),
         ],
         scorer=includes(),
         sandbox=("docker", "compose.yaml")
@@ -899,118 +1061,3 @@ def swe_bench():
 Note that the effectivess of using the system prompt will vary
 considerably across tasks, tools, and models, so should definitely be
 the subject of experimentation.
-
-## Web Browser
-
-The web browser tools provides models with the ability to browse the web
-using a headless Chromium browser. Navigation, history, and
-mouse/keyboard interactions are all supported.
-
-### Configuration
-
-Under the hood, the web browser is an instance of
-[Chromium](https://www.chromium.org/chromium-projects/) orchestrated by
-[Playwright](https://playwright.dev/), and runs in a [Sandbox
-Environment](sandboxing.qmd). In addition, you’ll need some dependencies
-installed in the sandbox container. Please see **Sandbox Dependencies**
-below for additional instructions.
-
-Note that Playwright (used for the `web_browser()` tool) does not
-support some versions of Linux (e.g. Kali Linux).
-
-> [!NOTE]
->
-> ### Sandbox Dependencies
->
-> You should add the following to your sandbox `Dockerfile` in order to
-> use the web browser tool:
->
-> ``` dockerfile
-> RUN apt-get update && apt-get install -y pipx && \
->     apt-get clean && rm -rf /var/lib/apt/lists/*
-> ENV PATH="$PATH:/opt/inspect/bin"
-> RUN PIPX_HOME=/opt/inspect/pipx PIPX_BIN_DIR=/opt/inspect/bin PIPX_VENV_DIR=/opt/inspect/pipx/venvs \
->     pipx install inspect-tool-support && \
->     chmod -R 755 /opt/inspect && \
->     inspect-tool-support post-install
-> ```
->
-> If you don’t have a custom Dockerfile, you can alternatively use the
-> pre-built `aisiuk/inspect-tool-support` image:
->
-> **compose.yaml**
->
-> ``` yaml
-> services:
->   default:
->     image: aisiuk/inspect-tool-support
->     init: true
-> ```
-
-### Task Setup
-
-A task configured to use the web browser tools might look like this:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.scorer import match
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import bash, python, web_browser
-
-@task
-def browser_task():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            use_tools([bash(), python()] + web_browser()),
-            generate(),
-        ],
-        scorer=match(),
-        sandbox=("docker", "compose.yaml"),
-    )
-```
-
-Unlike some other tool functions like `bash()`, the `web_browser()`
-function returns a list of tools. Therefore, we concatenate it with a
-list of the other tools we are using in the call to `use_tools()`.
-
-Note that a separate web browser process is created within the sandbox
-for each instance of the web browser tool. See the `web_browser()`
-reference docs for details on customizing this behavior.
-
-### Browsing
-
-If you review the transcripts of a sample with access to the web browser
-tool, you’ll notice that there are several distinct tools made available
-for control of the web browser. These tools include:
-
-| Tool | Description |
-|----|----|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
-| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
-
-The return value of each of these tools is a [web accessibility
-tree](https://web.dev/articles/the-accessibility-tree) for the page,
-which provides a clean view of the content, links, and form fields
-available on the page (you can look at the accessibility tree for any
-web page using [Chrome Developer
-Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
-
-### Disabling Interactions
-
-You can use the web browser tools with page interactions disabled by
-specifying `interactive=False`, for example:
-
-``` python
-use_tools(web_browser(interactive=False))
-```
-
-In this mode, the interactive tools (`web_browser_click()`,
-`web_browser_type()`, and `web_browser_type_submit()`) are not made
-available to the model.

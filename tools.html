@@ -560,17 +560,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="standard-tools" class="level2">
 <h2 class="anchored" data-anchor-id="standard-tools">Standard Tools</h2>
-<p>Inspect has several standard tools built-in, including:</p>
+<p>Inspect has built-in tools for computing and agentic planning. Computing tools include:</p>
 <ul>
-<li><p><a href="./tools-standard.html#sec-web-search">Web Search</a>, which uses a search provider (either built in to the model or external) to execute and summarize web searches.</p></li>
-<li><p><a href="./tools-standard.html#sec-bash-and-python">Bash and Python</a> for executing arbitrary shell and Python code.</p></li>
-<li><p><a href="./tools-standard.html#sec-bash-session">Bash Session</a> for creating a stateful bash shell that retains its state across calls from the model.</p></li>
-<li><p><a href="./tools-standard.html#sec-text-editor">Text Editor</a> which enables viewing, creating and editing text files.</p></li>
-<li><p><a href="./tools-standard.html#sec-computer">Computer</a>, which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.</p></li>
-<li><p><a href="./tools-standard.html#sec-code-execution">Code Execution</a>, which gives models a sandboxed Python code execution environment running within the model provider’s infrastructure.</p></li>
-<li><p><a href="./tools-standard.html#sec-memory">Memory</a> which enables storing and retrieving information through a memory file directory.</p></li>
-<li><p><a href="./tools-standard.html#sec-think">Think</a>, which provides models the ability to include an additional thinking step as part of getting to its final answer.</p></li>
-<li><p><a href="./tools-standard.html#sec-web-browser">Web Browser</a>, which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions.</p></li>
+<li><a href="./tools-standard.html#sec-web-search">Web Search</a>, which uses a search provider (either built in to the model or external) to execute and summarize web searches.</li>
+<li><a href="./tools-standard.html#sec-bash-and-python">Bash and Python</a> for executing arbitrary shell and Python code.</li>
+<li><a href="./tools-standard.html#sec-bash-session">Bash Session</a> for creating a stateful bash shell that retains its state across calls from the model.</li>
+<li><a href="./tools-standard.html#sec-text-editor">Text Editor</a> which enables viewing, creating and editing text files.</li>
+<li><a href="./tools-standard.html#sec-computer">Computer</a>, which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.</li>
+<li><a href="./tools-standard.html#sec-code-execution">Code Execution</a>, which gives models a sandboxed Python code execution environment running within the model provider’s infrastructure.</li>
+<li><a href="./tools-standard.html#sec-web-browser">Web Browser</a>, which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions.</li>
+</ul>
+<p>Agentic tools include:</p>
+<ul>
+<li><a href="./tools-standard.html#sec-update-plan">Update Plan</a> which helps the model tracks steps and progress across longer horizon tasks.</li>
+<li><a href="./tools-standard.html#sec-memory">Memory</a> which enables storing and retrieving information through a memory file directory.</li>
+<li><a href="./tools-standard.html#sec-think">Think</a>, which provides models the ability to include an additional thinking step as part of getting to its final answer.</li>
 </ul>
 <p>If you are only interested in using the standard tools, check out their respective documentation links above. To learn more about creating your own tools read on below.</p>
 </section>

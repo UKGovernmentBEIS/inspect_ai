@@ -562,6 +562,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sglang" id="toc-sglang" class="nav-link" data-scroll-target="#sglang">SGLang</a>
   <ul class="collapse">
   <li><a href="#tool-use-and-reasoning-1" id="toc-tool-use-and-reasoning-1" class="nav-link" data-scroll-target="#tool-use-and-reasoning-1">Tool Use and Reasoning</a></li>
+  <li><a href="#batching-2" id="toc-batching-2" class="nav-link" data-scroll-target="#batching-2">Batching</a></li>
   </ul></li>
   <li><a href="#transformer-lens" id="toc-transformer-lens" class="nav-link" data-scroll-target="#transformer-lens">TransformerLens</a>
   <ul class="collapse">
@@ -725,7 +726,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="17381cbb" class="cell">
+<div id="f99da7aa" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">" openai/gpt-4o-mini"</span>, </span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    model_args<span class="op">=</span> { <span class="st">"responses_api"</span>: <span class="va">True</span> }</span>
@@ -1391,7 +1392,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.</p>
 <section id="batching-1" class="level3">
 <h3 class="anchored" data-anchor-id="batching-1">Batching</h3>
-<p>vLLM automatically handles batching, so you generally don’t have to worry about selecting the optimal batch size. However, you can still use the <code>max_connections</code> option to control the number of concurrent requests which defaults to 32.</p>
+<p>vLLM automatically handles batching, so you generally don’t have to worry about selecting the optimal batch size. However, you can still use the <code>max_connections</code> option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests—these are by default retried after 5 seconds (you can customize this using the <code>retry_delay</code> model args, e.g.&nbsp;<code>-M retry_delay=3</code>).</p>
 </section>
 <section id="device-1" class="level3">
 <h3 class="anchored" data-anchor-id="device-1">Device</h3>
@@ -1460,6 +1461,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="tool-use-and-reasoning-1" class="level3">
 <h3 class="anchored" data-anchor-id="tool-use-and-reasoning-1">Tool Use and Reasoning</h3>
 <p>SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the <a href="https://docs.sglang.ai/backend/function_calling.html">Tool Use</a> and <a href="https://docs.sglang.ai/backend/separate_reasoning.html">Reasoning</a> sections of the SGLang documentation for details.</p>
+</section>
+<section id="batching-2" class="level3">
+<h3 class="anchored" data-anchor-id="batching-2">Batching</h3>
+<p>SGLang automatically handles batching, so you generally don’t have to worry about selecting the optimal batch size. However, you can still use the <code>max_connections</code> option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests—these are by default retried after 5 seconds (you can customize this using the <code>retry_delay</code> model args, e.g.&nbsp;<code>-M retry_delay=3</code>).</p>
 </section>
 </section>
 <section id="transformer-lens" class="level2">

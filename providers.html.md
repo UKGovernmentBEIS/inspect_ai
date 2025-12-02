@@ -826,7 +826,10 @@ Face library is more general purpose.
 vLLM automatically handles batching, so you generally don’t have to
 worry about selecting the optimal batch size. However, you can still use
 the `max_connections` option to control the number of concurrent
-requests which defaults to 32.
+requests which defaults to 32. If the server has saturated the GPU it
+may reject requests—these are by default retried after 5 seconds (you
+can customize this using the `retry_delay` model args,
+e.g. `-M retry_delay=3`).
 
 ### Device
 
@@ -928,6 +931,16 @@ model dependant and requires additional configuration. See the [Tool
 Use](https://docs.sglang.ai/backend/function_calling.html) and
 [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html)
 sections of the SGLang documentation for details.
+
+### Batching
+
+SGLang automatically handles batching, so you generally don’t have to
+worry about selecting the optimal batch size. However, you can still use
+the `max_connections` option to control the number of concurrent
+requests which defaults to 32. If the server has saturated the GPU it
+may reject requests—these are by default retried after 5 seconds (you
+can customize this using the `retry_delay` model args,
+e.g. `-M retry_delay=3`).
 
 ## TransformerLens
 
