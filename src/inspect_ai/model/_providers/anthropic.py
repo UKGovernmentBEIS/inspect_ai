@@ -85,6 +85,9 @@ from anthropic.types.beta import (
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
     BetaToolTextEditor20250728Param,
+    BetaWebFetchTool20250910Param,
+    BetaWebFetchToolResultBlock,
+    BetaWebFetchToolResultBlockParam,
 )
 from anthropic.types.document_block_param import Source
 from anthropic.types.web_search_tool_result_block_param_content_param import (
@@ -321,6 +324,11 @@ class AnthropicAPI(ModelAPI):
                 for tool in tools_param
             ):
                 betas.append("code-execution-2025-08-25")
+            if any(
+                tool.get("type", None) == "web_fetch_20250910" for tool in tools_param
+            ):
+                betas.append("web-fetch-2025-09-10")
+
             if len(betas) > 0:
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
@@ -687,7 +695,11 @@ class AnthropicAPI(ModelAPI):
         tools, mcp_servers = self.partition_tools(tools)
 
         # tools
-        tools_params = [self.tool_param_for_tool_info(tool, config) for tool in tools]
+        tools_params = [
+            param
+            for tool in tools
+            for param in self.tool_params_for_tool_info(tool, config)
+        ]
 
         # mcp servers
         mcp_server_params = [
@@ -762,16 +774,18 @@ class AnthropicAPI(ModelAPI):
                 standard_tools.append(tool)
         return standard_tools, mcp_servers
 
-    def tool_param_for_tool_info(
+    def tool_params_for_tool_info(
         self, tool: ToolInfo, config: GenerateConfig
-    ) -> "ToolParamDef":
+    ) -> Sequence["ToolParamDef"]:
         # Use a native tool implementation when available. Otherwise, use the
         # standard tool implementation
-        return self.maybe_native_tool_param(tool, config) or ToolParam(
-            name=tool.name,
-            description=tool.description,
-            input_schema=tool.parameters.model_dump(exclude_none=True),
-        )
+        return self.maybe_native_tool_params(tool, config) or [
+            ToolParam(
+                name=tool.name,
+                description=tool.description,
+                input_schema=tool.parameters.model_dump(exclude_none=True),
+            )
+        ]
 
     def mcp_server_param(
         self, mcp_server: MCPServerConfigHTTP
@@ -788,20 +802,26 @@ class AnthropicAPI(ModelAPI):
             else None,
         )
 
-    def maybe_native_tool_param(
+    def maybe_native_tool_params(
         self, tool: ToolInfo, config: GenerateConfig
-    ) -> Optional["ToolParamDef"]:
-        return (
-            (
-                self.computer_use_tool_param(tool)
-                or self.text_editor_tool_param(tool)
-                or self.web_search_tool_param(tool)
-                or self.memory_tool_param(tool)
-                or self.code_execution_tool_param(tool)
-            )
-            if config.internal_tools is not False
-            else None
-        )
+    ) -> Sequence["ToolParamDef"] | None:
+        if config.internal_tools is not False:
+            web_search_params = self.web_search_tool_params(tool)
+            if web_search_params is not None:
+                return web_search_params
+            else:
+                param = (
+                    self.computer_use_tool_param(tool)
+                    or self.text_editor_tool_param(tool)
+                    or self.memory_tool_param(tool)
+                    or self.code_execution_tool_param(tool)
+                )
+                if param is not None:
+                    return [param]
+                else:
+                    return None
+        else:
+            return None
 
     def computer_use_tool_param(
         self, tool: ToolInfo
@@ -894,16 +914,16 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
-    def web_search_tool_param(
+    def web_search_tool_params(
         self, tool: ToolInfo
-    ) -> WebSearchTool20250305Param | None:
+    ) -> list[WebSearchTool20250305Param | BetaWebFetchTool20250910Param] | None:
         if (
             tool.name == "web_search"
             and tool.options
             and "anthropic" in tool.options
             and _supports_web_search(self.model_name)
         ):
-            return _web_search_tool_param(tool.options["anthropic"])
+            return _web_search_tool_params(tool.options["anthropic"])
         else:
             return None
 
@@ -981,9 +1001,9 @@ def _supports_memory(model_name: str) -> bool:
     return model_name.startswith(("claude-sonnet-4", "claude-opus-4", "claude-haiku-4"))
 
 
-def _web_search_tool_param(
+def _web_search_tool_params(
     maybe_anthropic_options: object,
-) -> WebSearchTool20250305Param:
+) -> list[WebSearchTool20250305Param | BetaWebFetchTool20250910Param]:
     if maybe_anthropic_options is not None and not isinstance(
         maybe_anthropic_options, dict
     ):
@@ -991,24 +1011,43 @@ def _web_search_tool_param(
             f"Expected a dictionary for anthropic_options, got {type(maybe_anthropic_options)}"
         )
 
-    result = WebSearchTool20250305Param(
+    web_fetch_tool = BetaWebFetchTool20250910Param(
+        name="web_fetch", type="web_fetch_20250910"
+    )
+
+    web_search_tool = WebSearchTool20250305Param(
         name="web_search",
         type="web_search_20250305",
     )
 
     if maybe_anthropic_options:
         if "allowed_domains" in maybe_anthropic_options:
-            result["allowed_domains"] = maybe_anthropic_options["allowed_domains"]
+            web_search_tool["allowed_domains"] = maybe_anthropic_options[
+                "allowed_domains"
+            ]
+            web_fetch_tool["allowed_domains"] = web_search_tool["allowed_domains"]
         if "blocked_domains" in maybe_anthropic_options:
-            result["blocked_domains"] = maybe_anthropic_options["blocked_domains"]
+            web_search_tool["blocked_domains"] = maybe_anthropic_options[
+                "blocked_domains"
+            ]
+            web_fetch_tool["blocked_domains"] = web_search_tool["blocked_domains"]
         if "cache_control" in maybe_anthropic_options:
-            result["cache_control"] = maybe_anthropic_options["cache_control"]
+            web_search_tool["cache_control"] = maybe_anthropic_options["cache_control"]
         if "max_uses" in maybe_anthropic_options:
-            result["max_uses"] = maybe_anthropic_options["max_uses"]
+            web_search_tool["max_uses"] = maybe_anthropic_options["max_uses"]
+            web_fetch_tool["max_uses"] = web_search_tool["max_uses"]
         if "user_location" in maybe_anthropic_options:
-            result["user_location"] = maybe_anthropic_options["user_location"]
+            web_search_tool["user_location"] = maybe_anthropic_options["user_location"]
 
-    return result
+        if "citations" in maybe_anthropic_options:
+            web_fetch_tool["citations"] = maybe_anthropic_options["citations"]
+
+        if "max_content_tokens" in maybe_anthropic_options:
+            web_fetch_tool["max_content_tokens"] = maybe_anthropic_options[
+                "max_content_tokens"
+            ]
+
+    return [web_fetch_tool, web_search_tool]
 
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
@@ -1022,6 +1061,7 @@ ToolParamDef = (
     | WebSearchTool20250305Param
     | BetaMemoryTool20250818Param
     | BetaCodeExecutionTool20250825Param
+    | BetaWebFetchTool20250910Param
 )
 
 
@@ -1054,6 +1094,10 @@ def is_web_search_tool(param: ToolParamDef) -> TypeGuard[WebSearchTool20250305Pa
     return param.get("name") == "web_search" and not is_tool_param(param)
 
 
+def is_web_fetch_tool(param: ToolParamDef) -> TypeGuard[BetaWebFetchTool20250910Param]:
+    return param.get("name") == "web_fetch" and not is_tool_param(param)
+
+
 def is_memory_tool(param: ToolParamDef) -> TypeGuard[BetaMemoryTool20250818Param]:
     return param.get("name") == "memory" and not is_tool_param(param)
 
@@ -1075,6 +1119,7 @@ def add_cache_control(
     | WebSearchTool20250305Param
     | BetaMemoryTool20250818Param
     | BetaCodeExecutionTool20250825Param
+    | BetaWebFetchTool20250910Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -1235,6 +1280,7 @@ MessageBlock = Union[
     | BetaMCPToolResultBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
+    | BetaWebFetchToolResultBlock
 ]
 
 MessageBlockParam = Union[
@@ -1251,6 +1297,7 @@ MessageBlockParam = Union[
     | BetaMCPToolUseBlockParam
     | BetaRequestMCPToolResultBlockParam
     | BetaTextEditorCodeExecutionToolResultBlockParam
+    | BetaWebFetchToolResultBlockParam
 ]
 
 
@@ -1342,6 +1389,9 @@ class _AssistantInternal:
     ] = field(default_factory=dict)
     server_web_searches: dict[
         str, tuple[ServerToolUseBlockParam, WebSearchToolResultBlockParam]
+    ] = field(default_factory=dict)
+    server_web_fetches: dict[
+        str, tuple[ServerToolUseBlockParam, BetaWebFetchToolResultBlockParam]
     ] = field(default_factory=dict)
     server_code_executions: dict[
         str,
@@ -1450,6 +1500,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
         BetaServerToolUseBlock
         | BetaBashCodeExecutionToolResultBlock
         | BetaTextEditorCodeExecutionToolResultBlock
+        | BetaWebFetchToolResultBlock
         | ContentBlock
     ] = []
     for block in content_blocks_input:
@@ -1506,6 +1557,37 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     error="error" if tool_result_block.is_error else None,
                 )
             )
+        elif content_block.type == "web_fetch_tool_result":
+            # confirm that there is a pending tool use
+            pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
+            if pending_tool_use is None:
+                raise RuntimeError(
+                    "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
+                )
+
+            # record in internal
+            assistant_internal().server_web_fetches[pending_tool_use.id] = (
+                cast(
+                    ServerToolUseBlockParam,
+                    pending_tool_use.model_dump(exclude_none=True),
+                ),
+                cast(
+                    BetaWebFetchToolResultBlockParam,
+                    content_block.model_dump(exclude_none=True),
+                ),
+            )
+
+            # append content
+            content.append(
+                ContentToolUse(
+                    tool_type="web_search",
+                    id=pending_tool_use.id,
+                    name="web_fetch",
+                    arguments=to_json_str_safe(pending_tool_use.input),
+                    result=to_json_str_safe(content_block.content),
+                )
+            )
+
         elif (
             content_block.type == "bash_code_execution_tool_result"
             or content_block.type == "text_editor_code_execution_tool_result"
@@ -1770,11 +1852,18 @@ async def message_block_params(
         elif content.id in assistant_internal().server_web_searches:
             return list(assistant_internal().server_web_searches[content.id])
 
+        elif content.id in assistant_internal().server_web_fetches:
+            return list(assistant_internal().server_web_fetches[content.id])
+
         elif content.id in assistant_internal().server_code_executions:
             return list(assistant_internal().server_code_executions[content.id])
 
         if content.tool_type == "web_search":
             # we might be parsing an openai web search result so defend ourselves accordingly
+            # note that if this is a native anthropic web_search or web_fetch it will have
+            # been handledby plucking the blocks from assistant_internal()
+            # therefore, this is a web_search from another system which we need to
+            # normalize to the anthropic schema
             try:
                 result_content = web_search_result_block_param_adapter.validate_json(
                     content.result
