@@ -51,6 +51,7 @@ from ._tools._execute import bash, python
 from ._tools._memory import memory
 from ._tools._text_editor import text_editor
 from ._tools._think import think
+from ._tools._update_plan import update_plan
 from ._tools._web_browser import web_browser
 from ._tools._web_search import WebSearchProviders, web_search
 
@@ -66,6 +67,7 @@ __all__ = [
     "web_search",
     "WebSearchProviders",
     "think",
+    "update_plan",
     "text_editor",
     "tool",
     "tool_with",

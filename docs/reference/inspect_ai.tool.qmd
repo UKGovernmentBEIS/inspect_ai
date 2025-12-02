@@ -2,7 +2,7 @@
 title: "inspect_ai.tool"
 ---
 
-## Tools
+## Computing Tools
 
 ### web_search
 ### bash
@@ -11,9 +11,13 @@ title: "inspect_ai.tool"
 ### text_editor
 ### computer
 ### code_execution
-### memory
-### think
 ### web_browser
+
+## Agentic Tools
+
+### memory
+### update_plan
+### think
 
 ## MCP
 
