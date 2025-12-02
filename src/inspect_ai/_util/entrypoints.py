@@ -34,6 +34,11 @@ def ensure_entry_points(package: str | None = None) -> None:
             logger.warning(
                 f"Unexpected exception loading entrypoints from '{ep.value}': {ex}"
             )
+    # if we didn't find any entry points, mark us as fully loaded
+    if package is not None and package not in _inspect_ai_eps_loaded:
+        _inspect_ai_eps_loaded.append(package)
+    elif len(eps) == 0:
+        _inspect_ai_eps_loaded_all = True
 
 
 # inspect extension entry points
