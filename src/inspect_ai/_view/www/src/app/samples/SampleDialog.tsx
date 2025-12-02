@@ -39,7 +39,12 @@ export const SampleDialog: FC<SampleDialogProps> = ({
     if (sampleData.running && logSelection.logFile && logSelection.sample) {
       pollSample(logSelection.logFile, logSelection.sample);
     }
-  }, []);
+  }, [
+    logSelection.logFile,
+    logSelection.sample,
+    pollSample,
+    sampleData.running,
+  ]);
 
   // Load sample
   const prevCompleted = usePrevious(
@@ -79,6 +84,11 @@ export const SampleDialog: FC<SampleDialogProps> = ({
     sampleData.selectedSampleIdentifier?.id,
     sampleData.selectedSampleIdentifier?.epoch,
     sampleData.sampleNeedsReload,
+    logSelection.sample,
+    prevLogFile,
+    prevCompleted,
+    prevSampleNeedsReload,
+    loadSample,
   ]);
 
   // Get sample navigation utilities
@@ -126,11 +136,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
           break;
       }
     },
-    [
-      sampleNavigation.nextSample,
-      sampleNavigation.previousSample,
-      sampleNavigation.clearSampleUrl,
-    ],
+    [sampleNavigation],
   );
 
   const onHide = useCallback(() => {

@@ -30,7 +30,12 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
     if (sampleData.running && logSelection.logFile && logSelection.sample) {
       pollSample(logSelection.logFile, logSelection.sample);
     }
-  }, []);
+  }, [
+    logSelection.logFile,
+    logSelection.sample,
+    pollSample,
+    sampleData.running,
+  ]);
 
   // Sample Loading
   const prevCompleted = usePrevious(
@@ -70,6 +75,11 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
     sampleData.selectedSampleIdentifier?.id,
     sampleData.selectedSampleIdentifier?.epoch,
     sampleData.sampleNeedsReload,
+    logSelection.sample,
+    prevLogFile,
+    prevCompleted,
+    prevSampleNeedsReload,
+    loadSample,
   ]);
 
   // Scroll ref

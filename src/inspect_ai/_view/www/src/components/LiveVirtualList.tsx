@@ -91,7 +91,7 @@ export const LiveVirtualList = <T,>({
     if (followOutput === null) {
       setFollowOutput(!!live);
     }
-  }, []);
+  }, [followOutput, live, setFollowOutput]);
 
   // Track whether we were previously running so we can
   // decide whether to pop up to the top
@@ -107,7 +107,7 @@ export const LiveVirtualList = <T,>({
         }
       }, 100);
     }
-  }, [live, followOutput]);
+  }, [live, followOutput, prevLive, scrollRef, setFollowOutput]);
 
   const handleScroll = useRafThrottle(() => {
     // Skip processing if auto-scrolling is in progress
@@ -142,8 +142,10 @@ export const LiveVirtualList = <T,>({
         }
       });
     },
-    [scrollRef, followOutput, live],
+    [followOutput, live, scrollRef, listHandle],
   );
+
+  const forceUpdate = useCallback(() => forceRender({}), []);
 
   useEffect(() => {
     // Force a re-render after initial mount
@@ -155,10 +157,9 @@ export const LiveVirtualList = <T,>({
       forceUpdate();
     }, 0);
     return () => clearTimeout(timer);
-  }, []);
+  }, [forceUpdate]);
 
   const [, forceRender] = useState({});
-  const forceUpdate = useCallback(() => forceRender({}), []);
 
   // Default search function that uses JSON.stringify as fallback
   const defaultSearchInItem = useCallback(
@@ -212,7 +213,14 @@ export const LiveVirtualList = <T,>({
 
       return false;
     },
-    [data, searchInItem, defaultSearchInItem, visibleRange],
+    [
+      data,
+      searchInItem,
+      defaultSearchInItem,
+      visibleRange.endIndex,
+      visibleRange.startIndex,
+      listHandle,
+    ],
   );
 
   // Register with search context
@@ -254,7 +262,7 @@ export const LiveVirtualList = <T,>({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [initialTopMostItemIndex]);
+  }, [initialTopMostItemIndex, listHandle, offsetTop]);
 
   // Watch for scrolling to stop and trigger pending search callback
   useEffect(() => {

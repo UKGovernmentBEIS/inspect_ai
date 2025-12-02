@@ -143,7 +143,7 @@ export const PopOver: React.FC<PopOverProps> = ({
         window.clearTimeout(hoverTimerRef.current);
       }
     };
-  }, [isOpen, positionEl, hoverDelay]);
+  }, [isOpen, positionEl, hoverDelay, setIsOpen]);
 
   // Effect to create portal container when needed
   useEffect(() => {
@@ -228,7 +228,7 @@ export const PopOver: React.FC<PopOverProps> = ({
       }, 10);
       return () => clearTimeout(timer);
     }
-  }, [update, isOpen, shouldShowPopover, showArrow, arrowRef.current]);
+  }, [update, isOpen, shouldShowPopover, showArrow]);
 
   // Define arrow data-* attribute based on placement
   const getArrowDataPlacement = () => {

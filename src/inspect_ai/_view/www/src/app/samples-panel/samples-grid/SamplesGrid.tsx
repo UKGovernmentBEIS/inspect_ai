@@ -87,7 +87,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     } else {
       return gridState;
     }
-  }, [gridState, prevSamplesPath, clearDisplayedSamples]);
+  }, [prevSamplesPath, samplesPath, clearDisplayedSamples, gridState]);
 
   // Filter logDetails based on samplesPath
   const filteredLogDetails = useMemo(() => {
@@ -107,7 +107,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
       },
       {} as typeof logDetails,
     );
-  }, [logDetails, samplesPath]);
+  }, [logDetails, logDir, samplesPath]);
 
   useEffect(() => {
     gridContainerRef.current?.focus();
@@ -153,12 +153,13 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   // Compute the columns
   const columns = useSampleColumns(data, filteredLogDetails);
 
-  const resizeGridColumns = useCallback(
-    debounce(() => {
-      // Trigger column sizing after grid is ready
-      gridRef.current?.api?.sizeColumnsToFit();
-    }, 10),
-    [],
+  const resizeGridColumns = useMemo(
+    () =>
+      debounce(() => {
+        // Trigger column sizing after grid is ready
+        gridRef.current?.api?.sizeColumnsToFit();
+      }, 10),
+    [gridRef],
   );
 
   const handleRowClick = useCallback(
@@ -315,7 +316,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
         }
       }
     },
-    [navigateToSampleDetail],
+    [gridRef, navigateToSampleDetail],
   );
 
   // Set up keyboard event listener

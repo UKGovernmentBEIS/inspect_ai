@@ -27,8 +27,11 @@ export const MorePopover: FC<MorePopoverProps> = ({
       popOverContent.appendChild(child.cloneNode(true)),
     );
 
+    // Capture the current ref value for cleanup
+    const popoverElement = popoverRef.current;
+
     // Initialize Bootstrap popover
-    new Popover(popoverRef.current, {
+    new Popover(popoverElement, {
       content: popOverContent,
       title,
       html: true,
@@ -38,11 +41,9 @@ export const MorePopover: FC<MorePopoverProps> = ({
 
     // Cleanup on unmount
     return () => {
-      if (popoverRef.current) {
-        const popoverInstance = Popover.getInstance(popoverRef.current);
-        if (popoverInstance) {
-          popoverInstance.dispose();
-        }
+      const popoverInstance = Popover.getInstance(popoverElement);
+      if (popoverInstance) {
+        popoverInstance.dispose();
       }
     };
   }, [title, customClass]);
