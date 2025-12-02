@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Analysis: Support passing `EvalLog` objects directly to dataframe functions (`samples_df()`, `evals_df()`, `messages_df()`, `events_df()`).
 - [Update Plan](https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan) tool for tracking steps and progress across longer horizon tasks.
 - [Code Execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
 - Anthropic: Include native `web_fetch` tool as part of `web_search()` implementation (matching capability of other providers that have native web search).

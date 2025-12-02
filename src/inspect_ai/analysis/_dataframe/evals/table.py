@@ -5,10 +5,7 @@ from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
-from inspect_ai.log._file import (
-    list_eval_logs,
-    read_eval_log,
-)
+from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
 
 from ..columns import Column, ColumnError, ColumnType
@@ -35,7 +32,7 @@ EVAL_SUFFIX = "_eval"
 
 @overload
 def evals_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = EvalColumns,
     strict: Literal[True] = True,
     quiet: bool | None = None,
@@ -44,7 +41,7 @@ def evals_df(
 
 @overload
 def evals_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = EvalColumns,
     strict: Literal[False] = False,
     quiet: bool | None = None,
@@ -52,7 +49,7 @@ def evals_df(
 
 
 def evals_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = EvalColumns,
     strict: bool = True,
     quiet: bool | None = None,
@@ -60,7 +57,7 @@ def evals_df(
     """Read a dataframe containing evals.
 
     Args:
-       logs: One or more paths to log files or log directories.
+       logs: One or more paths to log files, log directories, or EvalLog objects.
           Defaults to the contents of the currently active log directory
           (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
@@ -77,30 +74,28 @@ def evals_df(
     verify_prerequisites()
 
     # resolve logs
-    log_paths = resolve_logs(logs or list_eval_logs())
+    logs = resolve_logs(logs)
 
     # establish progress
     quiet = quiet if quiet is not None else running_in_notebook()
     progress_cm = (
-        import_progress("reading logs", total=len(log_paths))
-        if not quiet
-        else no_progress()
+        import_progress("reading logs", total=len(logs)) if not quiet else no_progress()
     )
 
     with progress_cm as p:
         if strict:
-            evals_table, _, _ = _read_evals_df(log_paths, columns, True, p.update)
+            evals_table, _, _ = _read_evals_df(logs, columns, True, p.update)
             return evals_table
         else:
             evals_table, _, all_errors, _ = _read_evals_df(
-                log_paths, columns, False, p.update
+                logs, columns, False, p.update
             )
             return evals_table, all_errors
 
 
 @overload
 def _read_evals_df(
-    log_paths: Sequence[str],
+    logs: Sequence[str] | Sequence[EvalLog],
     columns: Sequence[Column],
     strict: Literal[True],
     progress: Callable[[], None],
@@ -109,7 +104,7 @@ def _read_evals_df(
 
 @overload
 def _read_evals_df(
-    log_paths: Sequence[str],
+    logs: Sequence[str] | Sequence[EvalLog],
     columns: Sequence[Column],
     strict: Literal[False],
     progress: Callable[[], None],
@@ -117,7 +112,7 @@ def _read_evals_df(
 
 
 def _read_evals_df(
-    log_paths: Sequence[str],
+    logs: Sequence[str] | Sequence[EvalLog],
     columns: Sequence[Column],
     strict: bool,
     progress: Callable[[], None],
@@ -141,8 +136,9 @@ def _read_evals_df(
     eval_ids: set[str] = set()
     eval_logs: list[EvalLog] = []
     records: list[dict[str, ColumnType]] = []
-    for log_path in log_paths:
-        log = read_eval_log(log_path, header_only=True)
+    for item in logs:
+        log = read_eval_log(item, header_only=True) if isinstance(item, str) else item
+
         if strict:
             record = import_record(log, log, columns, strict=True)
         else:
