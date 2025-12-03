@@ -38,7 +38,7 @@ export const TranscriptVirtualListComponent: FC<
   const setNativeFind = useStore((state) => state.appActions.setNativeFind);
   useEffect(() => {
     setNativeFind(!useVirtualization);
-  }, [useVirtualization]);
+  }, [setNativeFind, useVirtualization]);
 
   const initialEventIndex = useMemo(() => {
     if (initialEventId === null || initialEventId === undefined) {

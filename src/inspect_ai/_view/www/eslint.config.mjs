@@ -32,7 +32,7 @@ export default [
     rules: {
       // React Hooks rules
       "react-hooks/rules-of-hooks": "warn",
-      // "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": "warn",
 
       // These are disabled because we didn't have time to fix them, not because they are bad rules
       "no-unused-vars": "off",

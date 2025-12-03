@@ -102,7 +102,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
     // Initial sort
     useEffect(() => {
       setSorting([{ id: "icon", desc: false }]);
-    }, []);
+    }, [setSorting]);
 
     // Force re-sort when logHeaders change (affects task column sorting)
     useEffect(() => {
@@ -115,7 +115,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
         // Trigger a re-sort by updating the sorting state
         setSorting([...(sortingRef.current || [])]);
       }
-    }, [logPreviews]);
+    }, [logPreviews, setSorting]);
 
     const columns = useMemo(() => {
       return getColumns();
@@ -181,7 +181,7 @@ export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
     useEffect(() => {
       const filteredRowCount = table.getFilteredRowModel().rows.length;
       setFilteredCount(filteredRowCount);
-    }, [table.getFilteredRowModel().rows.length, setFilteredCount]);
+    }, [setFilteredCount, table]);
 
     // Load all headers when globalFilter changes
     const filterText = useRef(globalFilter);

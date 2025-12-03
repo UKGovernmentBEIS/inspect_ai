@@ -185,7 +185,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       > = collapseLogItems(evalSet, logItems);
 
       return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [currentDir, logFiles, logPreviews, evalSet]);
+    }, [evalSet, logFiles, currentDir, logDir, logPreviews]);
 
   const progress = useMemo(() => {
     let pending = 0;
@@ -228,7 +228,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         navigate(onlyItem.url);
       }
     }
-  }, [logItems, maybeShowSingleLog]);
+  }, [logItems, maybeShowSingleLog, navigate]);
 
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.key === "f" && (e.metaKey || e.ctrlKey)) {

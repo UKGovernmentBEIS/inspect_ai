@@ -9,6 +9,7 @@
 - Analysis: Support passing `EvalLog` objects directly to dataframe functions (`samples_df()`, `evals_df()`, `messages_df()`, `events_df()`).
 - Dependencies: Update to `mcp` package version 1.23.0.
 - Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.
+- Bugfix: Ensure that entry points are not scanned repeatedly when there are no targets.
 
 ## 0.3.151 (30 November 2025)
 

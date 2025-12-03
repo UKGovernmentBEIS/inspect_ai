@@ -200,7 +200,7 @@ export const SampleDetailView: FC = () => {
       }
     };
     void exec();
-  }, [selectedLogFile, selectedSampleSummary]);
+  }, [loadSample, selectedLogFile, selectedSampleSummary]);
 
   useEffect(() => {
     return () => {
@@ -208,7 +208,7 @@ export const SampleDetailView: FC = () => {
       clearLog();
       clearSampleTab();
     };
-  }, [clearLog, clearSelectedLogDetails]);
+  }, [clearLog, clearSampleTab, clearSelectedLogDetails]);
 
   return (
     <ExtendedFindProvider>

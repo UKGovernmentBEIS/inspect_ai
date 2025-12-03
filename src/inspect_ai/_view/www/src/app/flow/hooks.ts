@@ -16,5 +16,5 @@ export const useFlowServerData = (dir: string) => {
     if (dir !== flowDir) {
       fetchFlow();
     }
-  }, [dir, flowDir, api]);
+  }, [dir, flowDir, api, updateFlowData]);
 };

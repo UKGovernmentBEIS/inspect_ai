@@ -110,7 +110,7 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const toggleCollapse = useCallback(() => {
     setCollapsed(!collapsed);
-  }, [setCollapsed, collapsed, childIds]);
+  }, [setCollapsed, collapsed]);
 
   const [mouseOver, setMouseOver] = useState(false);
 
