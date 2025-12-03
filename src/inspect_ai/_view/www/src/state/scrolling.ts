@@ -22,13 +22,14 @@ export function useStatefulScrollPosition<
   );
 
   // Create debounced scroll handler
-  const handleScroll = useCallback(
-    debounce((e: Event) => {
-      const target = e.target as HTMLElement;
-      const position = target.scrollTop;
-      log.debug(`Storing scroll position`, elementKey, position);
-      setScrollPosition(elementKey, position);
-    }, delay),
+  const handleScroll = useMemo(
+    () =>
+      debounce((e: Event) => {
+        const target = e.target as HTMLElement;
+        const position = target.scrollTop;
+        log.debug(`Storing scroll position`, elementKey, position);
+        setScrollPosition(elementKey, position);
+      }, delay),
     [elementKey, setScrollPosition, delay],
   );
 
@@ -118,7 +119,7 @@ export function useStatefulScrollPosition<
         log.warn("Element has no way to remove event listener", element);
       }
     };
-  }, [elementKey, elementRef, handleScroll]);
+  }, [elementKey, elementRef, getScrollPosition, handleScroll, scrollable]);
 
   return { restoreScrollPosition };
 }
@@ -232,6 +233,7 @@ export function useRafThrottle<T extends (...args: any[]) => any>(
   // Update the callback ref when the callback changes
   useEffect(() => {
     callbackRef.current = callback;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callback, ...dependencies]);
 
   const throttledCallback = useCallback((...args: Parameters<T>) => {

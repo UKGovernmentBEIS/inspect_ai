@@ -38,7 +38,7 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ id, slides }) => {
       // Slight delay before setting isOpen so the fade-in starts from opacity: 0
       setTimeout(() => setIsOpen(true), 10);
     },
-    [setIsOpen],
+    [setCurrentIndex, setIsOpen, setShowOverlay],
   );
 
   const closeLightbox = useCallback(() => {
@@ -57,11 +57,11 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ id, slides }) => {
 
   const showNext = useCallback(() => {
     setCurrentIndex(currentIndex + 1);
-  }, [slides, setCurrentIndex]);
+  }, [setCurrentIndex, currentIndex]);
 
   const showPrev = useCallback(() => {
     setCurrentIndex((currentIndex - 1 + slides.length) % slides.length);
-  }, [slides, setCurrentIndex]);
+  }, [setCurrentIndex, currentIndex, slides.length]);
 
   // Keyboard Navigation
   useEffect(() => {
@@ -79,7 +79,7 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ id, slides }) => {
     };
     window.addEventListener("keyup", handleKeyUp, true);
     return () => window.removeEventListener("keyup", handleKeyUp);
-  }, [isOpen, showNext, showPrev]);
+  }, [closeLightbox, isOpen, showNext, showPrev]);
 
   const handleThumbClick = useCallback(
     (e: MouseEvent<HTMLDivElement>) => {

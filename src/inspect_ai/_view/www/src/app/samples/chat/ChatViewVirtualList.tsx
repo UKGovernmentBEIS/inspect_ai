@@ -63,7 +63,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     const setNativeFind = useStore((state) => state.appActions.setNativeFind);
     useEffect(() => {
       setNativeFind(!useVirtuoso);
-    }, [useVirtuoso]);
+    }, [setNativeFind, useVirtuoso]);
 
     useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
@@ -114,7 +114,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           scrollElement.removeEventListener("keydown", handleKeyDown);
         };
       }
-    }, [scrollRef, messages]);
+    }, [scrollRef, messages, useVirtuoso]);
 
     if (!useVirtuoso) {
       return (
@@ -206,7 +206,14 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
             />
           );
         },
-        [id, numbered, indented, toolCallStyle, collapsedMessages],
+        [
+          collapsedMessages.length,
+          numbered,
+          id,
+          indented,
+          toolCallStyle,
+          allowLinking,
+        ],
       );
 
       const Item = ({

@@ -58,7 +58,7 @@ export const LogViewContainer: FC = () => {
     return () => {
       unloadLog();
     };
-  }, []);
+  }, [unloadLog]);
 
   useEffect(() => {
     // Redirect to an id/epoch url if a sampleUuid is provided
@@ -79,7 +79,14 @@ export const LogViewContainer: FC = () => {
         return;
       }
     }
-  }, [sampleSummaries, logPath, sampleUuid, searchParams]);
+  }, [
+    sampleSummaries,
+    logPath,
+    sampleUuid,
+    searchParams,
+    sampleTabId,
+    navigate,
+  ]);
 
   useEffect(() => {
     if (initialState && !evalSpec) {
@@ -91,7 +98,7 @@ export const LogViewContainer: FC = () => {
       clearInitialState();
       navigate(url);
     }
-  }, [initialState, evalSpec]);
+  }, [initialState, evalSpec, clearInitialState, navigate]);
 
   const prevLogPath = usePrevious<string | undefined>(logPath);
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
@@ -123,7 +130,17 @@ export const LogViewContainer: FC = () => {
     };
 
     loadLogFromPath();
-  }, [logPath, tabId, setSelectedLogFile, setWorkspaceTab]);
+  }, [
+    logPath,
+    tabId,
+    setSelectedLogFile,
+    setWorkspaceTab,
+    initLogDir,
+    syncLogs,
+    prevLogPath,
+    clearSelectedSample,
+    clearSelectedLogSummary,
+  ]);
 
   // Handle sample selection from URL params
   useEffect(() => {

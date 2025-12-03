@@ -59,7 +59,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
   const changePreview = useMemo(() => {
     const isStore = eventNode.event.event === "store";
     return generatePreview(event.changes, structuredClone(after), isStore);
-  }, [event.changes, after]);
+  }, [eventNode.event.event, event.changes, after]);
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
@@ -68,7 +68,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
     if (changePreview === undefined) {
       collapseEvent(kTranscriptCollapseScope, eventNode.id, true);
     }
-  }, [changePreview, collapseEvent]);
+  }, [changePreview, collapseEvent, eventNode.id]);
 
   return (
     <EventPanel
