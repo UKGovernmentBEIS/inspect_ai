@@ -43,7 +43,7 @@ def claude_code() -> Agent:
                 cmd=cmd,
                 env={
                     "ANTHROPIC_BASE_URL": f"http://localhost:{bridge.port}",
-                    "ANTHROPIC_API_KEY": "sk-ant-api03-DOq5tyLPrk9M4hPE",
+                    "ANTHROPIC_API_KEY": "<your-key>",
                     "ANTHROPIC_MODEL": "inspect",
                     "ANTHROPIC_DEFAULT_OPUS_MODEL": "inspect",
                     "ANTHROPIC_DEFAULT_SONNET_MODEL": "inspect",
