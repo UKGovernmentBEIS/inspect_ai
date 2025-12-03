@@ -196,7 +196,7 @@ def mcp_server_sandbox(
 def verfify_mcp_package() -> None:
     FEATURE = "MCP tools"
     PACKAGE = "mcp"
-    MIN_VERSION = "1.12.3"
+    MIN_VERSION = "1.23.0"
 
     # verify we have the package
     try:
