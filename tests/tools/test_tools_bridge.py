@@ -110,7 +110,7 @@ async def call_mcp_tools_list(script_path: str) -> dict:
 
 @skip_if_no_docker
 @pytest.mark.slow
-def test_single_tool_call_returns_correct_result():
+def test_single_tool_call_returns_correct_result() -> None:
     """Call a single bridged tool via MCP and verify the result."""
     call_log: list[dict] = []
 
@@ -142,7 +142,7 @@ def test_single_tool_call_returns_correct_result():
 
 @skip_if_no_docker
 @pytest.mark.slow
-def test_multiple_tools_in_single_spec():
+def test_multiple_tools_in_single_spec() -> None:
     """Call multiple tools from a single BridgedToolsSpec."""
     call_log: list[dict] = []
 
@@ -187,7 +187,7 @@ def test_multiple_tools_in_single_spec():
 
 @skip_if_no_docker
 @pytest.mark.slow
-def test_multiple_bridged_tools_specs():
+def test_multiple_bridged_tools_specs() -> None:
     """Call tools from multiple BridgedToolsSpec instances."""
     call_log: list[dict] = []
 
