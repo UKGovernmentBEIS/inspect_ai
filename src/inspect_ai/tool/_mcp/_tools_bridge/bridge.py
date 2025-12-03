@@ -95,7 +95,7 @@ async def setup_bridged_tools(
     await started.wait()
 
     # Ensure MCP directory exists in sandbox
-    await sandbox.exec(["mkdir", "-p", "/var/tmp/mcp"], timeout=30)
+    await sandbox.exec(["mkdir", "-p", "/var/tmp/mcp"], timeout=30, concurrency=False)
 
     # Write MCP script to sandbox
     script_path = f"/var/tmp/mcp/{spec.name}_server.py"
