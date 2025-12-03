@@ -20,7 +20,7 @@ from inspect_ai.analysis import (
 )
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
-from inspect_ai.log import EvalLog, list_eval_logs
+from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
 
@@ -144,3 +144,59 @@ def test_samples_df_message_count():
     assert "message_count" in df.columns
     assert all(pd.isna(df["message_count"]) | (df["message_count"] >= 0))
     assert any(df["message_count"] > 0)
+
+
+def test_samples_df_eval_log():
+    logs = list_eval_logs(str(LOGS_DIR))
+    log = read_eval_log(logs[0])
+    df = samples_df(log)
+    assert len(df) == 3
+
+
+def test_samples_df_multiple_eval_logs():
+    logs = list_eval_logs(str(LOGS_DIR))
+    logs = [read_eval_log(log) for log in logs]
+    df = samples_df(logs)
+    assert len(df) == 7
+
+
+def test_evals_df_eval_log():
+    logs = list_eval_logs(str(LOGS_DIR))
+    log = read_eval_log(logs[0])
+    df = evals_df(log)
+    assert len(df) == 1
+
+
+def test_evals_df_multiple_eval_logs():
+    logs = list_eval_logs(str(LOGS_DIR))
+    logs = [read_eval_log(log) for log in logs]
+    df = evals_df(logs)
+    assert len(df) == 4
+
+
+def test_messages_df_eval_log():
+    logs = list_eval_logs(str(LOGS_DIR))
+    log = read_eval_log(logs[0])
+    df = messages_df(log)
+    assert len(df) == 15
+
+
+def test_messages_df_multiple_eval_logs():
+    logs = list_eval_logs(str(LOGS_DIR))
+    logs = [read_eval_log(log) for log in logs]
+    df = messages_df(logs)
+    assert len(df) == 34
+
+
+def test_events_df_eval_log():
+    logs = list_eval_logs(str(LOGS_DIR))
+    log = read_eval_log(logs[0])
+    df = events_df(log)
+    assert len(df) == 42
+
+
+def test_events_df_multiple_eval_logs():
+    logs = list_eval_logs(str(LOGS_DIR))
+    logs = [read_eval_log(log) for log in logs]
+    df = events_df(logs)
+    assert len(df) == 124
