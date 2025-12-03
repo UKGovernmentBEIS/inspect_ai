@@ -25,8 +25,8 @@ including:
 
 | Function | Description |
 |----|----|
-| [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
-| [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
+| [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log. |
+| [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log contains many samples. |
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
 | [events_df()](#events) | Event level data (type, timing, content, etc.). One row per event, where each sample contains many events. |
 
@@ -54,7 +54,7 @@ for your analysis. Extracted dataframes can either be denormalized
 ### Reading Data
 
 Use the `evals_df()` function to read a dataframe containing a row for
-each log file:
+each log file or log object:
 
 ``` python
 # read logs from a given log directory
@@ -73,8 +73,8 @@ columns. You can customise column reading in a variety of ways (covered
 below in [Column Definitions](#column-definitions)).
 
 Use the `samples_df()` function to read a dataframe with a record for
-each sample across a set of log files. For example, here we read all of
-the samples in the “logs” directory:
+each sample across a set of log files or log objects. For example, here
+we read all of the samples in the “logs” directory:
 
 ``` python
 from inspect_ai.analysis import samples_df

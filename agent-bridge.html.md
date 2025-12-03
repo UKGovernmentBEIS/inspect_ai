@@ -185,6 +185,73 @@ CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/co
 examples provide more in-depth demonstrations of running custom agents
 in sandboxes.
 
+## Bridged Tools
+
+> [!NOTE]
+>
+> The bridged tools feature described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Host-side Inspect tools can be exposed as MCP tools to sandboxed agents
+using the `bridged_tools` parameter. This is useful when you have
+Inspect tools that need to run on the host (e.g. tools that access host
+resources, databases, or APIs) but want them available to agents running
+in a sandbox.
+
+To bridge tools, wrap them in a `BridgedToolsSpec` and pass to
+`sandbox_agent_bridge()`:
+
+``` python
+from inspect_ai.tool import tool
+from inspect_ai.agent import (
+    Agent, AgentState, agent, sandbox_agent_bridge, BridgedToolsSpec
+)
+from inspect_ai.util import sandbox
+
+@tool
+def search_database():
+    async def execute(query: str) -> str:
+        """Search the internal database.
+
+        Args:
+            query: The search query.
+        """
+        # Runs on the host, not the sandbox
+        return f"Results for: {query}"
+    return execute
+
+@agent
+def my_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with sandbox_agent_bridge(
+            state,
+            bridged_tools=[
+                BridgedToolsSpec(
+                    name="host_tools",
+                    tools=[search_database()]
+                )
+            ]
+        ) as bridge:
+            # bridge.mcp_server_configs contains resolved MCPServerConfigStdio
+            # objects that can be passed to CLI agents
+            return bridge.state
+
+    return execute
+```
+
+The bridge handles:
+
+- Starting a host-side service that executes the Inspect tools
+- Writing an MCP server script to the sandbox that forwards tool calls
+  to the host
+- Returning `MCPServerConfigStdio` configs that CLI agents can use to
+  connect
+
 ## Models
 
 As demonstrated above, communication with Inspect models is done by

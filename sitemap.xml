@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.aisi.org.uk/dataframe.html</loc>
-    <lastmod>2025-11-23T12:35:15.056Z</lastmod>
+    <lastmod>2025-12-03T00:58:24.702Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.util.html</loc>
@@ -14,7 +14,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.agent.html</loc>
-    <lastmod>2025-10-22T23:18:40.710Z</lastmod>
+    <lastmod>2025-12-03T14:40:57.220Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.event.html</loc>
@@ -114,7 +114,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/CHANGELOG.html</loc>
-    <lastmod>2025-12-02T16:11:46.354Z</lastmod>
+    <lastmod>2025-12-03T14:37:47.656Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/tools.html</loc>
@@ -162,7 +162,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/agent-bridge.html</loc>
-    <lastmod>2025-10-22T23:18:40.690Z</lastmod>
+    <lastmod>2025-12-03T14:38:20.059Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/human-agent.html</loc>

@@ -315,9 +315,13 @@ ul.task-list li input[type="checkbox"] {
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan">Update Plan</a> tool for tracking steps and progress across longer horizon tasks.</li>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution">Code Execution</a> tool for executing Python code in a stateless sandbox running on model provider servers.</li>
 <li>Anthropic: Include native <code>web_fetch</code> tool as part of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> implementation (matching capability of other providers that have native web search).</li>
+<li>Grok: Support for server-side MCP tool calling.</li>
 <li>VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg <code>retry_delay</code>).</li>
+<li>MCP Tools Bridge: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridgedtoolsspec">BridgedToolsSpec</a></span> and <code>bridged_tools</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> for exposing host-side Inspect tools to sandboxed agents via MCP protocol.</li>
+<li>Analysis: Support passing <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> objects directly to dataframe functions (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messages_df">messages_df()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#events_df">events_df()</a></span>).</li>
 <li>Dependencies: Update to <code>mcp</code> package version 1.23.0.</li>
 <li>Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.</li>
+<li>Bugfix: Ensure that entry points are not scanned repeatedly when there are no targets.</li>
 </ul>
 </section>
 <section id="november-2025" class="level2">
