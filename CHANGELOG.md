@@ -8,6 +8,7 @@
 - VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg `retry_delay`).
 - Dependencies: Update to `mcp` package version 1.23.0.
 - Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.
+- Bugfix: Ensure that entry points are not scanned repeatedly when there are no targets.
 
 ## 0.3.151 (30 November 2025)
 

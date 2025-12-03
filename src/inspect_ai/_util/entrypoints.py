@@ -6,6 +6,7 @@ logger = getLogger(__name__)
 
 def ensure_entry_points(package: str | None = None) -> None:
     # have we already loaded all entry points?
+
     global _inspect_ai_eps_loaded_all
     if _inspect_ai_eps_loaded_all:
         return None
@@ -39,6 +40,12 @@ def ensure_entry_points(package: str | None = None) -> None:
         _inspect_ai_eps_loaded.append(package)
     elif len(eps) == 0:
         _inspect_ai_eps_loaded_all = True
+
+
+def clear_entry_points_state() -> None:
+    global _inspect_ai_eps_loaded_all
+    _inspect_ai_eps_loaded_all = False
+    _inspect_ai_eps_loaded.clear()
 
 
 # inspect extension entry points

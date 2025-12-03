@@ -15,6 +15,7 @@ import pytest
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util.entrypoints import clear_entry_points_state
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
@@ -380,6 +381,7 @@ def identity_solver(arg: int = 0):
 
 def ensure_test_package_installed():
     try:
+        clear_entry_points_state()
         import inspect_package  # type: ignore # noqa: F401
     except ImportError:
         subprocess.check_call(
