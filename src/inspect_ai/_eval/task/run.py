@@ -648,6 +648,12 @@ async def task_run_sample(
         else contextlib.nullcontext()
     )
 
+    # establish OpenTelemetry trace context for this sample
+    # (all spans within this sample will share the same trace_id)
+    from inspect_ai.telemetry import otel_trace_context
+
+    otel_trace_cm = otel_trace_context(f"sample-{sample_id}")
+
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
         # helper to log sample error
@@ -671,6 +677,7 @@ async def task_run_sample(
 
     # solver loop
     async with (
+        otel_trace_cm,
         semaphore_cm,
         active_sample(
             task=task_name,
