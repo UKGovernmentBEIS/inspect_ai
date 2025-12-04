@@ -179,6 +179,7 @@ def test_normalize_config_disable_all_providers() -> None:
             "anthropic": False,
             "google": False,
             "grok": False,
+            "mistral": False,
             "python": False,
         }
     )
