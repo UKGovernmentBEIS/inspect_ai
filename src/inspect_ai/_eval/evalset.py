@@ -20,8 +20,14 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
 from inspect_ai._util._async import run_coroutine
+from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import basename, file, filesystem
+from inspect_ai._util.file import (
+    FileSystem,
+    basename,
+    file,
+    filesystem,
+)
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
@@ -907,7 +913,7 @@ def write_eval_set_info(
 ) -> None:
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.info(log_dir).name
+    log_dir = _resolve_log_dir(fs, log_dir)
 
     # get info
     eval_set_info = to_eval_set(eval_set_id, tasks, all_logs, config, eval_set_solver)
@@ -922,15 +928,37 @@ def write_eval_set_info(
 def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet | None:
     # resolve log dir to full path
     fs = filesystem(log_dir)
-    log_dir = fs.info(log_dir).name
+    log_dir = _resolve_log_dir(fs, log_dir)
 
     # form target path and read
     manifest = f"{log_dir}{fs.sep}eval-set.json"
-    if not fs.exists(manifest):
+    try:
+        exists = fs.exists(manifest)
+    except Exception as ex:
+        if is_azure_auth_error(ex):
+            exists = False
+        else:
+            raise
+
+    if not exists:
         return None
 
-    with file(manifest, mode="rb", fs_options=fs_options) as f:
-        eval_set_json = f.read()
+    try:
+        with file(manifest, mode="rb", fs_options=fs_options) as f:
+            eval_set_json = f.read()
+    except Exception as ex:
+        if is_azure_auth_error(ex):
+            return None
+        raise
 
     # parse and return
     return EvalSet.model_validate_json(eval_set_json)
+
+
+def _resolve_log_dir(fs: FileSystem, log_dir: str) -> str:
+    try:
+        return fs.info(log_dir).name
+    except Exception as ex:
+        if is_azure_auth_error(ex):
+            return log_dir
+        raise
