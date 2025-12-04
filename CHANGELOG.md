@@ -1,7 +1,47 @@
 ## Unreleased
 
+- [Update Plan](https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan) tool for tracking steps and progress across longer horizon tasks.
+- [Code Execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
+- Anthropic: Include native `web_fetch` tool as part of `web_search()` implementation (matching capability of other providers that have native web search).
+- Mistral: Use the new Conversation API by default (disable with `-M conversation_api=False`).
+- Mistral: Added support for native web_search and code_execution tools (executed server side).
+- Mistral: Added support for document input.
+- Grok: Support for server-side MCP tool calling.
+- VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg `retry_delay`).
+- Model API: Assign new message ID when combining messages for replay to providers.
+- MCP Tools Bridge: Added `BridgedToolsSpec` and `bridged_tools` parameter to `sandbox_agent_bridge()` for exposing host-side Inspect tools to sandboxed agents via MCP protocol.
+- Analysis: Support passing `EvalLog` objects directly to dataframe functions (`samples_df()`, `evals_df()`, `messages_df()`, `events_df()`).
+- Dependencies: Update to `mcp` package version 1.23.0.
+- Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.
+- Bugfix: Ensure that entry points are not scanned repeatedly when there are no targets.
+
+## 0.3.151 (30 November 2025)
+
+- Memory tool: Added [memory()](https://inspect.aisi.org.uk/tools-standard.html#sec-memory) tool and bound it to native definitions for providers that support it (currently only Anthropic).
+- Grok: Correctly reconstruct assistant tool calls when replaying messages to API.
+- Grok: Round trip encrypted reasoning (made available in v1.4.0 of `xai_sdk`, which is now required).
+- Anthropic: Protect against signature not being replayed (can occur for agent bridge) by saving a side list of signatures.
+- Sandboxes: For "local" and "docker" sandbox providers, treat `output_limit` as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).
+- Sandboxes: Added `evals_in_eval` example for running Inspect evaluations inside other evaluations.
+- Model API: Enable model providers to have custom retry wait strategies (use 5 second fixed wait for vllm).
+- Prevent querying of local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+- Dependencies: Change jsonpath-ng requirement to >=1.6.0 (formerly required >= 1.7.0).
+- Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
+- Inspect View: Improve markdown rendering performance.
+- Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.
+- Inspect View: Add support for copying sample messages (as text).
+- Inspect View: Improved JSON parsing performance & scalability.
+- Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
+- Bugfix: Correctly handle more complex list operations when detecting changes in state and store.
+
+## 0.3.150 (25 November 2025)
+
+- Anthropic: Enable [interleaved-thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking) by default for Claude 4 models.
+- Anthropic: Smarter `max_tokens` handling to prevent exceeding model max tokens when reasoning tokens are specified. 
 - OpenAI: Limit reasoning summary capability probe to 1 request.
+- Google: Attach thought signature to first function call, even if a message also has text.
 - Grok: Correctly handle web_search tool intermixed with other tool types.
+- OpenRouter: Pass reasoning_effort = "none" through to models rather enabled=False.
 - Model API: Conversion functions for translating raw model input and output into Inspect types.
 - Hooks: Ensure that on_sample_start and on_sample_end are called on the same coroutine.
 - Registry: Add `RegistryInfo` and `registry_info()` to the public API. 

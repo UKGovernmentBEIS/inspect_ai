@@ -23,11 +23,10 @@ from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
 from inspect_ai.event._event import Event
 from inspect_ai.log._file import (
-    list_eval_logs,
     read_eval_log_sample_summaries,
     read_eval_log_samples,
 )
-from inspect_ai.log._log import EvalSample, EvalSampleSummary
+from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.model._chat_message import ChatMessage
 
 from ..columns import Column, ColumnError, ColumnType
@@ -58,7 +57,7 @@ SAMPLE_SUFFIX = "_sample"
 
 @overload
 def samples_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = SampleSummary,
     full: bool = False,
     strict: Literal[True] = True,
@@ -69,7 +68,7 @@ def samples_df(
 
 @overload
 def samples_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = SampleSummary,
     full: bool = False,
     strict: Literal[False] = False,
@@ -79,7 +78,7 @@ def samples_df(
 
 
 def samples_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = SampleSummary,
     full: bool = False,
     strict: bool = True,
@@ -89,7 +88,7 @@ def samples_df(
     """Read a dataframe containing samples from a set of evals.
 
     Args:
-       logs: One or more paths to log files or log directories.
+       logs: One or more paths to log files, log directories, or EvalLog objects.
           Defaults to the contents of the currently active log directory
           (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
@@ -114,8 +113,10 @@ def samples_df(
     verify_prerequisites()
 
     quiet = quiet if quiet is not None else running_in_notebook()
+    logs = resolve_logs(logs)
+
     return _read_samples_df(
-        logs or list_eval_logs(),
+        logs,
         columns,
         full=full,
         strict=strict,
@@ -139,7 +140,7 @@ class EventsDetail:
 
 
 def _read_samples_df(
-    logs: LogPaths,
+    logs: list[str] | list[EvalLog],
     columns: Sequence[Column],
     *,
     full: bool = False,
@@ -150,42 +151,41 @@ def _read_samples_df(
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     import pandas as pd
 
-    # resolve logs
-    logs = resolve_logs(logs)
+    # Parallel only makes sense for path-based reads
+    is_paths = len(logs) == 0 or isinstance(logs[0], str)
 
-    if parallel:
+    if parallel and is_paths:
         # resolve number of workers (cap at 8 as eventually we run into disk/memory contention)
         if parallel is True:
             parallel = max(min(mp.cpu_count(), 8), 2)
 
-        # flatted out list of logs
-        logs = resolve_logs(logs)
+        log_paths = cast(list[str], logs)
 
         # establish progress
         entity = detail.name if detail else "sample"
         progress_cm = (
-            import_progress(f"reading {entity}s", total=len(logs))
+            import_progress(f"reading {entity}s", total=len(log_paths))
             if progress
             else no_progress()
         )
 
         # run the parallel reads (setup arrays for holding results in order)
-        df_results: list[pd.DataFrame | None] = [None] * len(logs)
-        error_results: list[list[ColumnError] | None] = [None] * len(logs)
+        df_results: list[pd.DataFrame | None] = [None] * len(log_paths)
+        error_results: list[list[ColumnError] | None] = [None] * len(log_paths)
         executor = ProcessPoolExecutor(max_workers=parallel)
         try:
             with progress_cm as p:
                 futures = {
                     executor.submit(
                         _read_samples_df_serial,  # type: ignore[arg-type]
-                        logs=[log],
+                        logs=[log_path],
                         columns=columns,
                         full=full,
                         strict=strict,
                         detail=detail,
                         progress=False,
                     ): idx
-                    for idx, log in enumerate(logs)
+                    for idx, log_path in enumerate(log_paths)
                 }
                 for fut in as_completed(futures):
                     idx = futures[fut]
@@ -226,7 +226,7 @@ def _read_samples_df(
         else:
             return df, errors
 
-    # non-parallel
+    # non-parallel (or EvalLog objects which don't benefit from parallel)
     else:
         return _read_samples_df_serial(
             logs=logs,
@@ -239,7 +239,7 @@ def _read_samples_df(
 
 
 def _read_samples_df_serial(
-    logs: list[str],
+    logs: list[str] | list[EvalLog],
     columns: Sequence[Column],
     *,
     full: bool = False,
@@ -267,7 +267,7 @@ def _read_samples_df_serial(
             raise ValueError(
                 f"Unexpected column type passed to samples_df: {type(column)}"
             )
-    # resolve duplciates
+    # resolve duplicates
     columns_eval = resolve_duplicate_columns(columns_eval)
     columns_sample = resolve_duplicate_columns(columns_sample)
     columns_detail = resolve_duplicate_columns(columns_detail)
@@ -279,6 +279,9 @@ def _read_samples_df_serial(
 
     # make sure eval_id is present
     columns_eval = list(ensure_eval_data(columns_eval))
+
+    # determine if we have paths or EvalLog objects
+    is_eval_logs = len(logs) > 0 and isinstance(logs[0], EvalLog)
 
     # establish progress
     progress_cm = (
@@ -303,21 +306,27 @@ def _read_samples_df_serial(
 
         # read samples
         for eval_id, eval_log in zip(evals_table[EVAL_ID].to_list(), eval_logs):
-            # get a generator for the samples (might require reading the full log
-            # or might be fine to just read the summaries)
-            if require_full_samples:
+            # get samples (in-memory if available, else full log or summaries from disk)
+            if (
+                is_eval_logs
+                and eval_log.samples is not None
+                and len(eval_log.samples) > 0
+            ):
                 samples: Generator[EvalSample | EvalSampleSummary, None, None] = (
-                    read_eval_log_samples(
-                        eval_log.location,
-                        all_samples_required=False,
-                        resolve_attachments=True,
-                    )
+                    sample for sample in eval_log.samples
+                )
+            elif require_full_samples:
+                samples = read_eval_log_samples(
+                    eval_log.location,
+                    all_samples_required=False,
+                    resolve_attachments=True,
                 )
             else:
                 samples = (
                     summary
                     for summary in read_eval_log_sample_summaries(eval_log.location)
                 )
+
             for sample in samples:
                 if strict:
                     record = import_record(

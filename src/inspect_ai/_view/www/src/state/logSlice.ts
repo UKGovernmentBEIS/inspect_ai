@@ -214,7 +214,7 @@ export const createLogSlice = (
               // Still fetch fresh data in background to update cache
               api.get_log_details(logAbsPath).then((logDetails) => {
                 state.logActions.setSelectedLogDetails(logDetails);
-                dbService.writeLogDetails(logAbsPath, logDetails).catch(() => {
+                dbService.writeLogDetail(logAbsPath, logDetails).catch(() => {
                   // Silently ignore cache errors
                 });
               });
@@ -240,7 +240,7 @@ export const createLogSlice = (
           // OPTIONAL: Cache log info (completely non-blocking)
           if (dbService) {
             setTimeout(() => {
-              dbService.writeLogDetails(logFileName, logDetails).catch(() => {
+              dbService.writeLogDetail(logFileName, logDetails).catch(() => {
                 // Silently ignore cache errors
               });
             }, 0);

@@ -7,7 +7,7 @@ import os
 import time
 from contextvars import ContextVar
 from copy import copy, deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from types import TracebackType
 from typing import (
     Any,
@@ -29,6 +29,7 @@ from tenacity import (
     RetryCallState,
     retry,
 )
+from tenacity.wait import WaitBaseT
 
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
@@ -264,6 +265,9 @@ class ModelAPI(abc.ABC):
         """
         return False
 
+    def retry_wait(self) -> WaitBaseT | None:
+        return None
+
     def is_auth_failure(self, ex: Exception) -> bool:
         """Check if this exception indicates an authentication failure.
 
@@ -486,7 +490,7 @@ class Model:
             input = [ChatMessageSystem(content=config.system_message)] + input
 
         # enforce concurrency limits
-        start_time = datetime.now()
+        start_time = datetime.now(timezone.utc)
         working_start = sample_working_time()
         async with self._connection_concurrency(config):
             # generate
@@ -508,7 +512,7 @@ class Model:
             assert isinstance(event, ModelEvent)
             event.timestamp = start_time
             event.working_start = working_start
-            completed = datetime.now()
+            completed = datetime.now(timezone.utc)
             event.completed = completed
             event.working_time = (
                 output.time
@@ -670,6 +674,7 @@ class Model:
                 self.should_retry,
                 self.before_retry,
                 log_model_retry,
+                self.api.retry_wait(),
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
@@ -1539,13 +1544,13 @@ def combine_messages(
     # default values rather than dropped.
 
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(id=a.id, content=f"{a.content}\n{b.content}")
+        return message_type(content=f"{a.content}\n{b.content}")
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(id=a.id, content=a.content + b.content)
+        return message_type(content=a.content + b.content)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(id=a.id, content=[ContentText(text=a.content), *b.content])
+        return message_type(content=[ContentText(text=a.content), *b.content])
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(id=a.id, content=a.content + [ContentText(text=b.content)])
+        return message_type(content=a.content + [ContentText(text=b.content)])
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"

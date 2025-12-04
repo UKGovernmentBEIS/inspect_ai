@@ -169,6 +169,7 @@ def test_google_structured_output():
     check_nested_pydantic_output("google/gemini-2.0-flash")
 
 
+@pytest.mark.flaky
 @skip_if_no_mistral
 def test_mistral_structured_output():
     check_color_structured_output("mistral/mistral-large-latest")

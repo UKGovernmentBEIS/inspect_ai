@@ -110,7 +110,7 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const toggleCollapse = useCallback(() => {
     setCollapsed(!collapsed);
-  }, [setCollapsed, collapsed, childIds]);
+  }, [setCollapsed, collapsed]);
 
   const [mouseOver, setMouseOver] = useState(false);
 
@@ -224,6 +224,9 @@ export const EventPanel: FC<EventPanelProps> = ({
         {filteredArrChildren?.map((child, index) => {
           const id = pillId(index);
           const isSelected = id === selectedNav;
+          if (!isSelected) {
+            return null;
+          }
 
           return (
             <div

@@ -1255,7 +1255,8 @@
         "tool_type": {
           "enum": [
             "web_search",
-            "mcp_call"
+            "mcp_call",
+            "code_execution"
           ],
           "title": "Tool Type",
           "type": "string"
@@ -3320,12 +3321,28 @@
       "description": "Timing and usage statistics.",
       "properties": {
         "started_at": {
-          "title": "Started At",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "const": "",
+              "type": "string"
+            }
+          ],
+          "title": "Started At"
         },
         "completed_at": {
-          "title": "Completed At",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "const": "",
+              "type": "string"
+            }
+          ],
+          "title": "Completed At"
         },
         "model_usage": {
           "additionalProperties": {

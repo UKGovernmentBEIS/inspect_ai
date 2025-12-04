@@ -33,7 +33,6 @@ export const useSamplesTabConfig = (
 ) => {
   const totalSampleCount = useTotalSampleCount();
   const samplesDescriptor = useSampleDescriptor();
-  const sampleSummaries = useFilteredSamples();
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
 
   return useMemo(() => {
@@ -49,7 +48,7 @@ export const useSamplesTabConfig = (
         !samplesDescriptor
           ? undefined
           : totalSampleCount === 1
-            ? [<ScoreFilterTools />]
+            ? [<ScoreFilterTools key="sample-score-tool" />]
             : [
                 <SampleTools key="sample-tools" />,
                 evalStatus === "started" && !streamSamples && (
@@ -65,8 +64,8 @@ export const useSamplesTabConfig = (
   }, [
     evalStatus,
     refreshLog,
-    sampleSummaries,
     samplesDescriptor,
+    streamSamples,
     totalSampleCount,
   ]);
 };
@@ -98,7 +97,11 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
       (limitCount || selectedLogDetails?.eval.dataset.samples || 0) *
       (selectedLogDetails?.eval.config.epochs || 0)
     );
-  }, [selectedLogDetails?.eval.config.limit]);
+  }, [
+    selectedLogDetails?.eval.config.epochs,
+    selectedLogDetails?.eval.config.limit,
+    selectedLogDetails?.eval.dataset.samples,
+  ]);
 
   const totalSampleCount = useTotalSampleCount();
 
@@ -107,6 +110,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const groupByOrder = useGroupByOrder();
   const selectedScores = useSelectedScores();
   const selectSample = useStore((state) => state.logActions.selectSample);
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
   const sampleListHandle = useRef<VirtuosoHandle | null>(null);
 
@@ -214,7 +218,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     return (
       <Fragment>
         {samplesDescriptor && totalSampleCount === 1 ? (
-          <InlineSampleDisplay />
+          <InlineSampleDisplay showActivity={sampleStatus === "loading"} />
         ) : undefined}
         {samplesDescriptor && totalSampleCount > 1 ? (
           <SampleList

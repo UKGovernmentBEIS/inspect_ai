@@ -22,7 +22,7 @@ export const useModelsTab = (
         evalStatus,
       },
     };
-  }, [evalSpec, evalStats]);
+  }, [evalSpec, evalStats, evalStatus]);
 };
 
 interface ModelTabProps {

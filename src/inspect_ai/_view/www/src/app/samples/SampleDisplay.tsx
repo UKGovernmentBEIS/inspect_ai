@@ -5,6 +5,7 @@ import { isVscode } from "../../utils/vscode";
 
 import { ANSIDisplay } from "../../components/AnsiDisplay";
 import { ToolButton } from "../../components/ToolButton";
+import { ToolDropdownButton } from "../../components/ToolDropdownButton";
 import { ApplicationIcons } from "../appearance/icons";
 
 import clsx from "clsx";
@@ -45,6 +46,7 @@ import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/sampleNavigation";
 import { useLogOrSampleRouteParams, useSampleUrlBuilder } from "../routing/url";
+import { messagesToStr } from "../shared/messages";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
@@ -75,7 +77,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const sampleData = useSampleData();
   const sample = useMemo(() => {
     return sampleData.getSelectedSample();
-  }, [sampleData.selectedSampleIdentifier, sampleData.getSelectedSample]);
+  }, [sampleData]);
 
   const runningSampleData = sampleData.running;
 
@@ -106,7 +108,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       return height;
     }
     return -1;
-  }, [tabsRef.current]);
+  }, []);
 
   const selectedSampleSummary = useSelectedSampleSummary();
 
@@ -137,7 +139,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         scrollRef.current?.focus();
       }
     }, 10);
-  }, []);
+  }, [focusOnLoad, scrollRef]);
 
   // Tab selection
   const sampleUrlBuilder = useSampleUrlBuilder();
@@ -153,7 +155,15 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         navigate(url);
       }
     },
-    [sampleTabId, urlLogPath, urlSampleId, urlEpoch, navigate, setSelectedTab],
+    [
+      setSelectedTab,
+      sampleTabId,
+      urlLogPath,
+      sampleUrlBuilder,
+      urlSampleId,
+      urlEpoch,
+      navigate,
+    ],
   );
 
   const sampleMetadatas = metadataViewsForSample(
@@ -178,7 +188,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   const handlePrintClick = useCallback(() => {
     printSample(id, targetId);
-  }, [printSample, id, targetId]);
+  }, [id, targetId]);
 
   const toggleFilter = useCallback(() => {
     setShowing(!isShowing);
@@ -207,18 +217,29 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const [icon, setIcon] = useState(ApplicationIcons.copy);
 
   tools.push(
-    <ToolButton
-      key="sample-copy-uuid"
-      label="Copy UUID"
+    <ToolDropdownButton
+      key="sample-copy"
+      label="Copy"
       icon={icon}
-      onClick={() => {
-        if (sample?.uuid) {
-          navigator.clipboard.writeText(sample.uuid);
-          setIcon(ApplicationIcons.confirm);
-          setTimeout(() => {
-            setIcon(ApplicationIcons.copy);
-          }, 1250);
-        }
+      items={{
+        UUID: () => {
+          if (sample?.uuid) {
+            navigator.clipboard.writeText(sample.uuid);
+            setIcon(ApplicationIcons.confirm);
+            setTimeout(() => {
+              setIcon(ApplicationIcons.copy);
+            }, 1250);
+          }
+        },
+        Transcript: () => {
+          if (sample?.messages) {
+            navigator.clipboard.writeText(messagesToStr(sample.messages));
+            setIcon(ApplicationIcons.confirm);
+            setTimeout(() => {
+              setIcon(ApplicationIcons.copy);
+            }, 1250);
+          }
+        },
       }}
     />,
   );

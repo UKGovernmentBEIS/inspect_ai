@@ -7,6 +7,7 @@ import { LogPager } from "./LogPager";
 interface LogListFooterProps {
   id: string;
   itemCount: number;
+  itemCountLabel?: string;
   paginated: boolean;
   filteredCount?: number;
   pagesize?: number;
@@ -17,6 +18,7 @@ interface LogListFooterProps {
 export const LogListFooter: FC<LogListFooterProps> = ({
   id,
   itemCount,
+  itemCountLabel,
   paginated,
   pagesize,
   filteredCount,
@@ -53,7 +55,9 @@ export const LogListFooter: FC<LogListFooterProps> = ({
               {progressText}...
             </div>
           </div>
-        ) : undefined}
+        ) : itemCountLabel ? (
+          `${itemCount.toLocaleString()} ${itemCountLabel}`
+        ) : null}
       </div>
       <div className={clsx(styles.center)}>
         {paginated && <LogPager itemCount={effectiveItemCount} />}

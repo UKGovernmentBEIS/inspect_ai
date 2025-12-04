@@ -1,10 +1,11 @@
 import clsx from "clsx";
-import { FC, RefObject, useCallback, useMemo } from "react";
+import { FC, RefObject, useCallback, useEffect, useMemo } from "react";
 import { RenderedEventNode } from "./TranscriptVirtualList";
 import { EventNode } from "./types";
 
 import { VirtuosoHandle } from "react-virtuoso";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
+import { useStore } from "../../../state/store";
 import styles from "./TranscriptVirtualListComponent.module.css";
 
 interface TranscriptVirtualListComponentProps {
@@ -33,6 +34,12 @@ export const TranscriptVirtualListComponent: FC<
   offsetTop,
   className,
 }) => {
+  const useVirtualization = running || eventNodes.length > 100;
+  const setNativeFind = useStore((state) => state.appActions.setNativeFind);
+  useEffect(() => {
+    setNativeFind(!useVirtualization);
+  }, [setNativeFind, useVirtualization]);
+
   const initialEventIndex = useMemo(() => {
     if (initialEventId === null || initialEventId === undefined) {
       return undefined;
@@ -123,17 +130,28 @@ export const TranscriptVirtualListComponent: FC<
     ],
   );
 
-  return (
-    <LiveVirtualList<EventNode>
-      listHandle={listHandle}
-      className={className}
-      id={id}
-      scrollRef={scrollRef}
-      data={eventNodes}
-      initialTopMostItemIndex={initialEventIndex}
-      offsetTop={offsetTop}
-      renderRow={renderRow}
-      live={running}
-    />
-  );
+  if (useVirtualization) {
+    return (
+      <LiveVirtualList<EventNode>
+        listHandle={listHandle}
+        className={className}
+        id={id}
+        scrollRef={scrollRef}
+        data={eventNodes}
+        initialTopMostItemIndex={initialEventIndex}
+        offsetTop={offsetTop}
+        renderRow={renderRow}
+        live={running}
+      />
+    );
+  } else {
+    return (
+      <div>
+        {eventNodes.map((node, index) => {
+          const row = renderRow(index, node);
+          return row;
+        })}
+      </div>
+    );
+  }
 };

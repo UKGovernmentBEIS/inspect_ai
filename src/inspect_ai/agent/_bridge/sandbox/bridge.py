@@ -1,4 +1,5 @@
 import contextlib
+from collections.abc import Sequence
 from logging import getLogger
 from typing import AsyncIterator
 
@@ -6,10 +7,12 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai.model._model import GenerateFilter
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec, setup_bridged_tools
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SANDBOX_TOOLS_CLI,
     sandbox_with_injected_tools,
 )
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
@@ -17,7 +20,7 @@ from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._sandbox import SandboxEnvironment
 
 from ..._agent import AgentState
-from ..util import internal_web_search_providers
+from ..util import default_code_execution_providers, internal_web_search_providers
 from .service import MODEL_SERVICE, run_model_service
 from .types import SandboxAgentBridge
 
@@ -34,6 +37,8 @@ async def sandbox_agent_bridge(
     sandbox: str | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
+    code_execution: CodeExecutionProviders | None = None,
+    bridged_tools: Sequence[BridgedToolsSpec] | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -61,6 +66,17 @@ async def sandbox_agent_bridge(
             Anthropic, Gemini, Grok, and Perplxity). Pass an alternate
             configuration to use to use an external provider like
             Tavili or Exa for models that don't support internal search.
+        code_execution: Configuration for mapping model internal
+            code_execution tools to Inspect. By default, will map to the
+            internal provider of the target model (supported for OpenAI,
+            Anthropic, Google, and Grok). If the provider does not support
+            native code execution then the bash() tool will be provided
+            (note that this requires a sandbox by declared for the task).
+        bridged_tools: Host-side Inspect tools to expose to the sandboxed agent
+            via MCP protocol. Each BridgedToolsSpec creates an MCP server that
+            makes the specified tools available to the agent. The resolved
+            MCPServerConfigStdio objects to pass to CLI agents are available via
+            bridge.mcp_server_configs.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -68,8 +84,9 @@ async def sandbox_agent_bridge(
     # resolve sandbox
     sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
 
-    # resolve web search config
+    # resolve internal services
     web_search = web_search or internal_web_search_providers()
+    code_execution = code_execution or default_code_execution_providers()
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -79,6 +96,19 @@ async def sandbox_agent_bridge(
             # event to signal startup of model service
             started = anyio.Event()
 
+            # set up bridged tools (host tools exposed via MCP)
+            mcp_server_configs = []
+            seen_names: set[str] = set()
+            for spec in bridged_tools or []:
+                if spec.name in seen_names:
+                    raise ValueError(
+                        f"Duplicate bridged_tools name: '{spec.name}'. "
+                        "Each BridgedToolsSpec must have a unique name."
+                    )
+                seen_names.add(spec.name)
+                config = await setup_bridged_tools(sandbox_env, tg, spec)
+                mcp_server_configs.append(config)
+
             # create the bridge
             bridge = SandboxAgentBridge(
                 state=state,
@@ -86,11 +116,18 @@ async def sandbox_agent_bridge(
                 retry_refusals=retry_refusals,
                 port=port,
                 model=model,
+                mcp_server_configs=mcp_server_configs,
             )
 
             # sandbox service that receives model requests
             tg.start_soon(
-                run_model_service, sandbox_env, web_search, bridge, instance, started
+                run_model_service,
+                sandbox_env,
+                web_search,
+                code_execution,
+                bridge,
+                instance,
+                started,
             )
 
             # proxy server that runs in container and forwards to sandbox service

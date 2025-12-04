@@ -7,6 +7,8 @@ import {
   LogContents,
   LogViewAPI,
   PendingSampleResponse,
+  PendingSamples,
+  SampleData,
   SampleDataResponse,
 } from "../types";
 import {
@@ -136,7 +138,7 @@ async function eval_pending_samples(
       };
     }
 
-    const json = await asyncJsonParse(response);
+    const json = await asyncJsonParse<PendingSamples>(response);
     return {
       status: "OK",
       pendingSamples: json,
@@ -170,7 +172,7 @@ async function eval_log_sample_data(
         status: "NotFound",
       };
     }
-    const json = await asyncJsonParse(response);
+    const json = await asyncJsonParse<SampleData>(response);
     return {
       status: "OK",
       sampleData: json,

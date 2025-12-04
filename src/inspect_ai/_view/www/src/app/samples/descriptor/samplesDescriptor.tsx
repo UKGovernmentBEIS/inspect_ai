@@ -3,6 +3,7 @@ import { Value2 } from "../../../@types/log";
 import { ScoreLabel } from "../../../app/types";
 import { BasicSampleData, SampleSummary } from "../../../client/api/types";
 import { arrayToString, inputString } from "../../../utils/format";
+import { errorType } from "../error/error";
 import { getScoreDescriptorForValues } from "./score/ScoreDescriptor";
 import {
   EvalDescriptor,
@@ -298,7 +299,7 @@ export const createSamplesDescriptor = (
           const scoreText = scoreValue
             ? String(scoreValue)
             : current.error
-              ? String(current.error)
+              ? errorType(current.error)
               : "";
 
           const currentSize = Math.max(

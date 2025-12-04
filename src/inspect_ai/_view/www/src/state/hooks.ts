@@ -281,7 +281,7 @@ export const useLogSelection = () => {
       loadedLog: loadedLog,
       sample: selectedSampleSummary,
     };
-  }, [selectedLogFile, selectedSampleSummary]);
+  }, [loadedLog, selectedLogFile, selectedSampleSummary]);
 };
 
 export const useCollapseSampleEvent = (
@@ -298,7 +298,7 @@ export const useCollapseSampleEvent = (
       collapseEvent(scope, id, value);
     };
     return [isCollapsed, set];
-  }, [collapsed, collapseEvent, id]);
+  }, [collapsed, scope, id, collapseEvent]);
 };
 
 export const useCollapsibleIds = (
@@ -317,7 +317,7 @@ export const useCollapsibleIds = (
     (id: string, value: boolean) => {
       setCollapsed(key, id, value);
     },
-    [setCollapsed],
+    [setCollapsed, key],
   );
 
   const clearCollapsedIds = useStore(
@@ -349,7 +349,7 @@ export const useCollapsedState = (
       setCollapsed(stateId, value);
     };
     return [collapsed, set];
-  }, [collapsed, setCollapsed]);
+  }, [collapsed, id, scope, setCollapsed, stateId]);
 };
 
 export const useMessageVisibility = (
@@ -452,7 +452,7 @@ export function useProperty<T>(
         removePropertyValue(id, propertyName);
       }
     };
-  }, [id, propertyName, removePropertyValue]);
+  }, [id, options.cleanup, propertyName, removePropertyValue]);
 
   return [propertyValue, setValue, removeValue];
 }

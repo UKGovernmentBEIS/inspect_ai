@@ -24,6 +24,7 @@ from inspect_ai.model._providers.providers import (
     validate_anthropic_client,
     validate_openai_client,
 )
+from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
@@ -32,6 +33,7 @@ from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
 from .responses import inspect_responses_api_request
 from .util import (
+    default_code_execution_providers,
     internal_web_search_providers,
     resolve_web_search_providers,
 )
@@ -44,6 +46,7 @@ async def agent_bridge(
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
     web_search: WebSearchProviders | None = None,
+    code_execution: CodeExecutionProviders | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -67,12 +70,19 @@ async def agent_bridge(
           Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
           configuration to use to use an external provider like
           Tavili or Exa for models that don't support internal search.
+       code_execution: Configuration for mapping model internal
+          code_execution tools to Inspect. By default, will map to the
+          internal provider of the target model (supported for OpenAI,
+          Anthropic, Google, and Grok). If the provider does not support
+          native code execution then the bash() tool will be provided
+          (note that this requires a sandbox by declared for the task).
     """
     # ensure one time init
     init_bridge_request_patch()
 
     # resolve web search config
     web_search = resolve_web_search_providers(web_search)
+    code_execution = code_execution or default_code_execution_providers()
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -82,7 +92,12 @@ async def agent_bridge(
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(
-        PatchConfig(enabled=True, web_search=web_search, bridge=bridge)
+        PatchConfig(
+            enabled=True,
+            web_search=web_search,
+            code_execution=code_execution,
+            bridge=bridge,
+        )
     )
     try:
         yield bridge
@@ -98,6 +113,9 @@ class PatchConfig:
     enabled: bool = field(default=False)
     web_search: WebSearchProviders = field(
         default_factory=internal_web_search_providers
+    )
+    code_execution: CodeExecutionProviders = field(
+        default_factory=default_code_execution_providers
     )
     bridge: AgentBridge = field(
         default_factory=lambda: AgentBridge(AgentState(messages=[]))
@@ -162,7 +180,10 @@ def init_openai_request_patch() -> None:
                     )
                 else:
                     return await inspect_responses_api_request(
-                        json_data, config.web_search, config.bridge
+                        json_data,
+                        config.web_search,
+                        config.code_execution,
+                        config.bridge,
                     )
 
         # otherwise just delegate
@@ -218,7 +239,7 @@ def init_anthropic_request_patch() -> None:
                     raise_stream_error()
 
                 return await inspect_anthropic_api_request(
-                    json_data, config.web_search, config.bridge
+                    json_data, config.web_search, config.code_execution, config.bridge
                 )
 
         # otherwise just delegate

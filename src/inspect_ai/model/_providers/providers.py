@@ -110,7 +110,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.9.10"
+    MIN_VERSION = "1.9.11"
 
     # verify we have the package
     try:
@@ -131,7 +131,7 @@ def mistral() -> type[ModelAPI]:
 def grok() -> type[ModelAPI]:
     FEATURE = "Grok API"
     PACKAGE = "xai_sdk"
-    MIN_VERSION = "1.3.1"
+    MIN_VERSION = "1.4.0"
 
     # verify we have the package
     try:

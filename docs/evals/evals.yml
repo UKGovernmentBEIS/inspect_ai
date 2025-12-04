@@ -63,6 +63,7 @@
   contributors:
   - samm393
   dependency: mle_bench
+  dependency-group: mle_bench
   description: 'Machine learning tasks drawn from 75 Kaggle competitions.
 
     '
@@ -349,6 +350,60 @@
   tasks:
   - browse_comp
   title: 'BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents'
+- categories:
+  - Assistants
+  contributors:
+  - alex-remedios-aisi
+  description: 'Evaluates LLM function/tool-calling ability on a simplified split
+    of the Berkeley Function-Calling Leaderboard (BFCL).
+
+    '
+  group: Assistants
+  path: src/inspect_evals/bfcl
+  tasks:
+  - bfcl
+  title: 'BFCL: Berkeley Function-Calling Leaderboard'
+- arxiv: https://arxiv.org/abs/2503.17332
+  categories:
+  - Cybersecurity
+  - Agent
+  contributors:
+  - yuxuan18
+  - aokellermann
+  - dylanbowman314
+  - pli482004
+  - akulguptax
+  - adarshdanda06
+  - rightegg
+  - rightegg
+  - jensen
+  - eihli
+  - JasonBenn
+  - inigo
+  - dhir
+  - SudhitRao
+  - YuVictor123
+  - Cloakless
+  - ddkang
+  - Scott-Simmons
+  dependency: cvebench
+  description: 'Characterises an AI Agent''s capability to exploit real-world web
+    application vulnerabilities. Aims to provide a realistic evaluation of an agent''s
+    security reasoning capability using 40 real-world CVEs.
+
+    '
+  group: Cybersecurity
+  metadata:
+    requires_internet: false
+    sandbox:
+    - solver
+  path: src/inspect_evals/cve_bench
+  tags:
+  - Agent
+  tasks:
+  - cve_bench
+  title: 'CVEBench:  Benchmark for AI Agents Ability to Exploit Real-World Web Application
+    Vulnerabilities'
 - arxiv: https://arxiv.org/abs/2408.08926
   categories:
   - Cybersecurity
@@ -639,6 +694,35 @@
   - wmdp_chem
   - wmdp_cyber
   title: 'WMDP: Measuring and Reducing Malicious Use With Unlearning'
+- arxiv: https://arxiv.org/abs/2503.04804
+  categories:
+  - Safeguards
+  contributors:
+  - nishu-builder
+  - akanepajs
+  description: 'Evaluates how models consider the welfare of animals in situations
+    that may present them harm.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/ahb
+  tasks:
+  - ahb
+  title: 'AHB: Animal Harm Benchmark'
+- arxiv: https://arxiv.org/abs/2407.12043
+  categories:
+  - Safeguards
+  contributors:
+  - ransomr
+  description: 'Dataset with 1001 samples to test noncompliance capabilities of language
+    models. Contrast set of 379 samples.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/coconot
+  tasks:
+  - coconot
+  title: 'The Art of Saying No: Contextual Noncompliance in Language Models'
 - arxiv: https://arxiv.org/abs/2402.10260
   categories:
   - Safeguards
@@ -673,6 +757,19 @@
 - categories:
   - Safeguards
   contributors:
+  - bndxn
+  description: "Tests a model\u2019s ability to generate persuasive or manipulative\
+    \ text, specifically in the setting of a game where one AI system has to get the\
+    \ other party (an AI system simulating a human) to say a specific codeword without\
+    \ arousing suspicion.\n"
+  group: Safeguards
+  path: src/inspect_evals/makemesay
+  tasks:
+  - make-me-say
+  title: MakeMeSay
+- categories:
+  - Safeguards
+  contributors:
   - PranshuSrivastava
   description: 'Evaluates an AI models'' susceptibility to social engineering attacks
     by testing whether a "con-artist" model can persuade a "mark" model to donate
@@ -689,6 +786,7 @@
   - Safeguards
   contributors:
   - jeqcho
+  dependency: abstention_bench
   description: 'Evaluating abstention across 20 diverse datasets, including questions
     with unknown answers, underspecification, false premises, subjective interpretations,
     and outdated information.
@@ -699,6 +797,40 @@
   tasks:
   - abstention_bench
   title: 'AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions'
+- arxiv: https://arxiv.org/abs/2506.14922
+  categories:
+  - Safeguards
+  contributors:
+  - jeqcho
+  description: 'A dataset of 500 expert-crafted adversarial prompts with instance-based
+    rubrics of 4-7 binary questions for automated evaluation across 3 domains relevant
+    to national security and public safety (NSPS).
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/fortress
+  tasks:
+  - fortress_adversarial
+  - fortress_benign
+  title: FORTRESS
+- arxiv: https://arxiv.org/abs/2406.09187
+  categories:
+  - Safeguards
+  - Agent
+  contributors:
+  - PranshuSrivastava
+  description: 'Tests whether an AI system can act as a safety guardrail by generating
+    and executing code to protect web navigation agents from unsafe actions based
+    on user constraints.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/mind2web_sc
+  tags:
+  - Agent
+  tasks:
+  - mind2web_sc
+  title: Mind2Web-SC
 - arxiv: https://arxiv.org/abs/2103.03874
   categories:
   - Mathematics
@@ -767,7 +899,7 @@
   contributors:
   - tamazgadaev
   description: 'A benchmark for evaluating AI''s ability to solve challenging mathematics
-    problems from AIME - a prestigious high school mathematics competition.
+    problems from the 2024 AIME - a prestigious high school mathematics competition.
 
     '
   group: Mathematics
@@ -775,12 +907,25 @@
   tasks:
   - aime2024
   title: 'AIME 2024: Problems from the American Invitational Mathematics Examination'
+- arxiv: https://huggingface.co/datasets/math-ai/aime25
+  categories:
+  - Mathematics
+  contributors:
+  - jannalulu
+  description: 'A benchmark for evaluating AI''s ability to solve challenging mathematics
+    problems from the 2025 AIME - a prestigious high school mathematics competition.
+
+    '
+  group: Mathematics
+  path: src/inspect_evals/aime2025
+  tasks:
+  - aime2025
+  title: 'AIME 2025: Problems from the American Invitational Mathematics Examination'
 - arxiv: https://arxiv.org/abs/1803.05457
   categories:
   - Reasoning
   contributors:
   - jjallaire
-  dependency: math
   description: Dataset of natural, grade-school science multiple-choice questions
     (authored for human tests).
   group: Reasoning
@@ -955,7 +1100,7 @@
   - Reasoning
   contributors:
   - adil-a
-  dependency: ifeval
+  dependency-group: ifeval
   description: 'Evaluates how well language models can strictly follow detailed instructions,
     such as writing responses with specific word counts or including required keywords.
 
@@ -1045,6 +1190,48 @@
   - bbeh
   - bbeh_mini
   title: BIG-Bench Extra Hard
+- arxiv: https://arxiv.org/pdf/2311.15930
+  categories:
+  - Reasoning
+  contributors:
+  - mjbroerman
+  dependency: worldsense
+  description: 'Measures grounded reasoning over synthetic world descriptions while
+    controlling for dataset bias. Includes three problem types (Infer, Compl, Consist)
+    and two grades (trivial, normal).
+
+    '
+  group: Reasoning
+  metadata:
+    requires_internet: true
+  path: src/inspect_evals/worldsense
+  tasks:
+  - worldsense
+  title: 'WorldSense: Grounded Reasoning Benchmark'
+- categories:
+  - Reasoning
+  - Vim
+  - Editing
+  - Game
+  contributors:
+  - james4ever0
+  description: 'A benchmark that evaluates LLMs in their ability to operate Vim editor
+    and complete editing challenges. This benchmark contrasts with common CUA benchmarks
+    by focusing on Vim-specific editing capabilities.
+
+    '
+  group: Reasoning
+  metadata:
+    sandbox:
+    - scorer
+  path: src/inspect_evals/vimgolf_challenges
+  tags:
+  - Vim
+  - Editing
+  - Game
+  tasks:
+  - vimgolf_single_turn
+  title: 'VimGolf: Evaluating LLMs in Vim Editing Proficiency'
 - arxiv: https://arxiv.org/abs/2009.03300
   categories:
   - Knowledge
@@ -1121,6 +1308,28 @@
   tasks:
   - truthfulqa
   title: 'TruthfulQA: Measuring How Models Mimic Human Falsehoods'
+- arxiv: https://huggingface.co/datasets/CraneAILabs/UCCB
+  categories:
+  - Knowledge
+  contributors:
+  - katostevenmubiru
+  description: 'The first comprehensive question-answering dataset designed to evaluate
+    cultural understanding
+
+    and reasoning abilities of Large Language Models concerning Uganda''s multifaceted
+    environment
+
+    across 24 cultural domains including education, traditional medicine, media, economy,
+    literature,
+
+    and social norms.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/uccb
+  tasks:
+  - uccb
+  title: Uganda Cultural and Cognitive Benchmark (UCCB)
 - arxiv: https://arxiv.org/abs/2308.01263
   categories:
   - Knowledge
@@ -1199,6 +1408,7 @@
   contributors:
   - anaoaktree
   dependency: livebench
+  dependency-group: livebench
   description: 'LiveBench is a benchmark designed with test set contamination and
     objective evaluation in mind by releasing new questions regularly, as well as
     having questions based on recently-released datasets. Each question has verifiable,
@@ -1246,11 +1456,12 @@
   tasks:
   - hle
   title: Humanity's Last Exam
-- arxiv: https://arxiv.org/abs/2411.04368
+- arxiv: https://arxiv.org/abs/2411.04368,https://arxiv.org/abs/2509.07968
   categories:
   - Knowledge
   contributors:
   - osc245
+  - jeqcho
   description: 'A benchmark that evaluates the ability of language models to answer
     short, fact-seeking questions.
 
@@ -1259,7 +1470,9 @@
   path: src/inspect_evals/simpleqa
   tasks:
   - simpleqa
-  title: 'SimpleQA: Measuring short-form factuality in large language models'
+  - simpleqa_verified
+  title: 'SimpleQA/SimpleQA Verified: Measuring short-form factuality in large language
+    models'
 - categories:
   - Knowledge
   contributors:
@@ -1476,6 +1689,7 @@
   - Agent
   contributors:
   - ZiyueWang25
+  dependency: stealth
   description: 'Test AI''s ability to reason about and circumvent oversight.
 
     '
@@ -1503,6 +1717,38 @@
   tasks:
   - agentic_misalignment
   title: 'Agentic Misalignment: How LLMs could be insider threats'
+- arxiv: https://arxiv.org/pdf/2403.13793
+  categories:
+  - Scheming
+  - Agent
+  contributors:
+  - XkunW
+  - MariaIzobava
+  - kohankhaki
+  description: "Ten real-world\u2013inspired tasks from Google DeepMind's Dangerous\
+    \ Capabilities Evaluations assessing self-proliferation behaviors (e.g., email\
+    \ setup, model installation, web agent setup, wallet operations). Supports end-to-end,\
+    \ milestones, and expert best-of-N modes.\n"
+  group: Scheming
+  metadata:
+    requires_internet: true
+    sandbox:
+    - solver
+  path: src/inspect_evals/gdm_capabilities/self_proliferation
+  tags:
+  - Agent
+  tasks:
+  - gdm_sp01_e2e
+  - gdm_sp02_e2e
+  - gdm_sp03_e2e
+  - gdm_sp04_e2e
+  - gdm_sp05_e2e
+  - gdm_sp07_e2e
+  - gdm_sp08_e2e
+  - gdm_sp09_e2e
+  - gdm_sp10_e2e
+  - gdm_sp12_e2e
+  title: 'GDM Dangerous Capabilities: Self-proliferation'
 - categories:
   - Personality
   contributors:
@@ -1526,6 +1772,7 @@
   contributors:
   - harshraj172
   - shubhobm
+  dependency: bbq
   description: 'A dataset for evaluating bias in question answering models across
     multiple social dimensions.
 
@@ -1541,6 +1788,7 @@
   contributors:
   - harshraj172
   - shubhobm
+  dependency: bold
   description: 'A dataset to measure fairness in open-ended text generation, covering
     five domains: profession, gender, race, religious ideologies, and political ideologies.
 

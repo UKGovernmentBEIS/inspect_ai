@@ -1,16 +1,17 @@
+import json
 import os
 import time
 from copy import copy
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import grpc
 from google.protobuf.json_format import MessageToDict
 from pydantic import JsonValue
+from typing_extensions import override
 from xai_sdk import AsyncClient  # type: ignore
 from xai_sdk.chat import (  # type: ignore
     Response,
     ToolMode,
-    assistant,
     chat_pb2,
     system,
     tool,
@@ -18,7 +19,12 @@ from xai_sdk.chat import (  # type: ignore
     usage_pb2,
     user,
 )
-from xai_sdk.tools import web_search  # type: ignore
+from xai_sdk.tools import (  # type: ignore
+    code_execution,
+    get_tool_call_type,
+    mcp,
+    web_search,
+)
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
@@ -44,6 +50,8 @@ from inspect_ai.model._model import ModelAPI
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util.util import model_base_url
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
@@ -221,6 +229,10 @@ class GrokAPI(ModelAPI):
         else:
             return False
 
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return False
+
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
         details = ex.details() or ""
         if "prompt length" in details:
@@ -258,6 +270,20 @@ class GrokAPI(ModelAPI):
         web_search_options = self._get_grok_web_search_options(tool_info)
         if web_search_options is not None:
             return web_search(**web_search_options)
+        elif self._is_internal_code_execution_tool(tool_info):
+            return code_execution()
+        elif is_mcp_server_tool(tool_info):
+            mcp_config = MCPServerConfigHTTP.model_validate(tool_info.options)
+            return mcp(
+                server_url=mcp_config.url,
+                server_label=mcp_config.name,
+                server_description=mcp_config.name,
+                allowed_tool_names=mcp_config.tools
+                if isinstance(mcp_config.tools, list)
+                else None,
+                authorization=mcp_config.authorization_token,
+                extra_headers=mcp_config.headers,
+            )
         else:
             return tool(
                 name=tool_info.name,
@@ -307,8 +333,8 @@ class GrokAPI(ModelAPI):
                 case "medium" | "high":
                     gconfig["reasoning_effort"] = "high"
 
-        # NOTE: this will be in an upcoming release (it's on main but not yet released)
-        # gconfig["use_encypted_content"] = True
+        # return encrypted reasoning blocks
+        gconfig["use_encrypted_content"] = True
 
         return gconfig
 
@@ -325,31 +351,36 @@ class GrokAPI(ModelAPI):
     def _completion_choice_from_response(
         self, response: Response, tools: list[ToolInfo]
     ) -> ChatCompletionChoice:
-        # reasoning
+        # reasoning (use encrypted content if available)
         content: list[Content] = []
-        if response.reasoning_content:
-            content.append(ContentReasoning(reasoning=response.reasoning_content))
+        if response.reasoning_content or response.encrypted_content:
+            if response.encrypted_content:
+                content.append(
+                    ContentReasoning(
+                        reasoning=response.encrypted_content,
+                        redacted=True,
+                        summary=response.reasoning_content
+                        if response.reasoning_content
+                        else None,
+                    )
+                )
+            else:
+                content.append(ContentReasoning(reasoning=response.reasoning_content))
 
         # partition tool calls into server and client
         server_tool_calls: list[chat_pb2.ToolCall] = []
         client_tool_calls: list[chat_pb2.ToolCall] = []
         for tool_call in response.tool_calls:
-            if tool_call.function.name == "web_search":
-                tool_info = next(
-                    (tool for tool in tools if tool.name == "web_search"), None
-                )
-                if tool_info and self._is_internal_web_search_tool(tool_info):
-                    server_tool_calls.append(tool_call)
-                else:
-                    client_tool_calls.append(tool_call)
-            else:
+            if get_tool_call_type(tool_call) == "client_side_tool":
                 client_tool_calls.append(tool_call)
+            else:
+                server_tool_calls.append(tool_call)
 
         # render server tool calls
         for tool_call in server_tool_calls:
             content.append(
                 ContentToolUse(
-                    tool_type="web_search",
+                    tool_type=_tool_type_for_server_tool_call(tool_call),
                     id=tool_call.id,
                     name=tool_call.function.name,
                     arguments=tool_call.function.arguments,
@@ -358,14 +389,15 @@ class GrokAPI(ModelAPI):
             )
 
         # content + citations
-        response_content = ContentText(text=response.content)
-        if response.citations:
-            response_content.citations = [
-                UrlCitation(url=url) for url in response.citations
-            ]
-        content.append(response_content)
+        if response.content or response.citations:
+            response_content = ContentText(text=response.content)
+            if response.citations:
+                response_content.citations = [
+                    UrlCitation(url=url) for url in response.citations
+                ]
+            content.append(response_content)
 
-        # tool calls (exclude web search)
+        # tool calls
         tool_calls: list[ToolCall] | None = None
         if client_tool_calls:
             tool_calls = [
@@ -402,6 +434,12 @@ class GrokAPI(ModelAPI):
     def _is_internal_web_search_tool(self, tool: ToolInfo) -> bool:
         return self._get_grok_web_search_options(tool) is not None
 
+    def _is_internal_code_execution_tool(self, tool: ToolInfo) -> bool:
+        if tool.name == "code_execution" and tool.options is not None:
+            return "grok" in tool.options.get("providers", {})
+        else:
+            return False
+
 
 def _tool_call_from_grok_call(
     tool_call: chat_pb2.ToolCall, tools: list[ToolInfo]
@@ -412,6 +450,18 @@ def _tool_call_from_grok_call(
         arguments=tool_call.function.arguments,
         tools=tools,
     )
+
+
+def _tool_type_for_server_tool_call(
+    tool_call: chat_pb2.ToolCall,
+) -> Literal["web_search", "code_execution"]:
+    tool_call_type = get_tool_call_type(tool_call)
+    if tool_call_type == "web_search_tool":
+        return "web_search"
+    elif tool_call_type == "code_execution_tool":
+        return "code_execution"
+    else:
+        raise RuntimeError(f"Unexpcted server tool call type: {tool_call_type}")
 
 
 def _stop_reason_from_finish_reason(finish_reason: str) -> StopReason:
@@ -469,9 +519,65 @@ async def _grok_message(message: ChatMessage) -> chat_pb2.Message:
         case ChatMessageUser():
             return user(*(await _grok_content(message.content)))
         case ChatMessageAssistant():
-            return assistant(*(await _grok_content(message.content)))
+            return await _grok_assistant_message(message)
         case ChatMessageTool():
             return tool_result(message.text)
+
+
+async def _grok_assistant_message(message: ChatMessageAssistant) -> chat_pb2.Message:
+    # assistant content and reasoning
+    content: list[chat_pb2.Content] = []
+    tool_calls: list[chat_pb2.ToolCall] = []
+    reasoning_content: str | None = None
+    encrypted_content: str | None = None
+    if isinstance(message.content, str):
+        content.append(chat_pb2.Content(text=message.content))
+    else:
+        for c in message.content:
+            if isinstance(c, ContentReasoning):
+                if c.redacted:
+                    encrypted_content = c.reasoning
+                else:
+                    reasoning_content = c.reasoning
+            elif isinstance(c, ContentToolUse):
+                tool_calls.append(
+                    chat_pb2.ToolCall(
+                        id=c.id,
+                        type=_grok_tool_call_type(c.tool_type),
+                        function=chat_pb2.FunctionCall(
+                            name=c.name, arguments=c.arguments
+                        ),
+                    )
+                )
+            else:
+                content.append(await _grok_content_item(c))
+
+    # tool calls
+    if message.tool_calls is not None:
+        for tool_call in message.tool_calls:
+            tool_calls.append(
+                chat_pb2.ToolCall(
+                    id=tool_call.id,
+                    type=chat_pb2.ToolCallType.TOOL_CALL_TYPE_CLIENT_SIDE_TOOL,
+                    function=chat_pb2.FunctionCall(
+                        name=tool_call.function,
+                        arguments=json.dumps(tool_call.arguments),
+                    ),
+                )
+            )
+
+    # if content and tool calls are empty then fill with an empty assistant message
+    if len(content) == 0 and len(tool_calls) == 0:
+        content.append(chat_pb2.Content(text=""))
+
+    # return message
+    return chat_pb2.Message(
+        role=chat_pb2.MessageRole.ROLE_ASSISTANT,
+        content=content,
+        reasoning_content=reasoning_content,
+        encrypted_content=encrypted_content,
+        tool_calls=tool_calls if len(tool_calls) > 0 else None,
+    )
 
 
 async def _grok_content(content: str | list[Content]) -> list[str | chat_pb2.Content]:
@@ -507,6 +613,18 @@ async def _grok_content_item(content: Content) -> chat_pb2.Content:
         return chat_pb2.Content(text=f"{content.name}: {content.arguments}")
     else:
         raise ValueError(f"Unexpected content type for grok api: {type(content)}")
+
+
+def _grok_tool_call_type(
+    tool_type: Literal["web_search", "mcp_call", "code_execution"],
+) -> chat_pb2.ToolCallType:
+    match tool_type:
+        case "web_search":
+            return chat_pb2.ToolCallType.TOOL_CALL_TYPE_WEB_SEARCH_TOOL
+        case "mcp_call":
+            return chat_pb2.ToolCallType.TOOL_CALL_TYPE_MCP_TOOL
+        case "code_execution":
+            return chat_pb2.ToolCallType.TOOL_CALL_TYPE_CODE_EXECUTION_TOOL
 
 
 def _grok_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
