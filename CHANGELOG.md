@@ -4,6 +4,7 @@
 - [Code Execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
 - Anthropic: Support for new [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) setting (`--effort`) for trading off between response thoroughness and token efficiency. 
 - Anthropic: Include native `web_fetch` tool as part of `web_search()` implementation (matching capability of other providers that have native web search).
+- Anthropic: Use required `caller` field for server tool uses (required by package version 0.75, which is now the minimum version).
 - OpenAI: Check for mismatches between specified model and Azure deployment URL.
 - Mistral: Use the new Conversation API by default (disable with `-M conversation_api=False`).
 - Mistral: Added support for native web_search and code_execution tools (executed server side).
