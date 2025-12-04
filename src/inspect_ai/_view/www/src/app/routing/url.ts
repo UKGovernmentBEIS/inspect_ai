@@ -394,7 +394,15 @@ export const useSampleMessageUrl = (
           sampleEpoch || urlEpoch,
         )
       : undefined;
-  }, [targetLogPath, messageId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+  }, [
+    messageId,
+    targetLogPath,
+    builder,
+    sampleId,
+    urlSampleId,
+    sampleEpoch,
+    urlEpoch,
+  ]);
   return messageUrl;
 };
 
@@ -428,7 +436,15 @@ export const useSampleEventUrl = (
           sampleEpoch || urlEpoch,
         )
       : undefined;
-  }, [targetLogPath, eventId, sampleId, urlSampleId, sampleEpoch, urlEpoch]);
+  }, [
+    targetLogPath,
+    builder,
+    eventId,
+    sampleId,
+    urlSampleId,
+    sampleEpoch,
+    urlEpoch,
+  ]);
   return eventUrl;
 };
 

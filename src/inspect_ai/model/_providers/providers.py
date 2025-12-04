@@ -110,7 +110,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.9.10"
+    MIN_VERSION = "1.9.11"
 
     # verify we have the package
     try:

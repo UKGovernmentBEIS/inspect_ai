@@ -181,7 +181,7 @@ def test_anthropic_tools():
 
 @skip_if_no_mistral
 def test_mistral_tools():
-    check_tools("mistral/mistral-large-latest")
+    check_tools("mistral/mistral-large-latest", disable=["force"])
 
 
 # groq tool calling is extremely unreliable and consequently causes

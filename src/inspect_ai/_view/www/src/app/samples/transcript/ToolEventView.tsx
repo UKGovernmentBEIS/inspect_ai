@@ -50,7 +50,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
       approvalNode: approvalNode as EventNode<ApprovalEvent> | undefined,
       lastModelNode: lastModelNode as EventNode<ModelEvent> | undefined,
     };
-  }, [event.events]);
+  }, [children]);
 
   const title = `Tool: ${event.view?.title || event.function}`;
   return (

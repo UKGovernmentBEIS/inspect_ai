@@ -83,7 +83,13 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
       setCollapsedEvents(kTranscriptCollapseScope, defaultCollapsedIds);
     }
-  }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
+  }, [
+    defaultCollapsedIds,
+    collapsedEvents,
+    setCollapsedEvents,
+    events.length,
+    collapsedMode,
+  ]);
 
   const allNodesList = useMemo(() => {
     return flattenTree(eventNodes, null);
@@ -108,7 +114,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     });
 
     setCollapsedEvents(kTranscriptCollapseScope, collapseIds);
-  }, [collapsedMode, events, allNodesList]);
+  }, [collapsedMode, events, allNodesList, setCollapsedEvents]);
 
   const { logPath } = useLogRouteParams();
   const [collapsed, setCollapsed] = useCollapsedState(
