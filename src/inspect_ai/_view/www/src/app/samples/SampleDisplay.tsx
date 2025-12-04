@@ -77,7 +77,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const sampleData = useSampleData();
   const sample = useMemo(() => {
     return sampleData.getSelectedSample();
-  }, [sampleData.selectedSampleIdentifier, sampleData.getSelectedSample]);
+  }, [sampleData]);
 
   const runningSampleData = sampleData.running;
 
@@ -108,7 +108,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       return height;
     }
     return -1;
-  }, [tabsRef.current]);
+  }, []);
 
   const selectedSampleSummary = useSelectedSampleSummary();
 
@@ -139,7 +139,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         scrollRef.current?.focus();
       }
     }, 10);
-  }, []);
+  }, [focusOnLoad, scrollRef]);
 
   // Tab selection
   const sampleUrlBuilder = useSampleUrlBuilder();
@@ -155,7 +155,15 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         navigate(url);
       }
     },
-    [sampleTabId, urlLogPath, urlSampleId, urlEpoch, navigate, setSelectedTab],
+    [
+      setSelectedTab,
+      sampleTabId,
+      urlLogPath,
+      sampleUrlBuilder,
+      urlSampleId,
+      urlEpoch,
+      navigate,
+    ],
   );
 
   const sampleMetadatas = metadataViewsForSample(
@@ -180,7 +188,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   const handlePrintClick = useCallback(() => {
     printSample(id, targetId);
-  }, [printSample, id, targetId]);
+  }, [id, targetId]);
 
   const toggleFilter = useCallback(() => {
     setShowing(!isShowing);

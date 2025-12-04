@@ -45,8 +45,6 @@ from mistralai.models.chatcompletionresponse import (
 from shortuuid import uuid
 from typing_extensions import override
 
-# TODO: Migration guide:
-# https://github.com/mistralai/client-python/blob/main/MIGRATION.md
 from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import (
     Content,
@@ -74,6 +72,9 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
+from .mistral_conversation import (
+    mistral_conversation_generate,
+)
 from .util import environment_prerequisite_error, model_base_url
 from .util.hooks import HttpxHooks
 
@@ -89,6 +90,7 @@ class MistralAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        conversation_api: bool | None = None,
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -109,6 +111,14 @@ class MistralAPI(ModelAPI):
             ],
             config=config,
         )
+
+        # track use of conversation api
+        if conversation_api is not None:
+            self.conversation_api = conversation_api
+        elif "voxtral" in model_name:  # no audio in conversation api
+            self.conversation_api = False
+        else:
+            self.conversation_api = True
 
         # resolve api_key
         if not self.api_key:
@@ -154,6 +164,19 @@ class MistralAPI(ModelAPI):
         with Mistral(api_key=self.api_key, **self.model_args) as client:
             # create time tracker
             http_hooks = HttpxHooks(client.sdk_configuration.async_client)
+
+            # use the conversation api if requested
+            if self.conversation_api:
+                return await mistral_conversation_generate(
+                    client=client,
+                    http_hooks=http_hooks,
+                    model=self.service_model_name(),
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    handle_bad_request=self.handle_bad_request,
+                )
 
             # build request
             request_id = http_hooks.start_request()
@@ -236,6 +259,10 @@ class MistralAPI(ModelAPI):
                 ),
             ), model_call()
 
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return False
+
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
@@ -265,7 +292,8 @@ class MistralAPI(ModelAPI):
     def handle_bad_request(self, ex: SDKError) -> ModelOutput | Exception:
         body = json.loads(ex.body)
         content = body.get("message", ex.body)
-        if "maximum context length" in ex.body:
+        body_lower = ex.body.lower()
+        if "maximum context length" in body_lower or "input too large" in body_lower:
             return ModelOutput.from_content(
                 model=self.service_model_name(),
                 content=content,

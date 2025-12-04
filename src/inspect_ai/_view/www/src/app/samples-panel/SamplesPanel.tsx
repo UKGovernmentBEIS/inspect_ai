@@ -55,7 +55,7 @@ export const SamplesPanel: FC = () => {
       }
     }
     return files;
-  }, [logDir, logFiles]);
+  }, [currentDir, logFiles]);
 
   const totalTaskCount = useMemo(() => {
     const currentDirTaskIds = new Set(currentDirLogFiles.map((f) => f.task_id));

@@ -166,6 +166,8 @@ website:
           href: reference/inspect_ai.agent.qmd#sandbox_agent_bridge
         - text: SandboxAgentBridge
           href: reference/inspect_ai.agent.qmd#sandboxagentbridge
+        - text: BridgedToolsSpec
+          href: reference/inspect_ai.agent.qmd#bridgedtoolsspec
         - text: content_only
           href: reference/inspect_ai.agent.qmd#content_only
         - text: last_message

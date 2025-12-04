@@ -57,7 +57,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
 
   useEffect(() => {
     listHandle.current?.scrollTo({ top: 0, behavior: "instant" });
-  }, [selectedLogFile]);
+  }, [listHandle, selectedLogFile]);
 
   // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();
@@ -101,7 +101,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       }, 100);
     }
     prevRunningRef.current = running;
-  }, [running, followOutput, listHandle]);
+  }, [running, followOutput, listHandle, setFollowOutput]);
 
   const loaded = useRef(false);
   const handleAtBottomStateChange = useCallback(
@@ -111,7 +111,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       }
       loaded.current = true;
     },
-    [running, setFollowOutput, followOutput],
+    [running, setFollowOutput],
   );
 
   const onkeydown = useCallback(
@@ -167,11 +167,11 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       }
     },
     [
-      selectedSampleHandle,
-      sampleNavigation.nextSample,
-      sampleNavigation.previousSample,
-      sampleNavigation.showSample,
+      sampleNavigation,
       listHandle,
+      items,
+      selectedSampleHandle?.id,
+      selectedSampleHandle?.epoch,
     ],
   );
 
@@ -220,7 +220,12 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         return null;
       }
     },
-    [gridColumnsTemplate],
+    [
+      gridColumnsTemplate,
+      sampleNavigation,
+      selectedSampleHandle?.epoch,
+      selectedSampleHandle?.id,
+    ],
   );
 
   const { input, limit, answer, target, retries } =

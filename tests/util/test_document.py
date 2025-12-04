@@ -3,6 +3,7 @@ from pathlib import Path
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_mistral,
     skip_if_no_openai,
 )
 
@@ -30,6 +31,11 @@ def test_document_anthropic() -> None:
 @skip_if_no_google
 def test_document_google() -> None:
     check_document("google/gemini-2.5-flash")
+
+
+@skip_if_no_mistral
+def test_document_mistral() -> None:
+    check_document("mistral/mistral-large-latest")
 
 
 def check_document(model: str) -> None:

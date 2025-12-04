@@ -110,7 +110,7 @@ const MarkdownDivComponent = forwardRef<HTMLDivElement, MarkdownDivProps>(
         // Cancel rendering if component unmounts
         cancel();
       };
-    }, [markdown, omitMedia, cachedHtml, renderedHtml]);
+    }, [markdown, omitMedia, cachedHtml, renderedHtml, cacheKey]);
 
     return (
       <div

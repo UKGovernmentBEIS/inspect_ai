@@ -5,7 +5,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._execute import code_viewer, python
 
 CodeExecutionProvider: TypeAlias = Literal[
-    "openai", "anthropic", "google", "grok", "python"
+    "openai", "anthropic", "google", "grok", "mistral", "python"
 ]
 """Model providers that support native `code_execution()` tools."""
 
@@ -15,7 +15,7 @@ valid_providers = set(get_args(CodeExecutionProvider))
 class CodeExecutionProviders(TypedDict, total=False):
     """Provider configuration for `code_execution()` tool.
 
-    The `code_execution()` tool provides models the ability to execute code using an sandboxed environment. Several model providers including OpenAI, Anthropic, Google, and Grok have native support for code execution (where code is executed on the provider's servers).
+    The `code_execution()` tool provides models the ability to execute code using an sandboxed environment. Several model providers including OpenAI, Anthropic, Google, Grok, and Mistral have native support for code execution (where code is executed on the provider's servers).
 
     By default, native code execution is enabled for all providers that support it. If you are using a provider that doesn't support code execution then a fallback using the `python()` tool is available. Additionally, you can optionally disable code execution for a provider with a native implementation and use the `python()` tool instead.
 
@@ -36,6 +36,9 @@ class CodeExecutionProviders(TypedDict, total=False):
     grok: bool
     """Use Grok native code execution. Defaults to `True`. Pass `False` to use a sandbox instead."""
 
+    mistral: bool
+    """Use Mistral native code execution. Defaults to `True`. Pass `False` to use a sandbox instead."""
+
     python: dict[str, Any] | bool
     """Use `python()` tool as a fallback for providers that don't support code execution. Defaults to `True`. Pass `False` to disable the fallback or pass a `dict` with `python()` tool options (`timeout` and `sandbox`)"""
 
@@ -47,7 +50,7 @@ def code_execution(
 ) -> Tool:
     """Code execution tool.
 
-    The `code_execution()` tool provides models the ability to execute code using a sandboxed environment. Several model providers including OpenAI, Anthropic, Google, and Grok have native support for code execution (where the code is executed on the provider's servers).
+    The `code_execution()` tool provides models the ability to execute code using a sandboxed environment. Several model providers including OpenAI, Anthropic, Google, Grok, and Mistral have native support for code execution (where the code is executed on the provider's servers).
 
     By default, native code execution is enabled for all providers that support it. If you are using a provider that doesn't support code execution then a fallback using the `python()` tool is available. Additionally, you can optionally disable code execution for a provider with a native implementation and use the `python()` tool instead.
 
@@ -58,7 +61,7 @@ def code_execution(
     See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution>.
 
     Args:
-      providers: Configuration for the code execution providers to use. Currently supported providers are "openai", "anthropic", "google", "grok", and "python". For example:
+      providers: Configuration for the code execution providers to use. Currently supported providers are "openai", "anthropic", "google", "grok", "mistral", and "python". For example:
 
         ```python
         # default (native interpreter for all providers, `python()` as fallback):
@@ -127,6 +130,7 @@ class _NormalizedProviders(TypedDict, total=False):
     anthropic: dict[str, Any]
     google: dict[str, Any]
     grok: dict[str, Any]
+    mistral: dict[str, Any]
     python: dict[str, Any]
 
 
@@ -135,7 +139,7 @@ def _normalize_config(
 ) -> _NormalizedProviders:
     # default to all providers enabled
     normalized = _NormalizedProviders(
-        openai={}, anthropic={}, google={}, grok={}, python={}
+        openai={}, anthropic={}, google={}, grok={}, mistral={}, python={}
     )
     for provider, options in (providers or {}).items():
         # dict means explicit options

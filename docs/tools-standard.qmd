@@ -11,7 +11,7 @@ tbl-colwidths: [40,60]
 
 The `web_search()` tool provides models the ability to enhance their context window by performing a search. Web searches are executed using a provider. Providers are split into two categories:
 
--   Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`, and `"perplexity"` - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
+-   Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`, `"mistral"`, and `"perplexity"` - these use the model's built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g. the "openai" search provider works only for `openai/*` models).
 
 -   External providers: `"tavily"`, `"exa"`, and `"google"`. These are external services that work with any model and require separate accounts and API keys. Note that "google" is different from "gemini" - "google" refers to Google's Programmable Search Engine service, while "gemini" refers to Google's built-in search capability for Gemini models.
 
@@ -29,7 +29,7 @@ web_search("tavily")
 web_search(["openai", "tavily"])
 
 # multiple internal providers and fallback
-web_search(["openai", "anthropic", "gemini", "perplexity", "tavily"])
+web_search(["openai", "anthropic", "gemini", "mistral", "tavily"])
 
 # provider with specific options
 web_search({"tavily": {"max_results": 5}})

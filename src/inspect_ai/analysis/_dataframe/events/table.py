@@ -5,16 +5,17 @@ from typing import TYPE_CHECKING, Callable, Literal, Sequence, TypeAlias
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.events.columns import EventInfo
 from inspect_ai.event._event import Event
-from inspect_ai.log._file import list_eval_logs
 
 if TYPE_CHECKING:
     import pandas as pd
 
 from typing_extensions import overload
 
+from inspect_ai.log._log import EvalLog
+
 from ..columns import Column, ColumnError
 from ..samples.table import EventsDetail, _read_samples_df
-from ..util import LogPaths, verify_prerequisites
+from ..util import LogPaths, resolve_logs, verify_prerequisites
 
 EventFilter: TypeAlias = Callable[[Event], bool]
 """Filter for `events_df()` rows."""
@@ -22,7 +23,7 @@ EventFilter: TypeAlias = Callable[[Event], bool]
 
 @overload
 def events_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = EventInfo,
     filter: EventFilter | None = None,
     strict: Literal[True] = True,
@@ -33,7 +34,7 @@ def events_df(
 
 @overload
 def events_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = EventInfo,
     filter: EventFilter | None = None,
     strict: Literal[False] = False,
@@ -43,7 +44,7 @@ def events_df(
 
 
 def events_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = EventInfo,
     filter: EventFilter | None = None,
     strict: bool = True,
@@ -53,7 +54,7 @@ def events_df(
     """Read a dataframe containing events from a set of evals.
 
     Args:
-       logs: One or more paths to log files or log directories.
+       logs: One or more paths to log files, log directories, or EvalLog objects.
           Defaults to the contents of the currently active log directory
           (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
@@ -75,15 +76,13 @@ def events_df(
     verify_prerequisites()
 
     # resolve filter/detail
-    if callable(filter):
-        detail = EventsDetail(filter=filter)
-    else:
-        detail = EventsDetail()
-
+    detail = EventsDetail(filter=filter) if callable(filter) else EventsDetail()
     quiet = quiet if quiet is not None else running_in_notebook()
+    logs = resolve_logs(logs)
+
     return _read_samples_df(
-        logs=logs or list_eval_logs(),
-        columns=columns,
+        logs,
+        columns,
         strict=strict,
         detail=detail,
         progress=not quiet,
