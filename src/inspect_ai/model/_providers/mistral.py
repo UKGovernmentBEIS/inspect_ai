@@ -113,7 +113,12 @@ class MistralAPI(ModelAPI):
         )
 
         # track use of conversation api
-        self.conversation_api = conversation_api is not False
+        if conversation_api is not None:
+            self.conversation_api = conversation_api
+        elif "voxtral" in model_name:  # no audio in conversation api
+            self.conversation_api = False
+        else:
+            self.conversation_api = True
 
         # resolve api_key
         if not self.api_key:
