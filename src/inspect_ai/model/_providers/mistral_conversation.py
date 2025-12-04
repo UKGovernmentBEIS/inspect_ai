@@ -206,7 +206,7 @@ def is_internal_code_execution_tool(tool: ToolInfo) -> bool:
     return (
         tool.name == "code_execution"
         and tool.options is not None
-        and "mistral" in tool.options.keys()
+        and "mistral" in tool.options.get("providers", {})
     )
 
 
@@ -289,12 +289,11 @@ async def mistral_conversation_inputs(
                                 raise RuntimeError(
                                     f"Unsupported tool use for mistral: {c.tool_type}"
                                 )
+                            # mistral is having trouble accepting these inputs (some
+                            # schema validation errors) so for now we append as text
                             inputs.append(
-                                ToolExecutionEntry(
-                                    name=name,
-                                    arguments=c.arguments,
-                                    id=c.id,
-                                    info=json.loads(c.result) if c.result else None,
+                                MessageOutputEntry(
+                                    content=f"code_interpreter: \n\n{c.arguments}\n\n{c.result}"
                                 )
                             )
                         else:
