@@ -100,14 +100,21 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   // Navigation hook for URL updates
   const navigate = useNavigate();
 
-  // Ref for samples tabs (used to meaure for offset)
+  // Ref for samples tabs (used to measure for offset)
   const tabsRef: RefObject<HTMLUListElement | null> = useRef(null);
-  const tabsHeight = useMemo(() => {
-    if (tabsRef.current) {
-      const height = tabsRef.current.getBoundingClientRect().height;
-      return height;
-    }
-    return -1;
+  const [tabsHeight, setTabsHeight] = useState(-1);
+
+  useEffect(() => {
+    const updateHeight = () => {
+      if (tabsRef.current) {
+        const height = tabsRef.current.getBoundingClientRect().height;
+        setTabsHeight(height);
+      }
+    };
+    updateHeight();
+
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
   }, []);
 
   const selectedSampleSummary = useSelectedSampleSummary();
