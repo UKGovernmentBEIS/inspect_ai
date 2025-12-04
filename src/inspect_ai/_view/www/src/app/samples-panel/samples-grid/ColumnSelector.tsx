@@ -109,25 +109,22 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
     >
       <div style={{ maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
         <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: "2rem",
-            }}
-          >
+          <div style={{ display: "flex", gap: "2rem" }}>
             <b>Base</b>
-            <div style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0" }}>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
                 type="button"
-                className="btn btn-sm btn-secondary"
+                className="btn btn-link btn-sm"
+                style={{ padding: 0, textDecoration: "none" }}
                 onClick={handleSelectAllBase}
               >
                 All
               </button>
+              |
               <button
                 type="button"
-                className="btn btn-sm btn-secondary"
+                className="btn btn-link btn-sm"
+                style={{ padding: 0, textDecoration: "none" }}
                 onClick={handleDeselectAllBase}
               >
                 None
@@ -141,27 +138,22 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
 
         {columnGroups.scores.length > 0 && (
           <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: "2rem",
-              }}
-            >
+            <div style={{ display: "flex", gap: "2rem" }}>
               <b>Scorers</b>
-              <div
-                style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0" }}
-              >
+              <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
                   type="button"
-                  className="btn btn-sm btn-secondary"
+                  className="btn btn-link btn-sm"
+                  style={{ padding: 0, textDecoration: "none" }}
                   onClick={handleSelectAllScores}
                 >
                   All
                 </button>
+                |
                 <button
                   type="button"
-                  className="btn btn-sm btn-secondary"
+                  className="btn btn-link btn-sm"
+                  style={{ padding: 0, textDecoration: "none" }}
                   onClick={handleDeselectAllScores}
                 >
                   None
