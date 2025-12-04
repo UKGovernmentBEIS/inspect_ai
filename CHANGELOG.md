@@ -8,6 +8,7 @@
 - Mistral: Added support for document input.
 - Grok: Support for server-side MCP tool calling.
 - VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg `retry_delay`).
+- Model API: Assign new message ID when combining messages for replay to providers.
 - MCP Tools Bridge: Added `BridgedToolsSpec` and `bridged_tools` parameter to `sandbox_agent_bridge()` for exposing host-side Inspect tools to sandboxed agents via MCP protocol.
 - Analysis: Support passing `EvalLog` objects directly to dataframe functions (`samples_df()`, `evals_df()`, `messages_df()`, `events_df()`).
 - Dependencies: Update to `mcp` package version 1.23.0.
