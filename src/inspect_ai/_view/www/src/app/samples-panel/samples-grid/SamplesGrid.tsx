@@ -63,7 +63,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   );
 
   const loading = useStore((state) => state.app.status.loading);
-  const syncing = useStore((state) => state.app.status.loading);
+  const syncing = useStore((state) => state.app.status.syncing);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const selectedSampleHandle = useStore(
     (state) => state.log.selectedSampleHandle,
@@ -457,7 +457,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
             selectCurrentSample();
             clearSelectedSample();
           }}
-          loading={data.length === 0 && (loading > 0 || syncing > 0)}
+          loading={data.length === 0 && (loading > 0 || syncing)}
         />
       </div>
     </div>
