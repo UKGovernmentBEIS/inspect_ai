@@ -261,20 +261,20 @@ async def mistral_conversation_inputs(
                 for c in message.content:
                     if isinstance(c, ContentText | ContentImage | ContentReasoning):
                         pending_content.append(await mistral_content_chunk(c))
-                        # citations
-                        if isinstance(c, ContentText) and c.citations:
-                            for cite in c.citations:
-                                if isinstance(cite, UrlCitation):
-                                    pending_content.append(
-                                        ToolReferenceChunk(
-                                            tool="web_search",
-                                            title=cite.title or cite.url,
-                                            url=cite.url,
-                                            description=cite.cited_text
-                                            if isinstance(cite.cited_text, str)
-                                            else UNSET,
-                                        )
-                                    )
+                        # citations (currently mistral rejects these as input)
+                        # if isinstance(c, ContentText) and c.citations:
+                        #     for cite in c.citations:
+                        #         if isinstance(cite, UrlCitation):
+                        #             pending_content.append(
+                        #                 ToolReferenceChunk(
+                        #                     tool="web_search",
+                        #                     title=cite.title or cite.url,
+                        #                     url=cite.url,
+                        #                     description=cite.cited_text
+                        #                     if isinstance(cite.cited_text, str)
+                        #                     else UNSET,
+                        #                 )
+                        #             )
                     else:
                         await flush_pending_content()
                         if isinstance(c, ContentToolUse):
