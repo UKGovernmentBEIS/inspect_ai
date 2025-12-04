@@ -470,6 +470,11 @@ class AnthropicAPI(ModelAPI):
             else:
                 params["top_k"] = config.top_k
 
+        # effort
+        if config.effort is not None:
+            betas.append("effort-2025-11-24")
+            extra_body["output_config"] = {"effort": config.effort}
+
         # some thinking-only stuff
         if self.is_using_thinking(config):
             params["thinking"] = dict(
