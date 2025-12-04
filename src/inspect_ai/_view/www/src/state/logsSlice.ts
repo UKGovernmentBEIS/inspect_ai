@@ -67,6 +67,7 @@ export interface LogsSlice {
     setDisplayedSamples: (samples: Array<DisplayedSample>) => void;
     clearDisplayedSamples: () => void;
     setColumnVisibility: (visibility: Record<string, boolean>) => void;
+    setPreviousSamplesPath: (path: string | undefined) => void;
   };
 }
 
@@ -171,6 +172,11 @@ export const createLogsSlice = (
       setColumnVisibility: (visibility: Record<string, boolean>) => {
         set((state) => {
           state.logs.samplesListState.columnVisibility = visibility;
+        });
+      },
+      setPreviousSamplesPath: (path: string | undefined) => {
+        set((state) => {
+          state.logs.samplesListState.previousSamplesPath = path;
         });
       },
       initLogDir: async () => {

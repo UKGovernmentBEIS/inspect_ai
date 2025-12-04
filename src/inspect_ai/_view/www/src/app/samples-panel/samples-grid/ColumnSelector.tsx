@@ -86,7 +86,7 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
     return (
       <div
         key={field}
-        style={{ marginBottom: "0.5rem" }}
+        style={{ marginBottom: "0.1rem" }}
         title={
           hasFilter
             ? "Unselecting will remove an active filter on this column"

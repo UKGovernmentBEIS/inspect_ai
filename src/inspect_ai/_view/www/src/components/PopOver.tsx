@@ -101,7 +101,8 @@ export const PopOver: React.FC<PopOverProps> = ({
     if (!isOpen || hoverDelay <= 0) {
       setShouldShowPopover(isOpen);
       const listener = (event: MouseEvent) => {
-        // Only close if clicking outside the popover content
+        // Only close if clicking outside the popover content,
+        // prevent default actions "in the background" when using click to close the popover
         if (
           popperRef.current &&
           !popperRef.current.contains(event.target as Node)

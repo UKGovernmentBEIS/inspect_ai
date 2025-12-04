@@ -13,7 +13,6 @@ import {
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useClientEvents } from "../../../state/clientEvents";
-import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
 import { debounce } from "../../../utils/sync";
@@ -56,6 +55,12 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const clearSelectedSample = useStore(
     (state) => state.sampleActions.clearSelectedSample,
   );
+  const previousSamplesPath = useStore(
+    (state) => state.logs.samplesListState.previousSamplesPath,
+  );
+  const setPreviousSamplesPath = useStore(
+    (state) => state.logsActions.setPreviousSamplesPath,
+  );
 
   const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.loading);
@@ -77,11 +82,14 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     };
   }, [startPolling, stopPolling]);
 
-  // Clear grid state when samplesPath changes
-  const prevSamplesPath = usePrevious(samplesPath);
+  // Clear grid state when samplesPath changes to a different path
+  // Use store-persisted previousSamplesPath to survive component remounts
   const initialGridState = useMemo(() => {
-    if (prevSamplesPath !== samplesPath) {
-      // Clear displayed samples when path changes
+    if (
+      previousSamplesPath !== undefined &&
+      previousSamplesPath !== samplesPath
+    ) {
+      // Clear displayed samples when path changes to a different path
       clearDisplayedSamples();
       const result = { ...gridState };
       delete result?.filter;
@@ -89,7 +97,14 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     } else {
       return gridState;
     }
-  }, [prevSamplesPath, samplesPath, clearDisplayedSamples, gridState]);
+  }, [previousSamplesPath, samplesPath, clearDisplayedSamples, gridState]);
+
+  // Update the previous samples path in the store after render
+  useEffect(() => {
+    if (samplesPath !== previousSamplesPath) {
+      setPreviousSamplesPath(samplesPath);
+    }
+  }, [samplesPath, previousSamplesPath, setPreviousSamplesPath]);
 
   // Filter logDetails based on samplesPath
   const filteredLogDetails = useMemo(() => {
