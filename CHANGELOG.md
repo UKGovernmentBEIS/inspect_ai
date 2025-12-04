@@ -3,7 +3,7 @@
 - [Update Plan](https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan) tool for tracking steps and progress across longer horizon tasks.
 - [Code Execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
 - Anthropic: Include native `web_fetch` tool as part of `web_search()` implementation (matching capability of other providers that have native web search).
-- Mistral: Use the new Conversations API by default (disable with `-M conversations_api=False`).
+- Mistral: Use the new Conversation API by default (disable with `-M conversation_api=False`).
 - Mistral: Added support for native web_search and code_execution tools (executed server side).
 - Mistral: Added support for document input.
 - Grok: Support for server-side MCP tool calling.
