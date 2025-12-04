@@ -1,6 +1,7 @@
 import { ColDef } from "ag-grid-community";
 import { FC, useMemo } from "react";
 import { PopOver } from "../../../components/PopOver";
+import { ApplicationIcons } from "../../appearance/icons";
 import { getFieldKey } from "./hooks";
 import { SampleRow } from "./types";
 
@@ -10,6 +11,7 @@ interface ColumnSelectorProps {
   columns: ColDef<SampleRow>[];
   onVisibilityChange: (visibility: Record<string, boolean>) => void;
   positionEl: HTMLElement | null;
+  filteredFields?: string[];
 }
 
 export const ColumnSelector: FC<ColumnSelectorProps> = ({
@@ -18,6 +20,7 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
   columns,
   onVisibilityChange,
   positionEl,
+  filteredFields = [],
 }) => {
   // Get current visibility directly from columns
   const currentVisibility = useMemo(
@@ -79,8 +82,17 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
 
   const renderColumnCheckbox = (col: ColDef<SampleRow>) => {
     const field = getFieldKey(col);
+    const hasFilter = filteredFields.includes(field);
     return (
-      <div key={field} style={{ marginBottom: "0.5rem" }}>
+      <div
+        key={field}
+        style={{ marginBottom: "0.5rem" }}
+        title={
+          hasFilter
+            ? "Unselecting will remove an active filter on this column"
+            : undefined
+        }
+      >
         <label
           style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
         >
@@ -91,6 +103,12 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
             style={{ marginRight: "0.5rem", cursor: "pointer" }}
           />
           <span>{col.headerName || field}</span>
+          {hasFilter && (
+            <i
+              className={ApplicationIcons.filter}
+              style={{ marginLeft: "0.5rem", color: "var(--bs-primary)" }}
+            />
+          )}
         </label>
       </div>
     );
