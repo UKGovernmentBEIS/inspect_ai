@@ -143,7 +143,7 @@ export const SamplesPanel: FC = () => {
           ref={columnButtonRef}
           label="Choose Columns"
           icon={ApplicationIcons.options}
-          onMouseDown={(e) => {
+          onClick={(e) => {
             e.stopPropagation();
             setShowColumnSelector((prev) => !prev);
           }}

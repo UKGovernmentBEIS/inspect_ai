@@ -122,7 +122,7 @@ export const ColumnSelector: FC<ColumnSelectorProps> = ({
       positionEl={positionEl}
       placement="bottom-start"
       showArrow={false}
-      hoverDelay={0}
+      hoverDelay={-1}
       styles={{ width: "500px" }}
     >
       <div style={{ maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>

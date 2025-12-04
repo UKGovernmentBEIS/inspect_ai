@@ -106,13 +106,15 @@ export const PopOver: React.FC<PopOverProps> = ({
           popperRef.current &&
           !popperRef.current.contains(event.target as Node)
         ) {
+          event.preventDefault();
+          event.stopPropagation();
           setIsOpen(false);
         }
       };
-      document.addEventListener("mousedown", listener);
+      document.addEventListener("click", listener, true);
 
       return () => {
-        document.removeEventListener("mousedown", listener);
+        document.removeEventListener("click", listener, true);
       };
     }
 
