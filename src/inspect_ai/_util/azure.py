@@ -1,5 +1,5 @@
 import os
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 AZURE_SCHEMES = {"az", "abfs", "abfss"}
 
@@ -52,3 +52,19 @@ def is_azure_delete_permission_error(error: Exception) -> bool:
         or "this request is not authorized" in msg
         or is_azure_auth_error(error)
     )
+
+
+T = TypeVar("T")
+
+
+def call_with_azure_auth_fallback(
+    func: Callable[[], T],
+    fallback_return_value: T,
+) -> T:
+    """Call func and swallow Azure auth errors, returning fallback instead."""
+    try:
+        return func()
+    except Exception as ex:
+        if is_azure_auth_error(ex):
+            return fallback_return_value
+        raise

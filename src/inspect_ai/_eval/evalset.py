@@ -20,7 +20,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
 from inspect_ai._util._async import run_coroutine
-from inspect_ai._util.azure import is_azure_auth_error
+from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import (
     FileSystem,
@@ -932,33 +932,36 @@ def read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> EvalSet
 
     # form target path and read
     manifest = f"{log_dir}{fs.sep}eval-set.json"
-    try:
-        exists = fs.exists(manifest)
-    except Exception as ex:
-        if is_azure_auth_error(ex):
-            exists = False
-        else:
-            raise
+    exists = _manifest_exists(fs, manifest)
 
     if not exists:
         return None
 
-    try:
-        with file(manifest, mode="rb", fs_options=fs_options) as f:
-            eval_set_json = f.read()
-    except Exception as ex:
-        if is_azure_auth_error(ex):
-            return None
-        raise
+    eval_set_json = _read_manifest_bytes(manifest, fs_options)
+    if eval_set_json is None:
+        return None
 
     # parse and return
     return EvalSet.model_validate_json(eval_set_json)
 
 
 def _resolve_log_dir(fs: FileSystem, log_dir: str) -> str:
-    try:
-        return fs.info(log_dir).name
-    except Exception as ex:
-        if is_azure_auth_error(ex):
-            return log_dir
-        raise
+    return call_with_azure_auth_fallback(
+        lambda: fs.info(log_dir).name, fallback_return_value=log_dir
+    )
+
+
+def _read_manifest_bytes(manifest: str, fs_options: dict[str, Any]) -> bytes | None:
+    def _read_manifest_bytes_strict() -> bytes:
+        with file(manifest, mode="rb", fs_options=fs_options) as f:
+            return f.read()
+
+    return call_with_azure_auth_fallback(
+        _read_manifest_bytes_strict, fallback_return_value=None
+    )
+
+
+def _manifest_exists(fs: FileSystem, path: str) -> bool:
+    return call_with_azure_auth_fallback(
+        lambda: fs.exists(path), fallback_return_value=False
+    )
