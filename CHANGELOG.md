@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent Bridge: Don't print serialization warnings when going from Pydantic -> JSON (as we use beta types that can cause warnings even though serialization works as intended).
+
 ## 0.3.152 (04 December 2025)
 
 - [Update Plan](https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan) tool for tracking steps and progress across longer horizon tasks.

@@ -53,7 +53,7 @@ def generate_completions(
         if bridge.model is not None:
             json_data["model"] = bridge.model
         completion = await inspect_completions_api_request(json_data, bridge)
-        return completion.model_dump(mode="json")
+        return completion.model_dump(mode="json", warnings=False)
 
     return generate
 
@@ -69,7 +69,7 @@ def generate_responses(
         completion = await inspect_responses_api_request(
             json_data, web_search, code_execution, bridge
         )
-        return completion.model_dump(mode="json")
+        return completion.model_dump(mode="json", warnings=False)
 
     return generate
 
@@ -85,6 +85,6 @@ def generate_anthropic(
         completion = await inspect_anthropic_api_request(
             json_data, web_search, code_execution, bridge
         )
-        return completion.model_dump(mode="json")
+        return completion.model_dump(mode="json", warnings=False)
 
     return generate
