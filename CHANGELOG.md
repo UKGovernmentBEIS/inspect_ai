@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: Don't print serialization warnings when going from Pydantic -> JSON (as we use beta types that can cause warnings even though serialization works as intended).
+- Batch Processing: Enable customizing of batch status rendering.
 
 ## 0.3.152 (04 December 2025)
 
