@@ -101,10 +101,10 @@ When `schedule_sample()` returns an `EarlyStop`, the sample is skipped. The `Ear
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | `str \| int` | Sample dataset id. |
+| `id` | `str | int` | Sample dataset id. |
 | `epoch` | `int` | Sample epoch. |
-| `reason` | `str \| None` | Optional reason for the early stop. |
-| `metadata` | `dict[str, JsonValue] \| None` | Optional metadata about the stop. |
+| `reason` | `str | None` | Optional reason for the early stop. |
+| `metadata` | `dict[str, JsonValue] | None` | Optional metadata about the stop. |
 
 ## Log Output
 
