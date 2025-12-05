@@ -1,3 +1,5 @@
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
+
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
@@ -29,6 +31,7 @@ __all__ = [
     "sandbox_agent_bridge",
     "AgentBridge",
     "SandboxAgentBridge",
+    "BridgedToolsSpec",
     "content_only",
     "last_message",
     "remove_tools",

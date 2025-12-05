@@ -32,6 +32,13 @@ def test_google_remote_mcp() -> None:
         check_remote_mcp("google/gemini-2.0-flash", debug_errors=True)
 
 
+# doesn't appear to be enabled server-side right now
+# @skip_if_no_grok
+# @pytest.mark.flaky  # deepwiki sometimes causes this to fail with rate limit errors
+# def test_grok_remote_mcp() -> None:
+#     check_remote_mcp("grok/grok-4-1-fast")
+
+
 def check_remote_mcp(model: str, debug_errors: bool = False) -> None:
     deepwiki = mcp_server_http(
         name="deepwiki", url="https://mcp.deepwiki.com/mcp", execution="remote"

@@ -90,7 +90,7 @@ export const RecordTree: FC<RecordTreeProps> = ({
       {} as Record<string, true>,
     );
     setCollapsedIds(id, defaultCollapsedIds);
-  }, [collapsedIds, items]);
+  }, [collapsedIds, defaultExpandLevel, id, items, setCollapsedIds]);
 
   // Keyboard handling for tree
   const keyUpHandler = useCallback(
@@ -147,7 +147,7 @@ export const RecordTree: FC<RecordTreeProps> = ({
         }
       };
     },
-    [collapsedIds, items],
+    [collapsedIds, id, items.length, setCollapsed],
   );
 
   const renderRow = (index: number) => {

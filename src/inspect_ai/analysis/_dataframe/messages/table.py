@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, TypeAlias
 
 from inspect_ai._util.platform import running_in_notebook
-from inspect_ai.log._file import list_eval_logs
 from inspect_ai.model._chat_message import ChatMessage
 
 if TYPE_CHECKING:
@@ -11,9 +10,11 @@ if TYPE_CHECKING:
 
 from typing_extensions import overload
 
+from inspect_ai.log._log import EvalLog
+
 from ..columns import Column, ColumnError
 from ..samples.table import MessagesDetail, _read_samples_df
-from ..util import LogPaths, verify_prerequisites
+from ..util import LogPaths, resolve_logs, verify_prerequisites
 from .columns import MessageColumns
 
 MessageFilter: TypeAlias = Callable[[ChatMessage], bool]
@@ -22,7 +23,7 @@ MessageFilter: TypeAlias = Callable[[ChatMessage], bool]
 
 @overload
 def messages_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: Literal[True] = True,
@@ -33,7 +34,7 @@ def messages_df(
 
 @overload
 def messages_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: Literal[False] = False,
@@ -43,7 +44,7 @@ def messages_df(
 
 
 def messages_df(
-    logs: LogPaths | None = None,
+    logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
     columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: bool = True,
@@ -53,7 +54,7 @@ def messages_df(
     """Read a dataframe containing messages from a set of evals.
 
     Args:
-       logs: One or more paths to log files or log directories.
+       logs: One or more paths to log files, log directories, or EvalLog objects.
           Defaults to the contents of the currently active log directory
           (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
@@ -75,15 +76,13 @@ def messages_df(
     verify_prerequisites()
 
     # resolve filter/detail
-    if callable(filter):
-        detail = MessagesDetail(filter=filter)
-    else:
-        detail = MessagesDetail()
-
+    detail = MessagesDetail(filter=filter) if callable(filter) else MessagesDetail()
     quiet = quiet if quiet is not None else running_in_notebook()
+    logs = resolve_logs(logs)
+
     return _read_samples_df(
-        logs=logs or list_eval_logs(),
-        columns=columns,
+        logs,
+        columns,
         strict=strict,
         detail=detail,
         parallel=parallel,

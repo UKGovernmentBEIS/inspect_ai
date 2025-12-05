@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timezone
 from typing import Any, TypeAlias
 
 import pydantic
@@ -16,7 +17,7 @@ from typing_extensions import override
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
-from .util.batch import Batch, BatchRequest
+from .util.batch import Batch, BatchCheckResult, BatchRequest
 from .util.file_batcher import FileBatcher
 from .util.hooks import HttpxHooks
 
@@ -123,14 +124,15 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
     @override
     async def _check_batch(
         self, batch: Batch[GenerateContentResponse]
-    ) -> tuple[int, int, int, CompletedBatchInfo | None]:
+    ) -> BatchCheckResult[CompletedBatchInfo]:
         batch_job = await self._client.aio.batches.get(name=batch.id)
 
-        # Calculate age
-        age = (
-            int((time.time() - batch_job.create_time.timestamp()))
-            if batch_job.create_time
-            else 0
+        created_at = int(
+            (
+                batch_job.create_time
+                if batch_job.create_time
+                else datetime.now(tz=timezone.utc)
+            ).timestamp()
         )
 
         # Handle different job states
@@ -138,21 +140,38 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
             batch_job.state == JobState.JOB_STATE_PENDING
             or batch_job.state == JobState.JOB_STATE_RUNNING
         ):
-            return (0, 0, age, None)
+            return BatchCheckResult(
+                completed_count=0,
+                failed_count=0,
+                created_at=created_at,
+                completion_info=None,
+            )
         elif batch_job.state == JobState.JOB_STATE_SUCCEEDED:
             assert batch_job.dest and batch_job.dest.file_name, "must find batch dest"
-            return (
-                len(batch.requests),  # Assume all completed if job succeeded
-                0,  # Failed count will be determined during result parsing
-                age,
-                batch_job.dest.file_name,
+            return BatchCheckResult(
+                completed_count=len(
+                    batch.requests
+                ),  # Assume all completed if succeeded
+                failed_count=0,  # Failed count will be determined during result parsing
+                created_at=created_at,
+                completion_info=batch_job.dest.file_name,
             )
         elif batch_job.state in [
             JobState.JOB_STATE_FAILED,
             JobState.JOB_STATE_CANCELLED,
         ]:
             # Job failed or was cancelled - all requests failed
-            return (0, len(batch.requests), age, None)
+            return BatchCheckResult(
+                completed_count=0,
+                failed_count=len(batch.requests),
+                created_at=created_at,
+                completion_info=None,
+            )
         else:
             # Unknown state - treat as pending
-            return (0, 0, age, None)
+            return BatchCheckResult(
+                completed_count=0,
+                failed_count=0,
+                created_at=created_at,
+                completion_info=None,
+            )

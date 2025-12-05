@@ -26,36 +26,6 @@ export const FindBand: FC<FindBandProps> = () => {
   } | null>(null);
   const currentSearchTerm = useRef<string>("");
 
-  useEffect(() => {
-    setTimeout(() => {
-      searchBoxRef.current?.focus();
-      searchBoxRef.current?.select();
-    }, 10);
-
-    // Block browser find when FindBand is active
-    const handleGlobalKeydown = (e: globalThis.KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        e.preventDefault();
-        e.stopPropagation();
-        // Focus our search box instead
-        searchBoxRef.current?.focus();
-        searchBoxRef.current?.select();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "g") {
-        e.preventDefault();
-        e.stopPropagation();
-        const back = e.shiftKey;
-        // Find next / previous
-        handleSearch(back);
-      }
-    };
-
-    document.addEventListener("keydown", handleGlobalKeydown, true); // Use capture phase
-
-    return () => {
-      document.removeEventListener("keydown", handleGlobalKeydown, true);
-    };
-  }, []);
-
   const getParentExpandablePanel = useCallback(
     (selection: Selection): HTMLElement | undefined => {
       let node = selection.anchorNode;
@@ -144,6 +114,36 @@ export const FindBand: FC<FindBandProps> = () => {
     },
     [getParentExpandablePanel, extendedFindTerm],
   );
+
+  useEffect(() => {
+    setTimeout(() => {
+      searchBoxRef.current?.focus();
+      searchBoxRef.current?.select();
+    }, 10);
+
+    // Block browser find when FindBand is active
+    const handleGlobalKeydown = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        e.stopPropagation();
+        // Focus our search box instead
+        searchBoxRef.current?.focus();
+        searchBoxRef.current?.select();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "g") {
+        e.preventDefault();
+        e.stopPropagation();
+        const back = e.shiftKey;
+        // Find next / previous
+        handleSearch(back);
+      }
+    };
+
+    document.addEventListener("keydown", handleGlobalKeydown, true); // Use capture phase
+
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeydown, true);
+    };
+  }, [handleSearch]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {

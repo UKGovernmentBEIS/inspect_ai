@@ -14,12 +14,11 @@ from tenacity import RetryCallState, retry
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DEFAULT_MAX_CONNECTIONS
-from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.notgiven import sanitize_notgiven
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
-from .batch_log import log_batch
+from .batch_log import BatchStatus, emit_batch_status, log_batch
 
 DEFAULT_BATCH_TICK = 15
 DEFAULT_SEND_DELAY = DEFAULT_BATCH_TICK
@@ -53,7 +52,7 @@ class Batch(Generic[ResponseT]):
     consecutive_check_failure_count: int = 0
     completed_count: int = 0
     failed_count: int = 0
-    age: int = 0
+    created_at: int = dataclasses.field(default_factory=lambda: int(time.time()))
 
 
 @dataclasses.dataclass
@@ -61,6 +60,17 @@ class PendingBatch(Generic[ResponseT]):
     timeout: float
     available_size: int
     requests: list[BatchRequest[ResponseT]] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass(frozen=True)
+class BatchCheckResult(Generic[CompletedBatchInfoT]):
+    """Result from checking batch status."""
+
+    completed_count: int
+    failed_count: int
+    created_at: int
+    """unix timestamp in seconds"""
+    completion_info: CompletedBatchInfoT | None
 
 
 class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
@@ -147,34 +157,23 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         self._print_aggregate_status()
 
     def _print_aggregate_status(self) -> None:
-        total, completed, failed, total_age, max_age = functools.reduce(
+        status = functools.reduce(
             _batch_stats_reducer,
             self._inflight_batches.values(),
-            (0, 0, 0, 0, 0),
+            BatchStatus(0, 0, 0, 0, None),
         )
-        if total:
-            avg_age = (
-                total_age // len(self._inflight_batches)
-                if self._inflight_batches
-                else 0
-            )
-            log_batch(
-                f"Current batches: {len(self._inflight_batches)}, "
-                f"requests (pending/completed/failed requests): {total - completed - failed}/{completed}/{failed}, "
-                f"batch age (avg/max): {format_progress_time(avg_age, False)}/{format_progress_time(max_age, False)}"
-            )
+        emit_batch_status(status)
 
     async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
         check_result = await self._wrapped_check_batch(batch)
         if not check_result:
             return
 
-        batch.completed_count = check_result[0]
-        batch.failed_count = check_result[1]
-        batch.age = check_result[2]
+        batch.completed_count = check_result.completed_count
+        batch.failed_count = check_result.failed_count
 
-        if (info := check_result[3]) is not None:
-            await self._wrapped_handle_batch_result(batch, info)
+        if check_result.completion_info is not None:
+            await self._wrapped_handle_batch_result(batch, check_result.completion_info)
 
     async def _fail_and_cleanup_inflight_batch(
         self,
@@ -265,7 +264,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     async def _wrapped_check_batch(
         self, batch: Batch[ResponseT]
-    ) -> tuple[int, int, int, (CompletedBatchInfoT | None)] | None:
+    ) -> BatchCheckResult[CompletedBatchInfoT] | None:
         try:
             result = await self._check_batch(batch)
             batch.consecutive_check_failure_count = 0
@@ -366,7 +365,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     @abstractmethod
     async def _check_batch(
         self, batch: Batch[ResponseT]
-    ) -> tuple[int, int, int, (CompletedBatchInfoT | None)]:
+    ) -> BatchCheckResult[CompletedBatchInfoT]:
         """Check the status of a batch.
 
         This method should query the model to determine the current status of the
@@ -376,11 +375,8 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             batch: The batch to check status for.
 
         Returns:
-            A tuple containing:
-            - Number of completed requests (int)
-            - Number of failed requests (int)
-            - Age of the batch in seconds (int)
-            - Completion info if batch is complete, None otherwise (CompletedBatchInfoT | None)
+            BatchCheckResult containing completed/failed counts, created_at timestamp,
+            and completion info if batch is complete.
 
         Raises:
             Exception: If checking batch status fails. The caller will handle
@@ -490,16 +486,21 @@ def _assess_intake_queue(
     return add_count, available_size, should_send
 
 
-def _batch_stats_reducer(
-    acc: tuple[int, int, int, int, int], batch: Batch[ResponseT]
-) -> tuple[int, int, int, int, int]:
-    total_requests, completed_requests, failed_requests, total_age, max_age = acc
-    return (
-        total_requests + len(batch.requests),
-        completed_requests + batch.completed_count,
-        failed_requests + batch.failed_count,
-        total_age + batch.age,
-        max(max_age, batch.age),
+def _batch_stats_reducer(acc: BatchStatus, batch: Batch[ResponseT]) -> BatchStatus:
+    oldest = (
+        min(acc.oldest_created_at, batch.created_at)
+        if acc.oldest_created_at
+        else batch.created_at
+    )
+    return BatchStatus(
+        batch_count=acc.batch_count + 1,
+        pending_requests=acc.pending_requests
+        + len(batch.requests)
+        - batch.completed_count
+        - batch.failed_count,
+        completed_requests=acc.completed_requests + batch.completed_count,
+        failed_requests=acc.failed_requests + batch.failed_count,
+        oldest_created_at=oldest,
     )
 
 

@@ -40,7 +40,7 @@ export const useLogNavigation = () => {
 };
 
 export const useSampleUrl = () => {
-  const { logPath, tabId, sampleTabId } = useLogRouteParams();
+  const { logPath, sampleTabId } = useLogRouteParams();
 
   const logDirectory = useStore((state) => state.logs.logDir);
 
@@ -80,7 +80,7 @@ export const useSampleUrl = () => {
       }
       return undefined;
     },
-    [resolveLogPath, tabId, sampleTabId],
+    [resolveLogPath, sampleTabId],
   );
   return getSampleUrl;
 };
@@ -158,12 +158,10 @@ export const useSampleNavigation = () => {
       }
     },
     [
-      sampleSummaries,
       resolveLogPath,
       selectSample,
       setShowingSampleDialog,
       navigate,
-      tabId,
       sampleTabId,
     ],
   );
@@ -192,13 +190,12 @@ export const useSampleNavigation = () => {
       }
     },
     [
-      selectedSampleHandle,
-      showSample,
-      sampleTabId,
       sampleSummaries,
       showingSampleDialog,
       resolveLogPath,
+      sampleTabId,
       navigate,
+      selectSample,
     ],
   );
 
@@ -243,7 +240,7 @@ export const useSampleNavigation = () => {
       }
       return undefined;
     },
-    [resolveLogPath, tabId, sampleTabId],
+    [resolveLogPath, sampleTabId],
   );
 
   // Navigate back from sample dialog

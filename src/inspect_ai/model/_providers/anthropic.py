@@ -69,6 +69,7 @@ from anthropic.types.beta import (
     BetaBashCodeExecutionToolResultBlock,
     BetaBashCodeExecutionToolResultBlockParam,
     BetaCodeExecutionTool20250825Param,
+    BetaDirectCaller,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
     BetaMCPToolUseBlockParam,
@@ -118,6 +119,7 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
+from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -125,7 +127,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
-from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
+from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
@@ -469,6 +471,11 @@ class AnthropicAPI(ModelAPI):
             else:
                 params["top_k"] = config.top_k
 
+        # effort
+        if config.effort is not None:
+            betas.append("effort-2025-11-24")
+            extra_body["output_config"] = {"effort": config.effort}
+
         # some thinking-only stuff
         if self.is_using_thinking(config):
             params["thinking"] = dict(
@@ -681,7 +688,7 @@ class AnthropicAPI(ModelAPI):
         list[MessageParam],
     ]:
         # extract system message
-        system_messages, messages = split_system_messages(input, config)
+        system_messages, messages = split_system_messages(input)
 
         # messages
         message_params = [(await message_param(message)) for message in messages]
@@ -1314,7 +1321,16 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
         elif block_param["type"] == "tool_use":
             blocks.append(ToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "server_tool_use":
-            blocks.append(BetaServerToolUseBlock.model_validate(block_param))
+            blocks.append(
+                BetaServerToolUseBlock(
+                    id=block_param["id"],
+                    caller=BetaDirectCaller(type="direct"),
+                    input=block_param["input"],
+                    name=block_param["name"],
+                    type=block_param["type"],
+                )
+            )
+
         elif block_param["type"] == "web_search_tool_result":
             blocks.append(WebSearchToolResultBlock.model_validate(block_param))
         elif block_param["type"] == "bash_code_execution_tool_result":
@@ -1768,17 +1784,6 @@ def message_stop_reason(message: Message) -> tuple[StopReason, bool]:
             return "content_filter", False
         case _:
             return "unknown", message.stop_reason == "pause_turn"
-
-
-def split_system_messages(
-    input: list[ChatMessage], config: GenerateConfig
-) -> Tuple[list[ChatMessageSystem], list[ChatMessage]]:
-    # split messages
-    system_messages = [m for m in input if isinstance(m, ChatMessageSystem)]
-    messages = [m for m in input if not isinstance(m, ChatMessageSystem)]
-
-    # return
-    return system_messages, cast(list[ChatMessage], messages)
 
 
 web_search_result_block_param_adapter = TypeAdapter[

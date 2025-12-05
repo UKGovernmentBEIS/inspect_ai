@@ -89,7 +89,7 @@ export const LogView: FC = () => {
         navigation.selectTab(id);
       }
     },
-    [setSelectedTab, navigation.selectTab],
+    [setSelectedTab, navigation],
   );
 
   if (evalSpec === undefined) {

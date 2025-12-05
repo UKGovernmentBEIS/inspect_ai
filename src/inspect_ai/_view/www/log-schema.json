@@ -2262,6 +2262,7 @@
             "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
+            "effort": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
             "reasoning_summary": null,
@@ -3737,6 +3738,23 @@
           "default": null,
           "title": "Cache Prompt"
         },
+        "effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effort"
+        },
         "reasoning_effort": {
           "anyOf": [
             {
@@ -3887,6 +3905,7 @@
         "internal_tools",
         "max_tool_output",
         "cache_prompt",
+        "effort",
         "reasoning_effort",
         "reasoning_tokens",
         "reasoning_summary",
