@@ -61,13 +61,17 @@ from inspect_ai.log import EvalSpec
 from inspect_ai.scorer import SampleScore
 from inspect_ai.util import EarlyStopping, EarlyStop
 
-
 class RandomEarlyStopping(EarlyStopping):
     @override
     async def start_task(
         self, task: EvalSpec, samples: list[Sample], epochs: int
     ) -> str:
-        """Return the name of this early stopping manager."""
+        """Task initialization."""
+
+        # TODO: create a structure to track all of the samples/epochs
+        # this will generally be updated w/ scores in complete_sample() 
+
+        # return task name
         return "random"
 
     @override
@@ -75,9 +79,12 @@ class RandomEarlyStopping(EarlyStopping):
         self, id: str | int, epoch: int
     ) -> EarlyStop | None:
         """Return EarlyStop to skip this sample, or None to run it."""
-        # Randomly stop some samples
+
+        # TODO: determine whether the given sample has been run based
+        # on the previously accumulated samples scores.
+
+        # randomly stop some samples
         if random() < 0.5:
-            self._completed_samples.append(id)
             return EarlyStop(id=id, epoch=epoch, reason="random stop")
 
         return None
@@ -87,11 +94,19 @@ class RandomEarlyStopping(EarlyStopping):
         self, id: str | int, epoch: int, scores: dict[str, SampleScore]
     ) -> None:
         """Process results from a completed sample."""
+
+        # TODO: track scored samples and use this to determine the
+        # appropriate return value for calls to schedule_sample()
+
         pass
 
     @override
     async def complete_task(self) -> dict[str, JsonValue]:
         """Return custom metadata to record in the eval log."""
+
+        # TODO: return any custom data about the early stopping output
+        # (will be written to the log and displayed in the viewer)
+
         return {}
 ```
 
