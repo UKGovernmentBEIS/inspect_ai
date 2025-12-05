@@ -400,7 +400,7 @@ One thing to keep in mind if you are storing logs on S3 is that they will no lon
 You can store evaluation logs in Azure Blob Storage using any Azure-compatible fsspec scheme (`az://`, `abfs://`, or `abfss://`). Inspect relies on `fsspec` + `adlfs`, so no code changes are needed beyond installing the Azure dependency.
 
 ```
-pip install inspect_ai[dev]  # installs adlfs
+pip install "adlfs>=2025.8.0"
 ```
 
 **Recommended (Managed Identity / Workload Identity)**
