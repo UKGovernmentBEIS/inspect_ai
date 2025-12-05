@@ -1,5 +1,6 @@
 ## Unreleased
 
+- [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - Agent Bridge: Don't print serialization warnings when going from Pydantic -> JSON (as we use beta types that can cause warnings even though serialization works as intended).
 - Batch Processing: Enable customizing of batch status rendering.
 

@@ -45,6 +45,7 @@
 - [Tracing](https://inspect.aisi.org.uk/tracing.html.md): Describes advanced execution tracing tools used to diagnose runtime issues.
 - [Parallelism](https://inspect.aisi.org.uk/parallelism.html.md): Delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
 - [Interactivity](https://inspect.aisi.org.uk/interactivity.html.md): Covers various ways to introduce user interaction into the implementation of tasks (for example, confirming consequential actions or prompting the model dynamically based on the trajectory of the evaluation).
+- [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md): Describes the early stopping API for ending tasks early based on previously score samples.
 - [Extensions](https://inspect.aisi.org.uk/extensions.html.md) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).
 
 ## Reference: Python API
