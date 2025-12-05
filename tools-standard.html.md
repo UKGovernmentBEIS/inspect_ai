@@ -43,10 +43,10 @@ context window by performing a search. Web searches are executed using a
 provider. Providers are split into two categories:
 
 - Internal providers: `"openai"`, `"anthropic"`, `"gemini"`, `"grok"`,
-  and `"perplexity"` - these use the model’s built-in search capability
-  and do not require separate API keys. These work only for their
-  respective model provider (e.g. the “openai” search provider works
-  only for `openai/*` models).
+  `"mistral"`, and `"perplexity"` - these use the model’s built-in
+  search capability and do not require separate API keys. These work
+  only for their respective model provider (e.g. the “openai” search
+  provider works only for `openai/*` models).
 
 - External providers: `"tavily"`, `"exa"`, and `"google"`. These are
   external services that work with any model and require separate
@@ -73,7 +73,7 @@ web_search("tavily")
 web_search(["openai", "tavily"])
 
 # multiple internal providers and fallback
-web_search(["openai", "anthropic", "gemini", "perplexity", "tavily"])
+web_search(["openai", "anthropic", "gemini", "mistral", "tavily"])
 
 # provider with specific options
 web_search({"tavily": {"max_results": 5}})
@@ -598,16 +598,6 @@ inspect eval computer.py --no-internal-tools
 
 ## Code Execution
 
-> [!NOTE]
->
-> The code execution tool described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ### Overview
 
 The `code_execution()` tool provides models with the ability to execute
@@ -801,16 +791,6 @@ In this mode, the interactive tools (`web_browser_click()`,
 available to the model.
 
 ## Update Plan
-
-> [!NOTE]
->
-> The update plan tool described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 The `update_plan()` tool provides models with a way to track steps and
 progress in longer horizon tasks where it might otherwise lose track of

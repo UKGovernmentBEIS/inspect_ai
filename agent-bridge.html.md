@@ -187,16 +187,6 @@ in sandboxes.
 
 ## Bridged Tools
 
-> [!NOTE]
->
-> The bridged tools feature described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Host-side Inspect tools can be exposed as MCP tools to sandboxed agents
 using the `bridged_tools` parameter. This is useful when you have
 Inspect tools that need to run on the host (e.g. tools that access host

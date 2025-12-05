@@ -2934,108 +2934,114 @@ ul.task-list li input[type="checkbox"] {
 <td>None</td>
 </tr>
 <tr class="odd">
+<td><code>--effort</code></td>
+<td>choice (<code>low</code> | <code>medium</code> | <code>high</code>)</td>
+<td>Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only.</td>
+<td>None</td>
+</tr>
+<tr class="even">
 <td><code>--reasoning-effort</code></td>
 <td>choice (<code>none</code> | <code>minimal</code> | <code>low</code> | <code>medium</code> | <code>high</code>)</td>
 <td>Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-tokens</code></td>
 <td>integer</td>
 <td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-summary</code></td>
 <td>choice (<code>none</code> | <code>concise</code> | <code>detailed</code> | <code>auto</code>)</td>
 <td>Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-history</code></td>
 <td>choice (<code>none</code> | <code>all</code> | <code>last</code> | <code>auto</code>)</td>
 <td>Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--response-schema</code></td>
 <td>text</td>
 <td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--cache</code></td>
 <td>text</td>
 <td>Policy for caching of model generations. Specify –cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g.&nbsp;(e.g.&nbsp;1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#cachepolicy">CachePolicy</a></span> configuration.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--batch</code></td>
 <td>text</td>
 <td>Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify –batch to batch with default configuration, specify a batch size e.g.&nbsp;<code>--batch=1000</code> to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-format</code></td>
 <td>choice (<code>eval</code> | <code>json</code>)</td>
 <td>Format for writing log files.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level-transcript</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level of the transcript (defaults to ‘info’)</td>
 <td><code>info</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>log</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--traceback-locals</code></td>
 <td>boolean</td>
 <td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>

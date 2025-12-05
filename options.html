@@ -722,42 +722,46 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Values: <code>auto</code>, <code>true</code>, or <code>false</code>. Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools.</td>
 </tr>
 <tr class="even">
+<td><code>--effort</code></td>
+<td>Values: <code>low</code>, <code>medium</code>, or <code>high</code>. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only.</td>
+</tr>
+<tr class="odd">
 <td><code>--reasoning-effort</code></td>
 <td>Values: <code>none</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, or <code>high</code>. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-tokens</code></td>
 <td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-history</code></td>
 <td>Values: <code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--response-format</code></td>
 <td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--parallel-tool-calls</code></td>
 <td>Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-tool-output</code></td>
 <td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--internal-tools</code></td>
 <td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for Anthropic).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-retries</code></td>
 <td>Maximum number of times to retry generate request (defaults to unlimited)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--timeout</code></td>
 <td>Generate timeout in seconds (defaults to no timeout)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--attempt-timeout</code></td>
 <td>Timeout (in seconds) for any given generate attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 </tr>

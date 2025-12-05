@@ -387,9 +387,6 @@ export MISTRAL_API_KEY=your-mistral-api-key
 inspect eval arc.py --model mistral/mistral-large-latest
 ```
 
-For the `mistral` provider, custom model args (`-M`) are forwarded to
-the constructor of the `Mistral` class.
-
 The following environment variables are supported by the Mistral
 provider
 
@@ -397,6 +394,20 @@ provider
 |----|----|
 | `MISTRAL_API_KEY` | API key credentials (required). |
 | `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
+
+By default, the Mistral provider uses the [Conversation
+API](https://docs.mistral.ai/agents/agents#conversations), which
+includes features not available in the original completions API
+including native web search and code execution and support for document
+input. You can switch back to the completions API with the
+`conversation_api` custom model arg. For example:
+
+``` bash
+inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=false
+```
+
+Additional custom model args (`-M`) are forwarded to the constructor of
+the `Mistral` class.
 
 ### Mistral on Azure AI
 

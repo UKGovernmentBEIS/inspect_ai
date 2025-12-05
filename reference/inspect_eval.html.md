@@ -75,6 +75,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--internal-tools` / `--no-internal-tools` | boolean | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for anthropic). | `True` |
 | `--max-tool-output` | integer | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. | None |
 | `--cache-prompt` | choice (`auto` \| `true` \| `false`) | Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools. | None |
+| `--effort` | choice (`low` \| `medium` \| `high`) | Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only. | None |
 | `--reasoning-effort` | choice (`none` \| `minimal` \| `low` \| `medium` \| `high`) | Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). | None |
 | `--reasoning-tokens` | integer | Maximum number of tokens to use for reasoning. Anthropic Claude models only. | None |
 | `--reasoning-summary` | choice (`none` \| `concise` \| `detailed` \| `auto`) | Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI). | None |

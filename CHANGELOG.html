@@ -149,7 +149,7 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#december-2025" id="toc-december-2025" class="nav-link active" data-scroll-target="#december-2025">0.3.152 (04 December 2025)</a></li>
   <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.151 (30 November 2025)</a></li>
   <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.150 (25 November 2025)</a></li>
   <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.149 (23 November 2025)</a></li>
@@ -309,18 +309,26 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="december-2025" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025">0.3.152 (04 December 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan">Update Plan</a> tool for tracking steps and progress across longer horizon tasks.</li>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution">Code Execution</a> tool for executing Python code in a stateless sandbox running on model provider servers.</li>
+<li>Anthropic: Support for new <a href="https://platform.claude.com/docs/en/build-with-claude/effort">Effort</a> setting (<code>--effort</code>) for trading off between response thoroughness and token efficiency.</li>
 <li>Anthropic: Include native <code>web_fetch</code> tool as part of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> implementation (matching capability of other providers that have native web search).</li>
+<li>Anthropic: Use required <code>caller</code> field for server tool uses (required by package version 0.75, which is now the minimum version).</li>
+<li>OpenAI: Check for mismatches between specified model and Azure deployment URL.</li>
+<li>Mistral: Use the new Conversation API by default (disable with <code>-M conversation_api=False</code>).</li>
+<li>Mistral: Added support for native web_search and code_execution tools (executed server side).</li>
+<li>Mistral: Added support for document input.</li>
 <li>Grok: Support for server-side MCP tool calling.</li>
 <li>VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg <code>retry_delay</code>).</li>
+<li>Model API: Assign new message ID when combining messages for replay to providers.</li>
 <li>MCP Tools Bridge: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridgedtoolsspec">BridgedToolsSpec</a></span> and <code>bridged_tools</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> for exposing host-side Inspect tools to sandboxed agents via MCP protocol.</li>
 <li>Analysis: Support passing <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> objects directly to dataframe functions (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#messages_df">messages_df()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#events_df">events_df()</a></span>).</li>
 <li>Dependencies: Update to <code>mcp</code> package version 1.23.0.</li>
 <li>Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.</li>
+<li>Inspect View: Properly compute sample list columns for running evaluations that return dictionary scores.</li>
 <li>Bugfix: Ensure that entry points are not scanned repeatedly when there are no targets.</li>
 </ul>
 </section>
