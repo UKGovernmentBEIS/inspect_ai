@@ -21514,6 +21514,53 @@ thead th {
   color: var(--bs-secondary-color);
   font-size: 1rem;
 }
+._checkboxWrapper_14sdx_1 {
+  margin-bottom: 0.1rem;
+}
+
+._label_14sdx_5 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+._checkbox_14sdx_1 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+._filterIcon_14sdx_16 {
+  margin-left: 0.5rem;
+  color: var(--bs-primary);
+}
+
+._scrollableContainer_14sdx_21 {
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
+._headerRow_14sdx_26 {
+  display: flex;
+  gap: 2rem;
+}
+
+._buttonContainer_14sdx_31 {
+  display: flex;
+  gap: 0.5rem;
+}
+
+._button_14sdx_31 {
+  padding: 0;
+  text-decoration: none;
+}
+
+._columnsLayout_14sdx_41 {
+  columns: 2;
+}
+
+._popover_14sdx_45 {
+  width: 500px;
+}
 ._panel_18nhs_1 {
   height: 100vh;
   width: 100vw;
