@@ -25,6 +25,7 @@ from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
+from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
@@ -566,8 +567,12 @@ class EvalResults(BaseModel):
     completed_samples: int = Field(default=0)
     """Samples completed without error.
 
-    Will be equal to total_samples except when --fail-on-error is enabled.
+    Will be equal to total_samples except when --fail-on-error is enabled
+    or when there is early stopping.
     """
+
+    early_stopping: EarlyStoppingSummary | None = Field(default=None)
+    """Early stopping summary (if an early stopping manager was present)."""
 
     @property
     def scorer(self) -> EvalScore | None:

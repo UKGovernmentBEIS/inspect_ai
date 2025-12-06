@@ -40,6 +40,7 @@ from inspect_ai.scorer._scorer import (
     scorer_metrics,
     unique_scorer_name,
 )
+from inspect_ai.util._early_stopping import EarlyStoppingSummary
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +88,14 @@ def eval_results(
     scorers: list[Scorer] | None,
     metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
     scorer_names: list[str] | None = None,
+    early_stopping: EarlyStoppingSummary | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
-    results = EvalResults(total_samples=samples, completed_samples=len(scores))
+    results = EvalResults(
+        total_samples=samples,
+        completed_samples=len(scores),
+        early_stopping=early_stopping,
+    )
     reductions = None
 
     # extract scorers info from scorers then create scorers info for any

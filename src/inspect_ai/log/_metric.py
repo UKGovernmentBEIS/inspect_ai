@@ -47,6 +47,7 @@ def recompute_metrics(log: EvalLog) -> None:
         reducers=reducers,
         scorers=scorers,
         metrics=metrics,
+        early_stopping=log.results.early_stopping if log.results else None,
     )
 
     # Update the log's results and reductions

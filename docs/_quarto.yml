@@ -117,6 +117,7 @@ website:
                - tracing.qmd
                - parallelism.qmd
                - interactivity.qmd
+               - early-stopping.qmd
                - extensions.qmd
 
    page-footer: 

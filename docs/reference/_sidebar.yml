@@ -706,6 +706,12 @@ website:
           href: reference/inspect_ai.util.qmd#jsonschema
         - text: json_schema
           href: reference/inspect_ai.util.qmd#json_schema
+        - text: EarlyStopping
+          href: reference/inspect_ai.util.qmd#earlystopping
+        - text: EarlyStoppingSummary
+          href: reference/inspect_ai.util.qmd#earlystoppingsummary
+        - text: EarlyStop
+          href: reference/inspect_ai.util.qmd#earlystop
       - section: inspect_ai.hooks
         href: reference/inspect_ai.hooks.qmd
         contents:

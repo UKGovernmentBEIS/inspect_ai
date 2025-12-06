@@ -1,5 +1,6 @@
 ## Unreleased
 
+- [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - React Agent: Remove newlines from default prompts.
 
 ## 0.3.153 (05 December 2025)
