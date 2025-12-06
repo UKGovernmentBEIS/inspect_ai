@@ -69,6 +69,7 @@ from anthropic.types.beta import (
     BetaBashCodeExecutionToolResultBlock,
     BetaBashCodeExecutionToolResultBlockParam,
     BetaCodeExecutionTool20250825Param,
+    BetaDirectCaller,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
     BetaMCPToolUseBlockParam,
@@ -469,6 +470,11 @@ class AnthropicAPI(ModelAPI):
                 warn_once(logger, THINKING_WARNING.format(parameter="top_k"))
             else:
                 params["top_k"] = config.top_k
+
+        # effort
+        if config.effort is not None:
+            betas.append("effort-2025-11-24")
+            extra_body["output_config"] = {"effort": config.effort}
 
         # some thinking-only stuff
         if self.is_using_thinking(config):
@@ -1315,7 +1321,16 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
         elif block_param["type"] == "tool_use":
             blocks.append(ToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "server_tool_use":
-            blocks.append(BetaServerToolUseBlock.model_validate(block_param))
+            blocks.append(
+                BetaServerToolUseBlock(
+                    id=block_param["id"],
+                    caller=BetaDirectCaller(type="direct"),
+                    input=block_param["input"],
+                    name=block_param["name"],
+                    type=block_param["type"],
+                )
+            )
+
         elif block_param["type"] == "web_search_tool_result":
             blocks.append(WebSearchToolResultBlock.model_validate(block_param))
         elif block_param["type"] == "bash_code_execution_tool_result":

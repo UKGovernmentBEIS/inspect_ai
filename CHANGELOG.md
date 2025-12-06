@@ -1,8 +1,20 @@
 ## Unreleased
 
+- React Agent: Remove newlines from default prompts.
+
+## 0.3.153 (05 December 2025)
+
+- Agent Bridge: Don't print serialization warnings when going from Pydantic -> JSON (as we use beta types that can cause warnings even though serialization works as intended).
+- Batch Processing: Enable customizing of batch status rendering.
+- Inspect View: Expand dictionary scores into separate scores when viewing samples.
+
+## 0.3.152 (04 December 2025)
+
 - [Update Plan](https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan) tool for tracking steps and progress across longer horizon tasks.
 - [Code Execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
+- Anthropic: Support for new [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) setting (`--effort`) for trading off between response thoroughness and token efficiency. 
 - Anthropic: Include native `web_fetch` tool as part of `web_search()` implementation (matching capability of other providers that have native web search).
+- Anthropic: Use required `caller` field for server tool uses (required by package version 0.75, which is now the minimum version).
 - OpenAI: Check for mismatches between specified model and Azure deployment URL.
 - Mistral: Use the new Conversation API by default (disable with `-M conversation_api=False`).
 - Mistral: Added support for native web_search and code_execution tools (executed server side).
@@ -14,6 +26,7 @@
 - Analysis: Support passing `EvalLog` objects directly to dataframe functions (`samples_df()`, `evals_df()`, `messages_df()`, `events_df()`).
 - Dependencies: Update to `mcp` package version 1.23.0.
 - Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.
+- Inspect View: Properly compute sample list columns for running evaluations that return dictionary scores.
 - Bugfix: Ensure that entry points are not scanned repeatedly when there are no targets.
 
 ## 0.3.151 (30 November 2025)
