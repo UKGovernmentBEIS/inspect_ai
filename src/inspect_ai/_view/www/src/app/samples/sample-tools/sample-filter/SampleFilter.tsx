@@ -197,7 +197,7 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
     [debounceSetFilter, evalDescriptor],
   );
 
-  // Initialize editor
+  // Initialize editor (only once on mount)
   useEffect(() => {
     editorViewRef.current?.destroy();
 
@@ -221,7 +221,8 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
     });
 
     return () => editorViewRef.current?.destroy();
-  }, [filter, handleFocus, makeAutocompletion, makeLinter, makeUpdateListener]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   // Handle filter value changes
   useEffect(() => {
