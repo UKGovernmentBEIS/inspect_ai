@@ -1,0 +1,47 @@
+.checkboxWrapper {
+  margin-bottom: 0.1rem;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.checkbox {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.filterIcon {
+  margin-left: 0.5rem;
+  color: var(--bs-primary);
+}
+
+.scrollableContainer {
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
+.headerRow {
+  display: flex;
+  gap: 2rem;
+}
+
+.buttonContainer {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.button {
+  padding: 0;
+  text-decoration: none;
+}
+
+.columnsLayout {
+  columns: 2;
+}
+
+.popover {
+  width: 500px;
+}

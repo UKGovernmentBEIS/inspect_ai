@@ -4,6 +4,7 @@ import { PopOver } from "../../../components/PopOver";
 import { ApplicationIcons } from "../../appearance/icons";
 import { getFieldKey } from "./hooks";
 import { SampleRow } from "./types";
+import styles from "./ColumnSelectorPopover.module.css";
 
 interface ColumnSelectorPopoverProps {
   showing: boolean;
@@ -86,28 +87,23 @@ export const ColumnSelectorPopover: FC<ColumnSelectorPopoverProps> = ({
     return (
       <div
         key={field}
-        style={{ marginBottom: "0.1rem" }}
+        className={styles.checkboxWrapper}
         title={
           hasFilter
             ? "Unselecting will remove an active filter on this column"
             : undefined
         }
       >
-        <label
-          style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
-        >
+        <label className={styles.label}>
           <input
             type="checkbox"
             checked={currentVisibility[field]}
             onChange={() => handleToggle(field)}
-            style={{ marginRight: "0.5rem", cursor: "pointer" }}
+            className={styles.checkbox}
           />
           <span>{col.headerName || field}</span>
           {hasFilter && (
-            <i
-              className={ApplicationIcons.filter}
-              style={{ marginLeft: "0.5rem", color: "var(--bs-primary)" }}
-            />
+            <i className={`${ApplicationIcons.filter} ${styles.filterIcon}`} />
           )}
         </label>
       </div>
@@ -123,17 +119,16 @@ export const ColumnSelectorPopover: FC<ColumnSelectorPopoverProps> = ({
       placement="bottom-start"
       showArrow={false}
       hoverDelay={-1}
-      styles={{ width: "500px" }}
+      className={styles.popover}
     >
-      <div style={{ maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
+      <div className={styles.scrollableContainer}>
         <div>
-          <div style={{ display: "flex", gap: "2rem" }}>
+          <div className={styles.headerRow}>
             <b>Base</b>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div className={styles.buttonContainer}>
               <button
                 type="button"
-                className="btn btn-link btn-sm"
-                style={{ padding: 0, textDecoration: "none" }}
+                className={`btn btn-link btn-sm ${styles.button}`}
                 onClick={handleSelectAllBase}
               >
                 All
@@ -141,28 +136,26 @@ export const ColumnSelectorPopover: FC<ColumnSelectorPopoverProps> = ({
               |
               <button
                 type="button"
-                className="btn btn-link btn-sm"
-                style={{ padding: 0, textDecoration: "none" }}
+                className={`btn btn-link btn-sm ${styles.button}`}
                 onClick={handleDeselectAllBase}
               >
                 None
               </button>
             </div>
           </div>
-          <div style={{ columns: 2 }}>
+          <div className={styles.columnsLayout}>
             {columnGroups.base.map((col) => renderColumnCheckbox(col))}
           </div>
         </div>
 
         {columnGroups.scores.length > 0 && (
           <div>
-            <div style={{ display: "flex", gap: "2rem" }}>
+            <div className={styles.headerRow}>
               <b>Scorers</b>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div className={styles.buttonContainer}>
                 <button
                   type="button"
-                  className="btn btn-link btn-sm"
-                  style={{ padding: 0, textDecoration: "none" }}
+                  className={`btn btn-link btn-sm ${styles.button}`}
                   onClick={handleSelectAllScores}
                 >
                   All
@@ -170,15 +163,14 @@ export const ColumnSelectorPopover: FC<ColumnSelectorPopoverProps> = ({
                 |
                 <button
                   type="button"
-                  className="btn btn-link btn-sm"
-                  style={{ padding: 0, textDecoration: "none" }}
+                  className={`btn btn-link btn-sm ${styles.button}`}
                   onClick={handleDeselectAllScores}
                 >
                   None
                 </button>
               </div>
             </div>
-            <div style={{ columns: 2 }}>
+            <div className={styles.columnsLayout}>
               {columnGroups.scores.map((col) => renderColumnCheckbox(col))}
             </div>
           </div>
