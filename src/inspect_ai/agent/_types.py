@@ -6,28 +6,16 @@ from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_def import ToolDef
 
 DEFAULT_HANDOFF_PROMPT = """
-You are part of a multi-agent system designed to make agent coordination and
-execution easy. Agents uses two primary abstraction: **Agents** and **Handoffs**.
-An agent encompasses instructions and tools and can hand off a conversation to
-another agent when appropriate. Handoffs are achieved by calling a handoff function,
-generally named `transfer_to_<agent_name>`. Transfers between agents are handled
-seamlessly in the background; do not mention or draw attention to these transfers
-in your conversation with the user.
+You are part of a multi-agent system designed to make agent coordination and execution easy. Agents uses two primary abstraction: **Agents** and **Handoffs**. An agent encompasses instructions and tools and can hand off a conversation to another agent when appropriate. Handoffs are achieved by calling a handoff function,generally named `transfer_to_<agent_name>`. Transfers between agents are handled seamlessly in the background; do not mention or draw attention to these transfers in your conversation with the user.
 """
 
 
 DEFAULT_ASSISTANT_PROMPT = """
-You are a helpful assistant attempting to submit the best possible answer.
-You have several tools available to help with finding the answer. You will
-see the result of tool calls right after sending the message. If you need
-to perform multiple actions, you can always send more messages with additional
-tool calls. Do some reasoning before your actions, describing what tool calls
-you are going to use and how they fit into your plan.
+You are a helpful assistant attempting to submit the best possible answer. You have several tools available to help with finding the answer. You will see the result of tool calls right after sending the message. If you need to perform multiple actions, you can always send more messages with additional tool calls. Do some reasoning before your actions, describing what tool calls you are going to use and how they fit into your plan.
 """
 
 DEFAULT_SUBMIT_PROMPT = """
-When you have completed the task and have an answer, call the {submit}()
-tool to report it.
+When you have completed the task and have an answer, call the {submit}() tool to report it.
 """
 
 
@@ -56,8 +44,7 @@ class AgentPrompt(NamedTuple):
 
 
 DEFAULT_CONTINUE_PROMPT = """
-Please proceed to the next step using your best judgement. If you believe you
-have completed the task, please call the `{submit}()` tool with your final answer.
+Please proceed to the next step using your best judgement. If you believe you have completed the task, please call the `{submit}()` tool with your final answer.
 """
 
 DEFAULT_CONTINUE_PROMPT_NO_SUBMIT = """

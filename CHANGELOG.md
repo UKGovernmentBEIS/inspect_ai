@@ -1,3 +1,7 @@
+## Unreleased
+
+- React Agent: Remove newlines from default prompts.
+
 ## 0.3.153 (05 December 2025)
 
 - Agent Bridge: Don't print serialization warnings when going from Pydantic -> JSON (as we use beta types that can cause warnings even though serialization works as intended).
