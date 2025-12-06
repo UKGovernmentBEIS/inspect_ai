@@ -13,6 +13,7 @@ from inspect_ai.model._model import (
     init_model_roles,
     init_model_usage,
 )
+from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util._concurrency import init_concurrency
 from inspect_ai.util._subprocess import init_max_subprocesses
 
@@ -42,10 +43,11 @@ def init_model_context(
     model: Model,
     model_roles: dict[str, Model] | None = None,
     config: GenerateConfig = GenerateConfig(),
+    initial_model_usage: dict[str, ModelUsage] | None = None,
 ) -> None:
     init_active_model(model, config)
     init_model_roles(model_roles or {})
-    init_model_usage()
+    init_model_usage(initial_model_usage)
 
 
 def init_task_context(
@@ -53,7 +55,8 @@ def init_task_context(
     model_roles: dict[str, Model] | None = None,
     config: GenerateConfig = GenerateConfig(),
     approval: list[ApprovalPolicy] | None = None,
+    initial_model_usage: dict[str, ModelUsage] | None = None,
 ) -> None:
-    init_model_context(model, model_roles, config)
+    init_model_context(model, model_roles, config, initial_model_usage)
     if not have_tool_approval():
         init_tool_approval(approval)
