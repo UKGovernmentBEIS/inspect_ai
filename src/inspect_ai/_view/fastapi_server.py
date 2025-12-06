@@ -439,9 +439,13 @@ def view_server(
         async def announce_when_ready() -> None:
             while not server.started:
                 await anyio.sleep(0.05)
-            # Print this for compatibility with the Inspect VSCode plugin:
+            
+            # Only show machine IP when binding to 0.0.0.0 (accessible from all interfaces)
+            machine_ip = host
+            if host == "0.0.0.0":
+                machine_ip = get_ip() or "0.0.0.0"
             display().print(
-                f"======== Running on http://{host}:{port} ========\n"
+                f"======== Running on http://{machine_ip}:{port} ========\n"
                 "(Press CTRL+C to quit)"
             )
 
