@@ -16,7 +16,7 @@ import { NavbarButton } from "../navbar/NavbarButton";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
-import { ColumnSelector } from "./samples-grid/ColumnSelector";
+import { ColumnSelectorPopover } from "./samples-grid/ColumnSelectorPopover";
 import { useSampleColumns } from "./samples-grid/hooks";
 import styles from "./SamplesPanel.module.css";
 
@@ -153,7 +153,7 @@ export const SamplesPanel: FC = () => {
         {flowData && <FlowButton />}
       </ApplicationNavbar>
 
-      <ColumnSelector
+      <ColumnSelectorPopover
         showing={showColumnSelector}
         setShowing={setShowColumnSelector}
         columns={columns}

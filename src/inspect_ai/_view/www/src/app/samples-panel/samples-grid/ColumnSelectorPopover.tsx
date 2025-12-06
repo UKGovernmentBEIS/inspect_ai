@@ -5,7 +5,7 @@ import { ApplicationIcons } from "../../appearance/icons";
 import { getFieldKey } from "./hooks";
 import { SampleRow } from "./types";
 
-interface ColumnSelectorProps {
+interface ColumnSelectorPopoverProps {
   showing: boolean;
   setShowing: (showing: boolean) => void;
   columns: ColDef<SampleRow>[];
@@ -14,7 +14,7 @@ interface ColumnSelectorProps {
   filteredFields?: string[];
 }
 
-export const ColumnSelector: FC<ColumnSelectorProps> = ({
+export const ColumnSelectorPopover: FC<ColumnSelectorPopoverProps> = ({
   showing,
   setShowing,
   columns,
