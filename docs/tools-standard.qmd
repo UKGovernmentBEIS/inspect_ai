@@ -422,15 +422,6 @@ inspect eval computer.py --no-internal-tools
 
 ## Code Execution {#sec-code-execution}
 
-::: callout-note
-The code execution tool described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
-
 ### Overview
 
 The `code_execution()` tool provides models with the ability to execute Python code within a sandboxed environment. There are two significant differences between code execution and the `python()` tool described above:
@@ -581,14 +572,6 @@ use_tools(web_browser(interactive=False))
 In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
 
 ## Update Plan {#sec-update-plan}
-
-::: callout-note
-The update plan tool described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 The `update_plan()` tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it's trying to accomplish.
 

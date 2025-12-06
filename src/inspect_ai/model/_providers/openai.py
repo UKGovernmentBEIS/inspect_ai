@@ -100,6 +100,10 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
+        # check for Azure model/URL mismatch
+        if self.is_azure():
+            self._check_azure_deployment_mismatch(self.service_model_name(), base_url)
+
         # set background bit (automatically use background for deep research)
         if background is None and (self.is_deep_research() or self.is_gpt_5_pro()):
             background = True
@@ -395,6 +399,60 @@ class OpenAIAPI(ModelAPI):
                 batcher=self._completions_batcher,
             )
         )
+
+    def _check_azure_deployment_mismatch(
+        self, clean_model_name: str, base_url: str | None
+    ) -> None:
+        """Check for mismatches between specified model and Azure deployment URL."""
+        if not clean_model_name or not clean_model_name.strip():
+            return
+
+        # Get the Azure base URL from environment if not explicitly provided
+        azure_base_url = base_url or model_base_url(
+            None,
+            [
+                "AZUREAI_OPENAI_BASE_URL",
+                "AZURE_OPENAI_BASE_URL",
+                "AZURE_OPENAI_ENDPOINT",
+            ],
+        )
+        if not azure_base_url:
+            return
+
+        # Extract deployment name from URL
+        url_deployment = self._extract_deployment_from_azure_url(azure_base_url)
+        if not url_deployment:
+            return
+
+        # Normalize both names for comparison
+        normalized_model = self._normalize_model_name(clean_model_name)
+        normalized_deployment = self._normalize_model_name(url_deployment)
+
+        # Check for mismatch
+        if normalized_model != normalized_deployment:
+            logger.warning(
+                f"Model mismatch detected: model parameter specifies '{clean_model_name}' "
+                f"but AZUREAI_OPENAI_BASE_URL points to deployment '{url_deployment}'. "
+                f"The deployment from the URL ('{url_deployment}') will be used for API calls."
+            )
+
+    @staticmethod
+    def _extract_deployment_from_azure_url(url: str) -> str | None:
+        """Extract deployment name from Azure OpenAI URL."""
+        pattern = r"/deployments/([^/]+)"
+        match = re.search(pattern, url)
+        return match.group(1) if match else None
+
+    @staticmethod
+    def _normalize_model_name(model_name: str) -> str:
+        """Normalize model names for comparison."""
+        if not model_name:
+            return ""
+
+        normalized = model_name.lower()
+        # Normalize version format: gpt-3.5 <-> gpt-35
+        normalized = normalized.replace("gpt-3.5", "gpt-35")
+        return normalized
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
