@@ -1,8 +1,8 @@
-## Unreleased
+## 0.3.153 (05 December 2025)
 
 - Agent Bridge: Don't print serialization warnings when going from Pydantic -> JSON (as we use beta types that can cause warnings even though serialization works as intended).
 - Batch Processing: Enable customizing of batch status rendering.
-- Inspect View: Expand dictionary scores into separate scoress when viewing samples.
+- Inspect View: Expand dictionary scores into separate scores when viewing samples.
 
 ## 0.3.152 (04 December 2025)
 
