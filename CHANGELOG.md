@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Logging: Support for writing logs to Azure Blob Storage (`az://`).
 - React Agent: Remove newlines from default prompts.
 
 ## 0.3.153 (05 December 2025)
