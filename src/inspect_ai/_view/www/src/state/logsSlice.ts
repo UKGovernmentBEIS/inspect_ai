@@ -62,6 +62,9 @@ export interface LogsSlice {
     clearWatchedLogs: () => void;
     setSelectedRowIndex: (index: number | null) => void;
 
+    setLogsGridState: (gridState: GridState | undefined) => void;
+    clearLogsGridState: () => void;
+
     setGridState: (gridState: GridState) => void;
     clearGridState: () => void;
     setDisplayedSamples: (samples: Array<DisplayedSample>) => void;
@@ -422,6 +425,16 @@ export const createLogsSlice = (
       setSelectedRowIndex: (index: number | null) => {
         set((state) => {
           state.logs.listing.selectedRowIndex = index;
+        });
+      },
+      setLogsGridState: (gridState: GridState | undefined) => {
+        set((state) => {
+          state.logs.listing.gridState = gridState;
+        });
+      },
+      clearLogsGridState: () => {
+        set((state) => {
+          state.logs.listing.gridState = undefined;
         });
       },
       clearSelectedLogFile: () => {

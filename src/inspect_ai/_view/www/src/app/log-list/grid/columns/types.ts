@@ -1,0 +1,15 @@
+import { LogHandle } from "../../../../client/api/types";
+
+export interface LogListRow {
+  id: string;
+  name: string;
+  type: "file" | "folder" | "pending-task";
+  url?: string;
+  task?: string;
+  model?: string;
+  score?: number;
+  status?: string;
+  completedAt?: string;
+  itemCount?: number;
+  log?: LogHandle;
+}

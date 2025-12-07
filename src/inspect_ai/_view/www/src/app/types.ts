@@ -106,6 +106,7 @@ export interface LogsListing {
   filteredCount?: number;
   watchedLogs?: LogHandle[];
   selectedRowIndex?: number | null;
+  gridState?: GridState;
 }
 
 export interface SampleHandle {

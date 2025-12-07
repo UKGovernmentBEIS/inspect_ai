@@ -703,6 +703,12 @@ export const useLogsListing = () => {
     (state) => state.logsActions.setSelectedRowIndex,
   );
 
+  const gridState = useStore((state) => state.logs.listing.gridState);
+  const setGridState = useStore((state) => state.logsActions.setLogsGridState);
+  const clearGridState = useStore(
+    (state) => state.logsActions.clearLogsGridState,
+  );
+
   return {
     sorting,
     setSorting,
@@ -718,6 +724,9 @@ export const useLogsListing = () => {
     setFilteredCount,
     selectedRowIndex,
     setSelectedRowIndex,
+    gridState,
+    setGridState,
+    clearGridState,
   };
 };
 
