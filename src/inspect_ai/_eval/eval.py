@@ -999,6 +999,7 @@ async def eval_retry_async(
         # collect the rest of the params we need for the eval
         task_args = eval_log.eval.task_args_passed
         tags = eval_log.eval.tags
+        metadata = eval_log.eval.metadata
         limit = eval_log.eval.config.limit
         # try to match log format of retried log
         if log_format is None and eval_log.location:
@@ -1091,6 +1092,7 @@ async def eval_retry_async(
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
                 tags=tags,
+                metadata=metadata,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
