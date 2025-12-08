@@ -90,6 +90,8 @@ export interface LogsState {
   samplesListState: {
     gridState?: GridState;
     displayedSamples?: Array<DisplayedSample>;
+    columnVisibility: Record<string, boolean>;
+    previousSamplesPath?: string;
   };
   flow?: string;
   flowDir?: string;
