@@ -51,7 +51,11 @@ export const LogView: FC = () => {
 
   const errorTabConfig = useErrorTabConfig(selectedLogDetails?.error);
 
-  const taskTabConfig = useTaskTabConfig(evalSpec, selectedLogDetails?.stats);
+  const taskTabConfig = useTaskTabConfig(
+    evalSpec,
+    selectedLogDetails?.stats,
+    selectedLogDetails?.results?.early_stopping,
+  );
 
   const modelsTabConfig = useModelsTab(
     evalSpec,

@@ -67,3 +67,9 @@ title: "inspect_ai.util"
 ### JSONType
 ### JSONSchema
 ### json_schema
+
+## Early Stopping
+
+### EarlyStopping
+### EarlyStoppingSummary
+### EarlyStop

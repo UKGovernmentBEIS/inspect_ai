@@ -224,6 +224,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
           <SampleList
             listHandle={sampleListHandle}
             items={items}
+            earlyStopping={selectedLogDetails?.results?.early_stopping}
             totalItemCount={evalSampleCount}
             running={running}
           />

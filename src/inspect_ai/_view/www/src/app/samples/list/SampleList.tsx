@@ -17,6 +17,7 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
+import { EarlyStoppingSummary } from "../../../@types/log";
 import { ScoreLabel } from "../../../app/types";
 import {
   useDocumentTitle,
@@ -38,6 +39,7 @@ const kSeparatorHeight = 24;
 
 interface SampleListProps {
   items: ListItem[];
+  earlyStopping?: EarlyStoppingSummary | null;
   totalItemCount: number;
   running: boolean;
   className?: string | string[];
@@ -47,7 +49,14 @@ interface SampleListProps {
 export const kSampleFollowProp = "sample-list";
 
 export const SampleList: FC<SampleListProps> = memo((props) => {
-  const { items, totalItemCount, running, className, listHandle } = props;
+  const {
+    items,
+    earlyStopping,
+    totalItemCount,
+    running,
+    className,
+    listHandle,
+  } = props;
 
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const { getRestoreState, isScrolling } = useVirtuosoState(
@@ -259,22 +268,37 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
 
   const percentError = (errorCount / sampleCount) * 100;
   const percentLimit = (limitCount / sampleCount) * 100;
-  const warningMessage =
-    errorCount > 0
-      ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
-      : limitCount
-        ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`
-        : undefined;
+
+  const warnings = [];
+  if (errorCount > 0) {
+    warnings.push({
+      type: "info",
+      msg: `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`,
+    });
+  }
+  if (limitCount > 0) {
+    warnings.push({
+      type: "info",
+      msg: `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`,
+    });
+  }
+  if (earlyStopping?.early_stops && earlyStopping?.early_stops?.length > 0) {
+    warnings.push({
+      type: "info",
+      msg: `Skipped ${earlyStopping.early_stops.length} samples due to early stopping (${earlyStopping.manager}). `,
+    });
+  }
 
   return (
     <div className={styles.mainLayout}>
-      {warningMessage ? (
+      {warnings.map((warning, index) => (
         <MessageBand
-          id={"sample-warning-message"}
-          message={warningMessage}
-          type="info"
+          id={`sample-warning-message-${index}`}
+          message={warning.msg}
+          type={warning.type as "info" | "warning" | "error"}
+          key={`sample-warning-message-${index}`}
         />
-      ) : undefined}
+      ))}
       <SampleHeader
         input={input !== "0"}
         target={target !== "0"}
