@@ -15,9 +15,9 @@ import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { NavbarButton } from "../navbar/NavbarButton";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
-import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import { ColumnSelectorPopover } from "./samples-grid/ColumnSelectorPopover";
 import { useSampleColumns } from "./samples-grid/hooks";
+import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
 
 export const SamplesPanel: FC = () => {
@@ -142,7 +142,7 @@ export const SamplesPanel: FC = () => {
           key="choose-columns"
           ref={columnButtonRef}
           label="Choose Columns"
-          icon={ApplicationIcons.options}
+          icon={ApplicationIcons.checkbox.checked}
           onClick={(e) => {
             e.stopPropagation();
             setShowColumnSelector((prev) => !prev);

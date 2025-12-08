@@ -23,9 +23,17 @@
   overflow-y: auto;
 }
 
+.section {
+  margin-bottom: 0.75rem;
+}
+
 .headerRow {
   display: flex;
-  gap: 2rem;
+  column-gap: 2rem;
+  row-gap: 1rem;
+  border-bottom: solid 1px var(--bs-border-color);
+  margin-bottom: 0.5rem;
+  justify-content: space-between;
 }
 
 .buttonContainer {
@@ -38,10 +46,12 @@
   text-decoration: none;
 }
 
-.columnsLayout {
-  columns: 2;
+.button:hover {
+  text-decoration: underline;
+  cursor: pointer;
 }
 
-.popover {
-  width: 500px;
+.columnsLayout {
+  columns: 2;
+  column-gap: 2rem;
 }
