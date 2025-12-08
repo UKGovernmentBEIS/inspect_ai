@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Options – Inspect</title>
+<title>Early Stopping – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -65,8 +65,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./log-viewer.html" rel="next">
-<link href="./tutorial.html" rel="prev">
+<link href="./extensions.html" rel="next">
+<link href="./interactivity.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -181,7 +181,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Basics</a></li><li class="breadcrumb-item"><a href="./options.html">Options</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./early-stopping.html">Early Stopping</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -220,7 +220,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./options.html" class="sidebar-item-text sidebar-link active">
+  <a href="./options.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Options</span></a>
   </div>
 </li>
@@ -490,7 +490,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./early-stopping.html" class="sidebar-item-text sidebar-link">
+  <a href="./early-stopping.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Early Stopping</span></a>
   </div>
 </li>
@@ -513,28 +513,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#env-files" id="toc-env-files" class="nav-link" data-scroll-target="#env-files">.env Files</a></li>
-  <li><a href="#specifying-options" id="toc-specifying-options" class="nav-link" data-scroll-target="#specifying-options">Specifying Options</a></li>
-  <li><a href="#model-provider" id="toc-model-provider" class="nav-link" data-scroll-target="#model-provider">Model Provider</a></li>
-  <li><a href="#model-generation" id="toc-model-generation" class="nav-link" data-scroll-target="#model-generation">Model Generation</a></li>
-  <li><a href="#tasks-and-solvers" id="toc-tasks-and-solvers" class="nav-link" data-scroll-target="#tasks-and-solvers">Tasks and Solvers</a></li>
-  <li><a href="#sample-selection" id="toc-sample-selection" class="nav-link" data-scroll-target="#sample-selection">Sample Selection</a></li>
-  <li><a href="#parallelism" id="toc-parallelism" class="nav-link" data-scroll-target="#parallelism">Parallelism</a></li>
-  <li><a href="#errors-and-limits" id="toc-errors-and-limits" class="nav-link" data-scroll-target="#errors-and-limits">Errors and Limits</a></li>
-  <li><a href="#eval-logs" id="toc-eval-logs" class="nav-link" data-scroll-target="#eval-logs">Eval Logs</a></li>
-  <li><a href="#scoring" id="toc-scoring" class="nav-link" data-scroll-target="#scoring">Scoring</a></li>
-  <li><a href="#sandboxes" id="toc-sandboxes" class="nav-link" data-scroll-target="#sandboxes">Sandboxes</a></li>
-  <li><a href="#debugging" id="toc-debugging" class="nav-link" data-scroll-target="#debugging">Debugging</a></li>
-  <li><a href="#miscellaneous" id="toc-miscellaneous" class="nav-link" data-scroll-target="#miscellaneous">Miscellaneous</a></li>
+  <li><a href="#earlystopping-protocol" id="toc-earlystopping-protocol" class="nav-link" data-scroll-target="#earlystopping-protocol">EarlyStopping Protocol</a></li>
+  <li><a href="#example-implementation" id="toc-example-implementation" class="nav-link" data-scroll-target="#example-implementation">Example Implementation</a></li>
+  <li><a href="#earlystop" id="toc-earlystop" class="nav-link" data-scroll-target="#earlystop">EarlyStop</a></li>
+  <li><a href="#log-output" id="toc-log-output" class="nav-link" data-scroll-target="#log-output">Log Output</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Basics</a></li><li class="breadcrumb-item"><a href="./options.html">Options</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./early-stopping.html">Early Stopping</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Options</h1>
+<h1 class="title">Early Stopping</h1>
 </div>
 
 
@@ -551,503 +542,181 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="overview" class="level2">
-<h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interctions. These options fall into roughly two categories:</p>
-<ol type="1">
-<li><p>Options that you want to set on a more durable basis (for a project or session).</p></li>
-<li><p>Options that you want to tweak per-eval to accommodate particular scenarios.</p></li>
-</ol>
-<p>For the former, we recommend you specify these options in a <code>.env</code> file within your project directory, which is covered in the section below. See the <a href="#eval-options">Eval Options</a> for details on all available options.</p>
-</section>
-<section id="env-files" class="level2">
-<h2 class="anchored" data-anchor-id="env-files">.env Files</h2>
-<p>While we can include all required options on the <code>inspect eval</code> command line, it’s generally easier to use environment variables for commonly repeated options. To facilitate this, the <code>inspect</code> CLI will automatically read and process <code>.env</code> files located in the current working directory (also searching in parent directories if a <code>.env</code> file is not found in the working directory). This is done using the <a href="https://pypi.org/project/python-dotenv/">python-dotenv</a> package).</p>
-<p>For example, here’s a <code>.env</code> file that makes available API keys for several providers and sets a bunch of defaults for a working session:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>.env</strong></pre>
-</div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" data-filename=".env"><pre class="sourceCode makefile code-with-copy"><code class="sourceCode makefile"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="dt">OPENAI_API_KEY</span><span class="ch">=</span><span class="st">your-api-key</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="dt">ANTHROPIC_API_KEY</span><span class="ch">=</span><span class="st">your-api-key</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="dt">GOOGLE_API_KEY</span><span class="ch">=</span><span class="st">your-api-key</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_DIR</span><span class="ch">=</span><span class="st">./logs-04-07-2024</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_LEVEL</span><span class="ch">=</span><span class="st">warning</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MAX_RETRIES</span><span class="ch">=</span><span class="st">5</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MAX_CONNECTIONS</span><span class="ch">=</span><span class="st">20</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MODEL</span><span class="ch">=</span><span class="st">anthropic/claude-3-5-sonnet-20240620</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-<p>All command line options can also be set via environment variable by using the <code>INSPECT_EVAL_</code> prefix.</p>
-<p>Note that <code>.env</code> files are searched for in parent directories, so if you run an Inspect command from a subdirectory of a parent that has an <code>.env</code> file, it will still be read and resolved. If you define a relative path to <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file, then its location will always be resolved as relative to that <code>.env</code> file (rather than relative to whatever your current working directory is when you run <code>inspect eval</code>).</p>
-<div class="callout callout-style-simple callout-important">
-<div class="callout-body d-flex">
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
-<div class="callout-body-container">
-<p><code>.env</code> files should <em>never</em> be checked into version control, as they nearly always contain either secret API keys or machine specific paths. A best practice is often to check in an <code>.env.example</code> file to version control which provides an outline (e.g.&nbsp;keys only not values) of variables that are required by the current project.</p>
+<div class="callout-title-container flex-fill">
+Note
 </div>
 </div>
+<div class="callout-body-container callout-body">
+<p>The early stopping feature described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
+</div>
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<p>Early stopping enables you to skip samples or epochs during evaluation based on results observed so far. This is useful for implementing <a href="https://en.wikipedia.org/wiki/Computerized_adaptive_testing">adaptive testing algorithms</a> that dynamically decide which samples to run based on prior performance, potentially saving significant computation time while maintaining evaluation quality.</p>
+<p>Common use cases include:</p>
+<ul>
+<li><strong>Stopping a sample after consistent results</strong>: If a sample has been answered correctly (or incorrectly) across multiple epochs, skip remaining epochs.</li>
+<li><strong>Adaptive difficulty</strong>: Focus evaluation time on samples near the model’s capability boundary.</li>
+<li><strong>Resource optimization</strong>: Skip samples that are unlikely to provide additional signal.</li>
+</ul>
 </section>
-<section id="specifying-options" class="level2">
-<h2 class="anchored" data-anchor-id="specifying-options">Specifying Options</h2>
-<p>Below are sections for the various categories of options supported by <code>inspect eval</code>. Note that all of these options are also available for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> function and settable by environment variables. For example:</p>
+<section id="earlystopping-protocol" class="level2">
+<h2 class="anchored" data-anchor-id="earlystopping-protocol">EarlyStopping Protocol</h2>
+<p>To implement early stopping, create a class that implements the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#earlystopping">EarlyStopping</a></span> protocol and pass it to the <code>early_stopping</code> parameter of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> EarlyStopping, EarlyStop</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_task():</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>my_dataset,</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>my_solver,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>my_scorer,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        early_stopping<span class="op">=</span>MyEarlyStopping(),</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        epochs<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#earlystopping">EarlyStopping</a></span> protocol defines four async methods:</p>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 33%">
-<col style="width: 33%">
-<col style="width: 33%">
-</colgroup>
 <thead>
 <tr class="header">
-<th>CLI</th>
-<th>eval()</th>
-<th>Environment</th>
+<th>Method</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>--model</code></td>
-<td><code>model</code></td>
-<td><code>INSPECT_EVAL_MODEL</code></td>
+<td><code>start_task()</code></td>
+<td>Called at the beginning of an eval to register task metadata.</td>
 </tr>
 <tr class="even">
-<td><code>--sample-id</code></td>
-<td><code>sample_id</code></td>
-<td><code>INSPECT_EVAL_SAMPLE_ID</code></td>
+<td><code>schedule_sample()</code></td>
+<td>Called before each sample runs; return <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#earlystop">EarlyStop</a></span> to skip it.</td>
 </tr>
 <tr class="odd">
-<td><code>--sample-shuffle</code></td>
-<td><code>sample_shuffle</code></td>
-<td><code>INSPECT_EVAL_SAMPLE_SHUFFLE</code></td>
+<td><code>complete_sample()</code></td>
+<td>Called when a sample completes with its scores.</td>
 </tr>
 <tr class="even">
-<td><code>--limit</code></td>
-<td><code>limit</code></td>
-<td><code>INSPECT_EVAL_LIMIT</code></td>
+<td><code>complete_task()</code></td>
+<td>Called when the task completes; return metadata for the log.</td>
 </tr>
 </tbody>
 </table>
 </section>
-<section id="model-provider" class="level2">
-<h2 class="anchored" data-anchor-id="model-provider">Model Provider</h2>
+<section id="example-implementation" class="level2">
+<h2 class="anchored" data-anchor-id="example-implementation">Example Implementation</h2>
+<p>Here is a simple example that randomly stops samples early (for demonstration purposes):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> JsonValue</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing_extensions <span class="im">import</span> override</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> EvalSpec</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> SampleScore</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> EarlyStopping, EarlyStop</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RandomEarlyStopping(EarlyStopping):</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">@override</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> start_task(</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, task: EvalSpec, samples: <span class="bu">list</span>[Sample], epochs: <span class="bu">int</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Task initialization."""</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># </span><span class="al">TODO</span><span class="co">: create a structure to track all of the samples/epochs</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        <span class="co"># this will generally be updated w/ scores in complete_sample() </span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        <span class="co"># return task name</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"random"</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">@override</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> schedule_sample(</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">id</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span>, epoch: <span class="bu">int</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> EarlyStop <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Return EarlyStop to skip this sample, or None to run it."""</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        <span class="co"># </span><span class="al">TODO</span><span class="co">: determine whether the given sample has been run based</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># on the previously accumulated samples scores.</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="co"># randomly stop some samples</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> random() <span class="op">&lt;</span> <span class="fl">0.5</span>:</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EarlyStop(<span class="bu">id</span><span class="op">=</span><span class="bu">id</span>, epoch<span class="op">=</span>epoch, reason<span class="op">=</span><span class="st">"random stop"</span>)</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    <span class="at">@override</span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> complete_sample(</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">id</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span>, epoch: <span class="bu">int</span>, scores: <span class="bu">dict</span>[<span class="bu">str</span>, SampleScore]</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Process results from a completed sample."""</span></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>        <span class="co"># </span><span class="al">TODO</span><span class="co">: track scored samples and use this to determine the</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>        <span class="co"># appropriate return value for calls to schedule_sample()</span></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">pass</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>    <span class="at">@override</span></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> complete_task(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, JsonValue]:</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Return custom metadata to record in the eval log."""</span></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        <span class="co"># </span><span class="al">TODO</span><span class="co">: return any custom data about the early stopping output</span></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>        <span class="co"># (will be written to the log and displayed in the viewer)</span></span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="earlystop" class="level2">
+<h2 class="anchored" data-anchor-id="earlystop">EarlyStop</h2>
+<p>When <code>schedule_sample()</code> returns an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#earlystop">EarlyStop</a></span>, the sample is skipped. The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#earlystop">EarlyStop</a></span> class includes:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
+<col style="width: 26%">
+<col style="width: 23%">
+<col style="width: 50%">
 </colgroup>
+<thead>
+<tr class="header">
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
 <tbody>
 <tr class="odd">
-<td><code>--model</code></td>
-<td>Model used to evaluate tasks.</td>
+<td><code>id</code></td>
+<td><code>str | int</code></td>
+<td>Sample dataset id.</td>
 </tr>
 <tr class="even">
-<td><code>--model-base-url</code></td>
-<td>Base URL for for model API</td>
+<td><code>epoch</code></td>
+<td><code>int</code></td>
+<td>Sample epoch.</td>
 </tr>
 <tr class="odd">
-<td><code>--model-config</code></td>
-<td>Model specific arguments (JSON or YAML file)</td>
+<td><code>reason</code></td>
+<td><code>str | None</code></td>
+<td>Optional reason for the early stop.</td>
 </tr>
 <tr class="even">
-<td><code>-M</code></td>
-<td>Model specific arguments (<code>key=value</code>).</td>
+<td><code>metadata</code></td>
+<td><code>dict[str, JsonValue] | None</code></td>
+<td>Optional metadata about the stop.</td>
 </tr>
 </tbody>
 </table>
 </section>
-<section id="model-generation" class="level2">
-<h2 class="anchored" data-anchor-id="model-generation">Model Generation</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--max-tokens</code></td>
-<td>The maximum number of tokens that can be generated in the completion (default is model specific)</td>
-</tr>
-<tr class="even">
-<td><code>--system-message</code></td>
-<td>Override the default system message.</td>
-</tr>
-<tr class="odd">
-<td><code>--temperature</code></td>
-<td>What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.</td>
-</tr>
-<tr class="even">
-<td><code>--top-p</code></td>
-<td>An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.</td>
-</tr>
-<tr class="odd">
-<td><code>--top-k</code></td>
-<td>Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.</td>
-</tr>
-<tr class="even">
-<td><code>--frequency-penalty</code></td>
-<td>Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only.</td>
-</tr>
-<tr class="odd">
-<td><code>--presence-penalty</code></td>
-<td>Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
-</tr>
-<tr class="even">
-<td><code>--logit-bias</code></td>
-<td>Map token Ids to an associated bias value from -100 to 100 (e.g.&nbsp;“42=10,43=-10”). OpenAI and Grok only.</td>
-</tr>
-<tr class="odd">
-<td><code>--seed</code></td>
-<td>Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.</td>
-</tr>
-<tr class="even">
-<td><code>--stop-seqs</code></td>
-<td>Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.</td>
-</tr>
-<tr class="odd">
-<td><code>--num-choices</code></td>
-<td>How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.</td>
-</tr>
-<tr class="even">
-<td><code>--best-of</code></td>
-<td>Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only.</td>
-</tr>
-<tr class="odd">
-<td><code>--log-probs</code></td>
-<td>Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.</td>
-</tr>
-<tr class="even">
-<td><code>--top-logprobs</code></td>
-<td>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.</td>
-</tr>
-<tr class="odd">
-<td><code>--cache-prompt</code></td>
-<td>Values: <code>auto</code>, <code>true</code>, or <code>false</code>. Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools.</td>
-</tr>
-<tr class="even">
-<td><code>--effort</code></td>
-<td>Values: <code>low</code>, <code>medium</code>, or <code>high</code>. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only.</td>
-</tr>
-<tr class="odd">
-<td><code>--reasoning-effort</code></td>
-<td>Values: <code>none</code>, <code>minimal</code>, <code>low</code>, <code>medium</code>, or <code>high</code>. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).</td>
-</tr>
-<tr class="even">
-<td><code>--reasoning-tokens</code></td>
-<td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
-</tr>
-<tr class="odd">
-<td><code>--reasoning-history</code></td>
-<td>Values: <code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
-</tr>
-<tr class="even">
-<td><code>--response-format</code></td>
-<td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
-</tr>
-<tr class="odd">
-<td><code>--parallel-tool-calls</code></td>
-<td>Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.</td>
-</tr>
-<tr class="even">
-<td><code>--max-tool-output</code></td>
-<td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
-</tr>
-<tr class="odd">
-<td><code>--internal-tools</code></td>
-<td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for Anthropic).</td>
-</tr>
-<tr class="even">
-<td><code>--max-retries</code></td>
-<td>Maximum number of times to retry generate request (defaults to unlimited)</td>
-</tr>
-<tr class="odd">
-<td><code>--timeout</code></td>
-<td>Generate timeout in seconds (defaults to no timeout)</td>
-</tr>
-<tr class="even">
-<td><code>--attempt-timeout</code></td>
-<td>Timeout (in seconds) for any given generate attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="tasks-and-solvers" class="level2">
-<h2 class="anchored" data-anchor-id="tasks-and-solvers">Tasks and Solvers</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--task-config</code></td>
-<td>Task arguments (JSON or YAML file)</td>
-</tr>
-<tr class="even">
-<td><code>-T</code></td>
-<td>Task arguments (<code>key=value</code>)</td>
-</tr>
-<tr class="odd">
-<td><code>--solver</code></td>
-<td>Solver to execute (overrides task default solver)</td>
-</tr>
-<tr class="even">
-<td><code>--solver-config</code></td>
-<td>Solver arguments (JSON or YAML file)</td>
-</tr>
-<tr class="odd">
-<td><code>-S</code></td>
-<td>Solver arguments (<code>key=value</code>)</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="sample-selection" class="level2">
-<h2 class="anchored" data-anchor-id="sample-selection">Sample Selection</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--limit</code></td>
-<td>Limit samples to evaluate by specifying a maximum (e.g.&nbsp;<code>10</code>) or range (e.g.&nbsp;<code>10-20</code>)</td>
-</tr>
-<tr class="even">
-<td><code>--sample-id</code></td>
-<td>Evaluate a specific sample (e.g.&nbsp;<code>44</code>) or list of samples (e.g.&nbsp;<code>44,63,91</code>)</td>
-</tr>
-<tr class="odd">
-<td><code>--epochs</code></td>
-<td>Number of times to repeat each sample (defaults to 1)</td>
-</tr>
-<tr class="even">
-<td><code>--epochs-reducer</code></td>
-<td>Method for reducing per-epoch sample scores into a single score. Built in reducers include <code>mean</code>, <code>median</code>, <code>mode</code>, <code>max</code>, <code>at_least_{n}</code>, and <code>pass_at_{k}</code>.</td>
-</tr>
-<tr class="odd">
-<td><code>--no-epochs-reducer</code></td>
-<td>Do not reduce epochs across samples (compute metrics across all samples and epochs together).</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="parallelism" class="level2">
-<h2 class="anchored" data-anchor-id="parallelism">Parallelism</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--max-connections</code></td>
-<td>Maximum number of concurrent connections to Model provider (defaults to 10)</td>
-</tr>
-<tr class="even">
-<td><code>--max-samples</code></td>
-<td>Maximum number of samples to run in parallel (default is <code>--max-connections</code>)</td>
-</tr>
-<tr class="odd">
-<td><code>--max-subprocesses</code></td>
-<td>Maximum number of subprocesses to run in parallel (default is <code>os.cpu_count()</code>)</td>
-</tr>
-<tr class="even">
-<td><code>--max-sandboxes</code></td>
-<td>Maximum number of sandboxes (per-provider) to run in parallel (default is <code>2 * os.cpu_count()</code>)</td>
-</tr>
-<tr class="odd">
-<td><code>--max-tasks</code></td>
-<td>Maximum number of tasks to run in parallel (default is 1)</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="errors-and-limits" class="level2">
-<h2 class="anchored" data-anchor-id="errors-and-limits">Errors and Limits</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--fail-on-error</code></td>
-<td>Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.</td>
-</tr>
-<tr class="even">
-<td><code>--no-fail-on-error</code></td>
-<td>Do not fail the eval if errors occur within samples (instead, continue running other samples)</td>
-</tr>
-<tr class="odd">
-<td><code>--message-limit</code></td>
-<td>Limit on total messages used for each sample.</td>
-</tr>
-<tr class="even">
-<td><code>--token-limit</code></td>
-<td>Limit on total tokens used for each sample.</td>
-</tr>
-<tr class="odd">
-<td><code>--time-limit</code></td>
-<td>Limit on total running time for each sample.</td>
-</tr>
-<tr class="even">
-<td><code>--working-limit</code></td>
-<td>Limit on total working time (model generation, tool calls, etc.) for each sample.</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="eval-logs" class="level2">
-<h2 class="anchored" data-anchor-id="eval-logs">Eval Logs</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--log-dir</code></td>
-<td>Directory for log files (defaults to <code>./logs</code>)</td>
-</tr>
-<tr class="even">
-<td><code>--no-log-samples</code></td>
-<td>Do not log sample details.</td>
-</tr>
-<tr class="odd">
-<td><code>--no-log-images</code></td>
-<td>Do not log images and other media.</td>
-</tr>
-<tr class="even">
-<td><code>--no-log-realtime</code></td>
-<td>Do not log events in realtime (affects live viewing of logs)</td>
-</tr>
-<tr class="odd">
-<td><code>--log-buffer</code></td>
-<td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems).</td>
-</tr>
-<tr class="even">
-<td><code>--log-shared</code></td>
-<td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify <code>True</code> to sync every 10 seconds, otherwise an integer to sync every <code>n</code> seconds.</td>
-</tr>
-<tr class="odd">
-<td><code>--log-format</code></td>
-<td>Values: <code>eval</code>, <code>json</code> Format for writing log files (defaults to <code>eval</code>).</td>
-</tr>
-<tr class="even">
-<td><code>--log-level</code></td>
-<td>Python logger level for console. Values: <code>debug</code>, <code>trace</code>, <code>http</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code> (defaults to <code>warning</code>)</td>
-</tr>
-<tr class="odd">
-<td><code>--log-level-transcript</code></td>
-<td>Python logger level for eval log transcript (values same as <code>--log-level</code>, defaults to <code>info</code>).</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="scoring" class="level2">
-<h2 class="anchored" data-anchor-id="scoring">Scoring</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--no-score</code></td>
-<td>Do not score model output (use the <code>inspect score</code> command to score output later)</td>
-</tr>
-<tr class="even">
-<td><code>--no-score-display</code></td>
-<td>Do not display realtime scoring information.</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="sandboxes" class="level2">
-<h2 class="anchored" data-anchor-id="sandboxes">Sandboxes</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--sandbox</code></td>
-<td>Sandbox environment type (with optional config file). e.g.&nbsp;‘docker’ or ‘docker:compose.yml’</td>
-</tr>
-<tr class="even">
-<td><code>--no-sandbox-cleanup</code></td>
-<td>Do not cleanup sandbox environments after task completes</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="debugging" class="level2">
-<h2 class="anchored" data-anchor-id="debugging">Debugging</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--debug</code></td>
-<td>Wait to attach debugger</td>
-</tr>
-<tr class="even">
-<td><code>--debug-port</code></td>
-<td>Port number for debugger</td>
-</tr>
-<tr class="odd">
-<td><code>--debug-errors</code></td>
-<td>Raise task errors (rather than logging them) so they can be debugged.</td>
-</tr>
-<tr class="even">
-<td><code>--traceback-locals</code></td>
-<td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="miscellaneous" class="level2">
-<h2 class="anchored" data-anchor-id="miscellaneous">Miscellaneous</h2>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 37%">
-<col style="width: 63%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><code>--display</code></td>
-<td>Display type. Values: <code>full</code>, <code>conversation</code>, <code>rich</code>, <code>plain</code>, <code>log</code>, <code>none</code> (defaults to <code>full</code>).</td>
-</tr>
-<tr class="even">
-<td><code>--approval</code></td>
-<td>Config file for tool call approval.</td>
-</tr>
-<tr class="odd">
-<td><code>--env</code></td>
-<td>Set an environment variable (multiple instances of <code>--env</code> are permitted).</td>
-</tr>
-<tr class="even">
-<td><code>--tags</code></td>
-<td>Tags to associate with this evaluation run.</td>
-</tr>
-<tr class="odd">
-<td><code>--metadata</code></td>
-<td>Metadata to associate with this evaluation run (<code>key=value</code>)</td>
-</tr>
-<tr class="even">
-<td><code>--help</code></td>
-<td>Display help for command options.</td>
-</tr>
-</tbody>
-</table>
+<section id="log-output" class="level2">
+<h2 class="anchored" data-anchor-id="log-output">Log Output</h2>
+<p>Early stopping information is recorded in the eval log as an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#earlystoppingsummary">EarlyStoppingSummary</a></span>, which includes:</p>
+<ul>
+<li>The name of the early stopping manager</li>
+<li>A list of all samples that were stopped early</li>
+<li>Any metadata returned by <code>complete_task()</code></li>
+</ul>
+<p>This allows you to analyze and audit the early stopping behavior after evaluation completes.</p>
 
 
 </section>
@@ -1496,13 +1165,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./tutorial.html" class="pagination-link" aria-label="Tutorial">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Tutorial</span>
+      <a href="./interactivity.html" class="pagination-link" aria-label="Interactivity">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Interactivity</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./log-viewer.html" class="pagination-link" aria-label="Log Viewer">
-        <span class="nav-page-text">Log Viewer</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./extensions.html" class="pagination-link" aria-label="Extensions">
+        <span class="nav-page-text">Extensions</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

@@ -389,6 +389,9 @@ get more comfortable with the basics.
   prompting the model dynamically based on the trajectory of the
   evaluation).
 
+- [Early Stopping](early-stopping.qmd) describes the early stopping API
+  for ending tasks early based on previously scored samples.
+
 - [Extensions](extensions.qmd) describes the various ways you can extend
   Inspect, including adding support for new Model APIs, tool execution
   environments, and storage platforms (for datasets, prompts, and logs).

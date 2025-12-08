@@ -493,6 +493,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./early-stopping.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Early Stopping</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./extensions.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Extensions</span></a>
   </div>
@@ -538,7 +544,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#recomputing-metrics" id="toc-recomputing-metrics" class="nav-link" data-scroll-target="#recomputing-metrics">Recomputing Metrics</a></li>
   <li><a href="#score-edit-events" id="toc-score-edit-events" class="nav-link" data-scroll-target="#score-edit-events">Score Edit Events</a></li>
   </ul></li>
-  <li><a href="#sec-amazon-s3" id="toc-sec-amazon-s3" class="nav-link" data-scroll-target="#sec-amazon-s3">Amazon S3</a></li>
+  <li><a href="#sec-amazon-s3" id="toc-sec-amazon-s3" class="nav-link" data-scroll-target="#sec-amazon-s3">Amazon S3</a>
+  <ul class="collapse">
+  <li><a href="#sec-azure" id="toc-sec-azure" class="nav-link" data-scroll-target="#sec-azure">Azure Blob Storage</a></li>
+  </ul></li>
   <li><a href="#log-file-name" id="toc-log-file-name" class="nav-link" data-scroll-target="#log-file-name">Log File Name</a></li>
   <li><a href="#sec-log-commands" id="toc-sec-log-commands" class="nav-link" data-scroll-target="#sec-log-commands">Log Commands</a>
   <ul class="collapse">
@@ -613,7 +622,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>See the <a href="#sec-amazon-s3">Amazon S3</a> section below for details on logging evaluations to Amazon S3 buckets.</p>
+<p>See the <a href="#sec-amazon-s3">Amazon S3</a> section below for details on logging evaluations to Amazon S3 buckets. See the <a href="#sec-azure">Azure</a> section below for details on logging evaluations to Azure.</p>
 </section>
 <section id="sec-log-format" class="level2">
 <h2 class="anchored" data-anchor-id="sec-log-format">Log Format</h2>
@@ -989,6 +998,34 @@ AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <p>One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a <a href="https://github.com/s3fs-fuse/s3fs-fuse">FUSE filesystem</a> so you can easily browse the S3 logs locally.</p>
+<section id="sec-azure" class="level3">
+<h3 class="anchored" data-anchor-id="sec-azure">Azure Blob Storage</h3>
+<p>You can store evaluation logs in Azure Blob Storage using any Azure-compatible fsspec scheme (<code>az://</code>, <code>abfs://</code>, or <code>abfss://</code>). Inspect relies on <code>fsspec</code> + <code>adlfs</code>, so no code changes are needed beyond installing the Azure dependency.</p>
+<pre><code>pip install "adlfs&gt;=2025.8.0"</code></pre>
+<p><strong>Recommended (Managed Identity / Workload Identity)</strong></p>
+<p>If running in Azure (App Service, Container Apps, VM, ASK) with a managed identity assigned and granted <em>Storage Blob Data Contributor</em> (or Reader for read‑only), do <strong>not</strong> set any secret environment variables. The absence of explicit secrets allows <code>adlfs</code> to fall back to <code>DefaultAzureCredential</code> and use the managed identity securely.</p>
+<p>Set only the log directory (and optionally the account name for short <code>az://</code> URIs):</p>
+<pre><code>AZURE_STORAGE_ACCOUNT_NAME=myaccount   # optional for abfs*/fully-qualified URIs
+INSPECT_LOG_DIR=az://mycontainer/inspect-logs</code></pre>
+<p>Explicitly set <code>AZURE_STORAGE_ANON=false</code>. When left unset the default <code>None</code> is interpreted as anonymous access (<code>true</code>), which skips your managed identity or SAS credentials and causes authorization failures.</p>
+<p>Or with a fully-qualified Data Lake (hierarchical namespace) URI:</p>
+<pre><code>INSPECT_LOG_DIR=abfss://mycontainer@myaccount.dfs.core.windows.net/inspect-logs</code></pre>
+<p><strong>Fallback Credential Options (when managed identity is unavailable)</strong></p>
+<p>Order of precedence: <em>SAS Token</em> &gt; <em>Account Key</em> &gt; <em>Connection String</em>.</p>
+<pre><code>AZURE_STORAGE_ACCOUNT_NAME=myaccount
+# SAS token (scoped, time-bound; omit leading '?')
+AZURE_STORAGE_SAS_TOKEN=sv=2024-...&amp;ss=bfqt&amp;srt=...
+# Account key (broad permissions; avoid in production)
+# AZURE_STORAGE_ACCOUNT_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
+# Connection string (legacy, broad)
+# AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=...;AccountKey=...;
+INSPECT_LOG_DIR=az://mycontainer/inspect-logs</code></pre>
+<p>Also set <code>AZURE_STORAGE_ANON=false</code> here—leaving it empty reverts to anonymous mode and <code>adlfs</code> will ignore the credential above.</p>
+<p><strong>Running Evaluations &amp; Viewer</strong></p>
+<pre><code>inspect eval popularity.py --model openai/gpt-4
+inspect view  # streams directly from Azure</code></pre>
+<p>For web deployment (App Service / Container Apps), just replicate the same environment variable setup; managed identity remains the most secure pattern.</p>
+</section>
 </section>
 <section id="log-file-name" class="level2">
 <h2 class="anchored" data-anchor-id="log-file-name">Log File Name</h2>
@@ -996,8 +1033,8 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <pre><code>{timestamp}_{task}_{id}</code></pre>
 <p>Where <code>timestamp</code> is the time the log was created; <code>task</code> is the name of the task the log corresponds to; and <code>id</code> is a unique task id.</p>
 <p>The <code>{timestamp}</code> part of the log file name is required to ensure that log files appear in sequential order in the filesystem. However, the rest of the filename can be customized using the <code>INSPECT_EVAL_LOG_FILE_PATTERN</code> environment variable, which can include any combination of <code>task</code>, <code>model</code>, and <code>id</code> fields. For example, to include the <code>model</code> in log file names:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>As with other log file oriented environment variables, you may find it convenient to define this in a <code>.env</code> file from the location where you run your evals.</p>
 </section>
 <section id="sec-log-commands" class="level2">
@@ -1032,13 +1069,13 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <section id="listing-logs" class="level3">
 <h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
 <p>You can use the <code>inspect log list</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can use the <code>--retryable</code> option to list only logs that are <a href="#eval-retries">retryable</a></p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="reading-logs" class="level3">
 <h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
@@ -1048,22 +1085,22 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <li>Log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</li>
 </ol>
 <p>For example, here we read a local log file and a log file on Amazon S3:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb38"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="converting-logs" class="level3">
 <h3 class="anchored" data-anchor-id="converting-logs">Converting Logs</h3>
 <p>You can convert between the two underlying <a href="#sec-log-format">log formats</a> using the <code>inspect log convert</code> command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (<code>--to</code> and <code>--output-dir</code>). For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or for an entire directory:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb40"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the <code>--overwrite</code> flag to force an overwrite.</p>
 <p>Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.</p>
 </section>
 <section id="log-schema" class="level3">
 <h3 class="anchored" data-anchor-id="log-schema">Log Schema</h3>
 <p>Log files are stored in JSON. You can get the JSON schema for the log file format with a call to <code>inspect log schema</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb41"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="callout callout-style-simple callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
