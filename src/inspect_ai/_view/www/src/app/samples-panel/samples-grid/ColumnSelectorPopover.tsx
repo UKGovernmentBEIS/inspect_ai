@@ -1,10 +1,11 @@
 import { ColDef } from "ag-grid-community";
+import { clsx } from "clsx";
 import { FC, useMemo } from "react";
 import { PopOver } from "../../../components/PopOver";
 import { ApplicationIcons } from "../../appearance/icons";
+import styles from "./ColumnSelectorPopover.module.css";
 import { getFieldKey } from "./hooks";
 import { SampleRow } from "./types";
-import styles from "./ColumnSelectorPopover.module.css";
 
 interface ColumnSelectorPopoverProps {
   showing: boolean;
@@ -121,26 +122,24 @@ export const ColumnSelectorPopover: FC<ColumnSelectorPopoverProps> = ({
       hoverDelay={-1}
       className={styles.popover}
     >
-      <div className={styles.scrollableContainer}>
-        <div>
+      <div className={clsx(styles.scrollableContainer, "text-size-small")}>
+        <div className={clsx(styles.section)}>
           <div className={styles.headerRow}>
             <b>Base</b>
-            <div className={styles.buttonContainer}>
-              <button
-                type="button"
-                className={`btn btn-link btn-sm ${styles.button}`}
+            <div className={clsx(styles.buttonContainer, "text-size-small")}>
+              <a
+                className={clsx(styles.button, "text-size-small")}
                 onClick={handleSelectAllBase}
               >
                 All
-              </button>
+              </a>
               |
-              <button
-                type="button"
-                className={`btn btn-link btn-sm ${styles.button}`}
+              <a
+                className={clsx(styles.button)}
                 onClick={handleDeselectAllBase}
               >
                 None
-              </button>
+              </a>
             </div>
           </div>
           <div className={styles.columnsLayout}>
@@ -153,21 +152,19 @@ export const ColumnSelectorPopover: FC<ColumnSelectorPopoverProps> = ({
             <div className={styles.headerRow}>
               <b>Scorers</b>
               <div className={styles.buttonContainer}>
-                <button
-                  type="button"
-                  className={`btn btn-link btn-sm ${styles.button}`}
+                <a
+                  className={clsx(styles.button)}
                   onClick={handleSelectAllScores}
                 >
                   All
-                </button>
+                </a>
                 |
-                <button
-                  type="button"
-                  className={`btn btn-link btn-sm ${styles.button}`}
+                <a
+                  className={clsx(styles.button)}
                   onClick={handleDeselectAllScores}
                 >
                   None
-                </button>
+                </a>
               </div>
             </div>
             <div className={styles.columnsLayout}>
