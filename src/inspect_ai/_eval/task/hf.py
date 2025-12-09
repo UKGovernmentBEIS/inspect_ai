@@ -100,6 +100,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         # Build and return task
         task = Task(
             name=task_name,
+            display_name=task_config.get("name", task_name),
             dataset=dataset,
             solver=solvers,
             scorer=scorers,

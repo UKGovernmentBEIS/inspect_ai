@@ -130,7 +130,7 @@ While tasks always include a *default* solver, you can also vary the solver to e
 
 ### Solver Parameter
 
-You can substitute an alternate solver for the solver that is built in to your `Task` using the `--solver` command line parameter (or `solver` argument to the `eval()` function). 
+You can substitute an alternate solver for the solver that is built in to your `Task` using the `--solver` command line parameter (or `solver` argument to the `eval()` function).
 
 For example, let's start with a simple CTF challenge task:
 
@@ -194,7 +194,6 @@ def ctf():
         sandbox="docker",
         scorer=includes(),
     )
-
 ```
 
 Note that we use the `chain()` function to combine multiple solvers into a composite one.
@@ -317,7 +316,7 @@ Tasks are recipes for an evaluation and represent the convergence of many consid
 
 Note that `task_with()` modifies the passed task in-place, so if you want to create multiple variations of a single task using `task_with()` you should create the underlying task multiple times (once for each call to `task_with()`). For example:
 
-```python
+``` python
 adapted1 = task_with(hard_coded(), ...)
 adapted2 = task_with(hard_coded(), ...)
 ```
@@ -326,9 +325,9 @@ adapted2 = task_with(hard_coded(), ...)
 
 A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.
 
-Tasks in packages can be _registered_ such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes a suite of tasks that can be run as follows:
+Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes a suite of tasks that can be run as follows:
 
-```bash
+``` bash
 inspect eval inspect_evals/gaia 
 inspect eval inspect_evals/swe_bench
 ```
@@ -337,7 +336,7 @@ inspect eval inspect_evals/swe_bench
 
 Here's an example that walks through all of the requirements for registering tasks in packages. Let's say your package is named `evals` and has a task named `mytask` in the `tasks.py` file:
 
-```  
+```         
 evals/       
   evals/
     tasks.py
@@ -371,10 +370,53 @@ evals = "evals._registry"
 
 Now, anyone that has installed your package can run the task as follows:
 
-```bash
+``` bash
 inspect eval evals/mytask
 ```
 
+## Hugging Face
+
+::: callout-note
+The Hugging Face tasks feature described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Hugging Face Datasets can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaulated with:
+
+``` bash
+inspect eval hf/OpenEvals/aime_24 --model openai/gpt-5
+```
+
+Here are the `eval.yaml` definitions for several Hugging Face datasets:
+
+-   [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24/blob/main/eval.yaml)
+-   [OpenEvals/simpleqa](https://huggingface.co/datasets/OpenEvals/SimpleQA/blob/main/eval.yaml)
+-   [OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml)
+
+A dataset's `eval.yaml` file defines a list of tasks. Here are the fields that can be included in a task definition and how they are used in constructing `Task` instances:
+
++-----------------+---------------+-----------------------------------+
+| Field           | Default       | Usage                             |
++=================+===============+===================================+
+| `subset`        | "default"     | `hf_dataset(name)`                |
++-----------------+---------------+-----------------------------------+
+| `splits`        | "test"        | `hf_dataset(split`)               |
++-----------------+---------------+-----------------------------------+
+| `field_spec`    | None          | `hf_dataset(sample_fields)`       |
++-----------------+---------------+-----------------------------------+
+| `epochs`        | 1             | `Epochs(epochs)`                  |
++-----------------+---------------+-----------------------------------+
+| `epoch_reducer` | "mean"        | `Epochs(epoch_reducer)`           |
++-----------------+---------------+-----------------------------------+
+| `solvers`       | None          | `Task(solver)`                    |
++-----------------+---------------+-----------------------------------+
+| `scorer`        | None          | `Task(scorer)`                    |
++-----------------+---------------+-----------------------------------+
+| `name`          | None          | `Task(display_name)`              |
++-----------------+---------------+-----------------------------------+
 
 ## Exploratory {#exploratory}
 
