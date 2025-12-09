@@ -384,7 +384,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-Hugging Face Datasets can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaulated with:
+Hugging Face Datasets can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaluated with:
 
 ``` bash
 inspect eval hf/OpenEvals/aime_24 --model openai/gpt-5
@@ -398,25 +398,25 @@ Here are the `eval.yaml` definitions for several Hugging Face datasets:
 
 A dataset's `eval.yaml` file defines a list of tasks. Here are the fields that can be included in a task definition and how they are used in constructing `Task` instances:
 
-+-----------------+---------------+-----------------------------------+
-| Field           | Default       | Usage                             |
-+=================+===============+===================================+
-| `subset`        | "default"     | `hf_dataset(name)`                |
-+-----------------+---------------+-----------------------------------+
-| `splits`        | "test"        | `hf_dataset(split`)               |
-+-----------------+---------------+-----------------------------------+
-| `field_spec`    | None          | `hf_dataset(sample_fields)`       |
-+-----------------+---------------+-----------------------------------+
-| `epochs`        | 1             | `Epochs(epochs)`                  |
-+-----------------+---------------+-----------------------------------+
-| `epoch_reducer` | "mean"        | `Epochs(epoch_reducer)`           |
-+-----------------+---------------+-----------------------------------+
-| `solvers`       | None          | `Task(solver)`                    |
-+-----------------+---------------+-----------------------------------+
-| `scorer`        | None          | `Task(scorer)`                    |
-+-----------------+---------------+-----------------------------------+
-| `name`          | None          | `Task(display_name)`              |
-+-----------------+---------------+-----------------------------------+
++-----------------+----------------+----------------------------------+
+| Field           | Default        | Usage                            |
++=================+================+==================================+
+| `subset`        | "default"      | `hf_dataset(name)`               |
++-----------------+----------------+----------------------------------+
+| `splits`        | "test"         | `hf_dataset(split`)              |
++-----------------+----------------+----------------------------------+
+| `field_spec`    | None           | `hf_dataset(sample_fields)`      |
++-----------------+----------------+----------------------------------+
+| `epochs`        | 1              | `Epochs(epochs)`                 |
++-----------------+----------------+----------------------------------+
+| `epoch_reducer` | "mean"         | `Epochs(epoch_reducer)`          |
++-----------------+----------------+----------------------------------+
+| `solvers`       | None           | `Task(solver)`                   |
++-----------------+----------------+----------------------------------+
+| `scorer`        | None           | `Task(scorer)`                   |
++-----------------+----------------+----------------------------------+
+| `name`          | None           | `Task(display_name)`             |
++-----------------+----------------+----------------------------------+
 
 ## Exploratory {#exploratory}
 
