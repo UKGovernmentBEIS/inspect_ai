@@ -1,7 +1,7 @@
 import clsx from "clsx";
 
 import { AgGridReact } from "ag-grid-react";
-import { FC, useEffect, useMemo, useRef } from "react";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useLogs } from "../../state/hooks";
@@ -15,6 +15,8 @@ import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { NavbarButton } from "../navbar/NavbarButton";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
+import { ColumnSelectorPopover } from "./samples-grid/ColumnSelectorPopover";
+import { useSampleColumns } from "./samples-grid/hooks";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
 
@@ -31,6 +33,40 @@ export const SamplesPanel: FC = () => {
   );
 
   const gridRef = useRef<AgGridReact>(null);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const columnButtonRef = useRef<HTMLButtonElement>(null);
+
+  const logDetails = useStore((state) => state.logs.logDetails);
+  const { columns, setColumnVisibility } = useSampleColumns(logDetails);
+
+  // Wrapper that clears filters for columns that are being hidden
+  const handleColumnVisibilityChange = useCallback(
+    (newVisibility: Record<string, boolean>) => {
+      // Clear filters for columns that are being hidden
+      if (gridRef.current?.api) {
+        const currentFilterModel = gridRef.current.api.getFilterModel() || {};
+        let filtersRemoved = false;
+        const newFilterModel: Record<string, unknown> = {};
+
+        // Copy filters, skipping those for columns being hidden
+        for (const [field, filter] of Object.entries(currentFilterModel)) {
+          if (newVisibility[field] === false) {
+            filtersRemoved = true;
+          } else {
+            newFilterModel[field] = filter;
+          }
+        }
+
+        if (filtersRemoved) {
+          gridRef.current.api.setFilterModel(newFilterModel);
+        }
+      }
+
+      // Update column visibility
+      setColumnVisibility(newVisibility);
+    },
+    [setColumnVisibility],
+  );
 
   const handleResetFilters = () => {
     if (gridRef.current?.api) {
@@ -55,7 +91,7 @@ export const SamplesPanel: FC = () => {
       }
     }
     return files;
-  }, [logDir, logFiles]);
+  }, [currentDir, logFiles]);
 
   const totalTaskCount = useMemo(() => {
     const currentDirTaskIds = new Set(currentDirLogFiles.map((f) => f.task_id));
@@ -86,8 +122,9 @@ export const SamplesPanel: FC = () => {
     exec();
   }, [loadLogs, samplesPath]);
 
-  const filterModel = gridRef.current?.api?.getFilterModel();
-  const hasFilter = filterModel && Object.keys(filterModel).length > 0;
+  const filterModel = gridRef.current?.api?.getFilterModel() || {};
+  const filteredFields = Object.keys(filterModel);
+  const hasFilter = filteredFields.length > 0;
 
   return (
     <div className={clsx(styles.panel)}>
@@ -101,13 +138,37 @@ export const SamplesPanel: FC = () => {
           />
         )}
 
+        <NavbarButton
+          key="choose-columns"
+          ref={columnButtonRef}
+          label="Choose Columns"
+          icon={ApplicationIcons.checkbox.checked}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowColumnSelector((prev) => !prev);
+          }}
+        />
+
         <ViewSegmentedControl selectedSegment="samples" />
         {flowData && <FlowButton />}
       </ApplicationNavbar>
 
+      <ColumnSelectorPopover
+        showing={showColumnSelector}
+        setShowing={setShowColumnSelector}
+        columns={columns}
+        onVisibilityChange={handleColumnVisibilityChange}
+        positionEl={columnButtonRef.current}
+        filteredFields={filteredFields}
+      />
+
       <ActivityBar animating={!!loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
-        <SamplesGrid samplesPath={samplesPath} gridRef={gridRef} />
+        <SamplesGrid
+          samplesPath={samplesPath}
+          gridRef={gridRef}
+          columns={columns}
+        />
       </div>
 
       <LogListFooter

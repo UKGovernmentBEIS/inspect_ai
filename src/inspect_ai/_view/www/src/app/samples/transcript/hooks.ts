@@ -70,7 +70,7 @@ export const useTranscriptFilter = () => {
       }
       setFilteredEventTypes(Array.from(newFiltered));
     },
-    [filtered],
+    [filtered, setFilteredEventTypes],
   );
 
   const setDebugFilter = useCallback(() => {

@@ -1,5 +1,13 @@
 import clsx from "clsx";
-import { FC, RefObject, useCallback, useEffect, useMemo } from "react";
+import {
+  CSSProperties,
+  FC,
+  RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { RenderedEventNode } from "./TranscriptVirtualList";
 import { EventNode } from "./types";
 
@@ -38,7 +46,7 @@ export const TranscriptVirtualListComponent: FC<
   const setNativeFind = useStore((state) => state.appActions.setNativeFind);
   useEffect(() => {
     setNativeFind(!useVirtualization);
-  }, [useVirtualization]);
+  }, [setNativeFind, useVirtualization]);
 
   const initialEventIndex = useMemo(() => {
     if (initialEventId === null || initialEventId === undefined) {
@@ -74,8 +82,18 @@ export const TranscriptVirtualListComponent: FC<
     [],
   );
 
+  const nonVirtualGridRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!useVirtualization && initialEventId) {
+      const row = nonVirtualGridRef.current?.querySelector(
+        `[id="${initialEventId}"]`,
+      );
+      row?.scrollIntoView({ block: "start" });
+    }
+  }, [initialEventId, useVirtualization]);
+
   const renderRow = useCallback(
-    (index: number, item: EventNode) => {
+    (index: number, item: EventNode, style?: CSSProperties) => {
       const paddingClass = index === 0 ? styles.first : undefined;
 
       const previousIndex = index - 1;
@@ -109,6 +127,7 @@ export const TranscriptVirtualListComponent: FC<
           key={item.id}
           className={clsx(styles.node, paddingClass, attachedClass)}
           style={{
+            ...style,
             paddingLeft: `${item.depth <= 1 ? item.depth * 0.7 : (0.7 + item.depth - 1) * 1}em`,
             paddingRight: `${item.depth === 0 ? undefined : ".7em"} `,
           }}
@@ -146,9 +165,11 @@ export const TranscriptVirtualListComponent: FC<
     );
   } else {
     return (
-      <div>
+      <div ref={nonVirtualGridRef}>
         {eventNodes.map((node, index) => {
-          const row = renderRow(index, node);
+          const row = renderRow(index, node, {
+            scrollMarginTop: offsetTop,
+          });
           return row;
         })}
       </div>

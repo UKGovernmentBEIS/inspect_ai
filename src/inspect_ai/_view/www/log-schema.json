@@ -1470,6 +1470,93 @@
       "type": "object",
       "additionalProperties": false
     },
+    "EarlyStop": {
+      "description": "Directive to stop a sample early.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Id"
+        },
+        "epoch": {
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "id",
+        "epoch",
+        "reason",
+        "metadata"
+      ],
+      "title": "EarlyStop",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EarlyStoppingSummary": {
+      "description": "Summary of early stopping applied to task.",
+      "properties": {
+        "manager": {
+          "title": "Manager",
+          "type": "string"
+        },
+        "early_stops": {
+          "items": {
+            "$ref": "#/$defs/EarlyStop"
+          },
+          "title": "Early Stops",
+          "type": "array"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "manager",
+        "early_stops",
+        "metadata"
+      ],
+      "title": "EarlyStoppingSummary",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ErrorEvent": {
       "description": "Event with sample error.",
       "properties": {
@@ -2175,6 +2262,7 @@
             "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
+            "effort": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
             "reasoning_summary": null,
@@ -2230,6 +2318,17 @@
           "title": "Completed Samples",
           "type": "integer"
         },
+        "early_stopping": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EarlyStoppingSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "scores": {
           "default": [],
           "items": {
@@ -2257,6 +2356,7 @@
       "required": [
         "total_samples",
         "completed_samples",
+        "early_stopping",
         "scores",
         "metadata"
       ],
@@ -3638,6 +3738,23 @@
           "default": null,
           "title": "Cache Prompt"
         },
+        "effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effort"
+        },
         "reasoning_effort": {
           "anyOf": [
             {
@@ -3788,6 +3905,7 @@
         "internal_tools",
         "max_tool_output",
         "cache_prompt",
+        "effort",
         "reasoning_effort",
         "reasoning_tokens",
         "reasoning_summary",

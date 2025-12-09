@@ -77,6 +77,14 @@ export default defineConfig(({ mode }) => {
       ...baseConfig,
       mode: "development",
       base: "",
+      server: {
+        proxy: {
+          '/api': {
+            target: 'http://127.0.0.1:7575', // when running `inspect view` locally
+            changeOrigin: true,
+          }
+        }
+      },
       build: {
         minify: false,
         rollupOptions: {

@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 from mcp.client.session import ClientSession
 from mcp.shared.context import RequestContext
@@ -11,6 +11,7 @@ from mcp.types import (
     ErrorData,
     ImageContent,
     ResourceLink,
+    SamplingMessageContentBlock,
     TextContent,
     TextResourceContents,
 )
@@ -18,7 +19,12 @@ from mcp.types import (
     StopReason as MCPStopReason,
 )
 
-from inspect_ai._util.content import ContentAudio, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+)
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 
@@ -45,11 +51,13 @@ async def sampling_fn(
         for message in params.messages:
             if message.role == "assistant":
                 messages.append(
-                    ChatMessageAssistant(content=[as_inspect_content(message.content)])
+                    ChatMessageAssistant(
+                        content=as_inspect_content_list(message.content)
+                    )
                 )
             elif message.role == "user":
                 messages.append(
-                    ChatMessageUser(content=[as_inspect_content(message.content)])
+                    ChatMessageUser(content=as_inspect_content_list(message.content))
                 )
 
         # sample w/ requested params
@@ -94,12 +102,17 @@ async def sampling_fn(
         return ErrorData(code=INTERNAL_ERROR, message=exception_message(ex))
 
 
+def as_inspect_content_list(
+    content: SamplingMessageContentBlock | Sequence[SamplingMessageContentBlock],
+) -> list[Content]:
+    if isinstance(content, Sequence):
+        return [as_inspect_content(c) for c in content]
+    else:
+        return [as_inspect_content(content)]
+
+
 def as_inspect_content(
-    content: TextContent
-    | ImageContent
-    | AudioContent
-    | ResourceLink
-    | EmbeddedResource,
+    content: SamplingMessageContentBlock,
 ) -> ContentText | ContentImage | ContentAudio:
     if isinstance(content, TextContent):
         return ContentText(text=content.text)
@@ -114,8 +127,11 @@ def as_inspect_content(
         )
     elif isinstance(content, ResourceLink):
         return ContentText(text=f"{content.description} ({content.uri})")
-    elif isinstance(content.resource, TextResourceContents):
+    elif isinstance(content, EmbeddedResource) and isinstance(
+        content.resource, TextResourceContents
+    ):
         return ContentText(text=content.resource.text)
+    # TODO:  ToolResultContent, ToolUseContent,
     else:
         raise ValueError(f"Unexpected content: {content}")
 

@@ -33,7 +33,6 @@ export const useSamplesTabConfig = (
 ) => {
   const totalSampleCount = useTotalSampleCount();
   const samplesDescriptor = useSampleDescriptor();
-  const sampleSummaries = useFilteredSamples();
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
 
   return useMemo(() => {
@@ -65,8 +64,8 @@ export const useSamplesTabConfig = (
   }, [
     evalStatus,
     refreshLog,
-    sampleSummaries,
     samplesDescriptor,
+    streamSamples,
     totalSampleCount,
   ]);
 };
@@ -98,7 +97,11 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
       (limitCount || selectedLogDetails?.eval.dataset.samples || 0) *
       (selectedLogDetails?.eval.config.epochs || 0)
     );
-  }, [selectedLogDetails?.eval.config.limit]);
+  }, [
+    selectedLogDetails?.eval.config.epochs,
+    selectedLogDetails?.eval.config.limit,
+    selectedLogDetails?.eval.dataset.samples,
+  ]);
 
   const totalSampleCount = useTotalSampleCount();
 
@@ -221,6 +224,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
           <SampleList
             listHandle={sampleListHandle}
             items={items}
+            earlyStopping={selectedLogDetails?.results?.early_stopping}
             totalItemCount={evalSampleCount}
             running={running}
           />

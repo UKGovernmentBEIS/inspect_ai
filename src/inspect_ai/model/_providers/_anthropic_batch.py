@@ -1,4 +1,3 @@
-import time
 from typing import TypeAlias, cast
 
 import httpx
@@ -35,6 +34,7 @@ from inspect_ai.model._retry import ModelRetryConfig
 
 from .util.batch import (
     Batch,
+    BatchCheckResult,
     Batcher,
     BatchRequest,
 )
@@ -85,20 +85,18 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     @override
     async def _check_batch(
         self, batch: Batch[Message]
-    ) -> tuple[int, int, int, (CompletedBatchInfo | None)]:
+    ) -> BatchCheckResult[CompletedBatchInfo]:
         batch_info = await self._client.messages.batches.retrieve(batch.id)
 
-        return (
-            batch_info.request_counts.succeeded + batch_info.request_counts.canceled,
-            batch_info.request_counts.expired + batch_info.request_counts.errored,
-            (
-                int(time.time() - batch_info.created_at.timestamp())
-                if batch_info.created_at
-                else 0
-            ),
+        return BatchCheckResult(
+            completed_count=batch_info.request_counts.succeeded
+            + batch_info.request_counts.canceled,
+            failed_count=batch_info.request_counts.expired
+            + batch_info.request_counts.errored,
+            created_at=int(batch_info.created_at.timestamp()),
             # We don't need any extra completion info beyond the True since we
             # retrieve the results directly via the sdk given the batch id.
-            True if batch_info.processing_status == "ended" else None,
+            completion_info=True if batch_info.processing_status == "ended" else None,
         )
 
     @override

@@ -1,4 +1,5 @@
 import contextlib
+from collections.abc import Sequence
 from logging import getLogger
 from typing import AsyncIterator
 
@@ -6,6 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai.model._model import GenerateFilter
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec, setup_bridged_tools
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SANDBOX_TOOLS_CLI,
     sandbox_with_injected_tools,
@@ -36,6 +38,7 @@ async def sandbox_agent_bridge(
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
+    bridged_tools: Sequence[BridgedToolsSpec] | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -50,9 +53,9 @@ async def sandbox_agent_bridge(
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
-        model: Force the bridge to use a speicifc model (e.g. "inspect" to force the
-            the default model for the task or "inspect/openai/gpt-4o" to force
-            another specific model).
+        model: Model to use when the request does not use "inspect" or an "inspect/"
+            prefixed model (defaults to "inspect", can also specify e.g.
+            "inspect/openai/gpt-4o" to force another specific model).
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
         sandbox: Sandbox to run model proxy server within.
@@ -69,6 +72,11 @@ async def sandbox_agent_bridge(
             Anthropic, Google, and Grok). If the provider does not support
             native code execution then the bash() tool will be provided
             (note that this requires a sandbox by declared for the task).
+        bridged_tools: Host-side Inspect tools to expose to the sandboxed agent
+            via MCP protocol. Each BridgedToolsSpec creates an MCP server that
+            makes the specified tools available to the agent. The resolved
+            MCPServerConfigStdio objects to pass to CLI agents are available via
+            bridge.mcp_server_configs.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -88,6 +96,19 @@ async def sandbox_agent_bridge(
             # event to signal startup of model service
             started = anyio.Event()
 
+            # set up bridged tools (host tools exposed via MCP)
+            mcp_server_configs = []
+            seen_names: set[str] = set()
+            for spec in bridged_tools or []:
+                if spec.name in seen_names:
+                    raise ValueError(
+                        f"Duplicate bridged_tools name: '{spec.name}'. "
+                        "Each BridgedToolsSpec must have a unique name."
+                    )
+                seen_names.add(spec.name)
+                config = await setup_bridged_tools(sandbox_env, tg, spec)
+                mcp_server_configs.append(config)
+
             # create the bridge
             bridge = SandboxAgentBridge(
                 state=state,
@@ -95,6 +116,7 @@ async def sandbox_agent_bridge(
                 retry_refusals=retry_refusals,
                 port=port,
                 model=model,
+                mcp_server_configs=mcp_server_configs,
             )
 
             # sandbox service that receives model requests
