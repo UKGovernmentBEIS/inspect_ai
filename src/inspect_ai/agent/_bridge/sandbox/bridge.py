@@ -53,9 +53,9 @@ async def sandbox_agent_bridge(
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
-        model: Force the bridge to use a speicifc model (e.g. "inspect" to force the
-            the default model for the task or "inspect/openai/gpt-4o" to force
-            another specific model).
+        model: Model to use when the request does not use "inspect" or an "inspect/"
+            prefixed model (defaults to "inspect", can also specify e.g.
+            "inspect/openai/gpt-4o" to force another specific model).
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
         sandbox: Sandbox to run model proxy server within.

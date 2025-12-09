@@ -2,6 +2,7 @@
 
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - Logging: Support for writing logs to Azure Blob Storage (`az://`).
+- Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
 - React Agent: Remove newlines from default prompts.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
 
