@@ -10,8 +10,10 @@ from shortuuid import uuid
 
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import task_file, task_run_dir
+from inspect_ai._util.config import resolve_args
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.module import load_module
 from inspect_ai._util.path import chdir_python, cwd_relative_path
@@ -35,8 +37,8 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
-from .registry import task_create
-from .task import PreviousTask, Task, TaskInfo
+from .registry import task_create, task_create_from_config
+from .task import Epochs, PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.run import eval_log_sample_source
 from .task.tasks import Tasks
@@ -253,9 +255,103 @@ def load_task_spec(task_spec: str, task_args: dict[str, Any] = {}) -> list[Task]
     if registry_lookup("task", task_spec) is not None:
         # create the task from a python package
         return [task_create(task_spec, **task_args)]
-    else:
-        # load tasks from glob
-        return create_tasks([task_spec], task_args)
+
+    # load tasks from glob (Python files, etc.)
+    return create_tasks([task_spec], task_args)
+
+
+def _build_task_from_full_config(
+    config_dict: dict[str, Any], config_path: Path
+) -> Task:
+    """Build a Task from a full config definition (solvers, scorers, dataset, etc.)."""
+    from importlib import import_module
+
+    # Build dataset
+    dataset = None
+    if "dataset" in config_dict:
+        dataset = config_dict["dataset"]
+    elif "repo_id" in config_dict or "field_spec" in config_dict:
+        # Use from_hub logic for HuggingFace datasets
+        from inspect_ai._util.from_hub import load_dataset
+
+        repo_id = config_dict.get("repo_id", "default")
+        revision = config_dict.get("revision", "main")
+        dataset = load_dataset(repo_id, revision, config_dict)
+
+    # Build solvers
+    solvers = None
+    if "solvers" in config_dict:
+        solver_configs = config_dict["solvers"]
+        if solver_configs:  # Only build if not empty
+            solver_module = import_module("inspect_ai.solver")
+            solvers = []
+            for solver_config in solver_configs:
+                if isinstance(solver_config, dict):
+                    solver_name = solver_config.get("name")
+                    solver_args = solver_config.get("args", {})
+                else:
+                    # Allow simple string references
+                    solver_name = solver_config
+                    solver_args = {}
+
+                if not solver_name:
+                    raise ValueError(
+                        "Solver config must have a 'name' field or be a string"
+                    )
+
+                if hasattr(solver_module, solver_name):
+                    solver_fn = getattr(solver_module, solver_name)
+                    solvers.append(solver_fn(**solver_args))
+                else:
+                    raise ValueError(f"Unknown solver: {solver_name}")
+
+    # Build scorers
+    scorers = None
+    if "scorers" in config_dict:
+        scorer_configs = config_dict["scorers"]
+        if scorer_configs:  # Only build if not empty
+            scorer_module = import_module("inspect_ai.scorer")
+            scorers = []
+            for scorer_config in scorer_configs:
+                if isinstance(scorer_config, dict):
+                    scorer_name = scorer_config.get("name")
+                    scorer_args = scorer_config.get("args", {})
+                else:
+                    # Allow simple string references
+                    scorer_name = scorer_config
+                    scorer_args = {}
+
+                if not scorer_name:
+                    raise ValueError(
+                        "Scorer config must have a 'name' field or be a string"
+                    )
+
+                if hasattr(scorer_module, scorer_name):
+                    scorer_fn = getattr(scorer_module, scorer_name)
+                    scorers.append(scorer_fn(**scorer_args))
+                else:
+                    raise ValueError(f"Unknown scorer: {scorer_name}")
+
+    # Extract other task parameters
+    task_name = config_dict.get("name") or config_dict.get("task")
+    epochs = config_dict.get("epochs", 1)
+    epochs_reducer = config_dict.get("epochs_reducer", "mean")
+    epochs_obj = Epochs(epochs, epochs_reducer) if epochs else None
+
+    # Build and return task
+    task = Task(
+        dataset=dataset,
+        solver=solvers,
+        scorer=scorers,
+        name=task_name,
+        epochs=epochs_obj,
+    )
+
+    # Set file attributes
+    setattr(task, TASK_FILE_ATTR, config_path.absolute().as_posix())
+    setattr(task, TASK_RUN_DIR_ATTR, config_path.parent.resolve().as_posix())
+
+    return task
 
 
 def create_tasks(
@@ -277,6 +373,17 @@ def create_tasks(
             task_path = Path(spec_split[0])
             load_file_tasks(task_path.absolute())
             tasks.extend(create_file_tasks(task_path, [spec_split[1]], task_args))
+        elif glob.endswith((".yaml", ".yml", ".json")):
+            # Check if it's a config file
+            config_path = Path(glob)
+            if config_path.exists() and config_path.is_file():
+                fs = filesystem(glob)
+                if fs.exists(glob):
+                    config_dict = resolve_args(glob)
+                    config_dict = {**config_dict, **task_args}
+
+                    task = _build_task_from_full_config(config_dict, config_path)
+                    tasks.append(task)
         else:
             # if the glob is the root dir then set it to empty (will result in
             # enumeration of the root dir)
