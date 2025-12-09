@@ -44,10 +44,14 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
             "HuggingFace Dataset Tasks (hf/)", ["huggingface_hub"]
         ) from None
 
-    # see if there is a revision in the repo_id (otherwise )
-    repo_id, revision = split_spec(task_name.replace("hf/", ""))
+    # see if there is a revision in the repo_id (otherwise use task arg)
+    task_spec, revision = split_spec(task_name.replace("hf/", ""))
     if revision is None:
         revision = kwargs.get("revision", "main")
+
+    # see if there is a name in the spec or just a repo id
+    # (if there is a name we'll use it to filter the task list)
+    repo_id, name = parse_task_spec(task_spec)
 
     # load config
     try:
@@ -75,6 +79,16 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
     for task_config in task_configs:
         # validate config
         hf_task = HFTask.model_validate(task_config)
+
+        # if there is more than one task then 'name' is required
+        if len(task_configs) > 1 and hf_task.name is None:
+            raise PrerequisiteError(
+                "Task 'name' field is required if there are more than 1 tasks in 'eval.yaml'"
+            )
+
+        # filter on name if specified
+        if name is not None and hf_task.name != name:
+            continue
 
         # create dataset
         dataset = hf_dataset(
@@ -114,10 +128,9 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
                 )
             )
 
-        # Build and return task
+        # Build and return task (use name disambiguator if more than 1 task)
         task = Task(
-            name=task_name,
-            display_name=task_config.get("name", task_name),
+            name=f"{task_name}/{hf_task.name}" if len(task_configs) > 1 else task_name,
             dataset=dataset,
             solver=solvers,
             scorer=scorers,
@@ -127,4 +140,23 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         # Set file attributes
         tasks.append(task)
 
+    # raise if there are no tasks
+    if len(tasks) == 0:
+        raise PrerequisiteError(f"No tasks matching '{task_name}' were found.")
+
     return tasks
+
+
+def parse_task_spec(task_spec: str) -> tuple[str, str | None]:
+    parts = task_spec.split("/")
+
+    if len(parts) == 2:
+        repo_id = task_spec
+        taskname: str | None = None
+    elif len(parts) == 3:
+        repo_id = f"{parts[0]}/{parts[1]}"
+        taskname = parts[2]
+    else:
+        raise ValueError(f"Expected 2 or 3 components, got {len(parts)}")
+
+    return repo_id, taskname
