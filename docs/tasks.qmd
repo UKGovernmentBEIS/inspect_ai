@@ -384,7 +384,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-Hugging Face Datasets can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaluated with:
+Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaluated with:
 
 ``` bash
 inspect eval hf/OpenEvals/aime_24 --model openai/gpt-5
