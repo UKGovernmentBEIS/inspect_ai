@@ -35,7 +35,7 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
-from .registry import task_create
+from .registry import task_create, task_create_from_hf
 from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.run import eval_log_sample_source
@@ -253,6 +253,9 @@ def load_task_spec(task_spec: str, task_args: dict[str, Any] = {}) -> list[Task]
     if registry_lookup("task", task_spec) is not None:
         # create the task from a python package
         return [task_create(task_spec, **task_args)]
+    elif task_spec.startswith("hf/"):
+        # load task from huggingface
+        return task_create_from_hf(task_spec, **task_args)
     else:
         # load tasks from glob
         return create_tasks([task_spec], task_args)
