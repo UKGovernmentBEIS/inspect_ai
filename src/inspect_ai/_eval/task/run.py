@@ -5,6 +5,7 @@ import sys
 import time
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
 from typing import Awaitable, Callable, Literal
@@ -37,7 +38,11 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_unqualified_name,
 )
-from inspect_ai._util.working import init_sample_working_time, sample_waiting_time
+from inspect_ai._util.working import (
+    init_sample_working_time,
+    sample_start_datetime,
+    sample_waiting_time,
+)
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.event._error import ErrorEvent
@@ -1040,6 +1045,7 @@ async def task_run_sample(
                 error=error,
                 limit=limit,
                 error_retries=error_retries,
+                started_at=sample_start_datetime(),
             )
             if logger:
                 await log_sample(
@@ -1113,6 +1119,7 @@ def create_eval_sample(
     error: EvalError | None,
     limit: EvalSampleLimit | None,
     error_retries: list[EvalError],
+    started_at: datetime | None = None,
 ) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
@@ -1144,6 +1151,8 @@ def create_eval_sample(
         events=list(transcript().events),
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
+        started_at=started_at.isoformat() if started_at is not None else None,
+        completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
         working_time=round(total_time - sample_waiting_time(), 3)
         if total_time is not None

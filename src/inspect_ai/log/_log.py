@@ -206,6 +206,12 @@ class EvalSampleSummary(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
 
+    started_at: UtcDatetimeStr | None = Field(default=None)
+    """Time sample started."""
+
+    completed_at: UtcDatetimeStr | None = Field(default=None)
+    """Time sample completed."""
+
     total_time: float | None = Field(default=None)
     """Total time that the sample was running."""
 
@@ -349,6 +355,12 @@ class EvalSample(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
 
+    started_at: UtcDatetimeStr | None = Field(default=None)
+    """Time sample started."""
+
+    completed_at: UtcDatetimeStr | None = Field(default=None)
+    """Time sample completed."""
+
     total_time: float | None = Field(default=None)
     """Total time that the sample was running."""
 
@@ -394,6 +406,8 @@ class EvalSample(BaseModel):
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
+            started_at=self.started_at,
+            completed_at=self.completed_at,
             total_time=self.total_time,
             working_time=self.working_time,
             uuid=self.uuid,

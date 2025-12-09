@@ -7,6 +7,7 @@
 
 export type Version = number;
 export type Status = "started" | "success" | "cancelled" | "error";
+export type Invalidated = boolean;
 export type EvalSetId = string | null;
 export type EvalId = string;
 export type RunId = string;
@@ -214,6 +215,11 @@ export type TracebackAnsi = string;
 export type Samples1 = EvalSample[] | null;
 export type Id1 = number | string;
 export type Epoch1 = number;
+export type Status1 = "started" | "complete" | "error" | "invalidated";
+export type Timestamp = string;
+export type Author = string;
+export type Reason1 = string | null;
+export type Status2 = "started" | "complete" | "error";
 export type Input =
   | string
   | (
@@ -291,7 +297,7 @@ export type Document = string;
 export type Filename = string;
 export type MimeType = string;
 export type Source = ("input" | "generate") | null;
-export type Metadata7 = {
+export type Metadata8 = {
   [k: string]: unknown;
 } | null;
 export type Role = "system";
@@ -309,7 +315,7 @@ export type Content1 =
       | ContentDocument
     )[];
 export type Source1 = ("input" | "generate") | null;
-export type Metadata8 = {
+export type Metadata9 = {
   [k: string]: unknown;
 } | null;
 export type Role1 = "user";
@@ -328,7 +334,7 @@ export type Content2 =
       | ContentDocument
     )[];
 export type Source2 = ("input" | "generate") | null;
-export type Metadata9 = {
+export type Metadata10 = {
   [k: string]: unknown;
 } | null;
 export type Role2 = "assistant";
@@ -355,7 +361,7 @@ export type Content4 =
       | ContentDocument
     )[];
 export type Source3 = ("input" | "generate") | null;
-export type Metadata10 = {
+export type Metadata11 = {
   [k: string]: unknown;
 } | null;
 export type Role3 = "tool";
@@ -402,7 +408,7 @@ export type Content5 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
 export type Completion = string;
 export type Time = number | null;
-export type Metadata11 = {
+export type Metadata12 = {
   [k: string]: unknown;
 } | null;
 export type Error1 = string | null;
@@ -419,7 +425,7 @@ export type Value1 =
     };
 export type Answer = string | null;
 export type Explanation = string | null;
-export type Metadata12 = {
+export type Metadata13 = {
   [k: string]: unknown;
 } | null;
 export type Value2 =
@@ -433,20 +439,20 @@ export type Value2 =
   | "UNCHANGED";
 export type Answer1 = string | "UNCHANGED" | null;
 export type Explanation1 = string | "UNCHANGED" | null;
-export type Metadata13 =
+export type Metadata14 =
   | {
       [k: string]: unknown;
     }
   | "UNCHANGED";
-export type Timestamp = string;
-export type Author = string;
-export type Reason1 = string | null;
+export type Timestamp1 = string;
+export type Author1 = string;
+export type Reason2 = string | null;
 export type History = ScoreEdit[];
 export type Uuid = string | null;
 export type SpanId = string | null;
-export type Timestamp1 = string;
+export type Timestamp2 = string;
 export type WorkingStart = number;
-export type Metadata16 = {
+export type Metadata17 = {
   [k: string]: unknown;
 } | null;
 export type Pending = boolean | null;
@@ -462,7 +468,7 @@ export type Input1 =
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id8 = number | string | null;
-export type Metadata17 = {
+export type Metadata18 = {
   [k: string]: unknown;
 } | null;
 export type Files1 = {
@@ -471,9 +477,9 @@ export type Files1 = {
 export type Setup1 = string | null;
 export type Uuid1 = string | null;
 export type SpanId1 = string | null;
-export type Timestamp2 = string;
+export type Timestamp3 = string;
 export type WorkingStart1 = number;
-export type Metadata18 = {
+export type Metadata19 = {
   [k: string]: unknown;
 } | null;
 export type Pending1 = boolean | null;
@@ -489,9 +495,9 @@ export type Message2 = string;
 export type Limit1 = number | null;
 export type Uuid2 = string | null;
 export type SpanId2 = string | null;
-export type Timestamp3 = string;
+export type Timestamp4 = string;
 export type WorkingStart2 = number;
-export type Metadata19 = {
+export type Metadata20 = {
   [k: string]: unknown;
 } | null;
 export type Pending2 = boolean | null;
@@ -508,9 +514,9 @@ export type Output = string | null;
 export type Completed = string | null;
 export type Uuid3 = string | null;
 export type SpanId3 = string | null;
-export type Timestamp4 = string;
+export type Timestamp5 = string;
 export type WorkingStart3 = number;
-export type Metadata20 = {
+export type Metadata21 = {
   [k: string]: unknown;
 } | null;
 export type Pending3 = boolean | null;
@@ -521,9 +527,9 @@ export type From = string | null;
 export type Changes = JsonChange[];
 export type Uuid4 = string | null;
 export type SpanId4 = string | null;
-export type Timestamp5 = string;
+export type Timestamp6 = string;
 export type WorkingStart4 = number;
-export type Metadata21 = {
+export type Metadata22 = {
   [k: string]: unknown;
 } | null;
 export type Pending4 = boolean | null;
@@ -531,9 +537,9 @@ export type Event4 = "store";
 export type Changes1 = JsonChange[];
 export type Uuid5 = string | null;
 export type SpanId5 = string | null;
-export type Timestamp6 = string;
+export type Timestamp7 = string;
 export type WorkingStart5 = number;
-export type Metadata22 = {
+export type Metadata23 = {
   [k: string]: unknown;
 } | null;
 export type Pending5 = boolean | null;
@@ -565,9 +571,9 @@ export type Completed1 = string | null;
 export type WorkingTime = number | null;
 export type Uuid6 = string | null;
 export type SpanId6 = string | null;
-export type Timestamp7 = string;
+export type Timestamp8 = string;
 export type WorkingStart6 = number;
-export type Metadata23 = {
+export type Metadata24 = {
   [k: string]: unknown;
 } | null;
 export type Pending6 = boolean | null;
@@ -593,9 +599,9 @@ export type Failed = boolean | null;
 export type MessageId = string | null;
 export type Uuid7 = string | null;
 export type SpanId7 = string | null;
-export type Timestamp8 = string;
+export type Timestamp9 = string;
 export type WorkingStart7 = number;
-export type Metadata24 = {
+export type Metadata25 = {
   [k: string]: unknown;
 } | null;
 export type Pending7 = boolean | null;
@@ -611,9 +617,9 @@ export type Decision =
 export type Explanation2 = string | null;
 export type Uuid8 = string | null;
 export type SpanId8 = string | null;
-export type Timestamp9 = string;
+export type Timestamp10 = string;
 export type WorkingStart8 = number;
-export type Metadata25 = {
+export type Metadata26 = {
   [k: string]: unknown;
 } | null;
 export type Pending8 = boolean | null;
@@ -622,9 +628,9 @@ export type Input4 = string;
 export type InputAnsi = string;
 export type Uuid9 = string | null;
 export type SpanId9 = string | null;
-export type Timestamp10 = string;
+export type Timestamp11 = string;
 export type WorkingStart9 = number;
-export type Metadata26 = {
+export type Metadata27 = {
   [k: string]: unknown;
 } | null;
 export type Pending9 = boolean | null;
@@ -633,9 +639,9 @@ export type Target2 = string | string[] | null;
 export type Intermediate = boolean;
 export type Uuid10 = string | null;
 export type SpanId10 = string | null;
-export type Timestamp11 = string;
+export type Timestamp12 = string;
 export type WorkingStart10 = number;
-export type Metadata27 = {
+export type Metadata28 = {
   [k: string]: unknown;
 } | null;
 export type Pending10 = boolean | null;
@@ -643,18 +649,18 @@ export type Event10 = "score_edit";
 export type ScoreName = string;
 export type Uuid11 = string | null;
 export type SpanId11 = string | null;
-export type Timestamp12 = string;
+export type Timestamp13 = string;
 export type WorkingStart11 = number;
-export type Metadata28 = {
+export type Metadata29 = {
   [k: string]: unknown;
 } | null;
 export type Pending11 = boolean | null;
 export type Event11 = "error";
 export type Uuid12 = string | null;
 export type SpanId12 = string | null;
-export type Timestamp13 = string;
+export type Timestamp14 = string;
 export type WorkingStart12 = number;
-export type Metadata29 = {
+export type Metadata30 = {
   [k: string]: unknown;
 } | null;
 export type Pending12 = boolean | null;
@@ -676,9 +682,9 @@ export type Module = string;
 export type Lineno = number;
 export type Uuid13 = string | null;
 export type SpanId13 = string | null;
-export type Timestamp14 = string;
+export type Timestamp15 = string;
 export type WorkingStart13 = number;
-export type Metadata30 = {
+export type Metadata31 = {
   [k: string]: unknown;
 } | null;
 export type Pending13 = boolean | null;
@@ -686,9 +692,9 @@ export type Event13 = "info";
 export type Source4 = string | null;
 export type Uuid14 = string | null;
 export type SpanId14 = string | null;
-export type Timestamp15 = string;
+export type Timestamp16 = string;
 export type WorkingStart14 = number;
-export type Metadata31 = {
+export type Metadata32 = {
   [k: string]: unknown;
 } | null;
 export type Pending14 = boolean | null;
@@ -699,9 +705,9 @@ export type Type20 = string | null;
 export type Name12 = string;
 export type Uuid15 = string | null;
 export type SpanId15 = string | null;
-export type Timestamp16 = string;
+export type Timestamp17 = string;
 export type WorkingStart15 = number;
-export type Metadata32 = {
+export type Metadata33 = {
   [k: string]: unknown;
 } | null;
 export type Pending15 = boolean | null;
@@ -709,9 +715,9 @@ export type Event15 = "span_end";
 export type Id11 = string;
 export type Uuid16 = string | null;
 export type SpanId16 = string | null;
-export type Timestamp17 = string;
+export type Timestamp18 = string;
 export type WorkingStart16 = number;
-export type Metadata33 = {
+export type Metadata34 = {
   [k: string]: unknown;
 } | null;
 export type Pending16 = boolean | null;
@@ -721,9 +727,9 @@ export type Type21 = string | null;
 export type Name13 = string;
 export type Uuid17 = string | null;
 export type SpanId17 = string | null;
-export type Timestamp18 = string;
+export type Timestamp19 = string;
 export type WorkingStart17 = number;
-export type Metadata34 = {
+export type Metadata35 = {
   [k: string]: unknown;
 } | null;
 export type Pending17 = boolean | null;
@@ -779,7 +785,7 @@ export type Value3 =
     };
 export type Answer2 = string | null;
 export type Explanation3 = string | null;
-export type Metadata35 = {
+export type Metadata36 = {
   [k: string]: unknown;
 } | null;
 export type History1 = ScoreEdit[];
@@ -804,6 +810,7 @@ export type Tasks = EvalSetTask[];
 export interface EvalLog {
   version?: Version;
   status?: Status;
+  invalidated?: Invalidated;
   eval: EvalSpec;
   plan?: EvalPlan;
   results?: EvalResults | null;
@@ -1208,6 +1215,8 @@ export interface EvalError {
 export interface EvalSample {
   id: Id1;
   epoch: Epoch1;
+  status: Status1;
+  invalidation: SampleInvalidation | null;
   input: Input;
   choices: Choices;
   target: Target;
@@ -1217,7 +1226,7 @@ export interface EvalSample {
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
-  metadata: Metadata15;
+  metadata: Metadata16;
   store: Store;
   events: Events;
   model_usage: ModelUsage2;
@@ -1229,6 +1238,16 @@ export interface EvalSample {
   attachments: Attachments;
   limit: EvalSampleLimit | null;
 }
+export interface SampleInvalidation {
+  timestamp: Timestamp;
+  author: Author;
+  reason: Reason1;
+  metadata: Metadata7;
+  status: Status2;
+}
+export interface Metadata7 {
+  [k: string]: unknown;
+}
 /**
  * System chat message.
  */
@@ -1236,7 +1255,7 @@ export interface ChatMessageSystem {
   id: Id2;
   content: Content;
   source: Source;
-  metadata: Metadata7;
+  metadata: Metadata8;
   role: Role;
 }
 /**
@@ -1368,7 +1387,7 @@ export interface ChatMessageUser {
   id: Id4;
   content: Content1;
   source: Source1;
-  metadata: Metadata8;
+  metadata: Metadata9;
   role: Role1;
   tool_call_id: ToolCallId;
 }
@@ -1379,7 +1398,7 @@ export interface ChatMessageAssistant {
   id: Id5;
   content: Content2;
   source: Source2;
-  metadata: Metadata9;
+  metadata: Metadata10;
   role: Role2;
   tool_calls: ToolCalls;
   model: Model2;
@@ -1410,7 +1429,7 @@ export interface ChatMessageTool {
   id: Id7;
   content: Content4;
   source: Source3;
-  metadata: Metadata10;
+  metadata: Metadata11;
   role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
@@ -1429,7 +1448,7 @@ export interface ModelOutput {
   completion: Completion;
   usage: ModelUsage1 | null;
   time: Time;
-  metadata: Metadata11;
+  metadata: Metadata12;
   error: Error1;
 }
 /**
@@ -1470,7 +1489,7 @@ export interface Score {
   value: Value1;
   answer: Answer;
   explanation: Explanation;
-  metadata: Metadata12;
+  metadata: Metadata13;
   history: History;
 }
 /**
@@ -1480,22 +1499,22 @@ export interface ScoreEdit {
   value: Value2;
   answer: Answer1;
   explanation: Explanation1;
-  metadata: Metadata13;
+  metadata: Metadata14;
   provenance: ProvenanceData | null;
 }
 /**
  * Metadata about who made an edit and why.
  */
 export interface ProvenanceData {
-  timestamp: Timestamp;
-  author: Author;
-  reason: Reason1;
-  metadata: Metadata14;
-}
-export interface Metadata14 {
-  [k: string]: unknown;
+  timestamp: Timestamp1;
+  author: Author1;
+  reason: Reason2;
+  metadata: Metadata15;
 }
 export interface Metadata15 {
+  [k: string]: unknown;
+}
+export interface Metadata16 {
   [k: string]: unknown;
 }
 export interface Store {
@@ -1507,9 +1526,9 @@ export interface Store {
 export interface SampleInitEvent {
   uuid: Uuid;
   span_id: SpanId;
-  timestamp: Timestamp1;
+  timestamp: Timestamp2;
   working_start: WorkingStart;
-  metadata: Metadata16;
+  metadata: Metadata17;
   pending: Pending;
   event: Event;
   sample: Sample;
@@ -1523,7 +1542,7 @@ export interface Sample {
   choices: Choices2;
   target: Target1;
   id: Id8;
-  metadata: Metadata17;
+  metadata: Metadata18;
   sandbox: SandboxEnvironmentSpec | null;
   files: Files1;
   setup: Setup1;
@@ -1534,9 +1553,9 @@ export interface Sample {
 export interface SampleLimitEvent {
   uuid: Uuid1;
   span_id: SpanId1;
-  timestamp: Timestamp2;
+  timestamp: Timestamp3;
   working_start: WorkingStart1;
-  metadata: Metadata18;
+  metadata: Metadata19;
   pending: Pending1;
   event: Event1;
   type: Type17;
@@ -1549,9 +1568,9 @@ export interface SampleLimitEvent {
 export interface SandboxEvent {
   uuid: Uuid2;
   span_id: SpanId2;
-  timestamp: Timestamp3;
+  timestamp: Timestamp4;
   working_start: WorkingStart2;
-  metadata: Metadata19;
+  metadata: Metadata20;
   pending: Pending2;
   event: Event2;
   action: Action;
@@ -1569,9 +1588,9 @@ export interface SandboxEvent {
 export interface StateEvent {
   uuid: Uuid3;
   span_id: SpanId3;
-  timestamp: Timestamp4;
+  timestamp: Timestamp5;
   working_start: WorkingStart3;
-  metadata: Metadata20;
+  metadata: Metadata21;
   pending: Pending3;
   event: Event3;
   changes: Changes;
@@ -1596,9 +1615,9 @@ export interface JsonChange {
 export interface StoreEvent {
   uuid: Uuid4;
   span_id: SpanId4;
-  timestamp: Timestamp5;
+  timestamp: Timestamp6;
   working_start: WorkingStart4;
-  metadata: Metadata21;
+  metadata: Metadata22;
   pending: Pending4;
   event: Event4;
   changes: Changes1;
@@ -1609,9 +1628,9 @@ export interface StoreEvent {
 export interface ModelEvent {
   uuid: Uuid5;
   span_id: SpanId5;
-  timestamp: Timestamp6;
+  timestamp: Timestamp7;
   working_start: WorkingStart5;
-  metadata: Metadata22;
+  metadata: Metadata23;
   pending: Pending5;
   event: Event5;
   model: Model4;
@@ -1695,9 +1714,9 @@ export interface Response {
 export interface ToolEvent {
   uuid: Uuid6;
   span_id: SpanId6;
-  timestamp: Timestamp7;
+  timestamp: Timestamp8;
   working_start: WorkingStart6;
-  metadata: Metadata23;
+  metadata: Metadata24;
   pending: Pending6;
   event: Event6;
   type: Type19;
@@ -1724,9 +1743,9 @@ export interface Arguments2 {
 export interface ApprovalEvent {
   uuid: Uuid7;
   span_id: SpanId7;
-  timestamp: Timestamp8;
+  timestamp: Timestamp9;
   working_start: WorkingStart7;
-  metadata: Metadata24;
+  metadata: Metadata25;
   pending: Pending7;
   event: Event7;
   message: Message3;
@@ -1753,9 +1772,9 @@ export interface ToolCallView {
 export interface InputEvent {
   uuid: Uuid8;
   span_id: SpanId8;
-  timestamp: Timestamp9;
+  timestamp: Timestamp10;
   working_start: WorkingStart8;
-  metadata: Metadata25;
+  metadata: Metadata26;
   pending: Pending8;
   event: Event8;
   input: Input4;
@@ -1770,9 +1789,9 @@ export interface InputEvent {
 export interface ScoreEvent {
   uuid: Uuid9;
   span_id: SpanId9;
-  timestamp: Timestamp10;
+  timestamp: Timestamp11;
   working_start: WorkingStart9;
-  metadata: Metadata26;
+  metadata: Metadata27;
   pending: Pending9;
   event: Event9;
   score: Score;
@@ -1785,9 +1804,9 @@ export interface ScoreEvent {
 export interface ScoreEditEvent {
   uuid: Uuid10;
   span_id: SpanId10;
-  timestamp: Timestamp11;
+  timestamp: Timestamp12;
   working_start: WorkingStart10;
-  metadata: Metadata27;
+  metadata: Metadata28;
   pending: Pending10;
   event: Event10;
   score_name: ScoreName;
@@ -1799,9 +1818,9 @@ export interface ScoreEditEvent {
 export interface ErrorEvent {
   uuid: Uuid11;
   span_id: SpanId11;
-  timestamp: Timestamp12;
+  timestamp: Timestamp13;
   working_start: WorkingStart11;
-  metadata: Metadata28;
+  metadata: Metadata29;
   pending: Pending11;
   event: Event11;
   error: EvalError;
@@ -1812,9 +1831,9 @@ export interface ErrorEvent {
 export interface LoggerEvent {
   uuid: Uuid12;
   span_id: SpanId12;
-  timestamp: Timestamp13;
+  timestamp: Timestamp14;
   working_start: WorkingStart12;
-  metadata: Metadata29;
+  metadata: Metadata30;
   pending: Pending12;
   event: Event12;
   message: LoggingMessage;
@@ -1837,9 +1856,9 @@ export interface LoggingMessage {
 export interface InfoEvent {
   uuid: Uuid13;
   span_id: SpanId13;
-  timestamp: Timestamp14;
+  timestamp: Timestamp15;
   working_start: WorkingStart13;
-  metadata: Metadata30;
+  metadata: Metadata31;
   pending: Pending13;
   event: Event13;
   source: Source4;
@@ -1851,9 +1870,9 @@ export interface InfoEvent {
 export interface SpanBeginEvent {
   uuid: Uuid14;
   span_id: SpanId14;
-  timestamp: Timestamp15;
+  timestamp: Timestamp16;
   working_start: WorkingStart14;
-  metadata: Metadata31;
+  metadata: Metadata32;
   pending: Pending14;
   event: Event14;
   id: Id10;
@@ -1867,9 +1886,9 @@ export interface SpanBeginEvent {
 export interface SpanEndEvent {
   uuid: Uuid15;
   span_id: SpanId15;
-  timestamp: Timestamp16;
+  timestamp: Timestamp17;
   working_start: WorkingStart15;
-  metadata: Metadata32;
+  metadata: Metadata33;
   pending: Pending15;
   event: Event15;
   id: Id11;
@@ -1880,9 +1899,9 @@ export interface SpanEndEvent {
 export interface StepEvent {
   uuid: Uuid16;
   span_id: SpanId16;
-  timestamp: Timestamp17;
+  timestamp: Timestamp18;
   working_start: WorkingStart16;
-  metadata: Metadata33;
+  metadata: Metadata34;
   pending: Pending16;
   event: Event16;
   action: Action1;
@@ -1895,9 +1914,9 @@ export interface StepEvent {
 export interface SubtaskEvent {
   uuid: Uuid17;
   span_id: SpanId17;
-  timestamp: Timestamp18;
+  timestamp: Timestamp19;
   working_start: WorkingStart17;
-  metadata: Metadata34;
+  metadata: Metadata35;
   pending: Pending17;
   event: Event17;
   name: Name14;
@@ -1942,7 +1961,7 @@ export interface EvalSampleScore {
   value: Value3;
   answer: Answer2;
   explanation: Explanation3;
-  metadata: Metadata35;
+  metadata: Metadata36;
   history: History1;
   sample_id: SampleId1;
 }
