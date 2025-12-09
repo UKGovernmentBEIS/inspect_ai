@@ -2419,6 +2419,27 @@
           "title": "Epoch",
           "type": "integer"
         },
+        "status": {
+          "enum": [
+            "started",
+            "complete",
+            "error",
+            "invalidated"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "invalidation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleInvalidation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "input": {
           "anyOf": [
             {
@@ -2738,6 +2759,8 @@
       "required": [
         "id",
         "epoch",
+        "status",
+        "invalidation",
         "input",
         "choices",
         "target",
@@ -5333,6 +5356,55 @@
       "type": "object",
       "additionalProperties": false
     },
+    "SampleInvalidation": {
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "title": "Metadata",
+          "type": "object"
+        },
+        "status": {
+          "enum": [
+            "started",
+            "complete",
+            "error"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp",
+        "author",
+        "reason",
+        "metadata",
+        "status"
+      ],
+      "title": "SampleInvalidation",
+      "type": "object",
+      "additionalProperties": false
+    },
     "SampleLimitEvent": {
       "description": "The sample was unable to finish processing due to a limit",
       "properties": {
@@ -7568,6 +7640,11 @@
       ],
       "title": "Status",
       "type": "string"
+    },
+    "invalidated": {
+      "default": false,
+      "title": "Invalidated",
+      "type": "boolean"
     },
     "eval": {
       "$ref": "#/$defs/EvalSpec"

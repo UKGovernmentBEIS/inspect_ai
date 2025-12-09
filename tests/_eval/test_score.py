@@ -85,6 +85,7 @@ class UpdatedScoresTestCase(pydantic.BaseModel):
 def test_get_updated_scores(test_case: UpdatedScoresTestCase):
     sample = EvalSample(
         id="1",
+        status="complete",
         scores=test_case.existing_scores,
         epoch=1,
         input="input",
@@ -235,7 +236,12 @@ async def test_get_updated_events(test_case: UpdatedEventsTestCase):
         events.extend(transcript.events)
 
     sample = EvalSample(
-        id="1", events=existing_events, epoch=1, input="input", target="target"
+        id="1",
+        status="complete",
+        events=existing_events,
+        epoch=1,
+        input="input",
+        target="target",
     )
 
     updated_events = _get_updated_events(sample, new_events, action=test_case.action)

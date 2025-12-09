@@ -1136,6 +1136,7 @@ def create_eval_sample(
     return EvalSample(
         id=id,
         epoch=state.epoch,
+        status="error" if error is not None else "complete",
         input=sample.input,
         choices=sample.choices,
         target=sample.target,
