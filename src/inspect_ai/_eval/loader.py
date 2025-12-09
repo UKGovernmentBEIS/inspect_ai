@@ -9,7 +9,7 @@ from typing import Any, Callable, Tuple, cast
 from shortuuid import uuid
 
 from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._eval.task.util import task_file, task_run_dir
+from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -35,9 +35,10 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
-from .registry import task_create, task_create_from_hf
+from .registry import task_create
 from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .task.hf import task_create_from_hf
 from .task.run import eval_log_sample_source
 from .task.tasks import Tasks
 
@@ -346,14 +347,6 @@ def _load_task_specs(task_path: Path) -> list[str]:
         return [task[0] for task in tasks]
     else:
         return []
-
-
-def split_spec(spec: str) -> tuple[str, str | None]:
-    parts = spec.rsplit("@", 1)
-    if len(parts) == 2:
-        return parts[0], parts[1]
-    else:
-        return spec, None
 
 
 def code_has_decorator(code: str, decorator: str) -> bool:

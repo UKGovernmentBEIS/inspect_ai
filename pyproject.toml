@@ -159,6 +159,7 @@ dev = [
   "google-genai",
   "griffe",
   "groq",
+  "huggingface_hub",
   "inspect_scout",
   "ipython",
   "jsonpath-ng",

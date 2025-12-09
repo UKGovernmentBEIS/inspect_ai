@@ -966,7 +966,9 @@ async def eval_retry_async(
                 raise FileNotFoundError(f"Task file '{task_file}' not found")
             task = f"{task_file}@{task_name}"
         else:
-            if registry_lookup("task", task_name) is None:
+            if registry_lookup("task", task_name) is None and not task_name.startswith(
+                "hf/"
+            ):
                 # if this object is in a package then let the user know
                 # that they need to register it to work with eval-retry
                 package_name = registry_package_name(task_name)
