@@ -159,9 +159,9 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
     if isinstance(solver, Plan):
         plan = solver
     elif isinstance(solver, Chain):
-        plan = Plan(list(solver), cleanup=task.cleanup, internal=True)
+        plan = Plan(list(solver), internal=True)
     else:
-        plan = Plan(unroll(solver), cleanup=task.cleanup, internal=True)
+        plan = Plan(unroll(solver), internal=True)
 
     # add setup solver(s) if specified
     if task.setup:
@@ -383,6 +383,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
                         scorers=scorers,
+                        cleanup=task.cleanup,
                         generate=generate,
                         progress=progress,
                         logger=logger if log_samples else None,
@@ -606,6 +607,7 @@ async def task_run_sample(
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
+    cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
     logger: TaskLogger | None,
@@ -997,10 +999,22 @@ async def task_run_sample(
                 except Exception as ex:
                     # handle error
                     error, raise_error = handle_error(ex)
+                finally:
+                    # run task cleanup if required (inside sandbox context)
+                    if cleanup is not None:
+                        with anyio.CancelScope(shield=True):
+                            try:
+                                await cleanup(state)
+                            except Exception as ex:
+                                py_logger.warning(
+                                    f"Exception occurred during task cleanup: {ex}",
+                                    exc_info=ex,
+                                )
 
         except Exception as ex:
             error, raise_error = handle_error(ex)
         finally:
+            # cleanup the task init span if required
             if cleanup_span is not None:
                 await cleanup_span.__aexit__(None, None, None)
 
@@ -1053,6 +1067,7 @@ async def task_run_sample(
             sandbox_cleanup=sandbox_cleanup,
             plan=plan,
             scorers=scorers,
+            cleanup=cleanup,
             generate=generate,
             progress=progress,
             logger=logger,
