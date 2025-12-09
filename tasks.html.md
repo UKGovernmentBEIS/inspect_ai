@@ -423,6 +423,83 @@ Now, anyone that has installed your package can run the task as follows:
 inspect eval evals/mytask
 ```
 
+## Hugging Face
+
+> [!NOTE]
+>
+> The Hugging Face tasks feature described below is available only in
+> the development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that
+provides Inspect task definitions. For example, the
+[OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24)
+dataset can be evaluated with:
+
+``` bash
+inspect eval hf/OpenEvals/aime_24 --model openai/gpt-5
+```
+
+Here are the `eval.yaml` definitions for several Hugging Face datasets:
+
+- [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24/blob/main/eval.yaml)
+- [OpenEvals/simpleqa](https://huggingface.co/datasets/OpenEvals/SimpleQA/blob/main/eval.yaml)
+- [OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml)
+
+A dataset’s `eval.yaml` file defines a list of tasks. Here are the
+fields that can be included in a task definition and how they are used
+in constructing `Task` instances:
+
+| Field             | Default   | Usage                       |
+|-------------------|-----------|-----------------------------|
+| `subset`          | “default” | `hf_dataset(name)`          |
+| `splits`          | “test”    | `hf_dataset(split`)         |
+| `field_spec`      | None      | `hf_dataset(sample_fields)` |
+| `shuffle_choices` | None      | `dataset.shuffle_choices()` |
+| `epochs`          | 1         | `Epochs(epochs)`            |
+| `epoch_reducer`   | “mean”    | `Epochs(epoch_reducer)`     |
+| `solvers`         | None      | `Task(solver)`              |
+| `scorer`          | None      | `Task(scorer)`              |
+| `name`            | None      | `hf/org/dataset/name`       |
+
+### Multiple Tasks
+
+Datasets can define multiple named tasks. For example, the
+[OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml)
+dataset defines 3 tasks: `musr:murder_mysteries`,
+`musr:object_placements`, and `musr:team_allocation`. If you call
+`inspect eval` with no task qualification, all 3 tasks will be run. If
+you append a task name, only that task will be run:
+
+``` bash
+# run all 3 tasks defined by OpenEvals/MuSR
+inspect eval hf/OpenEvals/MuSR --model openai/gpt-5
+
+# run only the musr:murder_mysteries task
+inspect eval hf/OpenEvals/MuSR/musr:murder_mysteries --model openai/gpt-5
+```
+
+Note that when running multiple tasks, you may want to increase
+`--max-tasks` for more concurrency:
+
+``` bash
+inspect eval hf/OpenEvals/MuSR --model openai/gpt-5 --max-tasks 3
+```
+
+### Revisions
+
+All of the examples above execute evals from the `main` branch. You can
+alternatively execute from a branch, tag, or revision hash by appending
+an `@` qualifier. For example:
+
+``` bash
+inspect eval hf/OpenEvals/MuSR@df154a5 --model openai/gpt-5
+```
+
 ## Exploratory
 
 When developing tasks and solvers, you often want to explore how

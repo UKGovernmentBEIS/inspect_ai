@@ -316,7 +316,11 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li><a href="https://inspect.aisi.org.uk/early-stopping.html.md">Early Stopping</a> API for ending tasks early based on previously scored samples.</li>
 <li>Logging: Support for writing logs to Azure Blob Storage (<code>az://</code>).</li>
+<li>Tasks: Ability to run Inspect tasks defined within datasets on <a href="https://inspect.aisi.org.uk/tasks.html#hugging-face">Hugging Face Hub</a>.</li>
+<li>Tasks: Run <code>cleanup()</code> function at the end of the sample (after scoring) rather than after solvers.</li>
+<li>Agent Bridge: <code>model</code> option is now used only as a fallback if the request model is not for “inspect” or “inspect/*“.</li>
 <li>React Agent: Remove newlines from default prompts.</li>
+<li>Human Agent: Support for non-scalar values returned from intermediate scoring.</li>
 <li>Bugfix: Copy <code>metadata</code> field to new eval for <code>eval-retry</code>.</li>
 </ul>
 </section>
