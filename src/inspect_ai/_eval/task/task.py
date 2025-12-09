@@ -98,7 +98,7 @@ class Task:
             setup: Setup step (always run even when the main `solver` is replaced).
             solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
             cleanup: Optional cleanup function for task. Called after
-                all solvers have run for each sample (including if an
+                all solvers and scorers have run for each sample (including if an
                 exception occurs during the run)
             scorer: Scorer used to evaluate model output.
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
@@ -261,7 +261,7 @@ def task_with(
         setup: Setup step (always run even when the main `solver` is replaced).
         solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
         cleanup: Optional cleanup function for task. Called after
-            all solvers have run for each sample (including if an
+            all solvers and scorers have run for each sample (including if an
             exception occurs during the run)
         scorer: Scorer used to evaluate model output.
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
