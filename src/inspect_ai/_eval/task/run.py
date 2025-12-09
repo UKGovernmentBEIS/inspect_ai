@@ -1264,6 +1264,7 @@ def eval_log_sample_source(
                     if sample.id == id
                     and sample.epoch == epoch
                     and sample.error is None
+                    and sample.invalidation is None
                 ),
                 None,
             )

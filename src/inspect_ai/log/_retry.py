@@ -33,7 +33,7 @@ def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
         [
             log_header.eval.task_id
             for log_header in log_headers
-            if log_header.status == "success"
+            if (log_header.status == "success" and not log_header.invalidated)
         ]
     )
 
@@ -41,7 +41,11 @@ def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
     # the most recent one)
     retryable_logs: dict[str, EvalLogInfo] = {}
     for log, log_header in zip(logs, log_headers):
-        if log_header.status == "cancelled" or log_header.status == "error":
+        if (
+            log_header.status == "cancelled"
+            or log_header.status == "error"
+            or log_header.invalidated
+        ):
             if log_header.eval.task_id not in completed_task_ids:
                 existing_log = retryable_logs.get(log_header.eval.task_id, None)
                 if existing_log:
