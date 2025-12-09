@@ -1,4 +1,3 @@
-from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -9,10 +8,14 @@ from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai.dataset import FieldSpec, hf_dataset
+from inspect_ai.scorer._scorer import ScorerSpec
+from inspect_ai.solver._solver import SolverSpec
 
 
 def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
     """Build a Task from a full config definition (solvers, scorers, dataset, etc.)."""
+    from inspect_ai._eval.loader import scorer_from_spec, solver_from_spec
+
     try:
         from huggingface_hub import hf_hub_download
     except ImportError:
@@ -62,28 +65,29 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         # Build solvers
         solvers = []
         solver_configs = task_config.get("solvers", [])
-        solver_module = import_module("inspect_ai.solver")
         for solver_config in solver_configs:
-            solver_name = solver_config.get("name")
-
-            if not hasattr(solver_module, solver_name):
-                raise ValueError(f"Unknown solver: {solver_name}")
-
-            solver_fn = getattr(solver_module, solver_name)
-            solvers.append(solver_fn(**solver_config.get("args", {})))
+            solvers.append(
+                solver_from_spec(
+                    SolverSpec(
+                        solver=solver_config.get("name"),
+                        args=solver_config.get("args", {}),
+                    )
+                )
+            )
 
         # Build scorers
         scorers = []
         scorer_configs = task_config.get("scorers", [])
-        scorer_module = import_module("inspect_ai.scorer")
         for scorer_config in scorer_configs:
-            scorer_name = scorer_config.get("name")
-
-            if not hasattr(scorer_module, scorer_name):
-                raise ValueError(f"Unknown scorer: {scorer_name}")
-
-            scorer_fn = getattr(scorer_module, scorer_name)
-            scorers.append(scorer_fn(**scorer_config.get("args", {})))
+            scorers.append(
+                scorer_from_spec(
+                    ScorerSpec(
+                        scorer=scorer_config.get("name"),
+                    ),
+                    task_path=None,
+                    **scorer_config.get("args", {}),
+                )
+            )
 
         # Extract other task parameters
         epochs = task_config.get("epochs", 1)
