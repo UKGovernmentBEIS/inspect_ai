@@ -255,9 +255,9 @@ def load_task_spec(task_spec: str, task_args: dict[str, Any] = {}) -> list[Task]
     if registry_lookup("task", task_spec) is not None:
         # create the task from a python package
         return [task_create(task_spec, **task_args)]
-
-    # load tasks from glob (Python files, etc.)
-    return create_tasks([task_spec], task_args)
+    else:
+        # load tasks from glob
+        return create_tasks([task_spec], task_args)
 
 
 def _build_task_from_full_config(

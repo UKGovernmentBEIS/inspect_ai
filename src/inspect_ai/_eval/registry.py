@@ -4,7 +4,6 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, TypeVar, cast, overload
 
-from inspect_ai._util.config import resolve_args
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
@@ -83,51 +82,6 @@ def task_create(name: str, **kwargs: Any) -> Task:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
     return registry_create("task", name, **task_args)
-
-
-def task_create_from_config(config: str | dict[str, Any]) -> Task:
-    r"""Create a Task from a config file or dictionary.
-
-    The config file (JSON or YAML) or dictionary should contain:
-    - A 'task' or 'name' field specifying the task name
-    - Additional fields that will be passed as task parameters
-
-    Args:
-        config (str | dict[str, Any]): Path to config file (JSON/YAML) or
-            dictionary containing task name and parameters
-
-    Returns:
-        Task with registry info attribute
-
-    Example:
-        Config file (task.yaml):
-        ```yaml
-        task: "my_task"
-        epochs: 2
-        color: "red"
-        ```
-
-        Usage:
-        ```python
-        task = task_create_from_config("task.yaml")
-        ```
-    """
-    # resolve config if it's a file path
-    if isinstance(config, str):
-        config_dict = resolve_args(config)
-    else:
-        # make a copy to avoid modifying the original dict
-        config_dict = config.copy()
-
-    # extract task name from config
-    task_name = config_dict.pop("task", None) or config_dict.pop("name", None)
-    if not task_name:
-        raise PrerequisiteError(
-            "Config must contain a 'task' or 'name' field specifying the task name."
-        )
-
-    # remaining fields are task parameters
-    return task_create(task_name, **config_dict)
 
 
 @overload
