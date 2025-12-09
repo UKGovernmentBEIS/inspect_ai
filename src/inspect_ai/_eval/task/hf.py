@@ -2,14 +2,34 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel, ConfigDict, Field
 
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai.dataset import FieldSpec, hf_dataset
-from inspect_ai.scorer._scorer import ScorerSpec
-from inspect_ai.solver._solver import SolverSpec
+from inspect_ai.scorer._scorer import Scorer, ScorerSpec
+from inspect_ai.solver._solver import Solver, SolverSpec
+
+
+class TaskComponent(BaseModel):
+    name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class HFTask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None)
+    subset: str = Field(default="default")
+    splits: str = Field(default="test")
+    field_spec: FieldSpec
+    shuffle_choices: bool | None = Field(default=None)
+    epochs: int = Field(default=1)
+    epoch_reducer: str | None = Field(default=None)
+    solvers: list[TaskComponent] = Field(default_factory=list)
+    scorers: list[TaskComponent] = Field(default_factory=list)
 
 
 def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
@@ -17,85 +37,82 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
     from inspect_ai._eval.loader import scorer_from_spec, solver_from_spec
 
     try:
+        from huggingface_hub import errors as hf_errors
         from huggingface_hub import hf_hub_download
     except ImportError:
         raise pip_dependency_error(
             "HuggingFace Dataset Tasks (hf/)", ["huggingface_hub"]
         ) from None
 
-    # see if there is a revision in the repo_id
+    # see if there is a revision in the repo_id (otherwise )
     repo_id, revision = split_spec(task_name.replace("hf/", ""))
     if revision is None:
         revision = kwargs.get("revision", "main")
 
-    # path to task config
-    yaml_path = Path(
-        hf_hub_download(
-            repo_id=repo_id,
-            filename="eval.yaml",
-            repo_type="dataset",
-            revision=revision,
+    # load config
+    try:
+        yaml_path = Path(
+            hf_hub_download(
+                repo_id=repo_id,
+                filename="eval.yaml",
+                repo_type="dataset",
+                revision=revision,
+            )
         )
-    )
+    except hf_errors.RemoteEntryNotFoundError:
+        raise PrerequisiteError(
+            f"No 'eval.yaml' file found for Hugging Face Dataset '{repo_id}'"
+        )
 
+    # read tasks
     with open(yaml_path, "r") as f:
         global_config = yaml.safe_load(f)
+    task_configs = global_config.get("tasks", None)
+    if task_configs is None:
+        raise PrerequisiteError("eval.yaml does not include 'tasks' field.")
 
-    task_configs = global_config["tasks"]
-
-    tasks = []
+    tasks: list[Task] = []
     for task_config in task_configs:
-        # Build dataset
-        subset = task_config.get("subset", "default")
-        split = task_config.get("splits", "test")
-        field_spec = task_config.get("field_spec", None)
-        if field_spec is None:
-            raise PrerequisiteError(
-                "HuggingFace eval task must include a 'field_spec'."
-            )
-        sample_fields = FieldSpec(**field_spec)
+        # validate config
+        hf_task = HFTask.model_validate(task_config)
 
+        # create dataset
         dataset = hf_dataset(
             path=repo_id,
             revision=revision,
-            name=subset,
-            split=split,
-            sample_fields=sample_fields,
+            name=hf_task.subset,
+            split=hf_task.splits,
+            sample_fields=hf_task.field_spec,
         )
 
-        if task_config.get("shuffle_choices", False):
+        # shuffle choides if requested
+        if hf_task.shuffle_choices:
             dataset.shuffle_choices()
 
         # Build solvers
-        solvers = []
-        solver_configs = task_config.get("solvers", [])
-        for solver_config in solver_configs:
+        solvers: list[Solver] = []
+        for solver in hf_task.solvers:
             solvers.append(
                 solver_from_spec(
                     SolverSpec(
-                        solver=solver_config.get("name"),
-                        args=solver_config.get("args", {}),
+                        solver=solver.name,
+                        args=solver.args,
                     )
                 )
             )
 
         # Build scorers
-        scorers = []
-        scorer_configs = task_config.get("scorers", [])
-        for scorer_config in scorer_configs:
+        scorers: list[Scorer] = []
+        for scorer in hf_task.scorers:
             scorers.append(
                 scorer_from_spec(
                     ScorerSpec(
-                        scorer=scorer_config.get("name"),
+                        scorer=scorer.name,
                     ),
                     task_path=None,
-                    **scorer_config.get("args", {}),
+                    **scorer.args,
                 )
             )
-
-        # Extract other task parameters
-        epochs = task_config.get("epochs", 1)
-        epochs_reducer = task_config.get("epochs_reducer", None)
 
         # Build and return task
         task = Task(
@@ -104,7 +121,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
             dataset=dataset,
             solver=solvers,
             scorer=scorers,
-            epochs=Epochs(epochs, epochs_reducer),
+            epochs=Epochs(hf_task.epochs, hf_task.epoch_reducer),
         )
 
         # Set file attributes
