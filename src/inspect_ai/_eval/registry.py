@@ -92,7 +92,7 @@ def task_create_from_hf(repo_id: str, **kwargs: Any) -> list[Task]:
     import yaml
     from huggingface_hub import hf_hub_download
 
-    from inspect_ai._util.from_hub import load_dataset
+    from inspect_ai.dataset import FieldSpec, hf_dataset
 
     repo_id = repo_id.replace("hf/", "")
     revision = kwargs.get("revision", "main")
@@ -113,7 +113,21 @@ def task_create_from_hf(repo_id: str, **kwargs: Any) -> list[Task]:
     tasks = []
     for task_config in task_configs:
         # Build dataset
-        dataset = load_dataset(repo_id, revision, task_config=task_config)
+        subset = task_config.get("subset", "default")
+        split = task_config.get("splits", "test")
+        field_spec = task_config["field_spec"]
+        sample_fields = FieldSpec(**field_spec)
+
+        dataset = hf_dataset(
+            path=repo_id,
+            revision=revision,
+            name=subset,
+            split=split,
+            sample_fields=sample_fields,
+        )
+
+        if task_config.get("shuffle_choices", False):
+            dataset.shuffle_choices()
 
         # Build solvers
         solvers = []
