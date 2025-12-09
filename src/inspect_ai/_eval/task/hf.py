@@ -6,7 +6,7 @@ import yaml
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
-from inspect_ai._util.error import pip_dependency_error
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai.dataset import FieldSpec, hf_dataset
 from inspect_ai.scorer._scorer import ScorerSpec
 from inspect_ai.solver._solver import SolverSpec
@@ -48,7 +48,11 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         # Build dataset
         subset = task_config.get("subset", "default")
         split = task_config.get("splits", "test")
-        field_spec = task_config["field_spec"]
+        field_spec = task_config.get("field_spec", None)
+        if field_spec is None:
+            raise PrerequisiteError(
+                "HuggingFace eval task must include a 'field_spec'."
+            )
         sample_fields = FieldSpec(**field_spec)
 
         dataset = hf_dataset(
