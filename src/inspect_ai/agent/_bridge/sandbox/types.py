@@ -25,9 +25,9 @@ class SandboxAgentBridge(AgentBridge):
     """Model proxy server port."""
 
     model: str | None
-    """Specify that the bridge should use a speicifc model (e.g. "inspect" to use
-    thet default model for the task or "inspect/openai/gpt-4o" to use another
-    specific model).
+    """Model to use when the request does not use "inspect" or an "inspect/"
+    prefixed model (defaults to "inspect", can also specify e.g.
+    "inspect/openai/gpt-4o" to force another specific model).
     """
 
     mcp_server_configs: list[MCPServerConfigStdio]
