@@ -422,7 +422,7 @@ A dataset's `eval.yaml` file defines a list of tasks. Here are the fields that c
 
 ### Multiple Tasks
 
-A Hugging Face dataset may define multiple named tasks. For example, the [OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml) dataset defines 3 tasks: `musr:murder_mysteries`, `musr:object_placements`, and `musr:team_allocation`. If you call `inspect eval` with no task qualification, all 3 tasks will be run. If you append a task name, only that task will be run:
+Datasets can define multiple named tasks. For example, the [OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml) dataset defines 3 tasks: `musr:murder_mysteries`, `musr:object_placements`, and `musr:team_allocation`. If you call `inspect eval` with no task qualification, all 3 tasks will be run. If you append a task name, only that task will be run:
 
 ```bash
 # run all 3 tasks defined by OpenEvals/MuSR
