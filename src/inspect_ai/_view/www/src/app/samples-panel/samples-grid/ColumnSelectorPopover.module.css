@@ -1,0 +1,57 @@
+.checkboxWrapper {
+  margin-bottom: 0.1rem;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.checkbox {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.filterIcon {
+  margin-left: 0.5rem;
+  color: var(--bs-primary);
+}
+
+.scrollableContainer {
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
+.section {
+  margin-bottom: 0.75rem;
+}
+
+.headerRow {
+  display: flex;
+  column-gap: 2rem;
+  row-gap: 1rem;
+  border-bottom: solid 1px var(--bs-border-color);
+  margin-bottom: 0.5rem;
+  justify-content: space-between;
+}
+
+.buttonContainer {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.button {
+  padding: 0;
+  text-decoration: none;
+}
+
+.button:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.columnsLayout {
+  columns: 2;
+  column-gap: 2rem;
+}

@@ -50,8 +50,7 @@ def generate_completions(
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        if bridge.model is not None:
-            json_data["model"] = bridge.model
+        _resolve_model(bridge.model, json_data)
         completion = await inspect_completions_api_request(json_data, bridge)
         return completion.model_dump(mode="json", warnings=False)
 
@@ -64,8 +63,7 @@ def generate_responses(
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        if bridge.model is not None:
-            json_data["model"] = bridge.model
+        _resolve_model(bridge.model, json_data)
         completion = await inspect_responses_api_request(
             json_data, web_search, code_execution, bridge
         )
@@ -80,11 +78,20 @@ def generate_anthropic(
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        if bridge.model is not None:
-            json_data["model"] = bridge.model
+        _resolve_model(bridge.model, json_data)
         completion = await inspect_anthropic_api_request(
             json_data, web_search, code_execution, bridge
         )
         return completion.model_dump(mode="json", warnings=False)
 
     return generate
+
+
+# resolve model to a pre-specified value if model passed in the request
+# is not specifially an inspect model (enables a fallthrough for scaffolds
+# that can't be invoked in such as way as to full control their model)
+def _resolve_model(model: str | None, json_data: dict[str, JsonValue]) -> None:
+    if model is not None:
+        request_model = str(json_data.get("model", ""))
+        if request_model != "inspect" or not model.startswith("inspect/"):
+            json_data["model"] = model

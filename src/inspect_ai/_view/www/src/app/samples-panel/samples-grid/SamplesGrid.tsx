@@ -1,4 +1,5 @@
 import type {
+  ColDef,
   GridApi,
   GridColumnsChangedEvent,
   RowClickedEvent,
@@ -12,14 +13,12 @@ import {
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useClientEvents } from "../../../state/clientEvents";
-import { usePrevious } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
 import { debounce } from "../../../utils/sync";
 import { join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
-import { useSampleColumns } from "./hooks";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
 
@@ -30,12 +29,14 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 interface SamplesGridProps {
   samplesPath?: string;
   gridRef?: RefObject<AgGridReact | null>;
+  columns: ColDef<SampleRow>[];
 }
 
 // Sample Grid
 export const SamplesGrid: FC<SamplesGridProps> = ({
   samplesPath,
   gridRef: externalGridRef,
+  columns,
 }) => {
   const logDetails = useStore((state) => state.logs.logDetails);
   const gridState = useStore((state) => state.logs.samplesListState.gridState);
@@ -54,9 +55,15 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const clearSelectedSample = useStore(
     (state) => state.sampleActions.clearSelectedSample,
   );
+  const previousSamplesPath = useStore(
+    (state) => state.logs.samplesListState.previousSamplesPath,
+  );
+  const setPreviousSamplesPath = useStore(
+    (state) => state.logsActions.setPreviousSamplesPath,
+  );
 
   const loading = useStore((state) => state.app.status.loading);
-  const syncing = useStore((state) => state.app.status.loading);
+  const syncing = useStore((state) => state.app.status.syncing);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const selectedSampleHandle = useStore(
     (state) => state.log.selectedSampleHandle,
@@ -75,11 +82,14 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     };
   }, [startPolling, stopPolling]);
 
-  // Clear grid state when samplesPath changes
-  const prevSamplesPath = usePrevious(samplesPath);
+  // Clear grid state when samplesPath changes to a different path
+  // Use store-persisted previousSamplesPath to survive component remounts
   const initialGridState = useMemo(() => {
-    if (prevSamplesPath !== samplesPath) {
-      // Clear displayed samples when path changes
+    if (
+      previousSamplesPath !== undefined &&
+      previousSamplesPath !== samplesPath
+    ) {
+      // Clear displayed samples when path changes to a different path
       clearDisplayedSamples();
       const result = { ...gridState };
       delete result?.filter;
@@ -87,7 +97,14 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     } else {
       return gridState;
     }
-  }, [prevSamplesPath, samplesPath, clearDisplayedSamples, gridState]);
+  }, [previousSamplesPath, samplesPath, clearDisplayedSamples, gridState]);
+
+  // Update the previous samples path in the store after render
+  useEffect(() => {
+    if (samplesPath !== previousSamplesPath) {
+      setPreviousSamplesPath(samplesPath);
+    }
+  }, [samplesPath, previousSamplesPath, setPreviousSamplesPath]);
 
   // Filter logDetails based on samplesPath
   const filteredLogDetails = useMemo(() => {
@@ -150,16 +167,12 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     return rows;
   }, [filteredLogDetails]);
 
-  // Compute the columns
-  const columns = useSampleColumns(data, filteredLogDetails);
-
-  const resizeGridColumns = useMemo(
-    () =>
-      debounce(() => {
-        // Trigger column sizing after grid is ready
-        gridRef.current?.api?.sizeColumnsToFit();
-      }, 10),
-    [gridRef],
+  const resizeGridColumns = useCallback(
+    debounce(() => {
+      // Trigger column sizing after grid is ready
+      gridRef.current?.api?.sizeColumnsToFit();
+    }, 10),
+    [],
   );
 
   const handleRowClick = useCallback(
@@ -369,6 +382,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   // Keep track of the max column count to avoid redundant resizing
   const maxColCount = useRef(0);
 
+  // Resize grid columns when columns prop changes (e.g., when columns are hidden/unhidden)
+  useEffect(() => {
+    resizeGridColumns();
+  }, [columns, resizeGridColumns]);
+
   return (
     <div className={styles.gridWrapper}>
       <div
@@ -439,7 +457,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
             selectCurrentSample();
             clearSelectedSample();
           }}
-          loading={data.length === 0 && (loading > 0 || syncing > 0)}
+          loading={data.length === 0 && (loading > 0 || syncing)}
         />
       </div>
     </div>

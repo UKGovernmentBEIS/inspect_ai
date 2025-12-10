@@ -159,7 +159,8 @@ dev = [
   "google-genai",
   "griffe",
   "groq",
-  "inspect_scout>=0.2.2",
+  "huggingface_hub",
+  "inspect_scout",
   "ipython",
   "jsonpath-ng",
   "markdown",
@@ -204,7 +205,14 @@ dev = [
   "uvicorn",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
-doc = ["quarto-cli==1.7.32", "jupyter", "panflute", "markdown", "griffe", "click>=8.2.0"]
+doc = [
+  "quarto-cli==1.7.32",
+  "jupyter",
+  "panflute",
+  "markdown",
+  "griffe",
+  "click>=8.2.0",
+]
 dist = ["twine", "build"]
 
 [tool.typos.default.extend-words]

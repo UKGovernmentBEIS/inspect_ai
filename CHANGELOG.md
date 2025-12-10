@@ -1,7 +1,13 @@
 ## Unreleased
 
+- [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - Logging: Support for writing logs to Azure Blob Storage (`az://`).
+- Tasks: Ability to run Inspect tasks defined within datasets on [Hugging Face Hub](https://inspect.aisi.org.uk/tasks.html#hugging-face).
+- Tasks: Run `cleanup()` function at the end of the sample (after scoring) rather than after solvers.
+- Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
 - React Agent: Remove newlines from default prompts.
+- Human Agent: Support for non-scalar values returned from intermediate scoring.
+- Bugfix: Copy `metadata` field to new eval for `eval-retry`.
 
 ## 0.3.153 (05 December 2025)
 
