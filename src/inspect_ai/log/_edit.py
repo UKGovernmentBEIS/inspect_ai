@@ -74,7 +74,7 @@ def _update_sample_invalidation(
                 if not update_all:
                     errors[sample_uuid] = "Sample is not invalidated"
                 continue
-            status = "started"
+            status = sample.invalidation.status
             invalidation = None
         else:
             if sample.status == "invalidated":
