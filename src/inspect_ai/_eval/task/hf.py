@@ -23,7 +23,7 @@ class TaskComponent(BaseModel):
 
 @dataclass
 class FieldSpecHF(FieldSpec):
-    choices: str | list[str] | None = field(default=None)
+    choices: str | list[str] | None = field(default=None)  # type: ignore[assignment]
     """ TODO """
 
 
