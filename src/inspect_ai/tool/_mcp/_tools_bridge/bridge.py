@@ -101,6 +101,7 @@ async def setup_bridged_tools(
     script_path = f"/var/tmp/mcp/{spec.name}_server.py"
     script = generate_mcp_server_script(spec.name, tools_info, instance)
     await sandbox.write_file(script_path, script)
+    await anyio.sleep(1)
 
     return MCPServerConfigStdio(
         name=spec.name,
