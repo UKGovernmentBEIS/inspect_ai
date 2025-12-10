@@ -225,25 +225,19 @@ class X11Client:
 
     async def zoom(self, region: list[int]) -> ToolResult:
         """Take a zoomed screenshot of a specified region at native resolution."""
-        if len(region) != 4:
-            raise X11ClientError(
-                "Region must have exactly 4 coordinates [x0, y0, x1, y1]"
-            )
-        if any(r < 0 for r in region):
-            raise X11ClientError("Region coordinates must be non-negative")
-
-        x0, y0, x1, y1 = region
+        if (
+            len(region) != 4
+            or any(r < 0 for r in region)
+            or region[2] <= region[0]
+            or region[3] <= region[1]
+        ):
+            raise X11ClientError("Invalid region")
 
         # Scale coordinates from API space to native screen space
-        x0_native, y0_native = self._scale_coordinates("api_to_native", x0, y0)
-        x1_native, y1_native = self._scale_coordinates("api_to_native", x1, y1)
+        x0, y0 = self._scale_coordinates("api_to_native", region[0], region[1])
+        x1, y1 = self._scale_coordinates("api_to_native", region[2], region[3])
 
-        if x1_native <= x0_native or y1_native <= y0_native:
-            raise X11ClientError("Invalid region: width and height must be positive")
-
-        return await self._screenshot(
-            zoom_region=(x0_native, y0_native, x1_native, y1_native)
-        )
+        return await self._screenshot(zoom_region=(x0, y0, x1, y1))
 
     async def _mouse_move_and(
         self,
