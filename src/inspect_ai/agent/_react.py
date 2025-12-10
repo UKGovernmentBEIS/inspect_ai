@@ -3,6 +3,7 @@ from typing import Literal, Sequence
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.content import Content, ContentText
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -12,6 +13,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.model._trim import trim_messages
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._mcp.connection import mcp_connection
@@ -26,6 +28,7 @@ from ._types import (
     DEFAULT_CONTINUE_PROMPT,
     DEFAULT_CONTINUE_PROMPT_NO_SUBMIT,
     AgentAttempts,
+    AgentCompaction,
     AgentContinue,
     AgentPrompt,
     AgentSubmit,
@@ -46,6 +49,7 @@ def react(
     submit: AgentSubmit | bool | None = None,
     on_continue: str | AgentContinue | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
+    compaction: AgentCompaction | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -89,6 +93,12 @@ def react(
           window overflow. Defaults to "disabled" which does no truncation. Pass
           "auto" to use `trim_messages()` to reduce the context size. Pass a
           `MessageFilter` function to do custom truncation.
+       compaction: Configure proactive context compaction. When enabled, the agent
+          monitors token usage and automatically summarizes conversation history
+          when approaching the context limit. This is complementary to `truncation`:
+          compaction is proactive (triggers before overflow), while truncation is
+          reactive (handles overflow after it occurs). Pass an `AgentCompaction`
+          to enable and configure compaction behavior.
 
     Returns:
         ReAct agent.
@@ -111,6 +121,7 @@ def react(
             model=model,
             on_continue=on_continue,
             truncation=truncation,
+            compaction=compaction,
         )
 
     # if submit is True or None then use default AgentSubmit
@@ -151,6 +162,13 @@ def react(
     # resolve attempts
     attempts = AgentAttempts(attempts) if isinstance(attempts, int) else attempts
 
+    # validate compaction
+    if compaction is not None:
+        if not 0.0 < compaction.threshold < 1.0:
+            raise ValueError("compaction.threshold must be between 0 and 1")
+        if compaction.max_context_tokens <= 0:
+            raise ValueError("compaction.max_context_tokens must be positive")
+
     def submission(tool_results: list[ChatMessage]) -> str | None:
         return next(
             (
@@ -176,11 +194,25 @@ def react(
             # track attempts
             attempt_count = 0
 
+            # track compaction state (initial messages + active window)
+            initial_messages_count = len(state.messages)
+            compaction_start_index = initial_messages_count
+            compaction_count = 0
+
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
+                # get active messages for generation (when compaction is enabled)
+                active_messages = (
+                    _get_active_messages(
+                        state.messages, compaction_start_index, initial_messages_count
+                    )
+                    if compaction is not None
+                    else None
+                )
+
                 # generate output and append assistant message
-                state = await _agent_generate(model, state, tools)
+                state = await _agent_generate(model, state, tools, active_messages)
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
@@ -249,6 +281,30 @@ def react(
                                 ChatMessageUser(content=response_message)
                             )
 
+                # check compaction threshold (proactive, before overflow)
+                if compaction is not None and state.output.usage:
+                    total_input_tokens = _get_total_input_tokens(
+                        state.output.model, state.output.usage
+                    )
+                    threshold_tokens = int(
+                        compaction.max_context_tokens * compaction.threshold
+                    )
+                    if total_input_tokens > threshold_tokens:
+                        # check if we can still compact
+                        can_compact = (
+                            compaction.max_compactions is None
+                            or compaction_count < compaction.max_compactions
+                        )
+                        if can_compact:
+                            compaction_start_index = await _perform_compaction(
+                                state=state,
+                                compaction_start_index=compaction_start_index,
+                                initial_messages_count=initial_messages_count,
+                                model=model,
+                                compaction_prompt=compaction.prompt,
+                            )
+                            compaction_count += 1
+
                 # call the on_continue hook (if any)
                 if callable(on_continue):
                     do_continue = await _call_on_continue(on_continue, state)
@@ -307,12 +363,20 @@ def react_no_submit(
     model: str | Model | Agent | None,
     on_continue: AgentContinue | None,
     truncation: Literal["auto", "disabled"] | MessageFilter,
+    compaction: AgentCompaction | None,
 ) -> Agent:
     # resolve tools
     tools = list(tools) if tools is not None else []
 
     # resolve prompt / system message
     system_message = _prompt_to_system_message(prompt, tools, None)
+
+    # validate compaction
+    if compaction is not None:
+        if not 0.0 < compaction.threshold < 1.0:
+            raise ValueError("compaction.threshold must be between 0 and 1")
+        if compaction.max_context_tokens <= 0:
+            raise ValueError("compaction.max_context_tokens must be positive")
 
     async def execute(state: AgentState) -> AgentState:
         async with mcp_connection(tools):
@@ -323,10 +387,24 @@ def react_no_submit(
             # resolve overflow handling
             overflow = _resolve_overflow(truncation)
 
+            # track compaction state (initial messages + active window)
+            initial_messages_count = len(state.messages)
+            compaction_start_index = initial_messages_count
+            compaction_count = 0
+
             # main loop
             while True:
+                # get active messages for generation (when compaction is enabled)
+                active_messages = (
+                    _get_active_messages(
+                        state.messages, compaction_start_index, initial_messages_count
+                    )
+                    if compaction is not None
+                    else None
+                )
+
                 # generate output and append assistant message
-                state = await _agent_generate(model, state, tools)
+                state = await _agent_generate(model, state, tools, active_messages)
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
@@ -343,6 +421,30 @@ def react_no_submit(
                     state.messages.extend(messages)
                     if output:
                         state.output = output
+
+                # check compaction threshold (proactive, before overflow)
+                if compaction is not None and state.output.usage:
+                    total_input_tokens = _get_total_input_tokens(
+                        state.output.model, state.output.usage
+                    )
+                    threshold_tokens = int(
+                        compaction.max_context_tokens * compaction.threshold
+                    )
+                    if total_input_tokens > threshold_tokens:
+                        # check if we can still compact
+                        can_compact = (
+                            compaction.max_compactions is None
+                            or compaction_count < compaction.max_compactions
+                        )
+                        if can_compact:
+                            compaction_start_index = await _perform_compaction(
+                                state=state,
+                                compaction_start_index=compaction_start_index,
+                                initial_messages_count=initial_messages_count,
+                                model=model,
+                                compaction_prompt=compaction.prompt,
+                            )
+                            compaction_count += 1
 
                 # call the on_continue hook (if any)
                 if on_continue:
@@ -413,6 +515,125 @@ def _resolve_overflow(
     return overflow
 
 
+def _get_total_input_tokens(model_name: str, usage: ModelUsage) -> int:
+    """Get total input tokens accounting for provider differences.
+
+    Anthropic reports cached tokens separately from input_tokens.
+    OpenAI includes cached tokens in input_tokens already.
+
+    Args:
+        model_name: Name of the model used for generation.
+        usage: ModelUsage object from the model output.
+
+    Returns:
+        Total input tokens including any cached tokens.
+    """
+    total = usage.input_tokens
+
+    # Anthropic models need cached tokens added separately
+    if "claude" in model_name.lower():
+        total += usage.input_tokens_cache_read or 0
+        total += usage.input_tokens_cache_write or 0
+
+    return total
+
+
+def _get_active_messages(
+    messages: list[ChatMessage],
+    compaction_start_index: int,
+    initial_messages_count: int,
+) -> list[ChatMessage]:
+    """Get messages to send to model (active window only).
+
+    Returns a list containing:
+    - All initial messages (messages[0:initial_messages_count])
+    - All messages from compaction_start_index onwards
+
+    Args:
+        messages: Full message history.
+        compaction_start_index: Index where active window starts.
+        initial_messages_count: Number of initial messages to always include.
+
+    Returns:
+        List of messages to send to the model.
+    """
+    result: list[ChatMessage] = []
+
+    # Always include all initial messages
+    result.extend(messages[0:initial_messages_count])
+
+    # Include messages from compaction start point (if after initial messages)
+    if compaction_start_index >= initial_messages_count:
+        result.extend(messages[compaction_start_index:])
+
+    return result
+
+
+async def _perform_compaction(
+    state: AgentState,
+    compaction_start_index: int,
+    initial_messages_count: int,
+    model: str | Model | Agent | None,
+    compaction_prompt: str,
+) -> int:
+    """Perform context compaction by summarizing conversation history.
+
+    Sends the full conversation to the model with an instruction to summarize,
+    enabling cache hits on the conversation prefix.
+
+    Args:
+        state: Current agent state with full message history.
+        compaction_start_index: Current index where active window starts.
+        initial_messages_count: Number of initial messages to preserve.
+        model: Model to use for summarization. If an Agent is passed, the
+            default model is used instead since compaction is a simple
+            summarization task.
+        compaction_prompt: Instruction prompt for generating the summary.
+
+    Returns:
+        New compaction_start_index (index of the summary message).
+    """
+    # Log compaction start
+    transcript().info(
+        f"Context compaction started: {len(state.messages)} messages, "
+        f"active window from index {compaction_start_index}"
+    )
+
+    # Send full conversation with instruction at the end (cache-friendly)
+    messages_for_summary = list(state.messages)
+    instruction = ChatMessageUser(content=compaction_prompt)
+
+    # For compaction, we use the model directly (not an Agent)
+    # If model is an Agent, use None to get the default model
+    model_for_summary = model if isinstance(model, str | Model) or model is None else None
+    resolved_model = get_model(model_for_summary)
+    summary_output = await resolved_model.generate(
+        messages_for_summary + [instruction],
+        tools=[],
+    )
+
+    # Create summary message and append to full history
+    summary_message = ChatMessageUser(
+        content=f"[CONTEXT COMPACTION SUMMARY]\n\n{summary_output.completion}"
+    )
+    state.messages.append(summary_message)
+
+    # New compaction start is the index of the summary message
+    new_compaction_start = len(state.messages) - 1
+
+    # Log compaction complete
+    summary_tokens = (
+        summary_output.usage.output_tokens if summary_output.usage else 0
+    )
+    transcript().info(
+        f"Context compaction completed: summarized {len(messages_for_summary)} messages, "
+        f"new active window from index {new_compaction_start}, "
+        f"summary tokens: {summary_tokens}"
+    )
+
+    return new_compaction_start
+
+
 async def _handle_overflow(
     state: AgentState, overflow: MessageFilter | None
 ) -> tuple[AgentState, bool]:
@@ -436,12 +657,39 @@ async def _agent_generate(
     model: str | Model | Agent | None,
     state: AgentState,
     tools: Sequence[Tool | ToolDef | ToolSource],
+    active_messages: list[ChatMessage] | None = None,
 ) -> AgentState:
+    """Generate model output and append assistant message.
+
+    Args:
+        model: Model or agent to use for generation.
+        state: Current agent state with full message history.
+        tools: Tools available for the agent.
+        active_messages: When provided, use these messages for generation instead
+            of state.messages. The assistant message is still appended to
+            state.messages. This is used for compaction where we want to send
+            only a subset of messages to the model while preserving full history.
+
+    Returns:
+        Updated agent state with new output and message appended.
+    """
+    # use active_messages if provided, otherwise use state.messages
+    messages_for_generation = active_messages if active_messages is not None else None
+
     # convert model to agent
     if isinstance(model, str | Model) or model is None:
-        model = _model_generate(model)
+        # direct model generation with optional active_messages
+        resolved_model = get_model(model)
+        messages = (
+            messages_for_generation
+            if messages_for_generation is not None
+            else state.messages
+        )
+        state.output = await resolved_model.generate(messages, tools)
+        state.messages.append(state.output.message)
+        return state
 
-    # resolve tools
+    # model is an Agent - resolve tools and call it
     resolved_tools: list[Tool] = []
     for t in tools:
         if isinstance(t, ToolSource):
@@ -458,17 +706,19 @@ async def _agent_generate(
             "Agent passed as model for react agent must have a tools parameter."
         )
 
-    # call the agent
-    return await model(state, resolved_tools)
-
-
-def _model_generate(model: str | Model | None) -> Agent:
-    async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
-        state.output = await get_model(model).generate(state.messages, tools)
-        state.messages.append(state.output.message)
+    # when using an Agent as model with active_messages, we need to create
+    # a temporary state with active_messages and then merge results back
+    if messages_for_generation is not None:
+        temp_state = AgentState(messages=list(messages_for_generation))
+        temp_state = await model(temp_state, resolved_tools)
+        # append new messages from the sub-agent to full state
+        for msg in temp_state.messages[len(messages_for_generation) :]:
+            state.messages.append(msg)
+        state.output = temp_state.output
         return state
 
-    return generate
+    # call the agent with full state
+    return await model(state, resolved_tools)
 
 
 async def _call_on_continue(

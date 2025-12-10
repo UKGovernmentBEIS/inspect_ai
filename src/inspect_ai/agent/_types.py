@@ -5,6 +5,47 @@ from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_def import ToolDef
 
+DEFAULT_COMPACTION_PROMPT = """You will be summarizing the conversation above to create a handoff document that allows work to continue seamlessly. The summary needs to capture all critical information required to pick up where the conversation left off, as the conversation history will be discarded after this summary.
+
+Your task is to create a comprehensive summary that focuses on preserving actionable information. Structure your summary to include the following elements:
+
+**What we're trying to accomplish:**
+- Clearly state the main goal or objective of the work
+- Include any sub-goals or related tasks that were identified
+
+**Actions taken and their results:**
+- List the steps that were attempted or completed
+- Note the outcome of each action (success, failure, partial completion)
+- Include any commands run, functions called, or operations performed IF THEY ARE IMPORTANT TO SOLVING THE PROBLEM.
+
+**Key findings and technical details:**
+- File paths, directory structures, or locations referenced
+- Specific values, parameters, or configuration settings discovered or used
+- Error messages (include the full text if important for debugging)
+- Code snippets or configuration blocks that are critical to understanding the current state
+- Data structures, variable names, or API endpoints involved
+- Any constraints, limitations, or requirements identified
+
+**Current state:**
+- Where things stand now
+- What's working and what isn't
+- Any blockers or issues that need resolution
+
+**What to do next:**
+- Clear next steps or recommendations
+- Outstanding questions that need answers
+- Alternative approaches to consider if applicable
+
+When writing your summary:
+- Be verbose enough to preserve all critical details needed to continue the work
+- Be concise with background information or non-essential context
+- Use specific technical terminology, exact names, and precise values rather than generalizations
+- If there are important code snippets, error messages, or configuration details, include them verbatim
+- Organize information logically so someone can quickly understand the situation and take action
+- Assume the person reading this summary was not part of the original conversation
+
+Please output the complete summary. The summary should be self-contained and actionable, allowing work to continue effectively from this point."""
+
 DEFAULT_HANDOFF_PROMPT = """
 You are part of a multi-agent system designed to make agent coordination and execution easy. Agents uses two primary abstraction: **Agents** and **Handoffs**. An agent encompasses instructions and tools and can hand off a conversation to another agent when appropriate. Handoffs are achieved by calling a handoff function,generally named `transfer_to_<agent_name>`. Transfers between agents are handled seamlessly in the background; do not mention or draw attention to these transfers in your conversation with the user.
 """
@@ -123,4 +164,42 @@ class AgentSubmit(NamedTuple):
     of `submit()` calls in the history can cause coordinator agents to terminate
     early because they think they are done. You should therefore not set this to
     `True` if you are using `handoff()` in a multi-agent system.
+    """
+
+
+class AgentCompaction(NamedTuple):
+    """Configure proactive context compaction for an agent.
+
+    Compaction monitors token usage and automatically summarizes the conversation
+    history when approaching the context limit. This is a proactive strategy that
+    triggers before the context window fills, complementing the reactive `truncation`
+    parameter that handles overflow after it occurs.
+
+    Full message history is preserved in `state.messages` for logging, while only
+    the active window (initial messages + post-compaction messages) is sent to
+    the model.
+    """
+
+    max_context_tokens: int
+    """Maximum context window size in tokens. Required."""
+
+    threshold: float = 0.7
+    """Ratio of max_context_tokens that triggers compaction (default 0.7 = 70%).
+
+    When input tokens exceed `max_context_tokens * threshold`, compaction is
+    triggered to summarize the conversation history.
+    """
+
+    prompt: str = DEFAULT_COMPACTION_PROMPT
+    """Instruction prompt for generating compaction summaries.
+
+    This prompt is appended to the conversation and asks the model to generate
+    a summary that preserves essential information for continuing the task.
+    """
+
+    max_compactions: int | None = None
+    """Maximum number of compactions allowed per agent run (None = unlimited).
+
+    If set, the agent will stop compacting after this many compactions and
+    rely on the `truncation` parameter for any further context management.
     """
