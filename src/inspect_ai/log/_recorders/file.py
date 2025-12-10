@@ -6,7 +6,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import MODEL_NONE
 from inspect_ai._util.file import clean_filename_component, filesystem
-from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai._util.task import task_display_name
 from inspect_ai.dataset._util import normalise_sample_id
 
 from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
@@ -94,7 +94,7 @@ class FileRecorder(Recorder):
 
     def _log_file_key(self, eval: EvalSpec) -> str:
         # remove package from task name
-        task = registry_unqualified_name(eval.task)  # noqa: F841
+        task = task_display_name(eval.task)  # noqa: F841
 
         # derive log file pattern
         log_file_pattern = os.getenv("INSPECT_EVAL_LOG_FILE_PATTERN", "{task}_{id}")

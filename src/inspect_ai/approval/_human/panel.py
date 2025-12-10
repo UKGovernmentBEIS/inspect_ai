@@ -9,7 +9,7 @@ from textual.reactive import reactive
 from textual.widgets import Button, Static
 from typing_extensions import override
 
-from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai._util.task import task_display_name
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._panel import InputPanel, input_panel
@@ -116,7 +116,7 @@ class ApprovalRequestHeading(Static):
 
     def render(self) -> RenderableType:
         if self.request is not None:
-            return f"{registry_unqualified_name(self.request.task)} (id: {self.request.id}, epoch {self.request.epoch}): {self.request.model}"
+            return f"{task_display_name(self.request.task)} (id: {self.request.id}, epoch {self.request.epoch}): {self.request.model}"
         else:
             return ""
 

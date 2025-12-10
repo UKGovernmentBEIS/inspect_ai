@@ -16424,14 +16424,14 @@ button._segment_mhb7y_9 {
 ._segment_mhb7y_9 i {
   margin-right: 0.2em;
 }
-._gridContainer_kwokc_1 {
+._gridContainer_55y8l_1 {
   height: 100%;
   overflow: auto;
   padding: 0;
   outline: none;
 }
 
-._grid_kwokc_1 {
+._grid_55y8l_1 {
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
@@ -16439,7 +16439,7 @@ button._segment_mhb7y_9 {
 }
 
 /* Header Styles */
-._headerRow_kwokc_16 {
+._headerRow_55y8l_16 {
   display: grid;
   background: var(--bs-light);
   border-bottom: 1px solid var(--bs-border-color);
@@ -16450,7 +16450,7 @@ button._segment_mhb7y_9 {
   min-width: 100%;
 }
 
-._headerCell_kwokc_27 {
+._headerCell_55y8l_27 {
   padding: 0.1em 0.1em 0.1em 0.6em;
   font-weight: 500;
   font-size: var(--inspect--inspect-font-size-small);
@@ -16466,27 +16466,27 @@ button._segment_mhb7y_9 {
   margin-bottom: 5px;
 }
 
-._headerCell_kwokc_27:last-child {
+._headerCell_55y8l_27:last-child {
   border-right: none;
 }
 
-._sortable_kwokc_47 {
+._sortable_55y8l_47 {
   cursor: pointer;
   user-select: none;
 }
 
-._sortable_kwokc_47:hover {
-  background-color: var(--bs-secondary);
+._sortable_55y8l_47:hover {
+  color: var(--bs-link-hover-color);
 }
 
-._sortIndicator_kwokc_56 {
+._sortIndicator_55y8l_56 {
   margin-left: 0.25em;
   font-size: 0.75rem;
   color: var(--bs-link-color);
 }
 
 /* Resizer Styles */
-._resizer_kwokc_63 {
+._resizer_55y8l_63 {
   position: absolute;
   right: 0;
   top: 0;
@@ -16501,17 +16501,17 @@ button._segment_mhb7y_9 {
   transition: opacity 0.2s;
 }
 
-._resizer_kwokc_63:hover,
-._isResizing_kwokc_79 {
+._resizer_55y8l_63:hover,
+._isResizing_55y8l_79 {
   opacity: 1;
 }
 
-._headerCell_kwokc_27:hover ._resizer_kwokc_63 {
+._headerCell_55y8l_27:hover ._resizer_55y8l_63 {
   opacity: 0.3;
 }
 
 /* Body Styles */
-._bodyContainer_kwokc_88 {
+._bodyContainer_55y8l_88 {
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
@@ -16519,7 +16519,7 @@ button._segment_mhb7y_9 {
   width: fit-content;
 }
 
-._bodyRow_kwokc_96 {
+._bodyRow_55y8l_96 {
   display: grid;
   transition:
     background-color 0.15s ease-in-out,
@@ -16530,21 +16530,21 @@ button._segment_mhb7y_9 {
   border-left: 3px solid transparent;
 }
 
-._bodyRow_kwokc_96:hover {
+._bodyRow_55y8l_96:hover {
   background-color: var(--bs-secondary-bg-subtle);
 }
 
-._selectedRow_kwokc_111 {
+._selectedRow_55y8l_111 {
   background-color: var(--bs-primary-bg-subtle);
   border-left-color: var(--bs-primary);
 }
 
-._selectedRow_kwokc_111:hover {
+._selectedRow_55y8l_111:hover {
   background-color: var(--bs-primary-bg-subtle);
 }
 
 /* Cell Styles */
-._bodyCell_kwokc_121 {
+._bodyCell_55y8l_121 {
   padding: 0.1em 0.1em 0.1em 0.6em;
   display: flex;
   align-items: center;
@@ -16552,11 +16552,11 @@ button._segment_mhb7y_9 {
   overflow: hidden;
 }
 
-._bodyCell_kwokc_121:last-child {
+._bodyCell_55y8l_121:last-child {
   border-right: none;
 }
 
-._emptyMessage_kwokc_133 {
+._emptyMessage_55y8l_133 {
   width: 100%;
   text-align: center;
   padding-top: 4em;
@@ -21498,6 +21498,63 @@ thead th {
 ._navbarButton_1gksz_1 {
   font-size: 0.6rem;
   padding: 1px 5px;
+}
+._checkboxWrapper_vtlwq_1 {
+  margin-bottom: 0.1rem;
+}
+
+._label_vtlwq_5 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+._checkbox_vtlwq_1 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+._filterIcon_vtlwq_16 {
+  margin-left: 0.5rem;
+  color: var(--bs-primary);
+}
+
+._scrollableContainer_vtlwq_21 {
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
+._section_vtlwq_26 {
+  margin-bottom: 0.75rem;
+}
+
+._headerRow_vtlwq_30 {
+  display: flex;
+  column-gap: 2rem;
+  row-gap: 1rem;
+  border-bottom: solid 1px var(--bs-border-color);
+  margin-bottom: 0.5rem;
+  justify-content: space-between;
+}
+
+._buttonContainer_vtlwq_39 {
+  display: flex;
+  gap: 0.5rem;
+}
+
+._button_vtlwq_39 {
+  padding: 0;
+  text-decoration: none;
+}
+
+._button_vtlwq_39:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+._columnsLayout_vtlwq_54 {
+  columns: 2;
+  column-gap: 2rem;
 }
 ._gridWrapper_1ca3y_1 {
   height: 100%;

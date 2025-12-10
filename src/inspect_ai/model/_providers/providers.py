@@ -110,7 +110,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.9.10"
+    MIN_VERSION = "1.9.11"
 
     # verify we have the package
     try:
@@ -313,7 +313,7 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.69.0"
+    MIN_VERSION = "0.75.0"
 
     # verify we have the package
     try:

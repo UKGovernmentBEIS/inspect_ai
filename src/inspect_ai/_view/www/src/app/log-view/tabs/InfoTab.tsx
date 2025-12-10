@@ -40,7 +40,14 @@ export const useInfoTabConfig = (
       },
       scrollRef,
     };
-  }, [evalSpec, evalPlan, evalError, evalResults, totalSampleCount]);
+  }, [
+    evalSpec,
+    evalPlan,
+    evalError,
+    evalResults,
+    evalStatus,
+    totalSampleCount,
+  ]);
 };
 
 interface InfoTabProps {

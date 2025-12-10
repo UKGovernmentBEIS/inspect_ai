@@ -1,7 +1,7 @@
 import { EvalLog } from "../../../@types/log";
 import { asyncJsonParse } from "../../../utils/json-worker";
 import { encodePathParts } from "../../../utils/uri";
-import { LogContents, LogFilesFetchResponse } from "../types";
+import { LogContents, LogFilesFetchResponse, LogPreview } from "../types";
 
 /**
  * Fetches a file from the specified URL as a string
@@ -95,7 +95,7 @@ export const fetchManifest = async (
   const logs = await fetchFile<LogFilesFetchResponse>(
     log_dir + "/listing.json",
     async (text) => {
-      const parsed = await asyncJsonParse(text);
+      const parsed = await asyncJsonParse<Record<string, LogPreview>>(text);
       return {
         raw: text,
         parsed,

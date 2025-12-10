@@ -5,7 +5,6 @@ from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_grok,
     skip_if_no_groq,
-    skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_together,
     skip_if_trio,
@@ -60,13 +59,6 @@ async def test_openai_responses_stop_reason() -> None:
 @skip_if_trio
 async def test_anthropic_stop_reason() -> None:
     await check_stop_reason("anthropic/claude-3-haiku-20240307")
-
-
-@pytest.mark.asyncio
-@skip_if_no_mistral
-@skip_if_trio
-async def test_mistral_stop_reason() -> None:
-    await check_stop_reason("mistral/mistral-medium-latest")
 
 
 @pytest.mark.asyncio

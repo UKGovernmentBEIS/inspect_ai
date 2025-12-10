@@ -178,10 +178,11 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
     [filterError],
   );
 
-  const debounceSetFilter = useCallback(
-    debounce((value: string) => {
-      setFilter(value);
-    }, 200),
+  const debounceSetFilter = useMemo(
+    () =>
+      debounce((value: string) => {
+        setFilter(value);
+      }, 200),
     [setFilter],
   );
 
@@ -193,10 +194,10 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
           debounceSetFilter(newValue);
         }
       }),
-    [setFilter],
+    [debounceSetFilter, evalDescriptor],
   );
 
-  // Initialize editor
+  // Initialize editor (only once on mount)
   useEffect(() => {
     editorViewRef.current?.destroy();
 
@@ -220,7 +221,8 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
     });
 
     return () => editorViewRef.current?.destroy();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   // Handle filter value changes
   useEffect(() => {
@@ -244,20 +246,20 @@ export const SampleFilter: FC<SampleFilterProps> = () => {
       effects:
         updateListenerCompartment.current.reconfigure(makeUpdateListener()),
     });
-  }, [evalDescriptor]);
+  }, [evalDescriptor, makeUpdateListener]);
 
   useEffect(() => {
     editorViewRef.current?.dispatch({
       effects:
         autocompletionCompartment.current.reconfigure(makeAutocompletion()),
     });
-  }, [filterItems, samples]);
+  }, [filterItems, makeAutocompletion, samples]);
 
   useEffect(() => {
     editorViewRef.current?.dispatch({
       effects: linterCompartment.current.reconfigure(makeLinter()),
     });
-  }, [filterError]);
+  }, [filterError, makeLinter]);
 
   return (
     <div style={{ display: "flex" }}>

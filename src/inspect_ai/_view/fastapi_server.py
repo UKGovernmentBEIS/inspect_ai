@@ -25,6 +25,7 @@ from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import read_eval_set_info
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import filesystem
+from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
 from inspect_ai._view.common import (
     delete_log,
@@ -431,15 +432,21 @@ def view_server(
     display().print(f"Inspect View: {log_dir}")
 
     async def run_server() -> None:
-        config = uvicorn.Config(app, host=host, port=port, log_config=None)
+        config = uvicorn.Config(
+            app, host=host, port=port, log_config=None, timeout_keep_alive=15
+        )
         server = uvicorn.Server(config)
 
         async def announce_when_ready() -> None:
             while not server.started:
                 await anyio.sleep(0.05)
-            # Print this for compatibility with the Inspect VSCode plugin:
+
+            # Only show machine IP when binding to 0.0.0.0 (accessible from all interfaces)
+            machine_ip = host
+            if host == "0.0.0.0":
+                machine_ip = get_machine_ip() or "0.0.0.0"
             display().print(
-                f"======== Running on http://{host}:{port} ========\n"
+                f"======== Running on http://{machine_ip}:{port} ========\n"
                 "(Press CTRL+C to quit)"
             )
 

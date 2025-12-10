@@ -23,6 +23,11 @@ from ._collect import collect
 from ._concurrency import concurrency
 from ._console import input_screen
 from ._display import DisplayType, display_counter, display_type
+from ._early_stopping import (
+    EarlyStop,
+    EarlyStopping,
+    EarlyStoppingSummary,
+)
 from ._json import JSONSchema, JSONType, json_schema
 from ._panel import InputPanel, input_panel
 from ._resource import resource
@@ -104,4 +109,7 @@ __all__ = [
     "RegistryType",
     "registry_create",
     "registry_info",
+    "EarlyStopping",
+    "EarlyStop",
+    "EarlyStoppingSummary",
 ]

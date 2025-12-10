@@ -1,3 +1,5 @@
+from typing import Hashable
+
 from inspect_ai.analysis._prepare.operation import Operation
 
 
@@ -50,7 +52,7 @@ def frontier(
 
             # Track the highest score seen so far
             highest_score = float("-inf")
-            frontier_indices = []
+            frontier_indices: list[Hashable] = []
 
             for idx, row in best_per_date.iterrows():
                 current_score = row[score_column]
@@ -61,7 +63,8 @@ def frontier(
                     frontier_indices.append(idx)
 
             # Mark frontier models
-            df.loc[frontier_indices, frontier_column] = True
+            if frontier_indices:
+                df.loc[pd.Index(frontier_indices), frontier_column] = True
 
         return df
 

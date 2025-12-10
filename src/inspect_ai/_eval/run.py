@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, Set, cast
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
 from inspect_ai._util.environ import environ_vars
+from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 
 if sys.version_info < (3, 11):
@@ -22,7 +23,6 @@ from inspect_ai._display.core.active import (
 from inspect_ai._display.core.display import TaskSpec
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
-from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.dataset._dataset import Dataset
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
@@ -550,7 +550,7 @@ async def startup_sandbox_environments(
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
     return [
-        TaskSpec(registry_unqualified_name(task.task.name), ModelName(task.model))
+        TaskSpec(task_display_name(task.task.name), ModelName(task.model))
         for task in tasks
     ]
 

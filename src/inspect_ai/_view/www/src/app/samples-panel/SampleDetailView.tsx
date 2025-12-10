@@ -37,6 +37,7 @@ export const SampleDetailView: FC = () => {
   const displayedSamples = useStore(
     (state) => state.logs.samplesListState.displayedSamples,
   );
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
   const loadSample = useStore((state) => state.sampleActions.loadSample);
   const clearSelectedLogDetails = useStore(
@@ -199,7 +200,7 @@ export const SampleDetailView: FC = () => {
       }
     };
     void exec();
-  }, [selectedLogFile, selectedSampleSummary]);
+  }, [loadSample, selectedLogFile, selectedSampleSummary]);
 
   useEffect(() => {
     return () => {
@@ -207,7 +208,7 @@ export const SampleDetailView: FC = () => {
       clearLog();
       clearSampleTab();
     };
-  }, [clearLog, clearSelectedLogDetails]);
+  }, [clearLog, clearSampleTab, clearSelectedLogDetails]);
 
   return (
     <ExtendedFindProvider>
@@ -238,7 +239,10 @@ export const SampleDetailView: FC = () => {
             </div>
           </div>
         </ApplicationNavbar>
-        <InlineSampleDisplay showActivity={false} className={styles.panel} />
+        <InlineSampleDisplay
+          showActivity={sampleStatus === "loading"}
+          className={styles.panel}
+        />
       </div>
     </ExtendedFindProvider>
   );
