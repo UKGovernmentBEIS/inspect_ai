@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
 from typing import Any
@@ -23,7 +23,7 @@ class TaskComponent(BaseModel):
 
 @dataclass
 class FieldSpecHF(FieldSpec):
-    choices: str | list[str] | None = Field(default=None)
+    choices: str | list[str] | None = field(default=None)
     """ TODO """
 
 
