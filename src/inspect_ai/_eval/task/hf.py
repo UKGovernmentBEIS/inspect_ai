@@ -24,7 +24,7 @@ class TaskComponent(BaseModel):
 @dataclass
 class FieldSpecHF(FieldSpec):
     choices: str | list[str] | None = field(default=None)
-    """ Overiding the FieldSpec to fit field spec comming from the eval.yaml """
+    """ Overriding the FieldSpec to fit field spec coming from the eval.yaml """
 
 
 class HFTask(BaseModel):
