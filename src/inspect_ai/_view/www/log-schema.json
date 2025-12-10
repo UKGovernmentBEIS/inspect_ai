@@ -7641,11 +7641,6 @@
       "title": "Status",
       "type": "string"
     },
-    "invalidated": {
-      "default": false,
-      "title": "Invalidated",
-      "type": "boolean"
-    },
     "eval": {
       "$ref": "#/$defs/EvalSpec"
     },
@@ -7676,6 +7671,11 @@
         }
       ],
       "default": null
+    },
+    "invalidated": {
+      "default": false,
+      "title": "Invalidated",
+      "type": "boolean"
     },
     "samples": {
       "anyOf": [

@@ -926,9 +926,6 @@ class EvalLog(BaseModel):
     )
     """Status of evaluation (did it succeed or fail)."""
 
-    invalidated: bool = Field(default=False)
-    """Whether any samples were invalidated."""
-
     eval: EvalSpec
     """Eval identity and configuration."""
 
@@ -943,6 +940,9 @@ class EvalLog(BaseModel):
 
     error: EvalError | None = Field(default=None)
     """Error that halted eval (if status=="error")"""
+
+    invalidated: bool = Field(default=False)
+    """Whether any samples were invalidated."""
 
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""

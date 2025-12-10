@@ -7,7 +7,6 @@
 
 export type Version = number;
 export type Status = "started" | "success" | "cancelled" | "error";
-export type Invalidated = boolean;
 export type EvalSetId = string | null;
 export type EvalId = string;
 export type RunId = string;
@@ -212,6 +211,7 @@ export type ReasoningTokens1 = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
+export type Invalidated = boolean;
 export type Samples1 = EvalSample[] | null;
 export type Id1 = number | string;
 export type Epoch1 = number;
@@ -812,12 +812,12 @@ export type Tasks = EvalSetTask[];
 export interface EvalLog {
   version?: Version;
   status?: Status;
-  invalidated?: Invalidated;
   eval: EvalSpec;
   plan?: EvalPlan;
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
+  invalidated?: Invalidated;
   samples?: Samples1;
   reductions?: Reductions;
   location?: Location1;

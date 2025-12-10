@@ -60,26 +60,20 @@ def _update_sample_invalidation(
     log: EvalLog,
     sample_uuid_map: dict[str, tuple[int, EvalSample]],
     provenance: ProvenanceData | None = None,
-    update_all: bool = False,
 ) -> EvalLog:
     if not sample_uuid_map:
         return log
 
     samples = (log.samples or []).copy()
-    errors: dict[str, str] = {}
     status: Literal["started", "complete", "error", "invalidated"]
-    for sample_uuid, (idx_sample, sample) in sample_uuid_map.items():
+    for idx_sample, sample in sample_uuid_map.values():
         if provenance is None:
             if sample.invalidation is None:
-                if not update_all:
-                    errors[sample_uuid] = "Sample is not invalidated"
                 continue
             status = sample.invalidation.status
             invalidation = None
         else:
             if sample.status == "invalidated":
-                if not update_all:
-                    errors[sample_uuid] = "Sample is already invalidated"
                 continue
             invalidation = SampleInvalidation(
                 status=sample.status, **provenance.model_dump()
@@ -89,9 +83,6 @@ def _update_sample_invalidation(
         samples[idx_sample] = sample.model_copy(
             update={"status": status, "invalidation": invalidation}
         )
-
-    if errors:
-        raise ValueError(f"Errors updating invalidation: {errors}")
 
     return log.model_copy(update={"samples": samples})
 
@@ -105,12 +96,7 @@ def invalidate_samples(
     sample_uuid_map = _prepare_samples(log, sample_uuids)
     if not sample_uuid_map:
         return log
-    log = _update_sample_invalidation(
-        log,
-        sample_uuid_map,
-        provenance=provenance,
-        update_all=sample_uuids == "all",
-    )
+    log = _update_sample_invalidation(log, sample_uuid_map, provenance=provenance)
     log.invalidated = True
     return log
 
@@ -122,13 +108,8 @@ def uninvalidate_samples(
     sample_uuid_map = _prepare_samples(log, sample_uuids)
     if not sample_uuid_map:
         return log
-    log = _update_sample_invalidation(
-        log,
-        sample_uuid_map,
-        provenance=None,
-        update_all=sample_uuids == "all",
-    )
+    log = _update_sample_invalidation(log, sample_uuid_map, provenance=None)
     log.invalidated = any(
-        sample.status == "invalidated" for sample in log.samples or []
+        sample.invalidation is not None for sample in log.samples or []
     )
     return log
