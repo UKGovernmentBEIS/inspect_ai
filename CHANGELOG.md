@@ -9,6 +9,7 @@
 - Human Agent: Support for non-scalar values returned from intermediate scoring.
 - Inspect View: Print IP address of remote server when binding to 0.0.0.0.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
+- Bugfix: Retry when parsing an incomplete bridged tool call response.
 
 ## 0.3.153 (05 December 2025)
 
