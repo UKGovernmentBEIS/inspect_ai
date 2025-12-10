@@ -116,7 +116,10 @@ class GrokAPI(ModelAPI):
             # we also implement a custom retry_wait method which retries a bit
             # more aggressively (the default is for an outer retry which is is
             # presumed is only being hit after many internal retries)
-            model_args["channel_options"] = [("grpc.enable_retries", 0)]
+            model_args["channel_options"] = [
+                ("grpc.enable_retries", 0),
+                ("grpc.service_config", "{}"),
+            ]
         self.model_args = model_args
 
         # create client
