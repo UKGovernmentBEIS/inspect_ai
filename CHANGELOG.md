@@ -7,6 +7,7 @@
 - Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
 - React Agent: Remove newlines from default prompts.
 - Human Agent: Support for non-scalar values returned from intermediate scoring.
+- Inspect View: Print IP address of remote server when binding to 0.0.0.0.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
 
 ## 0.3.153 (05 December 2025)

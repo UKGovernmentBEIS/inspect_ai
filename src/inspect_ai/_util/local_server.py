@@ -413,3 +413,17 @@ def configure_devices(
             result[parallel_size_param] = device_count
 
     return result, env_vars
+
+
+def get_machine_ip() -> str | None:
+    try:
+        # Create a socket to determine the primary network interface IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        # Connect to an external address (doesn't actually send data)
+        s.connect(("8.8.8.8", 80))
+        ip = str(s.getsockname()[0])
+        s.close()
+        return ip
+    except Exception:
+        return None
