@@ -7,6 +7,8 @@ from typing import Any, Literal, cast
 import grpc
 from google.protobuf.json_format import MessageToDict
 from pydantic import JsonValue
+from tenacity import wait_exponential_jitter
+from tenacity.wait import WaitBaseT
 from typing_extensions import override
 from xai_sdk import AsyncClient  # type: ignore
 from xai_sdk.chat import (  # type: ignore
@@ -80,6 +82,7 @@ class GrokAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        disable_retry: bool = False,
         **model_args: Any,
     ) -> None:
         super().__init__(
@@ -106,6 +109,14 @@ class GrokAPI(ModelAPI):
         )
 
         # save model args
+        self.disable_retry = disable_retry
+        if self.disable_retry:
+            # retrying may be disabled so we can accurately track waiting time
+            # (challenging to track GRPC internal retries w/o monkey patching).
+            # we also implement a custom retry_wait method which retries a bit
+            # more aggressively (the default is for an outer retry which is is
+            # presumed is only being hit after many internal retries)
+            model_args["channel_options"] = [("grpc.enable_retries", 0)]
         self.model_args = model_args
 
         # create client
@@ -228,6 +239,13 @@ class GrokAPI(ModelAPI):
             }
         else:
             return False
+
+    @override
+    def retry_wait(self) -> WaitBaseT | None:
+        if self.disable_retry:
+            return wait_exponential_jitter(max=(30 * 60))
+        else:
+            return None
 
     @override
     def emulate_reasoning_history(self) -> bool:
