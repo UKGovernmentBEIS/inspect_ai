@@ -8,6 +8,7 @@
 - React Agent: Remove newlines from default prompts.
 - Human Agent: Support for non-scalar values returned from intermediate scoring.
 - Inspect View: Print IP address of remote server when binding to 0.0.0.0.
+- Computer Tool: Add computer use tool version support for Claude Opus 4.5.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
 - Bugfix: Retry when parsing an incomplete bridged tool call response.
 

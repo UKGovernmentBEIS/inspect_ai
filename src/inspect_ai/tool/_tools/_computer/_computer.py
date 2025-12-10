@@ -29,6 +29,7 @@ Action = Literal[
     "scroll",
     "wait",
     "screenshot",
+    "zoom",
 ]
 
 
@@ -52,6 +53,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         action: Action,
         coordinate: list[int] | None = None,
         duration: int | None = None,
+        region: list[int] | None = None,
         scroll_amount: int | None = None,
         scroll_direction: Literal["up", "down", "left", "right"] | None = None,
         start_coordinate: list[int] | None = None,
@@ -91,11 +93,14 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
               - `back_click`: Click the 'back' mouse button.
               - `forward_click`: Click the 'forward' mouse button.
               - `double_click`: Double-click the left mouse button.
-              - `triple_click`: Double-click the left mouse button.
+              - `triple_click`: Triple-click the left mouse button.
               - `wait`: Wait for a specified duration (in seconds).
               - `screenshot`: Take a screenshot.
+              - `zoom`: Take a zoomed-in screenshot of a specified region at native resolution.
+                  - Example: execute(action="zoom", region=[100, 100, 500, 400])
           coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen to which to move or drag. Required only by `action=mouse_move` and `action=left_click_drag`.
           duration (int | None): The duration to wait or hold the key down for. Required only by `action=hold_key` and `action=wait`.
+          region (list[int] | None): The region to zoom into as [x0, y0, x1, y1] coordinates. Required only by `action=zoom`.
           scroll_amount (int | None): The number of 'clicks' to scroll. Required only by `action=scroll`.
           scroll_direction (Literal["up", "down", "left", "right] | None): The direction to scroll the screen. Required only by `action=scroll`.
           start_coordinate (tuple[int, int] | None): The (x, y) pixel coordinate on the screen from which to initiate a drag. Required only by `action=scroll`.
@@ -172,6 +177,8 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 )
             case "screenshot":
                 return await common.screenshot(timeout=timeout)
+            case "zoom":
+                return await common.zoom(not_none(region, "region"), timeout=timeout)
 
         raise ToolParsingError(f"Invalid action: {action}")
 

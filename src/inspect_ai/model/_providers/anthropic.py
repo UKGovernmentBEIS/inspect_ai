@@ -10,7 +10,6 @@ from typing import (
     Any,
     Iterable,
     Literal,
-    Optional,
     Sequence,
     Tuple,
     TypeGuard,
@@ -83,6 +82,7 @@ from anthropic.types.beta import (
     BetaTextEditorCodeExecutionToolResultBlock,
     BetaTextEditorCodeExecutionToolResultBlockParam,
     BetaToolComputerUse20250124Param,
+    BetaToolComputerUse20251124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
     BetaToolTextEditor20250728Param,
@@ -310,6 +310,10 @@ class AnthropicAPI(ModelAPI):
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
             if any(
+                tool.get("type", None) == "computer_20251124" for tool in tools_param
+            ):
+                betas.append("computer-use-2025-11-24")
+            elif any(
                 tool.get("type", None) == "computer_20250124" for tool in tools_param
             ):
                 # From: https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#claude-3-7-sonnet-beta-flag
@@ -832,7 +836,7 @@ class AnthropicAPI(ModelAPI):
 
     def computer_use_tool_param(
         self, tool: ToolInfo
-    ) -> Optional[BetaToolComputerUse20250124Param]:
+    ) -> BetaToolComputerUse20250124Param | BetaToolComputerUse20251124Param | None:
         # check for compatible 'computer' tool
         if tool.name == "computer" and (
             sorted(tool.parameters.properties.keys())
@@ -841,6 +845,7 @@ class AnthropicAPI(ModelAPI):
                     "action",
                     "coordinate",
                     "duration",
+                    "region",
                     "scroll_amount",
                     "scroll_direction",
                     "start_coordinate",
@@ -854,19 +859,33 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            return BetaToolComputerUse20250124Param(
-                type="computer_20250124",
-                name="computer",
-                # Note: The dimensions passed here for display_width_px and display_height_px should
-                # match the dimensions of screenshots returned by the tool.
-                # Those dimensions will always be one of the values in MAX_SCALING_TARGETS
-                # in _x11_client.py.
-                # TODO: enhance this code to calculate the dimensions based on the scaled screen
-                # size used by the container.
-                display_width_px=1366,
-                display_height_px=768,
-                display_number=1,
-            )
+            # Note: The dimensions passed here for display_width_px and display_height_px
+            # should match the dimensions of screenshots returned by the tool. Those
+            # dimensions will always be one of the values in MAX_SCALING_TARGETS
+            # in _x11_client.py. This default container is currently configured with
+            # a native display resolution of 1920x1080 and 1366x768 (FWXGA) as the
+            # screenshot/API resolution since this most closely matches that native
+            # 16:9 aspect ratio.
+            #
+            # TODO: enhance this code to calculate the dimensions based on the scaled screen
+            # size used by the container.
+            if self.is_claude_4_5():
+                return BetaToolComputerUse20251124Param(
+                    type="computer_20251124",
+                    name="computer",
+                    display_width_px=1366,
+                    display_height_px=768,
+                    display_number=1,
+                    enable_zoom=True,
+                )
+            else:
+                return BetaToolComputerUse20250124Param(
+                    type="computer_20250124",
+                    name="computer",
+                    display_width_px=1366,
+                    display_height_px=768,
+                    display_number=1,
+                )
         # not a computer_use tool
         else:
             return None
@@ -1061,6 +1080,7 @@ def _web_search_tool_params(
 ToolParamDef = (
     ToolParam
     | BetaToolComputerUse20250124Param
+    | BetaToolComputerUse20251124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param
@@ -1093,7 +1113,7 @@ def is_text_editor_tool(
 
 def is_computer_tool(
     param: ToolParamDef,
-) -> TypeGuard[BetaToolComputerUse20250124Param]:
+) -> TypeGuard[BetaToolComputerUse20250124Param | BetaToolComputerUse20251124Param]:
     return param.get("name") == "computer" and not is_tool_param(param)
 
 
@@ -1119,6 +1139,7 @@ def add_cache_control(
     param: TextBlockParam
     | ToolParam
     | BetaToolComputerUse20250124Param
+    | BetaToolComputerUse20251124Param
     | ToolTextEditor20250124Param
     | BetaToolTextEditor20241022Param
     | BetaToolTextEditor20250429Param

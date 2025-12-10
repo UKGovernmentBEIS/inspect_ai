@@ -33,13 +33,13 @@ class Resolution(TypedDict):
 # sizes above XGA/WXGA are not recommended (see README.md)
 # scale down to one of these targets if ComputerTool._scaling_enabled is set
 MAX_SCALING_TARGETS: dict[str, Resolution] = {
-    "XGA": Resolution(width=1024, height=768),  # 4:3
-    "WXGA": Resolution(width=1280, height=800),  # 16:10
-    "FWXGA": Resolution(width=1366, height=768),  # ~16:9
+    "XGA": Resolution(width=1024, height=768),  # 4:3 - 1.33 - 768k pixels
+    "WXGA": Resolution(width=1280, height=800),  # 16:10 - 1.60 -  1,000k pixels
+    "FWXGA": Resolution(width=1366, height=768),  # ~16:9 - 1.79 - 1,025k pixels
 }
 
 
-ScalingSource = Literal["computer", "api"]
+ScaleDirection = Literal["api_to_native", "native_to_api"]
 
 
 class ComputerToolOptions(TypedDict):
@@ -70,7 +70,9 @@ class X11Client:
 
     @property
     def options(self) -> ComputerToolOptions:
-        width, height = self._scale_coordinates("computer", self.width, self.height)
+        width, height = self._scale_coordinates(
+            "native_to_api", self.width, self.height
+        )
         return {
             "display_width_px": width,
             "display_height_px": height,
@@ -123,7 +125,7 @@ class X11Client:
         )
         output = result.output or ""
         x, y = self._scale_coordinates(
-            "computer",
+            "native_to_api",
             int(output.split("X=")[1].split("\n")[0]),
             int(output.split("Y=")[1].split("\n")[0]),
         )
@@ -180,7 +182,7 @@ class X11Client:
         self, start_coordinate: tuple[int, int], coordinate: tuple[int, int]
     ) -> ToolResult:
         await self._move_mouse_to_coordinate(start_coordinate, False)
-        x, y = self._scale_coordinates("api", *coordinate)
+        x, y = self._scale_coordinates("api_to_native", *coordinate)
         return await self._shell(
             f"{self.xdotool} mousedown 1 mousemove --sync {x} {y} mouseup 1"
         )
@@ -220,6 +222,28 @@ class X11Client:
 
     async def screenshot(self) -> ToolResult:
         return await self._screenshot()
+
+    async def zoom(self, region: list[int]) -> ToolResult:
+        """Take a zoomed screenshot of a specified region at native resolution."""
+        if len(region) != 4:
+            raise X11ClientError(
+                "Region must have exactly 4 coordinates [x0, y0, x1, y1]"
+            )
+        if any(r < 0 for r in region):
+            raise X11ClientError("Region coordinates must be non-negative")
+
+        x0, y0, x1, y1 = region
+
+        # Scale coordinates from API space to native screen space
+        x0_native, y0_native = self._scale_coordinates("api_to_native", x0, y0)
+        x1_native, y1_native = self._scale_coordinates("api_to_native", x1, y1)
+
+        if x1_native <= x0_native or y1_native <= y0_native:
+            raise X11ClientError("Invalid region: width and height must be positive")
+
+        return await self._screenshot(
+            zoom_region=(x0_native, y0_native, x1_native, y1_native)
+        )
 
     async def _mouse_move_and(
         self,
@@ -265,13 +289,21 @@ class X11Client:
     async def _move_mouse_to_coordinate(
         self, coordinate: tuple[int, int], take_screenshot: bool
     ):
-        x, y = self._scale_coordinates("api", *coordinate)
+        x, y = self._scale_coordinates("api_to_native", *coordinate)
         return await self._shell(
             f"{self.xdotool} mousemove --sync {x} {y}", take_screenshot=take_screenshot
         )
 
-    async def _screenshot(self):
-        """Take a screenshot of the current screen and return the base64 encoded image."""
+    async def _screenshot(
+        self,
+        zoom_region: tuple[int, int, int, int] | None = None,
+    ) -> ToolResult:
+        """Take a screenshot.
+
+        Args:
+            zoom_region: If provided, crop to native coords (x0, y0, x1, y1) at native
+                resolution. If None, capture full screen scaled to API dimensions.
+        """
         output_dir = Path(OUTPUT_DIR)
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"screenshot_{uuid4().hex}.png"
@@ -279,12 +311,20 @@ class X11Client:
         result = await self._shell(
             f"{self._display_prefix}scrot --silent -p {path}", take_screenshot=False
         )
-        if self._scaling_enabled:
-            x, y = self._scale_coordinates("computer", self.width, self.height)
-            convert_cmd = f"convert {path} -resize {x}x{y}!"
-            if self.color_count is not None:
-                convert_cmd += f" -colors {self.color_count}"
-            convert_cmd += f" {path}"
+
+        # Build convert command with all needed operations
+        convert_ops: list[str] = []
+        if zoom_region:
+            x0, y0, x1, y1 = zoom_region
+            convert_ops.append(f"-crop {x1 - x0}x{y1 - y0}+{x0}+{y0} +repage")
+        elif self._scaling_enabled:
+            x, y = self._scale_coordinates("native_to_api", self.width, self.height)
+            convert_ops.append(f"-resize {x}x{y}!")
+        if self.color_count is not None:
+            convert_ops.append(f"-colors {self.color_count}")
+
+        if convert_ops:
+            convert_cmd = f"convert {path} {' '.join(convert_ops)} {path}"
             await self._shell(convert_cmd, take_screenshot=False)
 
         if path.exists():
@@ -311,8 +351,16 @@ class X11Client:
         await asyncio.sleep(self._screenshot_delay)
         return (await self._screenshot()).base64_image
 
-    def _scale_coordinates(self, source: ScalingSource, x: int, y: int):
-        """Scale coordinates to a target maximum resolution."""
+    def _scale_coordinates(self, direction: ScaleDirection, x: int, y: int):
+        """Scale coordinates between API and native coordinate spaces.
+
+        Args:
+            direction: Conversion direction
+                - "api_to_native": Scale UP for mouse actions (API → native)
+                - "native_to_api": Scale DOWN for reporting (native → API)
+            x: X coordinate
+            y: Y coordinate
+        """
         if not self._scaling_enabled:
             return x, y
         ratio = self.width / self.height
@@ -328,7 +376,7 @@ class X11Client:
         # should be less than 1
         x_scaling_factor = target_dimension["width"] / self.width
         y_scaling_factor = target_dimension["height"] / self.height
-        if source == "api":
+        if direction == "api_to_native":
             if x > self.width or y > self.height:
                 raise X11ClientError(f"Coordinates {x}, {y} are out of bounds")
             # scale up

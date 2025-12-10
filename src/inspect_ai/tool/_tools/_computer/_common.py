@@ -150,6 +150,20 @@ async def type(text: str, timeout: int | None = None) -> ToolResult:
     return await _send_cmd(["type", "--text", text], timeout=timeout)
 
 
+async def zoom(region: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        [
+            "zoom",
+            "--region",
+            str(region[0]),
+            str(region[1]),
+            str(region[2]),
+            str(region[3]),
+        ],
+        timeout=timeout,
+    )
+
+
 async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResult:
     from inspect_ai.log._samples import sample_active
 
