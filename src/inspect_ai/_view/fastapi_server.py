@@ -440,7 +440,7 @@ def view_server(
         async def announce_when_ready() -> None:
             while not server.started:
                 await anyio.sleep(0.05)
-            
+
             # Only show machine IP when binding to 0.0.0.0 (accessible from all interfaces)
             machine_ip = host
             if host == "0.0.0.0":
