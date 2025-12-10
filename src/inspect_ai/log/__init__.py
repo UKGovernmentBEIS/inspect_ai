@@ -6,7 +6,6 @@ from ._condense import condense_sample, resolve_sample_attachments
 from ._convert import convert_eval_logs
 from ._edit import (
     ProvenanceData,
-    SampleInvalidation,
     invalidate_samples,
     uninvalidate_samples,
 )
@@ -87,7 +86,6 @@ __all__ = [
     "edit_score",
     "recompute_metrics",
     "ProvenanceData",
-    "SampleInvalidation",
     "invalidate_samples",
     "uninvalidate_samples",
 ]

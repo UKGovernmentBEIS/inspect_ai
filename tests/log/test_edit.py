@@ -5,7 +5,6 @@ import pytest
 
 from inspect_ai.log._edit import (
     ProvenanceData,
-    SampleInvalidation,
     invalidate_samples,
     uninvalidate_samples,
 )
@@ -33,12 +32,10 @@ def fixture_eval_log(request: pytest.FixtureRequest) -> EvalLog:
                 uuid=(sample_uuid := str(idx_sample + 1)),
                 id="test_sample",
                 epoch=idx_sample,
-                status="invalidated" if sample_uuid in invalid_samples else "complete",
                 input="test_input",
                 target="test_target",
                 invalidation=(
-                    SampleInvalidation(
-                        status=invalid_samples[sample_uuid],
+                    ProvenanceData(
                         author="test_person",
                         reason="test_reason",
                     )
@@ -88,12 +85,10 @@ def test_invalidate_samples(
         if expected_invalidated and (
             sample_uuids == "all" or str(sample.uuid) in sample_uuids
         ):
-            assert sample.status == "invalidated"
             assert sample.invalidation is not None
             assert sample.invalidation.author == "test_person"
             assert sample.invalidation.reason == "test_reason"
         else:
-            assert sample.status != "invalidated"
             assert sample.invalidation is None
 
 
@@ -120,7 +115,7 @@ def test_uninvalidate_samples(
     expect_uninvalidated: bool,
 ):
     invalid_samples = {
-        sample.uuid: sample.invalidation.status
+        sample.uuid
         for sample in eval_log.samples or []
         if sample.invalidation is not None
     }
@@ -145,10 +140,8 @@ def test_uninvalidate_samples(
             expect_sample_invalidated = True
 
         if expect_sample_invalidated:
-            assert sample.status == "invalidated"
             assert sample.invalidation is not None
             assert sample.invalidation.author == "test_person"
             assert sample.invalidation.reason == "test_reason"
         else:
-            assert sample.status == invalid_samples.get(sample_uuid, "complete")
             assert sample.invalidation is None

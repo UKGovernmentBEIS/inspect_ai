@@ -22,7 +22,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import rich_traceback, truncate_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
-from inspect_ai.log._edit import SampleInvalidation
+from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
@@ -280,11 +280,6 @@ class EvalSample(BaseModel):
     epoch: int
     """Epoch number for sample."""
 
-    status: Literal["started", "complete", "error", "invalidated"]
-
-    invalidation: SampleInvalidation | None = Field(default=None)
-    """Provenance data for invalidation."""
-
     input: str | list[ChatMessage]
     """Sample input."""
 
@@ -376,6 +371,9 @@ class EvalSample(BaseModel):
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
 
+    invalidation: ProvenanceData | None = Field(default=None)
+    """Provenance data for invalidation."""
+
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
 
@@ -423,19 +421,6 @@ class EvalSample(BaseModel):
             completed=True,
             message_count=len(self.messages),
         )
-
-    @model_validator(mode="before")
-    @classmethod
-    def set_status(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-
-        status = data.get("status")
-        if status is not None:
-            return data
-
-        data["status"] = "complete" if data.get("error") is None else "error"
-        return data
 
     # deprecated properties
 

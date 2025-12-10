@@ -26,10 +26,6 @@ class ProvenanceData(BaseModel):
     """Additional metadata about the edit."""
 
 
-class SampleInvalidation(ProvenanceData):
-    status: Literal["started", "complete", "error"]
-
-
 def _prepare_samples(
     log: EvalLog, sample_uuids: Sequence[str] | Literal["all"]
 ) -> dict[str, tuple[int, EvalSample]]:
@@ -65,24 +61,17 @@ def _update_sample_invalidation(
         return log
 
     samples = (log.samples or []).copy()
-    status: Literal["started", "complete", "error", "invalidated"]
     for idx_sample, sample in sample_uuid_map.values():
         if provenance is None:
             if sample.invalidation is None:
                 continue
-            status = sample.invalidation.status
             invalidation = None
         else:
-            if sample.status == "invalidated":
+            if sample.invalidation is not None:
                 continue
-            invalidation = SampleInvalidation(
-                status=sample.status, **provenance.model_dump()
-            )
-            status = "invalidated"
+            invalidation = provenance.model_copy()
 
-        samples[idx_sample] = sample.model_copy(
-            update={"status": status, "invalidation": invalidation}
-        )
+        samples[idx_sample] = sample.model_copy(update={"invalidation": invalidation})
 
     return log.model_copy(update={"samples": samples})
 
