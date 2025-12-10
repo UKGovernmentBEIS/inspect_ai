@@ -25,6 +25,7 @@ from inspect_ai._util.azure import (
     is_azure_path,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.url import location_without_query
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -132,6 +133,7 @@ def basename(file: str) -> str:
     Returns:
        Base name for file
     """
+    file = location_without_query(file)
     # windows paths aren't natively handled on posix so flip backslashes
     if os.sep == "/":
         file = file.replace("\\", "/")
@@ -142,6 +144,7 @@ def basename(file: str) -> str:
 
 
 def dirname(file: str) -> str:
+    file = location_without_query(file)
     base = basename(file)
     return file[: -(len(base) + 1)]
 

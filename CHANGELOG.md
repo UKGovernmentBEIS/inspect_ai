@@ -1,3 +1,7 @@
+## Unreleased
+
+- Eval Logs: Support reading specific S3 object versions via `?versionId=` query parameter in log file URLs.
+
 ## 0.3.195 (14 March 2026)
 
 - OpenAI: Support for image output for multimodal modals.

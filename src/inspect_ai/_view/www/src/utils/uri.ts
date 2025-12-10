@@ -107,6 +107,14 @@ export const isUri = (value: string): boolean => {
   }
 };
 
+/**
+ * Strip query parameters from a location string.
+ */
+export const locationWithoutQuery = (location: string): string => {
+  const queryIndex = location.indexOf("?");
+  return queryIndex >= 0 ? location.substring(0, queryIndex) : location;
+};
+
 export const prettyDirUri = (uri: string) => {
   if (uri.startsWith("file://")) {
     return uri.replace("file://", "");

@@ -18,6 +18,7 @@ from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
+from inspect_ai._util.url import location_without_query
 
 from .._edit import LogUpdate
 from .._log import (
@@ -31,7 +32,7 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
-from .eval import _s3_bucket_and_key, _write_s3_conditional
+from .eval import _s3_bucket_and_key, _s3_get_with_etag, _write_s3_conditional
 from .file import FileRecorder
 
 logger = getLogger(__name__)
@@ -41,7 +42,7 @@ class JSONRecorder(FileRecorder):
     @override
     @classmethod
     def handles_location(cls, location: str) -> bool:
-        return location.endswith(".json")
+        return location_without_query(location).endswith(".json")
 
     @override
     @classmethod
@@ -178,8 +179,9 @@ class JSONRecorder(FileRecorder):
         # full reads (and fallback to streaming reads if they encounter invalid json characters)
         if fs.is_s3():
             # read content and get ETag such that they always match
-            content, etag = await _s3_read_with_etag(location)
-            raw_data = from_json(content)
+            async with AsyncFilesystem() as async_fs:
+                content_bytes, etag = await _s3_get_with_etag(location, async_fs)
+            raw_data = from_json(content_bytes.decode("utf-8"))
         else:
             with file(location, "r") as f:
                 raw_data = from_json(f.read())
@@ -273,27 +275,6 @@ def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
             log.reductions = None
 
     return log
-
-
-async def _s3_read_with_etag(
-    location: str,
-) -> tuple[str, str]:
-    """
-    Read S3 file content and get ETag in a single operation.
-
-    Returns:
-        (content, etag) - etag is guaranteed to match content
-    """
-    bucket, key = _s3_bucket_and_key(location)
-
-    async with AsyncFilesystem() as async_fs:
-        s3_client = await async_fs.s3_client_async()
-        response = await s3_client.get_object(Bucket=bucket, Key=key)
-        content = await response["Body"].read()
-        content = content.decode("utf-8")
-        etag = response["ETag"].strip('"')  # S3 returns ETag with quotes
-
-        return content, etag
 
 
 def _read_header_streaming(log_file: str) -> EvalLog:
