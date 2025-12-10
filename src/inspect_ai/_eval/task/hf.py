@@ -1,7 +1,8 @@
-from pathlib import Path
-from typing import Any
-from string import ascii_uppercase
 from dataclasses import dataclass
+from pathlib import Path
+from string import ascii_uppercase
+from typing import Any
+
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,7 +10,8 @@ from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai.dataset import FieldSpec, hf_dataset, Sample
+from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
+from inspect_ai.dataset._dataset import DatasetRecord
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
 
@@ -21,8 +23,9 @@ class TaskComponent(BaseModel):
 
 @dataclass
 class FieldSpecHF(FieldSpec):
-    choices: str | list[str] = Field(default=None)
+    choices: str | list[str] | None = Field(default=None)
     """ TODO """
+
 
 class HFTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -96,8 +99,10 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         if name is not None and hf_task.name != name:
             continue
 
-        def record_to_sample_hf(record):
-            return _record_to_sample_hf(record, hf_task.field_spec)
+        def record_to_sample_hf(
+            record: DatasetRecord, field_spec: FieldSpecHF = hf_task.field_spec
+        ) -> Sample:
+            return _record_to_sample_hf(record, field_spec)
 
         # create dataset
         dataset = hf_dataset(
@@ -170,7 +175,8 @@ def parse_task_spec(task_spec: str) -> tuple[str, str | None]:
 
     return repo_id, taskname
 
-def _sanitize_target(record: dict, target: str) -> str:
+
+def _sanitize_target(record: DatasetRecord, target: str) -> str:
     # if the target is a literal, return the value after the colon without checking the record.
     if target.startswith("literal:"):
         target = target.split(":")[1]
@@ -183,7 +189,10 @@ def _sanitize_target(record: dict, target: str) -> str:
 
     return target
 
-def _sanitize_choices(record: dict, choices: str | list[str] | None) -> list[str]:
+
+def _sanitize_choices(
+    record: DatasetRecord, choices: str | list[str] | None
+) -> Any | None:
     # if the choices are a list, return the values from the record.
     if choices is None:
         return None
@@ -193,7 +202,8 @@ def _sanitize_choices(record: dict, choices: str | list[str] | None) -> list[str
     else:
         return record[choices]
 
-def _record_to_sample_hf(record, field_spec: dict):
+
+def _record_to_sample_hf(record: DatasetRecord, field_spec: FieldSpecHF) -> Sample:
     sample_kwargs = {}
     sample_kwargs["input"] = record[field_spec.input]
 
@@ -203,8 +213,8 @@ def _record_to_sample_hf(record, field_spec: dict):
     if choices := _sanitize_choices(record, field_spec.choices):
         sample_kwargs["choices"] = choices
 
-
     if metadata_keys := field_spec.metadata:
+        assert isinstance(metadata_keys, list)  # to appease mypy
         metadata = {name: record[name] for name in metadata_keys}
         sample_kwargs["metadata"] = metadata
 
