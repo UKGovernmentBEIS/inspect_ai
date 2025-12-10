@@ -133,9 +133,6 @@ async def sandbox_agent_bridge(
             # proxy server that runs in container and forwards to sandbox service
             tg.start_soon(run_model_proxy, sandbox_env, port, instance, started)
 
-            # ensure services are up
-            await anyio.sleep(0.1)
-
             # main agent
             try:
                 yield bridge
@@ -148,19 +145,76 @@ async def sandbox_agent_bridge(
 async def run_model_proxy(
     sandbox: SandboxEnvironment, port: int, instance: str, started: anyio.Event
 ) -> None:
+    """Start model_proxy daemon in sandbox.
+
+    Starts the model proxy as a background process and waits for it to be ready
+    to accept connections. The process is cleaned up when the task is cancelled.
+    """
     # wait for model service to be started up
     await started.wait()
 
-    # run the model proxy script
-    result = await sandbox.exec(
-        cmd=[SANDBOX_TOOLS_CLI, "model_proxy"],
+    # Start proxy as background daemon (non-blocking)
+    pid_file = f"/var/tmp/model_proxy_{instance}.pid"
+    log_file = f"/var/tmp/model_proxy_{instance}.log"
+
+    start_result = await sandbox.exec(
+        cmd=[
+            "sh",
+            "-c",
+            f"{SANDBOX_TOOLS_CLI} model_proxy > {log_file} 2>&1 & echo $! > {pid_file}",
+        ],
         env={
             f"{MODEL_SERVICE.upper()}_PORT": str(port),
             f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
         },
+        timeout=30,
         concurrency=False,
     )
-    if not result.success:
-        raise RuntimeError(
-            f"Error running model proxy script for agent bridge: {result.stderr}"
+
+    if not start_result.success:
+        raise RuntimeError(f"Failed to start model proxy: {start_result.stderr}")
+
+    # Health check - wait for proxy HTTP server to be ready
+    # Note: TCP port open doesn't guarantee HTTP server is ready,
+    # so we make an actual HTTP request to verify
+    for _ in range(100):  # 20 seconds max
+        check = await sandbox.exec(
+            cmd=[
+                "sh",
+                "-c",
+                f"curl -sf -o /dev/null -w '%{{http_code}}' http://localhost:{port}/ 2>/dev/null || echo 000",
+            ],
+            timeout=2,
+            concurrency=False,
         )
+        # Any HTTP response (even 404) means server is ready
+        http_code = check.stdout.strip()
+        if http_code and http_code != "000":
+            break
+        await anyio.sleep(0.2)
+    else:
+        # Read log for debugging
+        log_result = await sandbox.exec(
+            cmd=["cat", log_file],
+            timeout=5,
+            concurrency=False,
+        )
+        raise RuntimeError(
+            f"Model proxy HTTP server not ready on port {port}. Log: {log_result.stdout}"
+        )
+
+    # Keep task alive until cancelled
+    try:
+        await anyio.sleep_forever()
+    finally:
+        # Cleanup on cancellation (shielded to ensure it runs)
+        with anyio.CancelScope(shield=True):
+            await sandbox.exec(
+                cmd=[
+                    "sh",
+                    "-c",
+                    f"kill $(cat {pid_file}) 2>/dev/null; rm -f {pid_file}",
+                ],
+                timeout=10,
+                concurrency=False,
+            )

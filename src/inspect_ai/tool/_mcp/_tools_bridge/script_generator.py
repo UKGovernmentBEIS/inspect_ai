@@ -71,11 +71,20 @@ def call_host_tool(tool_name: str, arguments: dict) -> str:
         json.dump(request, f)
 
     response_path = responses_dir / f"{{request_id}}.json"
-    while not response_path.exists():
-        sleep(0.1)
+    while True:
+        if not response_path.exists():
+            sleep(0.1)
+            continue
+        # File exists but may still be written - handle partial reads
+        try:
+            with open(response_path) as f:
+                response = json.load(f)
+            break
+        except json.JSONDecodeError:
+            # File exists but content not fully written yet
+            sleep(0.1)
+            continue
 
-    with open(response_path) as f:
-        response = json.load(f)
     response_path.unlink()
 
     if response.get("error"):
