@@ -11,6 +11,7 @@
 - Computer Tool: Add computer use tool version support for Claude Opus 4.5.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
 - Bugfix: Retry when parsing an incomplete bridged tool call response.
+- Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.
 
 ## 0.3.153 (05 December 2025)
 
