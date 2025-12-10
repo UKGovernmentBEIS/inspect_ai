@@ -7,6 +7,7 @@ from os import PathLike
 from pathlib import Path
 from re import Pattern
 from typing import TYPE_CHECKING, Sequence, TypeAlias, cast
+from urllib.parse import urlparse
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
 from inspect_ai._util.error import pip_dependency_error
@@ -86,6 +87,17 @@ def resolve_logs(
             fs = filesystem(log_str)
             return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
         else:
+            # Preserve query params from original URL (e.g. ?versionId=...)
+            # that may have been stripped by the filesystem layer
+            query = urlparse(log_str).query
+            if query and "?" not in info.name:
+                info = FileInfo(
+                    name=f"{info.name}?{query}",
+                    type=info.type,
+                    size=info.size,
+                    mtime=info.mtime,
+                    etag=info.etag,
+                )
             return [info]
 
     log_paths = list(

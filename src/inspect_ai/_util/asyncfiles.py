@@ -16,6 +16,7 @@ from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.file import FileInfo, file, filesystem
+from inspect_ai._util.url import location_query_param
 
 
 class _BytesByteReceiveStream(ByteReceiveStream):
@@ -140,13 +141,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def info(self, filename: str) -> FileInfo:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
+            version_id = _s3_version_id(filename)
             if current_async_backend() == "asyncio":
                 response = await (await self.s3_client_async()).head_object(
-                    Bucket=bucket, Key=key
+                    Bucket=bucket, Key=key, **_version_id_kw(version_id)
                 )
                 return _s3_head_to_file_info(filename, response)
             return await anyio.to_thread.run_sync(
-                s3_info, self.s3_client(), bucket, key, filename
+                s3_info, self.s3_client(), bucket, key, filename, version_id
             )
         else:
             return filesystem(filename).info(filename)
@@ -154,9 +156,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def read_file(self, filename: str) -> bytes:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
+            version_id = _s3_version_id(filename)
             if current_async_backend() == "asyncio":
                 response = await (await self.s3_client_async()).get_object(
-                    Bucket=bucket, Key=key
+                    Bucket=bucket, Key=key, **_version_id_kw(version_id)
                 )
                 body = response["Body"]
                 try:
@@ -166,7 +169,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
             else:
                 return await anyio.to_thread.run_sync(
-                    s3_read_file, self.s3_client(), bucket, key
+                    s3_read_file, self.s3_client(), bucket, key, version_id
                 )
         else:
             with file(filename, "rb") as f:
@@ -177,14 +180,24 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     ) -> ByteReceiveStream:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
+            version_id = _s3_version_id(filename)
             if current_async_backend() == "asyncio":
                 response = await (await self.s3_client_async()).get_object(
-                    Bucket=bucket, Key=key, Range=f"bytes={start}-{end - 1}"
+                    Bucket=bucket,
+                    Key=key,
+                    Range=f"bytes={start}-{end - 1}",
+                    **_version_id_kw(version_id),
                 )
                 return _StreamingBodyByteReceiveStream(response["Body"])
             return _BytesByteReceiveStream(
                 await anyio.to_thread.run_sync(
-                    s3_read_file_bytes, self.s3_client(), bucket, key, start, end
+                    s3_read_file_bytes,
+                    self.s3_client(),
+                    bucket,
+                    key,
+                    start,
+                    end,
+                    version_id,
                 )
             )
         else:
@@ -215,9 +228,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
+            version_id = _s3_version_id(filename)
             if current_async_backend() == "asyncio":
                 response = await (await self.s3_client_async()).get_object(
-                    Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}"
+                    Bucket=bucket,
+                    Key=key,
+                    Range=f"bytes=-{suffix_length}",
+                    **_version_id_kw(version_id),
                 )
                 content_range: str = response["ContentRange"]
                 total_size = int(content_range.split("/")[-1])
@@ -235,6 +252,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     bucket,
                     key,
                     suffix_length,
+                    version_id,
                 )
         else:
             file_size = filesystem(filename).info(filename).size
@@ -308,26 +326,39 @@ def _s3_head_to_file_info(filename: str, response: dict[str, Any]) -> FileInfo:
     return FileInfo(name=filename, type="file", size=size, mtime=mtime, etag=etag)
 
 
-def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
-    response = s3.head_object(Bucket=bucket, Key=key)
+def s3_info(
+    s3: Any, bucket: str, key: str, filename: str, version_id: str | None = None
+) -> FileInfo:
+    response = s3.head_object(Bucket=bucket, Key=key, **_version_id_kw(version_id))
     return _s3_head_to_file_info(filename, response)
 
 
-def s3_read_file(s3: Any, bucket: str, key: str) -> bytes:
-    response = s3.get_object(Bucket=bucket, Key=key)
+def s3_read_file(
+    s3: Any, bucket: str, key: str, version_id: str | None = None
+) -> bytes:
+    response = s3.get_object(Bucket=bucket, Key=key, **_version_id_kw(version_id))
     return cast(bytes, response["Body"].read())
 
 
-def s3_read_file_bytes(s3: Any, bucket: str, key: str, start: int, end: int) -> bytes:
+def s3_read_file_bytes(
+    s3: Any, bucket: str, key: str, start: int, end: int, version_id: str | None = None
+) -> bytes:
     range_header = f"bytes={start}-{end - 1}"
-    response = s3.get_object(Bucket=bucket, Key=key, Range=range_header)
+    response = s3.get_object(
+        Bucket=bucket, Key=key, Range=range_header, **_version_id_kw(version_id)
+    )
     return cast(bytes, response["Body"].read())
 
 
 def s3_read_file_suffix(
-    s3: Any, bucket: str, key: str, suffix_length: int
+    s3: Any, bucket: str, key: str, suffix_length: int, version_id: str | None = None
 ) -> SuffixResult:
-    response = s3.get_object(Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}")
+    response = s3.get_object(
+        Bucket=bucket,
+        Key=key,
+        Range=f"bytes=-{suffix_length}",
+        **_version_id_kw(version_id),
+    )
     content_range: str = response["ContentRange"]
     total_size = int(content_range.split("/")[-1])
     etag = cast(str | None, response.get("ETag"))
@@ -344,6 +375,14 @@ def s3_bucket_and_key(filename: str) -> tuple[str, str]:
     bucket = parsed.netloc
     key = parsed.path.lstrip("/")
     return bucket, key
+
+
+def _s3_version_id(filename: str) -> str | None:
+    return location_query_param(filename, "versionId")
+
+
+def _version_id_kw(version_id: str | None) -> dict[str, str]:
+    return {"VersionId": version_id} if version_id else {}
 
 
 def is_s3_filename(filename: str) -> bool:

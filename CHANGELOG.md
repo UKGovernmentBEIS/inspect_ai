@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Logs: Support reading specific S3 object versions via `?versionId=` query parameter in log file URLs.
 - Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
 - OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
 - Sandboxes: Verify execute result size automatically for all sandbox exec calls.

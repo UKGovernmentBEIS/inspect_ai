@@ -1,4 +1,4 @@
-import { dirname, filename } from "../../utils/path";
+import { basename, dirname, filename } from "../../utils/path";
 
 describe("filename", () => {
   test("extracts filename without extension from a path", () => {
@@ -25,6 +25,23 @@ describe("filename", () => {
     // Dot files with extensions should have the extension removed
     expect(filename(".hidden.txt")).toBe(".hidden");
   });
+
+  test("strips query params", () => {
+    expect(filename("s3://bucket/log.eval?versionId=abc")).toBe("log");
+    expect(filename("/path/to/file.txt?key=value")).toBe("file");
+  });
+});
+
+describe("basename", () => {
+  test("extracts basename from a path", () => {
+    expect(basename("/path/to/file.txt")).toBe("file.txt");
+    expect(basename("file.txt")).toBe("file.txt");
+    expect(basename("s3://bucket/log.eval")).toBe("log.eval");
+  });
+
+  test("strips query params", () => {
+    expect(basename("s3://bucket/log.eval?versionId=abc")).toBe("log.eval");
+  });
 });
 
 describe("dirname", () => {
@@ -50,5 +67,10 @@ describe("dirname", () => {
 
   test("handles paths with trailing slash", () => {
     expect(dirname("/path/to/directory/")).toBe("/path/to");
+  });
+
+  test("strips query params", () => {
+    expect(dirname("s3://bucket/log.eval?versionId=abc")).toBe("s3://bucket");
+    expect(dirname("/path/to/file.txt?key=value")).toBe("/path/to");
   });
 });

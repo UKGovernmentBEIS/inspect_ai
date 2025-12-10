@@ -1,6 +1,6 @@
 import { EvalSample } from "../../@types/log";
 import { sampleIdsEqual } from "../../app/shared/sample";
-import { encodePathParts } from "../../utils/uri";
+import { encodePathParts, locationWithoutQuery } from "../../utils/uri";
 import {
   openRemoteLogFile,
   RemoteLogFile,
@@ -20,7 +20,7 @@ import {
 } from "./types";
 
 const isEvalFile = (file: string) => {
-  return file.endsWith(".eval");
+  return locationWithoutQuery(file).endsWith(".eval");
 };
 
 /**

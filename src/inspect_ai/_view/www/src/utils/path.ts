@@ -1,3 +1,5 @@
+import { locationWithoutQuery } from "./uri";
+
 /**
  * Extracts the filename without extension from a given path.
  */
@@ -5,6 +7,7 @@ export const filename = (path: string): string => {
   if (!path) {
     return "";
   }
+  path = locationWithoutQuery(path);
   path = path.endsWith("/") ? path.slice(0, -1) : path;
 
   const pathparts = path.split("/");
@@ -27,6 +30,7 @@ export const basename = (path: string): string => {
   if (!path) {
     return "";
   }
+  path = locationWithoutQuery(path);
   path = path.endsWith("/") ? path.slice(0, -1) : path;
   const pathparts = path.split("/");
   return pathparts.slice(-1)[0];
@@ -36,6 +40,7 @@ export const basename = (path: string): string => {
  * Extracts the directory name from a given path.
  */
 export const dirname = (path: string): string => {
+  path = locationWithoutQuery(path);
   path = path.endsWith("/") ? path.slice(0, -1) : path;
 
   const pathparts = path.split("/");

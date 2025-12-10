@@ -18,6 +18,7 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai._util.url import location_query_param, location_without_query
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
@@ -66,7 +67,7 @@ class EvalRecorder(FileRecorder):
     @override
     @classmethod
     def handles_location(cls, location: str) -> bool:
-        return location.endswith(".eval")
+        return location_without_query(location).endswith(".eval")
 
     @override
     @classmethod
@@ -231,7 +232,9 @@ class EvalRecorder(FileRecorder):
                 temp_log = temp.name
                 if fs.is_s3():
                     # download file and get ETag so it matches the content
-                    etag = await _s3_download_with_etag(location, temp_log, fs)
+                    content, etag = await _s3_get_with_etag(location, fs)
+                    with open(temp_log, "wb") as f:
+                        f.write(content)
                 else:
                     fs.get_file(location, temp_log)
 
@@ -442,18 +445,17 @@ async def _s3_conditional_put_object(
         )
 
 
-async def _s3_download_with_etag(
-    location: str, local_path: str, fs: FileSystem
-) -> str | None:
+async def _s3_get_with_etag(location: str, fs: FileSystem) -> tuple[bytes, str]:
     """
-    Download S3 file and get its ETag in a single operation.
+    Get S3 object bytes and ETag in a single operation.
 
     Returns:
-        ETag of the downloaded file (guaranteed to match the downloaded content)
+        (content, etag) - etag is guaranteed to match content
     """
     import aioboto3
 
     bucket, key = _s3_bucket_and_key(location)
+    version_id = location_query_param(location, "versionId")
 
     session = aioboto3.Session()
     async with session.client(
@@ -461,14 +463,16 @@ async def _s3_download_with_etag(
         endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
         region_name=fs.fs.client_kwargs.get("region_name"),
     ) as s3_client:
-        response = await s3_client.get_object(Bucket=bucket, Key=key)
-
+        if version_id:
+            response = await s3_client.get_object(
+                Bucket=bucket, Key=key, VersionId=version_id
+            )
+        else:
+            response = await s3_client.get_object(Bucket=bucket, Key=key)
         content = await response["Body"].read()
-        with open(local_path, "wb") as f:
-            f.write(content)
+        etag = response["ETag"].strip('"')
 
-        etag: str = response["ETag"]
-        return etag.strip('"')  # S3 returns ETag with quotes
+    return content, etag
 
 
 async def _write_s3_conditional(
