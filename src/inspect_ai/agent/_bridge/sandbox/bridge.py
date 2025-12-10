@@ -175,25 +175,25 @@ async def run_model_proxy(
         raise RuntimeError(f"Failed to start model proxy: {start_result.stderr}")
 
     # Health check - wait for proxy HTTP server to be ready
-    # Note: TCP port open doesn't guarantee HTTP server is ready,
-    # so we make an actual HTTP request to verify
+    # Use Python as we may not have curl
+    health_check_script = f"""
+import urllib.request
+try:
+    urllib.request.urlopen('http://localhost:{port}/', timeout=1)
+    print('ok')
+except:
+    print('fail')
+"""
     for _ in range(100):  # 20 seconds max
         check = await sandbox.exec(
-            cmd=[
-                "sh",
-                "-c",
-                f"curl -sf -o /dev/null -w '%{{http_code}}' http://localhost:{port}/ 2>/dev/null || echo 000",
-            ],
+            cmd=["python3", "-c", health_check_script],
             timeout=2,
             concurrency=False,
         )
-        # Any HTTP response (even 404) means server is ready
-        http_code = check.stdout.strip()
-        if http_code and http_code != "000":
+        if check.stdout.strip() == "ok":
             break
         await anyio.sleep(0.2)
     else:
-        # Read log for debugging
         log_result = await sandbox.exec(
             cmd=["cat", log_file],
             timeout=5,
