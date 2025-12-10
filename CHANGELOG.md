@@ -4,6 +4,8 @@
 - Logging: Support for writing logs to Azure Blob Storage (`az://`).
 - React Agent: Remove newlines from default prompts.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
+- Bugfix: Fix race condition in `sandbox_agent_bridge` where `run_model_proxy` could hang indefinitely waiting for daemon subprocess.
+- Bugfix: Fix race condition in MCP tools bridge where reading partially-written response files caused JSON parsing errors.
 
 ## 0.3.153 (05 December 2025)
 
