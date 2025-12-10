@@ -634,6 +634,11 @@ class AnthropicAPI(ModelAPI):
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         return "all"
 
+    @override
+    def total_input_tokens(self, usage: ModelUsage) -> int:
+        """Anthropic reports cached tokens separately from input_tokens."""
+        return usage.input_tokens + (usage.input_tokens_cache_read or 0)
+
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
         error = exception_message(ex).lower()

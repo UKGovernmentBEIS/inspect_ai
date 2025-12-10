@@ -315,6 +315,21 @@ class ModelAPI(abc.ABC):
         """Behavior to use for reasoning_history='auto'"""
         return "all"
 
+    def total_input_tokens(self, usage: ModelUsage) -> int:
+        """Calculate total input tokens including any cached tokens.
+
+        Default implementation returns input_tokens. Providers where cached
+        tokens are reported separately from input_tokens should override
+        this method.
+
+        Args:
+            usage: ModelUsage from the model output.
+
+        Returns:
+            Total input tokens including any cached tokens.
+        """
+        return usage.input_tokens
+
 
 class Model:
     """Model interface.

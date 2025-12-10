@@ -13,7 +13,6 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model, get_model
-from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.model._trim import trim_messages
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._mcp.connection import mcp_connection
@@ -199,6 +198,11 @@ def react(
             compaction_start_index = initial_messages_count
             compaction_count = 0
 
+            # resolve model for token counting (needed for compaction threshold)
+            resolved_model = (
+                get_model(model) if not isinstance(model, Agent) else get_model()
+            )
+
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
@@ -283,8 +287,8 @@ def react(
 
                 # check compaction threshold (proactive, before overflow)
                 if compaction is not None and state.output.usage:
-                    total_input_tokens = _get_total_input_tokens(
-                        state.output.model, state.output.usage
+                    total_input_tokens = resolved_model.api.total_input_tokens(
+                        state.output.usage
                     )
                     threshold_tokens = int(
                         compaction.max_context_tokens * compaction.threshold
@@ -392,6 +396,11 @@ def react_no_submit(
             compaction_start_index = initial_messages_count
             compaction_count = 0
 
+            # resolve model for token counting (needed for compaction threshold)
+            resolved_model = (
+                get_model(model) if not isinstance(model, Agent) else get_model()
+            )
+
             # main loop
             while True:
                 # get active messages for generation (when compaction is enabled)
@@ -424,8 +433,8 @@ def react_no_submit(
 
                 # check compaction threshold (proactive, before overflow)
                 if compaction is not None and state.output.usage:
-                    total_input_tokens = _get_total_input_tokens(
-                        state.output.model, state.output.usage
+                    total_input_tokens = resolved_model.api.total_input_tokens(
+                        state.output.usage
                     )
                     threshold_tokens = int(
                         compaction.max_context_tokens * compaction.threshold
@@ -513,29 +522,6 @@ def _resolve_overflow(
     else:
         overflow = truncation
     return overflow
-
-
-def _get_total_input_tokens(model_name: str, usage: ModelUsage) -> int:
-    """Get total input tokens accounting for provider differences.
-
-    Anthropic reports cached tokens separately from input_tokens.
-    OpenAI includes cached tokens in input_tokens already.
-
-    Args:
-        model_name: Name of the model used for generation.
-        usage: ModelUsage object from the model output.
-
-    Returns:
-        Total input tokens including any cached tokens.
-    """
-    total = usage.input_tokens
-
-    # Anthropic models need cached tokens added separately
-    if "claude" in model_name.lower():
-        total += usage.input_tokens_cache_read or 0
-        total += usage.input_tokens_cache_write or 0
-
-    return total
 
 
 def _get_active_messages(
