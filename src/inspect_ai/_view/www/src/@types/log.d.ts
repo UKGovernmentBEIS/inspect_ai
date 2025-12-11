@@ -55,7 +55,7 @@ export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type Effort = ("low" | "medium" | "high") | null;
 export type ReasoningEffort =
-  | ("none" | "minimal" | "low" | "medium" | "high")
+  | ("none" | "minimal" | "low" | "medium" | "high" | "xhigh")
   | null;
 export type ReasoningTokens = number | null;
 export type ReasoningSummary =
