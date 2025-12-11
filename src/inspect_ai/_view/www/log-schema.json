@@ -3801,7 +3801,8 @@
                 "minimal",
                 "low",
                 "medium",
-                "high"
+                "high",
+                "xhigh"
               ],
               "type": "string"
             },

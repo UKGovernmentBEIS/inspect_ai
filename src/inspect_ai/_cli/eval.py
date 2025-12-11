@@ -487,7 +487,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--reasoning-effort",
-        type=click.Choice(["none", "minimal", "low", "medium", "high"]),
+        type=click.Choice(["none", "minimal", "low", "medium", "high", "xhigh"]),
         help="Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details).",
         envvar="INSPECT_EVAL_REASONING_EFFORT",
     )

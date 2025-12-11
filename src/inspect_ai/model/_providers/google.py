@@ -470,7 +470,9 @@ class GoogleGenAIAPI(ModelAPI):
                 match config.reasoning_effort:
                     case "minimal" | "low":
                         thinking_level: ThinkingLevel | None = ThinkingLevel.LOW
-                    case "medium" | "high":  # note: 'medium' thinking level coming soon
+                    case (
+                        "medium" | "high" | "xhigh"
+                    ):  # note: 'medium' thinking level coming soon
                         thinking_level = ThinkingLevel.HIGH
                     case _:
                         thinking_level = None  # can't happen, keep mypy happy
