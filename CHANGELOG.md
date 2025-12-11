@@ -3,6 +3,7 @@
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - Logging: Support for writing logs to Azure Blob Storage (`az://`).
 - Tasks: Ability to run Inspect tasks defined within datasets on [Hugging Face Hub](https://inspect.aisi.org.uk/tasks.html#hugging-face).
+- Sample invalidation which enables marking samples as invalid (forcing a retry in eval sets).
 - Tasks: Run `cleanup()` function at the end of the sample (after scoring) rather than after solvers.
 - Grok: Option to disable GRPC retries (`disable_retry`) for waiting time tracking.
 - OpenAI: Added support for "xhigh" `reasoning_effort` option.

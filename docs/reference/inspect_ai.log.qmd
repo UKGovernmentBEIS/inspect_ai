@@ -12,13 +12,16 @@ title: "inspect_ai.log"
 ### read_eval_log_sample
 ### read_eval_log_samples
 ### read_eval_log_sample_summaries
-### edit_score
 ### recompute_metrics
 ### convert_eval_logs
 ### bundle_log_dir
 ### write_log_dir_manifest
 ### retryable_eval_logs
 ### EvalLogInfo
+### edit_score
+### invalidate_samples
+### uninvalidate_samples
+### ProvenanceData
 
 ## Eval Log API
 
