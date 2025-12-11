@@ -235,7 +235,11 @@ async def test_get_updated_events(test_case: UpdatedEventsTestCase):
         events.extend(transcript.events)
 
     sample = EvalSample(
-        id="1", events=existing_events, epoch=1, input="input", target="target"
+        id="1",
+        events=existing_events,
+        epoch=1,
+        input="input",
+        target="target",
     )
 
     updated_events = _get_updated_events(sample, new_events, action=test_case.action)

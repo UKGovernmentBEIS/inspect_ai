@@ -211,6 +211,7 @@ export type ReasoningTokens1 = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
+export type Invalidated = boolean;
 export type Samples1 = EvalSample[] | null;
 export type Id1 = number | string;
 export type Epoch1 = number;
@@ -811,6 +812,7 @@ export interface EvalLog {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
+  invalidated?: Invalidated;
   samples?: Samples1;
   reductions?: Reductions;
   location?: Location1;
@@ -1228,6 +1230,7 @@ export interface EvalSample {
   total_time: TotalTime;
   working_time: WorkingTime3;
   uuid: Uuid18;
+  invalidation: ProvenanceData | null;
   error: EvalError | null;
   error_retries: ErrorRetries;
   attachments: Attachments;

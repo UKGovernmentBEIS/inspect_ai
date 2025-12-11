@@ -162,4 +162,5 @@ async def _stream_convert_file(
         log_header.stats,
         log_header.results,
         log_header.reductions,
+        invalidated=log_header.invalidated,
     )

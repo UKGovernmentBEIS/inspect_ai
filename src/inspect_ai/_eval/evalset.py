@@ -542,7 +542,7 @@ def as_previous_tasks(
 
 
 def all_evals_succeeded(logs: list[EvalLog]) -> bool:
-    return all([log.status == "success" for log in logs])
+    return all([log.status == "success" and not log.invalidated for log in logs])
 
 
 # filter for determining when we are done
@@ -591,6 +591,8 @@ def list_latest_eval_logs(
         if epochs_changed(epochs, log.header.eval.config):
             incomplete_logs.append(log)
         elif log.header.status != "success":
+            incomplete_logs.append(log)
+        elif log.header.invalidated:
             incomplete_logs.append(log)
         else:
             complete_logs.append(log)
