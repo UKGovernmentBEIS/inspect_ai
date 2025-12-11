@@ -64,6 +64,7 @@ export interface LogsSlice {
 
     setLogsGridState: (gridState: GridState | undefined) => void;
     clearLogsGridState: () => void;
+    setPreviousLogsPath: (path: string | undefined) => void;
 
     setGridState: (gridState: GridState) => void;
     clearGridState: () => void;
@@ -108,6 +109,8 @@ export const createLogsSlice = (
           if (logDir !== state.logs.logDir) {
             state.logs.logDir = logDir;
             state.logs.samplesListState.gridState = undefined;
+            state.logs.listing.gridState = undefined;
+            state.logs.listing.previousLogPath = undefined;
           }
         });
       },
@@ -435,6 +438,11 @@ export const createLogsSlice = (
       clearLogsGridState: () => {
         set((state) => {
           state.logs.listing.gridState = undefined;
+        });
+      },
+      setPreviousLogsPath: (path: string | undefined) => {
+        set((state) => {
+          state.logs.listing.previousLogPath = path;
         });
       },
       clearSelectedLogFile: () => {

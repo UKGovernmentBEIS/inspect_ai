@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { AgGridReact } from "ag-grid-react";
 import { FC, useEffect, useMemo, useRef } from "react";
 
 import { useNavigate } from "react-router-dom";
@@ -9,12 +10,15 @@ import { useDocumentTitle, useLogs, useLogsListing } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
+import { ApplicationIcons } from "../appearance/icons";
 import { FlowButton } from "../flow/FlowButton";
 import { useFlowServerData } from "../flow/hooks";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
+import { NavbarButton } from "../navbar/NavbarButton";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { logsUrl, useLogRouteParams } from "../routing/url";
 import { LogListGrid } from "./grid/LogListGrid";
+import { LogListRow } from "./grid/columns/types";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import styles from "./LogsPanel.module.css";
@@ -33,6 +37,7 @@ interface LogsPanelProps {
 
 export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const { loadLogs } = useLogs();
+  const gridRef = useRef<AgGridReact<LogListRow>>(null);
 
   const logDir = useStore((state) => state.logs.logDir);
   const logFiles = useStore((state) => state.logs.logs);
@@ -182,6 +187,15 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     exec();
   }, [loadLogs, logPath]);
 
+  const handleResetFilters = () => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.setFilterModel(null);
+    }
+  };
+
+  const filterModel = gridRef.current?.api?.getFilterModel() || {};
+  const hasFilter = Object.keys(filterModel).length > 0;
+
   useEffect(() => {
     if (maybeShowSingleLog && logItems.length === 1) {
       const onlyItem = logItems[0];
@@ -198,13 +212,25 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         currentPath={logPath}
         showActivity="log"
       >
+        {hasFilter && (
+          <NavbarButton
+            key="reset-filters"
+            label="Reset Filters"
+            icon={ApplicationIcons.filter}
+            onClick={handleResetFilters}
+          />
+        )}
         <ViewSegmentedControl selectedSegment="logs" />
         {flowData && <FlowButton />}
       </ApplicationNavbar>
 
       <>
         <div className={clsx(styles.list, "text-size-smaller")}>
-          <LogListGrid items={logItems} />
+          <LogListGrid
+            items={logItems}
+            currentPath={currentDir}
+            gridRef={gridRef}
+          />
         </div>
         <LogListFooter
           itemCount={logItems.length}

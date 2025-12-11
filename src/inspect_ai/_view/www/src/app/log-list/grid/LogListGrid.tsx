@@ -10,7 +10,7 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import clsx from "clsx";
-import { FC, useCallback, useEffect, useMemo, useRef } from "react";
+import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useLogs, useLogsListing } from "../../../state/hooks";
@@ -19,19 +19,32 @@ import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
 import styles from "./LogListGrid.module.css";
 import { useLogListColumns } from "./columns/hooks";
 import { LogListRow } from "./columns/types";
+import { computeInitialLogGridState } from "./gridState";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface LogListGridProps {
   items: Array<FileLogItem | FolderLogItem | PendingTaskItem>;
+  currentPath?: string;
+  gridRef?: RefObject<AgGridReact<LogListRow> | null>;
 }
 
 export interface LogListGridHandle {
   focus: () => void;
 }
 
-export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
-  const { gridState, setGridState, setFilteredCount } = useLogsListing();
+export const LogListGrid: FC<LogListGridProps> = ({
+  items,
+  currentPath,
+  gridRef: externalGridRef,
+}) => {
+  const {
+    gridState,
+    setGridState,
+    setFilteredCount,
+    previousLogPath,
+    setPreviousLogPath,
+  } = useLogsListing();
 
   const { loadLogOverviews, loadAllLogOverviews } = useLogs();
 
@@ -41,7 +54,8 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
   const logPreviews = useStore((state) => state.logs.logPreviews);
   const navigate = useNavigate();
-  const gridRef = useRef<AgGridReact<LogListRow>>(null);
+  const internalGridRef = useRef<AgGridReact<LogListRow>>(null);
+  const gridRef = externalGridRef ?? internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   const logFiles = useMemo(() => {
@@ -77,9 +91,20 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
 
   const columns = useLogListColumns(data);
 
+  const initialGridState = useMemo(
+    () => computeInitialLogGridState(gridState, previousLogPath, currentPath),
+    [currentPath, gridState, previousLogPath],
+  );
+
   useEffect(() => {
     gridContainerRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (currentPath !== previousLogPath) {
+      setPreviousLogPath(currentPath);
+    }
+  }, [currentPath, previousLogPath, setPreviousLogPath]);
 
   const handleRowClick = useCallback(
     (e: RowClickedEvent<LogListRow>) => {
@@ -305,7 +330,7 @@ export const LogListGrid: FC<LogListGridProps> = ({ items }) => {
           onGridSizeChanged={resizeGridColumns}
           theme={themeBalham}
           enableCellTextSelection={true}
-          initialState={gridState}
+          initialState={initialGridState}
           suppressCellFocus={true}
           onStateUpdated={(e: StateUpdatedEvent<LogListRow>) => {
             setGridState(e.state);

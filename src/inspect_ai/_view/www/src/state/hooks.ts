@@ -708,6 +708,12 @@ export const useLogsListing = () => {
   const clearGridState = useStore(
     (state) => state.logsActions.clearLogsGridState,
   );
+  const previousLogPath = useStore(
+    (state) => state.logs.listing.previousLogPath,
+  );
+  const setPreviousLogPath = useStore(
+    (state) => state.logsActions.setPreviousLogsPath,
+  );
 
   return {
     sorting,
@@ -727,6 +733,8 @@ export const useLogsListing = () => {
     gridState,
     setGridState,
     clearGridState,
+    previousLogPath,
+    setPreviousLogPath,
   };
 };
 
