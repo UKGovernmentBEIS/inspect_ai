@@ -26,28 +26,40 @@ export const useLogListColumns = (
     return [
       {
         field: "type",
-        headerName: "",
-        initialWidth: 40,
-        minWidth: 40,
-        maxWidth: 40,
+        headerName: "#",
+        initialWidth: 56,
+        minWidth: 50,
+        maxWidth: 72,
+        suppressSizeToFit: true,
         sortable: true,
         filter: false,
         resizable: false,
+        pinned: "left",
         cellRenderer: (params: ICellRendererParams<LogListRow>) => {
           const type = params.data?.type;
-          const icon =
-            type === "file" || type === "pending-task"
-              ? ApplicationIcons.inspectFile
-              : ApplicationIcons.folder;
-          return (
-            <div className={iconStyles.iconCell}>
-              <i className={clsx(icon)} />
-            </div>
-          );
+          if (type === "folder") {
+            return (
+              <div className={iconStyles.iconCell}>
+                <i className={clsx(ApplicationIcons.folder)} />
+              </div>
+            );
+          }
+          if (params.data?.displayIndex !== undefined) {
+            return (
+              <div className={iconStyles.numberCell}>
+                {params.data.displayIndex}
+              </div>
+            );
+          }
+          return "";
         },
-        comparator: (valueA, valueB) => {
+        comparator: (valueA, valueB, nodeA, nodeB) => {
           const rank = (t: string) => (t === "folder" ? 0 : 1);
-          return rank(valueA) - rank(valueB);
+          const r = rank(valueA) - rank(valueB);
+          if (r !== 0) return r;
+          const nameA = nodeA?.data?.name || "";
+          const nameB = nodeB?.data?.name || "";
+          return nameA.localeCompare(nameB);
         },
       },
       {
@@ -58,6 +70,7 @@ export const useLogListColumns = (
         sortable: true,
         filter: true,
         resizable: true,
+        colSpan: (params) => (params.data?.type === "folder" ? 100 : 1),
         valueGetter: (params) => {
           const item = params.data;
           if (!item) return "";
@@ -75,16 +88,16 @@ export const useLogListColumns = (
           }
           return (
             <div className={taskStyles.nameCell}>
-              {item.url ? (
+              {item.type === "folder" && item.url ? (
                 <Link
                   to={item.url}
-                  className={taskStyles.logLink}
+                  className={taskStyles.folderLink}
                   title={item.name}
                 >
                   {value}
                 </Link>
               ) : (
-                value
+                <span className={taskStyles.taskText}>{value}</span>
               )}
             </div>
           );

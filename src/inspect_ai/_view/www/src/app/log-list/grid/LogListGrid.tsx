@@ -71,6 +71,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
       return {
         id: item.id,
         name: item.name,
+        displayIndex: item.displayIndex,
         type: item.type,
         url: item.url,
         task: item.type === "file" ? preview?.task : item.name,

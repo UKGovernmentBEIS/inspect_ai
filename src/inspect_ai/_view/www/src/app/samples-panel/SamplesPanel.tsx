@@ -16,7 +16,7 @@ import { NavbarButton } from "../navbar/NavbarButton";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
 import { ColumnSelectorPopover } from "./samples-grid/ColumnSelectorPopover";
-import { useSampleColumns } from "./samples-grid/hooks";
+import { useSampleColumns } from "./samples-grid/hooks.tsx";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
 

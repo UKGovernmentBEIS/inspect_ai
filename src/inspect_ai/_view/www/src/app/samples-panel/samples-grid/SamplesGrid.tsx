@@ -16,11 +16,12 @@ import { useClientEvents } from "../../../state/clientEvents";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
 import { debounce } from "../../../utils/sync";
-import { join } from "../../../utils/uri";
+import { directoryRelativeUrl, join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
+import { samplesUrl } from "../../routing/url";
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -133,10 +134,33 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   // Transform logDetails into flat rows
   const data = useMemo(() => {
     const rows: SampleRow[] = [];
+    const folderRows = new Map<string, SampleRow>();
+    const basePathAbs = samplesPath ? join(samplesPath, logDir) : logDir;
 
     Object.entries(filteredLogDetails).forEach(([logFile, details]) => {
+      const relToBase = directoryRelativeUrl(logFile, basePathAbs);
+      const relativeSegments = relToBase.split("/").filter(Boolean);
+      if (relativeSegments.length > 1) {
+        const folderName = decodeURIComponent(relativeSegments[0]);
+        if (!folderRows.has(folderName)) {
+          folderRows.set(folderName, {
+            type: "folder",
+            name: folderName,
+            logFile: join(folderName, logDir),
+            task: folderName,
+            model: "",
+            sampleId: "",
+            epoch: 0,
+            input: "",
+            target: "",
+            url: samplesUrl(join(folderName, samplesPath || ""), logDir),
+          });
+        }
+      }
+
       details.sampleSummaries.forEach((sample) => {
         const row: SampleRow = {
+          type: "sample",
           logFile,
           task: details.eval.task || "",
           model: details.eval.model || "",
@@ -164,8 +188,27 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
       });
     });
 
-    return rows;
-  }, [filteredLogDetails]);
+    const allRows = [...Array.from(folderRows.values()), ...rows];
+
+    allRows.sort((a, b) => {
+      const rank = (t?: string) => (t === "folder" ? 0 : 1);
+      const r = rank(a.type) - rank(b.type);
+      if (r !== 0) return r;
+      const nameA = a.name || a.task || "";
+      const nameB = b.name || b.task || "";
+      return nameA.localeCompare(nameB);
+    });
+
+    // assign display index to non-folder rows
+    let displayIndex = 1;
+    allRows.forEach((row) => {
+      if (row.type !== "folder") {
+        row.displayIndex = displayIndex++;
+      }
+    });
+
+    return allRows;
+  }, [filteredLogDetails, logDir, samplesPath]);
 
   const resizeGridColumns = useCallback(
     debounce(() => {
@@ -191,12 +234,23 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           mouseEvent?.button === 1;
 
         // Use setTimeout to allow grid state to update before navigation
-        const logFile = e.data.logFile;
-        const sampleId = e.data.sampleId;
-        const epoch = e.data.epoch;
-        setTimeout(() => {
-          navigateToSampleDetail(logFile, sampleId, epoch, openInNewWindow);
-        }, 10);
+        if (e.data.type === "folder" && e.data.url) {
+          const url = e.data.url;
+          setTimeout(() => {
+            if (openInNewWindow) {
+              window.open(url, "_blank");
+            } else {
+              window.location.hash = `#${url}`;
+            }
+          }, 10);
+        } else {
+          const logFile = e.data.logFile;
+          const sampleId = e.data.sampleId;
+          const epoch = e.data.epoch;
+          setTimeout(() => {
+            navigateToSampleDetail(logFile, sampleId, epoch, openInNewWindow);
+          }, 10);
+        }
       }
     },
     [navigateToSampleDetail, gridRef],
@@ -304,12 +358,20 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
               gridRef.current.api.getDisplayedRowAtIndex(currentRowIndex);
             if (rowNode?.data) {
               const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
-              navigateToSampleDetail(
-                rowNode.data.logFile,
-                rowNode.data.sampleId,
-                rowNode.data.epoch,
-                openInNewWindow,
-              );
+              if (rowNode.data.type === "folder" && rowNode.data.url) {
+                if (openInNewWindow) {
+                  window.open(rowNode.data.url, "_blank");
+                } else {
+                  window.location.hash = `#${rowNode.data.url}`;
+                }
+              } else {
+                navigateToSampleDetail(
+                  rowNode.data.logFile,
+                  rowNode.data.sampleId,
+                  rowNode.data.epoch,
+                  openInNewWindow,
+                );
+              }
             }
           }
           break;
@@ -348,7 +410,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     logFile: string,
     sampleId: string | number,
     epoch: number,
+    type?: string,
   ) => {
+    if (type === "folder") {
+      return `folder-${logFile}`.replace(/\s+/g, "_");
+    }
     return `${logFile}-${sampleId}-${epoch}`.replace(/\s+/g, "_");
   };
 
@@ -412,6 +478,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
               params.data.logFile,
               params.data.sampleId,
               params.data.epoch,
+              params.data.type,
             )
           }
           onGridColumnsChanged={(e: GridColumnsChangedEvent<SampleRow>) => {
@@ -429,26 +496,20 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           onStateUpdated={(e: StateUpdatedEvent<SampleRow>) => {
             setGridState(e.state);
             if (gridRef.current?.api) {
-              const displayedRowCount =
-                gridRef.current.api.getDisplayedRowCount();
-              setFilteredSampleCount(displayedRowCount);
-
               const gridCurrentSamples = gridDisplayedSamples(
                 gridRef.current.api,
               );
+              setFilteredSampleCount(gridCurrentSamples.length);
               setDisplayedSamples(gridCurrentSamples);
             }
           }}
           onRowClicked={handleRowClick}
           onFilterChanged={() => {
             if (gridRef.current?.api) {
-              const displayedRowCount =
-                gridRef.current.api.getDisplayedRowCount();
-              setFilteredSampleCount(displayedRowCount);
-
               const newDisplayedSamples = gridDisplayedSamples(
                 gridRef.current.api,
               );
+              setFilteredSampleCount(newDisplayedSamples.length);
               setDisplayedSamples(newDisplayedSamples);
             }
           }}
@@ -471,7 +532,7 @@ const gridDisplayedSamples = (
   const displayedRowCount = gridApi.getDisplayedRowCount();
   for (let i = 0; i < displayedRowCount; i++) {
     const node = gridApi.getDisplayedRowAtIndex(i);
-    if (node?.data) {
+    if (node?.data && node.data.type !== "folder") {
       displayedSamples.push({
         logFile: node.data.logFile,
         sampleId: node.data.sampleId,

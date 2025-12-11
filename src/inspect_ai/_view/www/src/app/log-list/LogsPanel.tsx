@@ -153,11 +153,34 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         }
       }
 
+      // Restore prior behavior: folders first, then files (both alphabetical)
+      logItems.sort((a, b) => {
+        const rank = (t: string) => (t === "folder" ? 0 : t === "file" ? 1 : 2);
+        const r = rank(a.type) - rank(b.type);
+        if (r !== 0) return r;
+        return a.name.localeCompare(b.name);
+      });
+
       const collapsedLogItems: Array<
         FileLogItem | FolderLogItem | PendingTaskItem
       > = collapseLogItems(evalSet, logItems);
 
-      return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
+      const withPending = appendPendingItems(
+        evalSet,
+        existingLogTaskIds,
+        collapsedLogItems,
+      );
+
+      // Assign display index to non-folder rows only
+      let displayIndex = 1;
+      const numbered = withPending.map((item) => {
+        if (item.type === "folder") {
+          return item;
+        }
+        return { ...item, displayIndex: displayIndex++ };
+      });
+
+      return numbered;
     }, [evalSet, logFiles, currentDir, logDir, logPreviews]);
 
   const progress = useMemo(() => {

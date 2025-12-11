@@ -1,8 +1,10 @@
 import { ColDef } from "ag-grid-community";
 import { useEffect, useMemo } from "react";
-import { useStore } from "../../../state/store";
 import { LogDetails } from "../../../client/api/types";
 import { filename } from "../../../utils/path";
+import { useStore } from "../../../state/store";
+import { ApplicationIcons } from "../../appearance/icons";
+import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
 
 export const getFieldKey = (col: ColDef<SampleRow>): string => {
@@ -70,22 +72,30 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
     const baseColumns: ColDef<SampleRow>[] = [
       {
         headerName: "#",
-        valueGetter: (params) => {
-          if (
-            params.node?.rowIndex !== null &&
-            params.node?.rowIndex !== undefined
-          ) {
-            return params.node.rowIndex + 1;
-          }
-          return "";
-        },
-        initialWidth: 80,
+        initialWidth: 56,
         minWidth: 50,
-        maxWidth: 80,
+        maxWidth: 72,
         sortable: false,
         filter: false,
         resizable: false,
         pinned: "left",
+        cellRenderer: (params) => {
+          if (params.data?.type === "folder") {
+            return (
+              <div className={styles.iconCell}>
+                <i className={ApplicationIcons.folder} />
+              </div>
+            );
+          }
+          if (params.data?.displayIndex !== undefined) {
+            return (
+              <div className={styles.numberCell}>
+                {params.data.displayIndex}
+              </div>
+            );
+          }
+          return "";
+        },
       },
       {
         field: "task",
@@ -95,6 +105,24 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
+        colSpan: (params) => (params.data?.type === "folder" ? 100 : 1),
+        cellRenderer: (params) => {
+          const item = params.data;
+          if (!item) return null;
+          const value = item.task || item.name;
+          if (item.type === "folder" && item.url) {
+            return (
+              <a
+                href={`#${item.url}`}
+                className={styles.folderLink}
+                title={value}
+              >
+                {value}
+              </a>
+            );
+          }
+          return <span className={styles.taskText}>{value}</span>;
+        },
       },
       {
         field: "model",
@@ -260,3 +288,4 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
     setColumnVisibility,
   };
 };
+

@@ -18,3 +18,25 @@
   color: var(--bs-link-hover-color);
   text-decoration: underline;
 }
+
+.folderLink {
+  color: var(--bs-link-color);
+  text-decoration: none;
+  display: block;
+  overflow: hidden;
+  white-space: normal;
+  text-overflow: ellipsis;
+}
+
+.folderLink:hover {
+  color: var(--bs-link-hover-color);
+  text-decoration: underline;
+}
+
+.taskText {
+  color: var(--bs-body-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}

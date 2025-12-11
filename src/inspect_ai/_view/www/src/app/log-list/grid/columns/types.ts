@@ -4,6 +4,7 @@ export interface LogListRow {
   id: string;
   name: string;
   type: "file" | "folder" | "pending-task";
+  displayIndex?: number;
   url?: string;
   task?: string;
   model?: string;
