@@ -94,7 +94,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
   const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
     useMemo(() => {
-      const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> = [];
+      const folderItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
+        [];
+      const fileItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> = [];
 
       const processedFolders = new Set<string>();
       const existingLogTaskIds = new Set<string>();
@@ -124,7 +126,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             decodeURIComponent(dirName),
           );
 
-          logItems.push({
+          fileItems.push({
             id: fileOrFolderName,
             name: fileOrFolderName,
             type: "file",
@@ -139,7 +141,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
           const url = join(dirName, decodeURIComponent(currentDirRelative));
           if (!processedFolders.has(dirName)) {
-            logItems.push({
+            folderItems.push({
               id: dirName,
               name: dirName,
               type: "folder",
@@ -153,17 +155,11 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         }
       }
 
-      // Restore prior behavior: folders first, then files (both alphabetical)
-      logItems.sort((a, b) => {
-        const rank = (t: string) => (t === "folder" ? 0 : t === "file" ? 1 : 2);
-        const r = rank(a.type) - rank(b.type);
-        if (r !== 0) return r;
-        return a.name.localeCompare(b.name);
-      });
+      const orderedItems = [...folderItems, ...fileItems];
 
       const collapsedLogItems: Array<
         FileLogItem | FolderLogItem | PendingTaskItem
-      > = collapseLogItems(evalSet, logItems);
+      > = collapseLogItems(evalSet, orderedItems);
 
       const withPending = appendPendingItems(
         evalSet,

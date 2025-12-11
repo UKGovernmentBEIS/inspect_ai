@@ -670,37 +670,9 @@ export const usePagination = (name: string, defaultPageSize: number) => {
 };
 
 export const useLogsListing = () => {
-  const sorting = useStore((state) => state.logs.listing.sorting);
-  const setSorting = useStore((state) => state.logsActions.setSorting);
-
-  const filtering = useStore((state) => state.logs.listing.filtering);
-  const setFiltering = useStore((state) => state.logsActions.setFiltering);
-
-  const globalFilter = useStore((state) => state.logs.listing.globalFilter);
-  const setGlobalFilter = useStore(
-    (state) => state.logsActions.setGlobalFilter,
-  );
-
-  const columnResizeMode = useStore(
-    (state) => state.logs.listing.columnResizeMode,
-  );
-  const setColumnResizeMode = useStore(
-    (state) => state.logsActions.setColumnResizeMode,
-  );
-
-  const columnSizes = useStore((state) => state.logs.listing.columnSizes);
-  const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
-
   const filteredCount = useStore((state) => state.logs.listing.filteredCount);
   const setFilteredCount = useStore(
     (state) => state.logsActions.setFilteredCount,
-  );
-
-  const selectedRowIndex = useStore(
-    (state) => state.logs.listing.selectedRowIndex,
-  );
-  const setSelectedRowIndex = useStore(
-    (state) => state.logsActions.setSelectedRowIndex,
   );
 
   const gridState = useStore((state) => state.logs.listing.gridState);
@@ -716,20 +688,8 @@ export const useLogsListing = () => {
   );
 
   return {
-    sorting,
-    setSorting,
-    filtering,
-    setFiltering,
-    globalFilter,
-    setGlobalFilter,
-    columnResizeMode,
-    setColumnResizeMode,
-    columnSizes,
-    setColumnSize,
     filteredCount,
     setFilteredCount,
-    selectedRowIndex,
-    setSelectedRowIndex,
     gridState,
     setGridState,
     clearGridState,

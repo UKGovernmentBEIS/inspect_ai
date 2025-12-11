@@ -1,4 +1,11 @@
-import { ColDef } from "ag-grid-community";
+import {
+  ColDef,
+  ColSpanParams,
+  ICellRendererParams,
+  ValueFormatterParams,
+  ValueGetterParams,
+  ValueParserParams,
+} from "ag-grid-community";
 import { useEffect, useMemo } from "react";
 import { LogDetails } from "../../../client/api/types";
 import { filename } from "../../../utils/path";
@@ -79,7 +86,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: false,
         resizable: false,
         pinned: "left",
-        cellRenderer: (params) => {
+        cellRenderer: (params: ICellRendererParams<SampleRow>) => {
           if (params.data?.type === "folder") {
             return (
               <div className={styles.iconCell}>
@@ -105,8 +112,9 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        colSpan: (params) => (params.data?.type === "folder" ? 100 : 1),
-        cellRenderer: (params) => {
+        colSpan: (params: ColSpanParams<SampleRow>) =>
+          params.data?.type === "folder" ? 100 : 1,
+        cellRenderer: (params: ICellRendererParams<SampleRow>) => {
           const item = params.data;
           if (!item) return null;
           const value = item.task || item.name;
@@ -141,7 +149,8 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        valueGetter: (params) => String(params.data?.sampleId ?? ""),
+        valueGetter: (params: ValueGetterParams<SampleRow>) =>
+          String(params.data?.sampleId ?? ""),
       },
       {
         field: "epoch",
@@ -181,8 +190,10 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellDataType: "date",
-        valueParser: (params) => new Date(params.newValue),
-        valueFormatter: (params) => filename(params.value),
+        valueParser: (params: ValueParserParams<SampleRow>) =>
+          new Date(params.newValue),
+        valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
+          filename(params.value),
       },
       {
         field: "target",
@@ -212,7 +223,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
               : "agTextColumnFilter",
 
           resizable: true,
-          valueFormatter: (params) => {
+          valueFormatter: (params: ValueFormatterParams<SampleRow>) => {
             // Format the score based upon its type
             const value = params.value;
             if (value === "" || value === null || value === undefined) {
@@ -268,7 +279,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
   }, [scoreMap]);
 
   const columns = useMemo((): ColDef<SampleRow>[] => {
-    const columnsWithVisibility = allColumns.map((col) => {
+    const columnsWithVisibility = allColumns.map((col: ColDef<SampleRow>) => {
       const field = getFieldKey(col);
       // Default to visible if not explicitly unselected and not optional
       const isVisible =
@@ -288,4 +299,3 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
     setColumnVisibility,
   };
 };
-

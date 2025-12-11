@@ -2,14 +2,11 @@ import type {
   ColDef,
   GridApi,
   GridColumnsChangedEvent,
+  IRowNode,
   RowClickedEvent,
   StateUpdatedEvent,
 } from "ag-grid-community";
-import {
-  AllCommunityModule,
-  ModuleRegistry,
-  themeBalham,
-} from "ag-grid-community";
+import { themeBalham } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useClientEvents } from "../../../state/clientEvents";
@@ -19,17 +16,16 @@ import { debounce } from "../../../utils/sync";
 import { directoryRelativeUrl, join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
+import "../../shared/agGrid";
+import { createGridKeyboardHandler } from "../../shared/gridNavigation";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
 import { samplesUrl } from "../../routing/url";
 
-// Register AG Grid modules
-ModuleRegistry.registerModules([AllCommunityModule]);
-
 // Sample Grid Props
 interface SamplesGridProps {
   samplesPath?: string;
-  gridRef?: RefObject<AgGridReact | null>;
+  gridRef?: RefObject<AgGridReact<SampleRow> | null>;
   columns: ColDef<SampleRow>[];
 }
 
@@ -70,7 +66,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     (state) => state.log.selectedSampleHandle,
   );
 
-  const internalGridRef = useRef<AgGridReact>(null);
+  const internalGridRef = useRef<AgGridReact<SampleRow>>(null);
   const gridRef = externalGridRef || internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
@@ -133,17 +129,19 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
   // Transform logDetails into flat rows
   const data = useMemo(() => {
-    const rows: SampleRow[] = [];
-    const folderRows = new Map<string, SampleRow>();
     const basePathAbs = samplesPath ? join(samplesPath, logDir) : logDir;
+    const result: SampleRow[] = [];
+    const seenFolders = new Set<string>();
+    let displayIndex = 1;
 
     Object.entries(filteredLogDetails).forEach(([logFile, details]) => {
       const relToBase = directoryRelativeUrl(logFile, basePathAbs);
       const relativeSegments = relToBase.split("/").filter(Boolean);
       if (relativeSegments.length > 1) {
         const folderName = decodeURIComponent(relativeSegments[0]);
-        if (!folderRows.has(folderName)) {
-          folderRows.set(folderName, {
+        if (!seenFolders.has(folderName)) {
+          seenFolders.add(folderName);
+          result.push({
             type: "folder",
             name: folderName,
             logFile: join(folderName, logDir),
@@ -175,47 +173,29 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           limit: sample.limit,
           retries: sample.retries,
           completed: sample.completed || false,
+          displayIndex: displayIndex++,
         };
 
-        // Add scores as individual fields
         if (sample.scores) {
           Object.entries(sample.scores).forEach(([scoreName, score]) => {
             row[`score_${scoreName}`] = score.value;
           });
         }
 
-        rows.push(row);
+        result.push(row);
       });
     });
 
-    const allRows = [...Array.from(folderRows.values()), ...rows];
-
-    allRows.sort((a, b) => {
-      const rank = (t?: string) => (t === "folder" ? 0 : 1);
-      const r = rank(a.type) - rank(b.type);
-      if (r !== 0) return r;
-      const nameA = a.name || a.task || "";
-      const nameB = b.name || b.task || "";
-      return nameA.localeCompare(nameB);
-    });
-
-    // assign display index to non-folder rows
-    let displayIndex = 1;
-    allRows.forEach((row) => {
-      if (row.type !== "folder") {
-        row.displayIndex = displayIndex++;
-      }
-    });
-
-    return allRows;
+    return result;
   }, [filteredLogDetails, logDir, samplesPath]);
 
-  const resizeGridColumns = useCallback(
-    debounce(() => {
-      // Trigger column sizing after grid is ready
-      gridRef.current?.api?.sizeColumnsToFit();
-    }, 10),
-    [],
+  const resizeGridColumns = useMemo(
+    () =>
+      debounce(() => {
+        // Trigger column sizing after grid is ready
+        gridRef.current?.api?.sizeColumnsToFit();
+      }, 10),
+    [gridRef],
   );
 
   const handleRowClick = useCallback(
@@ -256,142 +236,37 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     [navigateToSampleDetail, gridRef],
   );
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!gridRef.current?.api) {
+  const handleOpenRow = useCallback(
+    (rowNode: IRowNode<SampleRow>, e: KeyboardEvent) => {
+      const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
+      if (rowNode.data?.type === "folder" && rowNode.data.url) {
+        if (openInNewWindow) {
+          window.open(rowNode.data.url, "_blank");
+        } else {
+          window.location.hash = `#${rowNode.data.url}`;
+        }
         return;
       }
 
-      // Don't handle keyboard events if focus is on an input, textarea, or select element
-      const activeElement = document.activeElement;
-      if (
-        activeElement &&
-        (activeElement.tagName === "INPUT" ||
-          activeElement.tagName === "TEXTAREA" ||
-          activeElement.tagName === "SELECT")
-      ) {
-        return;
-      }
-
-      // Get the currently selected row
-      const selectedRows = gridRef.current.api.getSelectedNodes();
-      const totalRows = gridRef.current.api.getDisplayedRowCount();
-
-      // Determine current row index from selection or default to -1
-      let currentRowIndex = -1;
-      if (selectedRows.length > 0 && selectedRows[0].rowIndex !== null) {
-        currentRowIndex = selectedRows[0].rowIndex;
-      }
-
-      let targetRowIndex: number | null = null;
-
-      switch (e.key) {
-        case "ArrowUp":
-          e.preventDefault();
-          if (e.metaKey || e.ctrlKey) {
-            // Cmd/Ctrl + ArrowUp: Go to first row
-            targetRowIndex = 0;
-          } else {
-            // ArrowUp: Go to previous row
-            if (currentRowIndex === -1) {
-              targetRowIndex = 0;
-            } else {
-              targetRowIndex = Math.max(0, currentRowIndex - 1);
-            }
-          }
-          break;
-
-        case "ArrowDown":
-          e.preventDefault();
-          if (e.metaKey || e.ctrlKey) {
-            // Cmd/Ctrl + ArrowDown: Go to last row
-            targetRowIndex = totalRows - 1;
-          } else {
-            // ArrowDown: Go to next row
-            if (currentRowIndex === -1) {
-              targetRowIndex = 0;
-            } else {
-              targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 1);
-            }
-          }
-          break;
-
-        case "Home":
-          e.preventDefault();
-          // Home: Go to first row
-          targetRowIndex = 0;
-          break;
-
-        case "End":
-          e.preventDefault();
-          // End: Go to last row
-          targetRowIndex = totalRows - 1;
-          break;
-
-        case "PageUp":
-          e.preventDefault();
-          // PageUp: Go up 10 rows (or to first row)
-          if (currentRowIndex === -1) {
-            targetRowIndex = 0;
-          } else {
-            targetRowIndex = Math.max(0, currentRowIndex - 10);
-          }
-          break;
-
-        case "PageDown":
-          e.preventDefault();
-          // PageDown: Go down 10 rows (or to last row)
-          if (currentRowIndex === -1) {
-            targetRowIndex = 0;
-          } else {
-            targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 10);
-          }
-          break;
-
-        case "Enter":
-        case " ": {
-          // Space key
-          e.preventDefault();
-          // Enter/Space: Open the selected row
-          if (currentRowIndex !== -1) {
-            const rowNode =
-              gridRef.current.api.getDisplayedRowAtIndex(currentRowIndex);
-            if (rowNode?.data) {
-              const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
-              if (rowNode.data.type === "folder" && rowNode.data.url) {
-                if (openInNewWindow) {
-                  window.open(rowNode.data.url, "_blank");
-                } else {
-                  window.location.hash = `#${rowNode.data.url}`;
-                }
-              } else {
-                navigateToSampleDetail(
-                  rowNode.data.logFile,
-                  rowNode.data.sampleId,
-                  rowNode.data.epoch,
-                  openInNewWindow,
-                );
-              }
-            }
-          }
-          break;
-        }
-
-        default:
-          return;
-      }
-
-      // Navigate to target row if set
-      if (targetRowIndex !== null && targetRowIndex !== currentRowIndex) {
-        const targetNode =
-          gridRef.current.api.getDisplayedRowAtIndex(targetRowIndex);
-        if (targetNode) {
-          targetNode.setSelected(true, true); // true = select, true = clear other selections
-          gridRef.current.api.ensureIndexVisible(targetRowIndex, "middle");
-        }
+      if (rowNode.data) {
+        navigateToSampleDetail(
+          rowNode.data.logFile,
+          rowNode.data.sampleId,
+          rowNode.data.epoch,
+          openInNewWindow,
+        );
       }
     },
-    [gridRef, navigateToSampleDetail],
+    [navigateToSampleDetail],
+  );
+
+  const handleKeyDown = useMemo(
+    () =>
+      createGridKeyboardHandler<SampleRow>({
+        gridRef,
+        onOpenRow: handleOpenRow,
+      }),
+    [gridRef, handleOpenRow],
   );
 
   // Set up keyboard event listener

@@ -8,16 +8,9 @@ import { basename } from "../../../../utils/path";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { LogListRow } from "./types";
 
-import iconStyles from "./Icon.module.css";
-import taskStyles from "./Task.module.css";
-import modelStyles from "./Model.module.css";
-import scoreStyles from "./Score.module.css";
-import statusStyles from "./Status.module.css";
-import dateStyles from "./CompletedDate.module.css";
-import fileNameStyles from "./FileName.module.css";
-import emptyStyles from "./EmptyCell.module.css";
+import styles from "./columns.module.css";
 
-const EmptyCell = () => <div className={emptyStyles.emptyCell}>—</div>;
+const EmptyCell = () => <div className={styles.emptyCell}>-</div>;
 
 export const useLogListColumns = (
   _data: LogListRow[],
@@ -39,27 +32,19 @@ export const useLogListColumns = (
           const type = params.data?.type;
           if (type === "folder") {
             return (
-              <div className={iconStyles.iconCell}>
+              <div className={styles.iconCell}>
                 <i className={clsx(ApplicationIcons.folder)} />
               </div>
             );
           }
           if (params.data?.displayIndex !== undefined) {
             return (
-              <div className={iconStyles.numberCell}>
+              <div className={styles.numberCell}>
                 {params.data.displayIndex}
               </div>
             );
           }
           return "";
-        },
-        comparator: (valueA, valueB, nodeA, nodeB) => {
-          const rank = (t: string) => (t === "folder" ? 0 : 1);
-          const r = rank(valueA) - rank(valueB);
-          if (r !== 0) return r;
-          const nameA = nodeA?.data?.name || "";
-          const nameB = nodeB?.data?.name || "";
-          return nameA.localeCompare(nameB);
         },
       },
       {
@@ -87,17 +72,17 @@ export const useLogListColumns = (
             value = item.task || parseLogFileName(item.name).name;
           }
           return (
-            <div className={taskStyles.nameCell}>
+            <div className={styles.nameCell}>
               {item.type === "folder" && item.url ? (
                 <Link
                   to={item.url}
-                  className={taskStyles.folderLink}
+                  className={styles.folderLink}
                   title={item.name}
                 >
                   {value}
                 </Link>
               ) : (
-                <span className={taskStyles.taskText}>{value}</span>
+                <span className={styles.taskText}>{value}</span>
               )}
             </div>
           );
@@ -116,7 +101,7 @@ export const useLogListColumns = (
           const item = params.data;
           if (!item) return null;
           if (item.model) {
-            return <div className={modelStyles.modelCell}>{item.model}</div>;
+            return <div className={styles.modelCell}>{item.model}</div>;
           }
           return <EmptyCell />;
         },
@@ -140,7 +125,7 @@ export const useLogListColumns = (
             return <EmptyCell />;
           }
           return (
-            <div className={scoreStyles.scoreCell}>
+            <div className={styles.scoreCell}>
               {formatPrettyDecimal(item.score)}
             </div>
           );
@@ -178,17 +163,17 @@ export const useLogListColumns = (
 
           const clz =
             item.type === "pending-task"
-              ? statusStyles.started
+              ? styles.started
               : status === "error"
-                ? statusStyles.error
+                ? styles.error
                 : status === "started"
-                  ? statusStyles.started
+                  ? styles.started
                   : status === "cancelled"
-                    ? statusStyles.cancelled
-                    : statusStyles.success;
+                    ? styles.cancelled
+                    : styles.success;
 
           return (
-            <div className={statusStyles.statusCell}>
+            <div className={styles.statusCell}>
               <i className={clsx(icon, clz)} />
             </div>
           );
@@ -231,7 +216,7 @@ export const useLogListColumns = (
               minute: "2-digit",
             },
           )}`;
-          return <div className={dateStyles.dateCell}>{timeStr}</div>;
+          return <div className={styles.dateCell}>{timeStr}</div>;
         },
         comparator: (_valueA, _valueB, nodeA, nodeB) => {
           const completedA = nodeA.data?.completedAt;
@@ -261,9 +246,9 @@ export const useLogListColumns = (
           }
           const value = basename(item.name);
           return (
-            <div className={fileNameStyles.nameCell}>
+            <div className={styles.nameCell}>
               {item.url ? (
-                <Link to={item.url} className={fileNameStyles.fileLink}>
+                <Link to={item.url} className={styles.fileLink}>
                   {value}
                 </Link>
               ) : (

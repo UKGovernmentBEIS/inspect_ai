@@ -1,18 +1,17 @@
 import type {
   GridColumnsChangedEvent,
+  IRowNode,
   RowClickedEvent,
   StateUpdatedEvent,
 } from "ag-grid-community";
-import {
-  AllCommunityModule,
-  ModuleRegistry,
-  themeBalham,
-} from "ag-grid-community";
+import { themeBalham } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import clsx from "clsx";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
+import "../../shared/agGrid";
+import { createGridKeyboardHandler } from "../../shared/gridNavigation";
 import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
@@ -20,8 +19,6 @@ import styles from "./LogListGrid.module.css";
 import { useLogListColumns } from "./columns/hooks";
 import { LogListRow } from "./columns/types";
 import { computeInitialLogGridState } from "./gridState";
-
-ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface LogListGridProps {
   items: Array<FileLogItem | FolderLogItem | PendingTaskItem>;
@@ -71,7 +68,10 @@ export const LogListGrid: FC<LogListGridProps> = ({
       return {
         id: item.id,
         name: item.name,
-        displayIndex: item.displayIndex,
+        displayIndex:
+          item.type === "file" || item.type === "pending-task"
+            ? item.displayIndex
+            : undefined,
         type: item.type,
         url: item.url,
         task: item.type === "file" ? preview?.task : item.name,
@@ -132,122 +132,31 @@ export const LogListGrid: FC<LogListGridProps> = ({
         }
       }
     },
-    [navigate],
+    [navigate, gridRef],
   );
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!gridRef.current?.api) {
+  const handleOpenRow = useCallback(
+    (rowNode: IRowNode<LogListRow>, e: KeyboardEvent) => {
+      if (!rowNode.data?.url) {
         return;
       }
-
-      const activeElement = document.activeElement;
-      if (
-        activeElement &&
-        (activeElement.tagName === "INPUT" ||
-          activeElement.tagName === "TEXTAREA" ||
-          activeElement.tagName === "SELECT")
-      ) {
-        return;
-      }
-
-      const selectedRows = gridRef.current.api.getSelectedNodes();
-      const totalRows = gridRef.current.api.getDisplayedRowCount();
-
-      let currentRowIndex = -1;
-      if (selectedRows.length > 0 && selectedRows[0].rowIndex !== null) {
-        currentRowIndex = selectedRows[0].rowIndex;
-      }
-
-      let targetRowIndex: number | null = null;
-
-      switch (e.key) {
-        case "ArrowUp":
-          e.preventDefault();
-          if (e.metaKey || e.ctrlKey) {
-            targetRowIndex = 0;
-          } else {
-            if (currentRowIndex === -1) {
-              targetRowIndex = 0;
-            } else {
-              targetRowIndex = Math.max(0, currentRowIndex - 1);
-            }
-          }
-          break;
-
-        case "ArrowDown":
-          e.preventDefault();
-          if (e.metaKey || e.ctrlKey) {
-            targetRowIndex = totalRows - 1;
-          } else {
-            if (currentRowIndex === -1) {
-              targetRowIndex = 0;
-            } else {
-              targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 1);
-            }
-          }
-          break;
-
-        case "Home":
-          e.preventDefault();
-          targetRowIndex = 0;
-          break;
-
-        case "End":
-          e.preventDefault();
-          targetRowIndex = totalRows - 1;
-          break;
-
-        case "PageUp":
-          e.preventDefault();
-          if (currentRowIndex === -1) {
-            targetRowIndex = 0;
-          } else {
-            targetRowIndex = Math.max(0, currentRowIndex - 10);
-          }
-          break;
-
-        case "PageDown":
-          e.preventDefault();
-          if (currentRowIndex === -1) {
-            targetRowIndex = 0;
-          } else {
-            targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 10);
-          }
-          break;
-
-        case "Enter":
-        case " ": {
-          e.preventDefault();
-          if (currentRowIndex !== -1) {
-            const rowNode =
-              gridRef.current.api.getDisplayedRowAtIndex(currentRowIndex);
-            if (rowNode?.data?.url) {
-              const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
-              if (openInNewWindow) {
-                window.open(rowNode.data.url, "_blank");
-              } else {
-                navigate(rowNode.data.url);
-              }
-            }
-          }
-          break;
-        }
-
-        default:
-          return;
-      }
-
-      if (targetRowIndex !== null && targetRowIndex !== currentRowIndex) {
-        const targetNode =
-          gridRef.current.api.getDisplayedRowAtIndex(targetRowIndex);
-        if (targetNode) {
-          targetNode.setSelected(true, true);
-          gridRef.current.api.ensureIndexVisible(targetRowIndex, "middle");
-        }
+      const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
+      if (openInNewWindow) {
+        window.open(rowNode.data.url, "_blank");
+      } else {
+        navigate(rowNode.data.url);
       }
     },
     [navigate],
+  );
+
+  const handleKeyDown = useMemo(
+    () =>
+      createGridKeyboardHandler<LogListRow>({
+        gridRef,
+        onOpenRow: handleOpenRow,
+      }),
+    [gridRef, handleOpenRow],
   );
 
   useEffect(() => {
@@ -284,7 +193,13 @@ export const LogListGrid: FC<LogListGridProps> = ({
       const displayedRowCount = gridRef.current.api.getDisplayedRowCount();
       setFilteredCount(displayedRowCount);
     }
-  }, [loadAllLogOverviews, setWatchedLogs, logFiles, setFilteredCount]);
+  }, [
+    loadAllLogOverviews,
+    setWatchedLogs,
+    logFiles,
+    setFilteredCount,
+    gridRef,
+  ]);
 
   const maxColCount = useRef(0);
 
@@ -298,7 +213,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
         gridRef.current?.api?.sizeColumnsToFit();
       }, 10);
     };
-  }, []);
+  }, [gridRef]);
 
   return (
     <div className={clsx(styles.gridWrapper)}>
