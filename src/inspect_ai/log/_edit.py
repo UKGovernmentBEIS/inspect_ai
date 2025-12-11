@@ -81,7 +81,20 @@ def invalidate_samples(
     sample_uuids: Sequence[str] | Literal["all"],
     provenance: ProvenanceData,
 ) -> EvalLog:
-    """Invalidate samples in the log."""
+    """Invalidate samples in the log.
+
+    Additionally, sets `EvalLog.invalidated = False`. Logs with invalidated samples will be automatically retried when executing eval sets.
+
+    The log with invalidated samples is returned but not persisted to storage. Use `write_eval_log()` to save the new log with invalidated samples.
+
+    Args:
+       log: Eval log
+       sample_uuids: List of sample uuids to invalidate (or "all" to invaliate all samples).
+       provenance: Timestamp and optional author, reason, and metadata for the invalidation.
+
+    Returns:
+       `EvalLog` with invalidated samples and `invalidated=True`.
+    """
     sample_uuid_map = _prepare_samples(log, sample_uuids)
     if not sample_uuid_map:
         return log
@@ -93,7 +106,19 @@ def invalidate_samples(
 def uninvalidate_samples(
     log: EvalLog, sample_uuids: Sequence[str] | Literal["all"]
 ) -> EvalLog:
-    """Uninvalidate samples in the log."""
+    """Uninvalidate samples in the log.
+
+    Additionally, sets `EvalLog.invalidated = True` if there are no more invalidated samples.
+
+    The log with uninvalidated samples is returned but not persisted to storage. Use `write_eval_log()` to save the new log with uninvalidated samples.
+
+    Args:
+       log: Eval log
+       sample_uuids: List of sample uuids to uninvalidate (or "all" to uninvalidate all samples).
+
+    Returns:
+       `EvalLog` with uninvalidate samples and updated global `invalidated` state.
+    """
     sample_uuid_map = _prepare_samples(log, sample_uuids)
     if not sample_uuid_map:
         return log

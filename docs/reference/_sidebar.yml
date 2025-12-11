@@ -439,8 +439,6 @@ website:
           href: reference/inspect_ai.log.qmd#read_eval_log_samples
         - text: read_eval_log_sample_summaries
           href: reference/inspect_ai.log.qmd#read_eval_log_sample_summaries
-        - text: edit_score
-          href: reference/inspect_ai.log.qmd#edit_score
         - text: recompute_metrics
           href: reference/inspect_ai.log.qmd#recompute_metrics
         - text: convert_eval_logs
@@ -453,6 +451,14 @@ website:
           href: reference/inspect_ai.log.qmd#retryable_eval_logs
         - text: EvalLogInfo
           href: reference/inspect_ai.log.qmd#evalloginfo
+        - text: edit_score
+          href: reference/inspect_ai.log.qmd#edit_score
+        - text: invalidate_samples
+          href: reference/inspect_ai.log.qmd#invalidate_samples
+        - text: uninvalidate_samples
+          href: reference/inspect_ai.log.qmd#uninvalidate_samples
+        - text: ProvenanceData
+          href: reference/inspect_ai.log.qmd#provenancedata
         - text: EvalLog
           href: reference/inspect_ai.log.qmd#evallog
         - text: EvalSpec
