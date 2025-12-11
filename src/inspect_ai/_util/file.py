@@ -244,7 +244,8 @@ class FileSystem:
         # Data Writer). The marker file can just be gc'd later.
         _WRITE_TEST_FILENAME = ".inspect_write_test"
         touch_filename = _WRITE_TEST_FILENAME if is_azure_path(path) else uuid()
-        touch_file = f"{path.rstrip('/\\')}{self.fs.sep}{touch_filename}"
+        path.rstrip("/\\")
+        touch_file = f"{path}{self.fs.sep}{touch_filename}"
         try:
             self.touch(touch_file)
         except PermissionError:
