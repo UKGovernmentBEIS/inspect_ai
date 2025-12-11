@@ -1,5 +1,6 @@
 import os
 from typing import Any, Callable, TypeVar
+from urllib.parse import urlparse
 
 AZURE_SCHEMES = {"az", "abfs", "abfss"}
 
@@ -68,3 +69,9 @@ def call_with_azure_auth_fallback(
         if is_azure_auth_error(ex):
             return fallback_return_value
         raise
+
+
+def is_azure_path(path: str) -> bool:
+    """Return True if the URI/path uses an Azure-backed scheme."""
+    scheme = urlparse(path).scheme.lower()
+    return scheme in AZURE_SCHEMES
