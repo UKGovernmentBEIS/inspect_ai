@@ -447,7 +447,7 @@ inspect eval hf/OpenEvals/aime_24 --model openai/gpt-5
 Here are the `eval.yaml` definitions for several Hugging Face datasets:
 
 - [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24/blob/main/eval.yaml)
-- [OpenEvals/simpleqa](https://huggingface.co/datasets/OpenEvals/SimpleQA/blob/main/eval.yaml)
+- [OpenEvals/SimpleQA](https://huggingface.co/datasets/OpenEvals/SimpleQA/blob/main/eval.yaml)
 - [OpenEvals/MuSR](https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml)
 
 A dataset’s `eval.yaml` file defines a list of tasks. Here are the
@@ -457,7 +457,7 @@ in constructing `Task` instances:
 | Field             | Default   | Usage                       |
 |-------------------|-----------|-----------------------------|
 | `subset`          | “default” | `hf_dataset(name)`          |
-| `splits`          | “test”    | `hf_dataset(split`)         |
+| `splits`          | “test”    | `hf_dataset(split)`         |
 | `field_spec`      | None      | `hf_dataset(sample_fields)` |
 | `shuffle_choices` | None      | `dataset.shuffle_choices()` |
 | `epochs`          | 1         | `Epochs(epochs)`            |
@@ -465,6 +465,16 @@ in constructing `Task` instances:
 | `solvers`         | None      | `Task(solver)`              |
 | `scorer`          | None      | `Task(scorer)`              |
 | `name`            | None      | `hf/org/dataset/name`       |
+
+- `field_spec.choices` can be either a single string (the key for one
+  field in each record) or a list of strings (multiple fields, whose
+  values will form the choices list for each sample).
+- `field_spec.target` can be:
+  - A literal value, specified as `literal:<value>`, where `<value>`
+    will be used directly as the target.
+  - A field name corresponding to a letter, or an integer; in this case,
+    the integer (e.g., 0, 1, 2) will be mapped to a letter (`A`, `B`,
+    `C`, etc.) for use as the target.
 
 ### Multiple Tasks
 

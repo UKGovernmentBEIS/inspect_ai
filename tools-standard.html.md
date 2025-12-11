@@ -627,7 +627,7 @@ from inspect_ai.tool import code_execution
 def code_execution_task():
     return Task(
         dataset=[Sample("Add 435678 + 23457")],
-        solver=react(tools=[code_execution())
+        solver=react(tools=[code_execution()])
     )
 ```
 
@@ -942,9 +942,9 @@ def intercode_ctf():
 ### Tool Description
 
 In the original [think tool
-article]((https://www.anthropic.com/engineering/claude-think-tool))
-(which was based on experimenting with Claude) they found that providing
-clear instructions on when and how to use the `think()` tool for the
+article](https://www.anthropic.com/engineering/claude-think-tool) (which
+was based on experimenting with Claude) they found that providing clear
+instructions on when and how to use the `think()` tool for the
 particular problem domain it is being used within could sometimes be
 helpful. For example, here’s the prompt they used with SWE-Bench:
 

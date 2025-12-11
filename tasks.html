@@ -933,7 +933,7 @@ Note
 <p>Here are the <code>eval.yaml</code> definitions for several Hugging Face datasets:</p>
 <ul>
 <li><a href="https://huggingface.co/datasets/OpenEvals/aime_24/blob/main/eval.yaml">OpenEvals/aime_24</a></li>
-<li><a href="https://huggingface.co/datasets/OpenEvals/SimpleQA/blob/main/eval.yaml">OpenEvals/simpleqa</a></li>
+<li><a href="https://huggingface.co/datasets/OpenEvals/SimpleQA/blob/main/eval.yaml">OpenEvals/SimpleQA</a></li>
 <li><a href="https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml">OpenEvals/MuSR</a></li>
 </ul>
 <p>A dataset’s <code>eval.yaml</code> file defines a list of tasks. Here are the fields that can be included in a task definition and how they are used in constructing <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> instances:</p>
@@ -959,7 +959,7 @@ Note
 <tr class="even">
 <td><code>splits</code></td>
 <td>“test”</td>
-<td><code>hf_dataset(split</code>)</td>
+<td><code>hf_dataset(split)</code></td>
 </tr>
 <tr class="odd">
 <td><code>field_spec</code></td>
@@ -998,6 +998,14 @@ Note
 </tr>
 </tbody>
 </table>
+<ul>
+<li><code>field_spec.choices</code> can be either a single string (the key for one field in each record) or a list of strings (multiple fields, whose values will form the choices list for each sample).</li>
+<li><code>field_spec.target</code> can be:
+<ul>
+<li>A literal value, specified as <code>literal:&lt;value&gt;</code>, where <code>&lt;value&gt;</code> will be used directly as the target.</li>
+<li>A field name corresponding to a letter, or an integer; in this case, the integer (e.g., 0, 1, 2) will be mapped to a letter (<code>A</code>, <code>B</code>, <code>C</code>, etc.) for use as the target.</li>
+</ul></li>
+</ul>
 <section id="multiple-tasks" class="level3">
 <h3 class="anchored" data-anchor-id="multiple-tasks">Multiple Tasks</h3>
 <p>Datasets can define multiple named tasks. For example, the <a href="https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml">OpenEvals/MuSR</a> dataset defines 3 tasks: <code>musr:murder_mysteries</code>, <code>musr:object_placements</code>, and <code>musr:team_allocation</code>. If you call <code>inspect eval</code> with no task qualification, all 3 tasks will be run. If you append a task name, only that task will be run:</p>

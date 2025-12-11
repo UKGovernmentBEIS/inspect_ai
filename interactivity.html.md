@@ -156,7 +156,7 @@ and tables) to present your input user interface.
 ## Formatting
 
 The `console.print()` method supports
-[formatting]((https://rich.readthedocs.io/en/stable/console.html)) using
+[formatting](https://rich.readthedocs.io/en/stable/console.html) using
 simple markup. For example:
 
 ``` python

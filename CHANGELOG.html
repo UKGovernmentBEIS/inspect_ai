@@ -318,10 +318,16 @@ ul.task-list li input[type="checkbox"] {
 <li>Logging: Support for writing logs to Azure Blob Storage (<code>az://</code>).</li>
 <li>Tasks: Ability to run Inspect tasks defined within datasets on <a href="https://inspect.aisi.org.uk/tasks.html#hugging-face">Hugging Face Hub</a>.</li>
 <li>Tasks: Run <code>cleanup()</code> function at the end of the sample (after scoring) rather than after solvers.</li>
+<li>Grok: Option to disable GRPC retries (<code>disable_retry</code>) for waiting time tracking.</li>
+<li>OpenAI: Added support for “xhigh” <code>reasoning_effort</code> option.</li>
 <li>Agent Bridge: <code>model</code> option is now used only as a fallback if the request model is not for “inspect” or “inspect/*“.</li>
 <li>React Agent: Remove newlines from default prompts.</li>
 <li>Human Agent: Support for non-scalar values returned from intermediate scoring.</li>
+<li>Inspect View: Print IP address of remote server when binding to 0.0.0.0.</li>
+<li>Computer Tool: Add computer use tool version support for Claude Opus 4.5.</li>
 <li>Bugfix: Copy <code>metadata</code> field to new eval for <code>eval-retry</code>.</li>
+<li>Bugfix: Retry when parsing an incomplete bridged tool call response.</li>
+<li>Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.</li>
 </ul>
 </section>
 <section id="december-2025" class="level2">

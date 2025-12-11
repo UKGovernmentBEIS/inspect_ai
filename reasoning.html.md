@@ -182,8 +182,8 @@ inspect eval math.py \
 ```
 
 Gemini 3 supports `thinking_level`s “low” and “high”, so Inspect maps
-reasoning effort levels “minimal” or “low” to “low” and “medium” or
-“high” to “high” ([Gemini support for “medium” is coming
+reasoning effort levels “minimal” or “low” to “low” and “medium”,
+“high”, “xhigh” to “high” ([Gemini support for “medium” is coming
 soon](https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#thinking_level)).
 
 For Gemini 2.5, you can use the `--reasoning-tokens` option to control
