@@ -99,7 +99,7 @@ def test_google_code_execution() -> None:
 @skip_if_no_google
 @skip_if_no_docker
 def test_google_code_execution_python() -> None:
-    check_python_code_execution("google", "gemini-3-pro-preview")
+    check_python_code_execution("google", "gemini-2.5-flash")
 
 
 @skip_if_no_openai
