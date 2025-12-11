@@ -50,6 +50,9 @@ from openai.types.responses.response_code_interpreter_tool_call import (
 from openai.types.responses.response_code_interpreter_tool_call_param import (
     OutputLogs as OutputLogsParam,
 )
+from openai.types.responses.response_compaction_item_param_param import (
+    ResponseCompactionItemParamParam,
+)
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
@@ -114,6 +117,7 @@ from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
+    ContentData,
     ContentDocument,
     ContentImage,
     ContentReasoning,
@@ -176,6 +180,32 @@ class ResponsesModelInfo(Protocol):
     def is_codex(self) -> bool: ...
 
 
+def _extract_compaction_from_content_data(
+    content: str | list[Content],
+) -> ResponseCompactionItemParamParam | None:
+    """Extract compaction metadata from ContentData if present.
+
+    Args:
+        content: Message content (string or list of Content objects)
+
+    Returns:
+        ResponseCompactionItemParamParam if compaction metadata found, else None
+    """
+    if not isinstance(content, list):
+        return None
+
+    for item in content:
+        if isinstance(item, ContentData) and isinstance(item.data, dict):
+            metadata = item.data.get("compaction_metadata")
+            if metadata and metadata.get("type") == "openai_compact":
+                return ResponseCompactionItemParamParam(
+                    type="compaction",
+                    id=metadata.get("id"),
+                    encrypted_content=metadata["encrypted_content"],
+                )
+    return None
+
+
 async def openai_responses_inputs(
     messages: list[ChatMessage], model_info: ResponsesModelInfo | None = None
 ) -> list[ResponseInputItemParam]:
@@ -193,6 +223,13 @@ async def _openai_input_item_from_chat_message(
         content = await _openai_responses_content_list_param(message.content)
         return [Message(type="message", role="developer", content=content)]
     elif message.role == "user":
+        # Check if this is a compaction marker message
+        compaction_param = _extract_compaction_from_content_data(message.content)
+        if compaction_param:
+            # This is a compaction marker - return compaction item
+            return [compaction_param]
+
+        # Regular user message handling
         return [
             Message(
                 type="message",
