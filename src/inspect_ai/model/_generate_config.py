@@ -125,7 +125,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     effort: Literal["low", "medium", "high"] | None
     """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
 
-    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
     """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
 
     reasoning_tokens: int | None
@@ -222,7 +222,7 @@ class GenerateConfig(BaseModel):
     effort: Literal["low", "medium", "high"] | None = Field(default=None)
     """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
 
-    reasoning_effort: Literal["none", "minimal", "low", "medium", "high"] | None = (
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = (
         Field(default=None)
     )
     """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
