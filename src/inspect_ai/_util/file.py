@@ -15,12 +15,14 @@ from fsspec.core import split_protocol  # type: ignore  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel, Field
 from s3fs import S3FileSystem  # type: ignore
+from shortuuid import uuid
 
 from inspect_ai._util._async import configured_async_backend, current_async_backend
 from inspect_ai._util.azure import (
     AZURE_SCHEMES,
     apply_azure_fs_options,
     is_azure_delete_permission_error,
+    is_azure_path,
 )
 from inspect_ai._util.error import PrerequisiteError
 
@@ -166,9 +168,6 @@ class FileInfo(BaseModel):
     """Etag (provided by some remote filesystems)"""
 
 
-_WRITE_TEST_FILENAME = ".inspect_write_test"
-
-
 class FileSystem:
     def __init__(self, fs: Any) -> None:
         self.fs = fs
@@ -239,28 +238,33 @@ class FileSystem:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
     def is_writeable(self, path: str) -> bool:
-        path = path.rstrip("/\\")
-        touch_file = f"{path}{self.fs.sep}{_WRITE_TEST_FILENAME}"
-        # First, attempt to create a zero-byte blob/file. If this fails outright we are not writeable.
+        # first, attempt to create a zero-byte blob/file. If this fails outright we are not
+        # writeable. Azure gets a constant touch file name b/c some azure credentials can create
+        # but not delete (e.g. SAS without 'd' delete permission or managed identity with only
+        # Data Writer). The marker file can just be gc'd later.
+        _WRITE_TEST_FILENAME = ".inspect_write_test"
+        touch_filename = _WRITE_TEST_FILENAME if is_azure_path(path) else uuid()
+        touch_file = f"{path.rstrip('/\\')}{self.fs.sep}{touch_filename}"
         try:
             self.touch(touch_file)
         except PermissionError:
             return False
         except Exception:
-            # Any other failure creating the file indicates non-writeable.
+            # azure may throw other error types, treat those as non-writeable
             return False
 
-        # Attempt to remove the test blob. Some Azure credentials (e.g. SAS without 'd' delete
-        # permission or managed identity with only Data Writer) can create but not delete. Treat
-        # that as writeable (we'll leave behind a tiny marker file that can be GC'd later).
+        # attempt to remove the test file.
         try:
             self.rm(touch_file)
         except Exception as ex:
+            # tolerate azure write permission w/o delete permission
             if is_azure_delete_permission_error(ex):
                 return True
-            # Fallback: if delete failed for some other reason, report non-writeable
+
+            # if delete failed for some other reason, report non-writeable
             return False
 
+        # writeable!
         return True
 
     def is_async(self) -> bool:
