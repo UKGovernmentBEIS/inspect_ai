@@ -1488,12 +1488,6 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.log.html#edit_score" class="sidebar-item-text sidebar-link">
- <span class="menu-text">edit_score</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#recompute_metrics" class="sidebar-item-text sidebar-link">
  <span class="menu-text">recompute_metrics</span></a>
   </div>
@@ -1526,6 +1520,30 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#evalloginfo" class="sidebar-item-text sidebar-link">
  <span class="menu-text">EvalLogInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#edit_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">edit_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#invalidate_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">invalidate_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#uninvalidate_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">uninvalidate_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#provenancedata" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ProvenanceData</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2573,7 +2591,7 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td><code>--host</code></td>
 <td>text</td>
-<td>Tcp/Ip host</td>
+<td>Tcp/Ip host. Note: you can use <code>0.0.0.0</code> to expose the viewer and connect remotely (e.g.&nbsp;SSH).</td>
 <td><code>127.0.0.1</code></td>
 </tr>
 <tr class="odd">

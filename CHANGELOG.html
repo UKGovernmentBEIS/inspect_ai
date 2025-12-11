@@ -317,6 +317,7 @@ ul.task-list li input[type="checkbox"] {
 <li><a href="https://inspect.aisi.org.uk/early-stopping.html.md">Early Stopping</a> API for ending tasks early based on previously scored samples.</li>
 <li>Logging: Support for writing logs to Azure Blob Storage (<code>az://</code>).</li>
 <li>Tasks: Ability to run Inspect tasks defined within datasets on <a href="https://inspect.aisi.org.uk/tasks.html#hugging-face">Hugging Face Hub</a>.</li>
+<li>Sample invalidation which enables marking samples as invalid (forcing a retry in eval sets).</li>
 <li>Tasks: Run <code>cleanup()</code> function at the end of the sample (after scoring) rather than after solvers.</li>
 <li>Grok: Option to disable GRPC retries (<code>disable_retry</code>) for waiting time tracking.</li>
 <li>OpenAI: Added support for “xhigh” <code>reasoning_effort</code> option.</li>

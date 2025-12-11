@@ -7,7 +7,7 @@
 
 List all eval logs in a directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L78)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L79)
 
 ``` python
 def list_eval_logs(
@@ -45,7 +45,7 @@ provider (e.g. `S3FileSystem`).
 
 Write an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L126)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L127)
 
 ``` python
 def write_eval_log(
@@ -73,7 +73,7 @@ write if the current ETag matches.
 
 Write an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L157)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L158)
 
 ``` python
 async def write_eval_log_async(
@@ -101,7 +101,7 @@ write if the current ETag matches.
 
 Read an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L242)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L243)
 
 ``` python
 def read_eval_log(
@@ -129,7 +129,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L280)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L281)
 
 ``` python
 async def read_eval_log_async(
@@ -157,7 +157,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read a sample from an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L353)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L354)
 
 ``` python
 def read_eval_log_sample(
@@ -197,7 +197,7 @@ Read all samples from an evaluation log incrementally.
 Generator for samples in a log file. Only one sample at a time will be
 read into memory and yielded to the caller.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L504)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L505)
 
 ``` python
 def read_eval_log_samples(
@@ -224,7 +224,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read sample summaries from an eval log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L449)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L450)
 
 ``` python
 def read_eval_log_sample_summaries(
@@ -239,47 +239,11 @@ Log file to read.
 `format` Literal\['eval', 'json', 'auto'\]  
 Read from format (defaults to ‘auto’ based on `log_file` extension)
 
-### edit_score
-
-Edit a score in-place.
-
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_score.py#L11)
-
-``` python
-def edit_score(
-    log: EvalLog,
-    sample_id: int | str,
-    score_name: str,
-    edit: ScoreEdit,
-    recompute_metrics: bool = True,
-    epoch: int | None = None,
-) -> None
-```
-
-`log` [EvalLog](inspect_ai.log.qmd#evallog)  
-The evaluation log containing the samples and scores
-
-`sample_id` int \| str  
-ID of the sample containing the score to edit
-
-`score_name` str  
-Name of the score to edit
-
-`edit` ScoreEdit  
-The edit to apply to the score
-
-`recompute_metrics` bool  
-Whether to recompute aggregate metrics after editing
-
-`epoch` int \| None  
-Epoch number of the sample to edit (required when there are multiple
-epochs)
-
 ### recompute_metrics
 
 Recompute aggregate metrics after score edits.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_metric.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_metric.py#L9)
 
 ``` python
 def recompute_metrics(log: EvalLog) -> None
@@ -295,7 +259,7 @@ Convert between log file formats.
 Convert log file(s) to a target format. If a file is already in the
 target format it will just be copied to the output dir.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_convert.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_convert.py#L20)
 
 ``` python
 def convert_eval_logs(
@@ -334,7 +298,7 @@ entire log into memory. Useful for large logs.
 
 Bundle a log_dir into a statically deployable viewer
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_bundle.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_bundle.py#L23)
 
 ``` python
 def bundle_log_dir(
@@ -369,7 +333,7 @@ A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o
 samples) keyed by log file names (names are relative to the log
 directory)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L201)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L202)
 
 ``` python
 def write_log_dir_manifest(
@@ -402,7 +366,7 @@ Retryable logs are logs with status “error” or “cancelled” that do not
 have a corresponding log with status “success” (indicating they were
 subsequently retried and completed)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_retry.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_retry.py#L10)
 
 ``` python
 def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]
@@ -415,7 +379,7 @@ List of logs to examine.
 
 File info and task identifiers for eval log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_file.py#L31)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_file.py#L31)
 
 ``` python
 class EvalLogInfo(BaseModel)
@@ -444,13 +408,130 @@ Task id.
 `suffix` str \| None  
 Log file suffix (e.g. “-scored”)
 
+### edit_score
+
+Edit a score in-place.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_score.py#L11)
+
+``` python
+def edit_score(
+    log: EvalLog,
+    sample_id: int | str,
+    score_name: str,
+    edit: ScoreEdit,
+    recompute_metrics: bool = True,
+    epoch: int | None = None,
+) -> None
+```
+
+`log` [EvalLog](inspect_ai.log.qmd#evallog)  
+The evaluation log containing the samples and scores
+
+`sample_id` int \| str  
+ID of the sample containing the score to edit
+
+`score_name` str  
+Name of the score to edit
+
+`edit` ScoreEdit  
+The edit to apply to the score
+
+`recompute_metrics` bool  
+Whether to recompute aggregate metrics after editing
+
+`epoch` int \| None  
+Epoch number of the sample to edit (required when there are multiple
+epochs)
+
+### invalidate_samples
+
+Invalidate samples in the log.
+
+Additionally, sets `EvalLog.invalidated = False`. Logs with invalidated
+samples will be automatically retried when executing eval sets.
+
+The log with invalidated samples is returned but not persisted to
+storage. Use `write_eval_log()` to save the new log with invalidated
+samples.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_edit.py#L79)
+
+``` python
+def invalidate_samples(
+    log: EvalLog,
+    sample_uuids: Sequence[str] | Literal["all"],
+    provenance: ProvenanceData,
+) -> EvalLog
+```
+
+`log` [EvalLog](inspect_ai.log.qmd#evallog)  
+Eval log
+
+`sample_uuids` Sequence\[str\] \| Literal\['all'\]  
+List of sample uuids to invalidate (or “all” to invaliate all samples).
+
+`provenance` [ProvenanceData](inspect_ai.log.qmd#provenancedata)  
+Timestamp and optional author, reason, and metadata for the
+invalidation.
+
+### uninvalidate_samples
+
+Uninvalidate samples in the log.
+
+Additionally, sets `EvalLog.invalidated = True` if there are no more
+invalidated samples.
+
+The log with uninvalidated samples is returned but not persisted to
+storage. Use `write_eval_log()` to save the new log with uninvalidated
+samples.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_edit.py#L106)
+
+``` python
+def uninvalidate_samples(
+    log: EvalLog, sample_uuids: Sequence[str] | Literal["all"]
+) -> EvalLog
+```
+
+`log` [EvalLog](inspect_ai.log.qmd#evallog)  
+Eval log
+
+`sample_uuids` Sequence\[str\] \| Literal\['all'\]  
+List of sample uuids to uninvalidate (or “all” to uninvalidate all
+samples).
+
+### ProvenanceData
+
+Metadata about who made an edit and why.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_edit.py#L13)
+
+``` python
+class ProvenanceData(BaseModel)
+```
+
+#### Attributes
+
+`timestamp` UtcDatetime  
+Timestamp when the edit was made.
+
+`author` str  
+Author who made the edit.
+
+`reason` str \| None  
+Reason for the edit.
+
+`metadata` dict\[str, Any\]  
+Additional metadata about the edit.
+
 ## Eval Log API
 
 ### EvalLog
 
 Evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L895)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L899)
 
 ``` python
 class EvalLog(BaseModel)
@@ -479,6 +560,9 @@ Eval stats (runtime, model usage)
 `error` [EvalError](inspect_ai.log.qmd#evalerror) \| None  
 Error that halted eval (if status==“error”)
 
+`invalidated` bool  
+Whether any samples were invalidated.
+
 `samples` list\[[EvalSample](inspect_ai.log.qmd#evalsample)\] \| None  
 Samples processed by eval.
 
@@ -495,7 +579,7 @@ ETag from S3 for conditional writes.
 
 Eval target and configuration.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L722)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L726)
 
 ``` python
 class EvalSpec(BaseModel)
@@ -594,7 +678,7 @@ metrics and args for this eval
 
 Dataset used for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L663)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L667)
 
 ``` python
 class EvalDataset(BaseModel)
@@ -621,7 +705,7 @@ Was the dataset shuffled after reading.
 
 Configuration used for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L68)
 
 ``` python
 class EvalConfig(BaseModel)
@@ -715,7 +799,7 @@ Display scoring metrics realtime.
 
 Git revision for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L706)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L710)
 
 ``` python
 class EvalRevision(BaseModel)
@@ -739,7 +823,7 @@ Working tree has uncommitted changes or untracked files.
 
 Plan (solvers) used in evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L495)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L499)
 
 ``` python
 class EvalPlan(BaseModel)
@@ -763,7 +847,7 @@ Generation config.
 
 Solver step.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L485)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L489)
 
 ``` python
 class EvalPlanStep(BaseModel)
@@ -781,7 +865,7 @@ Parameters used to instantiate solver.
 
 Scoring results from evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L575)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L579)
 
 ``` python
 class EvalResults(BaseModel)
@@ -814,7 +898,7 @@ List of per sample scores reduced across epochs
 
 Score for evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L527)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L531)
 
 ``` python
 class EvalScore(BaseModel)
@@ -850,7 +934,7 @@ Additional scorer metadata.
 
 Metric for evaluation score.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L511)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L515)
 
 ``` python
 class EvalMetric(BaseModel)
@@ -874,7 +958,7 @@ Additional metadata associated with metric.
 
 Score reductions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L562)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L566)
 
 ``` python
 class EvalSampleReductions(BaseModel)
@@ -895,7 +979,7 @@ List of reduced scores
 
 Timing and usage statistics.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L879)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L883)
 
 ``` python
 class EvalStats(BaseModel)
@@ -918,7 +1002,7 @@ Model token usage for evaluation.
 
 Eval error details.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/_util/error.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/_util/error.py#L11)
 
 ``` python
 class EvalError(BaseModel)
@@ -939,7 +1023,7 @@ Error traceback with ANSI color codes.
 
 Sample from evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L273)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L274)
 
 ``` python
 class EvalSample(BaseModel)
@@ -1008,6 +1092,9 @@ Time spent working (model generation, sandbox calls, etc.)
 Globally unique identifier for sample run (exists for samples created in
 Inspect \>= 0.3.70)
 
+`invalidation` [ProvenanceData](inspect_ai.log.qmd#provenancedata) \| None  
+Provenance data for invalidation.
+
 `error` [EvalError](inspect_ai.log.qmd#evalerror) \| None  
 Error that halted sample.
 
@@ -1029,7 +1116,7 @@ The limit that halted the sample
 metadata_as  
 Pydantic model interface to metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L312)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L313)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -1041,7 +1128,7 @@ Pydantic model type
 store_as  
 Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L326)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L327)
 
 ``` python
 def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT
@@ -1063,7 +1150,7 @@ events, store, and metadata so that it is always fast to load.
 If there are images, audio, or video in the input, they are replaced
 with a placeholder.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L389)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L393)
 
 ``` python
 def summary(self) -> EvalSampleSummary
@@ -1073,7 +1160,7 @@ def summary(self) -> EvalSampleSummary
 
 Summary information (including scoring) for a sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L185)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L186)
 
 ``` python
 class EvalSampleSummary(BaseModel)
@@ -1137,7 +1224,7 @@ Number of messages in the sample conversation.
 
 Limit encountered by sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L173)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L174)
 
 ``` python
 class EvalSampleLimit(BaseModel)
@@ -1155,7 +1242,7 @@ The limit value
 
 Score reductions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L562)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L566)
 
 ``` python
 class EvalSampleReductions(BaseModel)
@@ -1176,7 +1263,7 @@ List of reduced scores
 
 Score and sample_id scored.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_log.py#L555)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_log.py#L559)
 
 ``` python
 class EvalSampleScore(Score)
@@ -1196,7 +1283,7 @@ This error occurs when attempting to write to a log file that has been
 modified by another process since it was last read, indicating a race
 condition between concurrent evaluation runs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/_util/error.py#L62)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/_util/error.py#L62)
 
 ``` python
 class WriteConflictError(Exception)
@@ -1208,7 +1295,7 @@ class WriteConflictError(Exception)
 
 Get the current `Transcript`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_transcript.py#L113)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_transcript.py#L113)
 
 ``` python
 def transcript() -> Transcript
@@ -1218,7 +1305,7 @@ def transcript() -> Transcript
 
 Transcript of events.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_transcript.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_transcript.py#L35)
 
 ``` python
 class Transcript
@@ -1229,7 +1316,7 @@ class Transcript
 info  
 Add an `InfoEvent` to the transcript.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_transcript.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_transcript.py#L53)
 
 ``` python
 def info(self, data: JsonValue, *, source: str | None = None) -> None
@@ -1247,7 +1334,7 @@ Context manager for recording StepEvent.
 The `step()` context manager is deprecated and will be removed in a
 future version. Please use the `span()` context manager instead.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16d9c5d1612c1de99e20854e936cb6dfcead3b60/src/inspect_ai/log/_transcript.py#L62)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1289c1ada83900b8d58942f13f20e16471967e97/src/inspect_ai/log/_transcript.py#L62)
 
 ``` python
 @contextlib.contextmanager

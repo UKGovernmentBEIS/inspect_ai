@@ -64,12 +64,21 @@ log directory using `--log-dir` ,for example:
 $ inspect view --log-dir ./experiment-logs
 ```
 
-By default it will run on port 7575 (and kill any existing
-`inspect view` using that port). If you want to run two instances of
-`inspect view` you can specify an alternate port:
+By default it will run locally (127.0.0.1) on port 7575 (and kill any
+existing `inspect view` using that port). If you want to run two
+instances of `inspect view` you can specify an alternate port:
 
 ``` bash
 $ inspect view --log-dir ./experiment-logs --port 6565
+```
+
+If you’re running the evaluation viewer on a remote machine (such as via
+SSH), you must explicitly allow access from external networks using the
+–host 0.0.0.0 option. You’ll be able to access the view at
+`http://$MACHINE_IP:6565` .
+
+``` bash
+$ inspect view --log-dir ./experiment-logs --host 0.0.0.0
 ```
 
 You only need to run `inspect view` once at the beginning of a session
