@@ -2,21 +2,14 @@
 
 import os
 from typing import Any, Callable
-from urllib.parse import urlparse
 
-from inspect_ai._util.azure import AZURE_SCHEMES
+from inspect_ai._util.azure import is_azure_path
 
 _AZURE_AUTH_KEYWORDS = (
     "authenticate",
     "noauthenticationinformation",
     "authenticationfailed",
 )
-
-
-def is_azure_path(path: str) -> bool:
-    """Return True if the URI/path uses an Azure-backed scheme."""
-    scheme = urlparse(path).scheme.lower()
-    return scheme in AZURE_SCHEMES
 
 
 def azure_debug_exists(fs: Any, path: str, printer: Callable[[str], None]) -> None:

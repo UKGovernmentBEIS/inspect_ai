@@ -1,4 +1,5 @@
 from test_helpers.utils import (
+    flaky_retry,
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_openai,
@@ -62,6 +63,9 @@ def test_openai_o4_mini_tool_image_result():
 
 
 @skip_if_no_google
+@flaky_retry(
+    max_retries=3
+)  # We've seen this fail when the model passes extra arguments to the tool
 def test_google_tool_image_result():
     check_tool_image_result("google/gemini-2.5-pro")
 

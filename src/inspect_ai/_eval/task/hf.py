@@ -1,4 +1,6 @@
+from dataclasses import dataclass, field
 from pathlib import Path
+from string import ascii_uppercase
 from typing import Any
 
 import yaml
@@ -8,7 +10,8 @@ from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai.dataset import FieldSpec, hf_dataset
+from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
+from inspect_ai.dataset._dataset import DatasetRecord
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
 
@@ -18,13 +21,19 @@ class TaskComponent(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict)
 
 
+@dataclass
+class FieldSpecHF(FieldSpec):
+    choices: str | list[str] | None = field(default=None)  # type: ignore[assignment]
+    """ Overriding the FieldSpec to fit field spec coming from the eval.yaml """
+
+
 class HFTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None)
     subset: str = Field(default="default")
     splits: str = Field(default="test")
-    field_spec: FieldSpec
+    field_spec: FieldSpecHF
     shuffle_choices: bool | None = Field(default=None)
     epochs: int = Field(default=1)
     epoch_reducer: str | None = Field(default=None)
@@ -90,13 +99,18 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         if name is not None and hf_task.name != name:
             continue
 
+        def record_to_sample_hf(
+            record: DatasetRecord, field_spec: FieldSpecHF = hf_task.field_spec
+        ) -> Sample:
+            return _record_to_sample_hf(record, field_spec)
+
         # create dataset
         dataset = hf_dataset(
             path=repo_id,
             revision=revision,
             name=hf_task.subset,
             split=hf_task.splits,
-            sample_fields=hf_task.field_spec,
+            sample_fields=record_to_sample_hf,
         )
 
         # shuffle choides if requested
@@ -160,3 +174,48 @@ def parse_task_spec(task_spec: str) -> tuple[str, str | None]:
         raise ValueError(f"Expected 2 or 3 components, got {len(parts)}")
 
     return repo_id, taskname
+
+
+def _sanitize_target(record: DatasetRecord, target: str) -> str:
+    # if the target is a literal, return the value after the colon without checking the record.
+    if target.startswith("literal:"):
+        target = target.split(":")[1]
+        return target
+
+    # otherwise, get the target from the record and convert to a letter if it's a number.
+    target = record[target]
+    if isinstance(target, int):
+        target = ascii_uppercase[target]
+
+    return target
+
+
+def _sanitize_choices(
+    record: DatasetRecord, choices: str | list[str] | None
+) -> Any | None:
+    # if the choices are a list, return the values from the record.
+    if choices is None:
+        return None
+
+    if isinstance(choices, list):
+        return [record[choice] for choice in choices]
+    else:
+        return record[choices]
+
+
+def _record_to_sample_hf(record: DatasetRecord, field_spec: FieldSpecHF) -> Sample:
+    sample_kwargs = {}
+    sample_kwargs["input"] = record[field_spec.input]
+
+    if target := _sanitize_target(record, field_spec.target):
+        sample_kwargs["target"] = target
+
+    if choices := _sanitize_choices(record, field_spec.choices):
+        sample_kwargs["choices"] = choices
+
+    if metadata_keys := field_spec.metadata:
+        assert isinstance(metadata_keys, list)  # to appease mypy
+        metadata = {name: record[name] for name in metadata_keys}
+        sample_kwargs["metadata"] = metadata
+
+    return Sample(**sample_kwargs)

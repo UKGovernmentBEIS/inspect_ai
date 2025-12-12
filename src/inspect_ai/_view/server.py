@@ -15,13 +15,12 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._display import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
-from inspect_ai._util.azure import is_azure_auth_error
+from inspect_ai._util.azure import is_azure_auth_error, is_azure_path
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import filesystem
 from inspect_ai._view.azure import (
     azure_debug_exists,
     azure_runtime_hint,
-    is_azure_path,
 )
 from inspect_ai.log._file import (
     read_eval_log_headers_async,

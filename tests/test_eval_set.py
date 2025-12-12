@@ -27,6 +27,7 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
+from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
@@ -563,3 +564,63 @@ def test_task_identifier_with_model_args_arg():
 
         all_logs = list_all_eval_logs(log_dir)
         assert len(all_logs) == 2
+
+
+def test_invalidation(tmp_path: Path):
+    @task
+    def task_for_invalidation():
+        return Task(
+            dataset=[
+                Sample(input=f"Just reply with {idx_sample}", target="Hello World")
+                for idx_sample in range(10)
+            ],
+            solver=[generate()],
+            scorer=exact(),
+        )
+
+    task1 = task_for_invalidation()
+    task2 = task_with(task_for_invalidation(), model=get_model("mockllm/model2"))
+
+    def run_eval_set():
+        return eval_set(
+            tasks=[task1, task2],
+            log_dir=str(tmp_path),
+            retry_attempts=0,
+            retry_cleanup=False,
+            model="mockllm/model",
+        )
+
+    success, (eval1, eval2) = run_eval_set()
+    assert success
+    assert eval1.status == "success"
+    assert eval2.status == "success"
+    assert len(list(tmp_path.glob("*.eval"))) == 2
+
+    eval1 = read_eval_log(eval1.location)
+    samples = eval1.samples
+    assert samples is not None
+    sample = samples[0]
+    assert sample.uuid is not None
+    invalidated_sample = sample.uuid
+    eval1 = invalidate_samples(
+        eval1,
+        sample_uuids=[invalidated_sample],
+        provenance=ProvenanceData(author="test_person", reason="test_reason"),
+    )
+    write_eval_log(eval1, location=eval1.location)
+
+    success2, evals_retried = run_eval_set()
+    assert success2
+    eval1_retried = next(
+        eval for eval in evals_retried if eval.eval.task_id == eval1.eval.task_id
+    )
+    assert eval1_retried.status == "success"
+    assert eval1_retried.eval.eval_id != eval1.eval.eval_id
+    eval1_retried = read_eval_log(eval1_retried.location)
+
+    new_sample_uuids = {sample.uuid for sample in eval1_retried.samples or []}
+    old_sample_uuids = {sample.uuid for sample in eval1.samples or []}
+    assert len(new_sample_uuids) == len(old_sample_uuids)
+    assert new_sample_uuids != old_sample_uuids
+    reused_sample_uuids = old_sample_uuids.intersection(new_sample_uuids)
+    assert reused_sample_uuids == old_sample_uuids - {invalidated_sample}

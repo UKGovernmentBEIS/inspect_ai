@@ -95,18 +95,20 @@ class JSONRecorder(FileRecorder):
     @override
     async def log_finish(
         self,
-        spec: EvalSpec,
+        eval: EvalSpec,
         status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
         header_only: bool = False,
+        invalidated: bool = False,
     ) -> EvalLog:
-        log = self.data[self._log_file_key(spec)]
+        log = self.data[self._log_file_key(eval)]
         log.data.status = status
         log.data.stats = stats
         log.data.results = results
+        log.data.invalidated = invalidated
         if error:
             log.data.error = error
         if reductions:
@@ -115,7 +117,7 @@ class JSONRecorder(FileRecorder):
         log.data.location = log.file
 
         # stop tracking this data
-        del self.data[self._log_file_key(spec)]
+        del self.data[self._log_file_key(eval)]
 
         # return the log
         return log.data
@@ -284,6 +286,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         f.seek(0)
 
         # Parse the log file, stopping before parsing samples
+        invalidated = False
         status: Literal["started", "success", "cancelled", "error"] | None = None
         eval: EvalSpec | None = None
         plan: EvalPlan | None = None
@@ -296,6 +299,8 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                     Literal["started", "success", "cancelled", "error"]
                 )
                 status = v
+            elif k == "invalidated":
+                invalidated = v
             if k == "eval":
                 eval = EvalSpec(**v)
             elif k == "plan":
@@ -322,6 +327,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         results=results if has_results else None,
         stats=stats,
         status=status,
+        invalidated=invalidated,
         version=version,
         error=error if has_error else None,
         location=log_file,
