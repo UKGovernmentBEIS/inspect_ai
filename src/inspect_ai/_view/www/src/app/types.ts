@@ -56,7 +56,6 @@ export interface AppState {
     sample_epoch?: string;
   };
   rehydrated?: boolean;
-  pagination: Record<string, { page: number; pageSize: number }>;
   singleFileMode?: boolean;
   displayMode?: "rendered" | "raw";
   logsSampleView: boolean;
