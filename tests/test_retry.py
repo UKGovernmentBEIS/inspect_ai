@@ -7,7 +7,14 @@ from test_helpers.utils import failing_task, skip_if_no_docker
 
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.dataset import Sample
-from inspect_ai.log import list_eval_logs, retryable_eval_logs
+from inspect_ai.log import (
+    ProvenanceData,
+    invalidate_samples,
+    list_eval_logs,
+    read_eval_log,
+    retryable_eval_logs,
+    write_eval_log,
+)
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
@@ -172,3 +179,42 @@ def my_task():
 
         finally:
             os.chdir(eval_wd)
+
+
+def test_invalidation(tmp_path: Path):
+    @task
+    def task_for_invalidation():
+        return Task(
+            dataset=[
+                Sample(input=f"Just reply with {idx_sample}", target="Hello World")
+                for idx_sample in range(10)
+            ],
+            solver=[generate()],
+            scorer=exact(),
+        )
+
+    model = get_model(model="mockllm/model")
+    (log,) = eval(tasks=[task_for_invalidation()], model=model, log_dir=str(tmp_path))
+
+    assert log.status == "success"
+    log = read_eval_log(log.location)
+    assert log.samples is not None
+    invalid_sample_uuid = str(log.samples[0].uuid)
+    log = invalidate_samples(
+        log,
+        sample_uuids=[invalid_sample_uuid],
+        provenance=ProvenanceData(author="test_person", reason="test_reason"),
+    )
+    write_eval_log(log, location=log.location)
+
+    (log_retried,) = eval_retry(log.location)
+    assert log_retried.status == "success"
+    assert log_retried.eval.eval_id != log.eval.eval_id
+    assert log_retried.samples is not None
+    assert len(log_retried.samples) == 10
+    new_uuids = {sample.uuid for sample in log_retried.samples}
+    old_uuids = {sample.uuid for sample in log.samples or []}
+    assert len(new_uuids) == len(old_uuids)
+    assert new_uuids != old_uuids
+    reused_uuids = old_uuids.intersection(new_uuids)
+    assert reused_uuids == old_uuids - {invalid_sample_uuid}

@@ -3,12 +3,18 @@
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - Logging: Support for writing logs to Azure Blob Storage (`az://`).
 - Tasks: Ability to run Inspect tasks defined within datasets on [Hugging Face Hub](https://inspect.aisi.org.uk/tasks.html#hugging-face).
+- Sample invalidation which enables marking samples as invalid (forcing a retry in eval sets).
 - Tasks: Run `cleanup()` function at the end of the sample (after scoring) rather than after solvers.
+- Grok: Option to disable GRPC retries (`disable_retry`) for waiting time tracking.
+- OpenAI: Added support for "xhigh" `reasoning_effort` option.
 - Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
 - React Agent: Remove newlines from default prompts.
 - Human Agent: Support for non-scalar values returned from intermediate scoring.
 - Inspect View: Print IP address of remote server when binding to 0.0.0.0.
+- Computer Tool: Add computer use tool version support for Claude Opus 4.5.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
+- Bugfix: Retry when parsing an incomplete bridged tool call response.
+- Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.
 
 ## 0.3.153 (05 December 2025)
 

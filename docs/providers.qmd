@@ -343,7 +343,6 @@ export XAI_API_KEY=your-grok-api-key
 inspect eval arc.py --model grok/grok-3-mini
 ```
 
-For the `grok` provider, custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 
 The following environment variables are supported by the Grok provider
 
@@ -351,6 +350,19 @@ The following environment variables are supported by the Grok provider
 |----------------------------|--------------------------------------------|
 | `XAI_API_KEY` | API key credentials (required). |
 | `XAI_BASE_URL` | Base URL for requests (optional, defaults to `api.x.ai`, note no "https://" prefix is used for the base url). |
+
+### Model Args
+
+The `grok` provider supports a `disable_retry` model argument that disables internal GRPC retries. For example:
+
+```bash
+inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
+```
+
+This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
+
+Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
+
 
 ## AWS Bedrock {#aws-bedrock}
 

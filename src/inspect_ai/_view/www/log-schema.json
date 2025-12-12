@@ -2690,6 +2690,17 @@
           "default": null,
           "title": "Uuid"
         },
+        "invalidation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvenanceData"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -2756,6 +2767,7 @@
         "total_time",
         "working_time",
         "uuid",
+        "invalidation",
         "error",
         "error_retries",
         "attachments",
@@ -3789,7 +3801,8 @@
                 "minimal",
                 "low",
                 "medium",
-                "high"
+                "high",
+                "xhigh"
               ],
               "type": "string"
             },
@@ -7599,6 +7612,11 @@
         }
       ],
       "default": null
+    },
+    "invalidated": {
+      "default": false,
+      "title": "Invalidated",
+      "type": "boolean"
     },
     "samples": {
       "anyOf": [

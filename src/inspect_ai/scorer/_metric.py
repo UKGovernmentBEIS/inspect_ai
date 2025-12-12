@@ -15,7 +15,6 @@ from typing import (
 
 from pydantic import BaseModel, Field
 
-from inspect_ai._util.dateutil import UtcDatetime, datetime_now_utc
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
@@ -28,6 +27,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_tag,
 )
+from inspect_ai.log._edit import ProvenanceData
 
 logger = getLogger(__name__)
 
@@ -57,22 +57,6 @@ the `Value` as a simple scalar of various types.
 
 UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 """Sentinel value to indicate an unchanged field in score edits."""
-
-
-class ProvenanceData(BaseModel):
-    """Metadata about who made an edit and why."""
-
-    timestamp: UtcDatetime = Field(default_factory=datetime_now_utc)
-    """Timestamp when the edit was made."""
-
-    author: str
-    """Author who made the edit."""
-
-    reason: str | None = Field(default=None)
-    """Reason for the edit."""
-
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    """Additional metadata about the edit."""
 
 
 class ScoreEdit(BaseModel):

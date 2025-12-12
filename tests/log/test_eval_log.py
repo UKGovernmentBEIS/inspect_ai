@@ -16,13 +16,13 @@ from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import read_eval_log
+from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._file import read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import exact
-from inspect_ai.scorer._metric import ProvenanceData
 from inspect_ai.solver import (
     Generate,
     TaskState,
