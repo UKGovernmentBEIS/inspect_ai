@@ -2262,6 +2262,7 @@
             "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
+            "verbosity": null,
             "effort": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
@@ -3776,6 +3777,23 @@
           "default": null,
           "title": "Cache Prompt"
         },
+        "verbosity": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verbosity"
+        },
         "effort": {
           "anyOf": [
             {
@@ -3944,6 +3962,7 @@
         "internal_tools",
         "max_tool_output",
         "cache_prompt",
+        "verbosity",
         "effort",
         "reasoning_effort",
         "reasoning_tokens",

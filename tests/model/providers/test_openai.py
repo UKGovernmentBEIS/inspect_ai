@@ -5,6 +5,7 @@ import pytest
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -34,6 +35,16 @@ async def test_openai_api() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@skip_if_no_openai
+def test_openai_verbosity() -> None:
+    log = eval(
+        Task(dataset=[Sample(input="Please tell a story about toys.")]),
+        model="openai/gpt-5.1",
+        verbosity="low",
+    )[0]
+    assert log.status == "success"
 
 
 @pytest.mark.asyncio
