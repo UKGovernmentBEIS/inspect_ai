@@ -201,7 +201,7 @@ export class DatabaseService {
   }
 
   // === LOG DETAILS ===
-  async writeLogDetails(filePath: string, info: LogDetails): Promise<void> {
+  async writeLogDetail(filePath: string, info: LogDetails): Promise<void> {
     const db = this.getDb();
     const now = new Date().toISOString();
 
@@ -213,6 +213,20 @@ export class DatabaseService {
 
     log.debug(`Caching log info for: ${filePath}`);
     await db.log_details.put(record);
+  }
+
+  async writeLogDetails(details: Record<string, LogDetails>): Promise<void> {
+    const db = this.getDb();
+    const now = new Date().toISOString();
+
+    const records = Object.entries(details).map(([filePath, info]) => ({
+      file_path: filePath,
+      cached_at: now,
+      details: info,
+    }));
+
+    log.debug(`Caching ${records.length} log details`);
+    await db.log_details.bulkPut(records);
   }
 
   async readLogDetailsForFile(filePath: string): Promise<LogDetails | null> {

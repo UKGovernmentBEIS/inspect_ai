@@ -18,6 +18,12 @@ from s3fs import S3FileSystem  # type: ignore
 from shortuuid import uuid
 
 from inspect_ai._util._async import configured_async_backend, current_async_backend
+from inspect_ai._util.azure import (
+    AZURE_SCHEMES,
+    apply_azure_fs_options,
+    is_azure_delete_permission_error,
+    is_azure_path,
+)
 from inspect_ai._util.error import PrerequisiteError
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
@@ -232,14 +238,35 @@ class FileSystem:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
     def is_writeable(self, path: str) -> bool:
+        # first, attempt to create a zero-byte blob/file. If this fails outright we are not
+        # writeable. Azure gets a constant touch file name b/c some azure credentials can create
+        # but not delete (e.g. SAS without 'd' delete permission or managed identity with only
+        # Data Writer). The marker file can just be gc'd later.
+        _WRITE_TEST_FILENAME = ".inspect_write_test"
+        touch_filename = _WRITE_TEST_FILENAME if is_azure_path(path) else uuid()
+        path.rstrip("/\\")
+        touch_file = f"{path}{self.fs.sep}{touch_filename}"
         try:
-            path = path.rstrip("/\\")
-            touch_file = f"{path}{self.fs.sep}{uuid()}"
             self.touch(touch_file)
-            self.rm(touch_file)
-            return True
         except PermissionError:
             return False
+        except Exception:
+            # azure may throw other error types, treat those as non-writeable
+            return False
+
+        # attempt to remove the test file.
+        try:
+            self.rm(touch_file)
+        except Exception as ex:
+            # tolerate azure write permission w/o delete permission
+            if is_azure_delete_permission_error(ex):
+                return True
+
+            # if delete failed for some other reason, report non-writeable
+            return False
+
+        # writeable!
+        return True
 
     def is_async(self) -> bool:
         return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
@@ -263,31 +290,7 @@ class FileSystem:
         file = info.copy()
         file["name"] = self.fs.unstrip_protocol(file["name"])
 
-        # S3 filesystems use "LastModified"
-        if "LastModified" in file.keys():
-            file["mtime"] = cast(
-                datetime.datetime, cast(Any, file)["LastModified"]
-            ).timestamp()
-        # if we don't yet have an mtime key then fetch created explicitly
-        # note: S3 doesn't give you a directory modification time
-        if "mtime" not in file.keys() and file["type"] == "file":
-            try:
-                file["mtime"] = self.fs.created(file["name"]).timestamp()
-            except (NotImplementedError, AttributeError):
-                # Fallback to modified() if created() unavailable (e.g., HfFileSystem)
-                file["mtime"] = self.fs.modified(file["name"]).timestamp()
-
-        # adjust mtime to be milliseconds
-        if "mtime" in file.keys():
-            mtime = file["mtime"]
-            if isinstance(mtime, datetime.datetime):
-                file["mtime"] = mtime.timestamp() * 1000
-            elif isinstance(mtime, int | float):
-                file["mtime"] = mtime * 1000
-            else:
-                raise ValueError(f"Unexpected type for mtime ({type(mtime)}): {mtime}")
-        else:
-            file["mtime"] = None
+        file["mtime"] = self._determine_mtime(file)
 
         # S3 filesystems provided an ETag
         if "ETag" in file.keys():
@@ -298,10 +301,54 @@ class FileSystem:
         return FileInfo(
             name=file["name"],
             type=file["type"],
-            size=file["size"],
+            size=file.get("size") or 0,
             mtime=file["mtime"],
             etag=etag,
         )
+
+    def _determine_mtime(self, file: dict[str, Any]) -> float | None:
+        # Prefer provider supplied mtime if present.
+        if "mtime" in file:
+            normalized = self._normalize_timestamp(file["mtime"])
+            if normalized is not None:
+                return normalized
+
+        # S3 style dictionaries expose LastModified.
+        if "LastModified" in file:
+            normalized = self._normalize_timestamp(file["LastModified"])
+            if normalized is not None:
+                return normalized
+
+        if file.get("type") != "file":
+            return None
+
+        # When listings omit an mtime, fall back to filesystem APIs.
+        if hasattr(self.fs, "created"):
+            try:
+                created = self.fs.created(file["name"])
+                normalized = self._normalize_timestamp(created)
+                if normalized is not None:
+                    return normalized
+            except Exception:
+                pass
+
+        if hasattr(self.fs, "modified"):
+            try:
+                modified = self.fs.modified(file["name"])
+                normalized = self._normalize_timestamp(modified)
+                if normalized is not None:
+                    return normalized
+            except Exception:
+                pass
+
+        return None
+
+    def _normalize_timestamp(self, mtime: Any) -> float | None:
+        if isinstance(mtime, datetime.datetime):
+            return mtime.timestamp() * 1000
+        if isinstance(mtime, (int, float)):
+            return float(mtime) * 1000
+        return None
 
 
 def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
@@ -360,6 +407,11 @@ def default_fs_options(file: str) -> dict[str, Any]:
         )
 
     options = deepcopy(DEFAULT_FS_OPTIONS.get(scheme, {}))
+    # Inject Azure Blob/DataLake credentials only when the path actually uses an
+    # Azure scheme—this lets the optional `adlfs` dependency be imported/configured
+    # on demand rather than for every filesystem.
+    if scheme in AZURE_SCHEMES:
+        apply_azure_fs_options(options)
     # disable caching for all filesystems
     options.update(
         dict(
@@ -445,5 +497,9 @@ def clean_filename_component(component: str) -> str:
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
     # disable all S3 native caching
-    s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False)
+    s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False),
+    # Azure schemes (credentials resolved dynamically in default_fs_options)
+    az=dict(),
+    abfs=dict(),
+    abfss=dict(),
 )

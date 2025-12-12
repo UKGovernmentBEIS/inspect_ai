@@ -22,9 +22,11 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import rich_traceback, truncate_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
+from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
+from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
@@ -205,6 +207,12 @@ class EvalSampleSummary(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
 
+    started_at: UtcDatetimeStr | None = Field(default=None)
+    """Time sample started."""
+
+    completed_at: UtcDatetimeStr | None = Field(default=None)
+    """Time sample completed."""
+
     total_time: float | None = Field(default=None)
     """Total time that the sample was running."""
 
@@ -348,6 +356,12 @@ class EvalSample(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
 
+    started_at: UtcDatetimeStr | None = Field(default=None)
+    """Time sample started."""
+
+    completed_at: UtcDatetimeStr | None = Field(default=None)
+    """Time sample completed."""
+
     total_time: float | None = Field(default=None)
     """Total time that the sample was running."""
 
@@ -356,6 +370,9 @@ class EvalSample(BaseModel):
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
+
+    invalidation: ProvenanceData | None = Field(default=None)
+    """Provenance data for invalidation."""
 
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
@@ -393,6 +410,8 @@ class EvalSample(BaseModel):
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
+            started_at=self.started_at,
+            completed_at=self.completed_at,
             total_time=self.total_time,
             working_time=self.working_time,
             uuid=self.uuid,
@@ -566,8 +585,12 @@ class EvalResults(BaseModel):
     completed_samples: int = Field(default=0)
     """Samples completed without error.
 
-    Will be equal to total_samples except when --fail-on-error is enabled.
+    Will be equal to total_samples except when --fail-on-error is enabled
+    or when there is early stopping.
     """
+
+    early_stopping: EarlyStoppingSummary | None = Field(default=None)
+    """Early stopping summary (if an early stopping manager was present)."""
 
     @property
     def scorer(self) -> EvalScore | None:
@@ -902,6 +925,9 @@ class EvalLog(BaseModel):
 
     error: EvalError | None = Field(default=None)
     """Error that halted eval (if status=="error")"""
+
+    invalidated: bool = Field(default=False)
+    """Whether any samples were invalidated."""
 
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""

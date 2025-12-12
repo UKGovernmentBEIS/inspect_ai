@@ -8,6 +8,8 @@ import {
   LogPreview,
   LogViewAPI,
   PendingSampleResponse,
+  PendingSamples,
+  SampleData,
   SampleDataResponse,
 } from "../types";
 import { ApiError, HeaderProvider, Request, serverRequestApi } from "./request";
@@ -258,7 +260,9 @@ export function viewServerApi(
     const request: Request<PendingSampleResponse> = {
       headers,
       parse: async (text: string) => {
-        const pendingSamples = await asyncJsonParse(text);
+        const pendingSamples = await asyncJsonParse<PendingSamples | undefined>(
+          text,
+        );
         return {
           status: "OK",
           pendingSamples,
@@ -308,7 +312,7 @@ export function viewServerApi(
     const request: Request<SampleDataResponse> = {
       headers: {},
       parse: async (text: string) => {
-        const sampleData = await asyncJsonParse(text);
+        const sampleData = await asyncJsonParse<SampleData | undefined>(text);
         return {
           status: "OK",
           sampleData,

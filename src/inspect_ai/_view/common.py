@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import inspect
 import os
 import urllib.parse
 from collections.abc import AsyncIterable
@@ -15,6 +16,11 @@ from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
+from inspect_ai._view.azure import (
+    azure_warning_hint,
+    normalize_azure_listing_name,
+    should_suppress_azure_error,
+)
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
@@ -70,13 +76,17 @@ async def get_log_files(
     )
 
     if len(logs) != file_count:
-        # have the number of files changed? could be a delete
+        # Has the number of files changed? could be a delete
         # so send a complete list
-        return log_files_response(logs, response_type="full")
+        return log_files_response(
+            logs, response_type="full", base_log_dir=request_log_dir
+        )
     else:
         # send only the changed files (captures edits)
         logs = [log for log in logs if (log.mtime is None or log.mtime > mtime)]
-        return log_files_response(logs, response_type="incremental")
+        return log_files_response(
+            logs, response_type="incremental", base_log_dir=request_log_dir
+        )
 
 
 def parse_log_token(log_token: str) -> Tuple[float, int]:
@@ -93,13 +103,15 @@ def parse_log_token(log_token: str) -> Tuple[float, int]:
 
 
 def log_files_response(
-    logs: list[EvalLogInfo], response_type: Literal["incremental", "full"]
+    logs: list[EvalLogInfo],
+    response_type: Literal["incremental", "full"],
+    base_log_dir: str | None = None,
 ) -> dict[str, Any]:
     response = dict(
         response_type=response_type,
         files=[
             dict(
-                name=log.name,
+                name=_normalize_listing_name(base_log_dir, log.name),
                 size=log.size,
                 mtime=log.mtime,
                 task=log.task,
@@ -229,7 +241,7 @@ def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> dict[str, Any]:
         log_dir=aliased_path(log_dir),
         files=[
             dict(
-                name=log.name,
+                name=normalize_azure_listing_name(log_dir, log.name),
                 size=log.size,
                 mtime=log.mtime,
                 task=log.task,
@@ -239,6 +251,12 @@ def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> dict[str, Any]:
         ],
     )
     return listing
+
+
+def _normalize_listing_name(log_dir: str | None, name: str) -> str:
+    if log_dir is None:
+        return name
+    return normalize_azure_listing_name(log_dir, name)
 
 
 _async_connections: dict[str, AsyncFileSystem] = {}
@@ -312,14 +330,27 @@ async def list_eval_logs_async(
     fs = filesystem(log_dir, fs_options)
     if fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
+            # Attempt existence check with robust handling for Azure-style auth issues.
             try:
+                exists = await async_fs._exists(log_dir)
+            except Exception as ex:  # noqa: BLE001
+                if should_suppress_azure_error(log_dir, ex):
+                    logger.warning(azure_warning_hint(log_dir, ex))
+                    exists = True
+                else:
+                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
+                    # Re-raise non-auth related issues
+                    raise
+
+            if exists:
                 # prevent caching of listings
                 async_fs.invalidate_cache(log_dir)
                 # list logs
                 if recursive:
-                    files: list[dict[str, Any]] = []
-                    async for _, _, filenames in async_fs._walk(log_dir, detail=True):
-                        files.extend(filenames.values())
+                    if _walk_supports_detail(async_fs):
+                        files = await _walk_with_detail(async_fs, log_dir)
+                    else:
+                        files = await _walk_without_detail(async_fs, log_dir)
                 else:
                     files = cast(
                         list[dict[str, Any]],
@@ -328,7 +359,7 @@ async def list_eval_logs_async(
                 logs = [fs._file_info(file) for file in files]
                 # resolve to eval logs
                 return log_files_from_ls(logs, formats, descending)
-            except FileNotFoundError:
+            else:
                 return []
     else:
         return list_eval_logs(
@@ -378,3 +409,51 @@ def aliased_path(path: str) -> str:
         return path.replace(home_dir, "~", 1)
     else:
         return path
+
+
+def _walk_supports_detail(fs: AsyncFileSystem) -> bool:
+    walk = getattr(fs, "_walk", None)
+    if walk is None:
+        return False
+    try:
+        signature = inspect.signature(walk)
+    except (TypeError, ValueError):
+        return False
+    parameter = signature.parameters.get("detail")
+    if parameter is None:
+        return False
+    return parameter.kind in (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.KEYWORD_ONLY,
+    )
+
+
+async def _walk_with_detail(fs: AsyncFileSystem, log_dir: str) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    async for _, _, filenames in fs._walk(log_dir, detail=True):
+        files.extend(filenames.values())
+    return files
+
+
+async def _walk_without_detail(
+    fs: AsyncFileSystem, log_dir: str
+) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    stack: list[str] = [log_dir]
+    seen: set[str] = set()
+    while stack:
+        current = stack.pop()
+        try:
+            entries = await fs._ls(current, detail=True)
+        except Exception:
+            continue
+        for entry in entries:
+            name = entry.get("name") or entry.get("path")
+            if not name:
+                continue
+            files.append(entry)
+            entry_type = entry.get("type")
+            if (entry_type == "directory" or name.endswith("/")) and name not in seen:
+                seen.add(name)
+                stack.append(name)
+    return files

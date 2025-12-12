@@ -66,14 +66,41 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
         for row in task_scores(success.results.scores):
             grid.add_row(row)
 
-    # note if some of our samples had errors
+    # note if some of our samples had errors or were stopped early
     if success.samples_completed < profile.samples:
-        sample_errors = profile.samples - success.samples_completed
-        sample_error_pct = int(float(sample_errors) / float(profile.samples) * 100)
-        message = f"\n[{theme.warning}]WARNING: {sample_errors} of {profile.samples} samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]\n"
-        return Group(grid, message)
-    else:
-        return grid
+        # pending message
+        message: list[str] = []
+
+        # early stopped
+        samples_early_stopped = (
+            len(success.results.early_stopping.early_stops)
+            if success.results.early_stopping
+            else 0
+        )
+        if samples_early_stopped > 0:
+            sample_early_stop_pct = int(
+                float(samples_early_stopped) / float(profile.samples) * 100
+            )
+            message.append(
+                f"[{theme.meta}]NOTE: {samples_early_stopped} of {profile.samples} samples ({sample_early_stop_pct}%) were not executed due to early stopping.[/{theme.meta}]"
+            )
+
+        # executed
+        samples_executed = profile.samples - samples_early_stopped
+
+        # errors
+        sample_errors = samples_executed - success.samples_completed
+        if sample_errors > 0:
+            sample_error_pct = int(float(sample_errors) / float(samples_executed) * 100)
+            message.append(
+                f"[{theme.warning}]WARNING: {sample_errors} of {samples_executed} executed samples ({sample_error_pct}%) had errors and were not scored.[/{theme.warning}]"
+            )
+
+        # return special messages if we have them
+        if len(message) > 0:
+            return Group(grid, "\n" + "\n\n".join(message))
+
+    return grid
 
 
 SCORES_PER_ROW = 4

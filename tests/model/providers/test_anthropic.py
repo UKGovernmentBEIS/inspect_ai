@@ -1,6 +1,8 @@
 import pytest
 from test_helpers.utils import skip_if_no_anthropic
 
+from inspect_ai import Task, eval
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import GenerateConfig, get_model
 
 
@@ -23,6 +25,16 @@ async def test_anthropic_api() -> None:
     message = "This is a test string. What are you?"
     response = await model.generate(input=message)
     assert len(response.completion) >= 1
+
+
+@skip_if_no_anthropic
+def test_anthropic_effort() -> None:
+    log = eval(
+        Task(dataset=[Sample(input="Please tell a story about toys.")]),
+        model="anthropic/claude-opus-4-5",
+        effort="low",
+    )[0]
+    assert log.status == "success"
 
 
 @skip_if_no_anthropic

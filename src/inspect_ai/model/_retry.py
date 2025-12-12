@@ -27,6 +27,7 @@ def model_retry_config(
     should_retry: Callable[[BaseException], bool],
     before_retry: Callable[[BaseException], (Awaitable[None] | None)],
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
+    wait: WaitBaseT | None = None,
 ) -> ModelRetryConfig:
     # retry for transient http errors:
     # - use config.max_retries and config.timeout if specified, otherwise retry forever
@@ -47,8 +48,15 @@ def model_retry_config(
         if res is not None:
             await res
 
+    # resolve wait
+    wait = (
+        wait
+        if wait is not None
+        else wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3)
+    )
+
     return {
-        "wait": wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3),
+        "wait": wait,
         "retry": retry_if_exception(should_retry),
         "before_sleep": on_before_sleep,
         "stop": (

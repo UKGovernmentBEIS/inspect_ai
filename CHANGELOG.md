@@ -1,15 +1,66 @@
 ## Unreleased
 
+- [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
+- Logging: Support for writing logs to Azure Blob Storage (`az://`).
+- Tasks: Ability to run Inspect tasks defined within datasets on [Hugging Face Hub](https://inspect.aisi.org.uk/tasks.html#hugging-face).
+- Sample invalidation which enables marking samples as invalid (forcing a retry in eval sets).
+- Tasks: Run `cleanup()` function at the end of the sample (after scoring) rather than after solvers.
+- Grok: Option to disable GRPC retries (`disable_retry`) for waiting time tracking.
+- OpenAI: Added support for "xhigh" `reasoning_effort` option.
+- Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
+- React Agent: Remove newlines from default prompts.
+- Human Agent: Support for non-scalar values returned from intermediate scoring.
+- Inspect View: Print IP address of remote server when binding to 0.0.0.0.
+- Computer Tool: Add computer use tool version support for Claude Opus 4.5.
+- Bugfix: Copy `metadata` field to new eval for `eval-retry`.
+- Bugfix: Retry when parsing an incomplete bridged tool call response.
+- Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.
+
+## 0.3.153 (05 December 2025)
+
+- Agent Bridge: Don't print serialization warnings when going from Pydantic -> JSON (as we use beta types that can cause warnings even though serialization works as intended).
+- Batch Processing: Enable customizing of batch status rendering.
+- Inspect View: Expand dictionary scores into separate scores when viewing samples.
+
+## 0.3.152 (04 December 2025)
+
+- [Update Plan](https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan) tool for tracking steps and progress across longer horizon tasks.
+- [Code Execution](https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution) tool for executing Python code in a stateless sandbox running on model provider servers. 
+- Anthropic: Support for new [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) setting (`--effort`) for trading off between response thoroughness and token efficiency. 
+- Anthropic: Include native `web_fetch` tool as part of `web_search()` implementation (matching capability of other providers that have native web search).
+- Anthropic: Use required `caller` field for server tool uses (required by package version 0.75, which is now the minimum version).
+- OpenAI: Check for mismatches between specified model and Azure deployment URL.
+- Mistral: Use the new Conversation API by default (disable with `-M conversation_api=False`).
+- Mistral: Added support for native web_search and code_execution tools (executed server side).
+- Mistral: Added support for document input.
+- Grok: Support for server-side MCP tool calling.
+- VLLM and SGLang: Default to 5 second retry policy when server rejects requests due to saturated GPU (customize with model arg `retry_delay`).
+- Model API: Assign new message ID when combining messages for replay to providers.
+- MCP Tools Bridge: Added `BridgedToolsSpec` and `bridged_tools` parameter to `sandbox_agent_bridge()` for exposing host-side Inspect tools to sandboxed agents via MCP protocol.
+- Analysis: Support passing `EvalLog` objects directly to dataframe functions (`samples_df()`, `evals_df()`, `messages_df()`, `events_df()`).
+- Dependencies: Update to `mcp` package version 1.23.0.
+- Inspect View: Fix regression where the display of samples with errors would result in unusuably wide sample list view.
+- Inspect View: Properly compute sample list columns for running evaluations that return dictionary scores.
+- Bugfix: Ensure that entry points are not scanned repeatedly when there are no targets.
+
+## 0.3.151 (30 November 2025)
+
+- Memory tool: Added [memory()](https://inspect.aisi.org.uk/tools-standard.html#sec-memory) tool and bound it to native definitions for providers that support it (currently only Anthropic).
 - Grok: Correctly reconstruct assistant tool calls when replaying messages to API.
 - Grok: Round trip encrypted reasoning (made available in v1.4.0 of `xai_sdk`, which is now required).
-- Memory tool: Added `memory()` tool and bound it to native definitions for providers that support it (currently only Anthropic).
+- Anthropic: Protect against signature not being replayed (can occur for agent bridge) by saving a side list of signatures.
 - Sandboxes: For "local" and "docker" sandbox providers, treat `output_limit` as a cap enforced with a circular buffer (rather than a limit that results in killing the process and raising).
+- Sandboxes: Added `evals_in_eval` example for running Inspect evaluations inside other evaluations.
+- Model API: Enable model providers to have custom retry wait strategies (use 5 second fixed wait for vllm).
 - Prevent querying of local timezone and forbid naïve `datetime`'s via DTZ lint rule. 
+- Dependencies: Change jsonpath-ng requirement to >=1.6.0 (formerly required >= 1.7.0).
 - Dependencies: Move from unmaintained `nest_asyncio`, which is fundamentally incompatible with Python 3.14, to `nest_asyncio2`, which has explicit 3.14 compatibility.
 - Inspect View: Improve markdown rendering performance.
 - Inspect View: Reduce use of virtualized display for smaller transcripts and message lists.
 - Inspect View: Add support for copying sample messages (as text).
+- Inspect View: Improved JSON parsing performance & scalability.
 - Bugfix: Correct normalization of sample id for `read_eval_log()` with JSON log files.
+- Bugfix: Correctly handle more complex list operations when detecting changes in state and store.
 
 ## 0.3.150 (25 November 2025)
 

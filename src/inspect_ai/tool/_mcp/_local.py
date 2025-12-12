@@ -33,7 +33,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from ._context import MCPServerContext
 from ._sandbox import sandbox_client
 from ._types import MCPServer
-from .sampling import as_inspect_content, sampling_fn
+from .sampling import as_inspect_content_list, sampling_fn
 
 logger = getLogger(__name__)
 
@@ -178,7 +178,7 @@ class MCPServerLocalSession(MCPServer):
                             e.error.code, e.error.message, mcp_tool.name, kwargs
                         ) from e
 
-                return [as_inspect_content(c) for c in result.content]
+                return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
 
         # get parameters (fill in missing ones)
         parameters = ToolParams.model_validate(mcp_tool.inputSchema)

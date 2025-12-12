@@ -292,14 +292,20 @@ export MISTRAL_API_KEY=your-mistral-api-key
 inspect eval arc.py --model mistral/mistral-large-latest
 ```
 
-For the `mistral` provider, custom model args (`-M`) are forwarded to the constructor of the `Mistral` class.
-
 The following environment variables are supported by the Mistral provider
 
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `MISTRAL_API_KEY` | API key credentials (required). |
 | `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
+
+By default, the Mistral provider uses the [Conversation API](https://docs.mistral.ai/agents/agents#conversations), which includes features not available in the original completions API including native web search and code execution and support for document input. You can switch back to the completions API with the `conversation_api` custom model arg. For example:
+
+```bash
+inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=false
+```
+
+Additional custom model args (`-M`) are forwarded to the constructor of the `Mistral` class.
 
 ### Mistral on Azure AI {#mistral-on-azure-ai}
 
@@ -337,7 +343,6 @@ export XAI_API_KEY=your-grok-api-key
 inspect eval arc.py --model grok/grok-3-mini
 ```
 
-For the `grok` provider, custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 
 The following environment variables are supported by the Grok provider
 
@@ -345,6 +350,19 @@ The following environment variables are supported by the Grok provider
 |----------------------------|--------------------------------------------|
 | `XAI_API_KEY` | API key credentials (required). |
 | `XAI_BASE_URL` | Base URL for requests (optional, defaults to `api.x.ai`, note no "https://" prefix is used for the base url). |
+
+### Model Args
+
+The `grok` provider supports a `disable_retry` model argument that disables internal GRPC retries. For example:
+
+```bash
+inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
+```
+
+This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
+
+Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
+
 
 ## AWS Bedrock {#aws-bedrock}
 
@@ -623,7 +641,7 @@ vLLM is generally much faster than the Hugging Face provider as the library is d
 
 ### Batching
 
-vLLM automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32.
+vLLM automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests---these are by default retried after 5 seconds (you can customize this using the `retry_delay` model args, e.g. `-M retry_delay=3`).
 
 ### Device
 
@@ -699,6 +717,11 @@ $ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model
 ### Tool Use and Reasoning
 
 SGLang supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.sglang.ai/backend/function_calling.html) and [Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html) sections of the SGLang documentation for details.
+
+### Batching
+
+SGLang automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests---these are by default retried after 5 seconds (you can customize this using the `retry_delay` model args, e.g. `-M retry_delay=3`).
+
 
 ## TransformerLens {#transformer-lens}
 

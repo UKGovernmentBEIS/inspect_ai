@@ -5,9 +5,10 @@ import sys
 import time
 from copy import copy, deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Callable, Literal
+from typing import Awaitable, Callable, Literal
 
 import anyio
 from anyio.abc import TaskGroup
@@ -37,7 +38,11 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_unqualified_name,
 )
-from inspect_ai._util.working import init_sample_working_time, sample_waiting_time
+from inspect_ai._util.working import (
+    init_sample_working_time,
+    sample_start_datetime,
+    sample_waiting_time,
+)
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.event._error import ErrorEvent
@@ -91,6 +96,11 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._early_stopping import (
+    EarlyStop,
+    EarlyStopping,
+    EarlyStoppingSummary,
+)
 from inspect_ai.util._limit import (
     LimitExceededError,
     monitor_working_limit,
@@ -154,9 +164,9 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
     if isinstance(solver, Plan):
         plan = solver
     elif isinstance(solver, Chain):
-        plan = Plan(list(solver), cleanup=task.cleanup, internal=True)
+        plan = Plan(list(solver), internal=True)
     else:
-        plan = Plan(unroll(solver), cleanup=task.cleanup, internal=True)
+        plan = Plan(unroll(solver), internal=True)
 
     # add setup solver(s) if specified
     if task.setup:
@@ -277,6 +287,15 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             # call hook
             await emit_task_start(logger)
 
+            # call early stopping if we have it
+            stopping_manager: str = ""
+            if options.task.early_stopping is not None:
+                # slice off just 1 instance of the samples
+                unique_samples = samples[0 : (len(samples) // epochs)]
+                stopping_manager = await options.task.early_stopping.start_task(
+                    logger.eval, samples=unique_samples, epochs=epochs
+                )
+
             with td.progress() as p:
                 # forward progress
                 def progress(number: int) -> None:
@@ -316,7 +335,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     display_metrics=profile.eval_config.score_display is not False,
                 )
 
-                def sample_complete(sample_score: dict[str, SampleScore]) -> None:
+                async def sample_complete(
+                    sample_id: int | str,
+                    epoch: int,
+                    sample_score: dict[str, SampleScore],
+                ) -> None:
                     # Capture the result
                     progress_results.append(sample_score)
 
@@ -334,6 +357,12 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         task.metrics,
                     )
 
+                    # call the early stopping hook
+                    if options.task.early_stopping is not None:
+                        await options.task.early_stopping.complete_sample(
+                            sample_id, epoch, sample_score
+                        )
+
                 # initial progress
                 td.sample_complete(complete=0, total=len(samples))
 
@@ -348,7 +377,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                 async def run_sample(
                     sample: Sample, state: TaskState
-                ) -> dict[str, SampleScore] | None:
+                ) -> dict[str, SampleScore] | EarlyStop | None:
                     return await task_run_sample(
                         task_name=task.name,
                         log_location=profile.log_location,
@@ -359,6 +388,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
                         scorers=scorers,
+                        cleanup=task.cleanup,
                         generate=generate,
                         progress=progress,
                         logger=logger if log_samples else None,
@@ -366,6 +396,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         sample_source=sample_source,
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
+                        early_stopping=options.task.early_stopping,
                         fails_on_error=(
                             config.fail_on_error is not False
                             and config.continue_on_fail is not True
@@ -397,6 +428,22 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 if isinstance(score_dict, dict)
             ]
 
+            early_stops = [
+                stopped_sample
+                for stopped_sample in sample_results
+                if isinstance(stopped_sample, EarlyStop)
+            ]
+
+            # call early stopping if we have it
+            stopping_summary: EarlyStoppingSummary | None = None
+            if options.task.early_stopping is not None:
+                stopping_metadata = await options.task.early_stopping.complete_task()
+                stopping_summary = EarlyStoppingSummary(
+                    manager=stopping_manager,
+                    early_stops=early_stops,
+                    metadata=stopping_metadata,
+                )
+
             if len(completed_scores) > 0:
                 results, reductions = eval_results(
                     samples=profile.samples,
@@ -404,6 +451,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     reducers=task.epochs_reducer,
                     scorers=scorers,
                     metrics=task.metrics,
+                    early_stopping=stopping_summary,
                 )
 
             # collect eval data
@@ -564,14 +612,18 @@ async def task_run_sample(
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
+    cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
     logger: TaskLogger | None,
     log_images: bool,
     sample_source: EvalSampleSource | None,
     sample_error: SampleErrorHandler,
-    sample_complete: Callable[[dict[str, SampleScore]], None],
+    sample_complete: Callable[
+        [int | str, int, dict[str, SampleScore]], Awaitable[None]
+    ],
     fails_on_error: bool,
+    early_stopping: EarlyStopping | None,
     retry_on_error: int,
     error_retries: list[EvalError],
     time_limit: int | None,
@@ -580,7 +632,7 @@ async def task_run_sample(
     eval_set_id: str | None,
     run_id: str,
     task_id: str,
-) -> dict[str, SampleScore] | None:
+) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.hooks._hooks import (
         emit_sample_end,
         emit_sample_scoring,
@@ -611,8 +663,14 @@ async def task_run_sample(
                 if previous_sample.scores
                 else {}
             )
-            sample_complete(sample_scores)
+            await sample_complete(state.sample_id, state.epoch, sample_scores)
             return sample_scores
+
+    # check for early stopping
+    if early_stopping is not None and logger is not None:
+        early_stop = await early_stopping.schedule_sample(state.sample_id, state.epoch)
+        if early_stop is not None:
+            return early_stop
 
     # copy variables that we may pass back to ourselves on a retry
     initial_state = deepcopy(state)
@@ -946,10 +1004,22 @@ async def task_run_sample(
                 except Exception as ex:
                     # handle error
                     error, raise_error = handle_error(ex)
+                finally:
+                    # run task cleanup if required (inside sandbox context)
+                    if cleanup is not None:
+                        with anyio.CancelScope(shield=True):
+                            try:
+                                await cleanup(state)
+                            except Exception as ex:
+                                py_logger.warning(
+                                    f"Exception occurred during task cleanup: {ex}",
+                                    exc_info=ex,
+                                )
 
         except Exception as ex:
             error, raise_error = handle_error(ex)
         finally:
+            # cleanup the task init span if required
             if cleanup_span is not None:
                 await cleanup_span.__aexit__(None, None, None)
 
@@ -975,6 +1045,7 @@ async def task_run_sample(
                 error=error,
                 limit=limit,
                 error_retries=error_retries,
+                started_at=sample_start_datetime(),
             )
             if logger:
                 await log_sample(
@@ -1002,6 +1073,7 @@ async def task_run_sample(
             sandbox_cleanup=sandbox_cleanup,
             plan=plan,
             scorers=scorers,
+            cleanup=cleanup,
             generate=generate,
             progress=progress,
             logger=logger,
@@ -1009,6 +1081,7 @@ async def task_run_sample(
             sample_source=sample_source,
             sample_error=sample_error,
             sample_complete=sample_complete,
+            early_stopping=early_stopping,
             fails_on_error=fails_on_error,
             # tick retry count down
             retry_on_error=retry_on_error - 1,
@@ -1026,7 +1099,7 @@ async def task_run_sample(
     elif error is None:
         # call sample_complete callback if we have score results
         if results is not None:
-            sample_complete(results)
+            await sample_complete(state.sample_id, state.epoch, results)
         return results
 
     # we have an error and should raise it
@@ -1046,6 +1119,7 @@ def create_eval_sample(
     error: EvalError | None,
     limit: EvalSampleLimit | None,
     error_retries: list[EvalError],
+    started_at: datetime | None = None,
 ) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
@@ -1077,6 +1151,8 @@ def create_eval_sample(
         events=list(transcript().events),
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
+        started_at=started_at.isoformat() if started_at is not None else None,
+        completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
         working_time=round(total_time - sample_waiting_time(), 3)
         if total_time is not None
@@ -1187,6 +1263,7 @@ def eval_log_sample_source(
                     if sample.id == id
                     and sample.epoch == epoch
                     and sample.error is None
+                    and sample.invalidation is None
                 ),
                 None,
             )

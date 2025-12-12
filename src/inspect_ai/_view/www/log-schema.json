@@ -1255,7 +1255,8 @@
         "tool_type": {
           "enum": [
             "web_search",
-            "mcp_call"
+            "mcp_call",
+            "code_execution"
           ],
           "title": "Tool Type",
           "type": "string"
@@ -1466,6 +1467,93 @@
         "end_index"
       ],
       "title": "DocumentRange",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EarlyStop": {
+      "description": "Directive to stop a sample early.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Id"
+        },
+        "epoch": {
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "id",
+        "epoch",
+        "reason",
+        "metadata"
+      ],
+      "title": "EarlyStop",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EarlyStoppingSummary": {
+      "description": "Summary of early stopping applied to task.",
+      "properties": {
+        "manager": {
+          "title": "Manager",
+          "type": "string"
+        },
+        "early_stops": {
+          "items": {
+            "$ref": "#/$defs/EarlyStop"
+          },
+          "title": "Early Stops",
+          "type": "array"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "manager",
+        "early_stops",
+        "metadata"
+      ],
+      "title": "EarlyStoppingSummary",
       "type": "object",
       "additionalProperties": false
     },
@@ -2174,6 +2262,7 @@
             "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
+            "effort": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
             "reasoning_summary": null,
@@ -2229,6 +2318,17 @@
           "title": "Completed Samples",
           "type": "integer"
         },
+        "early_stopping": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EarlyStoppingSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "scores": {
           "default": [],
           "items": {
@@ -2256,6 +2356,7 @@
       "required": [
         "total_samples",
         "completed_samples",
+        "early_stopping",
         "scores",
         "metadata"
       ],
@@ -2529,6 +2630,30 @@
           "title": "Model Usage",
           "type": "object"
         },
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "completed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
         "total_time": {
           "anyOf": [
             {
@@ -2564,6 +2689,17 @@
           ],
           "default": null,
           "title": "Uuid"
+        },
+        "invalidation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProvenanceData"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "error": {
           "anyOf": [
@@ -2626,9 +2762,12 @@
         "store",
         "events",
         "model_usage",
+        "started_at",
+        "completed_at",
         "total_time",
         "working_time",
         "uuid",
+        "invalidation",
         "error",
         "error_retries",
         "attachments",
@@ -3637,6 +3776,23 @@
           "default": null,
           "title": "Cache Prompt"
         },
+        "effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effort"
+        },
         "reasoning_effort": {
           "anyOf": [
             {
@@ -3645,7 +3801,8 @@
                 "minimal",
                 "low",
                 "medium",
-                "high"
+                "high",
+                "xhigh"
               ],
               "type": "string"
             },
@@ -3787,6 +3944,7 @@
         "internal_tools",
         "max_tool_output",
         "cache_prompt",
+        "effort",
         "reasoning_effort",
         "reasoning_tokens",
         "reasoning_summary",
@@ -7454,6 +7612,11 @@
         }
       ],
       "default": null
+    },
+    "invalidated": {
+      "default": false,
+      "title": "Invalidated",
+      "type": "boolean"
     },
     "samples": {
       "anyOf": [

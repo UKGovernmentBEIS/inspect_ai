@@ -132,7 +132,7 @@ export const App: FC<AppProps> = ({ api }) => {
         }
       }
     },
-    [logDir, setSelectedLogFile, syncLogs, api],
+    [setInitialState, setLogDir, logDir, setSelectedLogFile, api, syncLogs],
   );
 
   // listen for updateState messages from vscode
@@ -182,7 +182,15 @@ export const App: FC<AppProps> = ({ api }) => {
     };
 
     loadLogsAndState();
-  }, [setLogDir, setLogFiles, setSelectedLogFile, syncLogs, onMessage]);
+  }, [
+    setLogDir,
+    setLogFiles,
+    setSelectedLogFile,
+    syncLogs,
+    onMessage,
+    rehydrated,
+    setSingleFileMode,
+  ]);
 
   return <RouterProvider router={AppRouter} />;
 };

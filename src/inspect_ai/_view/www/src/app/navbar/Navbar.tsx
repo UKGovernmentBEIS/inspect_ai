@@ -52,7 +52,7 @@ export const Navbar: FC<NavbarProps> = ({
       { text: baseLogName, url: fnNavigationUrl("", logDir) },
       ...dirSegments,
     ];
-  }, [baseLogDir, baseLogName, currentPath, logDir]);
+  }, [baseLogDir, baseLogName, currentPath, fnNavigationUrl, logDir]);
 
   const { visibleSegments, showEllipsis } = useBreadcrumbTruncation(
     segments,

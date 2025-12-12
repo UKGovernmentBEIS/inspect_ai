@@ -65,6 +65,7 @@ class LogOverview(BaseModel):
 
     version: int
     status: Literal["started", "success", "cancelled", "error"]
+    invalidated: bool = Field(default=False)
     error: EvalError | None = Field(default=None)
 
     model: str
@@ -539,7 +540,9 @@ def read_eval_log_samples(
         )
 
     # if the status is not success and all_samples_required, this is an error
-    if log_header.status != "success" and all_samples_required:
+    if all_samples_required and (
+        log_header.status != "success" or log_header.invalidated
+    ):
         raise RuntimeError(
             f"This log does not have all samples (status={log_header.status}). "
             + "Specify all_samples_required=False to read the samples that exist."
@@ -713,6 +716,7 @@ def to_overview(header: EvalLog) -> LogOverview:
         task_version=header.eval.task_version,
         version=header.version,
         status=header.status,
+        invalidated=header.invalidated,
         error=header.error,
         model=header.eval.model,
         started_at=header.stats.started_at,

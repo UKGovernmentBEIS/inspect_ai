@@ -2,49 +2,42 @@ import pytest
 
 from inspect_ai.model._providers.anthropic import (
     _supports_web_search,
-    _web_search_tool_param,
+    _web_search_tool_params,
 )
 
 
 class TestAnthropicWebSearch:
     def test_web_search_tool_param_returns_tool_param_for_empty_options(self):
-        assert _web_search_tool_param({}) == {
-            "name": "web_search",
-            "type": "web_search_20250305",
-        }
+        assert _web_search_tool_params({}) == [
+            {"name": "web_fetch", "type": "web_fetch_20250910"},
+            {
+                "name": "web_search",
+                "type": "web_search_20250305",
+            },
+        ]
 
     def test_web_search_tool_param_returns_tool_param_for_none_options(self):
-        assert _web_search_tool_param(None) == {
-            "name": "web_search",
-            "type": "web_search_20250305",
-        }
+        assert _web_search_tool_params(None) == [
+            {"name": "web_fetch", "type": "web_fetch_20250910"},
+            {
+                "name": "web_search",
+                "type": "web_search_20250305",
+            },
+        ]
 
     def test_web_search_tool_raises_type_error(self):
         with pytest.raises(TypeError):
-            _web_search_tool_param("not a dict")
+            _web_search_tool_params("not a dict")
 
     def test_web_search_tool_with_options(self):
         options = {"max_uses": 666}
 
-        result = _web_search_tool_param(options)
+        result = _web_search_tool_params(options)
 
-        assert result == {
-            "name": "web_search",
-            "type": "web_search_20250305",
-            "max_uses": 666,
-        }
-
-    def test_web_search_tool_with_empty_options(self):
-        assert _web_search_tool_param({}) == {
-            "name": "web_search",
-            "type": "web_search_20250305",
-        }
-
-    def test_web_search_tool_with_none(self):
-        assert _web_search_tool_param(None) == {
-            "name": "web_search",
-            "type": "web_search_20250305",
-        }
+        assert result == [
+            {"name": "web_fetch", "type": "web_fetch_20250910", "max_uses": 666},
+            {"name": "web_search", "type": "web_search_20250305", "max_uses": 666},
+        ]
 
 
 class TestSupportsWebSearch:
