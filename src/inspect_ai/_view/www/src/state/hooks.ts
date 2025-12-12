@@ -640,84 +640,32 @@ export const useLogs = () => {
   return { loadLogs, loadLogOverviews, loadAllLogOverviews };
 };
 
-export const usePagination = (name: string, defaultPageSize: number) => {
-  const page = useStore((state) => state.app.pagination[name]?.page || 0);
-  const itemsPerPage = useStore(
-    (state) => state.app.pagination[name]?.pageSize || defaultPageSize,
-  );
-  const setPagination = useStore((state) => state.appActions.setPagination);
-
-  const setPage = useCallback(
-    (newPage: number) => {
-      setPagination(name, { page: newPage, pageSize: itemsPerPage });
-    },
-    [name, setPagination, itemsPerPage],
-  );
-
-  const setPageSize = useCallback(
-    (newPageSize: number) => {
-      setPagination(name, { page, pageSize: newPageSize });
-    },
-    [name, setPagination, page],
-  );
-
-  return {
-    page,
-    itemsPerPage,
-    setPage,
-    setPageSize,
-  };
-};
-
 export const useLogsListing = () => {
-  const sorting = useStore((state) => state.logs.listing.sorting);
-  const setSorting = useStore((state) => state.logsActions.setSorting);
-
-  const filtering = useStore((state) => state.logs.listing.filtering);
-  const setFiltering = useStore((state) => state.logsActions.setFiltering);
-
-  const globalFilter = useStore((state) => state.logs.listing.globalFilter);
-  const setGlobalFilter = useStore(
-    (state) => state.logsActions.setGlobalFilter,
-  );
-
-  const columnResizeMode = useStore(
-    (state) => state.logs.listing.columnResizeMode,
-  );
-  const setColumnResizeMode = useStore(
-    (state) => state.logsActions.setColumnResizeMode,
-  );
-
-  const columnSizes = useStore((state) => state.logs.listing.columnSizes);
-  const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
-
   const filteredCount = useStore((state) => state.logs.listing.filteredCount);
   const setFilteredCount = useStore(
     (state) => state.logsActions.setFilteredCount,
   );
 
-  const selectedRowIndex = useStore(
-    (state) => state.logs.listing.selectedRowIndex,
+  const gridState = useStore((state) => state.logs.listing.gridState);
+  const setGridState = useStore((state) => state.logsActions.setLogsGridState);
+  const clearGridState = useStore(
+    (state) => state.logsActions.clearLogsGridState,
   );
-  const setSelectedRowIndex = useStore(
-    (state) => state.logsActions.setSelectedRowIndex,
+  const previousLogPath = useStore(
+    (state) => state.logs.listing.previousLogPath,
+  );
+  const setPreviousLogPath = useStore(
+    (state) => state.logsActions.setPreviousLogsPath,
   );
 
   return {
-    sorting,
-    setSorting,
-    filtering,
-    setFiltering,
-    globalFilter,
-    setGlobalFilter,
-    columnResizeMode,
-    setColumnResizeMode,
-    columnSizes,
-    setColumnSize,
     filteredCount,
     setFilteredCount,
-    selectedRowIndex,
-    setSelectedRowIndex,
+    gridState,
+    setGridState,
+    clearGridState,
+    previousLogPath,
+    setPreviousLogPath,
   };
 };
 

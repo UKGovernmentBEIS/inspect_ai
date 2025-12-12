@@ -2,33 +2,30 @@ import type {
   ColDef,
   GridApi,
   GridColumnsChangedEvent,
+  IRowNode,
   RowClickedEvent,
   StateUpdatedEvent,
 } from "ag-grid-community";
-import {
-  AllCommunityModule,
-  ModuleRegistry,
-  themeBalham,
-} from "ag-grid-community";
+import { themeBalham } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useClientEvents } from "../../../state/clientEvents";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
-import { debounce } from "../../../utils/sync";
-import { join } from "../../../utils/uri";
+import { directoryRelativeUrl, join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
+import "../../shared/agGrid";
+import { createGridKeyboardHandler } from "../../shared/gridNavigation";
+import { createGridColumnResizer } from "../../shared/gridUtils";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
-
-// Register AG Grid modules
-ModuleRegistry.registerModules([AllCommunityModule]);
+import { samplesUrl } from "../../routing/url";
 
 // Sample Grid Props
 interface SamplesGridProps {
   samplesPath?: string;
-  gridRef?: RefObject<AgGridReact | null>;
+  gridRef?: RefObject<AgGridReact<SampleRow> | null>;
   columns: ColDef<SampleRow>[];
 }
 
@@ -69,7 +66,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     (state) => state.log.selectedSampleHandle,
   );
 
-  const internalGridRef = useRef<AgGridReact>(null);
+  const internalGridRef = useRef<AgGridReact<SampleRow>>(null);
   const gridRef = externalGridRef || internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
@@ -132,11 +129,37 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
   // Transform logDetails into flat rows
   const data = useMemo(() => {
-    const rows: SampleRow[] = [];
+    const basePathAbs = samplesPath ? join(samplesPath, logDir) : logDir;
+    const folders: SampleRow[] = [];
+    const samples: SampleRow[] = [];
+    const seenFolders = new Set<string>();
+    let displayIndex = 1;
 
     Object.entries(filteredLogDetails).forEach(([logFile, details]) => {
+      const relToBase = directoryRelativeUrl(logFile, basePathAbs);
+      const relativeSegments = relToBase.split("/").filter(Boolean);
+      if (relativeSegments.length > 1) {
+        const folderName = decodeURIComponent(relativeSegments[0]);
+        if (!seenFolders.has(folderName)) {
+          seenFolders.add(folderName);
+          folders.push({
+            type: "folder",
+            name: folderName,
+            logFile: join(folderName, logDir),
+            task: folderName,
+            model: "",
+            sampleId: "",
+            epoch: 0,
+            input: "",
+            target: "",
+            url: samplesUrl(join(folderName, samplesPath || ""), logDir),
+          });
+        }
+      }
+
       details.sampleSummaries.forEach((sample) => {
         const row: SampleRow = {
+          type: "sample",
           logFile,
           task: details.eval.task || "",
           model: details.eval.model || "",
@@ -151,28 +174,26 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           limit: sample.limit,
           retries: sample.retries,
           completed: sample.completed || false,
+          displayIndex: displayIndex++,
         };
 
-        // Add scores as individual fields
         if (sample.scores) {
           Object.entries(sample.scores).forEach(([scoreName, score]) => {
             row[`score_${scoreName}`] = score.value;
           });
         }
 
-        rows.push(row);
+        samples.push(row);
       });
     });
 
-    return rows;
-  }, [filteredLogDetails]);
+    // Return folders first, then samples
+    return [...folders, ...samples];
+  }, [filteredLogDetails, logDir, samplesPath]);
 
-  const resizeGridColumns = useCallback(
-    debounce(() => {
-      // Trigger column sizing after grid is ready
-      gridRef.current?.api?.sizeColumnsToFit();
-    }, 10),
-    [],
+  const resizeGridColumns = useMemo(
+    () => createGridColumnResizer(gridRef),
+    [gridRef],
   );
 
   const handleRowClick = useCallback(
@@ -191,145 +212,59 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           mouseEvent?.button === 1;
 
         // Use setTimeout to allow grid state to update before navigation
-        const logFile = e.data.logFile;
-        const sampleId = e.data.sampleId;
-        const epoch = e.data.epoch;
-        setTimeout(() => {
-          navigateToSampleDetail(logFile, sampleId, epoch, openInNewWindow);
-        }, 10);
+        if (e.data.type === "folder" && e.data.url) {
+          const url = e.data.url;
+          setTimeout(() => {
+            if (openInNewWindow) {
+              window.open(url, "_blank");
+            } else {
+              window.location.hash = `#${url}`;
+            }
+          }, 10);
+        } else {
+          const logFile = e.data.logFile;
+          const sampleId = e.data.sampleId;
+          const epoch = e.data.epoch;
+          setTimeout(() => {
+            navigateToSampleDetail(logFile, sampleId, epoch, openInNewWindow);
+          }, 10);
+        }
       }
     },
     [navigateToSampleDetail, gridRef],
   );
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!gridRef.current?.api) {
+  const handleOpenRow = useCallback(
+    (rowNode: IRowNode<SampleRow>, e: KeyboardEvent) => {
+      const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
+      if (rowNode.data?.type === "folder" && rowNode.data.url) {
+        if (openInNewWindow) {
+          window.open(rowNode.data.url, "_blank");
+        } else {
+          window.location.hash = `#${rowNode.data.url}`;
+        }
         return;
       }
 
-      // Don't handle keyboard events if focus is on an input, textarea, or select element
-      const activeElement = document.activeElement;
-      if (
-        activeElement &&
-        (activeElement.tagName === "INPUT" ||
-          activeElement.tagName === "TEXTAREA" ||
-          activeElement.tagName === "SELECT")
-      ) {
-        return;
-      }
-
-      // Get the currently selected row
-      const selectedRows = gridRef.current.api.getSelectedNodes();
-      const totalRows = gridRef.current.api.getDisplayedRowCount();
-
-      // Determine current row index from selection or default to -1
-      let currentRowIndex = -1;
-      if (selectedRows.length > 0 && selectedRows[0].rowIndex !== null) {
-        currentRowIndex = selectedRows[0].rowIndex;
-      }
-
-      let targetRowIndex: number | null = null;
-
-      switch (e.key) {
-        case "ArrowUp":
-          e.preventDefault();
-          if (e.metaKey || e.ctrlKey) {
-            // Cmd/Ctrl + ArrowUp: Go to first row
-            targetRowIndex = 0;
-          } else {
-            // ArrowUp: Go to previous row
-            if (currentRowIndex === -1) {
-              targetRowIndex = 0;
-            } else {
-              targetRowIndex = Math.max(0, currentRowIndex - 1);
-            }
-          }
-          break;
-
-        case "ArrowDown":
-          e.preventDefault();
-          if (e.metaKey || e.ctrlKey) {
-            // Cmd/Ctrl + ArrowDown: Go to last row
-            targetRowIndex = totalRows - 1;
-          } else {
-            // ArrowDown: Go to next row
-            if (currentRowIndex === -1) {
-              targetRowIndex = 0;
-            } else {
-              targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 1);
-            }
-          }
-          break;
-
-        case "Home":
-          e.preventDefault();
-          // Home: Go to first row
-          targetRowIndex = 0;
-          break;
-
-        case "End":
-          e.preventDefault();
-          // End: Go to last row
-          targetRowIndex = totalRows - 1;
-          break;
-
-        case "PageUp":
-          e.preventDefault();
-          // PageUp: Go up 10 rows (or to first row)
-          if (currentRowIndex === -1) {
-            targetRowIndex = 0;
-          } else {
-            targetRowIndex = Math.max(0, currentRowIndex - 10);
-          }
-          break;
-
-        case "PageDown":
-          e.preventDefault();
-          // PageDown: Go down 10 rows (or to last row)
-          if (currentRowIndex === -1) {
-            targetRowIndex = 0;
-          } else {
-            targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 10);
-          }
-          break;
-
-        case "Enter":
-        case " ": {
-          // Space key
-          e.preventDefault();
-          // Enter/Space: Open the selected row
-          if (currentRowIndex !== -1) {
-            const rowNode =
-              gridRef.current.api.getDisplayedRowAtIndex(currentRowIndex);
-            if (rowNode?.data) {
-              const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
-              navigateToSampleDetail(
-                rowNode.data.logFile,
-                rowNode.data.sampleId,
-                rowNode.data.epoch,
-                openInNewWindow,
-              );
-            }
-          }
-          break;
-        }
-
-        default:
-          return;
-      }
-
-      // Navigate to target row if set
-      if (targetRowIndex !== null && targetRowIndex !== currentRowIndex) {
-        const targetNode =
-          gridRef.current.api.getDisplayedRowAtIndex(targetRowIndex);
-        if (targetNode) {
-          targetNode.setSelected(true, true); // true = select, true = clear other selections
-          gridRef.current.api.ensureIndexVisible(targetRowIndex, "middle");
-        }
+      if (rowNode.data) {
+        navigateToSampleDetail(
+          rowNode.data.logFile,
+          rowNode.data.sampleId,
+          rowNode.data.epoch,
+          openInNewWindow,
+        );
       }
     },
-    [gridRef, navigateToSampleDetail],
+    [navigateToSampleDetail],
+  );
+
+  const handleKeyDown = useMemo(
+    () =>
+      createGridKeyboardHandler<SampleRow>({
+        gridRef,
+        onOpenRow: handleOpenRow,
+      }),
+    [gridRef, handleOpenRow],
   );
 
   // Set up keyboard event listener
@@ -348,7 +283,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     logFile: string,
     sampleId: string | number,
     epoch: number,
+    type?: string,
   ) => {
+    if (type === "folder") {
+      return `folder-${logFile}`.replace(/\s+/g, "_");
+    }
     return `${logFile}-${sampleId}-${epoch}`.replace(/\s+/g, "_");
   };
 
@@ -412,6 +351,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
               params.data.logFile,
               params.data.sampleId,
               params.data.epoch,
+              params.data.type,
             )
           }
           onGridColumnsChanged={(e: GridColumnsChangedEvent<SampleRow>) => {
@@ -429,26 +369,20 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           onStateUpdated={(e: StateUpdatedEvent<SampleRow>) => {
             setGridState(e.state);
             if (gridRef.current?.api) {
-              const displayedRowCount =
-                gridRef.current.api.getDisplayedRowCount();
-              setFilteredSampleCount(displayedRowCount);
-
               const gridCurrentSamples = gridDisplayedSamples(
                 gridRef.current.api,
               );
+              setFilteredSampleCount(gridCurrentSamples.length);
               setDisplayedSamples(gridCurrentSamples);
             }
           }}
           onRowClicked={handleRowClick}
           onFilterChanged={() => {
             if (gridRef.current?.api) {
-              const displayedRowCount =
-                gridRef.current.api.getDisplayedRowCount();
-              setFilteredSampleCount(displayedRowCount);
-
               const newDisplayedSamples = gridDisplayedSamples(
                 gridRef.current.api,
               );
+              setFilteredSampleCount(newDisplayedSamples.length);
               setDisplayedSamples(newDisplayedSamples);
             }
           }}
@@ -471,7 +405,7 @@ const gridDisplayedSamples = (
   const displayedRowCount = gridApi.getDisplayedRowCount();
   for (let i = 0; i < displayedRowCount; i++) {
     const node = gridApi.getDisplayedRowAtIndex(i);
-    if (node?.data) {
+    if (node?.data && node.data.type !== "folder") {
       displayedSamples.push({
         logFile: node.data.logFile,
         sampleId: node.data.sampleId,

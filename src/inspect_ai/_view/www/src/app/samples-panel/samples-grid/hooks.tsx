@@ -1,0 +1,315 @@
+import {
+  ColDef,
+  ColSpanParams,
+  ICellRendererParams,
+  ValueFormatterParams,
+  ValueGetterParams,
+  ValueParserParams,
+} from "ag-grid-community";
+import { useEffect, useMemo } from "react";
+import { LogDetails } from "../../../client/api/types";
+import { filename } from "../../../utils/path";
+import { useStore } from "../../../state/store";
+import { ApplicationIcons } from "../../appearance/icons";
+import {
+  comparators,
+  createFolderFirstComparator,
+} from "../../shared/gridComparators";
+import { detectScorersFromSamples } from "../../shared/scorerDetection";
+import { getFieldKey } from "../../shared/gridUtils";
+import styles from "./SamplesGrid.module.css";
+import { SampleRow } from "./types";
+
+export { getFieldKey };
+
+export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
+  const optionalColumnsHaveAnyData: Record<string, boolean> = useMemo(() => {
+    let error = false;
+    let limit = false;
+    let retries = false;
+    outerLoop: for (const details of Object.values(logDetails)) {
+      for (const sample of details.sampleSummaries) {
+        if (sample.error) error = true;
+        if (sample.limit) limit = true;
+        if (sample.retries) retries = true;
+        if (error && limit && retries) break outerLoop;
+      }
+    }
+    return { error, limit, retries };
+  }, [logDetails]);
+  const columnVisibility = useStore(
+    (state) => state.logs.samplesListState.columnVisibility,
+  );
+  const setColumnVisibility = useStore(
+    (state) => state.logsActions.setColumnVisibility,
+  );
+  useEffect(() => {
+    // if optional columns are not set manually, set their visibility based on the data
+    const { error, limit, retries } = optionalColumnsHaveAnyData;
+    if (
+      "error" in columnVisibility ||
+      "limit" in columnVisibility ||
+      "retries" in columnVisibility ||
+      (!error && !limit && !retries)
+    ) {
+      return;
+    }
+    const newVisibility = { ...columnVisibility };
+    if (error && !("error" in columnVisibility)) newVisibility.error = true;
+    if (limit && !("limit" in columnVisibility)) newVisibility.limit = true;
+    if (retries && !("retries" in columnVisibility))
+      newVisibility.retries = true;
+    setColumnVisibility(newVisibility);
+  }, [optionalColumnsHaveAnyData, columnVisibility, setColumnVisibility]);
+
+  // Detect all unique score names across all samples
+  const scoreMap = useMemo(
+    () => detectScorersFromSamples(logDetails),
+    [logDetails],
+  );
+
+  // Create column definitions for selector and grid
+  const allColumns = useMemo((): ColDef<SampleRow>[] => {
+    const baseColumns: ColDef<SampleRow>[] = [
+      {
+        headerName: "#",
+        initialWidth: 56,
+        minWidth: 50,
+        maxWidth: 72,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        pinned: "left",
+        cellRenderer: (params: ICellRendererParams<SampleRow>) => {
+          if (params.data?.type === "folder") {
+            return (
+              <div className={styles.iconCell}>
+                <i className={ApplicationIcons.folder} />
+              </div>
+            );
+          }
+          if (params.data?.displayIndex !== undefined) {
+            return (
+              <div className={styles.numberCell}>
+                {params.data.displayIndex}
+              </div>
+            );
+          }
+          return "";
+        },
+      },
+      {
+        field: "task",
+        headerName: "Task",
+        initialWidth: 150,
+        minWidth: 100,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        colSpan: (params: ColSpanParams<SampleRow>) =>
+          params.data?.type === "folder" ? 100 : 1,
+        cellRenderer: (params: ICellRendererParams<SampleRow>) => {
+          const item = params.data;
+          if (!item) return null;
+          const value = item.task || item.name;
+          if (item.type === "folder" && item.url) {
+            return (
+              <a
+                href={`#${item.url}`}
+                className={styles.folderLink}
+                title={value}
+              >
+                {value}
+              </a>
+            );
+          }
+          return <span className={styles.taskText}>{value}</span>;
+        },
+        comparator: createFolderFirstComparator<SampleRow>(
+          (_valA, _valB, a, b) => {
+            const taskA = a.task || a.name || "";
+            const taskB = b.task || b.name || "";
+            return taskA.localeCompare(taskB);
+          },
+        ),
+      },
+      {
+        field: "model",
+        headerName: "Model",
+        initialWidth: 150,
+        minWidth: 100,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+      },
+      {
+        field: "sampleId",
+        headerName: "Sample ID",
+        initialWidth: 120,
+        minWidth: 100,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        valueGetter: (params: ValueGetterParams<SampleRow>) =>
+          String(params.data?.sampleId ?? ""),
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+      },
+      {
+        field: "epoch",
+        headerName: "Epoch",
+        initialWidth: 70,
+        minWidth: 70,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellStyle: { textAlign: "center" },
+        comparator: createFolderFirstComparator<SampleRow>(comparators.number),
+      },
+      {
+        field: "input",
+        headerName: "Input",
+        initialWidth: 250,
+        minWidth: 150,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+      },
+      {
+        field: "status",
+        headerName: "Status",
+        initialWidth: 100,
+        minWidth: 80,
+        sortable: true,
+        resizable: true,
+        filter: true,
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+      },
+      {
+        field: "logFile",
+        headerName: "Log File",
+        initialWidth: 200,
+        minWidth: 150,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellDataType: "date",
+        valueParser: (params: ValueParserParams<SampleRow>) =>
+          new Date(params.newValue),
+        valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
+          filename(params.value),
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+      },
+      {
+        field: "target",
+        headerName: "Target",
+        initialWidth: 150,
+        minWidth: 100,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+      },
+    ];
+
+    // Add score columns
+    const scoreColumns: ColDef<SampleRow>[] = Object.keys(scoreMap).map(
+      (scoreName) => {
+        const scoreType = scoreMap[scoreName];
+        return {
+          field: `score_${scoreName}`,
+          headerName: scoreName,
+          initialWidth: 100,
+          minWidth: 100,
+          sortable: true,
+          filter:
+            scoreType === "number"
+              ? "agNumberColumnFilter"
+              : "agTextColumnFilter",
+          resizable: true,
+          valueFormatter: (params: ValueFormatterParams<SampleRow>) => {
+            const value = params.value;
+            if (value === "" || value === null || value === undefined) {
+              return "";
+            }
+            if (Array.isArray(value)) {
+              return value.join(", ");
+            } else if (typeof value === "object") {
+              return JSON.stringify(value);
+            } else if (typeof value === "number") {
+              return value.toFixed(3);
+            }
+            return String(value);
+          },
+          comparator: createFolderFirstComparator<SampleRow>((valA, valB) => {
+            if (typeof valA === "number" && typeof valB === "number") {
+              return valA - valB;
+            }
+            return String(valA || "").localeCompare(String(valB || ""));
+          }),
+        };
+      },
+    );
+
+    // Add optional columns (all for selector, hide unselected in grid)
+    const optionalColumns: ColDef<SampleRow>[] = [
+      {
+        field: "error",
+        headerName: "Error",
+        initialWidth: 150,
+        minWidth: 100,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+      },
+      {
+        field: "limit",
+        headerName: "Limit",
+        initialWidth: 100,
+        minWidth: 80,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+      },
+      {
+        field: "retries",
+        headerName: "Retries",
+        initialWidth: 80,
+        minWidth: 60,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        comparator: createFolderFirstComparator<SampleRow>(comparators.number),
+      },
+    ];
+
+    return [...baseColumns, ...scoreColumns, ...optionalColumns];
+  }, [scoreMap]);
+
+  const columns = useMemo((): ColDef<SampleRow>[] => {
+    const columnsWithVisibility = allColumns.map((col: ColDef<SampleRow>) => {
+      const field = getFieldKey(col);
+      // Default to visible if not explicitly unselected and not optional
+      const isVisible =
+        (columnVisibility[field] ?? optionalColumnsHaveAnyData[field]) !==
+        false;
+      return {
+        ...col,
+        hide: !isVisible,
+      };
+    });
+
+    return columnsWithVisibility;
+  }, [allColumns, columnVisibility, optionalColumnsHaveAnyData]);
+
+  return {
+    columns,
+    setColumnVisibility,
+  };
+};

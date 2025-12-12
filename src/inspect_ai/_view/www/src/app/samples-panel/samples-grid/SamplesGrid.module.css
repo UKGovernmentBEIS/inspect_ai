@@ -13,3 +13,48 @@
   color: var(--bs-secondary-color);
   font-size: 1rem;
 }
+
+.numberCell {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  padding-left: 4px;
+  font-variant-numeric: tabular-nums;
+  overflow: visible;
+}
+
+.iconCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  color: var(--bs-gray-600);
+  font-size: 0.95rem;
+}
+
+.iconCell :global(.ii:before) {
+  background-color: var(--bs-gray-600);
+}
+
+.folderLink {
+  color: var(--bs-link-color);
+  text-decoration: none;
+  display: block;
+  overflow: hidden;
+  white-space: normal;
+  text-overflow: ellipsis;
+}
+
+.folderLink:hover {
+  color: var(--bs-link-hover-color);
+  text-decoration: underline;
+}
+
+.taskText {
+  color: var(--bs-body-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}

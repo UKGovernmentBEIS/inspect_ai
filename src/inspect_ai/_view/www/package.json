@@ -87,7 +87,6 @@
     "@codemirror/state": "^6.5.2",
     "@lezer/highlight": "^1.2.2",
     "@popperjs/core": "^2.11.8",
-    "@tanstack/react-table": "^8.21.3",
     "ag-grid-community": "^34.3.1",
     "ag-grid-react": "^34.3.1",
     "ansi-output": "^0.0.9",
