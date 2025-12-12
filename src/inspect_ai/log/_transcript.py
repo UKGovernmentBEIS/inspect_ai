@@ -24,7 +24,7 @@ from inspect_ai.log._condense import (
     events_attachment_fn,
     walk_model_call,
 )
-from inspect_ai.util._store import dict_jsonable, store, store_changes, store_jsonable
+from inspect_ai.util._store import dict_jsonable, store, store_changes
 
 logger = getLogger(__name__)
 

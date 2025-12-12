@@ -21,12 +21,12 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from copy import deepcopy
-from typing import Callable, ContextManager
+from typing import Any, Callable, ContextManager
 
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.json import JsonChange
-from inspect_ai.event import StoreEvent
+from inspect_ai.event import Event, StoreEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, track_store_changes
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.util import StoreModel
@@ -35,13 +35,12 @@ from inspect_ai.util._store import (
     dict_jsonable,
     init_subtask_store,
     store_changes,
-    store_jsonable,
 )
 
 
 def test_dict_jsonable_independent_copy() -> None:
     """dict_jsonable returns a fresh JSON tree that does not share state."""
-    data: dict[str, object] = {
+    data: dict[str, Any] = {
         "numbers": [1, 2, 3],
         "config": {"a": 1, "b": {"c": 2}},
     }
@@ -86,10 +85,10 @@ def test_track_store_changes_scalars_and_nested_dicts() -> None:
 
     def mutate(store: Store) -> None:
         data = store._data
-        data["new_key"] = "value"        # add
-        data["count"] = 6                # scalar replace
-        data["config"]["b"]["c"] = 10    # nested replace
-        del data["config"]["a"]          # delete
+        data["new_key"] = "value"  # add
+        data["count"] = 6  # scalar replace
+        data["config"]["b"]["c"] = 10  # nested replace
+        del data["config"]["a"]  # delete
 
     _assert_store_events_equal(build_store, mutate)
 
@@ -111,9 +110,9 @@ def test_track_store_changes_lists_of_dicts() -> None:
 
     def mutate(store: Store) -> None:
         items: list[dict[str, object]] = store._data["items"]
-        items.insert(1, {"id": 99, "name": "x"})    # insert
+        items.insert(1, {"id": 99, "name": "x"})  # insert
         items[0] = {"id": 100, "name": "replaced"}  # replace
-        items.pop()                                 # remove
+        items.pop()  # remove
 
     _assert_store_events_equal(build_store, mutate)
 
@@ -242,7 +241,7 @@ def _run_span_with(
     span_cm: Callable[[], ContextManager[None]],
     store: Store,
     mutate: Callable[[Store], None],
-) -> list[StoreEvent]:
+) -> list[Event]:
     """Run a span context with a fresh Transcript and Store, return events."""
     init_subtask_store(store)
     transcript = Transcript()
@@ -254,7 +253,9 @@ def _run_span_with(
     return list(transcript.events)
 
 
-def _run_nested_spans(span_cm: Callable[[], ContextManager[None]]) -> list[list[JsonChange]]:
+def _run_nested_spans(
+    span_cm: Callable[[], ContextManager[None]],
+) -> list[list[JsonChange]]:
     """Run nested spans (outer + inner) and return StoreEvent.changes sequences."""
     store = Store()
     store.set("value", 0)
@@ -282,8 +283,8 @@ def _track_store_changes_with_store_jsonable():
     tests continue to compare the new implementation against the original
     snapshot strategy, even though ``store_jsonable`` itself is now lighter.
     """
-    from inspect_ai.util._store import store
     from inspect_ai.log._transcript import transcript
+    from inspect_ai.util._store import store
 
     before = deepcopy(dict_jsonable(store()._data))
     yield
@@ -308,9 +309,7 @@ def _assert_store_events_equal(
     opt_store = build_store()
     opt_events = _run_span_with(track_store_changes, opt_store, mutate)
 
-    baseline_changes = [
-        e.changes for e in baseline_events if isinstance(e, StoreEvent)
-    ]
+    baseline_changes = [e.changes for e in baseline_events if isinstance(e, StoreEvent)]
     opt_changes = [e.changes for e in opt_events if isinstance(e, StoreEvent)]
 
     assert baseline_changes == opt_changes

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, cast
 from copy import deepcopy
+from typing import Any, cast
 
 from pydantic_core import to_jsonable_python
 
@@ -9,8 +9,8 @@ from inspect_ai._util.json import json_changes
 from inspect_ai.event._state import StateEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model import ChatMessageUser, ModelName
-from inspect_ai.scorer._target import Target
 from inspect_ai.model._call_tools import tools_info
+from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState, state_jsonable
 from inspect_ai.solver._transcript import SolverTranscript
 from inspect_ai.util._store import dict_jsonable
@@ -122,6 +122,3 @@ def test_solver_transcript_uses_state_jsonable_for_state_changes() -> None:
         assert events[0].changes == expected_changes
     else:
         assert events == []
-
-
-
