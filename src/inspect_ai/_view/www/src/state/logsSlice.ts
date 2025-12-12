@@ -1,8 +1,3 @@
-import {
-  ColumnFiltersState,
-  ColumnResizeMode,
-  SortingState,
-} from "@tanstack/react-table";
 import { GridState } from "ag-grid-community";
 import { EvalSet } from "../@types/log";
 import { DisplayedSample, LogsState } from "../app/types";
@@ -52,11 +47,6 @@ export interface LogsSlice {
 
     updateFlowData: (flowPath: string, flowData?: string) => void;
 
-    setSorting: (sorting: SortingState) => void;
-    setFiltering: (filtering: ColumnFiltersState) => void;
-    setGlobalFilter: (globalFilter: string) => void;
-    setColumnResizeMode: (mode: ColumnResizeMode) => void;
-    setColumnSize: (columnId: string, size: number) => void;
     setFilteredCount: (count: number) => void;
     setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
@@ -380,34 +370,6 @@ export const createLogsSlice = (
             ? logFile
             : join(logFile, state.logs.logDir);
           state.logs.selectedLogFile = absoluteLogfile;
-        });
-      },
-      setSorting: (sorting: SortingState) => {
-        set((state) => {
-          state.logs.listing.sorting = sorting;
-        });
-      },
-      setFiltering: (filtering: ColumnFiltersState) => {
-        set((state) => {
-          state.logs.listing.filtering = filtering;
-        });
-      },
-      setGlobalFilter: (globalFilter: string) => {
-        set((state) => {
-          state.logs.listing.globalFilter = globalFilter;
-        });
-      },
-      setColumnResizeMode: (mode: ColumnResizeMode) => {
-        set((state) => {
-          state.logs.listing.columnResizeMode = mode;
-        });
-      },
-      setColumnSize: (columnId: string, size: number) => {
-        set((state) => {
-          if (!state.logs.listing.columnSizes) {
-            state.logs.listing.columnSizes = {};
-          }
-          state.logs.listing.columnSizes[columnId] = size;
         });
       },
       setFilteredCount: (count: number) => {
