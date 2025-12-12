@@ -205,7 +205,13 @@ async def _openai_input_item_from_chat_message(
             responses_tool_call is not None
             and responses_tool_call["type"] == "computer_call"
         ):
-            return [computer_call_output(message, responses_tool_call["call_id"])]
+            return [
+                computer_call_output(
+                    message,
+                    responses_tool_call["call_id"],
+                    responses_tool_call.get("pending_safety_checks"),
+                )
+            ]
         elif (
             responses_tool_call is not None
             and responses_tool_call["type"] == "custom_tool_call"
@@ -606,6 +612,14 @@ def _chat_message_assistant_from_openai_response(
                     assistant_internal().tool_calls[output.call_id] = cast(
                         ResponseComputerToolCallParam, output.model_dump()
                     )
+
+                if output.pending_safety_checks:
+                    from inspect_ai.log._transcript import transcript
+
+                    for check in output.pending_safety_checks:
+                        transcript().info(
+                            f"Safety check acknowledged: {check.code or 'unknown code'} - {check.message or 'unknown message'}"
+                        )
 
                 tool_calls.append(tool_call_from_openai_computer_tool_call(output))
 
