@@ -20,6 +20,7 @@ Store is used in practice) and assert that the emitted
 from __future__ import annotations
 
 from contextlib import contextmanager
+from copy import deepcopy
 from typing import Callable, ContextManager
 
 from pydantic import BaseModel, Field
@@ -274,13 +275,19 @@ def _run_nested_spans(span_cm: Callable[[], ContextManager[None]]) -> list[list[
 
 @contextmanager
 def _track_store_changes_with_store_jsonable():
-    """Reference implementation using ``store_jsonable(store())`` snapshots."""
+    """Reference implementation using the *prior* ``store_jsonable`` semantics.
+
+    Historically, ``store_jsonable`` wrapped ``dict_jsonable(store._data)`` in an
+    additional ``deepcopy``. We keep that behaviour here explicitly so that the
+    tests continue to compare the new implementation against the original
+    snapshot strategy, even though ``store_jsonable`` itself is now lighter.
+    """
     from inspect_ai.util._store import store
     from inspect_ai.log._transcript import transcript
 
-    before = store_jsonable(store())
+    before = deepcopy(dict_jsonable(store()._data))
     yield
-    after = store_jsonable(store())
+    after = deepcopy(dict_jsonable(store()._data))
     changes = store_changes(before, after)
     if changes:
         transcript()._event(StoreEvent(changes=changes))

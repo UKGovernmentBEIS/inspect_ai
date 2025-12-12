@@ -123,7 +123,12 @@ def store_changes(
 
 
 def store_jsonable(store: Store) -> dict[str, Any]:
-    return deepcopy(dict_jsonable(store._data))
+    """Return a JSON-compatible snapshot of the Store.
+
+    The returned dict is an independent JSON tree derived from the Store's
+    internal data and can be safely mutated without affecting the Store.
+    """
+    return dict_jsonable(store._data)
 
 
 def dict_jsonable(data: dict[str, Any]) -> dict[str, Any]:
