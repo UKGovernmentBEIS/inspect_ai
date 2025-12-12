@@ -12,12 +12,12 @@ import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useClientEvents } from "../../../state/clientEvents";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
-import { debounce } from "../../../utils/sync";
 import { directoryRelativeUrl, join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
 import "../../shared/agGrid";
 import { createGridKeyboardHandler } from "../../shared/gridNavigation";
+import { createGridColumnResizer } from "../../shared/gridUtils";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
 import { samplesUrl } from "../../routing/url";
@@ -192,11 +192,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   }, [filteredLogDetails, logDir, samplesPath]);
 
   const resizeGridColumns = useMemo(
-    () =>
-      debounce(() => {
-        // Trigger column sizing after grid is ready
-        gridRef.current?.api?.sizeColumnsToFit();
-      }, 10),
+    () => createGridColumnResizer(gridRef),
     [gridRef],
   );
 

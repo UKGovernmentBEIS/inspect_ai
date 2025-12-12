@@ -97,6 +97,7 @@ export interface LogsListing {
   selectedRowIndex?: number | null;
   gridState?: GridState;
   previousLogPath?: string;
+  columnVisibility: Record<string, boolean>;
 }
 
 export interface SampleHandle {

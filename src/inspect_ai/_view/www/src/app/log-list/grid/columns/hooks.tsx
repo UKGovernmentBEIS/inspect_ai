@@ -1,25 +1,67 @@
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import clsx from "clsx";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { parseLogFileName } from "../../../../utils/evallog";
 import { formatPrettyDecimal } from "../../../../utils/format";
 import { basename } from "../../../../utils/path";
+import { useStore } from "../../../../state/store";
 import { ApplicationIcons } from "../../../appearance/icons";
 import {
   comparators,
   createFolderFirstComparator,
 } from "../../../shared/gridComparators";
+import { detectScorersFromResults } from "../../../shared/scorerDetection";
+import { getFieldKey } from "../../../shared/gridUtils";
 import { LogListRow } from "./types";
 
 import styles from "./columns.module.css";
 
+export { getFieldKey };
+
 const EmptyCell = () => <div className={styles.emptyCell}>-</div>;
 
-export const useLogListColumns = (
-  _data: LogListRow[],
-): ColDef<LogListRow>[] => {
-  return useMemo((): ColDef<LogListRow>[] => {
-    return [
+export const useLogListColumns = (): {
+  columns: ColDef<LogListRow>[];
+  setColumnVisibility: (visibility: Record<string, boolean>) => void;
+} => {
+  const columnVisibility = useStore(
+    (state) => state.logs.listing.columnVisibility,
+  );
+  const setColumnVisibility = useStore(
+    (state) => state.logsActions.setLogsColumnVisibility,
+  );
+  const logDetails = useStore((state) => state.logs.logDetails);
+
+  // Detect all unique scorer names across all logs from their results
+  const scorerMap = useMemo(
+    () => detectScorersFromResults(logDetails),
+    [logDetails],
+  );
+
+  // Auto-hide scorer columns by default if not explicitly set
+  useEffect(() => {
+    const scorerNames = Object.keys(scorerMap);
+    if (scorerNames.length === 0) return;
+
+    const needsUpdate = scorerNames.some(
+      (name) => !(`score_${name}` in columnVisibility),
+    );
+
+    if (needsUpdate) {
+      const newVisibility = { ...columnVisibility };
+      for (const scorerName of scorerNames) {
+        const field = `score_${scorerName}`;
+        if (!(field in columnVisibility)) {
+          // Hide scorer columns by default
+          newVisibility[field] = false;
+        }
+      }
+      setColumnVisibility(newVisibility);
+    }
+  }, [scorerMap, columnVisibility, setColumnVisibility]);
+
+  const allColumns = useMemo((): ColDef<LogListRow>[] => {
+    const baseColumns: ColDef<LogListRow>[] = [
       {
         field: "type",
         headerName: "#",
@@ -236,5 +278,74 @@ export const useLogListColumns = (
         comparator: createFolderFirstComparator<LogListRow>(comparators.string),
       },
     ];
-  }, []);
+
+    // Add scorer columns (currently only showing when we detect them)
+    const scorerColumns: ColDef<LogListRow>[] = Object.keys(scorerMap).map(
+      (scorerName) => {
+        const scoreType = scorerMap[scorerName];
+        return {
+          field: `score_${scorerName}`,
+          headerName: scorerName,
+          initialWidth: 100,
+          minWidth: 100,
+          sortable: true,
+          filter:
+            scoreType === "number"
+              ? "agNumberColumnFilter"
+              : "agTextColumnFilter",
+          resizable: true,
+          valueFormatter: (params) => {
+            const value = params.value;
+            if (value === "" || value === null || value === undefined) {
+              return "";
+            }
+            if (typeof value === "number") {
+              return formatPrettyDecimal(value);
+            }
+            return String(value);
+          },
+          cellRenderer: (params: ICellRendererParams<LogListRow>) => {
+            const value = params.value;
+            if (value === undefined || value === null || value === "") {
+              return <EmptyCell />;
+            }
+            return (
+              <div className={styles.scoreCell}>
+                {formatPrettyDecimal(value)}
+              </div>
+            );
+          },
+          comparator: createFolderFirstComparator<LogListRow>((valA, valB) => {
+            if (typeof valA === "number" && typeof valB === "number") {
+              return valA - valB;
+            }
+            return String(valA || "").localeCompare(String(valB || ""));
+          }),
+        } as ColDef<LogListRow>;
+      },
+    );
+
+    return [...baseColumns, ...scorerColumns];
+  }, [scorerMap]);
+
+  const columns = useMemo((): ColDef<LogListRow>[] => {
+    const columnsWithVisibility = allColumns.map((col: ColDef<LogListRow>) => {
+      const field = getFieldKey(col);
+      // Default to visible if not explicitly set, except for scorer columns
+      const isScoreColumn = field.startsWith("score_");
+      const isVisible =
+        columnVisibility[field] ?? (isScoreColumn ? false : true);
+      return {
+        ...col,
+        hide: !isVisible,
+      };
+    });
+
+    return columnsWithVisibility;
+  }, [allColumns, columnVisibility]);
+
+  return {
+    columns,
+    setColumnVisibility,
+  };
 };

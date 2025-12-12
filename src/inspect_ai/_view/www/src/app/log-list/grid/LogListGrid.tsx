@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 
 import "../../shared/agGrid";
 import { createGridKeyboardHandler } from "../../shared/gridNavigation";
+import { createGridColumnResizer } from "../../shared/gridUtils";
 import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
@@ -50,6 +51,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
   const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
 
   const logPreviews = useStore((state) => state.logs.logPreviews);
+  const logDetails = useStore((state) => state.logs.logDetails);
   const navigate = useNavigate();
   const internalGridRef = useRef<AgGridReact<LogListRow>>(null);
   const gridRef = externalGridRef ?? internalGridRef;
@@ -65,7 +67,12 @@ export const LogListGrid: FC<LogListGridProps> = ({
   const data: LogListRow[] = useMemo(() => {
     return items.map((item) => {
       const preview = item.type === "file" ? item.logPreview : undefined;
-      return {
+      const details =
+        item.type === "file" && item.log
+          ? logDetails[item.log.name]
+          : undefined;
+
+      const row: LogListRow = {
         id: item.id,
         name: item.name,
         displayIndex:
@@ -87,10 +94,25 @@ export const LogListGrid: FC<LogListGridProps> = ({
         itemCount: item.type === "folder" ? item.itemCount : undefined,
         log: item.type === "file" ? item.log : undefined,
       };
-    });
-  }, [items]);
 
-  const columns = useLogListColumns(data);
+      // Add individual scorer columns from results
+      if (details?.results?.scores) {
+        for (const evalScore of details.results.scores) {
+          if (evalScore.metrics) {
+            for (const [metricName, metric] of Object.entries(
+              evalScore.metrics,
+            )) {
+              row[`score_${metricName}`] = metric.value;
+            }
+          }
+        }
+      }
+
+      return row;
+    });
+  }, [items, logPreviews, logDetails]);
+
+  const { columns } = useLogListColumns();
 
   const initialGridState = useMemo(
     () => computeInitialLogGridState(gridState, previousLogPath, currentPath),
@@ -203,17 +225,15 @@ export const LogListGrid: FC<LogListGridProps> = ({
 
   const maxColCount = useRef(0);
 
-  const resizeGridColumns = useMemo(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = setTimeout(() => {
-        gridRef.current?.api?.sizeColumnsToFit();
-      }, 10);
-    };
-  }, [gridRef]);
+  const resizeGridColumns = useMemo(
+    () => createGridColumnResizer(gridRef),
+    [gridRef],
+  );
+
+  // Resize grid columns when columns prop changes (e.g., when columns are hidden/unhidden)
+  useEffect(() => {
+    resizeGridColumns();
+  }, [columns, resizeGridColumns]);
 
   return (
     <div className={clsx(styles.gridWrapper)}>

@@ -13,4 +13,5 @@ export interface LogListRow {
   completedAt?: string;
   itemCount?: number;
   log?: LogHandle;
+  [key: string]: any; // For dynamic score columns
 }

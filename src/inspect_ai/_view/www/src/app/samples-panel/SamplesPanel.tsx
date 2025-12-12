@@ -15,8 +15,9 @@ import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { NavbarButton } from "../navbar/NavbarButton";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
-import { ColumnSelectorPopover } from "./samples-grid/ColumnSelectorPopover";
+import { ColumnSelectorPopover } from "../shared/ColumnSelectorPopover";
 import { useSampleColumns } from "./samples-grid/hooks.tsx";
+import { getFieldKey } from "./samples-grid/hooks";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
 
@@ -160,6 +161,7 @@ export const SamplesPanel: FC = () => {
         onVisibilityChange={handleColumnVisibilityChange}
         positionEl={columnButtonRef.current}
         filteredFields={filteredFields}
+        getFieldKey={getFieldKey}
       />
 
       <ActivityBar animating={!!loading} />

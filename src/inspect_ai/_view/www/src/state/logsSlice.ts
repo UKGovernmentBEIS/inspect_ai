@@ -55,6 +55,7 @@ export interface LogsSlice {
     setLogsGridState: (gridState: GridState | undefined) => void;
     clearLogsGridState: () => void;
     setPreviousLogsPath: (path: string | undefined) => void;
+    setLogsColumnVisibility: (visibility: Record<string, boolean>) => void;
 
     setGridState: (gridState: GridState) => void;
     clearGridState: () => void;
@@ -71,7 +72,9 @@ const initialState: LogsState = {
   logPreviews: {},
   logDetails: {},
   selectedLogFile: undefined as string | undefined,
-  listing: {},
+  listing: {
+    columnVisibility: {},
+  },
   pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
   dbStats: {
     logCount: 0,
@@ -405,6 +408,11 @@ export const createLogsSlice = (
       setPreviousLogsPath: (path: string | undefined) => {
         set((state) => {
           state.logs.listing.previousLogPath = path;
+        });
+      },
+      setLogsColumnVisibility: (visibility: Record<string, boolean>) => {
+        set((state) => {
+          state.logs.listing.columnVisibility = visibility;
         });
       },
       clearSelectedLogFile: () => {

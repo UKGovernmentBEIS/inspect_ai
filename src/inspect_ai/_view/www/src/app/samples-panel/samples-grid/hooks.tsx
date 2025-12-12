@@ -15,12 +15,12 @@ import {
   comparators,
   createFolderFirstComparator,
 } from "../../shared/gridComparators";
+import { detectScorersFromSamples } from "../../shared/scorerDetection";
+import { getFieldKey } from "../../shared/gridUtils";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
 
-export const getFieldKey = (col: ColDef<SampleRow>): string => {
-  return col.field || col.headerName || "?";
-};
+export { getFieldKey };
 
 export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
   const optionalColumnsHaveAnyData: Record<string, boolean> = useMemo(() => {
@@ -63,20 +63,10 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
   }, [optionalColumnsHaveAnyData, columnVisibility, setColumnVisibility]);
 
   // Detect all unique score names across all samples
-  const scoreMap = useMemo(() => {
-    const scoreTypes: Record<string, string> = {};
-
-    for (const details of Object.values(logDetails)) {
-      for (const sample of details.sampleSummaries) {
-        if (sample.scores) {
-          for (const [name, score] of Object.entries(sample.scores)) {
-            scoreTypes[name] = typeof score.value;
-          }
-        }
-      }
-    }
-    return scoreTypes;
-  }, [logDetails]);
+  const scoreMap = useMemo(
+    () => detectScorersFromSamples(logDetails),
+    [logDetails],
+  );
 
   // Create column definitions for selector and grid
   const allColumns = useMemo((): ColDef<SampleRow>[] => {
