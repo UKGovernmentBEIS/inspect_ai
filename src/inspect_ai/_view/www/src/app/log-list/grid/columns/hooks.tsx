@@ -14,7 +14,10 @@ import { detectScorersFromResults } from "../../../shared/scorerDetection";
 import { getFieldKey } from "../../../shared/gridUtils";
 import { LogListRow } from "./types";
 
-import styles from "./columns.module.css";
+import sharedStyles from "../../../shared/gridCells.module.css";
+import localStyles from "./columns.module.css";
+
+const styles = { ...sharedStyles, ...localStyles };
 
 export { getFieldKey };
 
@@ -64,10 +67,10 @@ export const useLogListColumns = (): {
     const baseColumns: ColDef<LogListRow>[] = [
       {
         field: "type",
-        headerName: "#",
-        initialWidth: 56,
-        minWidth: 50,
-        maxWidth: 72,
+        headerName: "",
+        initialWidth: 40,
+        minWidth: 40,
+        maxWidth: 60,
         suppressSizeToFit: true,
         sortable: true,
         filter: false,
@@ -75,21 +78,15 @@ export const useLogListColumns = (): {
         pinned: "left",
         cellRenderer: (params: ICellRendererParams<LogListRow>) => {
           const type = params.data?.type;
-          if (type === "folder") {
-            return (
-              <div className={styles.iconCell}>
-                <i className={clsx(ApplicationIcons.folder)} />
-              </div>
-            );
-          }
-          if (params.data?.displayIndex !== undefined) {
-            return (
-              <div className={styles.numberCell}>
-                {params.data.displayIndex}
-              </div>
-            );
-          }
-          return "";
+          const icon =
+            type === "file" || type === "pending-task"
+              ? ApplicationIcons.inspectFile
+              : ApplicationIcons.folder;
+          return (
+            <div className={styles.iconCell}>
+              <i className={clsx(icon)} />
+            </div>
+          );
         },
       },
       {

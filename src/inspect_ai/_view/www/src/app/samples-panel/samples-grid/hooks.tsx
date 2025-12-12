@@ -17,7 +17,7 @@ import {
 } from "../../shared/gridComparators";
 import { detectScorersFromSamples } from "../../shared/scorerDetection";
 import { getFieldKey } from "../../shared/gridUtils";
-import styles from "./SamplesGrid.module.css";
+import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
 
 export { getFieldKey };

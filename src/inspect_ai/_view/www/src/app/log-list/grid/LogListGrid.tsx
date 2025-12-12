@@ -16,7 +16,7 @@ import { createGridColumnResizer } from "../../shared/gridUtils";
 import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
-import styles from "./LogListGrid.module.css";
+import styles from "../../shared/gridCells.module.css";
 import { useLogListColumns } from "./columns/hooks";
 import { LogListRow } from "./columns/types";
 import { computeInitialLogGridState } from "./gridState";

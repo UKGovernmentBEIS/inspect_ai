@@ -1,31 +1,3 @@
-.gridWrapper {
-  height: 100%;
-  width: 100%;
-  position: relative;
-}
-
-.iconCell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.95rem;
-  color: var(--bs-gray-600);
-}
-
-.iconCell :global(.ii:before) {
-  background-color: var(--bs-gray-600);
-}
-
-.numberCell {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  width: 100%;
-  padding-left: 4px;
-  font-variant-numeric: tabular-nums;
-  overflow: visible;
-}
-
 .nameCell {
   display: flex;
   align-items: center;
@@ -45,28 +17,6 @@
 .logLink:hover {
   color: var(--bs-link-hover-color);
   text-decoration: underline;
-}
-
-.folderLink {
-  color: var(--bs-link-color);
-  text-decoration: none;
-  display: block;
-  overflow: hidden;
-  white-space: normal;
-  text-overflow: ellipsis;
-}
-
-.folderLink:hover {
-  color: var(--bs-link-hover-color);
-  text-decoration: underline;
-}
-
-.taskText {
-  color: var(--bs-body-color);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
 }
 
 .modelCell {

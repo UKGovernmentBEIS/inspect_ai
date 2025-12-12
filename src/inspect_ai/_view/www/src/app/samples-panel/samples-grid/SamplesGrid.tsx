@@ -18,7 +18,7 @@ import { DisplayedSample } from "../../types";
 import "../../shared/agGrid";
 import { createGridKeyboardHandler } from "../../shared/gridNavigation";
 import { createGridColumnResizer } from "../../shared/gridUtils";
-import styles from "./SamplesGrid.module.css";
+import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
 import { samplesUrl } from "../../routing/url";
 

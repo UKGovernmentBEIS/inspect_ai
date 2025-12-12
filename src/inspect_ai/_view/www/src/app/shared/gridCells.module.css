@@ -4,14 +4,17 @@
   position: relative;
 }
 
-.emptyState {
-  width: 100%;
-  height: 100%;
+.iconCell {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--bs-secondary-color);
-  font-size: 1rem;
+  width: 100%;
+  font-size: 0.95rem;
+  color: var(--bs-gray-600);
+}
+
+.iconCell :global(.ii:before) {
+  background-color: var(--bs-gray-600);
 }
 
 .numberCell {
@@ -22,19 +25,6 @@
   padding-left: 4px;
   font-variant-numeric: tabular-nums;
   overflow: visible;
-}
-
-.iconCell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  color: var(--bs-gray-600);
-  font-size: 0.95rem;
-}
-
-.iconCell :global(.ii:before) {
-  background-color: var(--bs-gray-600);
 }
 
 .folderLink {
