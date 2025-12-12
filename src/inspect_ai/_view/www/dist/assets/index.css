@@ -21066,6 +21066,18 @@ span.ap-marker-container:hover span.ap-marker {
   column-gap: 3em;
   align-items: flex-start;
 }
+._downloadLogButton_fi3zx_1 {
+  border: none;
+  background-color: inherit;
+  opacity: 0.75;
+  padding-top: 0;
+  padding-left: 0;
+  transition: opacity 0.2s;
+}
+
+._downloadLogButton_fi3zx_1:hover {
+  opacity: 0.75;
+}
 ._container_q17yq_1 {
   display: flex;
   flex-direction: row;
@@ -21082,60 +21094,67 @@ span.ap-marker-container:hover span.ap-marker {
   gap: 0.1em;
   padding-right: 1em;
 }
-._container_1pujw_1 {
+._container_17txe_1 {
   display: flex;
   padding-top: 0;
   margin-left: 0.5rem;
   min-width: 250px;
 }
 
-._wrapper_1pujw_8 {
+._wrapper_17txe_8 {
   display: grid;
   grid-template-columns: minmax(auto, 1fr) 1fr;
   width: 100%;
 }
 
-._toggle_1pujw_14 {
+._toggle_17txe_14 {
   margin-top: 0.3em;
   font-size: 1em;
   padding: 0rem 0.1rem 0.1rem 0rem;
   display: flex;
 }
 
-._body_1pujw_21 {
+._body_17txe_21 {
   display: flex;
   flex-direction: column;
   margin-left: 0.2rem;
 }
 
-._bodyContainer_1pujw_27 {
+._bodyContainer_17txe_27 {
   margin-top: 0.1rem;
   display: grid;
   grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
 }
 
-._taskTitle_1pujw_33 {
+._taskTitle_17txe_33 {
   font-weight: 600;
   margin-right: 0.3rem;
 }
 
-._taskModel_1pujw_38 {
+._taskModel_17txe_38 {
   padding-top: 0.4rem;
 }
 
-._taskStatus_1pujw_42 {
+._taskStatus_17txe_42 {
   display: flex;
   justify-content: end;
   margin-right: 1em;
   margin-bottom: 0;
 }
 
-._secondaryContainer_1pujw_49 {
+._secondaryContainer_17txe_49 {
   opacity: 0.7;
   margin-top: -0.1rem;
   padding-bottom: 0;
   display: grid;
   grid-template-columns: minmax(0, max-content) max-content;
+  gap: 0.5rem;
+}
+
+._buttonGroup_17txe_58 {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
 }
 ._button_12472_1 {
   display: flex;
