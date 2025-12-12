@@ -85,12 +85,13 @@ class MockLLM(ModelAPI):
             raise ValueError(
                 f"output must be an instance of ModelOutput; got {type(output)}; content: {repr(output)}"
             )
-        # For testing, we set token usage here
-        content_length = len(output.completion) if output.completion else 0
-        input_length = sum(len(msg.content) for msg in input)
-        output.usage = ModelUsage(
-            input_tokens=input_length,
-            output_tokens=content_length,
-            total_tokens=input_length + content_length,
-        )
+        # For testing, we set token usage here only if not already specified
+        if output.usage is None:
+            content_length = len(output.completion) if output.completion else 0
+            input_length = sum(len(msg.content) for msg in input)
+            output.usage = ModelUsage(
+                input_tokens=input_length,
+                output_tokens=content_length,
+                total_tokens=input_length + content_length,
+            )
         return output
