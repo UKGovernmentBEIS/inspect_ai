@@ -306,7 +306,13 @@ def completion_params_responses(
         else:
             params["include"].append("message.output_text.logprobs")
     if config.top_logprobs is not None:
-        params["top_logprobs"] = config.top_logprobs
+        if reasoning_enabled:
+            warn_once(
+                logger,
+                "Models with reasoning enabled do not support the 'top_logprobs' parameter.",
+            )
+        else:
+            params["top_logprobs"] = config.top_logprobs
     if (
         tools
         and config.parallel_tool_calls is not None
