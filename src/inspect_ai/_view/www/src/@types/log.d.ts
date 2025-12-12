@@ -53,6 +53,7 @@ export type ParallelToolCalls = boolean | null;
 export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
+export type Verbosity = ("low" | "medium" | "high") | null;
 export type Effort = ("low" | "medium" | "high") | null;
 export type ReasoningEffort =
   | ("none" | "minimal" | "low" | "medium" | "high" | "xhigh")
@@ -908,6 +909,7 @@ export interface GenerateConfig {
   internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
+  verbosity: Verbosity;
   effort: Effort;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
@@ -1105,6 +1107,7 @@ export interface GenerateConfig1 {
   internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
+  verbosity: Verbosity;
   effort: Effort;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
