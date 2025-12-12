@@ -15,6 +15,7 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        stream: bool | None = None,
         **model_args: Any,
     ) -> None:
         # Handle API key before calling super() to avoid the automatic key generation
@@ -33,5 +34,6 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
             config=config,
             service="HF Inference Providers",
             service_base_url="https://router.huggingface.co/v1",
+            stream=stream is not False,
             **model_args,
         )
