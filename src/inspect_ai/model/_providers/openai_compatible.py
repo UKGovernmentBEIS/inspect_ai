@@ -343,6 +343,9 @@ class ModelInfo(ResponsesModelInfo):
     def is_gpt(self) -> bool:
         return False
 
+    def is_gpt_5_plus(self) -> bool:
+        return False
+
     def is_gpt_5(self) -> bool:
         return False
 

@@ -269,26 +269,42 @@ def completion_params_responses(
         unsupported_warning("logit_bias")
     if config.seed is not None:
         unsupported_warning("seed")
+
+    # models with reasoning enabled don't do sampling params
+    reasoning_enabled = (
+        model_info.is_o_series()
+        or (model_info.is_gpt_5() and not model_info.is_gpt_5_plus())
+        or (
+            model_info.is_gpt_5_plus() and config.reasoning_effort not in [None, "none"]
+        )
+    )
+
     if config.temperature is not None:
-        if model_info.is_o_series() or model_info.is_gpt_5():
+        if reasoning_enabled:
             warn_once(
                 logger,
-                "gpt-5 and o-series models do not support the 'temperature' parameter (temperature is always 1).",
+                "Models with reasoning enabled do not support the 'temperature' parameter (temperature is always 1).",
             )
         else:
             params["temperature"] = config.temperature
     if config.top_p is not None:
-        if model_info.is_o_series() or model_info.is_gpt_5():
+        if reasoning_enabled:
             warn_once(
                 logger,
-                "gpt-5 and o-series models do not support the 'top_p' parameter.",
+                "Models with reasoning enabled do not support the 'top_p' parameter.",
             )
         else:
             params["top_p"] = config.top_p
     if config.num_choices is not None:
         unsupported_warning("num_choices")
     if config.logprobs is not None:
-        params["include"].append("message.output_text.logprobs")
+        if reasoning_enabled:
+            warn_once(
+                logger,
+                "Models with reasoning enabled do not support the 'logprobs' parameter.",
+            )
+        else:
+            params["include"].append("message.output_text.logprobs")
     if config.top_logprobs is not None:
         params["top_logprobs"] = config.top_logprobs
     if (
