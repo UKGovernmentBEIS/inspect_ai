@@ -14,6 +14,7 @@ from ._react import react
 from ._run import run
 from ._types import (
     AgentAttempts,
+    AgentCompaction,
     AgentContinue,
     AgentPrompt,
     AgentSubmit,
@@ -43,6 +44,7 @@ __all__ = [
     "is_agent",
     "AgentPrompt",
     "AgentAttempts",
+    "AgentCompaction",
     "AgentContinue",
     "AgentSubmit",
 ]
