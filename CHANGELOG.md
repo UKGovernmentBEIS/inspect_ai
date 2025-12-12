@@ -1,3 +1,7 @@
+## Future
+
+- Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
+
 ## Unreleased
 
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
