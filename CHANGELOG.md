@@ -1,6 +1,7 @@
 ## Future
 
-- Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
+- Working time: Improve granulaity of model generate tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
+- Working time: Properly handle time reporting for overlapping coroutines waiting on the same semaphore.
 
 ## Unreleased
 
