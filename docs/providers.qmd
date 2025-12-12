@@ -921,7 +921,7 @@ The following environment variables are supported by the HF Inference Providers:
 
 ### Streaming {#streaming-hf-inference}
 
-HF Inteference Providers used streaming by default for requests. You can disable streaming using the `stream` model arg. For example:
+HF Interference Providers uses streaming by default for requests. You can disable streaming using the `stream` model arg. For example:
 
 ``` bash
 inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream=false
