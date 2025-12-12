@@ -117,9 +117,6 @@ def transcript() -> Transcript:
 
 @contextlib.contextmanager
 def track_store_changes() -> Iterator[None]:
-    # Snapshot the underlying store data as a JSON-compatible tree.
-    # dict_jsonable already returns an independent copy derived from
-    # the Store, so these snapshots can be safely diffed and inspected.
     before = dict_jsonable(store()._data)
     yield
     after = dict_jsonable(store()._data)
