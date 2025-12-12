@@ -339,6 +339,10 @@ def completion_params_responses(
                 strict=config.response_schema.strict,
             )
         )
+    if config.verbosity is not None:
+        if "text" not in params:
+            params["text"] = {}
+        params["text"]["verbosity"] = config.verbosity
 
     if any(tp.get("type") == "code_interpreter" for tp in tool_params):
         params["include"].append("code_interpreter_call.outputs")

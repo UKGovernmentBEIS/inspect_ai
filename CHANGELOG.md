@@ -6,6 +6,7 @@
 - Sample invalidation which enables marking samples as invalid (forcing a retry in eval sets).
 - Tasks: Run `cleanup()` function at the end of the sample (after scoring) rather than after solvers.
 - Grok: Option to disable GRPC retries (`disable_retry`) for waiting time tracking.
+- OpenAI: Added support for `--verbosity` generation option.
 - OpenAI: Added support for "xhigh" `reasoning_effort` option.
 - OpenAI: Support `temperature`, `top_p`, and `logprobs` for GPT 5.x models with reasoning disabled.
 - HF Inference Providers: Streaming for chat completion requests (enabled by default, use `-M stream=false` to disable).
