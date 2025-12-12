@@ -130,7 +130,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   // Transform logDetails into flat rows
   const data = useMemo(() => {
     const basePathAbs = samplesPath ? join(samplesPath, logDir) : logDir;
-    const result: SampleRow[] = [];
+    const folders: SampleRow[] = [];
+    const samples: SampleRow[] = [];
     const seenFolders = new Set<string>();
     let displayIndex = 1;
 
@@ -141,7 +142,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
         const folderName = decodeURIComponent(relativeSegments[0]);
         if (!seenFolders.has(folderName)) {
           seenFolders.add(folderName);
-          result.push({
+          folders.push({
             type: "folder",
             name: folderName,
             logFile: join(folderName, logDir),
@@ -182,11 +183,12 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           });
         }
 
-        result.push(row);
+        samples.push(row);
       });
     });
 
-    return result;
+    // Return folders first, then samples
+    return [...folders, ...samples];
   }, [filteredLogDetails, logDir, samplesPath]);
 
   const resizeGridColumns = useMemo(

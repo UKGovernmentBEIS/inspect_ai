@@ -6,6 +6,10 @@ import { parseLogFileName } from "../../../../utils/evallog";
 import { formatPrettyDecimal } from "../../../../utils/format";
 import { basename } from "../../../../utils/path";
 import { ApplicationIcons } from "../../../appearance/icons";
+import {
+  comparators,
+  createFolderFirstComparator,
+} from "../../../shared/gridComparators";
 import { LogListRow } from "./types";
 
 import styles from "./columns.module.css";
@@ -178,12 +182,7 @@ export const useLogListColumns = (
             </div>
           );
         },
-        comparator: (valueA, valueB) => {
-          if (!valueA && valueB) return 1;
-          if (valueA && !valueB) return -1;
-          if (!valueA && !valueB) return 0;
-          return valueA.localeCompare(valueB);
-        },
+        comparator: createFolderFirstComparator<LogListRow>(comparators.string),
       },
       {
         field: "completedAt",
@@ -218,13 +217,7 @@ export const useLogListColumns = (
           )}`;
           return <div className={styles.dateCell}>{timeStr}</div>;
         },
-        comparator: (_valueA, _valueB, nodeA, nodeB) => {
-          const completedA = nodeA.data?.completedAt;
-          const completedB = nodeB.data?.completedAt;
-          const timeA = new Date(completedA || 0).getTime();
-          const timeB = new Date(completedB || 0).getTime();
-          return timeA - timeB;
-        },
+        comparator: createFolderFirstComparator<LogListRow>(comparators.date),
       },
       {
         field: "name",
@@ -257,17 +250,7 @@ export const useLogListColumns = (
             </div>
           );
         },
-        comparator: (_valueA, _valueB, nodeA, nodeB) => {
-          const itemA = nodeA.data;
-          const itemB = nodeB.data;
-          if (!itemA || !itemB) return 0;
-          if (itemA.type !== itemB.type) {
-            return itemA.type === "folder" ? -1 : 1;
-          }
-          const a = basename(itemA.name);
-          const b = basename(itemB.name);
-          return a.localeCompare(b);
-        },
+        comparator: createFolderFirstComparator<LogListRow>(comparators.string),
       },
     ];
   }, []);

@@ -11,6 +11,10 @@ import { LogDetails } from "../../../client/api/types";
 import { filename } from "../../../utils/path";
 import { useStore } from "../../../state/store";
 import { ApplicationIcons } from "../../appearance/icons";
+import {
+  comparators,
+  createFolderFirstComparator,
+} from "../../shared/gridComparators";
 import styles from "./SamplesGrid.module.css";
 import { SampleRow } from "./types";
 
@@ -131,6 +135,13 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
           }
           return <span className={styles.taskText}>{value}</span>;
         },
+        comparator: createFolderFirstComparator<SampleRow>(
+          (_valA, _valB, a, b) => {
+            const taskA = a.task || a.name || "";
+            const taskB = b.task || b.name || "";
+            return taskA.localeCompare(taskB);
+          },
+        ),
       },
       {
         field: "model",
@@ -140,6 +151,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
       },
       {
         field: "sampleId",
@@ -151,6 +163,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         resizable: true,
         valueGetter: (params: ValueGetterParams<SampleRow>) =>
           String(params.data?.sampleId ?? ""),
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
       },
       {
         field: "epoch",
@@ -161,6 +174,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { textAlign: "center" },
+        comparator: createFolderFirstComparator<SampleRow>(comparators.number),
       },
       {
         field: "input",
@@ -171,6 +185,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
       },
       {
         field: "status",
@@ -180,6 +195,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         resizable: true,
         filter: true,
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
       },
       {
         field: "logFile",
@@ -194,6 +210,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
           new Date(params.newValue),
         valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
           filename(params.value),
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
       },
       {
         field: "target",
@@ -204,6 +221,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
       },
     ];
 
@@ -221,15 +239,12 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
             scoreType === "number"
               ? "agNumberColumnFilter"
               : "agTextColumnFilter",
-
           resizable: true,
           valueFormatter: (params: ValueFormatterParams<SampleRow>) => {
-            // Format the score based upon its type
             const value = params.value;
             if (value === "" || value === null || value === undefined) {
               return "";
             }
-
             if (Array.isArray(value)) {
               return value.join(", ");
             } else if (typeof value === "object") {
@@ -239,6 +254,12 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
             }
             return String(value);
           },
+          comparator: createFolderFirstComparator<SampleRow>((valA, valB) => {
+            if (typeof valA === "number" && typeof valB === "number") {
+              return valA - valB;
+            }
+            return String(valA || "").localeCompare(String(valB || ""));
+          }),
         };
       },
     );
@@ -254,6 +275,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
       },
       {
         field: "limit",
@@ -263,6 +285,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
+        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
       },
       {
         field: "retries",
@@ -272,6 +295,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
+        comparator: createFolderFirstComparator<SampleRow>(comparators.number),
       },
     ];
 
