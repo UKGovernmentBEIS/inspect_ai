@@ -1,7 +1,6 @@
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import clsx from "clsx";
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
 import { parseLogFileName } from "../../../../utils/evallog";
 import { formatPrettyDecimal } from "../../../../utils/format";
 import { basename } from "../../../../utils/path";
@@ -78,13 +77,7 @@ export const useLogListColumns = (
           return (
             <div className={styles.nameCell}>
               {item.type === "folder" && item.url ? (
-                <Link
-                  to={item.url}
-                  className={styles.folderLink}
-                  title={item.name}
-                >
-                  {value}
-                </Link>
+                <span className={styles.folderLink}>{value}</span>
               ) : (
                 <span className={styles.taskText}>{value}</span>
               )}
@@ -238,17 +231,7 @@ export const useLogListColumns = (
             return <EmptyCell />;
           }
           const value = basename(item.name);
-          return (
-            <div className={styles.nameCell}>
-              {item.url ? (
-                <Link to={item.url} className={styles.fileLink}>
-                  {value}
-                </Link>
-              ) : (
-                value
-              )}
-            </div>
-          );
+          return <div className={styles.nameCell}>{value}</div>;
         },
         comparator: createFolderFirstComparator<LogListRow>(comparators.string),
       },
