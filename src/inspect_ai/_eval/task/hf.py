@@ -89,10 +89,10 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         # validate config
         hf_task = HFTask.model_validate(task_config)
 
-        # if there is more than one task then 'name' is required
+        # if there is more than one task then 'id' is required
         if len(task_configs) > 1 and hf_task.id is None:
             raise PrerequisiteError(
-                "Task 'name' field is required if there are more than 1 tasks in 'eval.yaml'"
+                "Task 'id' field is required if there are more than 1 tasks in 'eval.yaml'"
             )
 
         # filter on id if specified
@@ -142,7 +142,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
                 )
             )
 
-        # Build and return task (use name disambiguator if more than 1 task)
+        # Build and return task (use id disambiguator if more than 1 task)
         task = Task(
             name=f"{task_name}/{hf_task.id}" if len(task_configs) > 1 else task_name,
             dataset=dataset,
