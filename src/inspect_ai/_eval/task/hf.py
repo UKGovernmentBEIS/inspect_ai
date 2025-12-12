@@ -30,9 +30,9 @@ class FieldSpecHF(FieldSpec):
 class HFTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None)
-    subset: str = Field(default="default")
-    splits: str = Field(default="test")
+    id: str | None = Field(default=None)
+    config: str = Field(default="default")
+    split: str = Field(default="test")
     field_spec: FieldSpecHF
     shuffle_choices: bool | None = Field(default=None)
     epochs: int = Field(default=1)
@@ -90,13 +90,13 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         hf_task = HFTask.model_validate(task_config)
 
         # if there is more than one task then 'name' is required
-        if len(task_configs) > 1 and hf_task.name is None:
+        if len(task_configs) > 1 and hf_task.id is None:
             raise PrerequisiteError(
                 "Task 'name' field is required if there are more than 1 tasks in 'eval.yaml'"
             )
 
-        # filter on name if specified
-        if name is not None and hf_task.name != name:
+        # filter on id if specified
+        if name is not None and hf_task.id != name:
             continue
 
         def record_to_sample_hf(
@@ -108,8 +108,8 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         dataset = hf_dataset(
             path=repo_id,
             revision=revision,
-            name=hf_task.subset,
-            split=hf_task.splits,
+            name=hf_task.config,
+            split=hf_task.split,
             sample_fields=record_to_sample_hf,
         )
 
@@ -144,7 +144,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
 
         # Build and return task (use name disambiguator if more than 1 task)
         task = Task(
-            name=f"{task_name}/{hf_task.name}" if len(task_configs) > 1 else task_name,
+            name=f"{task_name}/{hf_task.id}" if len(task_configs) > 1 else task_name,
             dataset=dataset,
             solver=solvers,
             scorer=scorers,
