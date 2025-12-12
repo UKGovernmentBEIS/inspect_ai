@@ -7,6 +7,8 @@
 - Tasks: Run `cleanup()` function at the end of the sample (after scoring) rather than after solvers.
 - Grok: Option to disable GRPC retries (`disable_retry`) for waiting time tracking.
 - OpenAI: Added support for "xhigh" `reasoning_effort` option.
+- HF Inference Providers: Streaming for chat completion requests (enabled by default, use `-M stream=false` to disable).
+- OpenAI Compatible: Added support for `stream` option (disabled by default, use `-M stream=true` to enable).
 - Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
 - React Agent: Remove newlines from default prompts.
 - Human Agent: Support for non-scalar values returned from intermediate scoring.
