@@ -24,7 +24,7 @@ from inspect_ai.log._condense import (
     events_attachment_fn,
     walk_model_call,
 )
-from inspect_ai.util._store import dict_jsonable, store, store_changes
+from inspect_ai.util._store import store, store_changes, store_jsonable
 
 logger = getLogger(__name__)
 
@@ -117,9 +117,9 @@ def transcript() -> Transcript:
 
 @contextlib.contextmanager
 def track_store_changes() -> Iterator[None]:
-    before = dict_jsonable(store()._data)
+    before = store_jsonable(store())
     yield
-    after = dict_jsonable(store()._data)
+    after = store_jsonable(store())
 
     changes = store_changes(before, after)
     if changes:
