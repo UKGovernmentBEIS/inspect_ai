@@ -2,6 +2,7 @@ import shutil
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+from time import sleep
 
 import pytest
 from test_helpers.utils import (
@@ -608,6 +609,9 @@ def test_invalidation(tmp_path: Path):
         provenance=ProvenanceData(author="test_person", reason="test_reason"),
     )
     write_eval_log(eval1, location=eval1.location)
+
+    # Ensure that enough time has passed that we get a new eval log filename
+    sleep(1)
 
     success2, evals_retried = run_eval_set()
     assert success2

@@ -58,7 +58,11 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._condense import condense_sample
-from inspect_ai.log._file import eval_log_json_str
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    eval_log_json_str,
+    read_eval_log_sample_async,
+)
 from inspect_ai.log._log import (
     EvalSampleLimit,
     EvalSampleReductions,
@@ -131,7 +135,7 @@ from .util import sample_messages, slice_dataset
 py_logger = getLogger(__name__)
 
 
-EvalSampleSource = Callable[[int | str, int], EvalSample | None]
+EvalSampleSource = Callable[[int | str, int], Awaitable[EvalSample | None]]
 
 # Units allocated for sample progress - the total units
 # represents the total units of progress for an individual sample
@@ -641,7 +645,7 @@ async def task_run_sample(
 
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
-        previous_sample = sample_source(sample.id, state.epoch)
+        previous_sample = await sample_source(sample.id, state.epoch)
         if previous_sample:
             # tick off progress for this sample
             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
@@ -1221,16 +1225,16 @@ async def resolve_dataset(
 #   - The datasets have not been shuffled OR the samples in the dataset have unique ids
 #   - The datasets have the exact same length
 def eval_log_sample_source(
-    eval_log: EvalLog | None, dataset: Dataset
+    eval_log: EvalLog | None, eval_log_info: EvalLogInfo | None, dataset: Dataset
 ) -> EvalSampleSource:
     # return dummy function for no sample source
-    def no_sample_source(id: int | str, epoch: int) -> None:
+    async def no_sample_source(id: int | str, epoch: int) -> None:
         return None
 
     # take care of no log or no samples in log
     if not eval_log:
         return no_sample_source
-    elif not eval_log.samples or len(eval_log.samples) == 0:
+    elif (not eval_log.samples or len(eval_log.samples) == 0) and not eval_log_info:
         return no_sample_source
 
     # determine whether all samples in the dataset have ids (if not, then we can't
@@ -1255,7 +1259,15 @@ def eval_log_sample_source(
         return no_sample_source
     else:
 
-        def previous(id: int | str, epoch: int) -> EvalSample | None:
+        async def previous(id: int | str, epoch: int) -> EvalSample | None:
+            if eval_log_info:
+                try:
+                    sample = await read_eval_log_sample_async(eval_log_info, id, epoch)
+                    if sample.error is not None or sample.invalidation is not None:
+                        return None
+                    return sample
+                except IndexError:
+                    return None
             return next(
                 (
                     sample
