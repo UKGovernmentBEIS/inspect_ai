@@ -137,10 +137,14 @@ from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
 )
-from inspect_ai._util.error import PrerequisiteError
-
 from ._anthropic_batch import AnthropicBatcher
-from .util import environment_prerequisite_error, model_base_url
+from .util import (
+    check_azure_deployment_mismatch,
+    environment_prerequisite_error,
+    model_base_url,
+    require_azure_base_url,
+    resolve_api_key,
+)
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
@@ -148,6 +152,9 @@ logger = getLogger(__name__)
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
 AZURE_ANTHROPIC_API_KEY = "AZURE_ANTHROPIC_API_KEY"
+
+# Azure base URL environment variables
+AZURE_ANTHROPIC_BASE_URL_VARS = ["AZUREAI_ANTHROPIC_BASE_URL", "AZURE_ANTHROPIC_BASE_URL"]
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
@@ -193,6 +200,15 @@ class AnthropicAPI(ModelAPI):
             config=config,
         )
 
+        # check for Azure model/URL mismatch
+        if self.is_azure():
+            check_azure_deployment_mismatch(
+                self.service_model_name(),
+                base_url,
+                AZURE_ANTHROPIC_BASE_URL_VARS,
+                "AZUREAI_ANTHROPIC",
+            )
+
         self.model_args = model_args
         self.initialize()
 
@@ -231,22 +247,14 @@ class AnthropicAPI(ModelAPI):
             )
         elif self.is_azure():
             # resolve base_url (required for Azure)
-            base_url = model_base_url(
-                self.base_url,
-                ["AZUREAI_ANTHROPIC_BASE_URL", "AZURE_ANTHROPIC_BASE_URL"],
+            base_url = require_azure_base_url(
+                self.base_url, AZURE_ANTHROPIC_BASE_URL_VARS, "Anthropic"
             )
-            if not base_url:
-                raise PrerequisiteError(
-                    "ERROR: You must provide a base URL when using Anthropic on Azure. Use the AZUREAI_ANTHROPIC_BASE_URL "
-                    + "environment variable or the --model-base-url CLI flag to set the base URL."
-                )
-                
-            print(f"Anthropic Azure base_url: {base_url}")
 
             # resolve api_key (required for Azure)
             if not self.api_key:
-                self.api_key = os.environ.get(
-                    AZUREAI_ANTHROPIC_API_KEY, os.environ.get(AZURE_ANTHROPIC_API_KEY, None)
+                self.api_key = resolve_api_key(
+                    [AZUREAI_ANTHROPIC_API_KEY, AZURE_ANTHROPIC_API_KEY]
                 )
             if not self.api_key:
                 raise environment_prerequisite_error(
@@ -288,9 +296,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_vertex(self) -> bool:
         return self.service == "vertex"
-    
+
     def is_azure(self) -> bool:
-        return self.service in ["azureai", 'azure']
+        return self.service == "azure"
 
     async def generate(
         self,
