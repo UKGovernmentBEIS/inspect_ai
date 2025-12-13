@@ -9,6 +9,7 @@
 - OpenAI: Added support for `--verbosity` generation option.
 - OpenAI: Added support for "xhigh" `reasoning_effort` option.
 - OpenAI: Support `temperature`, `top_p`, and `logprobs` for GPT 5.x models with reasoning disabled.
+- OpenAI: Tolerate missing "detail" field for image urls.
 - Google: Include request content when printing 400 errors.
 - HF Inference Providers: Streaming for chat completion requests (enabled by default, use `-M stream=false` to disable).
 - OpenAI Compatible: Added support for `stream` option (disabled by default, use `-M stream=true` to enable).
