@@ -16,6 +16,7 @@
 - Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
 - React Agent: Remove newlines from default prompts.
 - Human Agent: Support for non-scalar values returned from intermediate scoring.
+- Request tracking: Log warning rather than raise error for unexpected hook states.
 - Inspect View: Print IP address of remote server when binding to 0.0.0.0.
 - Computer Tool: Add computer use tool version support for Claude Opus 4.5.
 - Computer Tool: Auto-acknowledge OpenAI computer tool safety checks.
