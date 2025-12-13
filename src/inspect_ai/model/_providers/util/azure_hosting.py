@@ -23,9 +23,8 @@ def check_azure_deployment_mismatch(
     provider_name: str = "Azure",
 ) -> None:
     """
-    Check for mismatches between specified model and Azure deployment URL.
-    Logs a warning if the model name doesn't match the deployment in the URL.
-    
+    Check for mismatches between specified model and Azure deployment URL.Logs a warning if the model name doesn't match the deployment in the URL.
+
     Args:
         model_name: The model name without service prefix.
         base_url: The explicitly provided base URL (or None).
@@ -61,13 +60,13 @@ def check_azure_deployment_mismatch(
 def resolve_azure_token_provider(provider_name: str) -> Callable[[], str]:
     """
     Resolve Azure managed identity token provider (Microsoft Entra ID).
-    
+
     Args:
         provider_name: Name of the provider for error messages.
-    
+
     Returns:
         A callable token provider function.
-    
+
     Raises:
         PrerequisiteError: If azure-identity package is not installed.
     """
@@ -95,15 +94,15 @@ def require_azure_base_url(
 ) -> str:
     """
     Resolve and validate Azure base URL.
-    
+
     Args:
         base_url: The explicitly provided base URL (or None).
         base_url_env_vars: List of environment variable names to check for base URL.
         provider_name: Name of the provider for error messages.
-    
+
     Returns:
         The resolved base URL.
-    
+
     Raises:
         PrerequisiteError: If no base URL is found.
     """

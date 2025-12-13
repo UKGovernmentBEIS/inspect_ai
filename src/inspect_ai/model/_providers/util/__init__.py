@@ -3,7 +3,6 @@ from ..._model_output import as_stop_reason
 from .azure_hosting import (
     check_azure_deployment_mismatch,
     require_azure_base_url,
-    resolve_azure_api_key,
     resolve_azure_token_provider,
 )
 from .chatapi import (
@@ -15,11 +14,7 @@ from .chatapi import (
 )
 from .hf_handler import HFHandler
 from .llama31 import Llama31Handler
-from .util import (
-    environment_prerequisite_error,
-    model_base_url,
-    resolve_api_key
-)
+from .util import environment_prerequisite_error, model_base_url, resolve_api_key
 
 __all__ = [
     "environment_prerequisite_error",
@@ -30,6 +25,7 @@ __all__ = [
     "model_base_url",
     "parse_tool_call",
     "require_azure_base_url",
+    "resolve_api_key",
     "resolve_azure_token_provider",
     "check_azure_deployment_mismatch",
     "tool_parse_error_message",

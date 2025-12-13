@@ -23,8 +23,8 @@ from anthropic import (
     APITimeoutError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
-    AsyncAnthropicVertex,
     AsyncAnthropicFoundry,
+    AsyncAnthropicVertex,
     BadRequestError,
     NotGiven,
 )
@@ -154,7 +154,10 @@ AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
 AZURE_ANTHROPIC_API_KEY = "AZURE_ANTHROPIC_API_KEY"
 
 # Azure base URL environment variables
-AZURE_ANTHROPIC_BASE_URL_VARS = ["AZUREAI_ANTHROPIC_BASE_URL", "AZURE_ANTHROPIC_BASE_URL"]
+AZURE_ANTHROPIC_BASE_URL_VARS = [
+    "AZUREAI_ANTHROPIC_BASE_URL",
+    "AZURE_ANTHROPIC_BASE_URL",
+]
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
@@ -196,7 +199,11 @@ class AnthropicAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[ANTHROPIC_API_KEY, AZUREAI_ANTHROPIC_API_KEY, AZURE_ANTHROPIC_API_KEY],
+            api_key_vars=[
+                ANTHROPIC_API_KEY,
+                AZUREAI_ANTHROPIC_API_KEY,
+                AZURE_ANTHROPIC_API_KEY,
+            ],
             config=config,
         )
 
@@ -214,7 +221,12 @@ class AnthropicAPI(ModelAPI):
 
     def _create_client(
         self,
-    ) -> AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex | AsyncAnthropicFoundry:
+    ) -> (
+        AsyncAnthropic
+        | AsyncAnthropicBedrock
+        | AsyncAnthropicVertex
+        | AsyncAnthropicFoundry
+    ):
         if self.is_bedrock():
             base_url = model_base_url(
                 self.base_url,
