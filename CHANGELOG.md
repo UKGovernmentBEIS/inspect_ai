@@ -1,3 +1,8 @@
+## Future
+
+- Working time: Improve granulaity of model generate tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
+- Working time: Properly handle time reporting for overlapping coroutines waiting on the same semaphore.
+
 ## Unreleased
 
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
