@@ -23,6 +23,7 @@ from anthropic import (
     APITimeoutError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
+    AsyncAnthropicFoundry,
     AsyncAnthropicVertex,
     BadRequestError,
     NotGiven,
@@ -137,12 +138,26 @@ from .._providers._anthropic_citations import (
     to_inspect_citation,
 )
 from ._anthropic_batch import AnthropicBatcher
-from .util import environment_prerequisite_error, model_base_url
+from .util import (
+    check_azure_deployment_mismatch,
+    environment_prerequisite_error,
+    model_base_url,
+    require_azure_base_url,
+    resolve_api_key,
+)
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
+AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
+AZURE_ANTHROPIC_API_KEY = "AZURE_ANTHROPIC_API_KEY"
+
+# Azure base URL environment variables
+AZURE_ANTHROPIC_BASE_URL_VARS = [
+    "AZUREAI_ANTHROPIC_BASE_URL",
+    "AZURE_ANTHROPIC_BASE_URL",
+]
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
@@ -184,16 +199,34 @@ class AnthropicAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[ANTHROPIC_API_KEY],
+            api_key_vars=[
+                ANTHROPIC_API_KEY,
+                AZUREAI_ANTHROPIC_API_KEY,
+                AZURE_ANTHROPIC_API_KEY,
+            ],
             config=config,
         )
+
+        # check for Azure model/URL mismatch
+        if self.is_azure():
+            check_azure_deployment_mismatch(
+                self.service_model_name(),
+                base_url,
+                AZURE_ANTHROPIC_BASE_URL_VARS,
+                "AZUREAI_ANTHROPIC",
+            )
 
         self.model_args = model_args
         self.initialize()
 
     def _create_client(
         self,
-    ) -> AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex:
+    ) -> (
+        AsyncAnthropic
+        | AsyncAnthropicBedrock
+        | AsyncAnthropicVertex
+        | AsyncAnthropicFoundry
+    ):
         if self.is_bedrock():
             base_url = model_base_url(
                 self.base_url,
@@ -222,6 +255,28 @@ class AnthropicAPI(ModelAPI):
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
+                **self.model_args,
+            )
+        elif self.is_azure():
+            # resolve base_url (required for Azure)
+            base_url = require_azure_base_url(
+                self.base_url, AZURE_ANTHROPIC_BASE_URL_VARS, "Anthropic"
+            )
+
+            # resolve api_key (required for Azure)
+            if not self.api_key:
+                self.api_key = resolve_api_key(
+                    [AZUREAI_ANTHROPIC_API_KEY, AZURE_ANTHROPIC_API_KEY]
+                )
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "Anthropic on Azure",
+                    [AZUREAI_ANTHROPIC_API_KEY, AZURE_ANTHROPIC_API_KEY],
+                )
+
+            return AsyncAnthropicFoundry(
+                base_url=base_url,
+                api_key=self.api_key,
                 **self.model_args,
             )
         else:
@@ -253,6 +308,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_vertex(self) -> bool:
         return self.service == "vertex"
+
+    def is_azure(self) -> bool:
+        return self.service == "azure"
 
     async def generate(
         self,

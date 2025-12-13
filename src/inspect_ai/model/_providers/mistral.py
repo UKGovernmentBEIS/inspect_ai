@@ -75,12 +75,20 @@ from .._model_output import (
 from .mistral_conversation import (
     mistral_conversation_generate,
 )
-from .util import environment_prerequisite_error, model_base_url
+from .util import (
+    environment_prerequisite_error,
+    model_base_url,
+    require_azure_base_url,
+    resolve_api_key,
+)
 from .util.hooks import HttpxHooks
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
 MISTRAL_API_KEY = "MISTRAL_API_KEY"
+
+
+AZURE_MISTRAL_BASE_URL_VARS = ["AZUREAI_MISTRAL_BASE_URL", "AZURE_MISTRAL_BASE_URL"]
 
 
 class MistralAPI(ModelAPI):
@@ -123,8 +131,8 @@ class MistralAPI(ModelAPI):
         # resolve api_key
         if not self.api_key:
             if self.is_azure():
-                self.api_key = os.environ.get(
-                    AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
+                self.api_key = resolve_api_key(
+                    [AZUREAI_MISTRAL_API_KEY, AZURE_MISTRAL_API_KEY]
                 )
             else:
                 self.api_key = os.environ.get(MISTRAL_API_KEY, None)
@@ -136,12 +144,9 @@ class MistralAPI(ModelAPI):
 
         if not self.base_url:
             if self.is_azure():
-                self.base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
-                if not self.base_url:
-                    raise ValueError(
-                        "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
-                        + " environment variable or the --model-base-url CLI flag to set the base URL."
-                    )
+                self.base_url = require_azure_base_url(
+                    self.base_url, AZURE_MISTRAL_BASE_URL_VARS, "Mistral"
+                )
             else:
                 self.base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
 
