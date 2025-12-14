@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.154 (14 December 2025)
 
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - Logging: Support for writing logs to Azure Blob Storage (`az://`).
