@@ -1,3 +1,7 @@
+## Unreleased Changes
+
+- Inspect View: Display timestamp in sample limit events tooltip.
+
 ## 0.3.154 (14 December 2025)
 
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
