@@ -425,16 +425,6 @@ inspect eval evals/mytask
 
 ## Hugging Face
 
-> [!NOTE]
->
-> The Hugging Face tasks feature described below is available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that
 provides Inspect task definitions. For example, the
 [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24)

@@ -1133,6 +1133,15 @@ complexity of the tool schema. Before using tool emulation you should
 always check if your provider implements native support for tool calling
 on the model you are using, as that will generally work better.
 
+### Streaming
+
+You can enable the use of the streaming with the `openai-api` provider
+by passing the `stream` model arg. For example:
+
+``` bash
+$ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
+```
+
 ## OpenRouter
 
 To use the [OpenRouter](https://openrouter.ai/) provider, install the
@@ -1202,6 +1211,15 @@ Providers:
 | Variable   | Description                                                 |
 |------------|-------------------------------------------------------------|
 | `HF_TOKEN` | Hugging Face token with appropriate permissions (required). |
+
+### Streaming
+
+HF Interference Providers uses streaming by default for requests. You
+can disable streaming using the `stream` model arg. For example:
+
+``` bash
+inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream=false
+```
 
 ## Custom Models
 

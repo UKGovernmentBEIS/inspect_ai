@@ -1,16 +1,6 @@
 # Early Stopping
 
 
-> [!NOTE]
->
-> The early stopping feature described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 Early stopping enables you to skip samples or epochs during evaluation

@@ -149,9 +149,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#december-2025" id="toc-december-2025" class="nav-link" data-scroll-target="#december-2025">0.3.153 (05 December 2025)</a></li>
-  <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.152 (04 December 2025)</a></li>
+  <li><a href="#december-2025" id="toc-december-2025" class="nav-link active" data-scroll-target="#december-2025">0.3.154 (14 December 2025)</a></li>
+  <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.153 (05 December 2025)</a></li>
+  <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.152 (04 December 2025)</a></li>
   <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.151 (30 November 2025)</a></li>
   <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.150 (25 November 2025)</a></li>
   <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.149 (23 November 2025)</a></li>
@@ -311,8 +311,8 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="december-2025" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025">0.3.154 (14 December 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/early-stopping.html.md">Early Stopping</a> API for ending tasks early based on previously scored samples.</li>
 <li>Logging: Support for writing logs to Azure Blob Storage (<code>az://</code>).</li>
@@ -320,27 +320,35 @@ ul.task-list li input[type="checkbox"] {
 <li>Sample invalidation which enables marking samples as invalid (forcing a retry in eval sets).</li>
 <li>Tasks: Run <code>cleanup()</code> function at the end of the sample (after scoring) rather than after solvers.</li>
 <li>Grok: Option to disable GRPC retries (<code>disable_retry</code>) for waiting time tracking.</li>
+<li>OpenAI: Added support for <code>--verbosity</code> generation option.</li>
 <li>OpenAI: Added support for “xhigh” <code>reasoning_effort</code> option.</li>
+<li>OpenAI: Support <code>temperature</code>, <code>top_p</code>, and <code>logprobs</code> for GPT 5.x models with reasoning disabled.</li>
+<li>OpenAI: Tolerate missing “detail” field for image urls.</li>
+<li>Google: Include request content when printing 400 errors.</li>
+<li>HF Inference Providers: Streaming for chat completion requests (enabled by default, use <code>-M stream=false</code> to disable).</li>
+<li>OpenAI Compatible: Added support for <code>stream</code> option (disabled by default, use <code>-M stream=true</code> to enable).</li>
 <li>Agent Bridge: <code>model</code> option is now used only as a fallback if the request model is not for “inspect” or “inspect/*“.</li>
 <li>React Agent: Remove newlines from default prompts.</li>
 <li>Human Agent: Support for non-scalar values returned from intermediate scoring.</li>
+<li>Request tracking: Log warning rather than raise error for unexpected hook states.</li>
 <li>Inspect View: Print IP address of remote server when binding to 0.0.0.0.</li>
 <li>Computer Tool: Add computer use tool version support for Claude Opus 4.5.</li>
+<li>Computer Tool: Auto-acknowledge OpenAI computer tool safety checks.</li>
 <li>Bugfix: Copy <code>metadata</code> field to new eval for <code>eval-retry</code>.</li>
 <li>Bugfix: Retry when parsing an incomplete bridged tool call response.</li>
 <li>Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.</li>
 </ul>
 </section>
-<section id="december-2025" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025">0.3.153 (05 December 2025)</h2>
+<section id="december-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-1">0.3.153 (05 December 2025)</h2>
 <ul>
 <li>Agent Bridge: Don’t print serialization warnings when going from Pydantic -&gt; JSON (as we use beta types that can cause warnings even though serialization works as intended).</li>
 <li>Batch Processing: Enable customizing of batch status rendering.</li>
 <li>Inspect View: Expand dictionary scores into separate scores when viewing samples.</li>
 </ul>
 </section>
-<section id="december-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025-1">0.3.152 (04 December 2025)</h2>
+<section id="december-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-2">0.3.152 (04 December 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan">Update Plan</a> tool for tracking steps and progress across longer horizon tasks.</li>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution">Code Execution</a> tool for executing Python code in a stateless sandbox running on model provider servers.</li>
