@@ -12,7 +12,7 @@ import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useClientEvents } from "../../../state/clientEvents";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
-import { directoryRelativeUrl, join } from "../../../utils/uri";
+import { join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
 import "../../shared/agGrid";
@@ -20,7 +20,6 @@ import { createGridKeyboardHandler } from "../../shared/gridNavigation";
 import { createGridColumnResizer } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
-import { samplesUrl } from "../../routing/url";
 
 // Sample Grid Props
 interface SamplesGridProps {
@@ -129,37 +128,12 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
   // Transform logDetails into flat rows
   const data = useMemo(() => {
-    const basePathAbs = samplesPath ? join(samplesPath, logDir) : logDir;
-    const folders: SampleRow[] = [];
     const samples: SampleRow[] = [];
-    const seenFolders = new Set<string>();
     let displayIndex = 1;
 
     Object.entries(filteredLogDetails).forEach(([logFile, details]) => {
-      const relToBase = directoryRelativeUrl(logFile, basePathAbs);
-      const relativeSegments = relToBase.split("/").filter(Boolean);
-      if (relativeSegments.length > 1) {
-        const folderName = decodeURIComponent(relativeSegments[0]);
-        if (!seenFolders.has(folderName)) {
-          seenFolders.add(folderName);
-          folders.push({
-            type: "folder",
-            name: folderName,
-            logFile: join(folderName, logDir),
-            task: folderName,
-            model: "",
-            sampleId: "",
-            epoch: 0,
-            input: "",
-            target: "",
-            url: samplesUrl(join(folderName, samplesPath || ""), logDir),
-          });
-        }
-      }
-
       details.sampleSummaries.forEach((sample) => {
         const row: SampleRow = {
-          type: "sample",
           logFile,
           task: details.eval.task || "",
           model: details.eval.model || "",
@@ -187,8 +161,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
       });
     });
 
-    // Return folders first, then samples
-    return [...folders, ...samples];
+    return samples;
   }, [filteredLogDetails, logDir, samplesPath]);
 
   const resizeGridColumns = useMemo(
@@ -211,24 +184,12 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           mouseEvent?.shiftKey ||
           mouseEvent?.button === 1;
 
-        // Use setTimeout to allow grid state to update before navigation
-        if (e.data.type === "folder" && e.data.url) {
-          const url = e.data.url;
-          setTimeout(() => {
-            if (openInNewWindow) {
-              window.open(url, "_blank");
-            } else {
-              window.location.hash = `#${url}`;
-            }
-          }, 10);
-        } else {
-          const logFile = e.data.logFile;
-          const sampleId = e.data.sampleId;
-          const epoch = e.data.epoch;
-          setTimeout(() => {
-            navigateToSampleDetail(logFile, sampleId, epoch, openInNewWindow);
-          }, 10);
-        }
+        const logFile = e.data.logFile;
+        const sampleId = e.data.sampleId;
+        const epoch = e.data.epoch;
+        setTimeout(() => {
+          navigateToSampleDetail(logFile, sampleId, epoch, openInNewWindow);
+        }, 10);
       }
     },
     [navigateToSampleDetail, gridRef],
@@ -237,15 +198,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   const handleOpenRow = useCallback(
     (rowNode: IRowNode<SampleRow>, e: KeyboardEvent) => {
       const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
-      if (rowNode.data?.type === "folder" && rowNode.data.url) {
-        if (openInNewWindow) {
-          window.open(rowNode.data.url, "_blank");
-        } else {
-          window.location.hash = `#${rowNode.data.url}`;
-        }
-        return;
-      }
-
       if (rowNode.data) {
         navigateToSampleDetail(
           rowNode.data.logFile,
@@ -283,11 +235,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     logFile: string,
     sampleId: string | number,
     epoch: number,
-    type?: string,
   ) => {
-    if (type === "folder") {
-      return `folder-${logFile}`.replace(/\s+/g, "_");
-    }
     return `${logFile}-${sampleId}-${epoch}`.replace(/\s+/g, "_");
   };
 
@@ -351,7 +299,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
               params.data.logFile,
               params.data.sampleId,
               params.data.epoch,
-              params.data.type,
             )
           }
           onGridColumnsChanged={(e: GridColumnsChangedEvent<SampleRow>) => {
@@ -405,7 +352,7 @@ const gridDisplayedSamples = (
   const displayedRowCount = gridApi.getDisplayedRowCount();
   for (let i = 0; i < displayedRowCount; i++) {
     const node = gridApi.getDisplayedRowAtIndex(i);
-    if (node?.data && node.data.type !== "folder") {
+    if (node?.data) {
       displayedSamples.push({
         logFile: node.data.logFile,
         sampleId: node.data.sampleId,

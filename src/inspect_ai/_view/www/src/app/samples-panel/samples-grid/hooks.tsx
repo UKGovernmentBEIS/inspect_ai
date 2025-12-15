@@ -1,6 +1,5 @@
 import {
   ColDef,
-  ColSpanParams,
   ICellRendererParams,
   ValueFormatterParams,
   ValueGetterParams,
@@ -10,11 +9,7 @@ import { useEffect, useMemo } from "react";
 import { LogDetails } from "../../../client/api/types";
 import { filename } from "../../../utils/path";
 import { useStore } from "../../../state/store";
-import { ApplicationIcons } from "../../appearance/icons";
-import {
-  comparators,
-  createFolderFirstComparator,
-} from "../../shared/gridComparators";
+import { comparators } from "../../shared/gridComparators";
 import { detectScorersFromSamples } from "../../shared/scorerDetection";
 import { getFieldKey } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
@@ -81,13 +76,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         resizable: false,
         pinned: "left",
         cellRenderer: (params: ICellRendererParams<SampleRow>) => {
-          if (params.data?.type === "folder") {
-            return (
-              <div className={styles.iconCell}>
-                <i className={ApplicationIcons.folder} />
-              </div>
-            );
-          }
           if (params.data?.displayIndex !== undefined) {
             return (
               <div className={styles.numberCell}>
@@ -106,32 +94,12 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        colSpan: (params: ColSpanParams<SampleRow>) =>
-          params.data?.type === "folder" ? 100 : 1,
         cellRenderer: (params: ICellRendererParams<SampleRow>) => {
           const item = params.data;
           if (!item) return null;
-          const value = item.task || item.name;
-          if (item.type === "folder" && item.url) {
-            return (
-              <a
-                href={`#${item.url}`}
-                className={styles.folderLink}
-                title={value}
-              >
-                {value}
-              </a>
-            );
-          }
-          return <span className={styles.taskText}>{value}</span>;
+          return <span className={styles.taskText}>{item.task}</span>;
         },
-        comparator: createFolderFirstComparator<SampleRow>(
-          (_valA, _valB, a, b) => {
-            const taskA = a.task || a.name || "";
-            const taskB = b.task || b.name || "";
-            return taskA.localeCompare(taskB);
-          },
-        ),
+        comparator: comparators.string,
       },
       {
         field: "model",
@@ -141,7 +109,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+        comparator: comparators.string,
       },
       {
         field: "sampleId",
@@ -153,7 +121,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         resizable: true,
         valueGetter: (params: ValueGetterParams<SampleRow>) =>
           String(params.data?.sampleId ?? ""),
-        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+        comparator: comparators.string,
       },
       {
         field: "epoch",
@@ -164,7 +132,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { textAlign: "center" },
-        comparator: createFolderFirstComparator<SampleRow>(comparators.number),
+        comparator: comparators.number,
       },
       {
         field: "input",
@@ -175,7 +143,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
-        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+        comparator: comparators.string,
       },
       {
         field: "status",
@@ -185,7 +153,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         resizable: true,
         filter: true,
-        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+        comparator: comparators.string,
       },
       {
         field: "logFile",
@@ -200,7 +168,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
           new Date(params.newValue),
         valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
           filename(params.value),
-        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+        comparator: comparators.string,
       },
       {
         field: "target",
@@ -211,7 +179,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
-        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+        comparator: comparators.string,
       },
     ];
 
@@ -244,12 +212,12 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
             }
             return String(value);
           },
-          comparator: createFolderFirstComparator<SampleRow>((valA, valB) => {
+          comparator: (valA, valB) => {
             if (typeof valA === "number" && typeof valB === "number") {
               return valA - valB;
             }
             return String(valA || "").localeCompare(String(valB || ""));
-          }),
+          },
         };
       },
     );
@@ -265,7 +233,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
-        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+        comparator: comparators.string,
       },
       {
         field: "limit",
@@ -275,7 +243,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        comparator: createFolderFirstComparator<SampleRow>(comparators.string),
+        comparator: comparators.string,
       },
       {
         field: "retries",
@@ -285,7 +253,7 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        comparator: createFolderFirstComparator<SampleRow>(comparators.number),
+        comparator: comparators.number,
       },
     ];
 
