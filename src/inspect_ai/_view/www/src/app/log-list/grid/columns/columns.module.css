@@ -5,20 +5,6 @@
   flex: 1;
 }
 
-.logLink {
-  color: var(--bs-link-color);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.logLink:hover {
-  color: var(--bs-link-hover-color);
-  text-decoration: underline;
-}
-
 .modelCell {
   display: flex;
   align-items: center;
@@ -60,8 +46,4 @@
   align-items: center;
   min-width: 0;
   flex: 1;
-}
-
-.emptyCell {
-  display: block;
 }

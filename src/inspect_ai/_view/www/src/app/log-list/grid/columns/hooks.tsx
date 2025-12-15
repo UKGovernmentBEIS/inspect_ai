@@ -21,7 +21,7 @@ const styles = { ...sharedStyles, ...localStyles };
 
 export { getFieldKey };
 
-const EmptyCell = () => <div className={styles.emptyCell}>-</div>;
+const EmptyCell = () => <div>-</div>;
 
 export const useLogListColumns = (): {
   columns: ColDef<LogListRow>[];
