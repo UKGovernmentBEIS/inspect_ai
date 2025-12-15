@@ -1,13 +1,10 @@
-## Future
-
-- Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
-
 ## Unreleased
 
 - Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
 - Anthropic: Support for inference on Azure Foundry (`anthropic/azure`).
 - Grok: Don't use streaming responses by default (enable explicitly with `-M stream=true`).
 - Logging: Optimize snapshots for track_store_changes and state_jsonable.
+- Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
 - Inspect View: Display timestamp in sample limit events tooltip.
 
 ## 0.3.154 (14 December 2025)
