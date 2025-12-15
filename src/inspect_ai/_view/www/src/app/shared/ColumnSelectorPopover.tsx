@@ -4,6 +4,7 @@ import { FC, useMemo } from "react";
 import { PopOver } from "../../components/PopOver";
 import { ApplicationIcons } from "../appearance/icons";
 import styles from "./ColumnSelectorPopover.module.css";
+import { getFieldKey } from "../shared/gridUtils";
 
 interface ColumnSelectorPopoverProps<T> {
   showing: boolean;
@@ -12,7 +13,6 @@ interface ColumnSelectorPopoverProps<T> {
   onVisibilityChange: (visibility: Record<string, boolean>) => void;
   positionEl: HTMLElement | null;
   filteredFields?: string[];
-  getFieldKey: (col: ColDef<T>) => string;
 }
 
 export const ColumnSelectorPopover = <T,>({
@@ -22,7 +22,6 @@ export const ColumnSelectorPopover = <T,>({
   onVisibilityChange,
   positionEl,
   filteredFields = [],
-  getFieldKey,
 }: ColumnSelectorPopoverProps<T>): ReturnType<FC> => {
   // Get current visibility directly from columns
   const currentVisibility = useMemo(
@@ -31,7 +30,7 @@ export const ColumnSelectorPopover = <T,>({
         (acc, col) => ({ ...acc, [getFieldKey(col)]: !col.hide }),
         {},
       ),
-    [columns, getFieldKey],
+    [columns],
   );
 
   const handleToggle = (field: string) => {
@@ -47,7 +46,7 @@ export const ColumnSelectorPopover = <T,>({
       base: columns.filter((col) => !getFieldKey(col).startsWith("score_")),
       scores: columns.filter((col) => getFieldKey(col).startsWith("score_")),
     };
-  }, [columns, getFieldKey]);
+  }, [columns]);
 
   const handleSelectAllBase = () => {
     onVisibilityChange({

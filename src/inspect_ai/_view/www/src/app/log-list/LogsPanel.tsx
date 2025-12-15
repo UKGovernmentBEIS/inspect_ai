@@ -19,7 +19,6 @@ import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { logsUrl, useLogRouteParams } from "../routing/url";
 import { ColumnSelectorPopover } from "../shared/ColumnSelectorPopover";
 import { useLogListColumns } from "./grid/columns/hooks";
-import { getFieldKey } from "./grid/columns/hooks";
 import { LogListGrid } from "./grid/LogListGrid";
 import { LogListRow } from "./grid/columns/types";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
@@ -74,6 +73,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const previousWatchedLogs = useRef<typeof watchedLogs>(undefined);
 
   useEffect(() => {
+    // Only restart polling if the watched logs have actually changed
     const current =
       watchedLogs
         ?.map((log) => log.name)
@@ -88,6 +88,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             .join(",") || "";
 
     if (current !== previous) {
+      // Always stop current polling first when logs change
       stopPolling();
 
       if (watchedLogs !== undefined) {
@@ -104,6 +105,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       const fileItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
         [];
 
+      // Track processed folders to avoid duplicates
       const processedFolders = new Set<string>();
       const existingLogTaskIds = new Set<string>();
 
@@ -141,6 +143,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             logPreview: logPreviews[logFile.name],
           });
         } else if (name.startsWith(dirWithSlash)) {
+          // This is file that is next level (or deeper) child of the current directory
           const relativePath = directoryRelativeUrl(name, currentDir);
 
           const dirName = decodeURIComponent(rootName(relativePath));
@@ -167,22 +170,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         FileLogItem | FolderLogItem | PendingTaskItem
       > = collapseLogItems(evalSet, orderedItems);
 
-      const withPending = appendPendingItems(
-        evalSet,
-        existingLogTaskIds,
-        collapsedLogItems,
-      );
-
-      // Assign display index to non-folder rows only
-      let displayIndex = 1;
-      const numbered = withPending.map((item) => {
-        if (item.type === "folder") {
-          return item;
-        }
-        return { ...item, displayIndex: displayIndex++ };
-      });
-
-      return numbered;
+      return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
     }, [evalSet, logFiles, currentDir, logDir, logPreviews]);
 
   const { columns, setColumnVisibility } = useLogListColumns();
@@ -190,13 +178,11 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   // Wrapper that clears filters for columns that are being hidden
   const handleColumnVisibilityChange = useCallback(
     (newVisibility: Record<string, boolean>) => {
-      // Clear filters for columns that are being hidden
       if (gridRef.current?.api) {
         const currentFilterModel = gridRef.current.api.getFilterModel() || {};
         let filtersRemoved = false;
         const newFilterModel: Record<string, unknown> = {};
 
-        // Copy filters, skipping those for columns being hidden
         for (const [field, filter] of Object.entries(currentFilterModel)) {
           if (newVisibility[field] === false) {
             filtersRemoved = true;
@@ -210,7 +196,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         }
       }
 
-      // Update column visibility
       setColumnVisibility(newVisibility);
     },
     [setColumnVisibility],
@@ -300,7 +285,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         onVisibilityChange={handleColumnVisibilityChange}
         positionEl={columnButtonRef.current}
         filteredFields={filteredFields}
-        getFieldKey={getFieldKey}
       />
 
       <>
@@ -346,6 +330,7 @@ export const collapseLogItems = (
     return logItems;
   }
 
+  // Group file items by task_id
   const taskIdToItems = new Map<string, FileLogItem[]>();
   const itemsWithoutTaskId: Array<FolderLogItem | FileLogItem> = [];
 
@@ -361,8 +346,11 @@ export const collapseLogItems = (
     }
   }
 
+  // For each task_id, select the best item (prefer running/complete over error)
   const selectedItems = new Map<string, FileLogItem>();
   for (const [taskId, items] of taskIdToItems) {
+    // Sort by status priority: started > success > error
+    // If same priority, take the last one
     let bestItem = items[0];
     for (const item of items) {
       const currentStatus = item.logPreview?.status;
@@ -370,17 +358,23 @@ export const collapseLogItems = (
       const bestStatus = bestItem.logPreview?.status;
       const bestMtime = bestItem.log.mtime ?? 0;
 
+      // Prefer started over everything
       if (currentStatus === "started" && bestStatus !== "started") {
         bestItem = item;
-      } else if (currentStatus === "success" && bestStatus === "error") {
+      }
+      // Prefer success over error
+      else if (currentStatus === "success" && bestStatus === "error") {
         bestItem = item;
-      } else if (currentStatus === bestStatus && currentMtime > bestMtime) {
+      }
+      // If same status or current is error, prefer most recent
+      else if (currentStatus === bestStatus && currentMtime > bestMtime) {
         bestItem = item;
       }
     }
     selectedItems.set(taskId, bestItem);
   }
 
+  // Rebuild logItems maintaining order, replacing duplicates with selected item
   const collapsedLogItems: Array<
     FileLogItem | FolderLogItem | PendingTaskItem
   > = [];
@@ -397,6 +391,7 @@ export const collapseLogItems = (
         processedTaskIds.add(taskId);
       }
     } else {
+      // Include folders and files without task_id
       collapsedLogItems.push(item);
     }
   }
@@ -420,6 +415,7 @@ const appendPendingItems = (
     }
   }
 
+  // Sort pending tasks by name
   pendingTasks.sort((a, b) => a.name.localeCompare(b.name));
 
   collapsedLogItems.push(...pendingTasks);

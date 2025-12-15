@@ -11,7 +11,7 @@ import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import "../../shared/agGrid";
-import { createGridKeyboardHandler } from "../../shared/gridNavigation";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
 import { createGridColumnResizer } from "../../shared/gridUtils";
 import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
@@ -19,16 +19,11 @@ import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
 import styles from "../../shared/gridCells.module.css";
 import { useLogListColumns } from "./columns/hooks";
 import { LogListRow } from "./columns/types";
-import { computeInitialLogGridState } from "./gridState";
 
 interface LogListGridProps {
   items: Array<FileLogItem | FolderLogItem | PendingTaskItem>;
   currentPath?: string;
   gridRef?: RefObject<AgGridReact<LogListRow> | null>;
-}
-
-export interface LogListGridHandle {
-  focus: () => void;
 }
 
 export const LogListGrid: FC<LogListGridProps> = ({
@@ -63,6 +58,27 @@ export const LogListGrid: FC<LogListGridProps> = ({
       .map((item) => item.log)
       .filter((file) => file !== undefined);
   }, [items]);
+
+  const { columns } = useLogListColumns();
+
+  const initialGridState = useMemo(() => {
+    if (previousLogPath !== undefined && previousLogPath !== currentPath) {
+      const result = { ...gridState };
+      delete result.filter;
+      return result;
+    }
+    return gridState;
+  }, [currentPath, gridState, previousLogPath]);
+
+  useEffect(() => {
+    if (currentPath !== previousLogPath) {
+      setPreviousLogPath(currentPath);
+    }
+  }, [currentPath, previousLogPath, setPreviousLogPath]);
+
+  useEffect(() => {
+    gridContainerRef.current?.focus();
+  }, []);
 
   const data: LogListRow[] = useMemo(() => {
     return items.map((item) => {
@@ -110,24 +126,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
 
       return row;
     });
-  }, [items, logPreviews, logDetails]);
-
-  const { columns } = useLogListColumns();
-
-  const initialGridState = useMemo(
-    () => computeInitialLogGridState(gridState, previousLogPath, currentPath),
-    [currentPath, gridState, previousLogPath],
-  );
-
-  useEffect(() => {
-    gridContainerRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    if (currentPath !== previousLogPath) {
-      setPreviousLogPath(currentPath);
-    }
-  }, [currentPath, previousLogPath, setPreviousLogPath]);
+  }, [items, logDetails]);
 
   const handleRowClick = useCallback(
     (e: RowClickedEvent<LogListRow>) => {
@@ -237,11 +236,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
 
   return (
     <div className={clsx(styles.gridWrapper)}>
-      <div
-        ref={gridContainerRef}
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-        tabIndex={0}
-      >
+      <div ref={gridContainerRef} className={styles.gridContainer} tabIndex={0}>
         <AgGridReact<LogListRow>
           ref={gridRef}
           rowData={data}

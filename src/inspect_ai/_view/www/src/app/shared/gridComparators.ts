@@ -35,11 +35,6 @@ export function createFolderFirstComparator<T extends { type?: string }>(
  * Common comparison functions for use with createFolderFirstComparator
  */
 export const comparators = {
-  /** Compare values as strings using localeCompare */
-  string: (a: unknown, b: unknown) => {
-    return String(a || "").localeCompare(String(b || ""));
-  },
-
   /** Compare values as numbers */
   number: (a: unknown, b: unknown) => {
     return Number(a || 0) - Number(b || 0);

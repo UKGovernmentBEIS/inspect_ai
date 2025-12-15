@@ -61,7 +61,7 @@ export interface LogsSlice {
     clearGridState: () => void;
     setDisplayedSamples: (samples: Array<DisplayedSample>) => void;
     clearDisplayedSamples: () => void;
-    setColumnVisibility: (visibility: Record<string, boolean>) => void;
+    setSamplesColumnVisibility: (visibility: Record<string, boolean>) => void;
     setPreviousSamplesPath: (path: string | undefined) => void;
   };
 }
@@ -168,7 +168,7 @@ export const createLogsSlice = (
           state.logs.samplesListState.displayedSamples = undefined;
         });
       },
-      setColumnVisibility: (visibility: Record<string, boolean>) => {
+      setSamplesColumnVisibility: (visibility: Record<string, boolean>) => {
         set((state) => {
           state.logs.samplesListState.columnVisibility = visibility;
         });

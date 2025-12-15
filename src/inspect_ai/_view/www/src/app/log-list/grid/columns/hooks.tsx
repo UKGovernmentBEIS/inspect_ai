@@ -10,7 +10,6 @@ import {
   comparators,
   createFolderFirstComparator,
 } from "../../../shared/gridComparators";
-import { detectScorersFromResults } from "../../../shared/scorerDetection";
 import { getFieldKey } from "../../../shared/gridUtils";
 import { LogListRow } from "./types";
 
@@ -18,8 +17,6 @@ import sharedStyles from "../../../shared/gridCells.module.css";
 import localStyles from "./columns.module.css";
 
 const styles = { ...sharedStyles, ...localStyles };
-
-export { getFieldKey };
 
 const EmptyCell = () => <div>-</div>;
 
@@ -36,10 +33,27 @@ export const useLogListColumns = (): {
   const logDetails = useStore((state) => state.logs.logDetails);
 
   // Detect all unique scorer names across all logs from their results
-  const scorerMap = useMemo(
-    () => detectScorersFromResults(logDetails),
-    [logDetails],
-  );
+  const scorerMap = useMemo(() => {
+    const scoreTypes: Record<string, string> = {};
+
+    for (const details of Object.values(logDetails)) {
+      if (details.results?.scores) {
+        // scores is an array of EvalScore objects
+        for (const evalScore of details.results.scores) {
+          // Each EvalScore has metrics which is a record of EvalMetric
+          if (evalScore.metrics) {
+            for (const [metricName, metric] of Object.entries(
+              evalScore.metrics,
+            )) {
+              scoreTypes[metricName] = typeof metric.value;
+            }
+          }
+        }
+      }
+    }
+
+    return scoreTypes;
+  }, [logDetails]);
 
   // Auto-hide scorer columns by default if not explicitly set
   useEffect(() => {
@@ -55,7 +69,6 @@ export const useLogListColumns = (): {
       for (const scorerName of scorerNames) {
         const field = `score_${scorerName}`;
         if (!(field in columnVisibility)) {
-          // Hide scorer columns by default
           newVisibility[field] = false;
         }
       }
@@ -70,7 +83,7 @@ export const useLogListColumns = (): {
         headerName: "",
         initialWidth: 40,
         minWidth: 40,
-        maxWidth: 60,
+        maxWidth: 40,
         suppressSizeToFit: true,
         sortable: true,
         filter: false,
@@ -214,7 +227,6 @@ export const useLogListColumns = (): {
             </div>
           );
         },
-        comparator: createFolderFirstComparator<LogListRow>(comparators.string),
       },
       {
         field: "completedAt",
@@ -272,7 +284,6 @@ export const useLogListColumns = (): {
           const value = basename(item.name);
           return <div className={styles.nameCell}>{value}</div>;
         },
-        comparator: createFolderFirstComparator<LogListRow>(comparators.string),
       },
     ];
 

@@ -16,7 +16,7 @@ import { join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
 import "../../shared/agGrid";
-import { createGridKeyboardHandler } from "../../shared/gridNavigation";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
 import { createGridColumnResizer } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
@@ -128,7 +128,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
   // Transform logDetails into flat rows
   const data = useMemo(() => {
-    const samples: SampleRow[] = [];
+    const rows: SampleRow[] = [];
     let displayIndex = 1;
 
     Object.entries(filteredLogDetails).forEach(([logFile, details]) => {
@@ -151,23 +151,19 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           displayIndex: displayIndex++,
         };
 
+        // Add scores as individual fields
         if (sample.scores) {
           Object.entries(sample.scores).forEach(([scoreName, score]) => {
             row[`score_${scoreName}`] = score.value;
           });
         }
 
-        samples.push(row);
+        rows.push(row);
       });
     });
 
-    return samples;
-  }, [filteredLogDetails, logDir, samplesPath]);
-
-  const resizeGridColumns = useMemo(
-    () => createGridColumnResizer(gridRef),
-    [gridRef],
-  );
+    return rows;
+  }, [filteredLogDetails]);
 
   const handleRowClick = useCallback(
     (e: RowClickedEvent<SampleRow>) => {
@@ -269,6 +265,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   // Keep track of the max column count to avoid redundant resizing
   const maxColCount = useRef(0);
 
+  const resizeGridColumns = useMemo(
+    () => createGridColumnResizer(gridRef),
+    [gridRef],
+  );
+
   // Resize grid columns when columns prop changes (e.g., when columns are hidden/unhidden)
   useEffect(() => {
     resizeGridColumns();
@@ -276,11 +277,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
   return (
     <div className={styles.gridWrapper}>
-      <div
-        ref={gridContainerRef}
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-        tabIndex={0}
-      >
+      <div ref={gridContainerRef} className={styles.gridContainer} tabIndex={0}>
         <AgGridReact<SampleRow>
           ref={gridRef}
           rowData={data}

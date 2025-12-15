@@ -10,12 +10,9 @@ import { LogDetails } from "../../../client/api/types";
 import { filename } from "../../../utils/path";
 import { useStore } from "../../../state/store";
 import { comparators } from "../../shared/gridComparators";
-import { detectScorersFromSamples } from "../../shared/scorerDetection";
 import { getFieldKey } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
-
-export { getFieldKey };
 
 export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
   const optionalColumnsHaveAnyData: Record<string, boolean> = useMemo(() => {
@@ -36,8 +33,26 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
     (state) => state.logs.samplesListState.columnVisibility,
   );
   const setColumnVisibility = useStore(
-    (state) => state.logsActions.setColumnVisibility,
+    (state) => state.logsActions.setSamplesColumnVisibility,
   );
+
+  // Detect all unique score names across all samples
+  const scoreMap = useMemo(() => {
+    const scoreTypes: Record<string, string> = {};
+
+    for (const details of Object.values(logDetails)) {
+      for (const sample of details.sampleSummaries) {
+        if (sample.scores) {
+          for (const [name, score] of Object.entries(sample.scores)) {
+            scoreTypes[name] = typeof score.value;
+          }
+        }
+      }
+    }
+
+    return scoreTypes;
+  }, [logDetails]);
+
   useEffect(() => {
     // if optional columns are not set manually, set their visibility based on the data
     const { error, limit, retries } = optionalColumnsHaveAnyData;
@@ -57,20 +72,14 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
     setColumnVisibility(newVisibility);
   }, [optionalColumnsHaveAnyData, columnVisibility, setColumnVisibility]);
 
-  // Detect all unique score names across all samples
-  const scoreMap = useMemo(
-    () => detectScorersFromSamples(logDetails),
-    [logDetails],
-  );
-
   // Create column definitions for selector and grid
   const allColumns = useMemo((): ColDef<SampleRow>[] => {
     const baseColumns: ColDef<SampleRow>[] = [
       {
         headerName: "#",
-        initialWidth: 56,
+        initialWidth: 80,
         minWidth: 50,
-        maxWidth: 72,
+        maxWidth: 80,
         sortable: false,
         filter: false,
         resizable: false,
@@ -94,12 +103,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        cellRenderer: (params: ICellRendererParams<SampleRow>) => {
-          const item = params.data;
-          if (!item) return null;
-          return <span className={styles.taskText}>{item.task}</span>;
-        },
-        comparator: comparators.string,
       },
       {
         field: "model",
@@ -109,7 +112,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        comparator: comparators.string,
       },
       {
         field: "sampleId",
@@ -121,7 +123,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         resizable: true,
         valueGetter: (params: ValueGetterParams<SampleRow>) =>
           String(params.data?.sampleId ?? ""),
-        comparator: comparators.string,
       },
       {
         field: "epoch",
@@ -143,7 +144,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
-        comparator: comparators.string,
       },
       {
         field: "status",
@@ -153,7 +153,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         resizable: true,
         filter: true,
-        comparator: comparators.string,
       },
       {
         field: "logFile",
@@ -168,7 +167,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
           new Date(params.newValue),
         valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
           filename(params.value),
-        comparator: comparators.string,
       },
       {
         field: "target",
@@ -179,7 +177,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
-        comparator: comparators.string,
       },
     ];
 
@@ -233,7 +230,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         filter: true,
         resizable: true,
         cellStyle: { overflow: "hidden", textOverflow: "ellipsis" },
-        comparator: comparators.string,
       },
       {
         field: "limit",
@@ -243,7 +239,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        comparator: comparators.string,
       },
       {
         field: "retries",
