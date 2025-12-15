@@ -3,6 +3,7 @@ import { FC } from "react";
 import { EvalResults, EvalSpec, Status } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
+import { DownloadLogButton } from "../../../components/DownloadLogButton";
 import { kModelNone } from "../../../constants";
 import { toDisplayScorers } from "../../../scoring/metrics";
 import { useStore } from "../../../state/store";
@@ -29,9 +30,10 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   sampleCount,
 }) => {
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
+  const downloadLogs = useStore((state) => state.capabilities.downloadLogs);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
+  const isEvalFile = selectedLogFile?.endsWith(".eval");
 
   const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
 
@@ -79,7 +81,12 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             <div className={clsx("navbar-secondary-text", "text-truncate")}>
               {logFileName}
             </div>
-            {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
+            <div className={styles.buttonGroup}>
+              {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
+              {downloadLogs && selectedLogFile && isEvalFile ? (
+                <DownloadLogButton log_file={selectedLogFile} />
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

@@ -279,6 +279,10 @@ class OpenAIAPI(ModelAPI):
         name = self.service_model_name()
         return "gpt-5" in name
 
+    def is_gpt_5_plus(self) -> bool:
+        name = self.service_model_name()
+        return "gpt-5." in name
+
     def is_gpt_5_pro(self) -> bool:
         name = self.service_model_name()
         return self.is_gpt_5() and "-pro" in name

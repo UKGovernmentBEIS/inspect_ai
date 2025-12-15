@@ -438,6 +438,8 @@ class GoogleGenAIAPI(ModelAPI):
                 content=ex.message,
                 stop_reason="model_length",
             )
+        elif ex.code == 400:
+            return ex
         else:
             raise ex
 

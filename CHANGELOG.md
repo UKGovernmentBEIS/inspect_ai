@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.154 (14 December 2025)
 
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - Logging: Support for writing logs to Azure Blob Storage (`az://`).
@@ -6,14 +6,20 @@
 - Sample invalidation which enables marking samples as invalid (forcing a retry in eval sets).
 - Tasks: Run `cleanup()` function at the end of the sample (after scoring) rather than after solvers.
 - Grok: Option to disable GRPC retries (`disable_retry`) for waiting time tracking.
+- OpenAI: Added support for `--verbosity` generation option.
 - OpenAI: Added support for "xhigh" `reasoning_effort` option.
+- OpenAI: Support `temperature`, `top_p`, and `logprobs` for GPT 5.x models with reasoning disabled.
+- OpenAI: Tolerate missing "detail" field for image urls.
+- Google: Include request content when printing 400 errors.
 - HF Inference Providers: Streaming for chat completion requests (enabled by default, use `-M stream=false` to disable).
 - OpenAI Compatible: Added support for `stream` option (disabled by default, use `-M stream=true` to enable).
 - Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
 - React Agent: Remove newlines from default prompts.
 - Human Agent: Support for non-scalar values returned from intermediate scoring.
+- Request tracking: Log warning rather than raise error for unexpected hook states.
 - Inspect View: Print IP address of remote server when binding to 0.0.0.0.
 - Computer Tool: Add computer use tool version support for Claude Opus 4.5.
+- Computer Tool: Auto-acknowledge OpenAI computer tool safety checks.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
 - Bugfix: Retry when parsing an incomplete bridged tool call response.
 - Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.
