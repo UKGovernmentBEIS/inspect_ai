@@ -436,20 +436,21 @@ def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
         if state is None:
             return dict()
 
-    def as_jsonable(value: Any) -> Any:
-        return to_jsonable_python(value, exclude_none=True, fallback=lambda _x: None)
-
     state_data = dict(
-        messages=as_jsonable(state.messages),
+        messages=state.messages,
         tools=tools_info(state.tools),
         tool_choice=state.tool_choice,
         store=store_jsonable(state.store),
         output=state.output,
         completed=state.completed,
-        metadata=as_jsonable(state.metadata),
+        metadata=state.metadata,
     )
-    jsonable = as_jsonable(state_data)
-    return cast(dict[str, Any], deepcopy(jsonable))
+    jsonable = to_jsonable_python(
+        state_data,
+        exclude_none=True,
+        fallback=lambda _x: None,
+    )
+    return cast(dict[str, Any], jsonable)
 
 
 def sample_jsonable(sample: Sample) -> dict[str, Any]:
