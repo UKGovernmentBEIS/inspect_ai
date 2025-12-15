@@ -38,7 +38,6 @@ from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs,
-    read_eval_log,
     read_eval_log_headers,
     write_log_dir_manifest,
 )
@@ -531,7 +530,8 @@ def as_previous_tasks(
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
-                log=read_eval_log(log.info),
+                log=log.header,
+                log_info=log.info,
             )
         )
 
