@@ -194,6 +194,7 @@ Authentication is doing using the standard Google Cloud CLI (i.e. if you have au
 
 ### Anthropic on Azure {#anthropic-on-azure}
 
+::: {.callout-note}
 Support for Anthropic models on Azure is available only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
