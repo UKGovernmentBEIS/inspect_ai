@@ -1,4 +1,4 @@
-## Unreleased Changes
+## Unreleased
 
 - Inspect View: Display timestamp in sample limit events tooltip.
 
