@@ -8,7 +8,8 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.log import read_eval_log, write_eval_log
-from inspect_ai.scorer._metric import ProvenanceData, ScoreEdit
+from inspect_ai.log._edit import ProvenanceData
+from inspect_ai.scorer._metric import ScoreEdit
 
 
 @pytest.fixture

@@ -38,7 +38,6 @@ from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs,
-    read_eval_log,
     read_eval_log_headers,
     write_log_dir_manifest,
 )
@@ -531,7 +530,8 @@ def as_previous_tasks(
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
-                log=read_eval_log(log.info),
+                log=log.header,
+                log_info=log.info,
             )
         )
 
@@ -542,7 +542,7 @@ def as_previous_tasks(
 
 
 def all_evals_succeeded(logs: list[EvalLog]) -> bool:
-    return all([log.status == "success" for log in logs])
+    return all([log.status == "success" and not log.invalidated for log in logs])
 
 
 # filter for determining when we are done
@@ -591,6 +591,8 @@ def list_latest_eval_logs(
         if epochs_changed(epochs, log.header.eval.config):
             incomplete_logs.append(log)
         elif log.header.status != "success":
+            incomplete_logs.append(log)
+        elif log.header.invalidated:
             incomplete_logs.append(log)
         else:
             complete_logs.append(log)

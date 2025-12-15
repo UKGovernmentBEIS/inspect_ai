@@ -137,6 +137,7 @@ class EvalRecorder(FileRecorder):
         reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
         header_only: bool = False,
+        invalidated: bool = False,
     ) -> EvalLog:
         # get the key and log
         key = self._log_file_key(eval)
@@ -164,6 +165,7 @@ class EvalRecorder(FileRecorder):
 
         eval_header = EvalLog(
             version=log_start.version,
+            invalidated=invalidated,
             eval=log_start.eval,
             plan=log_start.plan,
             results=log_results.results,
@@ -315,7 +317,13 @@ async def _write_eval_log_with_recorder(
     for sample in log.samples or []:
         await recorder.log_sample(log.eval, sample)
     await recorder.log_finish(
-        log.eval, log.status, log.stats, log.results, log.reductions, log.error
+        log.eval,
+        log.status,
+        log.stats,
+        log.results,
+        log.reductions,
+        log.error,
+        invalidated=log.invalidated,
     )
 
 

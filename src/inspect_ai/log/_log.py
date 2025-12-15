@@ -22,6 +22,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import rich_traceback, truncate_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
+from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
@@ -369,6 +370,9 @@ class EvalSample(BaseModel):
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
+
+    invalidation: ProvenanceData | None = Field(default=None)
+    """Provenance data for invalidation."""
 
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
@@ -921,6 +925,9 @@ class EvalLog(BaseModel):
 
     error: EvalError | None = Field(default=None)
     """Error that halted eval (if status=="error")"""
+
+    invalidated: bool = Field(default=False)
+    """Whether any samples were invalidated."""
 
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""

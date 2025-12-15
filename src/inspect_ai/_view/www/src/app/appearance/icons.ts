@@ -61,6 +61,7 @@ export const ApplicationIcons = {
   confirm: "bi bi-check",
   copy: "bi bi-copy",
   display: "bi bi-card-text",
+  downloadLog: "bi bi-download",
   epoch: (epoch: string) => {
     return `bi bi-${epoch}-circle`;
   },
@@ -92,6 +93,7 @@ export const ApplicationIcons = {
     execution: "bi bi-stopwatch",
   },
   link: "bi bi-link-45deg",
+  loading: "bi bi-arrow-clockwise",
   logging: loggingIcons,
   menu: "bi bi-list",
   messages: "bi bi-chat-right-text",

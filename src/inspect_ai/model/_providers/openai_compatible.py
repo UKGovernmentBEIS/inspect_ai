@@ -58,6 +58,7 @@ class OpenAICompatibleAPI(ModelAPI):
         emulate_tools: bool = False,
         responses_api: bool | None = None,
         responses_store: bool | None = None,
+        stream: bool | None = None,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -110,6 +111,7 @@ class OpenAICompatibleAPI(ModelAPI):
             raise ValueError(
                 "emulate_tools is not compatible with using the responses_api"
             )
+        self.stream = False if stream is None else stream
 
         # store http_client and model_args for reinitialization
         self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
@@ -245,9 +247,13 @@ class OpenAICompatibleAPI(ModelAPI):
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        return cast(
-            ChatCompletion, await self.client.chat.completions.create(**request)
-        )
+        if self.stream:
+            async with self.client.chat.completions.stream(**request) as stream:
+                return await stream.get_final_completion()
+        else:
+            return cast(
+                ChatCompletion, await self.client.chat.completions.create(**request)
+            )
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -335,6 +341,9 @@ class ModelInfo(ResponsesModelInfo):
         return True
 
     def is_gpt(self) -> bool:
+        return False
+
+    def is_gpt_5_plus(self) -> bool:
         return False
 
     def is_gpt_5(self) -> bool:

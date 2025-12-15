@@ -53,9 +53,10 @@ export type ParallelToolCalls = boolean | null;
 export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
+export type Verbosity = ("low" | "medium" | "high") | null;
 export type Effort = ("low" | "medium" | "high") | null;
 export type ReasoningEffort =
-  | ("none" | "minimal" | "low" | "medium" | "high")
+  | ("none" | "minimal" | "low" | "medium" | "high" | "xhigh")
   | null;
 export type ReasoningTokens = number | null;
 export type ReasoningSummary =
@@ -211,6 +212,7 @@ export type ReasoningTokens1 = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
+export type Invalidated = boolean;
 export type Samples1 = EvalSample[] | null;
 export type Id1 = number | string;
 export type Epoch1 = number;
@@ -811,6 +813,7 @@ export interface EvalLog {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
+  invalidated?: Invalidated;
   samples?: Samples1;
   reductions?: Reductions;
   location?: Location1;
@@ -906,6 +909,7 @@ export interface GenerateConfig {
   internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
+  verbosity: Verbosity;
   effort: Effort;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
@@ -1103,6 +1107,7 @@ export interface GenerateConfig1 {
   internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
+  verbosity: Verbosity;
   effort: Effort;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
@@ -1228,6 +1233,7 @@ export interface EvalSample {
   total_time: TotalTime;
   working_time: WorkingTime3;
   uuid: Uuid18;
+  invalidation: ProvenanceData | null;
   error: EvalError | null;
   error_retries: ErrorRetries;
   attachments: Attachments;

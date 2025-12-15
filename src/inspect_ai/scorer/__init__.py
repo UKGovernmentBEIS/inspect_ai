@@ -12,7 +12,6 @@ from ._metric import (
     UNCHANGED,
     Metric,
     MetricProtocol,
-    ProvenanceData,
     SampleScore,
     Score,
     ScoreEdit,
@@ -78,7 +77,6 @@ __all__ = [
     "PARTIAL",
     "NOANSWER",
     "UNCHANGED",
-    "ProvenanceData",
     "ScoreEdit",
     "multi_scorer",
     "ScoreReducer",
@@ -92,11 +90,18 @@ __all__ = [
     "pass_at",
 ]
 _BOOTSTRAP_RENAME_VERSION = "0.3.58"
+_PROVENANCE_DATA_VERSION = "0.3.154"
 _REMOVED_IN = "0.4"
 
 relocated_module_attribute(
     "bootstrap_std",
     "inspect_ai.scorer.bootstrap_stderr",
     _BOOTSTRAP_RENAME_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "ProvenanceData",
+    "inspect_ai.log.ProvenanceData",
+    _PROVENANCE_DATA_VERSION,
     _REMOVED_IN,
 )
