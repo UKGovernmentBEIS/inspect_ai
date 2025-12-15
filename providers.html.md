@@ -273,6 +273,35 @@ Authentication is doing using the standard Google Cloud CLI (i.e. if you
 have authorised the CLI then no additional auth is needed for the model
 API).
 
+### Anthropic on Azure
+
+Support for Anthropic models on Azure is available only in the
+development version of Inspect. To install the development version from
+GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+
+:::
+
+The `anthropic` provider supports Anthropic models deployed on the
+[Azure AI Foundry](https://ai.azure.com/). To use Anthropic models on
+Azure AI, specify the following environment variables:
+
+- `AZUREAI_ANTHROPIC_API_KEY`
+- `AZUREAI_ANTHROPIC_BASE_URL`
+
+You can then use the normal `anthropic` provider with the `azure`
+qualifier and the name of your model deployment
+(e.g. `Claude-4-0-Sonnet-2411`). For example:
+
+``` bash
+export AZUREAI_ANTHROPIC_API_KEY=key
+export AZUREAI_ANTHROPIC_BASE_URL=https://your-url-at.azure.com/models
+inspect eval math.py --model anthropic/azure/Claude-4-0-Sonnet-2411
+```
+
 ## Google
 
 To use the [Google](https://ai.google.dev/) provider, install the
@@ -464,7 +493,14 @@ The following environment variables are supported by the Grok provider
 
 ### Model Args
 
-The `grok` provider supports a `disable_retry` model argument that
+The `grok` provider supports a `stream` model argument to enable
+response streaming (it is disabled by default):
+
+``` bash
+inspect eval arc.py --model grok/grok-3-mini -M stream=true
+```
+
+The `grok` provider also supports a `disable_retry` model argument that
 disables internal GRPC retries. For example:
 
 ``` bash
