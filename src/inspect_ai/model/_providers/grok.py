@@ -82,7 +82,7 @@ class GrokAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        stream: bool = False,
+        streaming: bool = False,
         disable_retry: bool = False,
         **model_args: Any,
     ) -> None:
@@ -110,7 +110,7 @@ class GrokAPI(ModelAPI):
         )
 
         # save model args
-        self.stream = stream
+        self.streaming = streaming
         self.disable_retry = disable_retry
         if self.disable_retry:
             # retrying may be disabled so we can accurately track waiting time
@@ -208,7 +208,7 @@ class GrokAPI(ModelAPI):
                 )
             # stream the reponse for improved connectivity for long requests
             else:
-                if self.stream:
+                if self.streaming:
                     async for chat_response, _ in chat.stream():
                         pass
                 else:
