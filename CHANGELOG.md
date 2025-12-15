@@ -6,6 +6,7 @@
 - Logging: Optimize snapshots for track_store_changes and state_jsonable.
 - Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
 - Inspect View: Display timestamp in sample limit events tooltip.
+- Inspect View: Tasks filter split as into per-column filters. Option to display scorer columns in Choose Columns popover.
 
 ## 0.3.154 (14 December 2025)
 
