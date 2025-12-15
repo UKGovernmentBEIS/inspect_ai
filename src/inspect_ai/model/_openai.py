@@ -578,7 +578,8 @@ def content_from_openai(
     elif content["type"] == "image_url":
         return [
             ContentImage(
-                image=content["image_url"]["url"], detail=content["image_url"]["detail"]
+                image=content["image_url"]["url"],
+                detail=content["image_url"].get("detail", "auto"),
             )
         ]
     elif content["type"] == "input_audio":
