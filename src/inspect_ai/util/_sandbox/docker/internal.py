@@ -18,22 +18,29 @@ INTERNAL_IMAGES = {
 }
 
 
-async def is_internal_image_built(image: str) -> bool:
-    result = await subprocess(
-        ["docker", "images", "--filter", f"reference={image}", "--format", "json"]
-    )
+async def is_internal_image_built(image: str, docker_host: str | None = None) -> bool:
+    docker_cmd = ["docker"]
+    if docker_host:
+        docker_cmd.extend(["-H", docker_host])
+    docker_cmd.extend(["images", "--filter", f"reference={image}", "--format", "json"])
+
+    result = await subprocess(docker_cmd)
     return len(result.stdout.strip()) > 0
 
 
-async def build_internal_image(image: str) -> None:
-    args = [
-        "docker",
-        "build",
-        "--tag",
-        image,
-        "--progress",
-        "plain" if display_type() == "plain" else "auto",
-    ]
+async def build_internal_image(image: str, docker_host: str | None = None) -> None:
+    args = ["docker"]
+    if docker_host:
+        args.extend(["-H", docker_host])
+    args.extend(
+        [
+            "build",
+            "--tag",
+            image,
+            "--progress",
+            "plain" if display_type() == "plain" else "auto",
+        ]
+    )
     if display_type() == "none":
         args.append("--quiet")
     result = await subprocess(
