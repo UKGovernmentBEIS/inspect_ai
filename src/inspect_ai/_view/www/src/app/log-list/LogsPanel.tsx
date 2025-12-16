@@ -166,6 +166,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
       const orderedItems = [...folderItems, ...fileItems];
 
+      // Ensure there is only one entry for each task id, preferring to
+      // always show running or complete tasks (over error tasks). Ensure that the
+      // order of all items isn't changed
       const collapsedLogItems: Array<
         FileLogItem | FolderLogItem | PendingTaskItem
       > = collapseLogItems(evalSet, orderedItems);
