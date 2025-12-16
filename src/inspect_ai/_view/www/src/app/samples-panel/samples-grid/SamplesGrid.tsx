@@ -167,13 +167,11 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     return rows;
   }, [filteredLogDetails]);
 
-  const resizeGridColumns = useCallback(
+  const resizeGridColumns = useRef(
     debounce(() => {
-      // Trigger column sizing after grid is ready
       gridRef.current?.api?.sizeColumnsToFit();
     }, 10),
-    [],
-  );
+  ).current;
 
   const handleRowClick = useCallback(
     (e: RowClickedEvent<SampleRow>) => {
