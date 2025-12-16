@@ -369,6 +369,14 @@ export const clientApi = (
       return api.client_events();
     }),
     get_log_dir: middleware("get_log_dir", get_log_dir),
+    get_log_dir_handle: middleware(
+      "get_log_dir_handle",
+      (log_dir: string | undefined) => {
+        return api.get_log_dir_handle
+          ? api.get_log_dir_handle(log_dir)
+          : log_dir || "default_log_dir";
+      },
+    ),
     get_logs: middleware("get_log_files", get_logs),
     get_log_root: middleware("get_log_root", get_log_root),
     get_eval_set: middleware("get_eval_set", (dir?: string) => {

@@ -35,8 +35,8 @@ export class DatabaseService {
   /**
    * Open a database for the specified log directory.
    */
-  async openDatabase(logDir: string): Promise<void> {
-    await this.manager.openDatabase(logDir);
+  async openDatabase(databaseHandle: string): Promise<void> {
+    await this.manager.openDatabase(databaseHandle);
   }
 
   /**
@@ -49,8 +49,8 @@ export class DatabaseService {
   /**
    * Get the current log directory.
    */
-  getLogDir(): string | null {
-    return this.manager.getLogDir();
+  getDatabaseHandle(): string | null {
+    return this.manager.getDatabaseHandle();
   }
 
   async countRows(
@@ -415,7 +415,7 @@ export class DatabaseService {
     logSummaries: number;
     logHeaders: number;
     sampleSummaries: number;
-    logDir: string | null;
+    logHandle: string | null;
   }> {
     const db = this.getDb();
 
@@ -439,7 +439,7 @@ export class DatabaseService {
       logSummaries,
       logHeaders: logInfo, // For backward compatibility
       sampleSummaries,
-      logDir: this.manager.getLogDir(),
+      logHandle: this.manager.getDatabaseHandle(),
     };
   }
 }

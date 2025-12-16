@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.155 (16 December 2025)
 
 - Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
 - Anthropic: Support for inference on Azure Foundry (`anthropic/azure`).
@@ -6,6 +6,8 @@
 - Logging: Optimize snapshots for track_store_changes and state_jsonable.
 - Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
 - Inspect View: Display timestamp in sample limit events tooltip.
+- Inspect View: Fix issue where stale log files could be displayed in static deployments of the viewer.
+- Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.
 
 ## 0.3.154 (14 December 2025)
 
