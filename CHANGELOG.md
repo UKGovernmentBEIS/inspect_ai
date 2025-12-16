@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Open AI: Remove custom transport to respect HTTP proxy settings.
 - Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
 
 ## 0.3.155 (16 December 2025)
