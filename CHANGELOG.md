@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.155 (16 December 2025)
 
 - Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
 - Anthropic: Support for inference on Azure Foundry (`anthropic/azure`).
