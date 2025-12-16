@@ -1,3 +1,7 @@
+## Unreleased
+
+- Open AI: Remove custom transport to respect HTTP proxy settings.
+
 ## 0.3.155 (16 December 2025)
 
 - Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
