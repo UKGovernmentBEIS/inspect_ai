@@ -111,7 +111,13 @@ export const App: FC<AppProps> = ({ api }) => {
               setLogDir(dir);
             }
 
-            setInitialState(targetFile, e.data.sample_id, e.data.sample_epoch);
+            if (!rehydrated) {
+              setInitialState(
+                targetFile,
+                e.data.sample_id,
+                e.data.sample_epoch,
+              );
+            }
           }
           break;
         }
@@ -132,7 +138,15 @@ export const App: FC<AppProps> = ({ api }) => {
         }
       }
     },
-    [setInitialState, setLogDir, logDir, setSelectedLogFile, api, syncLogs],
+    [
+      setInitialState,
+      setLogDir,
+      logDir,
+      setSelectedLogFile,
+      api,
+      syncLogs,
+      rehydrated,
+    ],
   );
 
   // listen for updateState messages from vscode
@@ -147,7 +161,7 @@ export const App: FC<AppProps> = ({ api }) => {
     const loadLogsAndState = async () => {
       // First see if there is embedded state and if so, use that
       const embeddedState = document.getElementById("logview-state");
-      if (embeddedState && !rehydrated) {
+      if (embeddedState) {
         const state = JSON5.parse(embeddedState.textContent || "");
         onMessage({ data: state });
         setSingleFileMode(true);
@@ -188,7 +202,6 @@ export const App: FC<AppProps> = ({ api }) => {
     setSelectedLogFile,
     syncLogs,
     onMessage,
-    rehydrated,
     setSingleFileMode,
   ]);
 

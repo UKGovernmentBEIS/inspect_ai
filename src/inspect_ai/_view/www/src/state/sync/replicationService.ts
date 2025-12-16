@@ -317,7 +317,22 @@ export class ReplicationService {
       // check to ensure the file list hasn't changed (in which
       // we will invlidate the whole thing)
       const serverLogs = await this._api.get_logs(0, 0);
+      let invalidate = false;
       if (serverLogs.files.length !== logFiles.length) {
+        // Quick check - if they're differing lengths, invalidate.
+        invalidate = true;
+      } else {
+        // Slower check - see if _any_ files are different
+        const localLogNames = new Set(logFiles.map((f) => f.name));
+        for (const serverLog of serverLogs.files) {
+          if (!localLogNames.has(serverLog.name)) {
+            invalidate = true;
+            break;
+          }
+        }
+      }
+
+      if (invalidate) {
         // Invalidate everything
         for (const file of logFiles) {
           this._database?.clearCacheForFile(file.name);
