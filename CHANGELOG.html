@@ -317,8 +317,9 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li>Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).</li>
 <li>Anthropic: Support for inference on Azure Foundry (<code>anthropic/azure</code>).</li>
-<li>Grok: Don’t use streaming responses by default (enable explicitly with <code>-M stream=true</code>).</li>
+<li>Grok: Don’t use streaming responses by default (enable explicitly with <code>-M streaming=true</code>).</li>
 <li>Logging: Optimize snapshots for track_store_changes and state_jsonable.</li>
+<li>Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).</li>
 <li>Inspect View: Display timestamp in sample limit events tooltip.</li>
 </ul>
 </section>
