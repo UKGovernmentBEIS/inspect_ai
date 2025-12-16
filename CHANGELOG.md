@@ -6,6 +6,8 @@
 - Logging: Optimize snapshots for track_store_changes and state_jsonable.
 - Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
 - Inspect View: Display timestamp in sample limit events tooltip.
+- Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
+- Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
 
 ## 0.3.154 (14 December 2025)
 
