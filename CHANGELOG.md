@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
+
 ## 0.3.155 (16 December 2025)
 
 - Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
