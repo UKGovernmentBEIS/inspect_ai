@@ -141,6 +141,13 @@ class EvalRecorder(FileRecorder):
     ) -> EvalLog:
         # get the key and log
         key = self._log_file_key(eval)
+        if key not in self.data:
+            available_keys = ", ".join(self.data.keys()) if self.data else "none"
+            raise RuntimeError(
+                f"Log entry for key '{key}' not found in recorder. "
+                f"This usually means log_init() was not called or failed. "
+                f"Available keys: {available_keys}"
+            )
         log = self.data[key]
 
         # write the buffered samples
