@@ -9,7 +9,7 @@ from inspect_ai.model._openai import OpenAIAsyncHttpxClient
 
 
 class _EchoHandler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # type: ignore[override]
+    def do_GET(self) -> None:
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"ok")
