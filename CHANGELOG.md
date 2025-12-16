@@ -7,6 +7,7 @@
 - Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
 - Inspect View: Display timestamp in sample limit events tooltip.
 - Inspect View: Fix issue where stale log files could be displayed in static deployments of the viewer.
+- Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.
 
 ## 0.3.154 (14 December 2025)
 
