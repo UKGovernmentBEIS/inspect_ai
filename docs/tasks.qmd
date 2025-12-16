@@ -393,7 +393,7 @@ A dataset's `eval.yaml` file defines a list of tasks. Here are the fields that c
 +-------------------+----------------+--------------------------------+
 | Field             | Default        | Usage                          |
 +===================+================+================================+
-| `config`          | "default"      | `hf_dataset(config)`           |
+| `config`          | "default"      | `hf_dataset(name)`             |
 +-------------------+----------------+--------------------------------+
 | `split`           | "test"         | `hf_dataset(split)`            |
 +-------------------+----------------+--------------------------------+
