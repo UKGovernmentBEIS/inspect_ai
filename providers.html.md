@@ -275,16 +275,6 @@ API).
 
 ### Anthropic on Azure
 
-> [!NOTE]
->
-> Support for Anthropic models on Azure is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `anthropic` provider supports Anthropic models deployed on the
 [Azure AI Foundry](https://ai.azure.com/). To use Anthropic models on
 Azure AI, specify the following environment variables:
