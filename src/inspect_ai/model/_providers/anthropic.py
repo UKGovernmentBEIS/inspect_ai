@@ -927,7 +927,8 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            if self.is_claude_4_5():
+            # computer_20251124 is only supported by Claude Opus 4.5
+            if self.is_claude_4_5() and self.is_claude_4_opus():
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
                     name="computer",

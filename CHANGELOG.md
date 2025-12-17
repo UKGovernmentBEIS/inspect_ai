@@ -2,6 +2,8 @@
 
 - Open AI: Remove custom transport to respect HTTP proxy settings.
 - Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
+- Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
+- Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
 
 ## 0.3.155 (16 December 2025)
 
