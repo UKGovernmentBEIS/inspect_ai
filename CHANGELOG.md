@@ -1,12 +1,8 @@
-## Future
-
-- Working time: Improve granulaity of model generate tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
-- Working time: Properly handle time reporting for overlapping coroutines waiting on the same semaphore.
-
 ## Unreleased
 
 - Open AI: Remove custom transport to respect HTTP proxy settings.
 - Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
+- Properly handle working time reporting for overlapping coroutines waiting on the same semaphore.
 - Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
 - Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
 
