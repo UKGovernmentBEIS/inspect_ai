@@ -45,6 +45,7 @@ def react(
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit | bool | None = None,
     on_continue: str | AgentContinue | None = None,
+    retry_refusals: int | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
@@ -85,6 +86,7 @@ def react(
           to play back. Note that this function is called on _every_ iteration of
           the loop so if you only want to send a message back when the model fails
           to call tools you need to code that behavior explicitly.
+       retry_refusals: Should refusals be retried? (pass number of times to retry)
        truncation: Truncate the conversation history in the event of a context
           window overflow. Defaults to "disabled" which does no truncation. Pass
           "auto" to use `trim_messages()` to reduce the context size. Pass a
@@ -110,6 +112,7 @@ def react(
             tools=tools,
             model=model,
             on_continue=on_continue,
+            retry_refusals=retry_refusals,
             truncation=truncation,
         )
 
@@ -180,7 +183,7 @@ def react(
             # or if a message or token limit is hit
             while True:
                 # generate output and append assistant message
-                state = await _agent_generate(model, state, tools)
+                state = await _agent_generate(model, state, tools, retry_refusals)
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
@@ -306,6 +309,7 @@ def react_no_submit(
     tools: Sequence[Tool | ToolDef | ToolSource] | None,
     model: str | Model | Agent | None,
     on_continue: AgentContinue | None,
+    retry_refusals: int | None,
     truncation: Literal["auto", "disabled"] | MessageFilter,
 ) -> Agent:
     # resolve tools
@@ -326,7 +330,7 @@ def react_no_submit(
             # main loop
             while True:
                 # generate output and append assistant message
-                state = await _agent_generate(model, state, tools)
+                state = await _agent_generate(model, state, tools, retry_refusals)
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
@@ -436,10 +440,11 @@ async def _agent_generate(
     model: str | Model | Agent | None,
     state: AgentState,
     tools: Sequence[Tool | ToolDef | ToolSource],
+    retry_refusals: int | None,
 ) -> AgentState:
     # convert model to agent
     if isinstance(model, str | Model) or model is None:
-        model = _model_generate(model)
+        model = _model_generate(model, retry_refusals)
 
     # resolve tools
     resolved_tools: list[Tool] = []
@@ -462,10 +467,23 @@ async def _agent_generate(
     return await model(state, resolved_tools)
 
 
-def _model_generate(model: str | Model | None) -> Agent:
+def _model_generate(model: str | Model | None, retry_refusals: int | None) -> Agent:
     async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
-        state.output = await get_model(model).generate(state.messages, tools)
-        state.messages.append(state.output.message)
+        attempts = 0
+        while True:
+            # generate
+            output = await get_model(model).generate(state.messages, tools)
+
+            # if it's a refusal see if we should retry
+            if output.stop_reason == "content_filter":
+                if retry_refusals is not None and attempts < retry_refusals:
+                    attempts += 1
+                    continue
+
+            # no retry, we are done
+            state.output = output
+            state.messages.append(state.output.message)
+            break
         return state
 
     return generate
