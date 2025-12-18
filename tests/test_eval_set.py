@@ -27,9 +27,11 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.file import size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
+from inspect_ai.log._log import EvalLog
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
@@ -383,13 +385,14 @@ def run_eval_set(
 
 
 @task
-def hello_world(arg: str = "arg"):
+def hello_world(arg: str = "arg", samples: int = 1) -> Task:
     return Task(
         dataset=[
             Sample(
-                input="Just reply with Hello World",
+                input=f"Just reply with Hello World {i}",
                 target="Hello World",
             )
+            for i in range(samples)
         ],
         solver=[
             generate(),
@@ -540,10 +543,7 @@ def test_task_identifier_with_model_args_arg():
     model1 = get_model("mockllm/model", max_tokens=100)
     task1 = hello_world()
     task2 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-    )
+    task_with(task1, model=model1)
 
     with tempfile.TemporaryDirectory() as log_dir:
         eval_set(
@@ -565,6 +565,116 @@ def test_task_identifier_with_model_args_arg():
 
         all_logs = list_all_eval_logs(log_dir)
         assert len(all_logs) == 2
+
+
+def verify_logs(
+    logs: list[EvalLog], log_dir: str, tasks: int = 1, samples: int = 1, epochs: int = 1
+):
+    all_logs = list_all_eval_logs(log_dir)
+    assert len(all_logs) == tasks
+
+    for log in logs:
+        assert log.eval.config.epochs == epochs
+        log_with_samples = read_eval_log(log.location)
+        assert log_with_samples.samples
+        assert len(log_with_samples.samples) == epochs * samples
+
+
+def test_eval_set_epochs_changed():
+    task1 = hello_world()
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+            epochs=1,
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=1)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+            epochs=2,
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=2)
+
+        task_with(task1, epochs=3)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+
+        task_with(task1, epochs=1)
+
+        size_before = size_in_mb(logs[0].location)
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=1)
+
+        assert size_in_mb(logs[0].location) < size_before
+
+
+def test_eval_set_limit_changed():
+    task1 = hello_world(samples=10)
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+            limit=1,
+        )
+        assert result
+        verify_logs(logs, log_dir, samples=1)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+            limit=5,
+        )
+        assert result
+        verify_logs(logs, log_dir, samples=5)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+        )
+        assert result
+        verify_logs(logs, log_dir, samples=10)
+
+        size_before = size_in_mb(logs[0].location)
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            model_args={"max_tokens": 200},
+            limit=1,
+        )
+        assert result
+        verify_logs(logs, log_dir, samples=1)
+
+        assert size_in_mb(logs[0].location) < size_before
 
 
 def test_invalidation(tmp_path: Path):
