@@ -10,9 +10,10 @@ from openai import (
     UnprocessableEntityError,
 )
 from openai._types import NOT_GIVEN
-from openai.types.chat import ChatCompletion
+from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 from typing_extensions import override
 
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -203,7 +204,7 @@ class OpenAICompatibleAPI(ModelAPI):
             # prepare request (we do this so we can log the ModelCall)
             have_tools = (len(tools) > 0) and not self.emulate_tools
             request = dict(
-                messages=await messages_to_openai(input),
+                messages=await self.messages_to_openai(input),
                 tools=openai_chat_tools(tools) if have_tools else NOT_GIVEN,
                 tool_choice=openai_chat_tool_choice(tool_choice)
                 if have_tools
@@ -284,6 +285,11 @@ class OpenAICompatibleAPI(ModelAPI):
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""
         pass
+
+    async def messages_to_openai(
+        self, input: list[ChatMessage]
+    ) -> list[ChatCompletionMessageParam]:
+        return await messages_to_openai(input)
 
     def chat_choices_from_completion(
         self, completion: ChatCompletion, tools: list[ToolInfo]
