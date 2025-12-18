@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).
 - Open AI: Remove custom transport to respect HTTP proxy settings.
 - Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
 - Inspect View: Add "robots" meta tag with "noindex,noai,noimageai". 
