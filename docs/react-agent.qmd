@@ -121,7 +121,7 @@ Submissions are evaluated using the task's main scorer, with value of 1.0 indica
 
 ### Refusals
 
-In some cases models refuse requests and simply retrying will result in a successful completion (this might be the case if requests are near the decision boundary of a filter). To provide some resiliance against this you can specify the `retry_refusals` option. For example:
+In some cases models refuse requests and simply retrying will result in a successful completion (this might be the case if requests are near the decision boundary of a filter). To provide some resilience against this you can specify the `retry_refusals` option. For example:
 
 ``` python
 react(
