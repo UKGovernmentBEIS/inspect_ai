@@ -63,7 +63,10 @@ from inspect_ai.model._internal import (
     parse_content_with_internal,
 )
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
-from inspect_ai.model._reasoning import parse_content_with_reasoning
+from inspect_ai.model._reasoning import (
+    parse_content_with_reasoning,
+    reasoning_to_think_tag,
+)
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from ._chat_message import (
@@ -276,12 +279,7 @@ def openai_assistant_content(message: ChatMessageAssistant) -> str:
         content = ""
         for c in message.content:
             if c.type == "reasoning":
-                attribs = ""
-                if c.signature is not None:
-                    attribs = f'{attribs} signature="{c.signature}"'
-                if c.redacted:
-                    attribs = f'{attribs} redacted="true"'
-                content = f"{content}\n<think{attribs}>\n{c.reasoning}\n</think>\n"
+                content = f"{content}\n{reasoning_to_think_tag(c)}\n"
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
                 if c.internal is not None:
