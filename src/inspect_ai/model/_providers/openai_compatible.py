@@ -13,7 +13,6 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 from typing_extensions import override
 
-from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
