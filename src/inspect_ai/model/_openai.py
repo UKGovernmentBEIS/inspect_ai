@@ -1,7 +1,7 @@
 import functools
 import json
 from copy import copy
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import httpx
 from openai import (
