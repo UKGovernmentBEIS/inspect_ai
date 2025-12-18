@@ -388,7 +388,7 @@ describe("Database Service", () => {
       expect(stats.logFiles).toBe(0);
       expect(stats.logSummaries).toBe(0);
       expect(stats.sampleSummaries).toBe(0);
-      expect(stats.logDir).toBe("/test/logs");
+      expect(stats.logHandle).toBe("/test/logs");
     });
 
     test("should clear all caches", async () => {

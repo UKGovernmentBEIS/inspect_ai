@@ -50,6 +50,12 @@ class ContentReasoning(ContentBase):
     redacted: bool = Field(default=False)
     """Indicates that the explicit content of this reasoning block has been redacted."""
 
+    @property
+    def text(self) -> str:
+        """Pure text rendering of reasoning (used for replay/interop)."""
+        thinking = self.reasoning if not self.redacted else (self.summary or "")
+        return f"<think>{thinking}</think>"
+
 
 class ContentToolUse(ContentBase):
     """Server side tool use."""

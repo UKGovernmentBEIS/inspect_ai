@@ -46,6 +46,12 @@
   author: "[Transluce](https://transluce.org/introducing-docent)"
   categories: ["Analysis"]
 
+- name: "[Lunette](https://docs.lunette.dev)"
+  description: |
+    Platform for understanding and improving agents.
+  author: "[Fulcrum Research](https://fulcrumresearch.ai)"
+  categories: ["Analysis"]
+
 - name: "[Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb)"
   description: |
     Integration with Weights and Biases platform.

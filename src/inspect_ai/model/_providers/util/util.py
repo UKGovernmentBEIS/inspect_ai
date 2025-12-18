@@ -63,3 +63,20 @@ def split_system_messages(
 
     # return
     return system_messages, messages
+
+
+def resolve_api_key(api_key_env_vars: list[str]) -> str | None:
+    """
+    Resolve API key from environment variables.
+
+    Args:
+        api_key_env_vars: List of environment variable names to check for API key.
+
+    Returns:
+        The API key if found, None otherwise.
+    """
+    for env_var in api_key_env_vars:
+        api_key = os.environ.get(env_var)
+        if api_key:
+            return api_key
+    return None

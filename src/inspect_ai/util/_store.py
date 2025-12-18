@@ -123,7 +123,7 @@ def store_changes(
 
 
 def store_jsonable(store: Store) -> dict[str, Any]:
-    return deepcopy(dict_jsonable(store._data))
+    return dict_jsonable(store._data)
 
 
 def dict_jsonable(data: dict[str, Any]) -> dict[str, Any]:
