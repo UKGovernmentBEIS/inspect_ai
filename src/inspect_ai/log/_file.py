@@ -4,6 +4,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Callable, Generator, Literal
 
+import yaml
 from pydantic import (
     BaseModel,
     Field,
@@ -723,3 +724,54 @@ def to_overview(header: EvalLog) -> LogOverview:
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,
     )
+
+
+def write_eval_result_yaml(eval_log: EvalLog, log_location: str) -> None:
+    """Write a YAML result file for the evaluation.
+
+    Args:
+        eval_log: The evaluation log
+        log_location: Path to the log file
+    """
+    if (
+        hub_benchmark_metadata := eval_log.eval.metadata.get("hub_benchmark", None)
+    ) is None:
+        print("No hub benchmark metadata found, skipping result file")
+        return
+
+    dataset_id = eval_log.eval.dataset.location
+    date = eval_log.eval.created
+
+    if (
+        default_scorer_key := hub_benchmark_metadata.get("default_scorer", None)
+    ) is not None:
+        default_scorer = eval_log.results.scores[default_scorer_key]
+        value = default_scorer.metrics["accuracy"].value
+    else:
+        if len(eval_log.results.scores) > 1:
+            print(
+                "Multiple scorers found, but no default scorer specified, using the first scorer"
+            )
+        value = eval_log.results.scores[0].metrics["accuracy"].value
+
+    result = {
+        "dataset": {
+            "id": dataset_id,
+        },
+        "value": value,
+        "date": date,
+    }
+
+    if task_id := hub_benchmark_metadata.get("id", None):
+        result["dataset"]["task_id"] = task_id
+
+    if dataset_revision := hub_benchmark_metadata.get("dataset_revision", None):
+        result["dataset"]["revision"] = dataset_revision
+
+    log_fs = filesystem(log_location)
+    log_dir = os.path.dirname(log_location) if os.path.dirname(log_location) else "."
+    yaml_path = f"{log_dir}{log_fs.sep}{date}-{eval_log.eval.task.replace('/', '-')}-result.yaml"
+
+    yaml_content = yaml.dump([result], default_flow_style=False, sort_keys=False)
+    with file(yaml_path, "w", fs_options={}) as f:
+        f.write(yaml_content)

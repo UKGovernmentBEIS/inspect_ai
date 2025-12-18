@@ -149,6 +149,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
             solver=solvers,
             scorer=scorers,
             epochs=Epochs(hf_task.epochs, hf_task.epoch_reducer),
+            metadata={"hub_benchmark": {**task_config, "dataset_revision": revision}},
         )
 
         # Set file attributes
