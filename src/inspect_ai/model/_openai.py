@@ -1,7 +1,7 @@
 import functools
 import json
 from copy import copy
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import httpx
 from openai import (
@@ -42,6 +42,7 @@ from openai.types.chat.chat_completion_message_function_tool_call import Functio
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
+from shortuuid import uuid
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
@@ -176,8 +177,9 @@ async def openai_chat_message(
             ),
         )
     elif message.role == "assistant":
+        # create param
         if message.tool_calls:
-            return ChatCompletionAssistantMessageParam(
+            assistant_param = ChatCompletionAssistantMessageParam(
                 role=message.role,
                 content=openai_assistant_content(message),
                 tool_calls=[
@@ -185,9 +187,10 @@ async def openai_chat_message(
                 ],
             )
         else:
-            return ChatCompletionAssistantMessageParam(
+            assistant_param = ChatCompletionAssistantMessageParam(
                 role=message.role, content=openai_assistant_content(message)
             )
+        return assistant_param
     elif message.role == "tool":
         return ChatCompletionToolMessageParam(
             role=message.role,
@@ -599,14 +602,25 @@ def chat_message_assistant_from_openai(
     model: str, message: ChatCompletionMessage, tools: list[ToolInfo]
 ) -> ChatMessageAssistant:
     refusal = getattr(message, "refusal", None)
+    reasoning_details = getattr(message, "reasoning_details", None)
     reasoning = getattr(message, "reasoning_content", None) or getattr(
         message, "reasoning", None
     )
 
     msg_content = refusal or message.content or ""
-    if reasoning is not None:
+    if reasoning_details is not None or reasoning is not None:
+        reasoning = (
+            # openrouter uses reasoning_details
+            # https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#responses-api-shape
+            ContentReasoning(
+                reasoning=str(reasoning_details),
+                signature=f"reasoning-details-{uuid()}",
+            )
+            if reasoning_details is not None
+            else ContentReasoning(reasoning=str(reasoning))
+        )
         content: str | list[Content] = [
-            ContentReasoning(reasoning=str(reasoning)),
+            reasoning,
             ContentText(text=msg_content, refusal=True if refusal else None),
         ]
     elif refusal is not None:
