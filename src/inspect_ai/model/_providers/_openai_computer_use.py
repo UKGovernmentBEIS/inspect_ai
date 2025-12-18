@@ -39,8 +39,10 @@ def tool_call_from_openai_computer_tool_call(
     )
 
 
-def maybe_computer_use_preview_tool(tool: ToolInfo) -> ComputerToolParam | None:
-    # check for compatible 'computer' tool
+def maybe_computer_use_preview_tool(
+    model_name: str, tool: ToolInfo
+) -> ComputerToolParam | None:
+    # computer_use_preview only supported by models with "computer-use-preview" in name
     return (
         ComputerToolParam(
             type="computer_use_preview",
@@ -55,7 +57,8 @@ def maybe_computer_use_preview_tool(tool: ToolInfo) -> ComputerToolParam | None:
             display_width=1366,
             display_height=768,
         )
-        if tool.name == "computer"
+        if "computer-use-preview" in model_name
+        and tool.name == "computer"
         and (sorted(tool.parameters.properties.keys()) == sorted(computer_parameters()))
         else None
     )

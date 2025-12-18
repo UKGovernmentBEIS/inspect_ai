@@ -54,6 +54,11 @@ ConverseStopReason = Literal[
     "stop_sequence",
     "guardrail_intervened",
     "content_filtered",
+    "malformed_model_output",
+    "malformed_tool_use",
+    "invalid_query",
+    "max_tool_invocations",
+    "model_context_window_exceeded",
 ]
 ConverseGuardContentQualifier = Literal["grounding_source", "query", "guard_content"]
 ConverseFilterType = Literal[
@@ -561,6 +566,16 @@ def message_stop_reason(
             return "content_filter"
         case "guardrail_intervened":
             return "content_filter"
+        case "model_context_window_exceeded":
+            return "model_length"
+        # these are basically server errors which we don't have a way to encode right now
+        case (
+            "malformed_model_output"
+            | "malformed_tool_use"
+            | "invalid_query"
+            | "max_tool_invocations"
+        ):
+            return "unknown"
         case _:
             return "unknown"
 
