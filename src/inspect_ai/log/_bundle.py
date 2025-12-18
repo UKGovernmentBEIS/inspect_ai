@@ -53,7 +53,7 @@ def _push_bundle_to_hf(
     display().print(f"View at: https://huggingface.co/spaces/{repo_id}")
 
 
-def _check_hf_space_exists(repo_id: str) -> None:
+def _check_hf_space_exists(repo_id: str) -> bool:
     from huggingface_hub import HfApi
 
     api = HfApi()
