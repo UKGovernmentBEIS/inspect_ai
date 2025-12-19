@@ -138,6 +138,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
       details.sampleSummaries.forEach((sample) => {
         const row: SampleRow = {
           logFile,
+          created: details.eval.created,
           task: details.eval.task || "",
           model: details.eval.model || "",
           status: details.status,
