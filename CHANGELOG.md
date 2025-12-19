@@ -3,6 +3,7 @@
 - Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).
 - Open AI: Remove custom transport to respect HTTP proxy settings.
 - Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
+- OpenRouter: Handle `reasoning_details` field to forward native reasoning replay to models.
 - Reasoning: Include reasoning `summary` in serialization for agent bridge.
 - ReAct Agent: Add `retry_refusals` option to retry on stop_reason == "content_filter".
 - Inspect View: Add "robots" meta tag with "noindex,noai,noimageai".
