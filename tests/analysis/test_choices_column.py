@@ -6,7 +6,7 @@ from inspect_ai.analysis._dataframe.samples.columns import (
 )
 from inspect_ai.analysis._dataframe.samples.table import samples_df
 
-LOGS_DIR = Path(__file__).parent / "test_logs"
+LOGS_DIR = Path(__file__).parent / "test_logs_choices"
 OLD_LOG = LOGS_DIR / "mmlu-no-summary-choices.eval"
 NEW_LOG = LOGS_DIR / "mmlu-summary-choices.eval"
 
