@@ -1,7 +1,7 @@
 import functools
 import json
 from copy import copy
-from typing import Any, Literal
+from typing import Any, Callable, Literal, cast
 
 import httpx
 from openai import (
@@ -42,6 +42,7 @@ from openai.types.chat.chat_completion_message_function_tool_call import Functio
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
+from shortuuid import uuid
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
@@ -152,7 +153,10 @@ async def openai_chat_completion_part(
 
 
 async def openai_chat_message(
-    message: ChatMessage, system_role: Literal["user", "system", "developer"] = "system"
+    message: ChatMessage,
+    system_role: Literal["user", "system", "developer"] = "system",
+    reasoning_handler: Callable[[ContentReasoning], dict[str, JsonValue] | str]
+    | None = None,
 ) -> ChatCompletionMessageParam:
     if message.role == "system":
         match system_role:
@@ -179,18 +183,29 @@ async def openai_chat_message(
             ),
         )
     elif message.role == "assistant":
+        # create param
+        content, extra_body = openai_assistant_content(message, reasoning_handler)
         if message.tool_calls:
-            return ChatCompletionAssistantMessageParam(
+            assistant_param = ChatCompletionAssistantMessageParam(
                 role=message.role,
-                content=openai_assistant_content(message),
+                content=content,
                 tool_calls=[
                     openai_chat_tool_call_param(call) for call in message.tool_calls
                 ],
             )
         else:
-            return ChatCompletionAssistantMessageParam(
-                role=message.role, content=openai_assistant_content(message)
+            assistant_param = ChatCompletionAssistantMessageParam(
+                role=message.role, content=content
             )
+
+        # apply extra_body
+        if extra_body:
+            assistant_param = cast(
+                ChatCompletionAssistantMessageParam, assistant_param | extra_body
+            )
+
+        # return param
+        return assistant_param
     elif message.role == "tool":
         return ChatCompletionToolMessageParam(
             role=message.role,
@@ -264,32 +279,47 @@ def openai_completion_params(
     return params
 
 
-def openai_assistant_content(message: ChatMessageAssistant) -> str:
+def openai_assistant_content(
+    message: ChatMessageAssistant,
+    reasoning_handler: Callable[[ContentReasoning], dict[str, JsonValue] | str]
+    | None = None,
+) -> tuple[str, dict[str, JsonValue]]:
     # In agent bridge scenarios, we could encounter concepts such as reasoning and
     # .internal use in the ChatMessageAssistant that are not supported by the OpenAI
     # choices API. This code smuggles that data into the plain text so that it
     # survives multi-turn round trips.
 
+    # resolve reasoning handler -- sometimes reasoning should be represented by
+    # extra_body (e.g. reasoning_details for openrouter). the reasoning_handler
+    # provides a hook for this
+    reasoning_handler = reasoning_handler or reasoning_to_think_tag
+
     if isinstance(message.content, str):
-        content = message.content
+        return message.content, {}
     else:
         content = ""
+        extra_body: dict[str, JsonValue] = {}
         for c in message.content:
             if c.type == "reasoning":
-                content = f"{content}\n{reasoning_to_think_tag(c)}\n"
+                c_reasoning = reasoning_handler(c)
+                if isinstance(c_reasoning, dict):
+                    extra_body = extra_body | c_reasoning
+                else:
+                    content = f"{content}\n{c_reasoning}\n"
+
             elif c.type == "text":
                 content = f"{content}\n{c.text}"
                 if c.internal is not None:
                     content = f"{content}\n<{content_internal_tag(c.internal)}>\n"
 
-    return content
+    return content, extra_body
 
 
 def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
     oai_choices: list[Choice] = []
 
     for index, choice in enumerate(choices):
-        content = openai_assistant_content(choice.message)
+        content, _ = openai_assistant_content(choice.message)
         if choice.message.tool_calls:
             tool_calls = [openai_chat_tool_call(tc) for tc in choice.message.tool_calls]
         else:
@@ -593,18 +623,32 @@ def content_from_openai(
         raise ValueError(f"Unexpected content type '{content_type}' in message.")
 
 
+REASONING_DETAILS_SIGNATURE = "reasoning-details-"
+
+
 def chat_message_assistant_from_openai(
     model: str, message: ChatCompletionMessage, tools: list[ToolInfo]
 ) -> ChatMessageAssistant:
     refusal = getattr(message, "refusal", None)
+    reasoning_details = getattr(message, "reasoning_details", None)
     reasoning = getattr(message, "reasoning_content", None) or getattr(
         message, "reasoning", None
     )
 
     msg_content = refusal or message.content or ""
-    if reasoning is not None:
+    if reasoning_details is not None or reasoning is not None:
+        reasoning = (
+            # openrouter uses reasoning_details
+            # https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#responses-api-shape
+            ContentReasoning(
+                reasoning=json.dumps(reasoning_details),
+                signature=f"{REASONING_DETAILS_SIGNATURE}-{uuid()}",
+            )
+            if reasoning_details is not None
+            else ContentReasoning(reasoning=str(reasoning))
+        )
         content: str | list[Content] = [
-            ContentReasoning(reasoning=str(reasoning)),
+            reasoning,
             ContentText(text=msg_content, refusal=True if refusal else None),
         ]
     elif refusal is not None:

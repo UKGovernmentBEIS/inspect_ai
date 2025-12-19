@@ -2,11 +2,20 @@ import json
 from logging import getLogger
 from typing import Any, TypedDict
 
+from openai.types.chat import ChatCompletionMessageParam
+from pydantic import JsonValue
 from typing_extensions import NotRequired, override
 
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
-from inspect_ai.model._openai import OpenAIResponseError
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._openai import (
+    REASONING_DETAILS_SIGNATURE,
+    OpenAIResponseError,
+    openai_chat_message,
+)
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
@@ -99,6 +108,29 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             return True
         else:
             return False
+
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return False
+
+    async def messages_to_openai(
+        self, input: list[ChatMessage]
+    ) -> list[ChatCompletionMessageParam]:
+        # convert reasoning_details to an extra body parameter
+        def handle_reasoning_details(
+            content: ContentReasoning,
+        ) -> dict[str, JsonValue] | str:
+            if content.signature and content.signature.startswith(
+                REASONING_DETAILS_SIGNATURE
+            ):
+                return {"reasoning_details": json.loads(content.reasoning)}
+            else:
+                return reasoning_to_think_tag(content)
+
+        return [
+            await openai_chat_message(message, "system", handle_reasoning_details)
+            for message in input
+        ]
 
     @override
     def on_response(self, response: dict[str, Any]) -> None:
