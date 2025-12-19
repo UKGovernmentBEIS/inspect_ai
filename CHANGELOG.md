@@ -10,6 +10,7 @@
 - Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
 - Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
 - Bugfix: Expand allowable JSONSchema `type` field to enable lists of types.
+- Inspect View: Improve rendering of Open Router reaasoning blocks.
 
 ## 0.3.155 (16 December 2025)
 
