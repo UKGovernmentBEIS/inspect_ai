@@ -5,6 +5,7 @@ from test_helpers.limits import check_limit_event
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util.registry import registry_create
 from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._run import run
@@ -436,3 +437,47 @@ async def test_agent_run_parent_limit_hit() -> None:
     assert exc_info.value.type == "token"
     assert exc_info.value.value == 11
     assert exc_info.value.limit == 10
+
+
+# Agent without -> Agent return type annotation (tests fix for registry_create)
+@agent
+def agent_no_return_type():
+    async def execute(state: AgentState, value: int = 42) -> AgentState:
+        """Agent without return type annotation.
+
+        Args:
+            state: Input state
+            value: A test value
+
+        Returns:
+            Output state
+        """
+        state.output.completion = str(value)
+        return state
+
+    return execute
+
+
+def test_agent_no_return_type_registry_create():
+    """Test that agents without -> Agent annotation work with registry_create."""
+    created_agent = registry_create("agent", "agent_no_return_type")
+    # Should return an agent instance, not the factory function
+    assert callable(created_agent)
+    # The agent should be the inner execute function, not the factory
+    assert hasattr(created_agent, "__registry_info__")
+
+
+def test_agent_no_return_type_as_solver():
+    """Test that agents without -> Agent annotation work with as_solver."""
+    agent_solver = as_solver(agent_no_return_type())
+    log = eval(Task(solver=agent_solver))[0]
+    assert log.samples
+    assert log.samples[0].output.completion == "42"
+
+
+def test_agent_no_return_type_as_tool():
+    """Test that agents without -> Agent annotation work with as_tool."""
+    tool = as_tool(agent_no_return_type())
+    tool_def = ToolDef(tool)
+    assert tool_def.name == "agent_no_return_type"
+    assert "value" in tool_def.parameters.properties
