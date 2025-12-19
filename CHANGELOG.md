@@ -10,6 +10,7 @@
 - Inspect View: Add "robots" meta tag with "noindex,noai,noimageai".
 - Inspect View: Enhance `inspect view bundle` to publish `hf/` prefixed targets to Hugging Face Spaces.
 - Inspect View: Improve rendering of Open Router reaasoning blocks.
+- Inspect View: Correct the filter type for `Log File` column of the samples list.
 - Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
 - Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
 - Bugfix: Expand allowable JSONSchema `type` field to enable lists of types.
