@@ -9,6 +9,7 @@
   margin-bottom: 0.5em;
   background-color: var(--bs-light-bg-subtle);
   border-radius: var(--bs-border-radius);
+  overflow-wrap: anywhere;
 }
 
 .data {
