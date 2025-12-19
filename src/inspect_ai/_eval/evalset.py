@@ -655,6 +655,9 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     # number of epochs differs (changed)
     elif epochs.epochs != config.epochs:
         return True
+    # default to mean reducer should match (not changed)
+    if epochs.reducer is None and config.epochs_reducer == ["mean"]:
+        return False
     # different reducer list (changed)
     elif [r.__name__ for r in (epochs.reducer or [])] != [
         r for r in (config.epochs_reducer or [])

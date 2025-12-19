@@ -2,7 +2,7 @@ import shutil
 import tempfile
 from copy import deepcopy
 from pathlib import Path
-from time import sleep
+from unittest.mock import patch
 
 import pytest
 from test_helpers.utils import (
@@ -27,7 +27,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import size_in_mb
+from inspect_ai._util.file import basename, size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
@@ -593,6 +593,22 @@ def test_eval_set_epochs_changed():
         assert result
         verify_logs(logs, log_dir, epochs=1)
 
+        # Rerunning the same should not generate a new log file
+        # Mock iso_now to return a different timestamp to ensure we'd get a new log if one was created
+        location = logs[0].location
+
+        with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+            mock_iso_now.return_value = "2024-01-01T00:00:01"
+            [result, logs] = eval_set(
+                tasks=[task1],
+                log_dir=log_dir,
+                model="mockllm/model",
+                epochs=1,
+            )
+            assert result
+            verify_logs(logs, log_dir, epochs=1)
+            assert basename(logs[0].location) == basename(location)
+
         [result, logs] = eval_set(
             tasks=[task1],
             log_dir=log_dir,
@@ -807,10 +823,10 @@ def test_invalidation(tmp_path: Path):
     )
     write_eval_log(eval1, location=eval1.location)
 
-    # Ensure that enough time has passed that we get a new eval log filename
-    sleep(1)
-
-    success2, evals_retried = run_eval_set()
+    # Mock iso_now to ensure we get a new eval log filename
+    with patch("inspect_ai._eval.task.log.iso_now") as mock_iso_now:
+        mock_iso_now.return_value = "2024-01-01T00:00:02"
+        success2, evals_retried = run_eval_set()
     assert success2
     eval1_retried = next(
         eval for eval in evals_retried if eval.eval.task_id == eval1.eval.task_id
