@@ -37,7 +37,6 @@ def sample_path_requires_full(
             [
                 path.startswith(prefix)
                 for prefix in [
-                    "choices",
                     "sandbox",
                     "files",
                     "setup",
