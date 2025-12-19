@@ -576,7 +576,7 @@ def verify_logs(
     for log in logs:
         assert log.eval.config.epochs == epochs
         log_with_samples = read_eval_log(log.location)
-        assert log_with_samples.samples
+        assert log_with_samples.samples is not None
         assert len(log_with_samples.samples) == epochs * samples
 
 
@@ -613,6 +613,7 @@ def test_eval_set_epochs_changed():
         verify_logs(logs, log_dir, epochs=3)
 
         size_before = size_in_mb(logs[0].location)
+
         [result, logs] = eval_set(
             tasks=[task1],
             log_dir=log_dir,
@@ -654,7 +655,6 @@ def test_eval_set_limit_changed():
             tasks=[task1],
             log_dir=log_dir,
             model="mockllm/model",
-            model_args={"max_tokens": 200},
             limit=1,
         )
         assert result
@@ -664,7 +664,6 @@ def test_eval_set_limit_changed():
             tasks=[task1],
             log_dir=log_dir,
             model="mockllm/model",
-            model_args={"max_tokens": 200},
             limit=5,
         )
         assert result
@@ -674,23 +673,71 @@ def test_eval_set_limit_changed():
             tasks=[task1],
             log_dir=log_dir,
             model="mockllm/model",
-            model_args={"max_tokens": 200},
         )
         assert result
         verify_logs(logs, log_dir, samples=10)
 
-        size_before = size_in_mb(logs[0].location)
         [result, logs] = eval_set(
             tasks=[task1],
             log_dir=log_dir,
             model="mockllm/model",
-            model_args={"max_tokens": 200},
             limit=1,
+        )
+        assert result
+        # reducing limit does not remove samples
+        verify_logs(logs, log_dir, samples=10)
+
+
+def test_eval_set_limit_slices():
+    task1 = hello_world(samples=10)
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # start off the end
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=(10, 11),
+        )
+        assert result
+        verify_logs(logs, log_dir, samples=0)
+
+        # stop off the end
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=(9, 11),
         )
         assert result
         verify_logs(logs, log_dir, samples=1)
 
-        assert size_in_mb(logs[0].location) < size_before
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=(3, 6),
+        )
+        assert result
+        verify_logs(logs, log_dir, samples=3)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert result
+        verify_logs(logs, log_dir, samples=10)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=(3, 6),
+        )
+        assert result
+        # reducing limit does not remove samples
+        verify_logs(logs, log_dir, samples=10)
 
 
 def test_invalidation(tmp_path: Path):
