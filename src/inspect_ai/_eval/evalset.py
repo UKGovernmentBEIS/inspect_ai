@@ -625,7 +625,7 @@ def log_samples_complete(
         raise PrerequisiteError(
             f"[bold]ERROR[/bold]: Could not find task for log '{log.header.location}'."
         )
-    epochs = epochs or resolve_epochs(task.task.epochs)
+    epochs = epochs or resolve_epochs(task.task.epochs or 1)
     if epochs_changed(epochs, log.header.eval.config):
         return False
     epoch_count = epochs.epochs if epochs else 1

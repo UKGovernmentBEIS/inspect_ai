@@ -647,6 +647,30 @@ def test_eval_set_epochs_changed():
         verify_logs(logs, log_dir, epochs=2)
 
 
+def test_eval_set_epochs_changed_to_none():
+    task1 = hello_world()
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            epochs=3,
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+
+        task_with(task1, epochs=None)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=1)
+
+
 def test_eval_set_limit_changed():
     task1 = hello_world(samples=10)
 
