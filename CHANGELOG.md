@@ -5,6 +5,7 @@
 - Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
 - OpenRouter: Handle `reasoning_details` field to forward native reasoning replay to models.
 - Reasoning: Include reasoning `summary` in serialization for agent bridge.
+- Agent API: Correctly handle `@agent` functions with no return type decoration.
 - ReAct Agent: Add `retry_refusals` option to retry on stop_reason == "content_filter".
 - Eval Log: Include sample `choices` in `EvalSampleSummary`.
 - Inspect View: Add "robots" meta tag with "noindex,noai,noimageai".

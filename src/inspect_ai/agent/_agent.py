@@ -200,6 +200,7 @@ def agent(
         agent_wrapper.__annotations__ = get_type_hints(
             agent_wrapper, agent_type.__globals__
         )
+        agent_wrapper.__annotations__["return"] = Agent
         agent_wrapper.__signature__ = signature(agent_type)  # type: ignore[attr-defined]
 
         # register
