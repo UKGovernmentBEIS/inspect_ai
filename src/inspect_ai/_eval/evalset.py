@@ -172,7 +172,7 @@ def eval_set(
             log files (defaults to "eval", the native high-performance format).
         limit: Limit evaluated samples
             (defaults to all samples).
-        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as required to disambiguate ids across tasks (e.g. `popularity:10`).
+        sample_id: Evaluate specific sample(s) from the dataset. Use plain ids or preface with task names as    required to disambiguate ids across tasks (e.g. `popularity:10`).
         sample_shuffle: Shuffle order of samples (pass a seed to make the order deterministic).
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
@@ -420,7 +420,11 @@ def eval_set(
         else:
             # look for retryable eval logs and cleave them into success/failed
             success_logs, failed_logs = list_latest_eval_logs(
-                all_logs, epochs, retry_cleanup
+                all_tasks,
+                all_logs,
+                epochs=epochs,
+                limit=limit,
+                cleanup_older=retry_cleanup,
             )
 
             # retry the failed logs (look them up in resolved_tasks)
@@ -575,7 +579,11 @@ def list_all_eval_logs(log_dir: str) -> list[Log]:
 
 # get the latest logs (cleaning if requested). returns tuple of successful/unsuccessful
 def list_latest_eval_logs(
-    logs: list[Log], epochs: int | Epochs | None, cleanup_older: bool
+    all_tasks: list[tuple[str, ResolvedTask]],
+    logs: list[Log],
+    epochs: int | Epochs | None,
+    limit: int | tuple[int, int] | None,
+    cleanup_older: bool,
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
         logs=logs, cleanup_older=cleanup_older
@@ -594,10 +602,47 @@ def list_latest_eval_logs(
             incomplete_logs.append(log)
         elif log.header.invalidated:
             incomplete_logs.append(log)
+        elif not log_samples_complete(log, all_tasks, epochs=epochs, limit=limit):
+            incomplete_logs.append(log)
         else:
             complete_logs.append(log)
 
     return (complete_logs, incomplete_logs)
+
+
+def log_samples_complete(
+    log: Log,
+    all_tasks: list[tuple[str, ResolvedTask]],
+    epochs: Epochs | None,
+    limit: int | tuple[int, int] | None,
+) -> bool:
+    if not log.header.results:
+        return False
+    id = task_identifier(log.header, None, None)
+    task = next((task for tid, task in all_tasks if tid == id), None)
+    if not task:
+        # This should not happen since we have already validated prerequisites
+        raise PrerequisiteError(
+            f"[bold]ERROR[/bold]: Could not find task for log '{log.header.location}'."
+        )
+    epochs = epochs or resolve_epochs(task.task.epochs)
+    if epochs_changed(epochs, log.header.eval.config):
+        return False
+    epoch_count = epochs.epochs if epochs else 1
+
+    count = len(task.task.dataset)
+    if isinstance(limit, tuple):
+        start, stop = limit
+        if start >= count:
+            count = 0
+        else:
+            count = min(stop, count) - start
+    elif isinstance(limit, int):
+        count = min(limit, count)
+
+    if log.header.results.total_samples < count * epoch_count:
+        return False
+    return True
 
 
 def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:

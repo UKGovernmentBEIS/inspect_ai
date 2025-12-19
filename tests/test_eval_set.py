@@ -588,7 +588,6 @@ def test_eval_set_epochs_changed():
             tasks=[task1],
             log_dir=log_dir,
             model="mockllm/model",
-            model_args={"max_tokens": 200},
             epochs=1,
         )
         assert result
@@ -598,7 +597,6 @@ def test_eval_set_epochs_changed():
             tasks=[task1],
             log_dir=log_dir,
             model="mockllm/model",
-            model_args={"max_tokens": 200},
             epochs=2,
         )
         assert result
@@ -610,24 +608,42 @@ def test_eval_set_epochs_changed():
             tasks=[task1],
             log_dir=log_dir,
             model="mockllm/model",
-            model_args={"max_tokens": 200},
         )
         assert result
         verify_logs(logs, log_dir, epochs=3)
-
-        task_with(task1, epochs=1)
 
         size_before = size_in_mb(logs[0].location)
         [result, logs] = eval_set(
             tasks=[task1],
             log_dir=log_dir,
             model="mockllm/model",
-            model_args={"max_tokens": 200},
+            epochs=1,
         )
         assert result
         verify_logs(logs, log_dir, epochs=1)
 
         assert size_in_mb(logs[0].location) < size_before
+
+        # Calling eval_set with epochs=1 modifies the task so need to reset to 3
+        task_with(task1, epochs=3)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=3)
+
+        task_with(task1, epochs=2)
+
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+        )
+        assert result
+        verify_logs(logs, log_dir, epochs=2)
 
 
 def test_eval_set_limit_changed():
