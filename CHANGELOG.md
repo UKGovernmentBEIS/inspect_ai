@@ -7,6 +7,7 @@
 - Reasoning: Include reasoning `summary` in serialization for agent bridge.
 - Agent API: Correctly handle `@agent` functions with no return type decoration.
 - ReAct Agent: Add `retry_refusals` option to retry on stop_reason == "content_filter".
+- Eval Set: Correct log reuse behavior when epochs and limit change
 - Eval Log: Include sample `choices` in `EvalSampleSummary`.
 - Inspect View: Add "robots" meta tag with "noindex,noai,noimageai".
 - Inspect View: Enhance `inspect view bundle` to publish `hf/` prefixed targets to Hugging Face Spaces.
