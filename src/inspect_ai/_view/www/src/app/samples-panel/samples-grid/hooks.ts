@@ -1,7 +1,11 @@
-import { ColDef } from "ag-grid-community";
+import {
+  ColDef,
+  ValueFormatterParams,
+  ValueParserParams,
+} from "ag-grid-community";
 import { useEffect, useMemo } from "react";
-import { useStore } from "../../../state/store";
 import { LogDetails } from "../../../client/api/types";
+import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
 import { SampleRow } from "./types";
 
@@ -152,9 +156,8 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        cellDataType: "date",
-        valueParser: (params) => new Date(params.newValue),
-        valueFormatter: (params) => filename(params.value),
+        valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
+          filename(params.value),
       },
       {
         field: "target",
@@ -206,6 +209,20 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
 
     // Add optional columns (all for selector, hide unselected in grid)
     const optionalColumns: ColDef<SampleRow>[] = [
+      {
+        field: "created",
+        headerName: "Created",
+        initialWidth: 200,
+        minWidth: 150,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellDataType: "date",
+        valueParser: (params: ValueParserParams<SampleRow>) =>
+          new Date(params.newValue),
+        valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
+          filename(params.value),
+      },
       {
         field: "error",
         headerName: "Error",

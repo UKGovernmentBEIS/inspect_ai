@@ -17,6 +17,8 @@ import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { isJson } from "../../../utils/json";
 
+import { CodePanel } from "../../../components/CodePanel";
+import { jsonParse } from "../../../utils/json-worker";
 import { RenderedText } from "../../content/RenderedText";
 import { ContentDataView } from "./content-data/ContentDataView";
 import { ContentDocumentView } from "./documents/ContentDocumentView";
@@ -171,6 +173,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
     render: (key, content, isLast, _context) => {
       const r = content as ContentReasoning;
 
+      // Possible titles
       let title = "Reasoning";
       let text = r.reasoning;
       if (r.redacted) {
@@ -185,7 +188,13 @@ const messageRenderers: Record<string, MessageRenderer> = {
         }
       }
 
-      // title states
+      // See if this might be code looking reasoning (specifically
+      // trying to detect Open Router style reasoning)
+      const renderReasoningCode = isOpenRouterReasoning(text);
+
+      const codeFormatted = renderReasoningCode
+        ? JSON.stringify(jsonParse(text), null, 2)
+        : text;
 
       return (
         <div key={key} className={clsx(styles.reasoning, "text-size-small")}>
@@ -199,7 +208,10 @@ const messageRenderers: Record<string, MessageRenderer> = {
             {title}
           </div>
           <ExpandablePanel id={`${key}-reasoning`} collapse={true}>
-            <RenderedText markdown={text} />{" "}
+            {!renderReasoningCode && <RenderedText markdown={codeFormatted} />}
+            {renderReasoningCode && (
+              <CodePanel language="json" code={codeFormatted} />
+            )}
           </ExpandablePanel>
         </div>
       );
@@ -398,3 +410,7 @@ const isCitationWithRange = (
 ): citation is DistributiveOmit<Citation, "cited_text"> & {
   cited_text: [number, number];
 } => Array.isArray(citation.cited_text);
+
+const isOpenRouterReasoning = (text: string): boolean => {
+  return text.startsWith("[{'format'");
+};

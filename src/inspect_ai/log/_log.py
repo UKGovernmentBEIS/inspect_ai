@@ -195,6 +195,9 @@ class EvalSampleSummary(BaseModel):
     input: str | list[ChatMessage]
     """Sample input (text inputs only)."""
 
+    choices: list[str] | None = Field(default=None)
+    """Sample choices."""
+
     target: str | list[str]
     """Sample target value(s)"""
 
@@ -406,6 +409,7 @@ class EvalSample(BaseModel):
             id=self.id,
             epoch=self.epoch,
             input=self.input,
+            choices=self.choices,
             target=self.target,
             metadata=self.metadata,
             scores=self.scores,
