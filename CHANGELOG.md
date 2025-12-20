@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.156 (20 December 2025)
 
 - Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).
 - Open AI: Remove custom transport to respect HTTP proxy settings.
