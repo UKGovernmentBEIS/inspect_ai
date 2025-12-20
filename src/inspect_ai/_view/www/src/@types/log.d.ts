@@ -1090,8 +1090,12 @@ export interface EvalPlan {
 export interface EvalPlanStep {
   solver: Solver1;
   params: Params1;
+  params_passed: ParamsPassed;
 }
 export interface Params1 {
+  [k: string]: unknown;
+}
+export interface ParamsPassed {
   [k: string]: unknown;
 }
 /**

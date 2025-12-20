@@ -2296,11 +2296,17 @@
           "additionalProperties": true,
           "title": "Params",
           "type": "object"
+        },
+        "params_passed": {
+          "additionalProperties": true,
+          "title": "Params Passed",
+          "type": "object"
         }
       },
       "required": [
         "solver",
-        "params"
+        "params",
+        "params_passed"
       ],
       "title": "EvalPlanStep",
       "type": "object",
