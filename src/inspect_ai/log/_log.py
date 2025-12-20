@@ -499,6 +499,19 @@ class EvalPlanStep(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
     """Parameters used to instantiate solver."""
 
+    params_passed: dict[str, Any] = Field(default_factory=dict)
+    """Parameters explicitly passed to the eval plan."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_params(cls: Type["EvalPlanStep"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        if "params_passed" not in values:
+            values["params_passed"] = values.get("params", {})
+        return values
+
 
 class EvalPlan(BaseModel):
     """Plan (solvers) used in evaluation."""
