@@ -21,6 +21,9 @@ export type Solver = string | null;
 export type SolverArgs = {
   [k: string]: unknown;
 } | null;
+export type SolverArgsPassed = {
+  [k: string]: unknown;
+} | null;
 export type Tags = string[] | null;
 export type Name = string | null;
 export type Location = string | null;
@@ -848,6 +851,7 @@ export interface EvalSpec {
   task_args_passed: TaskArgsPassed;
   solver: Solver;
   solver_args: SolverArgs;
+  solver_args_passed: SolverArgsPassed;
   tags: Tags;
   dataset: EvalDataset;
   sandbox: SandboxEnvironmentSpec | null;

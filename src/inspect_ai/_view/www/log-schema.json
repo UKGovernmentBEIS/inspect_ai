@@ -3266,6 +3266,19 @@
           "default": null,
           "title": "Solver Args"
         },
+        "solver_args_passed": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solver Args Passed"
+        },
         "tags": {
           "anyOf": [
             {
@@ -3437,6 +3450,7 @@
         "task_args_passed",
         "solver",
         "solver_args",
+        "solver_args_passed",
         "tags",
         "dataset",
         "sandbox",
