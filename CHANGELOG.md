@@ -32,6 +32,7 @@
 - Inspect View: Display timestamp in sample limit events tooltip.
 - Inspect View: Fix issue where stale log files could be displayed in static deployments of the viewer.
 - Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.
+- Inspect View: Tasks filter split as into per-column filters. Option to display scorer columns in Choose Columns popover.
 
 ## 0.3.154 (14 December 2025)
 

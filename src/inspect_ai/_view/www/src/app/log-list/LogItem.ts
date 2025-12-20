@@ -4,6 +4,7 @@ export interface LogItem {
   id: string;
   name: string;
   url?: string;
+  displayIndex?: number;
 }
 
 export interface FolderLogItem extends LogItem {
