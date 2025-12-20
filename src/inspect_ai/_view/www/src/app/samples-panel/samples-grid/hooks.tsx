@@ -162,9 +162,6 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        cellDataType: "date",
-        valueParser: (params: ValueParserParams<SampleRow>) =>
-          new Date(params.newValue),
         valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
           filename(params.value),
       },
