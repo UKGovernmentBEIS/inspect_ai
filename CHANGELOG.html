@@ -149,10 +149,11 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#december-2025" id="toc-december-2025" class="nav-link active" data-scroll-target="#december-2025">0.3.155 (16 December 2025)</a></li>
-  <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.154 (14 December 2025)</a></li>
-  <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.153 (05 December 2025)</a></li>
-  <li><a href="#december-2025-3" id="toc-december-2025-3" class="nav-link" data-scroll-target="#december-2025-3">0.3.152 (04 December 2025)</a></li>
+  <li><a href="#december-2025" id="toc-december-2025" class="nav-link active" data-scroll-target="#december-2025">0.3.156 (20 December 2025)</a></li>
+  <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.155 (16 December 2025)</a></li>
+  <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.154 (14 December 2025)</a></li>
+  <li><a href="#december-2025-3" id="toc-december-2025-3" class="nav-link" data-scroll-target="#december-2025-3">0.3.153 (05 December 2025)</a></li>
+  <li><a href="#december-2025-4" id="toc-december-2025-4" class="nav-link" data-scroll-target="#december-2025-4">0.3.152 (04 December 2025)</a></li>
   <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.151 (30 November 2025)</a></li>
   <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.150 (25 November 2025)</a></li>
   <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.149 (23 November 2025)</a></li>
@@ -313,7 +314,27 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="december-2025" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025">0.3.155 (16 December 2025)</h2>
+<h2 class="anchored" data-anchor-id="december-2025">0.3.156 (20 December 2025)</h2>
+<ul>
+<li>Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).</li>
+<li>Open AI: Remove custom transport to respect HTTP proxy settings.</li>
+<li>Bedrock: Handle additional Converse stop reasons (improved context overflow detection).</li>
+<li>OpenRouter: Handle <code>reasoning_details</code> field to forward native reasoning replay to models.</li>
+<li>Reasoning: Include reasoning <code>summary</code> in serialization for agent bridge.</li>
+<li>Agent API: Correctly handle <code>@agent</code> functions with no return type decoration.</li>
+<li>ReAct Agent: Add <code>retry_refusals</code> option to retry on stop_reason == “content_filter”.</li>
+<li>Eval Log: Include sample <code>choices</code> in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span>.</li>
+<li>Inspect View: Add “robots” meta tag with “noindex,noai,noimageai”.</li>
+<li>Inspect View: Enhance <code>inspect view bundle</code> to publish <code>hf/</code> prefixed targets to Hugging Face Spaces.</li>
+<li>Inspect View: Improve rendering of Open Router reaasoning blocks.</li>
+<li>Inspect View: Correct the filter type for <code>Log File</code> column of the samples list.</li>
+<li>Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).</li>
+<li>Bugfix: Only use OpenAI computer_use_preview tool for models with “computer-use-preview” in name.</li>
+<li>Bugfix: Expand allowable JSONSchema <code>type</code> field to enable lists of types.</li>
+</ul>
+</section>
+<section id="december-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-1">0.3.155 (16 December 2025)</h2>
 <ul>
 <li>Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).</li>
 <li>Anthropic: Support for inference on Azure Foundry (<code>anthropic/azure</code>).</li>
@@ -325,8 +346,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.</li>
 </ul>
 </section>
-<section id="december-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025-1">0.3.154 (14 December 2025)</h2>
+<section id="december-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-2">0.3.154 (14 December 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/early-stopping.html.md">Early Stopping</a> API for ending tasks early based on previously scored samples.</li>
 <li>Logging: Support for writing logs to Azure Blob Storage (<code>az://</code>).</li>
@@ -353,16 +374,16 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.</li>
 </ul>
 </section>
-<section id="december-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025-2">0.3.153 (05 December 2025)</h2>
+<section id="december-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-3">0.3.153 (05 December 2025)</h2>
 <ul>
 <li>Agent Bridge: Don’t print serialization warnings when going from Pydantic -&gt; JSON (as we use beta types that can cause warnings even though serialization works as intended).</li>
 <li>Batch Processing: Enable customizing of batch status rendering.</li>
 <li>Inspect View: Expand dictionary scores into separate scores when viewing samples.</li>
 </ul>
 </section>
-<section id="december-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025-3">0.3.152 (04 December 2025)</h2>
+<section id="december-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-4">0.3.152 (04 December 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan">Update Plan</a> tool for tracking steps and progress across longer horizon tasks.</li>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution">Code Execution</a> tool for executing Python code in a stateless sandbox running on model provider servers.</li>

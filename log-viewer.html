@@ -539,7 +539,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-external-file" id="toc-sec-external-file" class="nav-link" data-scroll-target="#sec-external-file">External File</a></li>
   </ul></li>
   <li><a href="#task-information" id="toc-task-information" class="nav-link" data-scroll-target="#task-information">Task Information</a></li>
-  <li><a href="#sec-publishing" id="toc-sec-publishing" class="nav-link" data-scroll-target="#sec-publishing">Publishing</a></li>
+  <li><a href="#sec-publishing" id="toc-sec-publishing" class="nav-link" data-scroll-target="#sec-publishing">Publishing</a>
+  <ul class="collapse">
+  <li><a href="#huggingface-spaces" id="toc-huggingface-spaces" class="nav-link" data-scroll-target="#huggingface-spaces">HuggingFace Spaces</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -780,6 +783,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 </dl>
 <p>Deploy this folder to a static webserver to publish the log viewer.</p>
+<section id="huggingface-spaces" class="level3">
+<h3 class="anchored" data-anchor-id="huggingface-spaces">HuggingFace Spaces</h3>
+<p>You can publish your bundled log viewer directly to <a href="https://huggingface.co/spaces">HuggingFace Spaces</a> by specifying an output directory that starts with <code>hf/</code>. For example, to publish to a space named <code>my-org/my-eval-logs</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view bundle <span class="at">--log-dir</span> logs <span class="at">--output-dir</span> hf/my-org/my-eval-logs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The space will be created as a static space and your logs will be immediately available at <code>https://huggingface.co/spaces/my-org/my-eval-logs</code>. By default, the space will be created as private. To create a public space, you can use the Python API:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> bundle_log_dir</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>bundle_log_dir(</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    log_dir<span class="op">=</span><span class="st">"logs"</span>,</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    output_dir<span class="op">=</span><span class="st">"hf/my-org/my-eval-logs"</span>,</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    fs_options<span class="op">=</span>{<span class="st">"private"</span>: <span class="va">False</span>}</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Note that publishing to HuggingFace Spaces requires the <code>huggingface_hub</code> package and authentication with HuggingFace (via <code>huggingface-cli login</code> or the <code>HF_TOKEN</code> environment variable).</p>
+</section>
 <section id="other-notes" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="other-notes">Other Notes</h3>
 <ul>
