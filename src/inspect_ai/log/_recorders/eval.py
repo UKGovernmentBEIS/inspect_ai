@@ -4,7 +4,7 @@ import math
 import os
 import tempfile
 from logging import getLogger
-from typing import Any, BinaryIO, Literal, cast
+from typing import IO, Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import anyio
@@ -534,7 +534,7 @@ class ZipLogFile:
         )
 
 
-def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
+def _read_log(log: IO[bytes], location: str, header_only: bool = False) -> EvalLog:
     with ZipFile(log, mode="r") as zip:
         evalLog = _read_header(zip, location)
         if REDUCTIONS_JSON in zip.namelist():

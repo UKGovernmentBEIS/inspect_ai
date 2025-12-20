@@ -6,6 +6,7 @@
 ## 0.3.157 (22 December 2025)
 
 - Eval Set: Correct log reuse behavior when epochs and limit change.
+- Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
 - Solvers: Capture all parameters (including defaults) used to create solvers and agents.
 - Tasks: Improved validation of Hugging Face Hub task definitions.
 - HF Inference Providers: Specify "strict" for function tool definitions.
@@ -32,7 +33,6 @@
 - Bugfix: Expand allowable JSONSchema `type` field to enable lists of types.
 
 ## 0.3.155 (16 December 2025)
-
 - Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
 - Anthropic: Support for inference on Azure Foundry (`anthropic/azure`).
 - Grok: Don't use streaming responses by default (enable explicitly with `-M streaming=true`).

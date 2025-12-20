@@ -165,26 +165,10 @@ class JSONRecorder(FileRecorder):
                 raw_data = from_json(f.read())
             etag = None
 
-        log = EvalLog.model_validate(raw_data, context=get_deserializing_context())
+        log = _parse_json_log(raw_data, header_only)
         log.location = location
         if etag:
             log.etag = etag
-
-        # fail for unknown version
-        _validate_version(log.version)
-
-        # set the version to the schema version we'll be returning
-        log.version = LOG_SCHEMA_VERSION
-
-        # prune if header_only
-        if header_only:
-            # exclude samples
-            log.samples = None
-
-            # prune sample reductions
-            if log.results is not None:
-                log.results.sample_reductions = None
-                log.reductions = None
 
         return log
 
@@ -230,6 +214,29 @@ class JSONRecorder(FileRecorder):
 def _validate_version(ver: int) -> None:
     if ver > LOG_SCHEMA_VERSION:
         raise ValueError(f"Unable to read version {ver} of log format.")
+
+
+def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
+    """Parse raw JSON data into an EvalLog, validating version and pruning if header_only."""
+    log = EvalLog.model_validate(raw_data, context=get_deserializing_context())
+
+    # fail for unknown version
+    _validate_version(log.version)
+
+    # set the version to the schema version we'll be returning
+    log.version = LOG_SCHEMA_VERSION
+
+    # prune if header_only
+    if header_only:
+        # exclude samples
+        log.samples = None
+
+        # prune sample reductions
+        if log.results is not None:
+            log.results.sample_reductions = None
+            log.reductions = None
+
+    return log
 
 
 async def _s3_read_with_etag(location: str, fs: FileSystem) -> tuple[str, str]:
