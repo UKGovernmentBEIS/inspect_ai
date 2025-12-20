@@ -285,6 +285,13 @@ def none() -> type[ModelAPI]:
     return NoModel
 
 
+@modelapi(name="claude-code")
+def claude_code() -> type[ModelAPI]:
+    from .claude_code import ClaudeCodeAPI
+
+    return ClaudeCodeAPI
+
+
 @modelapi(name="hf-inference-providers")
 def hf_inference_providers() -> type[ModelAPI]:
     # validate
