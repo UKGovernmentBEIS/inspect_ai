@@ -129,7 +129,7 @@ export const useLogListColumns = (): {
           return (
             <div className={styles.nameCell}>
               {item.type === "folder" && item.url ? (
-                <span className={styles.folderLink}>{value}</span>
+                <span className={styles.folder}>{value}</span>
               ) : (
                 <span className={styles.taskText}>{value}</span>
               )}

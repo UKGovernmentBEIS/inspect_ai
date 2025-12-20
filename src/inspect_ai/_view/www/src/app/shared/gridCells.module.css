@@ -1,3 +1,7 @@
+:global(.ag-row) {
+  cursor: pointer;
+}
+
 .gridWrapper {
   height: 100%;
   width: 100%;
@@ -35,22 +39,11 @@
   overflow: visible;
 }
 
-.folderLink {
-  color: var(--bs-link-color);
-  text-decoration: none;
-  display: block;
-  overflow: hidden;
-  white-space: normal;
-  text-overflow: ellipsis;
-}
-
-.folderLink:hover {
-  color: var(--bs-link-hover-color);
-  text-decoration: underline;
+.folder {
+  font-weight: 600;
 }
 
 .taskText {
-  color: var(--bs-body-color);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
