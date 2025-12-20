@@ -18,6 +18,7 @@ from typing_extensions import Unpack
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.registry import (
     RegistryInfo,
+    extract_named_params,
     registry_add,
     registry_create,
     registry_name,
@@ -26,6 +27,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 
 from ._task_state import TaskState, set_sample_state
 
@@ -67,6 +69,9 @@ class SolverSpec:
 
     args: dict[str, Any] = field(default_factory=dict)
     """Solver arguments."""
+
+    args_passed: dict[str, Any] = field(default_factory=dict)
+    """Solver arguments passed for invocation."""
 
 
 @runtime_checkable
@@ -233,6 +238,9 @@ def solver(
                 *args,
                 **kwargs,
             )
+
+            named_params = extract_named_params(solver_type, True, *args, **kwargs)
+            setattr(registered_solver, SOLVER_ALL_PARAMS_ATTR, named_params)
 
             return registered_solver
 

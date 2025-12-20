@@ -810,6 +810,19 @@ def task_identifier(
         model_args = task.eval.model_args
         eval_plan = task.plan
 
+    # strip args from eval_plan as we've changed the way this is serialized
+    # and we want to be compatible with older logs. this effectively uses
+    # 'params_passed' as the basis of comparison as opposed to 'params' which
+    # in newer logs includes the fully resolve params
+    eval_plan = eval_plan.model_copy(
+        update={
+            "finish": None,
+            "steps": [
+                step.model_copy(update={"params": None}) for step in eval_plan.steps
+            ],
+        }
+    )
+
     # hash for task args
     task_args_hash = hashlib.sha256(
         to_json(task_args, exclude_none=True, fallback=lambda _x: None)
