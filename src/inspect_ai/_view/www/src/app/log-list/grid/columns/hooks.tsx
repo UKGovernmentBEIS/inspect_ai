@@ -1,10 +1,10 @@
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import clsx from "clsx";
 import { useEffect, useMemo } from "react";
+import { useStore } from "../../../../state/store";
 import { parseLogFileName } from "../../../../utils/evallog";
 import { formatPrettyDecimal } from "../../../../utils/format";
 import { basename } from "../../../../utils/path";
-import { useStore } from "../../../../state/store";
 import { ApplicationIcons } from "../../../appearance/icons";
 import {
   comparators,
@@ -81,9 +81,9 @@ export const useLogListColumns = (): {
       {
         field: "type",
         headerName: "",
-        initialWidth: 40,
-        minWidth: 40,
-        maxWidth: 40,
+        initialWidth: 32,
+        minWidth: 32,
+        maxWidth: 32,
         suppressSizeToFit: true,
         sortable: true,
         filter: false,
@@ -110,7 +110,6 @@ export const useLogListColumns = (): {
         sortable: true,
         filter: true,
         resizable: true,
-        colSpan: (params) => (params.data?.type === "folder" ? 100 : 1),
         valueGetter: (params) => {
           const item = params.data;
           if (!item) return "";

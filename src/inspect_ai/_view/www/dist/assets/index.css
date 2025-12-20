@@ -16523,13 +16523,13 @@ button._segment_mhb7y_9 {
   cursor: pointer;
 }
 
-._gridWrapper_1sucx_5 {
+._gridWrapper_oveew_5 {
   height: 100%;
   width: 100%;
   position: relative;
 }
 
-._gridContainer_1sucx_11 {
+._gridContainer_oveew_11 {
   position: absolute;
   top: 0;
   left: 0;
@@ -16537,7 +16537,7 @@ button._segment_mhb7y_9 {
   bottom: 0;
 }
 
-._iconCell_1sucx_19 {
+._iconCell_oveew_19 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16546,11 +16546,11 @@ button._segment_mhb7y_9 {
   color: var(--bs-gray-600);
 }
 
-._iconCell_1sucx_19 .ii:before {
+._iconCell_oveew_19 .ii:before {
   background-color: var(--bs-gray-600);
 }
 
-._numberCell_1sucx_32 {
+._numberCell_oveew_32 {
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -16560,15 +16560,17 @@ button._segment_mhb7y_9 {
   overflow: visible;
 }
 
-._folder_1sucx_42 {
-  font-weight: 600;
-}
-
-._taskText_1sucx_46 {
+._taskText_oveew_42 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+._folder_oveew_49,
+._taskText_oveew_42 {
+  color: var(--bs-link-color);
+  font-size: 12.8px;
 }
 ._nameCell_mdto2_1 {
   display: flex;

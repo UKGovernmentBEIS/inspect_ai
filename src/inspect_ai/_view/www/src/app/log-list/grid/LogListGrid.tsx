@@ -10,13 +10,13 @@ import clsx from "clsx";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
-import "../../shared/agGrid";
-import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
-import { createGridColumnResizer } from "../../shared/gridUtils";
 import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
-import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
+import "../../shared/agGrid";
 import styles from "../../shared/gridCells.module.css";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
+import { createGridColumnResizer } from "../../shared/gridUtils";
+import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
 import { useLogListColumns } from "./columns/hooks";
 import { LogListRow } from "./columns/types";
 
