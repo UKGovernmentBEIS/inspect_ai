@@ -39,13 +39,15 @@
   overflow: visible;
 }
 
-.folder {
-  font-weight: 600;
-}
-
 .taskText {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+.folder,
+.taskText {
+  color: var(--bs-link-color);
+  font-size: 12.8px;
 }
