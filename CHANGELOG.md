@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Set: Correct log reuse behavior when epochs and limit change.
 - Solvers: Capture all parameters (including defaults) used to create solvers and agents.
 - Agent API: Improved capture of agent name with nested @agent decorators.
 
