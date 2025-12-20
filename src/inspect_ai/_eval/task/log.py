@@ -10,10 +10,7 @@ from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.dateutil import iso_now
 from inspect_ai._util.git import git_context
 from inspect_ai._util.path import cwd_relative_path
-from inspect_ai._util.registry import (
-    registry_log_name,
-    registry_params,
-)
+from inspect_ai._util.registry import registry_log_name
 from inspect_ai.dataset import Dataset
 from inspect_ai.event._event import Event
 from inspect_ai.log import (
@@ -51,6 +48,7 @@ from inspect_ai.model._model_config import (
 )
 from inspect_ai.scorer._metric import MetricSpec
 from inspect_ai.scorer._scorer import ScorerSpec
+from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -145,6 +143,7 @@ class TaskLogger:
             solver=solver.solver if solver else None,
             tags=tags,
             solver_args=solver.args if solver else None,
+            solver_args_passed=solver.args_passed if solver else None,
             model=f"{ModelName(model).api}/{model.name}",
             model_generate_config=model.config,
             model_base_url=model.api.base_url,
@@ -276,7 +275,8 @@ class TaskLogger:
 def plan_to_eval_plan(plan: Plan, config: GenerateConfig) -> EvalPlan:
     def eval_plan_step(solver: Solver) -> EvalPlanStep:
         return EvalPlanStep(
-            solver=registry_log_name(solver), params=registry_params(solver)
+            solver=registry_log_name(solver),
+            params=getattr(solver, SOLVER_ALL_PARAMS_ATTR, {}),
         )
 
     eval_plan = EvalPlan(
