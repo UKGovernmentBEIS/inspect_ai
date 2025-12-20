@@ -9,8 +9,13 @@ if TYPE_CHECKING:
     from inspect_ai.solver._solver import Solver
 
 from inspect_ai._util.registry import (
+    RegistryInfo,
     is_registry_object,
+    registry_info,
+    registry_params,
     registry_unqualified_name,
+    set_registry_info,
+    set_registry_params,
 )
 from inspect_ai.tool._tool_info import parse_tool_info
 
@@ -54,7 +59,7 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
                 + "parameter to the as_solver() function."
             )
 
-    @solver(name=agent_name)
+    @solver
     def agent_to_solver() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             agent_state = AgentState(messages=state.messages)
@@ -79,4 +84,8 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
         # return solver
         return solve
 
-    return agent_to_solver()
+    # create solver and forward name and registry params from agent
+    slv = agent_to_solver()
+    set_registry_info(slv, RegistryInfo(type="solver", name=registry_info(agent).name))
+    set_registry_params(slv, registry_params(agent))
+    return slv
