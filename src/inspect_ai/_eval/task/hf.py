@@ -123,8 +123,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
             solvers.append(
                 solver_from_spec(
                     SolverSpec(
-                        solver=solver.name,
-                        args=solver.args,
+                        solver=solver.name, args=solver.args, args_passed=solver.args
                     )
                 )
             )

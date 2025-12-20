@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Solvers: Capture all parameters (including defaults) used to create solvers and agents.
 - Agent API: Improved capture of agent name with nested @agent decorators.
 
 ## 0.3.156 (20 December 2025)

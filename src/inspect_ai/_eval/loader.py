@@ -27,6 +27,7 @@ from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model import Model
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
 from inspect_ai.solver._bridge import bridge
+from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
 from inspect_ai.util._sandbox.environment import (
@@ -397,7 +398,11 @@ def as_solver_spec(solver: Solver) -> SolverSpec:
         raise PrerequisiteError(
             f"The solver {getattr(solver, '__name__', '<unknown>')} was not created by a function decorated with @solver so cannot be recorded."
         )
-    return SolverSpec(solver=registry_info(solver).name, args=registry_params(solver))
+    return SolverSpec(
+        solver=registry_info(solver).name,
+        args=getattr(solver, SOLVER_ALL_PARAMS_ATTR, {}),
+        args_passed=registry_params(solver),
+    )
 
 
 def solver_from_spec(spec: SolverSpec) -> Solver:
@@ -422,9 +427,9 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
             elif registry_lookup("solver", solver_name) is not None:
-                return registry_create("solver", solver_name, **spec.args)
+                return registry_create("solver", solver_name, **spec.args_passed)
             elif registry_lookup("agent", solver_name) is not None:
-                agent = registry_create("agent", solver_name, **spec.args)
+                agent = registry_create("agent", solver_name, **spec.args_passed)
                 return as_solver(agent)
             else:
                 raise ValueError(
@@ -483,18 +488,18 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
 
             # create decorator based solvers using the registry
             if any(solver[0] == solver_name for solver in solver_decorators):
-                return registry_create("solver", solver_name, **spec.args)
+                return registry_create("solver", solver_name, **spec.args_passed)
 
             # create decorator based agents using the registry
             elif any(agent[0] == solver_name for agent in agent_decorators):
-                agent = registry_create("agent", solver_name, **spec.args)
+                agent = registry_create("agent", solver_name, **spec.args_passed)
                 return as_solver(agent)
 
             # create bridge based solvers by calling the function and wrapping it in bridge()
             else:
                 agent_fn = getattr(solver_module, solver_name, None)
                 if inspect.isfunction(agent_fn):
-                    return bridge(agent_fn(**spec.args))
+                    return bridge(agent_fn(**spec.args_passed))
                 elif agent_fn is not None:
                     raise PrerequisiteError(
                         f"The object {solver_name} in file {pretty_solver_file} is not a Python function."

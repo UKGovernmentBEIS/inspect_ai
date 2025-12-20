@@ -15,6 +15,7 @@ from typing import (
 
 from inspect_ai._util.registry import (
     RegistryInfo,
+    extract_named_params,
     is_registry_object,
     registry_add,
     registry_info,
@@ -158,6 +159,8 @@ def agent(
     """
 
     def create_agent_wrapper(agent_type: Callable[P, Agent]) -> Callable[P, Agent]:
+        from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
+
         # determine the name (explicit or implicit from object)
         agent_name = registry_name(
             agent_type, name if name else getattr(agent_type, "__name__")
@@ -188,6 +191,10 @@ def agent(
                 *args,
                 **kwargs,
             )
+
+            named_params = extract_named_params(agent_type, True, *args, **kwargs)
+            setattr(agent, SOLVER_ALL_PARAMS_ATTR, named_params)
+
             return agent
 
         # If a user's code runs "from __future__ import annotations", all type annotations are stored as strings,

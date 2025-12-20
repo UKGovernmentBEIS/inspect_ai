@@ -39,6 +39,7 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
     Solver:
        Solver from agent.
     """
+    from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
     from inspect_ai.solver._solver import Generate, solver
     from inspect_ai.solver._task_state import TaskState
 
@@ -88,4 +89,5 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
     slv = agent_to_solver()
     set_registry_info(slv, RegistryInfo(type="solver", name=registry_info(agent).name))
     set_registry_params(slv, registry_params(agent))
+    setattr(slv, SOLVER_ALL_PARAMS_ATTR, getattr(agent, SOLVER_ALL_PARAMS_ATTR))
     return slv
