@@ -266,10 +266,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   // Keep track of the max column count to avoid redundant resizing
   const maxColCount = useRef(0);
 
-  const resizeGridColumns = useMemo(
-    () => createGridColumnResizer(gridRef),
-    [gridRef],
-  );
+  const resizeGridColumns = useRef(createGridColumnResizer(gridRef)).current;
 
   // Resize grid columns when columns prop changes (e.g., when columns are hidden/unhidden)
   useEffect(() => {

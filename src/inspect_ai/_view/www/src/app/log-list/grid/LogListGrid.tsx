@@ -224,10 +224,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
 
   const maxColCount = useRef(0);
 
-  const resizeGridColumns = useMemo(
-    () => createGridColumnResizer(gridRef),
-    [gridRef],
-  );
+  const resizeGridColumns = useRef(createGridColumnResizer(gridRef)).current;
 
   // Resize grid columns when columns prop changes (e.g., when columns are hidden/unhidden)
   useEffect(() => {
