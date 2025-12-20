@@ -7,8 +7,8 @@ import {
 } from "ag-grid-community";
 import { useEffect, useMemo } from "react";
 import { LogDetails } from "../../../client/api/types";
-import { filename } from "../../../utils/path";
 import { useStore } from "../../../state/store";
+import { filename } from "../../../utils/path";
 import { comparators } from "../../shared/gridComparators";
 import { getFieldKey } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
@@ -221,6 +221,20 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
 
     // Add optional columns (all for selector, hide unselected in grid)
     const optionalColumns: ColDef<SampleRow>[] = [
+      {
+        field: "created",
+        headerName: "Created",
+        initialWidth: 200,
+        minWidth: 150,
+        sortable: true,
+        filter: true,
+        resizable: true,
+        cellDataType: "date",
+        valueParser: (params: ValueParserParams<SampleRow>) =>
+          new Date(params.newValue),
+        valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
+          filename(params.value),
+      },
       {
         field: "error",
         headerName: "Error",

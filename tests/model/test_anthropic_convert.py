@@ -135,7 +135,7 @@ async def test_model_output_from_anthropic_with_thinking() -> None:
 
     # Check reasoning content
     assert isinstance(message_obj.content[0], ContentReasoning)
-    assert "carefully consider" in message_obj.content[0].reasoning
+    assert "carefully consider" in (message_obj.content[0].summary or "")
 
     # Check text content
     assert isinstance(message_obj.content[1], ContentText)
@@ -256,10 +256,10 @@ async def test_model_output_from_anthropic_multiple_thinking_blocks() -> None:
 
     # Check both reasoning blocks
     assert isinstance(message_obj.content[0], ContentReasoning)
-    assert "First reasoning step" in message_obj.content[0].reasoning
+    assert "First reasoning step" in (message_obj.content[0].summary or "")
 
     assert isinstance(message_obj.content[1], ContentReasoning)
-    assert "Second reasoning step" in message_obj.content[1].reasoning
+    assert "Second reasoning step" in (message_obj.content[1].summary or "")
 
     # Check text content
     assert isinstance(message_obj.content[2], ContentText)

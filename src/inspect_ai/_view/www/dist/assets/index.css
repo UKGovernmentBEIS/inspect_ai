@@ -15897,6 +15897,21 @@ so disabling selection can break that functionality */
 ._hover_b8oe1_47 ._copyLink_b8oe1_33 {
   opacity: 0.75;
 }
+._panel_1pa96_1 {
+  margin: 0rem;
+  overflow-y: scroll;
+  overflow-x: auto;
+}
+
+._code_1pa96_7 {
+  padding: 0;
+}
+
+._code_1pa96_7 code {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-break: break-all !important;
+}
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }
@@ -15986,20 +16001,21 @@ a._citationLink_1ggvf_9 {
 a._citationLink_1ggvf_9:hover {
   text-decoration: underline;
 }
-._contentImage_8rgix_1 {
+._contentImage_srbm0_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
 
-._reasoning_8rgix_6 {
+._reasoning_srbm0_6 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 1em;
   margin-bottom: 0.5em;
   background-color: var(--bs-light-bg-subtle);
   border-radius: var(--bs-border-radius);
+  overflow-wrap: anywhere;
 }
 
-._data_8rgix_14 {
+._data_srbm0_15 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 1em;
   margin-bottom: 0.5em;

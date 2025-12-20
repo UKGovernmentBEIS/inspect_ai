@@ -169,14 +169,12 @@ def agent(
             # create agent
             agent = agent_type(*args, **kwargs)
 
-            # this might already have registry info, if so capture that
-            # and use it as default
+            # capture explicit description that agent may have
+            # (still use passed description if specified)
             if is_registry_object(agent):
                 info = registry_info(agent)
-                registry_name = info.name
                 registry_description = info.metadata.get(AGENT_DESCRIPTION, None)
             else:
-                registry_name = None
                 registry_description = None
 
             registry_tag(
@@ -184,8 +182,8 @@ def agent(
                 agent,
                 RegistryInfo(
                     type="agent",
-                    name=registry_name or agent_name,
-                    metadata={AGENT_DESCRIPTION: registry_description or description},
+                    name=agent_name,
+                    metadata={AGENT_DESCRIPTION: description or registry_description},
                 ),
                 *args,
                 **kwargs,
@@ -200,6 +198,7 @@ def agent(
         agent_wrapper.__annotations__ = get_type_hints(
             agent_wrapper, agent_type.__globals__
         )
+        agent_wrapper.__annotations__["return"] = Agent
         agent_wrapper.__signature__ = signature(agent_type)  # type: ignore[attr-defined]
 
         # register

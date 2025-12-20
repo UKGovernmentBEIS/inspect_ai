@@ -1,11 +1,35 @@
 ## Unreleased
 
+- Agent API: Improved capture of agent name with nested @agent decorators.
+
+## 0.3.156 (20 December 2025)
+
+- Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).
+- Open AI: Remove custom transport to respect HTTP proxy settings.
+- Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
+- OpenRouter: Handle `reasoning_details` field to forward native reasoning replay to models.
+- Reasoning: Include reasoning `summary` in serialization for agent bridge.
+- Agent API: Correctly handle `@agent` functions with no return type decoration.
+- ReAct Agent: Add `retry_refusals` option to retry on stop_reason == "content_filter".
+- Eval Log: Include sample `choices` in `EvalSampleSummary`.
+- Inspect View: Add "robots" meta tag with "noindex,noai,noimageai".
+- Inspect View: Enhance `inspect view bundle` to publish `hf/` prefixed targets to Hugging Face Spaces.
+- Inspect View: Improve rendering of Open Router reaasoning blocks.
+- Inspect View: Correct the filter type for `Log File` column of the samples list.
+- Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
+- Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
+- Bugfix: Expand allowable JSONSchema `type` field to enable lists of types.
+
+## 0.3.155 (16 December 2025)
+
 - Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
 - Anthropic: Support for inference on Azure Foundry (`anthropic/azure`).
 - Grok: Don't use streaming responses by default (enable explicitly with `-M streaming=true`).
 - Logging: Optimize snapshots for track_store_changes and state_jsonable.
 - Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
 - Inspect View: Display timestamp in sample limit events tooltip.
+- Inspect View: Fix issue where stale log files could be displayed in static deployments of the viewer.
+- Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.
 - Inspect View: Tasks filter split as into per-column filters. Option to display scorer columns in Choose Columns popover.
 
 ## 0.3.154 (14 December 2025)

@@ -32,7 +32,7 @@ class SampleColumn(Column):
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
         value: Callable[[JsonValue], JsonValue] | None = None,
-        full: bool = False,
+        full: bool | None = None,
     ) -> None:
         super().__init__(
             name=name,
@@ -43,7 +43,10 @@ class SampleColumn(Column):
             value=value,
         )
         self._extract_sample = path if callable(path) else None
-        self._full = full or sample_path_requires_full(path)
+        if full is None:
+            self._full = sample_path_requires_full(path)
+        else:
+            self._full = full
 
     @override
     def path_schema(self) -> Mapping[str, Any]:
@@ -60,6 +63,7 @@ SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),
     SampleColumn("epoch", path="epoch", required=True),
     SampleColumn("input", path=sample_input_as_str, required=True),
+    SampleColumn("choices", path="choices", full=False),
     SampleColumn("target", path="target", required=True, value=list_as_str),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),

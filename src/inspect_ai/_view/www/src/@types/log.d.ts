@@ -66,6 +66,15 @@ export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
 export type Name1 = string;
 export type Type1 =
   | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
+  | (
+      | "string"
+      | "integer"
+      | "number"
+      | "boolean"
+      | "array"
+      | "object"
+      | "null"
+    )[]
   | null;
 export type Format = string | null;
 export type Description = string | null;

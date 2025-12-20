@@ -215,17 +215,19 @@ export const createLogsSlice = (
         }
 
         const databaseService = get().databaseService;
-        const useProgress = !!databaseService?.getLogDir();
+        const useProgress = !!databaseService?.getDatabaseHandle();
         if (useProgress) {
           get().appActions.setLoading(true);
         }
 
         // Determine the log directory
         const logDir = await get().logsActions.initLogDir();
+        const databaseHandle = api.get_log_dir_handle(logDir);
 
         // Setup up the database service
         const initDatabase =
-          !databaseService || databaseService.getLogDir() !== logDir;
+          !databaseService ||
+          databaseService.getDatabaseHandle() !== databaseHandle;
 
         if (initDatabase) {
           // Initialize the database
@@ -242,7 +244,7 @@ export const createLogsSlice = (
               if (!databaseService) {
                 return undefined;
               }
-              await databaseService.openDatabase(logDir);
+              await databaseService.openDatabase(databaseHandle);
               return databaseService;
             } catch (e) {
               console.log(e);
