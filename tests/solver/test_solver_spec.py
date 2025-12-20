@@ -45,7 +45,7 @@ def test_solver_spec():
     def check_solver_spec(solver_spec: str):
         log = eval(
             f"{solver_file}@the_task",
-            solver=SolverSpec(solver_spec, {"rate": 1.0}),
+            solver=SolverSpec(solver_spec, {"rate": 1.0}, {"rate": 1.0}),
             model="mockllm/model",
         )[0]
         check_solver(log, solver_spec)
@@ -75,4 +75,5 @@ def test_solver_retry():
 def check_solver(log: EvalLog, solver_name="the_solver"):
     assert log.eval.solver == solver_name
     assert log.eval.solver_args == {"rate": 1.0}
+    assert log.eval.solver_args_passed == {"rate": 1.0}
     assert log.plan.steps[0].params["rate"] == 1.0
