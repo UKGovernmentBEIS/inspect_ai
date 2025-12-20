@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent API: Improved capture of agent name with nested @agent decorators.
+
 ## 0.3.156 (20 December 2025)
 
 - Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).
