@@ -98,9 +98,9 @@ class ClaudeCodeAPI(ModelAPI):
     Model args:
         skip_permissions: Skip permission prompts (default: True)
         timeout: CLI timeout in seconds (default: 300)
+        max_connections: Number of concurrent CLI processes (default: 1)
 
     Limitations:
-        - Sequential only (max_connections=1) - CLI is process-based
         - No custom tool/function calling - uses --tools "" to disable
           Claude Code's built-in tools for clean eval responses
     """
@@ -113,6 +113,7 @@ class ClaudeCodeAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         skip_permissions: bool = True,
         timeout: int = 300,
+        max_connections: int = 1,
         **model_args: Any,
     ) -> None:
         # Resolve model name
@@ -131,10 +132,11 @@ class ClaudeCodeAPI(ModelAPI):
         self._resolved_model = resolved_model
         self._skip_permissions = skip_permissions
         self._timeout = timeout
+        self._max_connections = max_connections
 
     def max_connections(self) -> int:
-        """CLI is sequential - one request at a time."""
-        return 1
+        """Number of concurrent CLI processes to run."""
+        return self._max_connections
 
     async def generate(
         self,

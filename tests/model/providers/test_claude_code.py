@@ -33,9 +33,14 @@ async def test_claude_code_api() -> None:
 
 @skip_if_no_claude_code
 def test_claude_code_max_connections() -> None:
-    """Test that max_connections is 1 (sequential only)."""
+    """Test that max_connections defaults to 1 and can be configured."""
+    # Default is 1
     model = get_model("claude-code/sonnet")
     assert model.api.max_connections() == 1
+
+    # Can be configured via model args
+    model_parallel = get_model("claude-code/sonnet", max_connections=10)
+    assert model_parallel.api.max_connections() == 10
 
 
 def test_claude_code_model_aliases() -> None:
