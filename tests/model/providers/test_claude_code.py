@@ -44,7 +44,7 @@ def test_claude_code_model_aliases() -> None:
 
     assert MODEL_ALIASES["sonnet"] == "claude-sonnet-4-20250514"
     assert MODEL_ALIASES["opus"] == "claude-opus-4-20250514"
-    assert MODEL_ALIASES["haiku"] == "claude-haiku-4-20250514"
+    assert MODEL_ALIASES["haiku"] == "claude-3-5-haiku-latest"  # Claude 4 Haiku not released
     assert MODEL_ALIASES["default"] is None
 
 
