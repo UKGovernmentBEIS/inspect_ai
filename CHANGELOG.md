@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.157 (22 December 2025)
 
 - Eval Set: Correct log reuse behavior when epochs and limit change.
 - Solvers: Capture all parameters (including defaults) used to create solvers and agents.
