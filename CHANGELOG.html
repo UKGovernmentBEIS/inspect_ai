@@ -149,11 +149,12 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#december-2025" id="toc-december-2025" class="nav-link active" data-scroll-target="#december-2025">0.3.156 (20 December 2025)</a></li>
-  <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.155 (16 December 2025)</a></li>
-  <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.154 (14 December 2025)</a></li>
-  <li><a href="#december-2025-3" id="toc-december-2025-3" class="nav-link" data-scroll-target="#december-2025-3">0.3.153 (05 December 2025)</a></li>
-  <li><a href="#december-2025-4" id="toc-december-2025-4" class="nav-link" data-scroll-target="#december-2025-4">0.3.152 (04 December 2025)</a></li>
+  <li><a href="#december-2025" id="toc-december-2025" class="nav-link active" data-scroll-target="#december-2025">0.3.157 (22 December 2025)</a></li>
+  <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.156 (20 December 2025)</a></li>
+  <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.155 (16 December 2025)</a></li>
+  <li><a href="#december-2025-3" id="toc-december-2025-3" class="nav-link" data-scroll-target="#december-2025-3">0.3.154 (14 December 2025)</a></li>
+  <li><a href="#december-2025-4" id="toc-december-2025-4" class="nav-link" data-scroll-target="#december-2025-4">0.3.153 (05 December 2025)</a></li>
+  <li><a href="#december-2025-5" id="toc-december-2025-5" class="nav-link" data-scroll-target="#december-2025-5">0.3.152 (04 December 2025)</a></li>
   <li><a href="#november-2025" id="toc-november-2025" class="nav-link" data-scroll-target="#november-2025">0.3.151 (30 November 2025)</a></li>
   <li><a href="#november-2025-1" id="toc-november-2025-1" class="nav-link" data-scroll-target="#november-2025-1">0.3.150 (25 November 2025)</a></li>
   <li><a href="#november-2025-2" id="toc-november-2025-2" class="nav-link" data-scroll-target="#november-2025-2">0.3.149 (23 November 2025)</a></li>
@@ -314,7 +315,19 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="december-2025" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025">0.3.156 (20 December 2025)</h2>
+<h2 class="anchored" data-anchor-id="december-2025">0.3.157 (22 December 2025)</h2>
+<ul>
+<li>Eval Set: Correct log reuse behavior when epochs and limit change.</li>
+<li>Solvers: Capture all parameters (including defaults) used to create solvers and agents.</li>
+<li>Tasks: Improved validation of Hugging Face Hub task definitions.</li>
+<li>HF Inference Providers: Specify “strict” for function tool definitions.</li>
+<li>Agent API: Improved capture of agent name with nested <span class="citation" data-cites="agent">@agent</span> decorators.</li>
+<li>Agent Bridge: Ensure that OpenAI responses params have an “id” field before validation.</li>
+<li>Sandbox Service: Continue with warning if request polling raises a <code>RuntimeError</code>.</li>
+</ul>
+</section>
+<section id="december-2025-1" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-1">0.3.156 (20 December 2025)</h2>
 <ul>
 <li>Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).</li>
 <li>Open AI: Remove custom transport to respect HTTP proxy settings.</li>
@@ -333,8 +346,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Expand allowable JSONSchema <code>type</code> field to enable lists of types.</li>
 </ul>
 </section>
-<section id="december-2025-1" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025-1">0.3.155 (16 December 2025)</h2>
+<section id="december-2025-2" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-2">0.3.155 (16 December 2025)</h2>
 <ul>
 <li>Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).</li>
 <li>Anthropic: Support for inference on Azure Foundry (<code>anthropic/azure</code>).</li>
@@ -344,10 +357,11 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Display timestamp in sample limit events tooltip.</li>
 <li>Inspect View: Fix issue where stale log files could be displayed in static deployments of the viewer.</li>
 <li>Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.</li>
+<li>Inspect View: Tasks filter split as into per-column filters. Option to display scorer columns in Choose Columns popover.</li>
 </ul>
 </section>
-<section id="december-2025-2" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025-2">0.3.154 (14 December 2025)</h2>
+<section id="december-2025-3" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-3">0.3.154 (14 December 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/early-stopping.html.md">Early Stopping</a> API for ending tasks early based on previously scored samples.</li>
 <li>Logging: Support for writing logs to Azure Blob Storage (<code>az://</code>).</li>
@@ -374,16 +388,16 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.</li>
 </ul>
 </section>
-<section id="december-2025-3" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025-3">0.3.153 (05 December 2025)</h2>
+<section id="december-2025-4" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-4">0.3.153 (05 December 2025)</h2>
 <ul>
 <li>Agent Bridge: Don’t print serialization warnings when going from Pydantic -&gt; JSON (as we use beta types that can cause warnings even though serialization works as intended).</li>
 <li>Batch Processing: Enable customizing of batch status rendering.</li>
 <li>Inspect View: Expand dictionary scores into separate scores when viewing samples.</li>
 </ul>
 </section>
-<section id="december-2025-4" class="level2">
-<h2 class="anchored" data-anchor-id="december-2025-4">0.3.152 (04 December 2025)</h2>
+<section id="december-2025-5" class="level2">
+<h2 class="anchored" data-anchor-id="december-2025-5">0.3.152 (04 December 2025)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-update-plan">Update Plan</a> tool for tracking steps and progress across longer horizon tasks.</li>
 <li><a href="https://inspect.aisi.org.uk/tools-standard.html#sec-code-execution">Code Execution</a> tool for executing Python code in a stateless sandbox running on model provider servers.</li>
