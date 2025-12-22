@@ -4,6 +4,7 @@
 - Solvers: Capture all parameters (including defaults) used to create solvers and agents.
 - Agent API: Improved capture of agent name with nested @agent decorators.
 - Agent Bridge: Ensure that OpenAI responses params have an "id" field before validation.
+- Sandbox Service: Continue with warning if request polling raises a `RuntimeError`.
 
 ## 0.3.156 (20 December 2025)
 
