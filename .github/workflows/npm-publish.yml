@@ -69,5 +69,3 @@ jobs:
       - name: Publish to NPM
         if: ${{ !inputs.dry-run }}
         run: npm publish --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
