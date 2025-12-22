@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
@@ -51,6 +51,12 @@ class HFFieldSpec(FieldSpec):
     """ Overriding the FieldSpec to fit field spec coming from the eval.yaml """
 
 
+HFEpochReducer = Annotated[
+    str,
+    StringConstraints(pattern=r"^(pass_at_\d+|at_least_\d+|max|mode|median|mean)$"),
+]
+
+
 class HFTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -59,8 +65,8 @@ class HFTask(BaseModel):
     split: str = Field(default="test")
     field_spec: HFFieldSpec
     shuffle_choices: bool | None = Field(default=None)
-    epochs: int = Field(default=1)
-    epoch_reducer: str | None = Field(default=None)
+    epochs: int = Field(default=1, ge=1)
+    epoch_reducer: HFEpochReducer | None = Field(default=None)
     solvers: list[HFSolver] = Field(min_length=1)
     scorers: list[HFScorer] = Field(min_length=1)
 

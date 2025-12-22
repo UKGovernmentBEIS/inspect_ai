@@ -278,3 +278,73 @@ def test_hf_task_rejects_extra_fields():
     config["unknown_field"] = "value"
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         HFTask.model_validate(config)
+
+
+# --- epoch_reducer validation tests ---
+
+
+@pytest.mark.parametrize(
+    "epoch_reducer",
+    [
+        "max",
+        "mode",
+        "median",
+        "mean",
+        "pass_at_1",
+        "pass_at_5",
+        "pass_at_100",
+        "at_least_1",
+        "at_least_2",
+        "at_least_10",
+    ],
+)
+def test_hf_task_valid_epoch_reducer(epoch_reducer):
+    config = _valid_task_config()
+    config["epoch_reducer"] = epoch_reducer
+    task = HFTask.model_validate(config)
+    assert task.epoch_reducer == epoch_reducer
+
+
+@pytest.mark.parametrize(
+    "epoch_reducer",
+    [
+        "invalid",
+        "pass_at",
+        "pass_at_",
+        "at_least",
+        "at_least_",
+        "majority",
+        "average",
+        "pass_at_abc",
+        "at_least_xyz",
+    ],
+)
+def test_hf_task_invalid_epoch_reducer(epoch_reducer):
+    config = _valid_task_config()
+    config["epoch_reducer"] = epoch_reducer
+    with pytest.raises(ValidationError, match="epoch_reducer"):
+        HFTask.model_validate(config)
+
+
+def test_hf_task_epoch_reducer_none_is_valid():
+    config = _valid_task_config()
+    # epoch_reducer not specified (None) should be valid
+    task = HFTask.model_validate(config)
+    assert task.epoch_reducer is None
+
+
+# --- epochs validation tests ---
+
+
+def test_hf_task_epochs_minimum():
+    config = _valid_task_config()
+    config["epochs"] = 0
+    with pytest.raises(ValidationError, match="greater than or equal to 1"):
+        HFTask.model_validate(config)
+
+
+def test_hf_task_epochs_negative():
+    config = _valid_task_config()
+    config["epochs"] = -1
+    with pytest.raises(ValidationError, match="greater than or equal to 1"):
+        HFTask.model_validate(config)
