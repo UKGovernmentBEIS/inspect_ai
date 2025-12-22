@@ -1,6 +1,12 @@
 import os
 from typing import Any
 
+from openai.types.chat import ChatCompletionToolParam
+from typing_extensions import override
+
+from inspect_ai.model._openai import openai_chat_tools
+from inspect_ai.tool._tool_info import ToolInfo
+
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
 from .util import environment_prerequisite_error
@@ -37,3 +43,11 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
             stream=stream is not False,
             **model_args,
         )
+
+    @override
+    def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
+        # hf inference providers requires "strict" for tools
+        openai_tools = openai_chat_tools(tools)
+        for tool in openai_tools:
+            tool["function"]["strict"] = True
+        return openai_tools
