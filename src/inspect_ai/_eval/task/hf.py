@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,13 +16,37 @@ from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
 
 
-class TaskComponent(BaseModel):
-    name: str
+class HFSolver(BaseModel):
+    name: Literal[
+        "prompt_template",
+        "system_message",
+        "user_message",
+        "chain_of_thought",
+        "use_tools",
+        "generate",
+        "self_critique",
+        "multiple_choice",
+    ]
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class HFScorer(BaseModel):
+    name: Literal[
+        "includes",
+        "match",
+        "pattern",
+        "answer",
+        "exact",
+        "f1",
+        "model_graded_qa",
+        "model_graded_fact",
+        "choice",
+    ]
     args: dict[str, Any] = Field(default_factory=dict)
 
 
 @dataclass
-class FieldSpecHF(FieldSpec):
+class HFFieldSpec(FieldSpec):
     choices: str | list[str] | None = field(default=None)  # type: ignore[assignment]
     """ Overriding the FieldSpec to fit field spec coming from the eval.yaml """
 
@@ -33,12 +57,12 @@ class HFTask(BaseModel):
     id: str | None = Field(default=None)
     config: str = Field(default="default")
     split: str = Field(default="test")
-    field_spec: FieldSpecHF
+    field_spec: HFFieldSpec
     shuffle_choices: bool | None = Field(default=None)
     epochs: int = Field(default=1)
     epoch_reducer: str | None = Field(default=None)
-    solvers: list[TaskComponent] = Field(default_factory=list)
-    scorers: list[TaskComponent] = Field(default_factory=list)
+    solvers: list[HFSolver] = Field(min_length=1)
+    scorers: list[HFScorer] = Field(min_length=1)
 
 
 def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
@@ -100,7 +124,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
             continue
 
         def record_to_sample_hf(
-            record: DatasetRecord, field_spec: FieldSpecHF = hf_task.field_spec
+            record: DatasetRecord, field_spec: HFFieldSpec = hf_task.field_spec
         ) -> Sample:
             return _record_to_sample_hf(record, field_spec)
 
@@ -202,7 +226,7 @@ def _sanitize_choices(
         return record[choices]
 
 
-def _record_to_sample_hf(record: DatasetRecord, field_spec: FieldSpecHF) -> Sample:
+def _record_to_sample_hf(record: DatasetRecord, field_spec: HFFieldSpec) -> Sample:
     sample_kwargs = {}
     sample_kwargs["input"] = record[field_spec.input]
 

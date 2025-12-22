@@ -2,6 +2,7 @@
 
 - Eval Set: Correct log reuse behavior when epochs and limit change.
 - Solvers: Capture all parameters (including defaults) used to create solvers and agents.
+- Tasks: Improved validation of Hugging Face Hub task definitions.
 - Agent API: Improved capture of agent name with nested @agent decorators.
 - Agent Bridge: Ensure that OpenAI responses params have an "id" field before validation.
 - Sandbox Service: Continue with warning if request polling raises a `RuntimeError`.
