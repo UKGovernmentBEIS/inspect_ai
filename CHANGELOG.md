@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Fix log file cache lookup using incorrect comparison key.
+
 ## 0.3.157 (22 December 2025)
 
 - Eval Set: Correct log reuse behavior when epochs and limit change.
