@@ -1,5 +1,6 @@
 ## Unreleased
 
+- [skill()](https://inspect.aisi.org.uk/tools-standard.html#sec-skill) tool to make agent skills available to models.
 - Bugfix: Fix log file cache lookup using incorrect comparison key.
 
 ## 0.3.157 (22 December 2025)
