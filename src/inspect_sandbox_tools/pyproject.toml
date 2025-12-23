@@ -115,6 +115,10 @@ dev = [
     "towncrier",
     "types-psutil",
     "pytest",
+    "pytest-asyncio",
+    "anthropic",
+    "openai",
+    "inspect_ai @ file:../../",
 ]
 
 dist = ["twine", "build"]
