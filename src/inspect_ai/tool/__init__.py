@@ -49,6 +49,7 @@ from ._tools._code_execution import CodeExecutionProviders, code_execution
 from ._tools._computer import computer
 from ._tools._execute import bash, python
 from ._tools._memory import memory
+from ._tools._skill import Skill, SkillInfo, install_skills, read_skills, skill
 from ._tools._text_editor import text_editor
 from ._tools._think import think
 from ._tools._update_plan import update_plan
@@ -111,6 +112,11 @@ __all__ = [
     "DocumentCitation",
     "ContentCitation",
     "UrlCitation",
+    "skill",
+    "install_skills",
+    "read_skills",
+    "Skill",
+    "SkillInfo",
 ]
 
 _UTIL_MODULE_VERSION = "0.3.19"
