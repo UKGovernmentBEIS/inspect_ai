@@ -85,7 +85,7 @@ class FileRecorder(Recorder):
     @classmethod
     async def _log_file_maybe_cached(cls, location: str) -> EvalLog:
         # establish the log to read from (might be cached)
-        if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == "location"):
+        if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == location):
             eval_log = cls.__last_read_sample_log[1]
         else:
             eval_log = await cls.read_log(location)
