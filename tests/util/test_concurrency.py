@@ -4,6 +4,8 @@ Tests the public interface of concurrency control functionality including
 the concurrency context manager, status display, and initialization.
 """
 
+import time
+
 import anyio
 import pytest
 
@@ -403,3 +405,38 @@ async def test_long_running_task_holds_slot() -> None:
 
     # Task should have been holding the slot when we checked
     assert result == (1, 1)
+
+
+# Waiting Time Tests
+
+
+@pytest.mark.anyio
+async def test_concurrent_waits_not_double_counted() -> None:
+    """Test that overlapping waits only count wall-clock time once."""
+    from inspect_ai._util.working import (
+        init_sample_working_time,
+        sample_waiting_time,
+    )
+
+    init_concurrency()
+    init_sample_working_time(time.monotonic())
+
+    async def wait_task() -> None:
+        async with concurrency("test-resource", 1):
+            await anyio.sleep(0.05)  # Hold semaphore briefly
+
+    # Start 3 tasks that will serialize on the semaphore (limit=1)
+    start = time.monotonic()
+    async with anyio.create_task_group() as tg:
+        for _ in range(3):
+            tg.start_soon(wait_task)
+    elapsed = time.monotonic() - start
+
+    waiting_time = sample_waiting_time()
+
+    # Waiting time should be roughly equal to elapsed time minus the work time
+    # (3 x 0.05s = 0.15s of work). If waits were double-counted, waiting_time
+    # would be much larger than elapsed.
+    assert waiting_time < elapsed
+    # Should have some waiting time (2 tasks had to wait)
+    assert waiting_time > 0.05
