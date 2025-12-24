@@ -573,14 +573,6 @@ In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`
 
 ## Skill {#sec-skill}
 
-::: {.callout-note}
-Support for the `skill()` tool is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The `skill()` tool provides models with [agent skills](https://agentskills.io/home) which are folders of instructions, scripts, and resources that agents can discover and use to do things more accurately and efficiently.
 
 Skills were originally created as a feature of Claude Code, but are now widely supported by many agents and agent frameworks. You can learn more about creating skills at:
