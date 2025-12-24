@@ -55,12 +55,6 @@ export interface AppSlice {
     setPropertyValue: <T>(bagName: string, key: string, value: T) => void;
     removePropertyValue: (bagName: string, key: string) => void;
 
-    setPagination: (
-      name: string,
-      pagination: { page: number; pageSize: number },
-    ) => void;
-    clearPagination: (name: string) => void;
-
     setUrlHash: (urlHash: string) => void;
 
     setSingleFileMode: (singleFile: boolean) => void;
@@ -92,7 +86,6 @@ const initialState: AppState = {
   collapsed: {},
   messages: {},
   propertyBags: {},
-  pagination: {},
   displayMode: "rendered",
   logsSampleView: false,
 };
@@ -344,19 +337,6 @@ export const createAppSlice = (
       setSingleFileMode: (singleFile: boolean) => {
         set((state) => {
           state.app.singleFileMode = singleFile;
-        });
-      },
-      setPagination: (
-        name: string,
-        pagination: { page: number; pageSize: number },
-      ) => {
-        set((state) => {
-          state.app.pagination[name] = pagination;
-        });
-      },
-      clearPagination: (name: string) => {
-        set((state) => {
-          delete state.app.pagination[name];
         });
       },
       setDisplayMode: (mode: "raw" | "rendered") => {

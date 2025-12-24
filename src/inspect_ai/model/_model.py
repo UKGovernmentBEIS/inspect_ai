@@ -54,6 +54,7 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -1349,9 +1350,7 @@ def resolve_reasoning_history(
                 content: list[Content] = []
                 for c in message.content:
                     if isinstance(c, ContentReasoning):
-                        content.append(
-                            ContentText(text=f"<think>\n{c.reasoning}\n</think>")
-                        )
+                        content.append(ContentText(text=reasoning_to_think_tag(c)))
                     else:
                         content.append(c)
                 message = message.model_copy(update={"content": content})

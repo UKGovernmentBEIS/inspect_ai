@@ -114,8 +114,13 @@ export const asyncJsonParse = async <T>(text: string): Promise<T> => {
   }
 };
 
-export const jsonParse = <T>(text: string): Promise<T> => {
-  return Promise.resolve(JSON.parse(text));
+export const jsonParse = <T>(text: string): T => {
+  try {
+    // Optimistically, try a regular JSON parse first (this is much faster)
+    return JSON.parse(text);
+  } catch {
+    return JSON5.parse(text);
+  }
 };
 
 const kWorkerCode = `

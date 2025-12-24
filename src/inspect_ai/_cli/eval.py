@@ -1047,7 +1047,7 @@ def eval_exec(
             model_args=model_args,
             model_roles=eval_model_roles,
             task_args=task_args,
-            solver=SolverSpec(solver, solver_args) if solver else None,
+            solver=SolverSpec(solver, solver_args, solver_args) if solver else None,
             tags=eval_tags,
             metadata=eval_metadata,
             trace=trace,

@@ -571,6 +571,47 @@ use_tools(web_browser(interactive=False))
 
 In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
 
+## Skill {#sec-skill}
+
+The `skill()` tool provides models with [agent skills](https://agentskills.io/home) which are folders of instructions, scripts, and resources that agents can discover and use to do things more accurately and efficiently.
+
+Skills were originally created as a feature of Claude Code, but are now widely supported by many agents and agent frameworks. You can learn more about creating skills at:
+
+- [Agent Skills Specification](https://agentskills.io/specification)
+- [Claude Code Agent Skills](https://code.claude.com/docs/en/skills)
+- [Codex CLI Agent Skills](https://developers.openai.com/codex/skills/)
+
+The `skill()` tool takes a list of paths that contain standard skill specifications, copies them into the sample's sandbox, and provides a tool description that enumerates the available skills. For example, here we make available "system-info" and "network-info" skills:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.agent import react
+from inspect_ai.tool import bash, skill, update_plan
+
+SKILLS_DIR = Path(__file__).parent / "skills"
+
+@task
+def intercode_ctf():
+
+    # define skill tool
+    skill_tool = skill(
+        [
+            SKILLS_DIR / "system-info",
+            SKILLS_DIR / "network-info",
+        ]
+    )
+
+    return Task(
+        dataset=read_dataset(),
+        solver=react(tools=[bash(timeout=180), skill_tool]),
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that use of the `skill()` tool requires a that a [sandbox](sandboxing.qmd) be defined for the task so there is a filesystem to publish the skills within.
+
 ## Update Plan {#sec-update-plan}
 
 The `update_plan()` tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it's trying to accomplish.
@@ -591,10 +632,7 @@ from inspect_ai.tool import bash, update_plan
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
-        solver=[
-            system_message("system.txt"),
-            react(tools=[bash(timeout=180), update_plan()]),
-        ],
+        solver=react(tools=[bash(timeout=180), update_plan()]),
         scorer=includes(),
         sandbox=("docker", "compose.yaml")
     )

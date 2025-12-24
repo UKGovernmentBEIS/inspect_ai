@@ -982,7 +982,11 @@ async def eval_retry_async(
 
         # see if there is solver spec in the eval log
         solver = (
-            SolverSpec(eval_log.eval.solver, eval_log.eval.solver_args or {})
+            SolverSpec(
+                eval_log.eval.solver,
+                eval_log.eval.solver_args or {},
+                eval_log.eval.solver_args_passed or {},
+            )
             if eval_log.eval.solver
             else None
         )

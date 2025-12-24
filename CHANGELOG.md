@@ -1,10 +1,39 @@
 ## Unreleased
 
+- Properly handle working time reporting for overlapping coroutines waiting on the same semaphore.
+
+## 0.3.158 (24 December 2025)
+
+- [skill()](https://inspect.aisi.org.uk/tools-standard.html#sec-skill) tool to make agent skills available to models.
+- Bugfix: Fix log file cache lookup using incorrect comparison key.
+
+## 0.3.157 (22 December 2025)
+
+- Eval Set: Correct log reuse behavior when epochs and limit change.
+- Solvers: Capture all parameters (including defaults) used to create solvers and agents.
+- Tasks: Improved validation of Hugging Face Hub task definitions.
+- HF Inference Providers: Specify "strict" for function tool definitions.
+- Agent API: Improved capture of agent name with nested @agent decorators.
+- Agent Bridge: Ensure that OpenAI responses params have an "id" field before validation.
+- Sandbox Service: Continue with warning if request polling raises a `RuntimeError`.
+
+## 0.3.156 (20 December 2025)
+
+- Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).
 - Open AI: Remove custom transport to respect HTTP proxy settings.
 - Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
-- Properly handle working time reporting for overlapping coroutines waiting on the same semaphore.
+- OpenRouter: Handle `reasoning_details` field to forward native reasoning replay to models.
+- Reasoning: Include reasoning `summary` in serialization for agent bridge.
+- Agent API: Correctly handle `@agent` functions with no return type decoration.
+- ReAct Agent: Add `retry_refusals` option to retry on stop_reason == "content_filter".
+- Eval Log: Include sample `choices` in `EvalSampleSummary`.
+- Inspect View: Add "robots" meta tag with "noindex,noai,noimageai".
+- Inspect View: Enhance `inspect view bundle` to publish `hf/` prefixed targets to Hugging Face Spaces.
+- Inspect View: Improve rendering of Open Router reaasoning blocks.
+- Inspect View: Correct the filter type for `Log File` column of the samples list.
 - Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
 - Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
+- Bugfix: Expand allowable JSONSchema `type` field to enable lists of types.
 
 ## 0.3.155 (16 December 2025)
 
@@ -16,6 +45,7 @@
 - Inspect View: Display timestamp in sample limit events tooltip.
 - Inspect View: Fix issue where stale log files could be displayed in static deployments of the viewer.
 - Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.
+- Inspect View: Tasks filter split as into per-column filters. Option to display scorer columns in Choose Columns popover.
 
 ## 0.3.154 (14 December 2025)
 

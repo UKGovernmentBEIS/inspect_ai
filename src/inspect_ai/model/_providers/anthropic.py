@@ -1478,7 +1478,9 @@ async def assistant_message_block_params(
 
 @dataclass
 class _AssistantInternal:
-    thinking_signatures: dict[str, str] = field(default_factory=dict)
+    thinking_blocks: dict[str, ThinkingBlockParam | RedactedThinkingBlockParam] = field(
+        default_factory=dict
+    )
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
@@ -1797,23 +1799,34 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     else None,
                 )
             )
+
+        elif isinstance(content_block, ThinkingBlock):
+            # anthropic reasoning is now always a summary (save for Sonnet 3.7):
+            # https://platform.claude.com/docs/en/build-with-claude/extended-thinking#differences-in-thinking-across-model-versions
+            content.append(
+                ContentReasoning(
+                    summary=content_block.thinking,
+                    reasoning=content_block.signature,
+                    redacted=True,
+                )
+            )
+
+            # reasoning won't round trip through bridges w/ simplistic handling
+            # (e.g. OpenAI completions) so we also save for replay)
+            assistant_internal().thinking_blocks[mm3_hash(content_block.signature)] = (
+                cast(ThinkingBlockParam, content_block.model_dump(exclude_none=True))
+            )
+
         elif isinstance(content_block, RedactedThinkingBlock):
+            # redacted reasoning has no summary
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
             )
-        elif isinstance(content_block, ThinkingBlock):
-            # also record the thinking signature for this thinking in the side list
-            # this is b/c if we are operating within a bridge then scaffolds (e.g.
-            # responses with store=False) will not send back the id/signature.
-            assistant_internal().thinking_signatures[
-                mm3_hash(content_block.thinking)
-            ] = content_block.signature
 
-            # append the content
-            content.append(
-                ContentReasoning(
-                    reasoning=content_block.thinking, signature=content_block.signature
-                )
+            # reasoning won't round trip through bridges w/ simplistic handling
+            # (e.g. OpenAI completions) so we also save for replay
+            assistant_internal().thinking_blocks[mm3_hash(content_block.data)] = cast(
+                RedactedThinkingBlockParam, content_block.model_dump(exclude_none=True)
             )
 
     return content, tool_calls
@@ -1906,29 +1919,16 @@ async def message_block_params(
         return [await image_block_param(content.image)]
 
     elif isinstance(content, ContentReasoning):
-        if content.redacted:
-            return [
-                RedactedThinkingBlockParam(
-                    type="redacted_thinking",
-                    data=content.reasoning,
-                )
-            ]
-        else:
-            signature = content.signature
-            if signature is None:
-                # see if we can get it from assistant_internal()
-                signature = assistant_internal().thinking_signatures.get(
-                    mm3_hash(content.reasoning), None
-                )
-                if signature is None:
-                    raise ValueError("Thinking content without signature.")
-            return [
-                ThinkingBlockParam(
-                    type="thinking",
-                    thinking=content.reasoning,
-                    signature=signature,
-                )
-            ]
+        # lookup in assistant internal
+        thinking_block_param = assistant_internal().thinking_blocks.get(
+            mm3_hash(content.reasoning), None
+        )
+        if thinking_block_param is not None:
+            return [thinking_block_param]
+
+        # if it's not in there then this is reasoning that is coming from another
+        # system (e.g. in an agent handoff) so we turn it into normal text
+        return [TextBlockParam(type="text", text=content.text)]
 
     elif isinstance(content, ContentToolUse):
         if content.id in assistant_internal().server_mcp_tool_uses:
