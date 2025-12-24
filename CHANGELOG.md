@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Properly handle working time reporting for overlapping coroutines waiting on the same semaphore.
+- Properly handle working time reporting for overlapping coroutines waiting on semaphores.
 
 ## 0.3.158 (24 December 2025)
 
