@@ -87,24 +87,14 @@ website:
           href: reference/inspect_ai.tool.qmd#code_execution
         - text: web_browser
           href: reference/inspect_ai.tool.qmd#web_browser
+        - text: skill
+          href: reference/inspect_ai.tool.qmd#skill
         - text: memory
           href: reference/inspect_ai.tool.qmd#memory
         - text: update_plan
           href: reference/inspect_ai.tool.qmd#update_plan
         - text: think
           href: reference/inspect_ai.tool.qmd#think
-        - text: skill
-          href: reference/inspect_ai.tool.qmd#skill
-        - text: skill
-          href: reference/inspect_ai.tool.qmd#skill
-        - text: read_skills
-          href: reference/inspect_ai.tool.qmd#read_skills
-        - text: install_skills
-          href: reference/inspect_ai.tool.qmd#install_skills
-        - text: Skill
-          href: reference/inspect_ai.tool.qmd#skill
-        - text: SkillInfo
-          href: reference/inspect_ai.tool.qmd#skillinfo
         - text: mcp_connection
           href: reference/inspect_ai.tool.qmd#mcp_connection
         - text: mcp_server_stdio
@@ -125,6 +115,16 @@ website:
           href: reference/inspect_ai.tool.qmd#mcpserverconfigstdio
         - text: 'MCPServerConfigHTTP '
           href: 'reference/inspect_ai.tool.qmd#mcpserverconfighttp '
+        - text: skill
+          href: reference/inspect_ai.tool.qmd#skill
+        - text: read_skills
+          href: reference/inspect_ai.tool.qmd#read_skills
+        - text: install_skills
+          href: reference/inspect_ai.tool.qmd#install_skills
+        - text: Skill
+          href: reference/inspect_ai.tool.qmd#skill
+        - text: SkillInfo
+          href: reference/inspect_ai.tool.qmd#skillinfo
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef
