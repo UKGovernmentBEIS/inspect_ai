@@ -28,6 +28,9 @@ tools include:
 
 Agentic tools include:
 
+- [Skill](tools-standard.qmd#sec-skill) which provides agent skill
+  specifications to the model with specialized knowledge and expertise
+  for specific tasks.
 - [Update Plan](tools-standard.qmd#sec-update-plan) which helps the
   model tracks steps and progress across longer horizon tasks.
 - [Memory](tools-standard.qmd#sec-memory) which enables storing and
@@ -790,6 +793,66 @@ In this mode, the interactive tools (`web_browser_click()`,
 `web_browser_type()`, and `web_browser_type_submit()`) are not made
 available to the model.
 
+## Skill
+
+> [!NOTE]
+>
+> Support for the `skill()` tool is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `skill()` tool provides models with [agent
+skills](https://agentskills.io/home) which are folders of instructions,
+scripts, and resources that agents can discover and use to do things
+more accurately and efficiently.
+
+Skills were originally created as a feature of Claude Code, but are now
+widely supported by many agents and agent frameworks. You can learn more
+about creating skills at:
+
+- [Agent Skills Specification](https://agentskills.io/specification)
+- [Claude Code Agent Skills](https://code.claude.com/docs/en/skills)
+- [Codex CLI Agent Skills](https://developers.openai.com/codex/skills/)
+
+The `skill()` tool takes a list of paths that contain standard skill
+specifications, copies them into the sample’s sandbox, and provides a
+tool description that enumerates the available skills. For example, here
+we make available “system-info” and “network-info” skills:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.agent import react
+from inspect_ai.tool import bash, skill, update_plan
+
+SKILLS_DIR = Path(__file__).parent / "skills"
+
+@task
+def intercode_ctf():
+
+    # define skill tool
+    skill_tool = skill(
+        [
+            SKILLS_DIR / "system-info",
+            SKILLS_DIR / "network-info",
+        ]
+    )
+
+    return Task(
+        dataset=read_dataset(),
+        solver=react(tools=[bash(timeout=180), skill_tool]),
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that use of the `skill()` tool requires a that a
+[sandbox](sandboxing.qmd) be defined for the task so there is a
+filesystem to publish the skills within.
+
 ## Update Plan
 
 The `update_plan()` tool provides models with a way to track steps and
@@ -816,10 +879,7 @@ from inspect_ai.tool import bash, update_plan
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
-        solver=[
-            system_message("system.txt"),
-            react(tools=[bash(timeout=180), update_plan()]),
-        ],
+        solver=react(tools=[bash(timeout=180), update_plan()]),
         scorer=includes(),
         sandbox=("docker", "compose.yaml")
     )
