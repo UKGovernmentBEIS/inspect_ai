@@ -1,3 +1,7 @@
+## Unreleased
+
+- Properly handle working time reporting for overlapping coroutines waiting on semaphores.
+
 ## 0.3.158 (24 December 2025)
 
 - [skill()](https://inspect.aisi.org.uk/tools-standard.html#sec-skill) tool to make agent skills available to models.
