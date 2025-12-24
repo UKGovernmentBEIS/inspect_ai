@@ -9,7 +9,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store_model import StoreModel, store_as
 
 from .install import install_skills
-from .read import resolve_skills
+from .read import read_skills
 from .types import Skill, SkillInfo
 
 
@@ -32,7 +32,7 @@ def skill(
         dir: Directory to install into (defaults to "./skills").
     """
     # resolve skills
-    resolved_skills = resolve_skills(skills)
+    resolved_skills = read_skills(skills)
 
     async def execute(command: str) -> str:
         """Execute a skill within the main conversation.

@@ -7,13 +7,13 @@ from jsonschema import Draft7Validator
 from .types import Skill
 
 
-def read_skills(locations: Sequence[str | Path]) -> list[Skill]:
+def read_skills(skills: Sequence[str | Path | Skill]) -> list[Skill]:
     """Read skill specifications.
 
     See the [agent skills specification](https://agentskills.io/specification) for details on defining skills.
 
     Args:
-       locations: Directories containing SKILL.md files.
+       skills: Directories containing SKILL.md files.
 
     Returns:
        List of parsed and validated Skills.
@@ -21,10 +21,6 @@ def read_skills(locations: Sequence[str | Path]) -> list[Skill]:
     Raises:
        SkillParsingError: If SKILL.md is missing, malformed, or invalid.
     """
-    return [_read_skill(location) for location in locations]
-
-
-def resolve_skills(skills: Sequence[str | Path | Skill]) -> list[Skill]:
     return [
         skill if isinstance(skill, Skill) else _read_skill(skill) for skill in skills
     ]
