@@ -795,15 +795,6 @@ available to the model.
 
 ## Skill
 
-> [!NOTE]
->
-> Support for the `skill()` tool is available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `skill()` tool provides models with [agent
 skills](https://agentskills.io/home) which are folders of instructions,
 scripts, and resources that agents can discover and use to do things
