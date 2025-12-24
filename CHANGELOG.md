@@ -1,12 +1,12 @@
 ## Unreleased
 
 - [skill()](https://inspect.aisi.org.uk/tools-standard.html#sec-skill) tool to make agent skills available to models.
+- Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
 - Bugfix: Fix log file cache lookup using incorrect comparison key.
 
 ## 0.3.157 (22 December 2025)
 
 - Eval Set: Correct log reuse behavior when epochs and limit change.
-- Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
 - Solvers: Capture all parameters (including defaults) used to create solvers and agents.
 - Tasks: Improved validation of Hugging Face Hub task definitions.
 - HF Inference Providers: Specify "strict" for function tool definitions.
