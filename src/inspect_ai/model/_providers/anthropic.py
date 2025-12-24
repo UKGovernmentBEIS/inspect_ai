@@ -297,6 +297,15 @@ class AnthropicAPI(ModelAPI):
         super().initialize()
         self.client = self._create_client()
         self._http_hooks = HttpxHooks(self.client._client)
+
+        # Register OpenTelemetry hook if enabled
+        from inspect_ai.telemetry import is_otel_enabled
+
+        if is_otel_enabled():
+            from inspect_ai.telemetry._httpx_hook import register_otel_hook
+
+            register_otel_hook(self.client._client)
+
         self._batcher: AnthropicBatcher | None = None
 
     @override

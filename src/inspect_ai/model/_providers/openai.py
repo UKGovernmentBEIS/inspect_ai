@@ -246,6 +246,14 @@ class OpenAIAPI(ModelAPI):
         self._responses_batcher: OpenAIBatcher[Response] | None = None
         self._http_hooks = HttpxHooks(self.client._client)
 
+        # Register OpenTelemetry hook if enabled
+        from inspect_ai.telemetry import is_otel_enabled
+
+        if is_otel_enabled():
+            from inspect_ai.telemetry._httpx_hook import register_otel_hook
+
+            register_otel_hook(self.client._client)
+
     def is_azure(self) -> bool:
         return self.service == "azure"
 
