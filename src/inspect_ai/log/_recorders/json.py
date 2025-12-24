@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any, Literal, get_args
+from typing import IO, Any, Literal, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
@@ -34,6 +34,11 @@ class JSONRecorder(FileRecorder):
     @classmethod
     def handles_location(cls, location: str) -> bool:
         return location.endswith(".json")
+
+    @override
+    @classmethod
+    def handles_bytes(cls, first_bytes: bytes) -> bool:
+        return first_bytes[:1] == b"{"
 
     @override
     def default_log_buffer(self, sample_count: int) -> int:
@@ -171,6 +176,13 @@ class JSONRecorder(FileRecorder):
             log.etag = etag
 
         return log
+
+    @override
+    @classmethod
+    async def read_log_bytes(
+        cls, log_bytes: IO[bytes], header_only: bool = False
+    ) -> EvalLog:
+        return _parse_json_log(from_json(log_bytes.read()), header_only)
 
     @override
     @classmethod

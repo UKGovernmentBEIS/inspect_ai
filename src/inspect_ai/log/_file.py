@@ -8,7 +8,6 @@ from pydantic import (
     BaseModel,
     Field,
 )
-from pydantic_core import from_json
 
 from inspect_ai._util._async import current_async_backend, run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
@@ -24,7 +23,11 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 
 from ._log import EvalLog, EvalMetric, EvalSample
-from ._recorders import recorder_type_for_format, recorder_type_for_location
+from ._recorders import (
+    recorder_type_for_bytes,
+    recorder_type_for_format,
+    recorder_type_for_location,
+)
 
 logger = getLogger(__name__)
 
@@ -262,10 +265,6 @@ def read_eval_log(
 
     Returns:
        EvalLog object read from file.
-
-    Raises:
-       ValueError: If format is "auto" and the format cannot be detected
-          from the IO[bytes] content.
     """
     # don't mix trio and asyncio
     if current_async_backend() == "trio":
@@ -306,35 +305,17 @@ async def read_eval_log_async(
 
     Returns:
        EvalLog object read from file.
-
-    Raises:
-       ValueError: If format is "auto" and the format cannot be detected
-          from the IO[bytes] content.
     """
     is_bytes = not isinstance(log_file, (str, Path, EvalLogInfo))
     if is_bytes:
         log_bytes = cast("IO[bytes]", log_file)
         if format == "auto":
-            # Detect format from first bytes
-            first_bytes = log_bytes.read(4)
-            log_bytes.seek(0)
-            if first_bytes == b"PK\x03\x04":  # ZIP local file header
-                format = "eval"
-            elif first_bytes[:1] == b"{":
-                format = "json"
-            else:
-                raise ValueError("Unable to detect format from IO[bytes]")
+            recorder_type = recorder_type_for_bytes(log_bytes)
+        else:
+            recorder_type = recorder_type_for_format(format)
 
         logger.debug("Reading eval log from stream")
-
-        if format == "json":
-            from inspect_ai.log._recorders.json import _parse_json_log
-
-            log = _parse_json_log(from_json(log_bytes.read()), header_only)
-        else:
-            from inspect_ai.log._recorders.eval import _read_log
-
-            log = _read_log(log_bytes, location="", header_only=header_only)
+        log = await recorder_type.read_log_bytes(log_bytes, header_only)
     else:
         # resolve to file path
         log_file = (

@@ -64,6 +64,11 @@ class EvalRecorder(FileRecorder):
         return location.endswith(".eval")
 
     @override
+    @classmethod
+    def handles_bytes(cls, first_bytes: bytes) -> bool:
+        return first_bytes == b"PK\x03\x04"  # ZIP local file header
+
+    @override
     def default_log_buffer(self, sample_count: int) -> int:
         # .eval files are 5-8x smaller than .json files so we
         # are much less worried about flushing frequently
@@ -219,6 +224,13 @@ class EvalRecorder(FileRecorder):
         finally:
             if temp_log:
                 os.unlink(temp_log)
+
+    @override
+    @classmethod
+    async def read_log_bytes(
+        cls, log_bytes: IO[bytes], header_only: bool = False
+    ) -> EvalLog:
+        return _read_log(log_bytes, location="", header_only=header_only)
 
     @override
     @classmethod
