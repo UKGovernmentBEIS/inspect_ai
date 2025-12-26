@@ -28,7 +28,7 @@ async def trim_messages(
         raise ValueError(f"preserve must be in range [0,1], got {preserve}")
 
     # partition messages
-    partitioned = _partition_messages(messages)
+    partitioned = partition_messages(messages)
 
     # slice messages from the beginning of the conversation as-per preserve
     start_idx = int(len(partitioned.conversation) * (1 - preserve))
@@ -65,7 +65,7 @@ class PartitionedMessages:
     conversation: list[ChatMessage] = field(default_factory=list)
 
 
-def _partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
+def partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
     # first pass at partitioning
     partitioned = PartitionedMessages()
     for message in messages:

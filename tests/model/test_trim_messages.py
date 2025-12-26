@@ -8,7 +8,7 @@ from inspect_ai.model import (
     ChatMessageUser,
     trim_messages,
 )
-from inspect_ai.model._trim import PartitionedMessages, _partition_messages
+from inspect_ai.model._trim import PartitionedMessages, partition_messages
 from inspect_ai.tool import ToolCall
 
 
@@ -393,7 +393,7 @@ def test_partition_messages() -> None:
         conversation_assistant,
     ]
 
-    partitioned = _partition_messages(messages)
+    partitioned = partition_messages(messages)
 
     assert partitioned.system == [system_message]
     assert partitioned.input == [input_user]
@@ -409,7 +409,7 @@ def test_partition_no_input_messages() -> None:
 
     messages: list[ChatMessage] = [system_message, user1, assistant1, user2]
 
-    partitioned = _partition_messages(messages)
+    partitioned = partition_messages(messages)
 
     assert partitioned.system == [system_message]
     # When no input source is specified, messages up to first user become input
@@ -420,15 +420,15 @@ def test_partition_no_input_messages() -> None:
 def test_partition_edge_cases() -> None:
     """Test edge cases for partitioning."""
     # Test with empty list
-    assert _partition_messages([]) == PartitionedMessages()
+    assert partition_messages([]) == PartitionedMessages()
 
     # Test with only system messages
     system = ChatMessageSystem(content="System message")
-    assert _partition_messages([system]) == PartitionedMessages(system=[system])
+    assert partition_messages([system]) == PartitionedMessages(system=[system])
 
     # Test with no user messages
     assistant = ChatMessageAssistant(content="Assistant message")
-    partitioned = _partition_messages([assistant])
+    partitioned = partition_messages([assistant])
     # Without any user messages, all non-system become input
     assert partitioned.input == [assistant]
     assert partitioned.conversation == []

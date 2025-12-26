@@ -573,6 +573,11 @@ class Model:
             else:
                 return messages[len(input) :], output
 
+    # TODO: implement for real
+    async def count_tokens(self, message: ChatMessage) -> int:
+        words = message.text.split()
+        return int(len(words) * 1.3)
+
     async def _generate(
         self,
         input: list[ChatMessage],
