@@ -40,7 +40,7 @@ class CompactionEdit(CompactionStrategy):
     Compact messages by editing the history to remove tool call results. Tool results receive placeholder to indicate that the result was removed.
     """
 
-    def __init__(self, *, threshold: int):
+    def __init__(self, *, threshold: int = 100_000):
         super().__init__(threshold=threshold)
 
     @override
@@ -78,7 +78,7 @@ class CompactionTrim(CompactionStrategy):
     - Ensure that the sequence of messages doesn't end with an assistant message.
     """
 
-    def __init__(self, *, threshold: int, preserve: float = 0.8):
+    def __init__(self, *, threshold: int = 100_000, preserve: float = 0.8):
         super().__init__(threshold=threshold)
         self.preserve = preserve
 
@@ -108,7 +108,7 @@ class CompactionSummary(CompactionStrategy):
     def __init__(
         self,
         *,
-        threshold: int,
+        threshold: int = 100_000,
         prompt: str | None = None,
         model: str | Model | None = None,
     ):
@@ -222,16 +222,44 @@ class Compact(Protocol):
         ...
 
 
-async def compaction(
+def compaction(
     strategy: CompactionStrategy,
     prefix: list[ChatMessage],
     model: str | Model | None = None,
 ) -> Compact:
     """Create a conversation compaction handler.
 
-    Call the `Compact` handler with the full conversation history before
-    sending input to the model. Send the returned `input` and append the
-    supplemental message returned (if any) to the full history.
+    Call the `Compact` handler with the full conversation history before sending input to the model. Send the returned `input` and append the supplemental message returned (if any) to the full history.
+
+    For example, in a simple agent loop:
+
+    ```python
+    compact = compaction(CompactionTrim(), prefix=state.messages)
+
+    while True:
+        # perform compaction
+        input, message = await compact(state.messages)
+        if message:
+            state.messages.append(message)
+
+        # call model and append to messages
+        state.output = await get_model().generate(
+            input=input,
+            tools=tools,
+        )
+        state.messages.append(state.output.message)
+
+        # make tool calls or terminate if there are none
+        if state.output.message.tool_calls:
+            messages, state.output = await execute_tools(
+                state.messages, tools
+            )
+            state.messages.extend(messages)
+        else:
+            break
+    ```
+
+    Note: The returned handler maintains internal state and is designed for sequential use within a single conversation's agent loop. Do not call concurrently.
 
     Args:
         strategy: Compaction strategy (e.g. editing, trimming, summary, etc.)
