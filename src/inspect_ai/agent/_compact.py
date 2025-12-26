@@ -2,6 +2,7 @@ import abc
 from textwrap import dedent
 from typing import Protocol
 
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._util.hash import mm3_hash
@@ -58,7 +59,9 @@ class CompactionEdit(CompactionStrategy):
         for message in messages:
             if isinstance(message, ChatMessageTool):
                 compacted.append(
-                    message.model_copy(update={"content": "(Tool result removed)"})
+                    message.model_copy(
+                        update={"id": uuid(), "content": "(Tool result removed)"}
+                    )
                 )
             else:
                 compacted.append(message)
@@ -156,7 +159,8 @@ class CompactionSummary(CompactionStrategy):
 
         # create summary message
         summary = ChatMessageUser(
-            content=output.message.text, metadata={"summary": True}
+            content=f"[CONTEXT COMPACTION SUMMARY]\n\n{output.completion}",
+            metadata={"summary": True},
         )
 
         # input for model should be preamble + summary
