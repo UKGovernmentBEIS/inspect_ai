@@ -282,12 +282,16 @@ def compaction(
     # state: cache of message_id -> token_count
     token_count_cache: dict[str, int] = {}
 
+    # snapshot the prefix in case it changes
+    prefix = prefix.copy()
+
     # resolve target model
     target_model = get_model(model)
 
     # helper to get message ID (assert away id == None)
     def message_id(message: ChatMessage) -> str:
-        assert message.id is not None
+        if message.id is None:
+            raise RuntimeError("Message must have an ID")
         return message.id
 
     # count tokens with caching
@@ -335,8 +339,8 @@ def compaction(
                 processed_message_ids.add(message_id(c_message))
 
             # ensure we preserve the prefix (could have been wiped out by a summarization)
-            input_ids = set([m.id for m in c_input])
-            prepend_prefix = [m for m in prefix if m.id not in input_ids]
+            input_ids = set([message_id(m) for m in c_input])
+            prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
             c_input = prepend_prefix + c_input
 
             # update input
