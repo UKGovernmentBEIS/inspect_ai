@@ -1,10 +1,12 @@
 import abc
+import functools
 from textwrap import dedent
 from typing import Protocol
 
 from shortuuid import uuid
 from typing_extensions import override
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.list import find_last_match
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
 from inspect_ai.model._model import Model, get_model
@@ -314,7 +316,11 @@ def compaction(
         ]
 
         # check to see whether the tokens exceeds the compaction 'threshold'
-        total_tokens = sum([await count_tokens(m) for m in (input + unprocessed)])
+        total_tokens = sum(
+            await tg_collect(
+                [functools.partial(count_tokens, m) for m in (input + unprocessed)]
+            )
+        )
         if total_tokens > strategy.threshold:
             # perform compaction
             c_input, c_message = await strategy.compact(input + unprocessed)

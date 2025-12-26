@@ -578,7 +578,27 @@ class Model:
                 return messages[len(input) :], output
 
     async def count_tokens(self, message: ChatMessage) -> int:
-        return await self.api.count_tokens(message)
+        model_name = ModelName(self)
+        key = f"ModelCountTokens({self.api.connection_key()})"
+        async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
+            # retry handler for token counting
+            @retry(
+                **model_retry_config(
+                    self.api.model_name,
+                    self.config.max_retries,
+                    self.config.timeout,
+                    self.should_retry,
+                    self.before_retry,
+                    log_model_retry,
+                    report_sample_waiting_time,
+                    self.api.retry_wait(),
+                )
+            )
+            async def _count_tokens(message: ChatMessage) -> int:
+                return await self.api.count_tokens(message)
+
+            # count tokens
+            return await _count_tokens(message)
 
     async def _generate(
         self,
