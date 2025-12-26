@@ -1,11 +1,11 @@
 ## Unreleased
 
 - Properly handle working time reporting for overlapping coroutines waiting on semaphores.
+- Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
 
 ## 0.3.158 (24 December 2025)
 
 - [skill()](https://inspect.aisi.org.uk/tools-standard.html#sec-skill) tool to make agent skills available to models.
-- Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
 - Bugfix: Fix log file cache lookup using incorrect comparison key.
 
 ## 0.3.157 (22 December 2025)
