@@ -235,6 +235,10 @@ class ModelAPI(abc.ABC):
         """
         ...
 
+    async def count_tokens(self, message: ChatMessage) -> int:
+        words = message.text.split()
+        return int(len(words) * 1.3)
+
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
@@ -573,10 +577,8 @@ class Model:
             else:
                 return messages[len(input) :], output
 
-    # TODO: implement for real
     async def count_tokens(self, message: ChatMessage) -> int:
-        words = message.text.split()
-        return int(len(words) * 1.3)
+        return await self.api.count_tokens(message)
 
     async def _generate(
         self,
