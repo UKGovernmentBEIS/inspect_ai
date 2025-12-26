@@ -160,7 +160,12 @@ class CompactionSummary(CompactionStrategy):
 
         # create summary message
         summary = ChatMessageUser(
-            content=f"[CONTEXT COMPACTION SUMMARY]\n\n{output.completion}",
+            content=(
+                f"[CONTEXT COMPACTION SUMMARY]\n\n"
+                f"The following is a summary of your work on this task so far:\n\n"
+                f"{output.completion}\n\n"
+                f"Please continue working on this task from where you left off."
+            ),
             metadata={"summary": True},
         )
 
