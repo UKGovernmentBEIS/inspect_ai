@@ -307,7 +307,7 @@ async def compaction(
             input.extend(c_input)
 
             # return input and any extra message to append
-            return c_input, c_message
+            return list(c_input), c_message
 
         else:
             # track unprocessed messages as now processed
@@ -318,6 +318,6 @@ async def compaction(
             input.extend(unprocessed)
 
             # return
-            return input, None
+            return list(input), None
 
     return compact
