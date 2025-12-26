@@ -5,7 +5,6 @@ from typing import Protocol
 from shortuuid import uuid
 from typing_extensions import override
 
-from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.list import find_last_match
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
 from inspect_ai.model._model import Model, get_model
@@ -253,9 +252,10 @@ async def compaction(
     # state: cache of message_id -> token_count
     token_count_cache: dict[str, int] = {}
 
-    # helper to get message ID (using hash as fallback)
+    # helper to get message ID (assert away id == None)
     def message_id(message: ChatMessage) -> str:
-        return message.id or mm3_hash(message.text)
+        assert message.id is not None
+        return message.id
 
     # count tokens with caching
     async def count_tokens(message: ChatMessage) -> int:
