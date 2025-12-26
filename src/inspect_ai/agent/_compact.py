@@ -114,12 +114,12 @@ class CompactionSummary(CompactionStrategy):
     ):
         super().__init__(threshold=threshold)
         self.prompt = prompt or self.DEFAULT_SUMMARY_PROMPT
-        self.model = model
+        self.model = get_model(model)
 
     prompt: str
     """Prompt to use for summarization."""
 
-    model: str | Model | None
+    model: Model
     """Model to use for summarization."""
 
     @override
@@ -154,7 +154,7 @@ class CompactionSummary(CompactionStrategy):
         )
 
         # perform summary
-        output = await get_model(self.model).generate(input=summarization_input)
+        output = await self.model.generate(input=summarization_input)
 
         # create summary message
         summary = ChatMessageUser(
@@ -252,6 +252,9 @@ async def compaction(
     # state: cache of message_id -> token_count
     token_count_cache: dict[str, int] = {}
 
+    # resolve target model
+    target_model = get_model(model)
+
     # helper to get message ID (assert away id == None)
     def message_id(message: ChatMessage) -> str:
         assert message.id is not None
@@ -266,7 +269,7 @@ async def compaction(
             return count
 
         # count tokens and update cache
-        count = await get_model(model).count_tokens(message)
+        count = await target_model.count_tokens(message)
         token_count_cache[id] = count
 
         # return count
