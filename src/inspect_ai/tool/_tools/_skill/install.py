@@ -4,7 +4,7 @@ from typing import Sequence
 from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-from .read import resolve_skills
+from .read import read_skills
 from .types import Skill, SkillInfo
 
 
@@ -73,7 +73,7 @@ async def install_skills(
 
     # install skills
     skills_info: list[SkillInfo] = []
-    for skill in resolve_skills(skills):
+    for skill in read_skills(skills):
         # determine root skill dir
         skill_dir = skills_dir / skill.name
 
