@@ -162,8 +162,10 @@ class CompactionSummary(CompactionStrategy):
         summary = ChatMessageUser(
             content=(
                 f"[CONTEXT COMPACTION SUMMARY]\n\n"
-                f"The following is a summary of your work on this task so far:\n\n"
-                f"{output.completion}\n\n"
+                f"The following is a summary of work completed on this task so far:\n\n"
+                "<summary>\n"
+                f"{output.completion}\n"
+                "</summary>\n\n"
                 f"Please continue working on this task from where you left off."
             ),
             metadata={"summary": True},
@@ -174,45 +176,35 @@ class CompactionSummary(CompactionStrategy):
         return input, summary
 
     DEFAULT_SUMMARY_PROMPT = dedent("""
-    You will be summarizing the conversation above to create a handoff document that allows work to continue seamlessly. The summary needs to capture all critical information required to pick up where the conversation left off, as the conversation history will be discarded after this summary.
+    You have been working on the task described above but have not yet completed it. Write a continuation summary that will allow you (or another instance of yourself) to resume work efficiently in a future context window where the conversation history will be replaced with this summary. Your summary should be structured, concise, and actionable. Include:
 
-    Your task is to create a comprehensive summary that focuses on preserving actionable information. Structure your summary to include the following elements:
+    1. Task Overview
+    The user's core request and success criteria
+    Any clarifications or constraints they specified
 
-    **What we're trying to accomplish:**
-    - Clearly state the main goal or objective of the work
-    - Include any sub-goals or related tasks that were identified
+    2. Current State
+    What has been completed so far
+    Files created, modified, or analyzed (with paths if relevant)
+    Key outputs or artifacts produced
 
-    **Actions taken and their results:**
-    - List the steps that were attempted or completed
-    - Note the outcome of each action (success, failure, partial completion)
-    - Include any commands run, functions called, or operations performed IF THEY ARE IMPORTANT TO SOLVING THE PROBLEM.
+    3. Important Discoveries
+    Technical constraints or requirements uncovered
+    Decisions made and their rationale
+    Errors encountered and how they were resolved
+    What approaches were tried that didn't work (and why)
 
-    **Key findings and technical details:**
-    - File paths, directory structures, or locations referenced
-    - Specific values, parameters, or configuration settings discovered or used
-    - Error messages (include the full text if important for debugging)
-    - Code snippets or configuration blocks that are critical to understanding the current state
-    - Data structures, variable names, or API endpoints involved
-    - Any constraints, limitations, or requirements identified
+    4. Next Steps
+    Specific actions needed to complete the task
+    Any blockers or open questions to resolve
+    Priority order if multiple steps remain
 
-    **Current state:**
-    - Where things stand now
-    - What's working and what isn't
-    - Any blockers or issues that need resolution
+    5. Context to Preserve
+    User preferences or style requirements
+    Domain-specific details that aren't obvious
+    Any promises made to the user
 
-    **What to do next:**
-    - Clear next steps or recommendations
-    - Outstanding questions that need answers
-    - Alternative approaches to consider if applicable
-
-    When writing your summary:
-    - Be verbose enough to preserve all critical details needed to continue the work
-    - Be concise with background information or non-essential context
-    - Use specific technical terminology, exact names, and precise values rather than generalizations
-    - If there are important code snippets, error messages, or configuration details, include them verbatim
-    - Organize information logically so someone can quickly understand the situation and take action
-    - Assume the person reading this summary was not part of the original conversation
-    Please output the complete summary. The summary should be self-contained and actionable, allowing work to continue effectively from this point.""")
+    Be concise but complete—err on the side of including information that would prevent duplicate work or repeated mistakes. Write in a way that enables immediate resumption of the task.
+    """)
 
 
 class Compact(Protocol):
