@@ -26,12 +26,11 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 
-# Short aliases for convenience
-# Note: Claude 4 Haiku doesn't exist yet, so we use 3.5 Haiku
+# Short aliases for convenience - using Claude 4.5 models (latest)
 MODEL_ALIASES: dict[str, str | None] = {
-    "sonnet": "claude-sonnet-4-20250514",
-    "opus": "claude-opus-4-20250514",
-    "haiku": "claude-3-5-haiku-latest",  # Claude 4 Haiku not released yet
+    "sonnet": "claude-sonnet-4-5-20250929",
+    "opus": "claude-opus-4-5-20251101",
+    "haiku": "claude-haiku-4-5-20251001",
     # Allow "default" to use whatever Claude Code defaults to
     "default": None,
 }

@@ -47,9 +47,9 @@ def test_claude_code_model_aliases() -> None:
     """Test that model aliases are resolved correctly."""
     from inspect_ai.model._providers.claude_code import MODEL_ALIASES
 
-    assert MODEL_ALIASES["sonnet"] == "claude-sonnet-4-20250514"
-    assert MODEL_ALIASES["opus"] == "claude-opus-4-20250514"
-    assert MODEL_ALIASES["haiku"] == "claude-3-5-haiku-latest"  # Claude 4 Haiku not released
+    assert MODEL_ALIASES["sonnet"] == "claude-sonnet-4-5-20250929"
+    assert MODEL_ALIASES["opus"] == "claude-opus-4-5-20251101"
+    assert MODEL_ALIASES["haiku"] == "claude-haiku-4-5-20251001"
     assert MODEL_ALIASES["default"] is None
 
 
