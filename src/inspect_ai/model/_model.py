@@ -265,30 +265,6 @@ class ModelAPI(abc.ABC):
             message, self.count_text_tokens, self.count_image_tokens
         )
 
-    async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
-        """Count tokens for tool definitions.
-
-        Args:
-            tools: List of tool definitions.
-
-        Returns:
-            Total token count for all tool definitions.
-        """
-        # create a message with the tool tokens embedded and count that
-        tool_json = ""
-        for tool in tools:
-            tool_json += json.dumps(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.parameters.model_dump(exclude_none=True),
-                    },
-                }
-            )
-        return await self.count_tokens(ChatMessageUser(content=tool_json))
-
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
@@ -649,6 +625,30 @@ class Model:
 
             # count tokens
             return await _count_tokens(message)
+
+    async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
+        """Count tokens for tool definitions.
+
+        Args:
+            tools: List of tool definitions.
+
+        Returns:
+            Total token count for all tool definitions.
+        """
+        # create a message with the tool tokens embedded and count that
+        tool_json = ""
+        for tool in tools:
+            tool_json += json.dumps(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters.model_dump(exclude_none=True),
+                    },
+                }
+            )
+        return await self.count_tokens(ChatMessageUser(content=tool_json))
 
     async def _generate(
         self,

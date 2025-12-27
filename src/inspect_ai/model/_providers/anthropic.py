@@ -448,24 +448,6 @@ class AnthropicAPI(ModelAPI):
         )
         return response.input_tokens
 
-    @override
-    async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
-        tool_params = [
-            ToolParam(
-                name=tool.name,
-                description=tool.description,
-                input_schema=tool.parameters.model_dump(exclude_none=True),
-            )
-            for tool in tools
-        ]
-
-        response = await self.client.messages.count_tokens(
-            messages=[MessageParam(role="user", content="tools")],
-            model=self.service_model_name(),
-            tools=tool_params,
-        )
-        return response.input_tokens
-
     async def _perform_request_and_continuations(
         self,
         request: dict[str, Any],

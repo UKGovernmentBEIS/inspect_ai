@@ -72,7 +72,7 @@ async def test_anthropic_count_tool_tokens():
     """Test Anthropic tool token counting using native API."""
     model = get_model("anthropic/claude-sonnet-4-20250514")
 
-    tool_token_count = await model.api.count_tool_tokens([TEST_TOOL])
+    tool_token_count = await model.count_tool_tokens([TEST_TOOL])
 
     # Tool definition should be at least 20 tokens
     assert tool_token_count >= 20

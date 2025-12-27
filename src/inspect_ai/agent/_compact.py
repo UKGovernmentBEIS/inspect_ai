@@ -20,40 +20,28 @@ from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._trim import partition_messages, trim_messages
 
 
-class CompactionStrategy(abc.ABC):
-    """Compaction strategy."""
-
-    def __init__(self, *, threshold: int):
-        self.threshold = threshold
-
-    threshold: int
-    """Token count threshold for compaction."""
-
-    @abc.abstractmethod
-    async def compact(
+class Compact(Protocol):
+    async def __call__(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages.
 
         Args:
-            messages: Full message history.
+            messages: Full message history
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """
         ...
 
 
-class CompactionEdit(CompactionStrategy):
+class CompactEdit(Compact):
     """Message editing compaction.
 
     Compact messages by editing the history to remove tool call results. Tool results receive placeholder to indicate that the result was removed.
     """
 
-    def __init__(self, *, threshold: int = 100_000):
-        super().__init__(threshold=threshold)
-
     @override
-    async def compact(
+    async def __call__(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by removing tool call results.
@@ -76,7 +64,7 @@ class CompactionEdit(CompactionStrategy):
         return compacted, None
 
 
-class CompactionTrim(CompactionStrategy):
+class CompactTrim(Compact):
     """Message trimming compaction.
 
     Compact messages by trimming the history to preserve a percentage of messages:
@@ -87,15 +75,15 @@ class CompactionTrim(CompactionStrategy):
     - Ensure that the sequence of messages doesn't end with an assistant message.
     """
 
-    def __init__(self, *, threshold: int = 100_000, preserve: float = 0.8):
-        super().__init__(threshold=threshold)
+    def __init__(self, *, preserve: float = 0.8):
+        super().__init__()
         self.preserve = preserve
 
     preserve: float
     """Ratio of conversation messages to preserve (defaults to 0.8)"""
 
     @override
-    async def compact(
+    async def __call__(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by trimming the history to preserve a percentage of messages.
@@ -108,7 +96,7 @@ class CompactionTrim(CompactionStrategy):
         return await trim_messages(messages, preserve=self.preserve), None
 
 
-class CompactionSummary(CompactionStrategy):
+class CompactSummary(Compact):
     """Conversation summary compaction.
 
     Compact messages by summarizing the conversation.
@@ -117,11 +105,10 @@ class CompactionSummary(CompactionStrategy):
     def __init__(
         self,
         *,
-        threshold: int = 100_000,
         prompt: str | None = None,
         model: str | Model | None = None,
     ):
-        super().__init__(threshold=threshold)
+        super().__init__()
         self.prompt = prompt or self.DEFAULT_SUMMARY_PROMPT
         self.model = get_model(model)
 
@@ -132,7 +119,7 @@ class CompactionSummary(CompactionStrategy):
     """Model to use for summarization."""
 
     @override
-    async def compact(
+    async def __call__(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by summarizing the conversation.
@@ -214,24 +201,11 @@ class CompactionSummary(CompactionStrategy):
     """)
 
 
-class Compact(Protocol):
-    async def __call__(
-        self, messages: list[ChatMessage]
-    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
-        """Compact messages.
-
-        Args:
-            messages: Full message history
-
-        Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
-        """
-        ...
-
-
 def compaction(
-    strategy: CompactionStrategy,
+    compact: Compact,
     prefix: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource | None = None,
+    threshold: int = 100_000,
     model: str | Model | None = None,
 ) -> Compact:
     """Create a conversation compaction handler.
@@ -241,7 +215,11 @@ def compaction(
     For example, in a simple agent loop:
 
     ```python
-    compact = compaction(CompactionTrim(), prefix=state.messages)
+    compact = compaction(
+        CompactionTrim(),
+        prefix=state.messages,
+        tools=tools
+    )
 
     while True:
         # perform compaction
@@ -269,9 +247,10 @@ def compaction(
     Note: The returned handler maintains internal state and is designed for sequential use within a single conversation's agent loop. Do not call concurrently.
 
     Args:
-        strategy: Compaction strategy (e.g. editing, trimming, summary, etc.)
+        compact: Compaction strategy (e.g. editing, trimming, summary, etc.)
         prefix: Chat messages to always preserve in compacted conversations.
         tools: Tool definitions (included in token count as they consume context).
+        threshold: Token count threshold to trigger compaction.
         model: Target model for compacted input (defaults to active model).
 
     Returns:
@@ -280,7 +259,7 @@ def compaction(
         the history (e.g. a summarization).
     """
     # state: compacted input to send to the model
-    input: list[ChatMessage] = []
+    compacted_input: list[ChatMessage] = []
 
     # state: IDs of messages we've already processed (added to input)
     processed_message_ids: set[str] = set()
@@ -318,7 +297,7 @@ def compaction(
         # return count
         return count
 
-    async def compact(
+    async def compact_fn(
         messages: list[ChatMessage],
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         # one time resolution of tool_tokens
@@ -326,7 +305,7 @@ def compaction(
         nonlocal tool_tokens
         if tool_tokens is None:
             tools_info = get_tools_info(await resolve_tools(tools or []))
-            tool_tokens = await target_model.api.count_tool_tokens(tools_info)
+            tool_tokens = await target_model.count_tool_tokens(tools_info)
 
         # determine unprocessed messages (messages not yet added to input).
         # we allow unprocessed messages to accumulate in the input until
@@ -338,16 +317,19 @@ def compaction(
         # check to see whether the tokens exceeds the compaction 'threshold'
         message_tokens = sum(
             await tg_collect(
-                [functools.partial(count_tokens, m) for m in (input + unprocessed)]
+                [
+                    functools.partial(count_tokens, m)
+                    for m in (compacted_input + unprocessed)
+                ]
             )
         )
         total_tokens = tool_tokens + message_tokens
-        if total_tokens > strategy.threshold:
+        if total_tokens > threshold:
             # perform compaction
-            c_input, c_message = await strategy.compact(input + unprocessed)
+            c_input, c_message = await compact(compacted_input + unprocessed)
 
             # track all messages that were processed in this compaction pass
-            for m in input + unprocessed:
+            for m in compacted_input + unprocessed:
                 processed_message_ids.add(message_id(m))
 
             # c_message is a compaction side effect to append to the history
@@ -356,13 +338,13 @@ def compaction(
                 processed_message_ids.add(message_id(c_message))
 
             # ensure we preserve the prefix (could have been wiped out by a summarization)
-            input_ids = set([message_id(m) for m in c_input])
+            input_ids = input_ids = {message_id(m) for m in c_input}
             prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
             c_input = prepend_prefix + c_input
 
             # update input
-            input.clear()
-            input.extend(c_input)
+            compacted_input.clear()
+            compacted_input.extend(c_input)
 
             # return input and any extra message to append
             return list(c_input), c_message
@@ -373,9 +355,9 @@ def compaction(
                 processed_message_ids.add(message_id(m))
 
             # extend input with unprocessed messages
-            input.extend(unprocessed)
+            compacted_input.extend(unprocessed)
 
             # return
-            return list(input), None
+            return list(compacted_input), None
 
-    return compact
+    return compact_fn
