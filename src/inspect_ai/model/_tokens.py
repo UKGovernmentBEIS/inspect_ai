@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Callable, Sequence
-
-if TYPE_CHECKING:
-    from inspect_ai.tool import ToolInfo
+from typing import Callable
 
 from inspect_ai._util.content import (
     Content,
