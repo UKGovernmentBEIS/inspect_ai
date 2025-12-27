@@ -95,6 +95,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
+from ._tokens import count_image_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -235,9 +236,31 @@ class ModelAPI(abc.ABC):
         """
         ...
 
+    def count_text_tokens(self, text: str) -> int:
+        """Estimate tokens from text using chars/4 heuristic.
+
+        Override this method to use model-specific tokenizers (e.g., tiktoken).
+        """
+        return count_text_tokens(text)
+
+    def count_image_tokens(self, image: ContentImage) -> int:
+        """Estimate tokens for an image based on detail level.
+
+        Override this method for model-specific image token calculations.
+        """
+        return count_image_tokens(image)
+
     async def count_tokens(self, message: ChatMessage) -> int:
-        words = message.text.split()
-        return int(len(words) * 1.3)
+        """Estimate token count for a message.
+
+        This default implementation uses character-based heuristics for text
+        and standard estimates for images/media. Model providers can override
+        `count_text_tokens` and `count_image_tokens` for more accurate results,
+        or override this method entirely to use native token counting APIs.
+        """
+        return await count_tokens(
+            message, self.count_text_tokens, self.count_image_tokens
+        )
 
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
