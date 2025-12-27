@@ -990,7 +990,7 @@ class AnthropicAPI(ModelAPI):
     ):
         # See: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool#before-using-the-text-editor-tool
         # TODO: It would be great to enhance our `is_claude_xxx` functions to help here.
-        if self.model_name.startswith(("claude-3-5-haiku", "claude-3-opus")):
+        if self.service_model_name().startswith(("claude-3-5-haiku", "claude-3-opus")):
             return None
 
         # check for compatible 'text editor' tool
@@ -1036,7 +1036,7 @@ class AnthropicAPI(ModelAPI):
             tool.name == "web_search"
             and tool.options
             and "anthropic" in tool.options
-            and _supports_web_search(self.model_name)
+            and _supports_web_search(self.service_model_name())
         ):
             return _web_search_tool_params(tool.options["anthropic"])
         else:
@@ -1047,7 +1047,7 @@ class AnthropicAPI(ModelAPI):
     ) -> BetaCodeExecutionTool20250825Param | None:
         if (
             tool.name == "code_execution"
-            and _supports_web_search(self.model_name)
+            and _supports_code_interpreter(self.service_model_name())
             and tool.options
             and "anthropic" in tool.options.get("providers", {})
         ):
@@ -1077,7 +1077,7 @@ class AnthropicAPI(ModelAPI):
             )
         ):
             # memory tool supported on Claude 4+ models
-            if _supports_memory(self.model_name):
+            if _supports_memory(self.service_model_name()):
                 return BetaMemoryTool20250818Param(
                     type="memory_20250818",
                     name="memory",
