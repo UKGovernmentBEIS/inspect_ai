@@ -436,6 +436,14 @@ class AnthropicAPI(ModelAPI):
             else:
                 raise ex
 
+    async def count_tokens(self, message: ChatMessage) -> int:
+        """Estimate token count for a message."""
+        response = await self.client.messages.count_tokens(
+            model=self.service_model_name(),
+            messages=[await message_param(message)],
+        )
+        return response.input_tokens
+
     async def _perform_request_and_continuations(
         self,
         request: dict[str, Any],
@@ -2075,8 +2083,7 @@ async def count_tokens(
             "Anthropic",
             f"Unable to call count_tokens API for model {model} ({ex})",
         )
-        words = text.split()
-        estimated_tokens = int(len(words) * 1.3)
+        estimated_tokens = max(1, len(text) / 4)
         return estimated_tokens
 
 
