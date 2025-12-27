@@ -72,3 +72,45 @@ def test_claude_code_messages_to_prompt() -> None:
     assert "[System]: You are a helpful assistant." in prompt
     assert "[User]: Hello" in prompt
     assert "[Assistant]: Hi there!" in prompt
+
+
+def test_claude_code_thinking_levels() -> None:
+    """Test that valid thinking levels are accepted."""
+    from inspect_ai.model._providers.claude_code import THINKING_LEVELS
+
+    # Check all valid levels exist
+    assert "none" in THINKING_LEVELS
+    assert "think" in THINKING_LEVELS
+    assert "megathink" in THINKING_LEVELS
+    assert "ultrathink" in THINKING_LEVELS
+
+    # Check magic words are correct
+    assert THINKING_LEVELS["none"] == ""
+    assert THINKING_LEVELS["think"] == "think"
+    assert THINKING_LEVELS["megathink"] == "megathink"
+    assert THINKING_LEVELS["ultrathink"] == "ultrathink"
+
+
+@skip_if_no_claude_code
+def test_claude_code_thinking_level_valid() -> None:
+    """Test that valid thinking levels work."""
+    # Default (none)
+    model = get_model("claude-code/sonnet")
+    assert model.api._thinking_level == ""
+
+    # Explicit levels
+    model_think = get_model("claude-code/sonnet", thinking_level="think")
+    assert model_think.api._thinking_level == "think"
+
+    model_ultra = get_model("claude-code/sonnet", thinking_level="ultrathink")
+    assert model_ultra.api._thinking_level == "ultrathink"
+
+
+@skip_if_no_claude_code
+def test_claude_code_thinking_level_invalid() -> None:
+    """Test that invalid thinking levels raise ValueError."""
+    with pytest.raises(ValueError, match="Invalid thinking_level"):
+        get_model("claude-code/sonnet", thinking_level="invalid")
+
+    with pytest.raises(ValueError, match="Invalid thinking_level"):
+        get_model("claude-code/sonnet", thinking_level="superthink")

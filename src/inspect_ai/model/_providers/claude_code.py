@@ -144,7 +144,14 @@ class ClaudeCodeAPI(ModelAPI):
         self._skip_permissions = skip_permissions
         self._timeout = timeout
         self._max_connections = max_connections
-        self._thinking_level = THINKING_LEVELS.get(thinking_level, "")
+
+        # Validate thinking_level
+        if thinking_level not in THINKING_LEVELS:
+            valid = ", ".join(f'"{k}"' for k in THINKING_LEVELS.keys())
+            raise ValueError(
+                f"Invalid thinking_level: '{thinking_level}'. Must be one of: {valid}"
+            )
+        self._thinking_level = THINKING_LEVELS[thinking_level]
 
     def max_connections(self) -> int:
         """Number of concurrent CLI processes to run."""
