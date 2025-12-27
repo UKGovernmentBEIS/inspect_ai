@@ -10,6 +10,7 @@ from copy import copy, deepcopy
 from datetime import datetime, timezone
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Awaitable,
@@ -21,6 +22,9 @@ from typing import (
     TypeAlias,
     cast,
 )
+
+if TYPE_CHECKING:
+    from inspect_ai.tool import ToolInfo
 
 import anyio
 from pydantic import BaseModel
@@ -261,6 +265,21 @@ class ModelAPI(abc.ABC):
         return await count_tokens(
             message, self.count_text_tokens, self.count_image_tokens
         )
+
+    def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
+        """Count tokens for tool definitions.
+
+        Uses self.count_text_tokens() for provider-specific tokenization.
+
+        Args:
+            tools: List of tool definitions.
+
+        Returns:
+            Total token count for all tool definitions.
+        """
+        from inspect_ai.model._tokens import count_tool_tokens as _count_tool_tokens
+
+        return _count_tool_tokens(tools, self.count_text_tokens)
 
     def max_tokens(self) -> int | None:
         """Default max_tokens."""

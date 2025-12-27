@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import abc
 import functools
 from textwrap import dedent
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, Sequence
 
 from shortuuid import uuid
 from typing_extensions import override
+
+if TYPE_CHECKING:
+    from inspect_ai.tool import ToolInfo
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.list import find_last_match
@@ -224,6 +229,7 @@ class Compact(Protocol):
 def compaction(
     strategy: CompactionStrategy,
     prefix: list[ChatMessage],
+    tools: Sequence[ToolInfo] = [],
     model: str | Model | None = None,
 ) -> Compact:
     """Create a conversation compaction handler.
@@ -263,6 +269,7 @@ def compaction(
     Args:
         strategy: Compaction strategy (e.g. editing, trimming, summary, etc.)
         prefix: Chat messages to always preserve in compacted conversations.
+        tools: Tool definitions (included in token count as they consume context).
         model: Target model for compacted input (defaults to active model).
 
     Returns:
@@ -284,6 +291,9 @@ def compaction(
 
     # resolve target model
     target_model = get_model(model)
+
+    # count tool tokens once (tools don't change during conversation)
+    tool_tokens = target_model.api.count_tool_tokens(list(tools))
 
     # helper to get message ID (assert away id == None)
     def message_id(message: ChatMessage) -> str:
@@ -317,11 +327,12 @@ def compaction(
         ]
 
         # check to see whether the tokens exceeds the compaction 'threshold'
-        total_tokens = sum(
+        message_tokens = sum(
             await tg_collect(
                 [functools.partial(count_tokens, m) for m in (input + unprocessed)]
             )
         )
+        total_tokens = message_tokens + tool_tokens
         if total_tokens > strategy.threshold:
             # perform compaction
             c_input, c_message = await strategy.compact(input + unprocessed)
