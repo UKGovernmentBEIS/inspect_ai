@@ -1615,8 +1615,14 @@ def set_total_messages(input: str | list[ChatMessage]) -> None:
     set_active_sample_total_messages(total_messages)
 
 
-def init_model_usage() -> None:
-    model_usage_context_var.set({})
+def init_model_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
+    # explicit intialization
+    if initial_usage is not None:
+        model_usage_context_var.set(initial_usage)
+
+    # default initialization (ignore if we've already been explicitly intialized)
+    elif len(model_usage_context_var.get()) == 0:
+        model_usage_context_var.set({})
 
 
 def init_sample_model_usage() -> None:
