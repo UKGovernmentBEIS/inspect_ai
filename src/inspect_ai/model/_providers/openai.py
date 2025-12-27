@@ -247,7 +247,7 @@ class OpenAIAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client)
 
     @override
-    def count_text_tokens(self, text: str) -> int:
+    async def count_text_tokens(self, text: str) -> int:
         import tiktoken
 
         try:

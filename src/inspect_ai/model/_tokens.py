@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Callable
+from typing import Awaitable, Callable
 
 from inspect_ai._util.content import (
     Content,
@@ -19,21 +19,21 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 
 async def count_tokens(
     message: ChatMessage,
-    count_text: Callable[[str], int],
-    count_image: Callable[[ContentImage], int],
+    count_text: Callable[[str], Awaitable[int]],
+    count_image: Callable[[ContentImage], Awaitable[int]],
 ) -> int:
-    def count_content_tokens(content: Content) -> int:
+    async def count_content_tokens(content: Content) -> int:
         """Count tokens for a single content item."""
         if isinstance(content, ContentText):
-            return count_text(content.text)
+            return await count_text(content.text)
         elif isinstance(content, ContentReasoning):
             # Only count summary - reasoning may be encrypted/redacted
             # and replay behavior varies by provider
             if content.summary:
-                return count_text(content.summary)
+                return await count_text(content.summary)
             return 0
         elif isinstance(content, ContentImage):
-            return count_image(content)
+            return await count_image(content)
         elif isinstance(content, ContentAudio):
             return 1000  # Conservative estimate
         elif isinstance(content, ContentVideo):
@@ -41,9 +41,9 @@ async def count_tokens(
         elif isinstance(content, ContentDocument):
             return 1000  # Conservative estimate
         elif isinstance(content, ContentToolUse):
-            tokens = count_text(content.name)
-            tokens += count_text(content.arguments)
-            tokens += count_text(content.result)
+            tokens = await count_text(content.name)
+            tokens += await count_text(content.arguments)
+            tokens += await count_text(content.result)
             return tokens
         elif isinstance(content, ContentData):
             return 0  # Provider-specific, skip
@@ -54,17 +54,17 @@ async def count_tokens(
 
     # Handle message content
     if isinstance(message.content, str):
-        total_tokens += count_text(message.content)
+        total_tokens += await count_text(message.content)
     else:
         for content in message.content:
-            total_tokens += count_content_tokens(content)
+            total_tokens += await count_content_tokens(content)
 
     # Handle tool calls in assistant messages
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         for tool_call in message.tool_calls:
-            total_tokens += count_text(tool_call.function)
+            total_tokens += await count_text(tool_call.function)
             args_str = json.dumps(tool_call.arguments)
-            total_tokens += count_text(args_str)
+            total_tokens += await count_text(args_str)
 
     return max(1, total_tokens)
 

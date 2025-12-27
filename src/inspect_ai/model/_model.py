@@ -239,14 +239,14 @@ class ModelAPI(abc.ABC):
         """
         ...
 
-    def count_text_tokens(self, text: str) -> int:
+    async def count_text_tokens(self, text: str) -> int:
         """Estimate tokens from text using chars/4 heuristic.
 
         Override this method to use model-specific tokenizers (e.g., tiktoken).
         """
         return count_text_tokens(text)
 
-    def count_image_tokens(self, image: ContentImage) -> int:
+    async def count_image_tokens(self, image: ContentImage) -> int:
         """Estimate tokens for an image based on detail level.
 
         Override this method for model-specific image token calculations.
