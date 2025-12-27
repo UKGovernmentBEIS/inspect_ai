@@ -81,32 +81,3 @@ def count_image_tokens(image: ContentImage) -> int:
         return 85
     else:  # "high" or "auto"
         return 765
-
-
-def count_tool_tokens(
-    tools: Sequence[ToolInfo],
-    count_text: Callable[[str], int],
-) -> int:
-    """Count tokens for tool definitions.
-
-    Args:
-        tools: List of tool definitions.
-        count_text: Function to count tokens in text.
-
-    Returns:
-        Total token count for all tool definitions.
-    """
-    total = 0
-    for tool in tools:
-        tool_json = json.dumps(
-            {
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.parameters.model_dump(exclude_none=True),
-                },
-            }
-        )
-        total += count_text(tool_json)
-    return total

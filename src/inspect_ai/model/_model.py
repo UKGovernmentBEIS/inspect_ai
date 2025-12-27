@@ -268,17 +268,26 @@ class ModelAPI(abc.ABC):
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
 
-        Uses self.count_text_tokens() for provider-specific tokenization.
-
         Args:
             tools: List of tool definitions.
 
         Returns:
             Total token count for all tool definitions.
         """
-        from inspect_ai.model._tokens import count_tool_tokens as _count_tool_tokens
-
-        return _count_tool_tokens(tools, self.count_text_tokens)
+        # create a message with the tool tokens embedded and count that
+        tool_json = ""
+        for tool in tools:
+            tool_json += json.dumps(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters.model_dump(exclude_none=True),
+                    },
+                }
+            )
+        return await self.count_tokens(ChatMessageUser(content=tool_json))
 
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
