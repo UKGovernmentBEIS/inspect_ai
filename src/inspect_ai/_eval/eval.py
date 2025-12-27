@@ -49,12 +49,12 @@ from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
     Model,
-    ModelUsage,
 )
 from inspect_ai.model._model import (
     get_model,
     init_active_model,
     init_model_roles,
+    init_model_usage,
     resolve_models,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
@@ -324,7 +324,6 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
-    initial_model_usage: dict[str, ModelUsage] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -390,7 +389,6 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
-        initial_model_usage: Initial model usage to continue token counting from a previous eval log.
         **kwargs: Model generation options.
 
     Returns:
@@ -445,7 +443,6 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
-                initial_model_usage=initial_model_usage,
                 **kwargs,
             )
         finally:
@@ -510,7 +507,6 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
-    initial_model_usage: dict[str, ModelUsage] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
@@ -692,7 +688,6 @@ async def _eval_async_inner(
                         run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors is True,
-                        initial_model_usage=initial_model_usage,
                         **kwargs,
                     )
                 )
@@ -720,7 +715,6 @@ async def _eval_async_inner(
                 metadata=metadata,
                 run_samples=run_samples,
                 score=score,
-                initial_model_usage=initial_model_usage,
                 **kwargs,
             )
             logs = EvalLogs(results)
@@ -1094,6 +1088,8 @@ async def eval_retry_async(
             if eval_log.stats.model_usage
             else None
         )
+        if initial_model_usage:
+            init_model_usage(initial_model_usage)
 
         # run the eval
         log = (
@@ -1143,7 +1139,6 @@ async def eval_retry_async(
                 log_shared=log_shared,
                 score=score,
                 score_display=score_display,
-                initial_model_usage=initial_model_usage,
                 **dict(config),
             )
         )[0]

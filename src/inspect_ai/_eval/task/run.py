@@ -83,7 +83,6 @@ from inspect_ai.model import (
     Model,
     ModelAPI,
     ModelName,
-    ModelUsage,
 )
 from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
 from inspect_ai.model._providers.providers import (
@@ -160,7 +159,6 @@ class TaskRunOptions:
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
-    initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
 
@@ -211,7 +209,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         model_roles,
         generate_config,
         options.task.approval,
-        options.initial_model_usage,
     )
 
     # track stats and error
