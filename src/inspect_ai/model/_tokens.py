@@ -47,6 +47,8 @@ async def count_tokens(
             text_parts.append(content.name)
             text_parts.append(content.arguments)
             text_parts.append(content.result)
+            if content.error:
+                text_parts.append(content.error)
         # ContentData and unknown types contribute 0 tokens
 
     # Collect from message content

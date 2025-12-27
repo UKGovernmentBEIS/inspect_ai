@@ -240,9 +240,9 @@ class ModelAPI(abc.ABC):
         ...
 
     async def count_text_tokens(self, text: str) -> int:
-        """Estimate tokens from text using chars/4 heuristic.
+        """Estimate tokens from text using tiktoken (o200k_base with 10% buffer).
 
-        Override this method to use model-specific tokenizers (e.g., tiktoken).
+        Override this method to use model-specific tokenizers.
         """
         return count_text_tokens(text)
 
