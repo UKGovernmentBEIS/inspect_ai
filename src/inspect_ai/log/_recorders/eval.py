@@ -4,7 +4,7 @@ import math
 import os
 import tempfile
 from logging import getLogger
-from typing import Any, BinaryIO, Literal, cast
+from typing import IO, Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import anyio
@@ -62,6 +62,11 @@ class EvalRecorder(FileRecorder):
     @classmethod
     def handles_location(cls, location: str) -> bool:
         return location.endswith(".eval")
+
+    @override
+    @classmethod
+    def handles_bytes(cls, first_bytes: bytes) -> bool:
+        return first_bytes == b"PK\x03\x04"  # ZIP local file header
 
     @override
     def default_log_buffer(self, sample_count: int) -> int:
@@ -219,6 +224,13 @@ class EvalRecorder(FileRecorder):
         finally:
             if temp_log:
                 os.unlink(temp_log)
+
+    @override
+    @classmethod
+    async def read_log_bytes(
+        cls, log_bytes: IO[bytes], header_only: bool = False
+    ) -> EvalLog:
+        return _read_log(log_bytes, location="", header_only=header_only)
 
     @override
     @classmethod
@@ -534,7 +546,7 @@ class ZipLogFile:
         )
 
 
-def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
+def _read_log(log: IO[bytes], location: str, header_only: bool = False) -> EvalLog:
     with ZipFile(log, mode="r") as zip:
         evalLog = _read_header(zip, location)
         if REDUCTIONS_JSON in zip.namelist():
