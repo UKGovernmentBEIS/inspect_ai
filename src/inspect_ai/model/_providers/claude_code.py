@@ -35,6 +35,15 @@ MODEL_ALIASES: dict[str, str | None] = {
     "default": None,
 }
 
+# Thinking level magic words for Claude Code CLI
+# These trigger extended thinking with different token budgets
+THINKING_LEVELS: dict[str, str] = {
+    "none": "",
+    "think": "think",  # ~4,000 tokens
+    "megathink": "megathink",  # ~10,000 tokens
+    "ultrathink": "ultrathink",  # ~31,999 tokens
+}
+
 
 def find_claude_cli() -> str:
     """Find the claude CLI executable.
@@ -98,6 +107,8 @@ class ClaudeCodeAPI(ModelAPI):
         skip_permissions: Skip permission prompts (default: True)
         timeout: CLI timeout in seconds (default: 300)
         max_connections: Number of concurrent CLI processes (default: 1)
+        thinking_level: Thinking mode - "none", "think", "megathink", "ultrathink"
+                       (default: "none"). Triggers extended thinking in Claude Code.
 
     Limitations:
         - No custom tool/function calling - uses --tools "" to disable
@@ -113,6 +124,7 @@ class ClaudeCodeAPI(ModelAPI):
         skip_permissions: bool = True,
         timeout: int = 300,
         max_connections: int = 1,
+        thinking_level: str = "none",
         **model_args: Any,
     ) -> None:
         # Resolve model name
@@ -132,6 +144,7 @@ class ClaudeCodeAPI(ModelAPI):
         self._skip_permissions = skip_permissions
         self._timeout = timeout
         self._max_connections = max_connections
+        self._thinking_level = THINKING_LEVELS.get(thinking_level, "")
 
     def max_connections(self) -> int:
         """Number of concurrent CLI processes to run."""
@@ -154,6 +167,10 @@ class ClaudeCodeAPI(ModelAPI):
 
         # Convert messages to prompt
         prompt = messages_to_prompt(input)
+
+        # Prepend thinking level keyword if set
+        if self._thinking_level:
+            prompt = f"{self._thinking_level}\n\n{prompt}"
 
         # Build CLI command
         cmd = [
