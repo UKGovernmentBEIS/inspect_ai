@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Retry: Initialize model usage from usage recorded in retried eval log.
 - Properly handle working time reporting for overlapping coroutines waiting on semaphores.
 
 ## 0.3.158 (24 December 2025)

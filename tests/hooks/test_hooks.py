@@ -138,7 +138,7 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert len(mock_hooks.task_end_events) == 1
     assert len(mock_hooks.sample_start_events) == 1
     assert len(mock_hooks.sample_end_events) == 1
-    assert len(mock_hooks.model_usage_events) == 0
+    assert len(mock_hooks.model_usage_events) == 1
 
 
 def test_can_subscribe_to_events_with_multiple_hooks(
@@ -157,7 +157,7 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.task_end_events) == 1
         assert len(h.sample_start_events) == 1
         assert len(h.sample_end_events) == 1
-        assert len(h.model_usage_events) == 0
+        assert len(h.model_usage_events) == 1
 
 
 def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
