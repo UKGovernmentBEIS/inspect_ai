@@ -128,7 +128,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
@@ -438,6 +438,9 @@ class AnthropicAPI(ModelAPI):
 
     async def count_tokens(self, message: ChatMessage) -> int:
         """Estimate token count for a message."""
+        # turn system into user for purposes of counting
+        if message.role == "system":
+            message = ChatMessageUser(content=message.content)
         response = await self.client.messages.count_tokens(
             model=self.service_model_name(),
             messages=[await message_param(message)],
