@@ -253,7 +253,7 @@ class ModelAPI(abc.ABC):
         """
         return count_image_tokens(image)
 
-    async def count_tokens(self, message: ChatMessage) -> int:
+    async def count_tokens(self, messages: list[ChatMessage]) -> int:
         """Estimate token count for a message.
 
         This default implementation uses character-based heuristics for text
@@ -262,7 +262,7 @@ class ModelAPI(abc.ABC):
         or override this method entirely to use native token counting APIs.
         """
         return await count_tokens(
-            message, self.count_text_tokens, self.count_image_tokens
+            messages, self.count_text_tokens, self.count_image_tokens
         )
 
     def max_tokens(self) -> int | None:
@@ -603,7 +603,7 @@ class Model:
             else:
                 return messages[len(input) :], output
 
-    async def count_tokens(self, message: ChatMessage) -> int:
+    async def count_tokens(self, messages: list[ChatMessage]) -> int:
         model_name = ModelName(self)
         key = f"ModelCountTokens({self.api.connection_key()})"
         async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
@@ -620,11 +620,11 @@ class Model:
                     self.api.retry_wait(),
                 )
             )
-            async def _count_tokens(message: ChatMessage) -> int:
-                return await self.api.count_tokens(message)
+            async def _count_tokens(messages: list[ChatMessage]) -> int:
+                return await self.api.count_tokens(messages)
 
             # count tokens
-            return await _count_tokens(message)
+            return await _count_tokens(messages)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
@@ -648,7 +648,7 @@ class Model:
                     },
                 }
             )
-        return await self.count_tokens(ChatMessageUser(content=tool_json))
+        return await self.count_tokens([ChatMessageUser(content=tool_json)])
 
     async def _generate(
         self,

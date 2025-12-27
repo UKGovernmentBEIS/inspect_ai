@@ -18,6 +18,7 @@ from google.genai.types import (
     Content,
     ContentListUnion,
     ContentListUnionDict,
+    ContentUnion,
     ExecutableCode,
     File,
     FinishReason,
@@ -87,6 +88,7 @@ from inspect_ai.model import (
     StopReason,
     TopLogprob,
 )
+from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
@@ -362,24 +364,27 @@ class GoogleGenAIAPI(ModelAPI):
             return output, model_call()
 
     @override
-    async def count_tokens(self, message: ChatMessage) -> int:
+    async def count_tokens(self, messages: list[ChatMessage]) -> int:
         client = self.model_client()
         async with client.aio:
-            if message.role == "system":
-                message = ChatMessageUser(content=message.content)
+            # turn system into user for purposes of counting
+            count_messages = [
+                ChatMessageUser(content=m.content)
+                if isinstance(m, ChatMessageSystem)
+                else m
+                for m in messages
+            ]
+            contents: list[ContentUnion] = [
+                await content(client, m) for m in count_messages
+            ]
             response = await client.aio.models.count_tokens(
-                model=self.service_model_name(), contents=await content(client, message)
+                model=self.service_model_name(), contents=contents
             )
-            return await self._total_tokens(message, response.total_tokens)
-
-    async def _total_tokens(
-        self, message: ChatMessage, total_tokens: int | None
-    ) -> int:
-        if total_tokens is not None:
-            return total_tokens
-        else:
-            logger.warning("Gemini token count returned None")
-            return await super().count_tokens(message)
+            if response.total_tokens is not None:
+                return response.total_tokens
+            else:
+                logger.warning("Gemini token count returned None")
+                return await super().count_tokens(messages)
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import abc
 import functools
 from textwrap import dedent
 from typing import TYPE_CHECKING, Protocol, Sequence
@@ -291,7 +290,7 @@ def compaction(
             return count
 
         # count tokens and update cache
-        count = await target_model.count_tokens(message)
+        count = await target_model.count_tokens([message])
         token_count_cache[id] = count
 
         # return count
@@ -338,7 +337,7 @@ def compaction(
                 processed_message_ids.add(message_id(c_message))
 
             # ensure we preserve the prefix (could have been wiped out by a summarization)
-            input_ids = input_ids = {message_id(m) for m in c_input}
+            input_ids = {message_id(m) for m in c_input}
             prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
             c_input = prepend_prefix + c_input
 

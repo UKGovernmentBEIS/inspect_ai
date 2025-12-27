@@ -17,7 +17,7 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 
 
 async def count_tokens(
-    message: ChatMessage,
+    messages: list[ChatMessage],
     count_text: Callable[[str], Awaitable[int]],
     count_image: Callable[[ContentImage], Awaitable[int]],
 ) -> int:
@@ -52,17 +52,18 @@ async def count_tokens(
         # ContentData and unknown types contribute 0 tokens
 
     # Collect from message content
-    if isinstance(message.content, str):
-        text_parts.append(message.content)
-    else:
-        for content in message.content:
-            collect_content(content)
+    for message in messages:
+        if isinstance(message.content, str):
+            text_parts.append(message.content)
+        else:
+            for content in message.content:
+                collect_content(content)
 
-    # Collect from tool calls in assistant messages
-    if isinstance(message, ChatMessageAssistant) and message.tool_calls:
-        for tool_call in message.tool_calls:
-            text_parts.append(tool_call.function)
-            text_parts.append(json.dumps(tool_call.arguments))
+        # Collect from tool calls in assistant messages
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+            for tool_call in message.tool_calls:
+                text_parts.append(tool_call.function)
+                text_parts.append(json.dumps(tool_call.arguments))
 
     # Count tokens with single calls
     total_tokens = fixed_tokens

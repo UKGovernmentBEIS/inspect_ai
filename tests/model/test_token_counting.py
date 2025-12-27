@@ -13,11 +13,13 @@ from inspect_ai.model import ChatMessageUser, get_model
 from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
 
 # Test message for token counting - long enough to ensure meaningful token count
-TEST_MESSAGE = ChatMessageUser(
-    content="Hello, world! This is a test message for token counting. "
-    "We want to make sure the token counting APIs are working correctly "
-    "across all model providers including OpenAI, Anthropic, Google, and Grok."
-)
+TEST_MESSAGE = [
+    ChatMessageUser(
+        content="Hello, world! This is a test message for token counting. "
+        "We want to make sure the token counting APIs are working correctly "
+        "across all model providers including OpenAI, Anthropic, Google, and Grok."
+    )
+]
 
 # Test tool for count_tool_tokens
 TEST_TOOL = ToolInfo(

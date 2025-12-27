@@ -437,14 +437,16 @@ class AnthropicAPI(ModelAPI):
                 raise ex
 
     @override
-    async def count_tokens(self, message: ChatMessage) -> int:
+    async def count_tokens(self, messages: list[ChatMessage]) -> int:
         """Estimate token count for a message."""
         # turn system into user for purposes of counting
-        if message.role == "system":
-            message = ChatMessageUser(content=message.content)
+        messages = [
+            ChatMessageUser(content=m.content) if m.role == "system" else m
+            for m in messages
+        ]
         response = await self.client.messages.count_tokens(
             model=self.service_model_name(),
-            messages=[await message_param(message)],
+            messages=[await message_param(m) for m in messages],
         )
         return response.input_tokens
 
