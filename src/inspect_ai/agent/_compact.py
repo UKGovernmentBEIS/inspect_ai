@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING, Protocol, Sequence
 from shortuuid import uuid
 from typing_extensions import override
 
+from inspect_ai.model._call_tools import get_tools_info, resolve_tools
+
 if TYPE_CHECKING:
-    from inspect_ai.tool import ToolInfo
+    from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.list import find_last_match
@@ -229,7 +231,7 @@ class Compact(Protocol):
 def compaction(
     strategy: CompactionStrategy,
     prefix: list[ChatMessage],
-    tools: Sequence[ToolInfo] = [],
+    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource | None = None,
     model: str | Model | None = None,
 ) -> Compact:
     """Create a conversation compaction handler.
@@ -293,7 +295,7 @@ def compaction(
     target_model = get_model(model)
 
     # count tool tokens once (tools don't change during conversation)
-    tool_tokens = target_model.api.count_tool_tokens(list(tools))
+    tool_tokens: int | None = None
 
     # helper to get message ID (assert away id == None)
     def message_id(message: ChatMessage) -> str:
@@ -319,6 +321,13 @@ def compaction(
     async def compact(
         messages: list[ChatMessage],
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        # one time resolution of tool_tokens
+        # (must be done here b/c calls are async)
+        nonlocal tool_tokens
+        if tool_tokens is None:
+            tools_info = get_tools_info(await resolve_tools(tools or []))
+            tool_tokens = await target_model.api.count_tool_tokens(tools_info)
+
         # determine unprocessed messages (messages not yet added to input).
         # we allow unprocessed messages to accumulate in the input until
         # the compaction 'threshold' is reached.
@@ -332,7 +341,7 @@ def compaction(
                 [functools.partial(count_tokens, m) for m in (input + unprocessed)]
             )
         )
-        total_tokens = message_tokens + tool_tokens
+        total_tokens = tool_tokens + message_tokens
         if total_tokens > strategy.threshold:
             # perform compaction
             c_input, c_message = await strategy.compact(input + unprocessed)

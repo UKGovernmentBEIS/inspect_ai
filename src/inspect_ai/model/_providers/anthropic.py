@@ -436,6 +436,7 @@ class AnthropicAPI(ModelAPI):
             else:
                 raise ex
 
+    @override
     async def count_tokens(self, message: ChatMessage) -> int:
         """Estimate token count for a message."""
         # turn system into user for purposes of counting
@@ -444,6 +445,24 @@ class AnthropicAPI(ModelAPI):
         response = await self.client.messages.count_tokens(
             model=self.service_model_name(),
             messages=[await message_param(message)],
+        )
+        return response.input_tokens
+
+    @override
+    async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
+        tool_params = [
+            ToolParam(
+                name=tool.name,
+                description=tool.description,
+                input_schema=tool.parameters.model_dump(exclude_none=True),
+            )
+            for tool in tools
+        ]
+
+        response = await self.client.messages.count_tokens(
+            messages=[MessageParam(role="user", content="tools")],
+            model=self.service_model_name(),
+            tools=tool_params,
         )
         return response.input_tokens
 
@@ -2086,7 +2105,7 @@ async def count_tokens(
             "Anthropic",
             f"Unable to call count_tokens API for model {model} ({ex})",
         )
-        estimated_tokens = max(1, len(text) / 4)
+        estimated_tokens = int(max(1, len(text) / 4))
         return estimated_tokens
 
 

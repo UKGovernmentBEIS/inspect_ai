@@ -76,10 +76,9 @@ from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     disable_parallel_tools,
     execute_tools,
+    get_tools_info,
+    resolve_tools,
     tool_call_view,
-)
-from ._call_tools import (
-    tools_info as get_tools_info,
 )
 from ._chat_message import (
     ChatMessage,
@@ -266,7 +265,7 @@ class ModelAPI(abc.ABC):
             message, self.count_text_tokens, self.count_image_tokens
         )
 
-    def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
+    async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
 
         Uses self.count_text_tokens() for provider-specific tokenization.
@@ -658,18 +657,8 @@ class Model:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
 
-        # resolve top level tool source
-        if isinstance(tools, ToolSource):
-            tools = await tools.tools()
-
-        # resolve tool sources
-        resolved_tools: list[Tool | ToolDef | ToolInfo] = []
-        for tool in tools:
-            if isinstance(tool, ToolSource):
-                source_tools = await tool.tools()
-                resolved_tools.extend(source_tools)
-            else:
-                resolved_tools.append(tool)
+        # resolve tools
+        resolved_tools = await resolve_tools(tools)
 
         # extract tool defs if we can
         tdefs = await tool_defs(
