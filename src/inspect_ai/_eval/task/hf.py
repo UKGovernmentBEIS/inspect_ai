@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
-from typing import Any
+from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
@@ -16,29 +16,59 @@ from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
 
 
-class TaskComponent(BaseModel):
-    name: str
+class HFSolver(BaseModel):
+    name: Literal[
+        "prompt_template",
+        "system_message",
+        "user_message",
+        "chain_of_thought",
+        "use_tools",
+        "generate",
+        "self_critique",
+        "multiple_choice",
+    ]
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class HFScorer(BaseModel):
+    name: Literal[
+        "includes",
+        "match",
+        "pattern",
+        "answer",
+        "exact",
+        "f1",
+        "model_graded_qa",
+        "model_graded_fact",
+        "choice",
+    ]
     args: dict[str, Any] = Field(default_factory=dict)
 
 
 @dataclass
-class FieldSpecHF(FieldSpec):
+class HFFieldSpec(FieldSpec):
     choices: str | list[str] | None = field(default=None)  # type: ignore[assignment]
     """ Overriding the FieldSpec to fit field spec coming from the eval.yaml """
+
+
+HFEpochReducer = Annotated[
+    str,
+    StringConstraints(pattern=r"^(pass_at_\d+|at_least_\d+|max|mode|median|mean)$"),
+]
 
 
 class HFTask(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None)
-    subset: str = Field(default="default")
-    splits: str = Field(default="test")
-    field_spec: FieldSpecHF
+    id: str | None = Field(default=None)
+    config: str = Field(default="default")
+    split: str = Field(default="test")
+    field_spec: HFFieldSpec
     shuffle_choices: bool | None = Field(default=None)
-    epochs: int = Field(default=1)
-    epoch_reducer: str | None = Field(default=None)
-    solvers: list[TaskComponent] = Field(default_factory=list)
-    scorers: list[TaskComponent] = Field(default_factory=list)
+    epochs: int = Field(default=1, ge=1)
+    epoch_reducer: HFEpochReducer | None = Field(default=None)
+    solvers: list[HFSolver] = Field(min_length=1)
+    scorers: list[HFScorer] = Field(min_length=1)
 
 
 def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
@@ -89,18 +119,18 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         # validate config
         hf_task = HFTask.model_validate(task_config)
 
-        # if there is more than one task then 'name' is required
-        if len(task_configs) > 1 and hf_task.name is None:
+        # if there is more than one task then 'id' is required
+        if len(task_configs) > 1 and hf_task.id is None:
             raise PrerequisiteError(
-                "Task 'name' field is required if there are more than 1 tasks in 'eval.yaml'"
+                "Task 'id' field is required if there are more than 1 tasks in 'eval.yaml'"
             )
 
-        # filter on name if specified
-        if name is not None and hf_task.name != name:
+        # filter on id if specified
+        if name is not None and hf_task.id != name:
             continue
 
         def record_to_sample_hf(
-            record: DatasetRecord, field_spec: FieldSpecHF = hf_task.field_spec
+            record: DatasetRecord, field_spec: HFFieldSpec = hf_task.field_spec
         ) -> Sample:
             return _record_to_sample_hf(record, field_spec)
 
@@ -108,8 +138,8 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
         dataset = hf_dataset(
             path=repo_id,
             revision=revision,
-            name=hf_task.subset,
-            split=hf_task.splits,
+            name=hf_task.config,
+            split=hf_task.split,
             sample_fields=record_to_sample_hf,
         )
 
@@ -123,8 +153,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
             solvers.append(
                 solver_from_spec(
                     SolverSpec(
-                        solver=solver.name,
-                        args=solver.args,
+                        solver=solver.name, args=solver.args, args_passed=solver.args
                     )
                 )
             )
@@ -142,9 +171,9 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
                 )
             )
 
-        # Build and return task (use name disambiguator if more than 1 task)
+        # Build and return task (use id disambiguator if more than 1 task)
         task = Task(
-            name=f"{task_name}/{hf_task.name}" if len(task_configs) > 1 else task_name,
+            name=f"{task_name}/{hf_task.id}" if len(task_configs) > 1 else task_name,
             dataset=dataset,
             solver=solvers,
             scorer=scorers,
@@ -203,7 +232,7 @@ def _sanitize_choices(
         return record[choices]
 
 
-def _record_to_sample_hf(record: DatasetRecord, field_spec: FieldSpecHF) -> Sample:
+def _record_to_sample_hf(record: DatasetRecord, field_spec: HFFieldSpec) -> Sample:
     sample_kwargs = {}
     sample_kwargs["input"] = record[field_spec.input]
 

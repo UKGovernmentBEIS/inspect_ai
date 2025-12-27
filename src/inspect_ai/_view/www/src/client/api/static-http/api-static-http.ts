@@ -83,6 +83,10 @@ function staticHttpApiForLog(logInfo: {
 
       return undefined;
     },
+    get_log_dir_handle: (log_dir: string | undefined): string => {
+      const currentDirUrl = `${window.location.origin}${window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/"))}`;
+      return joinURI(currentDirUrl, log_dir || "default_log_dir");
+    },
     get_eval_set: async (dir?: string) => {
       const dirSegments = [];
       if (log_dir) {
@@ -92,7 +96,7 @@ function staticHttpApiForLog(logInfo: {
         dirSegments.push(dir);
       }
 
-      return await fetchJsonFile<EvalSet>(
+      const result = await fetchJsonFile<EvalSet>(
         joinURI(...dirSegments, "eval-set.json"),
         (response) => {
           if (400 <= response.status && response.status < 500) {
@@ -103,6 +107,8 @@ function staticHttpApiForLog(logInfo: {
           }
         },
       );
+      console.log({ f: joinURI(...dirSegments, "eval-set.json"), result });
+      return result;
     },
     get_flow: async (dir?: string) => {
       const dirSegments = [];

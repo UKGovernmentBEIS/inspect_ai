@@ -1,19 +1,74 @@
 ## Unreleased
 
+- Properly handle working time reporting for overlapping coroutines waiting on semaphores.
+
+## 0.3.158 (24 December 2025)
+
+- [skill()](https://inspect.aisi.org.uk/tools-standard.html#sec-skill) tool to make agent skills available to models.
+- Bugfix: Fix log file cache lookup using incorrect comparison key.
+
+## 0.3.157 (22 December 2025)
+
+- Eval Set: Correct log reuse behavior when epochs and limit change.
+- Solvers: Capture all parameters (including defaults) used to create solvers and agents.
+- Tasks: Improved validation of Hugging Face Hub task definitions.
+- HF Inference Providers: Specify "strict" for function tool definitions.
+- Agent API: Improved capture of agent name with nested @agent decorators.
+- Agent Bridge: Ensure that OpenAI responses params have an "id" field before validation.
+- Sandbox Service: Continue with warning if request polling raises a `RuntimeError`.
+
+## 0.3.156 (20 December 2025)
+
+- Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).
+- Open AI: Remove custom transport to respect HTTP proxy settings.
+- Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
+- OpenRouter: Handle `reasoning_details` field to forward native reasoning replay to models.
+- Reasoning: Include reasoning `summary` in serialization for agent bridge.
+- Agent API: Correctly handle `@agent` functions with no return type decoration.
+- ReAct Agent: Add `retry_refusals` option to retry on stop_reason == "content_filter".
+- Eval Log: Include sample `choices` in `EvalSampleSummary`.
+- Inspect View: Add "robots" meta tag with "noindex,noai,noimageai".
+- Inspect View: Enhance `inspect view bundle` to publish `hf/` prefixed targets to Hugging Face Spaces.
+- Inspect View: Improve rendering of Open Router reaasoning blocks.
+- Inspect View: Correct the filter type for `Log File` column of the samples list.
+- Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
+- Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
+- Bugfix: Expand allowable JSONSchema `type` field to enable lists of types.
+
+## 0.3.155 (16 December 2025)
+
+- Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
+- Anthropic: Support for inference on Azure Foundry (`anthropic/azure`).
+- Grok: Don't use streaming responses by default (enable explicitly with `-M streaming=true`).
+- Logging: Optimize snapshots for track_store_changes and state_jsonable.
+- Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
+- Inspect View: Display timestamp in sample limit events tooltip.
+- Inspect View: Fix issue where stale log files could be displayed in static deployments of the viewer.
+- Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.
+- Inspect View: Tasks filter split as into per-column filters. Option to display scorer columns in Choose Columns popover.
+
+## 0.3.154 (14 December 2025)
+
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.
 - Logging: Support for writing logs to Azure Blob Storage (`az://`).
 - Tasks: Ability to run Inspect tasks defined within datasets on [Hugging Face Hub](https://inspect.aisi.org.uk/tasks.html#hugging-face).
 - Sample invalidation which enables marking samples as invalid (forcing a retry in eval sets).
 - Tasks: Run `cleanup()` function at the end of the sample (after scoring) rather than after solvers.
 - Grok: Option to disable GRPC retries (`disable_retry`) for waiting time tracking.
+- OpenAI: Added support for `--verbosity` generation option.
 - OpenAI: Added support for "xhigh" `reasoning_effort` option.
+- OpenAI: Support `temperature`, `top_p`, and `logprobs` for GPT 5.x models with reasoning disabled.
+- OpenAI: Tolerate missing "detail" field for image urls.
+- Google: Include request content when printing 400 errors.
 - HF Inference Providers: Streaming for chat completion requests (enabled by default, use `-M stream=false` to disable).
 - OpenAI Compatible: Added support for `stream` option (disabled by default, use `-M stream=true` to enable).
 - Agent Bridge: `model` option is now used only as a fallback if the request model is not for "inspect" or "inspect/*".
 - React Agent: Remove newlines from default prompts.
 - Human Agent: Support for non-scalar values returned from intermediate scoring.
+- Request tracking: Log warning rather than raise error for unexpected hook states.
 - Inspect View: Print IP address of remote server when binding to 0.0.0.0.
 - Computer Tool: Add computer use tool version support for Claude Opus 4.5.
+- Computer Tool: Auto-acknowledge OpenAI computer tool safety checks.
 - Bugfix: Copy `metadata` field to new eval for `eval-retry`.
 - Bugfix: Retry when parsing an incomplete bridged tool call response.
 - Bugfix: Delay after launching bridged tool service to prevent asyncio race condition.

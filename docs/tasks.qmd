@@ -376,14 +376,6 @@ inspect eval evals/mytask
 
 ## Hugging Face
 
-::: callout-note
-The Hugging Face tasks feature described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaluated with:
 
 ``` bash
@@ -401,9 +393,9 @@ A dataset's `eval.yaml` file defines a list of tasks. Here are the fields that c
 +-------------------+----------------+--------------------------------+
 | Field             | Default        | Usage                          |
 +===================+================+================================+
-| `subset`          | "default"      | `hf_dataset(name)`             |
+| `config`          | "default"      | `hf_dataset(name)`             |
 +-------------------+----------------+--------------------------------+
-| `splits`          | "test"         | `hf_dataset(split)`            |
+| `split`           | "test"         | `hf_dataset(split)`            |
 +-------------------+----------------+--------------------------------+
 | `field_spec`      | None           | `hf_dataset(sample_fields)`    |
 +-------------------+----------------+--------------------------------+
@@ -417,7 +409,7 @@ A dataset's `eval.yaml` file defines a list of tasks. Here are the fields that c
 +-------------------+----------------+--------------------------------+
 | `scorer`          | None           | `Task(scorer)`                 |
 +-------------------+----------------+--------------------------------+
-| `name`            | None           | `hf/org/dataset/name`          |
+| `id`              | None           | `hf/org/dataset/name`          |
 +-------------------+----------------+--------------------------------+
 
 - `field_spec.choices` can be either a single string (the key for one field in each record) or a list of strings (multiple fields, whose values will form the choices list for each sample).

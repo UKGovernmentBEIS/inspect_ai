@@ -480,6 +480,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
+        "--verbosity",
+        type=click.Choice(["low", "medium", "high"]),
+        help='Constrains the verbosity of the model\'s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)',
+        envvar="INSPECT_EVAL_EFFORT",
+    )
+    @click.option(
         "--effort",
         type=click.Choice(["low", "medium", "high"]),
         help="Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only.",
@@ -606,6 +612,7 @@ def eval_command(
     internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
@@ -804,6 +811,7 @@ def eval_set_command(
     internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    verbosity: Literal["low", "medium", "high"] | None,
     effort: Literal["low", "medium", "high"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
@@ -1039,7 +1047,7 @@ def eval_exec(
             model_args=model_args,
             model_roles=eval_model_roles,
             task_args=task_args,
-            solver=SolverSpec(solver, solver_args) if solver else None,
+            solver=SolverSpec(solver, solver_args, solver_args) if solver else None,
             tags=eval_tags,
             metadata=eval_metadata,
             trace=trace,

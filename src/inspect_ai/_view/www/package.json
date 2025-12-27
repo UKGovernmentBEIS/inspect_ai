@@ -81,13 +81,12 @@
     "vite-plugin-dts": "^4.3.0"
   },
   "dependencies": {
-    "@codemirror/autocomplete": "^6.19.1",
+    "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/language": "^6.11.3",
     "@codemirror/lint": "^6.9.2",
     "@codemirror/state": "^6.5.2",
     "@lezer/highlight": "^1.2.2",
     "@popperjs/core": "^2.11.8",
-    "@tanstack/react-table": "^8.21.3",
     "ag-grid-community": "^34.3.1",
     "ag-grid-react": "^34.3.1",
     "ansi-output": "^0.0.9",
@@ -113,7 +112,7 @@
     "react-dom": "^19.1.1",
     "react-popper": "^2.3.0",
     "react-router-dom": "^7.9.5",
-    "react-virtuoso": "^4.14.1",
+    "react-virtuoso": "^4.15.0",
     "zustand": "^5.0.7"
   },
   "resolutions": {

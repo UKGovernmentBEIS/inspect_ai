@@ -122,6 +122,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
+    verbosity: Literal["low", "medium", "high"] | None
+    """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
+
     effort: Literal["low", "medium", "high"] | None
     """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
 
@@ -220,6 +223,9 @@ class GenerateConfig(BaseModel):
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
+
+    verbosity: Literal["low", "medium", "high"] | None = Field(default=None)
+    """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
     effort: Literal["low", "medium", "high"] | None = Field(default=None)
     """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""

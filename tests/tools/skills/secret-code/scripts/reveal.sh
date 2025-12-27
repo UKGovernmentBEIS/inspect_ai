@@ -1,0 +1,2 @@
+#!/bin/bash
+echo "SECRET_CODE=DELTA-ECHO-FOXTROT"

@@ -159,6 +159,7 @@ class ResponsesModelInfo(Protocol):
     def has_reasoning_options(self) -> bool: ...
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
+    def is_gpt_5_plus(self) -> bool: ...
     def is_gpt_5_pro(self) -> bool: ...
     def is_gpt_5_chat(self) -> bool: ...
     def is_o_series(self) -> bool: ...
@@ -205,7 +206,13 @@ async def _openai_input_item_from_chat_message(
             responses_tool_call is not None
             and responses_tool_call["type"] == "computer_call"
         ):
-            return [computer_call_output(message, responses_tool_call["call_id"])]
+            return [
+                computer_call_output(
+                    message,
+                    responses_tool_call["call_id"],
+                    responses_tool_call.get("pending_safety_checks"),
+                )
+            ]
         elif (
             responses_tool_call is not None
             and responses_tool_call["type"] == "custom_tool_call"
@@ -607,6 +614,14 @@ def _chat_message_assistant_from_openai_response(
                         ResponseComputerToolCallParam, output.model_dump()
                     )
 
+                if output.pending_safety_checks:
+                    from inspect_ai.log._transcript import transcript
+
+                    for check in output.pending_safety_checks:
+                        transcript().info(
+                            f"Safety check acknowledged: {check.code or 'unknown code'} - {check.message or 'unknown message'}"
+                        )
+
                 tool_calls.append(tool_call_from_openai_computer_tool_call(output))
 
             case ResponseFunctionWebSearch():
@@ -960,7 +975,7 @@ def _maybe_native_tool_param(
 ) -> ToolParam | None:
     return (
         (
-            maybe_computer_use_preview_tool(tool)
+            maybe_computer_use_preview_tool(model_name, tool)
             or maybe_web_search_tool(model_name, tool)
             or maybe_mcp_tool(tool)
             or maybe_code_interpreter_tool(model_name, tool)

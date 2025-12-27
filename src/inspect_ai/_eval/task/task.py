@@ -29,7 +29,7 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
 )
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
-from inspect_ai.log import EvalLog
+from inspect_ai.log import EvalLog, EvalLogInfo
 from inspect_ai.model import GenerateConfig
 from inspect_ai.model._model import Model
 from inspect_ai.model._util import resolve_model, resolve_model_roles
@@ -379,6 +379,7 @@ class PreviousTask:
     model: Model | None
     model_roles: dict[str, Model] | None
     log: EvalLog
+    log_info: EvalLogInfo | None
 
 
 def resolve_approval(

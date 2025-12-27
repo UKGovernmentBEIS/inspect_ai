@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 from openai.types.responses import (
     ComputerToolParam,
     ResponseComputerToolCall,
@@ -15,6 +17,9 @@ from openai.types.responses.response_computer_tool_call import (
     ActionScroll,
     ActionType,
     ActionWait,
+)
+from openai.types.responses.response_computer_tool_call_param import (
+    PendingSafetyCheck,
 )
 from openai.types.responses.response_input_item_param import ComputerCallOutput
 
@@ -34,8 +39,10 @@ def tool_call_from_openai_computer_tool_call(
     )
 
 
-def maybe_computer_use_preview_tool(tool: ToolInfo) -> ComputerToolParam | None:
-    # check for compatible 'computer' tool
+def maybe_computer_use_preview_tool(
+    model_name: str, tool: ToolInfo
+) -> ComputerToolParam | None:
+    # computer_use_preview only supported by models with "computer-use-preview" in name
     return (
         ComputerToolParam(
             type="computer_use_preview",
@@ -50,17 +57,19 @@ def maybe_computer_use_preview_tool(tool: ToolInfo) -> ComputerToolParam | None:
             display_width=1366,
             display_height=768,
         )
-        if tool.name == "computer"
-        and (sorted(tool.parameters.properties.keys()) == sorted(computer_parmaeters()))
+        if "computer-use-preview" in model_name
+        and tool.name == "computer"
+        and (sorted(tool.parameters.properties.keys()) == sorted(computer_parameters()))
         else None
     )
 
 
-def computer_parmaeters() -> list[str]:
+def computer_parameters() -> list[str]:
     return [
         "action",
         "coordinate",
         "duration",
+        "region",
         "scroll_amount",
         "scroll_direction",
         "start_coordinate",
@@ -71,6 +80,7 @@ def computer_parmaeters() -> list[str]:
 def computer_call_output(
     message: ChatMessageTool,
     computer_call_id: str,
+    pending_safety_checks: Iterable[PendingSafetyCheck] | None = None,
 ) -> ComputerCallOutput:
     return ComputerCallOutput(
         call_id=computer_call_id,
@@ -79,6 +89,9 @@ def computer_call_output(
             type="computer_screenshot",
             image_url=_content_image(message.content),
         ),
+        # PendingSafetyCheck and ComputerCallOutputAcknowledgedSafetyCheck are structurally
+        # identical TypedDicts, so this assignment is type-safe.
+        acknowledged_safety_checks=pending_safety_checks,
     )
 
 

@@ -1,6 +1,7 @@
 import json
 import logging
 import urllib.parse
+from io import BytesIO
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Protocol
@@ -141,12 +142,55 @@ def view_server_app(
     ) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        response = await stream_log_bytes(await _map_file(request, file), start, end)
+        mapped_file = await _map_file(request, file)
+
+        # Get actual file size to ensure Content-Length is accurate
+        file_size = await get_log_size(mapped_file)
+
+        # Clamp end to actual file size to prevent Content-Length mismatch
+        actual_end = min(end, file_size - 1)
+        actual_content_length = actual_end - start + 1
+
+        response = await stream_log_bytes(mapped_file, start, actual_end)
         return StreamingResponse(
             content=response,
-            headers={"Content-Length": str(end - start + 1)},
+            headers={"Content-Length": str(actual_content_length)},
             media_type="application/octet-stream",
         )
+
+    @app.get("/log-download/{log:path}")
+    async def api_log_download(
+        request: Request,
+        log: str,
+    ) -> Response:
+        file = normalize_uri(log)
+        await _validate_read(request, file)
+
+        mapped_file = await _map_file(request, file)
+
+        file_size = await get_log_size(mapped_file)
+        stream = await stream_log_bytes(mapped_file)
+
+        base_name = Path(file).stem
+        filename = f"{base_name}.eval"
+
+        headers = {
+            "Content-Length": str(file_size),
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        }
+
+        if isinstance(stream, BytesIO):
+            return Response(
+                content=stream.getvalue(),
+                headers=headers,
+                media_type="application/octet-stream",
+            )
+        else:
+            return StreamingResponse(
+                content=stream,
+                headers=headers,
+                media_type="application/octet-stream",
+            )
 
     @app.get("/log-dir")
     async def api_log_dir(

@@ -2,33 +2,29 @@ import type {
   ColDef,
   GridApi,
   GridColumnsChangedEvent,
+  IRowNode,
   RowClickedEvent,
   StateUpdatedEvent,
 } from "ag-grid-community";
-import {
-  AllCommunityModule,
-  ModuleRegistry,
-  themeBalham,
-} from "ag-grid-community";
+import { themeBalham } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useClientEvents } from "../../../state/clientEvents";
 import { useStore } from "../../../state/store";
 import { inputString } from "../../../utils/format";
-import { debounce } from "../../../utils/sync";
 import { join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
-import styles from "./SamplesGrid.module.css";
+import "../../shared/agGrid";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
+import { createGridColumnResizer } from "../../shared/gridUtils";
+import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
-
-// Register AG Grid modules
-ModuleRegistry.registerModules([AllCommunityModule]);
 
 // Sample Grid Props
 interface SamplesGridProps {
   samplesPath?: string;
-  gridRef?: RefObject<AgGridReact | null>;
+  gridRef?: RefObject<AgGridReact<SampleRow> | null>;
   columns: ColDef<SampleRow>[];
 }
 
@@ -69,7 +65,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     (state) => state.log.selectedSampleHandle,
   );
 
-  const internalGridRef = useRef<AgGridReact>(null);
+  const internalGridRef = useRef<AgGridReact<SampleRow>>(null);
   const gridRef = externalGridRef || internalGridRef;
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
@@ -133,11 +129,13 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   // Transform logDetails into flat rows
   const data = useMemo(() => {
     const rows: SampleRow[] = [];
+    let displayIndex = 1;
 
     Object.entries(filteredLogDetails).forEach(([logFile, details]) => {
       details.sampleSummaries.forEach((sample) => {
         const row: SampleRow = {
           logFile,
+          created: details.eval.created,
           task: details.eval.task || "",
           model: details.eval.model || "",
           status: details.status,
@@ -151,6 +149,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           limit: sample.limit,
           retries: sample.retries,
           completed: sample.completed || false,
+          displayIndex: displayIndex++,
         };
 
         // Add scores as individual fields
@@ -167,14 +166,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     return rows;
   }, [filteredLogDetails]);
 
-  const resizeGridColumns = useCallback(
-    debounce(() => {
-      // Trigger column sizing after grid is ready
-      gridRef.current?.api?.sizeColumnsToFit();
-    }, 10),
-    [],
-  );
-
   const handleRowClick = useCallback(
     (e: RowClickedEvent<SampleRow>) => {
       if (e.data && e.node && gridRef.current?.api) {
@@ -190,7 +181,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           mouseEvent?.shiftKey ||
           mouseEvent?.button === 1;
 
-        // Use setTimeout to allow grid state to update before navigation
         const logFile = e.data.logFile;
         const sampleId = e.data.sampleId;
         const epoch = e.data.epoch;
@@ -202,134 +192,28 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     [navigateToSampleDetail, gridRef],
   );
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!gridRef.current?.api) {
-        return;
-      }
-
-      // Don't handle keyboard events if focus is on an input, textarea, or select element
-      const activeElement = document.activeElement;
-      if (
-        activeElement &&
-        (activeElement.tagName === "INPUT" ||
-          activeElement.tagName === "TEXTAREA" ||
-          activeElement.tagName === "SELECT")
-      ) {
-        return;
-      }
-
-      // Get the currently selected row
-      const selectedRows = gridRef.current.api.getSelectedNodes();
-      const totalRows = gridRef.current.api.getDisplayedRowCount();
-
-      // Determine current row index from selection or default to -1
-      let currentRowIndex = -1;
-      if (selectedRows.length > 0 && selectedRows[0].rowIndex !== null) {
-        currentRowIndex = selectedRows[0].rowIndex;
-      }
-
-      let targetRowIndex: number | null = null;
-
-      switch (e.key) {
-        case "ArrowUp":
-          e.preventDefault();
-          if (e.metaKey || e.ctrlKey) {
-            // Cmd/Ctrl + ArrowUp: Go to first row
-            targetRowIndex = 0;
-          } else {
-            // ArrowUp: Go to previous row
-            if (currentRowIndex === -1) {
-              targetRowIndex = 0;
-            } else {
-              targetRowIndex = Math.max(0, currentRowIndex - 1);
-            }
-          }
-          break;
-
-        case "ArrowDown":
-          e.preventDefault();
-          if (e.metaKey || e.ctrlKey) {
-            // Cmd/Ctrl + ArrowDown: Go to last row
-            targetRowIndex = totalRows - 1;
-          } else {
-            // ArrowDown: Go to next row
-            if (currentRowIndex === -1) {
-              targetRowIndex = 0;
-            } else {
-              targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 1);
-            }
-          }
-          break;
-
-        case "Home":
-          e.preventDefault();
-          // Home: Go to first row
-          targetRowIndex = 0;
-          break;
-
-        case "End":
-          e.preventDefault();
-          // End: Go to last row
-          targetRowIndex = totalRows - 1;
-          break;
-
-        case "PageUp":
-          e.preventDefault();
-          // PageUp: Go up 10 rows (or to first row)
-          if (currentRowIndex === -1) {
-            targetRowIndex = 0;
-          } else {
-            targetRowIndex = Math.max(0, currentRowIndex - 10);
-          }
-          break;
-
-        case "PageDown":
-          e.preventDefault();
-          // PageDown: Go down 10 rows (or to last row)
-          if (currentRowIndex === -1) {
-            targetRowIndex = 0;
-          } else {
-            targetRowIndex = Math.min(totalRows - 1, currentRowIndex + 10);
-          }
-          break;
-
-        case "Enter":
-        case " ": {
-          // Space key
-          e.preventDefault();
-          // Enter/Space: Open the selected row
-          if (currentRowIndex !== -1) {
-            const rowNode =
-              gridRef.current.api.getDisplayedRowAtIndex(currentRowIndex);
-            if (rowNode?.data) {
-              const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
-              navigateToSampleDetail(
-                rowNode.data.logFile,
-                rowNode.data.sampleId,
-                rowNode.data.epoch,
-                openInNewWindow,
-              );
-            }
-          }
-          break;
-        }
-
-        default:
-          return;
-      }
-
-      // Navigate to target row if set
-      if (targetRowIndex !== null && targetRowIndex !== currentRowIndex) {
-        const targetNode =
-          gridRef.current.api.getDisplayedRowAtIndex(targetRowIndex);
-        if (targetNode) {
-          targetNode.setSelected(true, true); // true = select, true = clear other selections
-          gridRef.current.api.ensureIndexVisible(targetRowIndex, "middle");
-        }
+  const handleOpenRow = useCallback(
+    (rowNode: IRowNode<SampleRow>, e: KeyboardEvent) => {
+      const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
+      if (rowNode.data) {
+        navigateToSampleDetail(
+          rowNode.data.logFile,
+          rowNode.data.sampleId,
+          rowNode.data.epoch,
+          openInNewWindow,
+        );
       }
     },
-    [gridRef, navigateToSampleDetail],
+    [navigateToSampleDetail],
+  );
+
+  const handleKeyDown = useMemo(
+    () =>
+      createGridKeyboardHandler<SampleRow>({
+        gridRef,
+        onOpenRow: handleOpenRow,
+      }),
+    [gridRef, handleOpenRow],
   );
 
   // Set up keyboard event listener
@@ -382,6 +266,8 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
   // Keep track of the max column count to avoid redundant resizing
   const maxColCount = useRef(0);
 
+  const resizeGridColumns = useRef(createGridColumnResizer(gridRef)).current;
+
   // Resize grid columns when columns prop changes (e.g., when columns are hidden/unhidden)
   useEffect(() => {
     resizeGridColumns();
@@ -389,11 +275,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
 
   return (
     <div className={styles.gridWrapper}>
-      <div
-        ref={gridContainerRef}
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-        tabIndex={0}
-      >
+      <div ref={gridContainerRef} className={styles.gridContainer} tabIndex={0}>
         <AgGridReact<SampleRow>
           ref={gridRef}
           rowData={data}
@@ -429,26 +311,20 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           onStateUpdated={(e: StateUpdatedEvent<SampleRow>) => {
             setGridState(e.state);
             if (gridRef.current?.api) {
-              const displayedRowCount =
-                gridRef.current.api.getDisplayedRowCount();
-              setFilteredSampleCount(displayedRowCount);
-
               const gridCurrentSamples = gridDisplayedSamples(
                 gridRef.current.api,
               );
+              setFilteredSampleCount(gridCurrentSamples.length);
               setDisplayedSamples(gridCurrentSamples);
             }
           }}
           onRowClicked={handleRowClick}
           onFilterChanged={() => {
             if (gridRef.current?.api) {
-              const displayedRowCount =
-                gridRef.current.api.getDisplayedRowCount();
-              setFilteredSampleCount(displayedRowCount);
-
               const newDisplayedSamples = gridDisplayedSamples(
                 gridRef.current.api,
               );
+              setFilteredSampleCount(newDisplayedSamples.length);
               setDisplayedSamples(newDisplayedSamples);
             }
           }}

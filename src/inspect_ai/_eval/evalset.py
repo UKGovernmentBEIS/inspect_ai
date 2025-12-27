@@ -38,7 +38,6 @@ from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs,
-    read_eval_log,
     read_eval_log_headers,
     write_log_dir_manifest,
 )
@@ -421,7 +420,11 @@ def eval_set(
         else:
             # look for retryable eval logs and cleave them into success/failed
             success_logs, failed_logs = list_latest_eval_logs(
-                all_logs, epochs, retry_cleanup
+                all_tasks,
+                all_logs,
+                epochs=epochs,
+                limit=limit,
+                cleanup_older=retry_cleanup,
             )
 
             # retry the failed logs (look them up in resolved_tasks)
@@ -531,7 +534,8 @@ def as_previous_tasks(
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 model_roles=task.model_roles,
-                log=read_eval_log(log.info),
+                log=log.header,
+                log_info=log.info,
             )
         )
 
@@ -575,7 +579,11 @@ def list_all_eval_logs(log_dir: str) -> list[Log]:
 
 # get the latest logs (cleaning if requested). returns tuple of successful/unsuccessful
 def list_latest_eval_logs(
-    logs: list[Log], epochs: int | Epochs | None, cleanup_older: bool
+    all_tasks: list[tuple[str, ResolvedTask]],
+    logs: list[Log],
+    epochs: int | Epochs | None,
+    limit: int | tuple[int, int] | None,
+    cleanup_older: bool,
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
         logs=logs, cleanup_older=cleanup_older
@@ -594,10 +602,47 @@ def list_latest_eval_logs(
             incomplete_logs.append(log)
         elif log.header.invalidated:
             incomplete_logs.append(log)
+        elif not log_samples_complete(log, all_tasks, epochs=epochs, limit=limit):
+            incomplete_logs.append(log)
         else:
             complete_logs.append(log)
 
     return (complete_logs, incomplete_logs)
+
+
+def log_samples_complete(
+    log: Log,
+    all_tasks: list[tuple[str, ResolvedTask]],
+    epochs: Epochs | None,
+    limit: int | tuple[int, int] | None,
+) -> bool:
+    if not log.header.results:
+        return False
+    id = task_identifier(log.header, None, None)
+    task = next((task for tid, task in all_tasks if tid == id), None)
+    if not task:
+        # This should not happen since we have already validated prerequisites
+        raise PrerequisiteError(
+            f"[bold]ERROR[/bold]: Could not find task for log '{log.header.location}'."
+        )
+    epochs = epochs or resolve_epochs(task.task.epochs or 1)
+    if epochs_changed(epochs, log.header.eval.config):
+        return False
+    epoch_count = epochs.epochs if epochs else 1
+
+    count = len(task.task.dataset)
+    if isinstance(limit, tuple):
+        start, stop = limit
+        if start >= count:
+            count = 0
+        else:
+            count = min(stop, count) - start
+    elif isinstance(limit, int):
+        count = min(limit, count)
+
+    if log.header.results.total_samples < count * epoch_count:
+        return False
+    return True
 
 
 def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
@@ -610,6 +655,9 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     # number of epochs differs (changed)
     elif epochs.epochs != config.epochs:
         return True
+    # default to mean reducer should match (not changed)
+    if epochs.reducer is None and config.epochs_reducer == ["mean"]:
+        return False
     # different reducer list (changed)
     elif [r.__name__ for r in (epochs.reducer or [])] != [
         r for r in (config.epochs_reducer or [])
@@ -761,6 +809,19 @@ def task_identifier(
         model_roles = task.eval.model_roles or {}
         model_args = task.eval.model_args
         eval_plan = task.plan
+
+    # strip args from eval_plan as we've changed the way this is serialized
+    # and we want to be compatible with older logs. this effectively uses
+    # 'params_passed' as the basis of comparison as opposed to 'params' which
+    # in newer logs includes the fully resolve params
+    eval_plan = eval_plan.model_copy(
+        update={
+            "finish": None,
+            "steps": [
+                step.model_copy(update={"params": None}) for step in eval_plan.steps
+            ],
+        }
+    )
 
     # hash for task args
     task_args_hash = hashlib.sha256(

@@ -195,6 +195,9 @@ class EvalSampleSummary(BaseModel):
     input: str | list[ChatMessage]
     """Sample input (text inputs only)."""
 
+    choices: list[str] | None = Field(default=None)
+    """Sample choices."""
+
     target: str | list[str]
     """Sample target value(s)"""
 
@@ -406,6 +409,7 @@ class EvalSample(BaseModel):
             id=self.id,
             epoch=self.epoch,
             input=self.input,
+            choices=self.choices,
             target=self.target,
             metadata=self.metadata,
             scores=self.scores,
@@ -494,6 +498,19 @@ class EvalPlanStep(BaseModel):
 
     params: dict[str, Any] = Field(default_factory=dict)
     """Parameters used to instantiate solver."""
+
+    params_passed: dict[str, Any] = Field(default_factory=dict)
+    """Parameters explicitly passed to the eval plan."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_params(cls: Type["EvalPlanStep"], values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+
+        if "params_passed" not in values:
+            values["params_passed"] = values.get("params", {})
+        return values
 
 
 class EvalPlan(BaseModel):
@@ -771,6 +788,9 @@ class EvalSpec(BaseModel):
     solver_args: dict[str, Any] | None = Field(default=None)
     """Arguments used for invoking the solver."""
 
+    solver_args_passed: dict[str, Any] | None = Field(default=None)
+    """Arguments explicitly passed by caller for invoking the solver."""
+
     tags: list[str] | None = Field(default=None)
     """Tags associated with evaluation run."""
 
@@ -852,6 +872,8 @@ def migrate_values(values: dict[str, Any]) -> dict[str, Any]:
             )
     if "task_args_passed" not in values:
         values["task_args_passed"] = values.get("task_args", {})
+    if "solver_args_passed" not in values:
+        values["solver_args_passed"] = values.get("solver_args", {})
     return values
 
 

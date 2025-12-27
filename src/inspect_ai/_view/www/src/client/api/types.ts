@@ -136,6 +136,7 @@ export interface BasicSampleData {
 
 export interface Capabilities {
   downloadFiles: boolean;
+  downloadLogs: boolean;
   webWorkers: boolean;
   streamSamples: boolean;
   streamSampleData: boolean;
@@ -146,6 +147,7 @@ export interface LogViewAPI {
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
   get_flow: (dir?: string) => Promise<string | undefined>;
   get_log_dir?: () => Promise<string | undefined>;
+  get_log_dir_handle?: (log_dir: string | undefined) => string;
   get_logs?: (
     mtime: number,
     clientFileCount: number,
@@ -170,6 +172,7 @@ export interface LogViewAPI {
     filename: string,
     filecontents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
   ) => Promise<void>;
+  download_log?: (log_file: string) => Promise<void>;
   open_log_file: (logFile: string, log_dir: string) => Promise<void>;
   eval_pending_samples?: (
     log_file: string,
@@ -187,6 +190,8 @@ export interface LogViewAPI {
 export interface ClientAPI {
   // Basic initialization
   get_log_dir: () => Promise<string | undefined>;
+
+  get_log_dir_handle: (log_dir: string | undefined) => string;
 
   // List of files
   get_logs: (
@@ -236,6 +241,7 @@ export interface ClientAPI {
     file_name: string,
     file_contents: string | Blob | ArrayBuffer | ArrayBufferView<ArrayBuffer>,
   ) => Promise<void>;
+  download_log?: (log_file: string) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
 }
 

@@ -2,6 +2,7 @@ import { Status } from "../../../@types/log";
 
 // Flattened row data for the grid
 export interface SampleRow {
+  displayIndex?: number;
   logFile: string;
   task: string;
   model: string;

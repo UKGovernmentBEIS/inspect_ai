@@ -1049,10 +1049,10 @@
     "@codemirror/view" "^6.17.0"
     "@lezer/common" "^1.0.0"
 
-"@codemirror/autocomplete@^6.19.1":
-  version "6.19.1"
-  resolved "https://registry.yarnpkg.com/@codemirror/autocomplete/-/autocomplete-6.19.1.tgz#355e49c9fd275b42a6e16e9ea0cf4361f67a3ec4"
-  integrity sha512-q6NenYkEy2fn9+JyjIxMWcNjzTL/IhwqfzOut1/G3PrIFkrbl4AL7Wkse5tLrQUUyqGoAKU5+Pi5jnnXxH5HGw==
+"@codemirror/autocomplete@^6.20.0":
+  version "6.20.0"
+  resolved "https://registry.yarnpkg.com/@codemirror/autocomplete/-/autocomplete-6.20.0.tgz#db818c12dce892a93fb8abadc2426febb002f8c1"
+  integrity sha512-bOwvTOIJcG5FVo5gUUupiwYh8MioPLQ4UcqbcRf7UQ98X90tCa9E1kZ3Z7tqwpZxYyOvh1YTYbmZE9RTfTp5hg==
   dependencies:
     "@codemirror/language" "^6.0.0"
     "@codemirror/state" "^6.0.0"
@@ -2083,18 +2083,6 @@
   version "6.3.2"
   resolved "https://registry.yarnpkg.com/@solid-primitives/utils/-/utils-6.3.2.tgz#13d6126fc5a498965d7c45dd41c052e42dcfd7e1"
   integrity sha512-hZ/M/qr25QOCcwDPOHtGjxTD8w2mNyVAYvcfgwzBHq2RwNqHNdDNsMZYap20+ruRwW4A3Cdkczyoz0TSxLCAPQ==
-
-"@tanstack/react-table@^8.21.3":
-  version "8.21.3"
-  resolved "https://registry.npmjs.org/@tanstack/react-table/-/react-table-8.21.3.tgz"
-  integrity sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==
-  dependencies:
-    "@tanstack/table-core" "8.21.3"
-
-"@tanstack/table-core@8.21.3":
-  version "8.21.3"
-  resolved "https://registry.npmjs.org/@tanstack/table-core/-/table-core-8.21.3.tgz"
-  integrity sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==
 
 "@testing-library/dom@^10.4.1":
   version "10.4.1"
@@ -5227,10 +5215,10 @@ react-router@7.9.6:
     cookie "^1.0.1"
     set-cookie-parser "^2.6.0"
 
-react-virtuoso@^4.14.1:
-  version "4.14.1"
-  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.14.1.tgz#78a5e796a3f9ec501499f01962ec6fc7eed77d8d"
-  integrity sha512-NRUF1ak8lY+Tvc6WN9cce59gU+lilzVtOozP+pm9J7iHshLGGjsiAB4rB2qlBPHjFbcXOQpT+7womNHGDUql8w==
+react-virtuoso@^4.15.0:
+  version "4.17.0"
+  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.17.0.tgz#e81f2da99792cfd9317e910b243d847ebeb09248"
+  integrity sha512-od3pi2v13v31uzn5zPXC2u3ouISFCVhjFVFch2VvS2Cx7pWA2F1aJa3XhNTN2F07M3lhfnMnsmGeH+7wZICr7w==
 
 react@^19.2.0:
   version "19.2.0"

@@ -185,6 +185,40 @@ def test_api_log_bytes(test_client: TestClient, mock_s3_eval_file: str):
     assert len(api_log_bytes) == 100
 
 
+def test_api_log_bytes_beyond_file_size(
+    test_client: TestClient, mock_s3_eval_file: str
+):
+    """Test that requesting bytes beyond file size returns correct Content-Length.
+
+    This test verifies the fix for the bug where Content-Length was calculated
+    from requested range (end - start + 1) rather than actual bytes returned,
+    causing 'Response content shorter than Content-Length' errors.
+    """
+    # First, get the actual file size
+    size_response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
+    size_response.raise_for_status()
+    file_size = int(size_response.text)
+
+    # Request bytes beyond the file size
+    requested_end = file_size + 1000
+    response = test_client.request(
+        "GET", f"/log-bytes/{mock_s3_eval_file}?start=0&end={requested_end}"
+    )
+    response.raise_for_status()
+
+    # Content-Length should match actual bytes returned (file_size), not requested range
+    content_length = int(response.headers["Content-Length"])
+    actual_bytes = len(response.content)
+
+    assert content_length == actual_bytes, (
+        f"Content-Length ({content_length}) must match actual bytes ({actual_bytes}) "
+        f"to prevent 'Response content shorter than Content-Length' error"
+    )
+    assert actual_bytes == file_size, (
+        f"Should return entire file ({file_size} bytes) when end exceeds file size"
+    )
+
+
 def test_api_log_dir(test_client: TestClient):
     response = test_client.request("GET", "/log-dir?log_dir=eval_set_dir")
     response.raise_for_status()
@@ -384,3 +418,82 @@ def test_api_eval_set(test_client: TestClient):
             "sequence": 0,
         }
     ]
+
+
+def test_api_log_download_eval(test_client: TestClient):
+    """Test downloading a log file in eval format."""
+    eval_file = "test_dir/test_log.eval"
+    write_fake_eval_log(eval_file)
+
+    _ = inspect_ai._util.file.filesystem("memory://")
+    original_eval_path = f"memory://{eval_file}"
+
+    original_log = inspect_ai.log.read_eval_log(original_eval_path)
+
+    response = test_client.request("GET", f"/log-download/{eval_file}")
+    response.raise_for_status()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/octet-stream"
+    assert "content-disposition" in response.headers
+    assert 'attachment; filename="' in response.headers["content-disposition"]
+    assert ".eval" in response.headers["content-disposition"]
+
+    temp_path = "memory://temp_download.eval"
+    with cast(
+        ContextManager[IO[bytes]],
+        fsspec.open(temp_path, "wb"),
+    ) as f:
+        f.write(response.content)
+
+    downloaded_log = inspect_ai.log.read_eval_log(temp_path)
+    assert downloaded_log.model_dump() == original_log.model_dump()
+
+
+def test_api_log_download_forbidden(test_client: TestClient, mock_s3_eval_file: str):
+    """Test that download respects access control."""
+
+    class no_read_policy(AccessPolicy):
+        async def can_read(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_delete(self, request: Request, file: str) -> bool:
+            return False
+
+        async def can_list(self, request: Request, dir: str) -> bool:
+            return True
+
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"memory://{file}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix("memory://")
+
+    with fastapi.testclient.TestClient(
+        fastapi_server.view_server_app(
+            mapping_policy=mapping_policy(),
+            access_policy=no_read_policy(),
+        )
+    ) as restricted_client:
+        response = restricted_client.request(
+            "GET", f"/log-download/{mock_s3_eval_file}"
+        )
+        assert response.status_code == 403
+
+
+def test_api_log_download_headers(test_client: TestClient, mock_s3_eval_file: str):
+    """Test that download returns correct headers."""
+    response = test_client.request("GET", f"/log-download/{mock_s3_eval_file}")
+    response.raise_for_status()
+
+    assert "content-length" in response.headers
+    assert int(response.headers["content-length"]) > 0
+    assert int(response.headers["content-length"]) == len(response.content)
+
+    assert "content-disposition" in response.headers
+    disposition = response.headers["content-disposition"]
+    assert disposition.startswith('attachment; filename="')
+    assert ".eval" in disposition
+
+    assert response.headers["content-type"] == "application/octet-stream"

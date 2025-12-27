@@ -21,6 +21,9 @@ export type Solver = string | null;
 export type SolverArgs = {
   [k: string]: unknown;
 } | null;
+export type SolverArgsPassed = {
+  [k: string]: unknown;
+} | null;
 export type Tags = string[] | null;
 export type Name = string | null;
 export type Location = string | null;
@@ -53,6 +56,7 @@ export type ParallelToolCalls = boolean | null;
 export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
+export type Verbosity = ("low" | "medium" | "high") | null;
 export type Effort = ("low" | "medium" | "high") | null;
 export type ReasoningEffort =
   | ("none" | "minimal" | "low" | "medium" | "high" | "xhigh")
@@ -65,6 +69,15 @@ export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
 export type Name1 = string;
 export type Type1 =
   | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
+  | (
+      | "string"
+      | "integer"
+      | "number"
+      | "boolean"
+      | "array"
+      | "object"
+      | "null"
+    )[]
   | null;
 export type Format = string | null;
 export type Description = string | null;
@@ -838,6 +851,7 @@ export interface EvalSpec {
   task_args_passed: TaskArgsPassed;
   solver: Solver;
   solver_args: SolverArgs;
+  solver_args_passed: SolverArgsPassed;
   tags: Tags;
   dataset: EvalDataset;
   sandbox: SandboxEnvironmentSpec | null;
@@ -908,6 +922,7 @@ export interface GenerateConfig {
   internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
+  verbosity: Verbosity;
   effort: Effort;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
@@ -1075,8 +1090,12 @@ export interface EvalPlan {
 export interface EvalPlanStep {
   solver: Solver1;
   params: Params1;
+  params_passed: ParamsPassed;
 }
 export interface Params1 {
+  [k: string]: unknown;
+}
+export interface ParamsPassed {
   [k: string]: unknown;
 }
 /**
@@ -1105,6 +1124,7 @@ export interface GenerateConfig1 {
   internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
+  verbosity: Verbosity;
   effort: Effort;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;

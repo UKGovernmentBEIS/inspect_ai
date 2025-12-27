@@ -1,6 +1,7 @@
 import logging
 import os
 import urllib.parse
+from io import BytesIO
 from logging import LogRecord, getLogger
 from pathlib import Path
 from typing import (
@@ -38,6 +39,7 @@ from .common import (
     get_logs,
     normalize_uri,
     parse_log_token,
+    stream_log_bytes,
 )
 from .notify import view_last_eval_time
 
@@ -124,6 +126,45 @@ def view_server(
         return web.Response(
             body=body, headers=headers, content_type="application/octet-stream"
         )
+
+    @routes.get("/api/log-download/{log}")
+    async def api_log_download(request: web.Request) -> web.StreamResponse:
+        # log file requested
+        file = normalize_uri(request.match_info["log"])
+        validate_log_file_request(file)
+
+        # get file size and stream
+        file_size = await get_log_size(file)
+        stream = await stream_log_bytes(file)
+
+        # determine filename
+        base_name = Path(file).stem
+        filename = f"{base_name}.eval"
+
+        # set headers for download
+        headers = {
+            "Content-Length": str(file_size),
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        }
+
+        if isinstance(stream, BytesIO):
+            # BytesIO case - return regular response
+            return web.Response(
+                body=stream.getvalue(),
+                headers=headers,
+                content_type="application/octet-stream",
+            )
+        else:
+            # AsyncIterable case - create streaming response
+            response = web.StreamResponse(headers=headers)
+            response.content_type = "application/octet-stream"
+            await response.prepare(request)
+
+            async for chunk in stream:
+                await response.write(chunk)
+
+            await response.write_eof()
+            return response
 
     @routes.get("/api/log-dir")
     async def api_log_dir(request: web.Request) -> web.Response:

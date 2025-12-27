@@ -1,0 +1,53 @@
+:global(.ag-row) {
+  cursor: pointer;
+}
+
+.gridWrapper {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+.gridContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.iconCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-size: 0.95rem;
+  color: var(--bs-gray-600);
+}
+
+.iconCell :global(.ii:before) {
+  background-color: var(--bs-gray-600);
+}
+
+.numberCell {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  padding-left: 4px;
+  font-variant-numeric: tabular-nums;
+  overflow: visible;
+}
+
+.taskText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.folder,
+.taskText {
+  color: var(--bs-link-color);
+  font-size: 12.8px;
+}
