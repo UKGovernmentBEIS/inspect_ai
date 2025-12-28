@@ -38,7 +38,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._compact import (
+from ._compaction import (
     Compact,
     CompactionEdit,
     CompactionStrategy,
