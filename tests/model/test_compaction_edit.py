@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 
 from inspect_ai._util.content import ContentReasoning, ContentText
@@ -548,3 +550,89 @@ async def test_preserve_message_immutability(tool_call_1: ToolCall) -> None:
     assert len(original_assistant.content) == 2
     assert isinstance(original_assistant.content[0], ContentReasoning)
     assert original_tool.content == "Original result"
+
+
+# Tests for provider opt-out of thinking compaction
+
+
+@pytest.mark.asyncio
+async def test_thinking_preserved_when_provider_opts_out() -> None:
+    """Test that thinking blocks are preserved when provider doesn't support compaction."""
+    strategy = CompactionEdit(keep_thinking_turns=0, keep_tool_uses=10)
+
+    # Mock the model with an API that returns False for compact_reasoning_history
+    mock_api = MagicMock()
+    mock_api.compact_reasoning_history.return_value = False
+    mock_model = MagicMock()
+    mock_model.api = mock_api
+
+    # Inject the mock model
+    strategy.model = mock_model
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question 1"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking about question 1"),
+                ContentText(text="Answer 1"),
+            ]
+        ),
+        ChatMessageUser(content="Question 2"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking about question 2"),
+                ContentText(text="Answer 2"),
+            ]
+        ),
+    ]
+
+    compacted, _ = await strategy.compact(messages)
+
+    # Even with keep_thinking_turns=0, all reasoning should be preserved
+    # because the provider doesn't support thinking compaction
+    for i in [1, 3]:
+        msg = compacted[i]
+        assert isinstance(msg, ChatMessageAssistant)
+        assert isinstance(msg.content, list)
+        assert any(isinstance(c, ContentReasoning) for c in msg.content)
+
+
+@pytest.mark.asyncio
+async def test_thinking_cleared_when_provider_supports_it() -> None:
+    """Test that thinking blocks are cleared when provider supports compaction."""
+    strategy = CompactionEdit(keep_thinking_turns=0, keep_tool_uses=10)
+
+    # Mock the model with an API that returns True for compact_reasoning_history
+    mock_api = MagicMock()
+    mock_api.compact_reasoning_history.return_value = True
+    mock_model = MagicMock()
+    mock_model.api = mock_api
+
+    # Inject the mock model
+    strategy.model = mock_model
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question 1"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking about question 1"),
+                ContentText(text="Answer 1"),
+            ]
+        ),
+        ChatMessageUser(content="Question 2"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking about question 2"),
+                ContentText(text="Answer 2"),
+            ]
+        ),
+    ]
+
+    compacted, _ = await strategy.compact(messages)
+
+    # With keep_thinking_turns=0 and provider supporting it, all reasoning should be cleared
+    for i in [1, 3]:
+        msg = compacted[i]
+        assert isinstance(msg, ChatMessageAssistant)
+        assert isinstance(msg.content, list)
+        assert not any(isinstance(c, ContentReasoning) for c in msg.content)

@@ -2,7 +2,7 @@ import abc
 from typing import Protocol
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._model import Model
+from inspect_ai.model._model import Model, get_model
 
 
 class CompactionStrategy(abc.ABC):
@@ -18,7 +18,7 @@ class CompactionStrategy(abc.ABC):
             model: Model used by compaction strategy (optional, defaults to compaction model).
         """
         self.threshold = threshold
-        self.model = model
+        self.model = get_model(model) if model is not None else model
 
     @abc.abstractmethod
     async def compact(

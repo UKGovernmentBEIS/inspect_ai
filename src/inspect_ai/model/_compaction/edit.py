@@ -39,7 +39,8 @@ class CompactionEdit(CompactionStrategy):
             keep_thinking_turns: Defines how many recent assistant turns to
                 preserve thinking blocks within. Specify N to keep the thinking
                 blocks within the last N turns, or "all" to keep all thinking
-                blocks. Defaults to 1.
+                blocks. Defaults to 1. Note that some providers (e.g. google)
+                do not support thinking compaction.
             keep_tool_uses: Defines how many recent tool use/result pairs to
                 keep after clearing occurs. The oldest tool interactions are
                 removed first, preserving the most recent ones. Tool output is
@@ -77,13 +78,17 @@ class CompactionEdit(CompactionStrategy):
         result: list[ChatMessage] = list(messages)
 
         # Phase 1: Clear thinking blocks from older turns
-        if self.keep_thinking_turns != "all":
+        can_clear_thinking = self.keep_thinking_turns != "all" and (
+            self.model is None or self.model.api.compact_reasoning_history()
+        )
+        if can_clear_thinking:
+            keep_thinking_turns = cast(int, self.keep_thinking_turns)
             assistant_turn_count = 0
             for i in range(len(result) - 1, -1, -1):
                 msg = result[i]
                 if isinstance(msg, ChatMessageAssistant):
                     assistant_turn_count += 1
-                    if assistant_turn_count > self.keep_thinking_turns:
+                    if assistant_turn_count > keep_thinking_turns:
                         result[i] = _clear_reasoning(msg)
 
         # Phase 2: Collect clearable tool pairs

@@ -428,6 +428,11 @@ class GoogleGenAIAPI(ModelAPI):
         return self.is_gemini_1_5() or self.is_gemini_2_0()
 
     @override
+    def compact_reasoning_history(self) -> bool:
+        # gemini requires that reasoning accompany tool calls
+        return False
+
+    @override
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIError) and ex.code is not None:
             return is_retryable_http_status(ex.code)

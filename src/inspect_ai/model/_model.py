@@ -346,6 +346,10 @@ class ModelAPI(abc.ABC):
         """Behavior to use for reasoning_history='auto'"""
         return "all"
 
+    def compact_reasoning_history(self) -> bool:
+        """Is reasoning history eligible for compation for this provider?"""
+        return True
+
 
 class Model:
     """Model interface.
