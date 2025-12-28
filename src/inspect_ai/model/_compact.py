@@ -413,6 +413,17 @@ def compaction(
                 }
             )
 
+            # validate compaction was sufficient
+            total_compacted = tool_tokens + compacted_tokens
+            if total_compacted > threshold:
+                raise RuntimeError(
+                    f"Compaction insufficient: {total_compacted:,} tokens "
+                    f"still exceeds threshold of {threshold:,} "
+                    f"(tools: {tool_tokens:,}, messages: {compacted_tokens:,}). "
+                    f"Consider using a lower compaction threshold to accommodate "
+                    f"tool definitions."
+                )
+
             # return input and any extra message to append
             return list(c_input), c_message
 

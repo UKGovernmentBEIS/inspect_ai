@@ -38,6 +38,14 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from ._compact import (
+    Compact,
+    CompactionEdit,
+    CompactionStrategy,
+    CompactionSummary,
+    CompactionTrim,
+    compaction,
+)
 from ._conversation import ModelConversation
 from ._generate_config import (
     BatchConfig,
@@ -116,6 +124,12 @@ __all__ = [
     "ModelCall",
     "ModelOutput",
     "ModelConversation",
+    "compaction",
+    "Compact",
+    "CompactionStrategy",
+    "CompactionEdit",
+    "CompactionSummary",
+    "CompactionTrim",
     "Logprobs",
     "Logprob",
     "TopLogprob",
