@@ -148,7 +148,5 @@ class TestModelInfoFields:
         for model in test_models:
             info = get_model_info(model)
             if info is not None:  # Model may not exist in database
-                assert (
-                    info.context_length is not None
-                ), f"{model} has no context_length"
+                assert info.context_length is not None, f"{model} has no context_length"
                 assert info.context_length > 0, f"{model} has invalid context_length"

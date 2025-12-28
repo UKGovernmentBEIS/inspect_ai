@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import abc
 import functools
+from copy import deepcopy
+from logging import getLogger
 from textwrap import dedent
 from typing import Protocol, Sequence
 
@@ -17,9 +20,26 @@ from ._model import Model, get_model
 from ._model_info import get_model_info
 from ._trim import partition_messages, trim_messages
 
+logger = getLogger(__name__)
 
-class Compact(Protocol):
-    async def __call__(
+
+class CompactionStrategy(abc.ABC):
+    def __init__(
+        self,
+        threshold: int | float = 0.9,
+        model: str | Model | None = None,
+    ):
+        """Compaction strategy.
+
+        Args:
+            threshold: Token count or percent of context window to trigger compaction.
+            model: Model used by compaction strategy (optional, defaults to compaction model).
+        """
+        self.threshold = threshold
+        self.model = model
+
+    @abc.abstractmethod
+    async def compact(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages.
@@ -32,14 +52,22 @@ class Compact(Protocol):
         ...
 
 
-class CompactEdit(Compact):
+class CompactionEdit(CompactionStrategy):
     """Message editing compaction.
 
     Compact messages by editing the history to remove tool call results. Tool results receive placeholder to indicate that the result was removed.
     """
 
+    def __init__(self, threshold: int | float = 0.9):
+        """Message editing compaction.
+
+        Args:
+            threshold: Token count or percent of context window to trigger compaction.
+        """
+        super().__init__(threshold)
+
     @override
-    async def __call__(
+    async def compact(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by removing tool call results.
@@ -62,7 +90,7 @@ class CompactEdit(Compact):
         return compacted, None
 
 
-class CompactTrim(Compact):
+class CompactionTrim(CompactionStrategy):
     """Message trimming compaction.
 
     Compact messages by trimming the history to preserve a percentage of messages:
@@ -73,15 +101,18 @@ class CompactTrim(Compact):
     - Ensure that the sequence of messages doesn't end with an assistant message.
     """
 
-    def __init__(self, *, preserve: float = 0.8):
-        super().__init__()
+    def __init__(self, *, threshold: int | float = 0.9, preserve: float = 0.8):
+        """Message trimming compaction.
+
+        Args:
+            threshold: Token count or percent of context window to trigger compaction.
+            preserve: Ratio of conversation messages to preserve (defaults to 0.8).
+        """
+        super().__init__(threshold=threshold)
         self.preserve = preserve
 
-    preserve: float
-    """Ratio of conversation messages to preserve (defaults to 0.8)"""
-
     @override
-    async def __call__(
+    async def compact(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by trimming the history to preserve a percentage of messages.
@@ -94,7 +125,7 @@ class CompactTrim(Compact):
         return await trim_messages(messages, preserve=self.preserve), None
 
 
-class CompactSummary(Compact):
+class CompactionSummary(CompactionStrategy):
     """Conversation summary compaction.
 
     Compact messages by summarizing the conversation.
@@ -103,21 +134,22 @@ class CompactSummary(Compact):
     def __init__(
         self,
         *,
-        prompt: str | None = None,
+        threshold: int | float = 0.9,
         model: str | Model | None = None,
+        prompt: str | None = None,
     ):
-        super().__init__()
+        """Conversation summary compaction.
+
+        Args:
+            threshold: Token count or percent of context window to trigger compaction.
+            model: Model to use for summarization (defaults to compaction model).
+            prompt: Prompt to use for summarization.
+        """
+        super().__init__(threshold=threshold, model=model)
         self.prompt = prompt or self.DEFAULT_SUMMARY_PROMPT
-        self.model = get_model(model)
-
-    prompt: str
-    """Prompt to use for summarization."""
-
-    model: Model
-    """Model to use for summarization."""
 
     @override
-    async def __call__(
+    async def compact(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by summarizing the conversation.
@@ -146,6 +178,10 @@ class CompactSummary(Compact):
             + partitioned.conversation[conversation_start_index:]
             + [ChatMessageUser(content=self.prompt)]
         )
+
+        # resolve model if necessary
+        if not isinstance(self.model, Model):
+            self.model = get_model(self.model)
 
         # perform summary
         output = await self.model.generate(input=summarization_input)
@@ -199,11 +235,24 @@ class CompactSummary(Compact):
     """)
 
 
+class Compact(Protocol):
+    async def __call__(
+        self, messages: list[ChatMessage]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        """Compact messages.
+
+        Args:
+            messages: Full message history
+
+        Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
+        """
+        ...
+
+
 def compaction(
-    compact: Compact,
+    strategy: CompactionStrategy,
     prefix: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource | None = None,
-    threshold: int | float = 0.9,
     model: str | Model | None = None,
 ) -> Compact:
     """Create a conversation compaction handler.
@@ -216,10 +265,9 @@ def compaction(
     model = get_model()
 
     compact = compaction(
-        CompactionTrim(),
+        CompactionTrim(threshold=0.9),
         prefix=state.messages,
         tools=tools,
-        threshold=0.9,
         model=model
     )
 
@@ -249,10 +297,9 @@ def compaction(
     Note: The returned handler maintains internal state and is designed for sequential use within a single conversation's agent loop. Do not call concurrently.
 
     Args:
-        compact: Compaction strategy (e.g. editing, trimming, summary, etc.)
+        strategy: Compaction strategy (e.g. editing, trimming, summary, etc.)
         prefix: Chat messages to always preserve in compacted conversations.
         tools: Tool definitions (included in token count as they consume context).
-        threshold: Token count or percent of context winow to trigger compaction.
         model: Target model for compacted input (defaults to active model).
 
     Returns:
@@ -260,6 +307,8 @@ def compaction(
         Input to present to the model and (optionally) a message to append to
         the history (e.g. a summarization).
     """
+    from inspect_ai.log._transcript import transcript
+
     # state: compacted input to send to the model
     compacted_input: list[ChatMessage] = []
 
@@ -275,8 +324,13 @@ def compaction(
     # resolve target model
     target_model = get_model(model)
 
+    # provide model to compaction strategy if required
+    if strategy.model is None:
+        strategy = deepcopy(strategy)
+        strategy.model = target_model
+
     # resolve threshold
-    threshold = _resolve_threshold(target_model, threshold)
+    threshold = _resolve_threshold(target_model, strategy.threshold)
 
     # count tool tokens once (tools don't change during conversation)
     tool_tokens: int | None = None
@@ -320,18 +374,16 @@ def compaction(
         ]
 
         # check to see whether the tokens exceeds the compaction 'threshold'
+        target_messages = compacted_input + unprocessed
         message_tokens = sum(
             await tg_collect(
-                [
-                    functools.partial(count_tokens, m)
-                    for m in (compacted_input + unprocessed)
-                ]
+                [functools.partial(count_tokens, m) for m in target_messages]
             )
         )
         total_tokens = tool_tokens + message_tokens
         if total_tokens > threshold:
             # perform compaction
-            c_input, c_message = await compact(compacted_input + unprocessed)
+            c_input, c_message = await strategy.compact(target_messages)
 
             # track all messages that were processed in this compaction pass
             for m in compacted_input + unprocessed:
@@ -351,6 +403,16 @@ def compaction(
             compacted_input.clear()
             compacted_input.extend(c_input)
 
+            # log compaction
+            compacted_tokens = await target_model.count_tokens(compacted_input)
+            transcript().info(
+                {
+                    "Compaction": strategy.__class__.__name__,
+                    "Tokens": f"{total_tokens:,} ⟶ {compacted_tokens:,}",
+                    "Messages": f"{len(target_messages):,} ⟶ {len(compacted_input):,}",
+                }
+            )
+
             # return input and any extra message to append
             return list(c_input), c_message
 
@@ -368,7 +430,7 @@ def compaction(
     return compact_fn
 
 
-DEFAULT_CONTEXT_WINDOW = 128000
+DEFAULT_CONTEXT_WINDOW = 128_000
 
 
 def _resolve_threshold(model: Model, threshold: int | float) -> int:
@@ -386,9 +448,13 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
     else:
         # Look up the model's context window
         info = get_model_info(model)
-        context_window = (
-            int(info.context_length)
-            if info and info.context_length
-            else DEFAULT_CONTEXT_WINDOW
-        )
+        if info and info.context_length:
+            context_window = info.context_length
+        else:
+            logger.warning(
+                f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"
+            )
+            context_window = DEFAULT_CONTEXT_WINDOW
+
+        # compute threshold
         return int(threshold * context_window)

@@ -13,8 +13,8 @@ class BaseModelDefinition(BaseModel):
     display_name: Optional[str] = None
     release_date: Optional[UtcDate] = None
     knowledge_cutoff_date: Optional[UtcDate] = None
-    context_length: Optional[float] = None
-    output_tokens: Optional[float] = None
+    context_length: Optional[int] = None
+    output_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
@@ -89,10 +89,10 @@ class ModelInfo(BaseModel):
     knowledge_cutoff_date: UtcDate | None = Field(default=None)
     """The model's knowledge cutoff date."""
 
-    context_length: float | None = Field(default=None)
+    context_length: int | None = Field(default=None)
     """The model's context length in tokens."""
 
-    output_tokens: float | None = Field(default=None)
+    output_tokens: int | None = Field(default=None)
     """"The model's maximum output tokens."""
 
     reasoning: bool | None = Field(default=None)

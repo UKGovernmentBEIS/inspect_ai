@@ -26,7 +26,7 @@ import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import requests
 import yaml
@@ -113,7 +113,7 @@ def fetch_together_models() -> list[dict[str, Any]]:
     try:
         response = requests.get(TOGETHER_API_URL, headers=headers, timeout=30)
         response.raise_for_status()
-        return response.json()
+        return cast(list[dict[str, Any]], response.json())
     except requests.RequestException as e:
         print(f"Error fetching models from Together API: {e}")
         sys.exit(1)
@@ -188,7 +188,9 @@ def write_yaml(data: dict[str, Any]) -> None:
 """
     with open(OUTPUT_FILE, "w") as f:
         f.write(header)
-        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml.dump(
+            data, f, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
 
 
 def main() -> None:

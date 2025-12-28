@@ -127,7 +127,9 @@ def _fuzzy_match(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
 
         score = _compute_match_score(normalized_query, key_normalized)
         if score > 0:
-            if best_match is None or score > best_match[0]:
+            if best_match is None:
+                best_match = (score, key, info)
+            elif score > best_match[0]:
                 best_match = (score, key, info)
 
     # Only return matches with reasonable confidence
