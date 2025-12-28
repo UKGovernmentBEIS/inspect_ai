@@ -1,6 +1,9 @@
 ## Unreleased
 
+- Eval Retry: Initialize model usage from usage recorded in retried eval log.
+- Anthropic: Use service model name when detecting tool compatibility.
 - Properly handle working time reporting for overlapping coroutines waiting on semaphores.
+- Inspect View: Properly display dict scores in sample list.
 - Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
 
 ## 0.3.158 (24 December 2025)
