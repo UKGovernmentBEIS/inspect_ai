@@ -424,6 +424,10 @@ class Model:
         """Model name."""
         return self.api.model_name
 
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup."""
+        return self.api.canonical_name()
+
     @property
     def role(self) -> str | None:
         """Model role."""

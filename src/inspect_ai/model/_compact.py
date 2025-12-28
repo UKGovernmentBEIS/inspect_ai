@@ -14,6 +14,7 @@ from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 from ._call_tools import get_tools_info, resolve_tools
 from ._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
 from ._model import Model, get_model
+from ._model_info import get_model_info
 from ._trim import partition_messages, trim_messages
 
 
@@ -363,8 +364,27 @@ def compaction(
     return compact_fn
 
 
-def _resolve_threshold(model: Model, threshold: int | float = 0.95) -> int:
+DEFAULT_CONTEXT_WINDOW = 128000
+
+
+def _resolve_threshold(model: Model, threshold: int | float = 0.9) -> int:
+    """Resolve compaction threshold to an absolute token count.
+
+    Args:
+        model: Target model for compacted input.
+        threshold: Token count (int) or fraction of context window (float <= 1.0).
+
+    Returns:
+        Absolute token threshold for triggering compaction.
+    """
     if isinstance(threshold, int) or threshold > 1.0:
         return int(threshold)
     else:
-        return 0
+        # Look up the model's context window
+        info = get_model_info(model)
+        context_window = (
+            int(info.context_length)
+            if info and info.context_length
+            else DEFAULT_CONTEXT_WINDOW
+        )
+        return int(threshold * context_window)

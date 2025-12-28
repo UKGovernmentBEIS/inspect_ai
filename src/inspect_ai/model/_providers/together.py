@@ -103,6 +103,15 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         return DEFAULT_MAX_TOKENS
 
     @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Together uses HuggingFace-style model names (e.g., meta-llama/Llama-3.1-8B-Instruct)
+        which match our database format directly.
+        """
+        return self.service_model_name()
+
+    @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         response = ex.response.json()
         if "error" in response and "message" in response.get("error"):
@@ -344,8 +353,6 @@ def together_logprobs(choice: dict[str, Any]) -> Logprobs | None:
                     top_logprobs=None,
                 )
             )
-        tlp = Logprobs(content=logprobs_sequence)
-        print(tlp.model_dump_json(indent=2))
-        return tlp
+        return Logprobs(content=logprobs_sequence)
     else:
         return None

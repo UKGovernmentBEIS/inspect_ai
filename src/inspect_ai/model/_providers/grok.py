@@ -267,6 +267,11 @@ class GrokAPI(ModelAPI):
             return None
 
     @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup."""
+        return f"grok/{self.model_name}"
+
+    @override
     def emulate_reasoning_history(self) -> bool:
         return False
 
