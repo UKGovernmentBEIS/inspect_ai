@@ -26,15 +26,6 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 
-# Short aliases for convenience - using Claude 4.5 models (latest)
-MODEL_ALIASES: dict[str, str | None] = {
-    "sonnet": "claude-sonnet-4-5-20250929",
-    "opus": "claude-opus-4-5-20251101",
-    "haiku": "claude-haiku-4-5-20251001",
-    # Allow "default" to use whatever Claude Code defaults to
-    "default": None,
-}
-
 # Thinking level magic words for Claude Code CLI
 # These trigger extended thinking with different token budgets
 THINKING_LEVELS: dict[str, str] = {
@@ -51,7 +42,6 @@ def find_claude_cli() -> str:
     Checks CLAUDE_CODE_COMMAND env var first (for custom paths),
     then falls back to PATH lookup.
     """
-    # Check env var first (like Goose does)
     custom_cmd = os.environ.get("CLAUDE_CODE_COMMAND")
     if custom_cmd:
         # Could be a full path or just a command name
@@ -87,8 +77,7 @@ def messages_to_prompt(messages: list[ChatMessage]) -> str:
     parts = []
     for msg in messages:
         role = msg.role.capitalize()
-        text = msg.text if hasattr(msg, "text") else str(msg.content)
-        parts.append(f"[{role}]: {text}")
+        parts.append(f"[{role}]: {msg.text}")
     return "\n\n".join(parts)
 
 
@@ -127,20 +116,20 @@ class ClaudeCodeAPI(ModelAPI):
         thinking_level: str = "none",
         **model_args: Any,
     ) -> None:
-        # Resolve model name
-        resolved_model = MODEL_ALIASES.get(model_name, model_name)
-        display_name = resolved_model or "claude-code/default"
+        # "default" means omit --model flag, let Claude Code choose its default
+        # All other names passed through - CLI accepts aliases (sonnet, opus, haiku)
+        # and full model IDs (claude-sonnet-4-5-20250929)
+        use_default = model_name.lower() == "default"
 
         super().__init__(
-            model_name=display_name,
+            model_name=model_name,
             base_url=base_url,
-            api_key=api_key,  # Not used - CLI handles auth
+            api_key=api_key,
             config=config,
         )
 
         self._cli_path = find_claude_cli()
-        self._model_arg = model_name
-        self._resolved_model = resolved_model
+        self._model_arg = None if use_default else model_name
         self._skip_permissions = skip_permissions
         self._timeout = timeout
         self._max_connections = max_connections
@@ -191,22 +180,17 @@ class ClaudeCodeAPI(ModelAPI):
         ]
 
         # Add model flag if not using default
-        if self._resolved_model:
-            cmd.extend(["--model", self._resolved_model])
+        if self._model_arg:
+            cmd.extend(["--model", self._model_arg])
 
         # Skip permission prompts for automation
         if self._skip_permissions:
             cmd.append("--dangerously-skip-permissions")
 
         # Run subprocess in thread pool (blocking call)
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, self._run_cli, cmd, prompt, self._timeout
-        )
+        return await asyncio.to_thread(self._run_cli, cmd, self._timeout)
 
-        return result
-
-    def _run_cli(self, cmd: list[str], prompt: str, timeout: int) -> ModelOutput:
+    def _run_cli(self, cmd: list[str], timeout: int) -> ModelOutput:
         """Execute the Claude CLI and parse the response."""
         try:
             proc = subprocess.run(
@@ -248,9 +232,9 @@ class ClaudeCodeAPI(ModelAPI):
             )
 
         # Parse JSON response
-        return self._parse_json_response(proc.stdout, prompt)
+        return self._parse_json_response(proc.stdout)
 
-    def _parse_json_response(self, stdout: str, prompt: str) -> ModelOutput:
+    def _parse_json_response(self, stdout: str) -> ModelOutput:
         """Parse Claude Code CLI JSON output.
 
         The CLI returns JSON with result, usage, and cost information.
@@ -267,7 +251,7 @@ class ClaudeCodeAPI(ModelAPI):
         try:
             data = json.loads(stdout)
         except json.JSONDecodeError:
-            return self._fallback_text_response(stdout, prompt)
+            return self._handle_parse_error(stdout)
 
         content = self._extract_content(data)
         usage = self._extract_usage(data)
@@ -295,33 +279,26 @@ class ClaudeCodeAPI(ModelAPI):
             error=error,
         )
 
-    def _fallback_text_response(self, stdout: str, prompt: str) -> ModelOutput:
-        """Create a response when JSON parsing fails."""
-        return ModelOutput(
+    def _handle_parse_error(self, stdout: str) -> ModelOutput:
+        """Handle JSON parse failure - this indicates a CLI error."""
+        # With --output-format json, non-JSON output is an error
+        return ModelOutput.from_content(
             model=self.model_name,
-            choices=[
-                ChatCompletionChoice(
-                    message=ChatMessageAssistant(
-                        content=stdout,
-                        model=self.model_name,
-                        source="generate",
-                    ),
-                    stop_reason="stop",
-                )
-            ],
-            usage=ModelUsage(
-                input_tokens=len(prompt) // 4,
-                output_tokens=len(stdout) // 4,
-                total_tokens=(len(prompt) + len(stdout)) // 4,
-            ),
+            content="",
+            stop_reason="unknown",
+            error=f"Failed to parse Claude Code CLI response as JSON: {stdout[:200]}",
         )
 
     def _extract_content(self, data: Any) -> str:
-        """Extract the response content from parsed JSON."""
-        if isinstance(data, dict):
-            return str(data.get("result", data.get("content", data.get("text", ""))))
-        elif isinstance(data, str):
+        """Extract response content from parsed JSON."""
+        if isinstance(data, str):
             return data
+        if not isinstance(data, dict):
+            return ""
+        # Try known fields in priority order
+        for key in ("result", "content", "text"):
+            if key in data:
+                return str(data[key])
         return ""
 
     def _extract_usage(self, data: Any) -> dict[str, int]:
