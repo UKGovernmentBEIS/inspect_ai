@@ -2,21 +2,19 @@ from __future__ import annotations
 
 import functools
 from textwrap import dedent
-from typing import TYPE_CHECKING, Protocol, Sequence
+from typing import Protocol, Sequence
 
 from shortuuid import uuid
 from typing_extensions import override
 
-from inspect_ai.model._call_tools import get_tools_info, resolve_tools
-
-if TYPE_CHECKING:
-    from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
-
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.list import find_last_match
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
-from inspect_ai.model._model import Model, get_model
-from inspect_ai.model._trim import partition_messages, trim_messages
+from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
+
+from ._call_tools import get_tools_info, resolve_tools
+from ._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
+from ._model import Model, get_model
+from ._trim import partition_messages, trim_messages
 
 
 class Compact(Protocol):
@@ -204,7 +202,7 @@ def compaction(
     compact: Compact,
     prefix: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource | None = None,
-    threshold: int = 100_000,
+    threshold: int | float = 0.9,
     model: str | Model | None = None,
 ) -> Compact:
     """Create a conversation compaction handler.
@@ -249,7 +247,7 @@ def compaction(
         compact: Compaction strategy (e.g. editing, trimming, summary, etc.)
         prefix: Chat messages to always preserve in compacted conversations.
         tools: Tool definitions (included in token count as they consume context).
-        threshold: Token count threshold to trigger compaction.
+        threshold: Token count or percent of context winow to trigger compaction.
         model: Target model for compacted input (defaults to active model).
 
     Returns:
@@ -271,6 +269,9 @@ def compaction(
 
     # resolve target model
     target_model = get_model(model)
+
+    # resolve threshold
+    threshold = _resolve_threshold(target_model, threshold)
 
     # count tool tokens once (tools don't change during conversation)
     tool_tokens: int | None = None
@@ -360,3 +361,10 @@ def compaction(
             return list(compacted_input), None
 
     return compact_fn
+
+
+def _resolve_threshold(model: Model, threshold: int | float = 0.95) -> int:
+    if isinstance(threshold, int) or threshold > 1.0:
+        return int(threshold)
+    else:
+        return 0

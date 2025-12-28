@@ -153,7 +153,9 @@ class GrokAPI(ModelAPI):
     @override
     async def count_text_tokens(self, text: str) -> int:
         async with self.model_client() as client:
-            tokens = await client.tokenize.tokenize_text(text=text, model=self.model_name)
+            tokens = await client.tokenize.tokenize_text(
+                text=text, model=self.model_name
+            )
             return len(tokens)
 
     async def generate(
@@ -225,7 +227,9 @@ class GrokAPI(ModelAPI):
                 response = MessageToDict(chat_response._proto)
 
                 # return
-                return self._model_output_from_response(chat_response, tools), model_call()
+                return self._model_output_from_response(
+                    chat_response, tools
+                ), model_call()
             except grpc.RpcError as ex:
                 if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
                     handled = self._handle_grpc_permission_denied(ex)
