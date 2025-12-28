@@ -309,6 +309,168 @@ async def test_generate_omits_model_flag_for_default(mock_cli_path):
 
 
 # =============================================================================
+# End-to-end tests (generate with mocked subprocess)
+# =============================================================================
+
+
+@pytest.mark.anyio
+async def test_e2e_successful_generation(mock_cli_path, sample_json_response):
+    """End-to-end: successful generation through full pipeline."""
+    import json
+
+    api = ClaudeCodeAPI(model_name="sonnet")
+
+    with patch(
+        "inspect_ai.model._providers.claude_code.subprocess.run"
+    ) as mock_subprocess:
+        mock_subprocess.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps(sample_json_response),
+            stderr="",
+        )
+
+        result = await api.generate(
+            input=[
+                ChatMessageSystem(content="You are helpful."),
+                ChatMessageUser(content="What is 2+2?"),
+            ],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+        # Verify the full response
+        assert result.error is None
+        assert result.choices[0].message.content == "The answer is 4."
+        assert result.choices[0].stop_reason == "stop"
+        assert result.usage.input_tokens == 100
+        assert result.usage.output_tokens == 50
+        assert result.metadata["cost_usd"] == 0.001
+        assert result.metadata["session_id"] == "test-session-123"
+
+        # Verify subprocess was called correctly
+        call_args = mock_subprocess.call_args
+        cmd = call_args[0][0]
+        assert "-p" in cmd
+        assert "--output-format" in cmd
+        assert "--model" in cmd
+        assert "sonnet" in cmd
+
+
+@pytest.mark.anyio
+async def test_e2e_cli_error_propagates(mock_cli_path):
+    """End-to-end: CLI error is properly propagated through pipeline."""
+    api = ClaudeCodeAPI(model_name="sonnet")
+
+    with patch(
+        "inspect_ai.model._providers.claude_code.subprocess.run"
+    ) as mock_subprocess:
+        mock_subprocess.return_value = MagicMock(
+            returncode=1,
+            stdout="",
+            stderr="Rate limit exceeded",
+        )
+
+        result = await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+        assert result.error is not None
+        assert "Rate limit exceeded" in result.error
+        assert result.choices[0].stop_reason == "unknown"
+
+
+@pytest.mark.anyio
+async def test_e2e_timeout_handling(mock_cli_path):
+    """End-to-end: timeout is properly handled through pipeline."""
+    api = ClaudeCodeAPI(model_name="sonnet", timeout=10)
+
+    with patch(
+        "inspect_ai.model._providers.claude_code.subprocess.run"
+    ) as mock_subprocess:
+        mock_subprocess.side_effect = subprocess.TimeoutExpired(
+            cmd="claude", timeout=10
+        )
+
+        result = await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+        assert result.error is not None
+        assert "timed out" in result.error
+
+
+@pytest.mark.anyio
+async def test_e2e_with_thinking_level(mock_cli_path, sample_json_response):
+    """End-to-end: thinking level is prepended to prompt."""
+    import json
+
+    api = ClaudeCodeAPI(model_name="sonnet", thinking_level="ultrathink")
+
+    with patch(
+        "inspect_ai.model._providers.claude_code.subprocess.run"
+    ) as mock_subprocess:
+        mock_subprocess.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps(sample_json_response),
+            stderr="",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Solve this problem")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+        # Verify prompt has thinking level prepended
+        cmd = mock_subprocess.call_args[0][0]
+        prompt_idx = cmd.index("-p") + 1
+        prompt = cmd[prompt_idx]
+        assert prompt.startswith("ultrathink\n\n")
+        assert "[User]: Solve this problem" in prompt
+
+
+@pytest.mark.anyio
+async def test_e2e_error_response_from_api(mock_cli_path):
+    """End-to-end: API error in JSON response is extracted."""
+    import json
+
+    api = ClaudeCodeAPI(model_name="sonnet")
+
+    error_response = {
+        "is_error": True,
+        "result": "Model overloaded, please retry",
+        "usage": {"input_tokens": 0, "output_tokens": 0},
+    }
+
+    with patch(
+        "inspect_ai.model._providers.claude_code.subprocess.run"
+    ) as mock_subprocess:
+        mock_subprocess.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps(error_response),
+            stderr="",
+        )
+
+        result = await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+        assert result.error == "Model overloaded, please retry"
+        assert result.choices[0].stop_reason == "unknown"
+
+
+# =============================================================================
 # ClaudeCodeAPI._run_cli() tests
 # =============================================================================
 
