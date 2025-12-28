@@ -213,10 +213,14 @@ def compaction(
     For example, in a simple agent loop:
 
     ```python
+    model = get_model()
+
     compact = compaction(
         CompactionTrim(),
         prefix=state.messages,
-        tools=tools
+        tools=tools,
+        threshold=0.9,
+        model=model
     )
 
     while True:
@@ -226,7 +230,7 @@ def compaction(
             state.messages.append(message)
 
         # call model and append to messages
-        state.output = await get_model().generate(
+        state.output = await model.generate(
             input=input,
             tools=tools,
         )
@@ -367,7 +371,7 @@ def compaction(
 DEFAULT_CONTEXT_WINDOW = 128000
 
 
-def _resolve_threshold(model: Model, threshold: int | float = 0.9) -> int:
+def _resolve_threshold(model: Model, threshold: int | float) -> int:
     """Resolve compaction threshold to an absolute token count.
 
     Args:
