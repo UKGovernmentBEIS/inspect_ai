@@ -1,6 +1,7 @@
 from typing_extensions import override
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._model import Model
 from inspect_ai.model._trim import trim_messages
 
 from .types import CompactionStrategy
@@ -29,12 +30,13 @@ class CompactionTrim(CompactionStrategy):
 
     @override
     async def compact(
-        self, messages: list[ChatMessage]
+        self, messages: list[ChatMessage], model: Model
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by trimming the history to preserve a percentage of messages.
 
         Args:
             messages: Full message history
+            model: Target model for compation.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """

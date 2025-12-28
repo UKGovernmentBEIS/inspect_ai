@@ -2,15 +2,11 @@ import abc
 from typing import Protocol
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model
 
 
 class CompactionStrategy(abc.ABC):
-    def __init__(
-        self,
-        threshold: int | float = 0.9,
-        model: str | Model | None = None,
-    ):
+    def __init__(self, threshold: int | float = 0.9):
         """Compaction strategy.
 
         Args:
@@ -18,16 +14,16 @@ class CompactionStrategy(abc.ABC):
             model: Model used by compaction strategy (optional, defaults to compaction model).
         """
         self.threshold = threshold
-        self.model = get_model(model) if model is not None else model
 
     @abc.abstractmethod
     async def compact(
-        self, messages: list[ChatMessage]
+        self, messages: list[ChatMessage], model: Model
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages.
 
         Args:
             messages: Full message history
+            model: Target model for compation.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """

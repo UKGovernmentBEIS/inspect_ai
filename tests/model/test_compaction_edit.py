@@ -11,6 +11,7 @@ from inspect_ai.model import (
     ChatMessageUser,
 )
 from inspect_ai.model._compaction.edit import CompactionEdit
+from inspect_ai.model._model import get_model
 from inspect_ai.tool import ToolCall
 
 
@@ -62,7 +63,7 @@ async def test_clear_thinking_keep_one_turn() -> None:
         ),
     ]
 
-    compacted, summary = await strategy.compact(messages)
+    compacted, summary = await strategy.compact(messages, get_model("mockllm/model"))
 
     assert summary is None
     assert len(compacted) == 5
@@ -105,7 +106,7 @@ async def test_clear_thinking_keep_all() -> None:
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # Both should keep reasoning
     for i in [1, 3]:
@@ -135,7 +136,7 @@ async def test_clear_thinking_keep_n_turns() -> None:
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # First turn should be cleared
     msg1 = compacted[1]
@@ -161,7 +162,7 @@ async def test_clear_thinking_string_content() -> None:
         ChatMessageAssistant(content="Simple string response"),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     msg = compacted[1]
     assert isinstance(msg, ChatMessageAssistant)
@@ -178,7 +179,7 @@ async def test_clear_thinking_empty_after_clearing() -> None:
         ChatMessageAssistant(content=[ContentReasoning(reasoning="Only thinking")]),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     msg = compacted[1]
     assert isinstance(msg, ChatMessageAssistant)
@@ -218,7 +219,7 @@ async def test_clear_tool_results_keep_inputs(
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # Same number of messages
     assert len(compacted) == 9
@@ -272,7 +273,7 @@ async def test_clear_tool_results_remove_inputs(
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # Tool message should be removed (was at index 2)
     assert len(compacted) == 4
@@ -321,7 +322,7 @@ async def test_clear_tool_multiple_calls_per_turn(
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # Two tool messages should be removed (indices 2 and 3)
     # Original: 6 messages, after: 4 messages
@@ -370,7 +371,7 @@ async def test_tool_exclusions(
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # Same number of messages
     assert len(compacted) == 7
@@ -420,7 +421,7 @@ async def test_mixed_thinking_and_tools(tool_call_1: ToolCall) -> None:
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # First assistant: thinking cleared, tool result cleared
     assistant_1 = compacted[1]
@@ -456,7 +457,7 @@ async def test_orphaned_tool_calls(tool_call_1: ToolCall) -> None:
         ChatMessageUser(content="User interruption"),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # No changes - orphaned tool call is skipped
     assert len(compacted) == 3
@@ -467,7 +468,9 @@ async def test_orphaned_tool_calls(tool_call_1: ToolCall) -> None:
 
 
 @pytest.mark.asyncio
-async def test_keep_tool_uses_zero(tool_call_1: ToolCall, tool_call_2: ToolCall) -> None:
+async def test_keep_tool_uses_zero(
+    tool_call_1: ToolCall, tool_call_2: ToolCall
+) -> None:
     """Test clearing all tool uses when keep_tool_uses=0."""
     strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=0)
 
@@ -483,7 +486,7 @@ async def test_keep_tool_uses_zero(tool_call_1: ToolCall, tool_call_2: ToolCall)
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     # Both tool results should be cleared
     tool_msg_1 = compacted[2]
@@ -500,7 +503,7 @@ async def test_empty_messages() -> None:
     """Test with empty message list."""
     strategy = CompactionEdit()
 
-    compacted, summary = await strategy.compact([])
+    compacted, summary = await strategy.compact([], get_model("mockllm/model"))
 
     assert compacted == []
     assert summary is None
@@ -516,7 +519,7 @@ async def test_no_assistant_messages() -> None:
         ChatMessageUser(content="User"),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
     assert compacted == messages
 
@@ -543,7 +546,7 @@ async def test_preserve_message_immutability(tool_call_1: ToolCall) -> None:
         original_tool,
     ]
 
-    await strategy.compact(messages)
+    await strategy.compact(messages, get_model("mockllm/model"))
 
     # Original messages should be unchanged
     assert isinstance(original_assistant.content, list)
@@ -566,9 +569,6 @@ async def test_thinking_preserved_when_provider_opts_out() -> None:
     mock_model = MagicMock()
     mock_model.api = mock_api
 
-    # Inject the mock model
-    strategy.model = mock_model
-
     messages: list[ChatMessage] = [
         ChatMessageUser(content="Question 1"),
         ChatMessageAssistant(
@@ -586,7 +586,7 @@ async def test_thinking_preserved_when_provider_opts_out() -> None:
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, mock_model)
 
     # Even with keep_thinking_turns=0, all reasoning should be preserved
     # because the provider doesn't support thinking compaction
@@ -608,9 +608,6 @@ async def test_thinking_cleared_when_provider_supports_it() -> None:
     mock_model = MagicMock()
     mock_model.api = mock_api
 
-    # Inject the mock model
-    strategy.model = mock_model
-
     messages: list[ChatMessage] = [
         ChatMessageUser(content="Question 1"),
         ChatMessageAssistant(
@@ -628,7 +625,7 @@ async def test_thinking_cleared_when_provider_supports_it() -> None:
         ),
     ]
 
-    compacted, _ = await strategy.compact(messages)
+    compacted, _ = await strategy.compact(messages, mock_model)
 
     # With keep_thinking_turns=0 and provider supporting it, all reasoning should be cleared
     for i in [1, 3]:

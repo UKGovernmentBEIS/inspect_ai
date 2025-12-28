@@ -10,6 +10,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._model import Model
 from inspect_ai.tool import ToolCall
 
 from .types import CompactionStrategy
@@ -63,7 +64,7 @@ class CompactionEdit(CompactionStrategy):
 
     @override
     async def compact(
-        self, messages: list[ChatMessage]
+        self, messages: list[ChatMessage], model: Model
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by editing the history.
 
@@ -72,14 +73,15 @@ class CompactionEdit(CompactionStrategy):
 
         Args:
             messages: Full message history
+            model: Target model for compation.
 
         Returns: Compacted messages and None (no summary message appended).
         """
         result: list[ChatMessage] = list(messages)
 
         # Phase 1: Clear thinking blocks from older turns
-        can_clear_thinking = self.keep_thinking_turns != "all" and (
-            self.model is None or self.model.api.compact_reasoning_history()
+        can_clear_thinking = (
+            self.keep_thinking_turns != "all" and model.api.compact_reasoning_history()
         )
         if can_clear_thinking:
             keep_thinking_turns = cast(int, self.keep_thinking_turns)

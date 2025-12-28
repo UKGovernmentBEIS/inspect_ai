@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-from copy import deepcopy
 from logging import getLogger
 from typing import Sequence
 
@@ -92,11 +91,6 @@ def compaction(
     # resolve target model
     target_model = get_model(model)
 
-    # provide model to compaction strategy if required
-    if strategy.model is None:
-        strategy = deepcopy(strategy)
-        strategy.model = target_model
-
     # resolve threshold
     threshold = _resolve_threshold(target_model, strategy.threshold)
 
@@ -151,7 +145,7 @@ def compaction(
         total_tokens = tool_tokens + message_tokens
         if total_tokens > threshold:
             # perform compaction
-            c_input, c_message = await strategy.compact(target_messages)
+            c_input, c_message = await strategy.compact(target_messages, target_model)
 
             # track all messages that were processed in this compaction pass
             for m in compacted_input + unprocessed:

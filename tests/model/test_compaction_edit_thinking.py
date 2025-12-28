@@ -113,8 +113,7 @@ async def check_thinking_compaction(
         keep_tool_uses=10,  # Keep tool uses
     )
     # Set the model so CompactionEdit can check compact_reasoning_history()
-    strategy.model = model
-    compacted_messages, _ = await strategy.compact(messages)
+    compacted_messages, _ = await strategy.compact(messages, model)
 
     # Verify thinking was removed (only if provider supports it)
     thinking_turns = 0

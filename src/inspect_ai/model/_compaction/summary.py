@@ -27,20 +27,22 @@ class CompactionSummary(CompactionStrategy):
 
         Args:
             threshold: Token count or percent of context window to trigger compaction.
-            model: Model to use for summarization (defaults to compaction model).
+            model: Model to use for summarization (defaults to compaction target model).
             prompt: Prompt to use for summarization.
         """
-        super().__init__(threshold=threshold, model=model)
+        super().__init__(threshold=threshold)
+        self.model = get_model(model) if model is not None else model
         self.prompt = prompt or self.DEFAULT_SUMMARY_PROMPT
 
     @override
     async def compact(
-        self, messages: list[ChatMessage]
+        self, messages: list[ChatMessage], model: Model
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by summarizing the conversation.
 
         Args:
             messages: Full message history
+            model: Target model for compation.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """
@@ -64,12 +66,11 @@ class CompactionSummary(CompactionStrategy):
             + [ChatMessageUser(content=self.prompt)]
         )
 
-        # resolve model if necessary
-        if not isinstance(self.model, Model):
-            self.model = get_model(self.model)
+        # use model explicitly passed to us or fall back to compation model
+        model = self.model or model
 
         # perform summary
-        output = await self.model.generate(input=summarization_input)
+        output = await model.generate(input=summarization_input)
 
         # create summary message
         summary = ChatMessageUser(
