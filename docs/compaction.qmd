@@ -22,9 +22,21 @@ Compaction enables you to automatically manage conversation context as it grows,
 
 : {tbl-colwidths=\[30,70\]}
 
-Compaction works by monitoring model input and executing when input tokens get close to the model's context window size. You can configure this threshold, specifying either a percentage (e.g. 90%, which is the default) or a specific token count.
+Which strategy should you use? Here are some general guidelines:
 
-One important thing to note about compaction is that it affects only the input that the model sees---the core history with all messages is still retained by agents when using compaction.
+- `CompactionEdit` is a good default choice—it's efficient (no additional model calls) and preserves the conversation structure while removing older content. 
+
+- `CompactionSummary` is good when maintaining semantic understanding of the full history is more important than preserving exact details; note this requires an additional model call for each compaction. 
+
+- `CompactionTrim` is the simplest option, useful when you just need to reduce history depth without concern for preserving specific content.
+
+Note that compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction.
+
+#### Compaction Threshold
+
+Compaction works by monitoring model input and executing when input tokens get close to the model's context window size. You can configure the compaction `threshold` by specifying either a percentage or a specific token count. 
+
+Float values between 0 and 1 (e.g., `0.9`) are interpreted as a percentage of the context window, while integer values (e.g., `100000`) are interpreted as an absolute token count. The default threshold is `0.9` (90% of the context window).
 
 ## Basic Usage
 
@@ -50,11 +62,12 @@ react(
 
 If you are creating a custom agent, you will need to incorporate compaction into your agent loop. See the [custom agent compaction](agent-custom.qmd#compaction) documentation for details.
 
-Note that compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction.
+One important thing to note about compaction is that it affects only the input that the model sees---the core history with all messages is still retained by agents when using compaction.
+
 
 ## Edit Compaction
 
-Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions.
+Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions. When compaction triggers multiple times, it continues clearing older content on each cycle.
 
 For example, here we add edit compaction to a `react()` agent (all parameters to `CompactionEdit` reflect the built-in defaults):
 
@@ -88,7 +101,7 @@ Here are all options available for `CompactionEdit`:
 
 ## Summary Compaction
 
-Summary compaction uses a model to generate a concise summary of the conversation history, then replaces the conversation with this summary. This approach preserves the semantic content of the conversation while significantly reducing token count. System messages and input messages are preserved, while the conversation history is replaced with a summary message.
+Summary compaction uses a model to generate a concise summary of the conversation history, then replaces the conversation with this summary. This approach preserves the semantic content of the conversation while significantly reducing token count. System messages and input messages are preserved, while the conversation history is replaced with a summary message. When compaction triggers multiple times, it builds incrementally—detecting any existing summary and only summarizing content from that point forward.
 
 For example, here we add summary compaction to a `react()` agent:
 
@@ -123,7 +136,7 @@ The default summarization prompt asks the model to capture the task overview, cu
 
 ## Trim Compaction
 
-Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. 
+Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. When compaction triggers multiple times, it continues discarding older messages on each cycle. 
 
 For example, here we add trim compaction to a `react()` agent (all parameters to `CompactionTrim` reflect the built-in defaults):
 
