@@ -468,10 +468,10 @@ be developing custom tools it’s worth taking some time to learn how to
 provide good tool definitions. Here are some resources you may find
 helpful:
 
-- [Best Practices for Tool
-  Definitions](https://docs.anthropic.com/claude/docs/tool-use#best-practices-for-tool-definitions)
 - [Function Calling with
   LLMs](https://www.promptingguide.ai/applications/function_calling)
+- [Understanding Tool Specifications and
+  Descriptions](https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/tool-specifications-descriptions)
 
 In some cases you may want to change the default descriptions created by
 a tool author—for example you might want to provide better

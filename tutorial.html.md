@@ -544,8 +544,8 @@ may find helpful:
 
 - [Function Calling with
   LLMs](https://www.promptingguide.ai/applications/function_calling)
-- [Best Practices for Tool
-  Definitions](https://docs.anthropic.com/claude/docs/tool-use#best-practices-for-tool-definitions)
+- [Understanding Tool Specifications and
+  Descriptions](https://apxml.com/courses/building-advanced-llm-agent-tools/chapter-1-llm-agent-tooling-foundations/tool-specifications-descriptions)
 
 ### Addition
 

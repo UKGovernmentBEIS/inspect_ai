@@ -311,6 +311,9 @@ These sections cover how to use various language models with Inspect:
 - [Caching](caching.qmd) explains how to cache model output to reduce
   the number of API calls made.
 
+- [Compaction](compaction.qmd) covers compacting message histories for
+  long-running agents that exceed the context window.
+
 - [Multimodal](multimodal.qmd) describes the APIs available for creating
   multimodal evaluations (including images, audio, and video).
 
@@ -364,9 +367,6 @@ get more comfortable with the basics.
 - [Errors and Limits](errors-and-limits.qmd) covers various techniques
   for dealing with unexpected errors and setting limits on evaluation
   tasks and samples.
-
-- [Multimodal](multimodal.qmd) documents the APIs available for creating
-  multimodal evaluations (including images, audio, and video).
 
 - [Typing](typing.qmd): provides guidance on using static type checking
   with Inspect, including creating typed interfaces to untyped storage

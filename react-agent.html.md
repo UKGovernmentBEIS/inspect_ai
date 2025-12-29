@@ -23,6 +23,10 @@ The `react()` agent provides the following built-in capabilities:
     to continue and try again (note that by default only 1 attempt is
     allowed).
 
+3.  It can take advantage of message history
+    [compaction](compaction.qmd) for long-running tasks that overflow
+    the context window.
+
 You can customise the `react()` agent in several ways, including
 providing a callback that determines whether the model should continue
 (and what message it is sent in that case) as well as a callback to do
@@ -77,7 +81,7 @@ task = Task(
 eval(task, model="openai/gpt-4o")
 ```
 
-### Prompt
+## Prompt
 
 In the examples above we provide a `prompt` to the agent. This prompt is
 layered with other default prompt(s) to compose the final system prompt.
@@ -133,7 +137,7 @@ react(
 )
 ```
 
-### Attempts
+## Attempts
 
 When using a `submit()` tool, the `react()` agent is allowed a single
 attempt by default. If you want to give it multiple attempts, pass
@@ -153,7 +157,49 @@ an integer (this enables you to set a custom incorrect message,
 including a dynamically generated one, and also lets you customize how
 score values are converted to a numeric scale).
 
-### Refusals
+## Compaction
+
+> [!NOTE]
+>
+> Support for compaction is available only in the development version of
+> Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+[Compaction](compaction.qmd) enables you to automatically manage
+conversation context as it grows, helping you optimize costs and stay
+within context window limits for long-running agents. Use the
+`compaction()` function along with a compaction strategy to incorporate
+compaction into a react agent. For example:
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionEdit, CompactionSummary
+from inspect_ai.tool import bash, text_editor
+
+# edit compaction
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionEdit(keep_tool_uses=3)
+)
+
+# summary compaction
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionSummary(threshold=0.8)
+)
+```
+
+One important thing to note about compaction is that it affects only the
+input that the model sees—the core history with all messages is still
+retained by agents when using compaction.
+
+There are various configurable compaction strategies available—see the
+[Compaction](compaction.qmd) documentation for details.
+
+## Refusals
 
 In some cases models refuse requests and simply retrying will result in
 a successful completion (this might be the case if requests are near the
@@ -170,7 +216,7 @@ react(
 Retries will be triggered when `ModelOutput` has a `stop_reason` of
 “content_filter”.
 
-### Continuation
+## Continuation
 
 In some cases models in a tool use loop will simply fail to call a tool
 (or just talk about calling the `submit()` tool but not actually call
@@ -211,7 +257,7 @@ agent loop for various inputs:
   - `AgentState`: Agent loop continues and the agent state is updated to
     the returned value.
 
-### Submit Tool
+## Submit Tool
 
 As described above, the `react()` agent uses a special `submit()` tool
 internally to enable the model to signal explicitly when it is complete
@@ -247,7 +293,7 @@ terminating when it stops calling tools. Alternatively, you can manually
 control termination by providing a custom [on_continue](#continuation)
 handler.
 
-### Truncation
+## Truncation
 
 If your agent runs for long enough, it may end up filling the entire
 model context window. By default, this will cause the agent to terminate
@@ -275,7 +321,7 @@ conversation length below your message limit. In this case you can also
 consider applying a [time limit](errors-and-limits.qmd#time-limit)
 and/or [token limit](errors-and-limits.qmd#token-limit).
 
-### Model
+## Model
 
 The `model` parameter to `react()` agent lets you specify an alternate
 model to use for the agent loop (if not specified then the default model
