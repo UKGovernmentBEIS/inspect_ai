@@ -1,5 +1,6 @@
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter
 from inspect_ai.tool._mcp._config import MCPServerConfigStdio
 
@@ -12,11 +13,12 @@ class SandboxAgentBridge(AgentBridge):
         state: AgentState,
         filter: GenerateFilter | None,
         retry_refusals: int | None,
+        compaction: CompactionStrategy | None,
         port: int,
         model: str | None,
         mcp_server_configs: list[MCPServerConfigStdio] | None = None,
     ) -> None:
-        super().__init__(state, filter, retry_refusals)
+        super().__init__(state, filter, retry_refusals, compaction)
         self.port = port
         self.model = model
         self.mcp_server_configs = mcp_server_configs or []
