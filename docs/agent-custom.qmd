@@ -137,9 +137,9 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-[Compaction](compaction.qmd) enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the `compaction()` function along with a compaction strategy to incorporate compation into your custom agent. 
+[Compaction](compaction.qmd) enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the `compaction()` function along with a compaction strategy to incorporate compaction into your custom agent.
 
-For example, here we enhance the simple agent loop exmaple from above with compaction. Note that the `compact` function returns both compacted `input` for us to pass to `model.generate()` as well as an optional compaction message (`c_message`) to be added to the main history. 
+For example, here we enhance the simple agent loop example from above with compaction. Note that the `compact` function returns both compacted `input` for us to pass to `model.generate()` as well as an optional compaction message (`c_message`) to be added to the main history.
 
 ``` python
 from typing import Sequence
