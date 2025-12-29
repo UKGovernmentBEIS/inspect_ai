@@ -42,9 +42,12 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.content import (
     Content,
+    ContentAudio,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentVideo,
 )
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
@@ -98,7 +101,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
-from ._tokens import count_image_tokens, count_text_tokens, count_tokens
+from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -243,8 +246,8 @@ class ModelAPI(abc.ABC):
         """Estimate token count for input.
 
         This default implementation uses character-based heuristics for text
-        and standard estimates for images/media. Model providers can override
-        `count_text_tokens()` and `count_image_tokens()` for more accurate results,
+        and size-based estimates for media. Model providers can override
+        `count_text_tokens()` and `count_media_tokens()` for more accurate results,
         or override this method entirely to use their native token counting APIs.
 
         Args:
@@ -254,7 +257,7 @@ class ModelAPI(abc.ABC):
             return await self.count_text_tokens(input)
         else:
             return await count_tokens(
-                input, self.count_text_tokens, self.count_image_tokens
+                input, self.count_text_tokens, self.count_media_tokens
             )
 
     async def count_text_tokens(self, text: str) -> int:
@@ -267,15 +270,19 @@ class ModelAPI(abc.ABC):
         """
         return count_text_tokens(text)
 
-    async def count_image_tokens(self, image: ContentImage) -> int:
-        """Estimate tokens for an image based on detail level.
+    async def count_media_tokens(
+        self, media: ContentImage | ContentAudio | ContentVideo | ContentDocument
+    ) -> int:
+        """Estimate tokens for media content (images, audio, video, documents).
 
-        Override this method for model-specific image token calculations.
+        For data URIs, estimates are based on decoded size. For URLs/file paths,
+        uses conservative fixed fallbacks. Override this method for provider-specific
+        media token calculations.
 
         Args:
-            image: Image to count.
+            media: Media content to count tokens for.
         """
-        return count_image_tokens(image)
+        return count_media_tokens(media)
 
     def max_tokens(self) -> int | None:
         """Default max_tokens."""

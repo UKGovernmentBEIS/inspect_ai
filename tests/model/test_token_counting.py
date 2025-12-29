@@ -1,5 +1,8 @@
 """Tests for token counting APIs across different model providers."""
 
+import base64
+import os
+
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
@@ -9,7 +12,19 @@ from test_helpers.utils import (
     skip_if_no_openai,
 )
 
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentVideo,
+)
 from inspect_ai.model import ChatMessageUser, get_model
+from inspect_ai.model._tokens import (
+    FALLBACK_AUDIO_TOKENS,
+    FALLBACK_DOCUMENT_TOKENS,
+    FALLBACK_VIDEO_TOKENS,
+    count_media_tokens,
+)
 from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
 
 # Test message for token counting - long enough to ensure meaningful token count
@@ -122,3 +137,111 @@ async def test_default_count_tokens():
     # Message is ~40 tokens, so we expect a meaningful count (not just 1)
     assert token_count >= 10
     assert isinstance(token_count, int)
+
+
+# --- Media token counting tests (no API keys required) ---
+
+TEST_MEDIA_DIR = os.path.join("tests", "util", "test_media")
+
+
+def _file_to_data_uri(filepath: str, mime_type: str) -> str:
+    """Convert a file to a data URI."""
+    with open(filepath, "rb") as f:
+        data = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:{mime_type};base64,{data}"
+
+
+def test_count_image_tokens_low_detail():
+    """Test image token counting with low detail."""
+    image = ContentImage(image="https://example.com/image.png", detail="low")
+    tokens = count_media_tokens(image)
+    assert tokens == 85
+
+
+def test_count_image_tokens_high_detail():
+    """Test image token counting with high detail."""
+    image = ContentImage(image="https://example.com/image.png", detail="high")
+    tokens = count_media_tokens(image)
+    assert tokens == 765
+
+
+def test_count_image_tokens_auto_detail():
+    """Test image token counting with auto detail (defaults to high)."""
+    image = ContentImage(image="https://example.com/image.png")
+    tokens = count_media_tokens(image)
+    assert tokens == 765  # auto defaults to high
+
+
+def test_count_audio_tokens_file_path():
+    """Test audio token counting with file path returns fallback."""
+    audio = ContentAudio(audio="sample.mp3", format="mp3")
+    tokens = count_media_tokens(audio)
+    assert tokens == FALLBACK_AUDIO_TOKENS
+
+
+def test_count_audio_tokens_data_uri_mp3():
+    """Test audio token counting with MP3 data URI estimates based on size."""
+    filepath = os.path.join(TEST_MEDIA_DIR, "sample.mp3")
+    data_uri = _file_to_data_uri(filepath, "audio/mp3")
+    audio = ContentAudio(audio=data_uri, format="mp3")
+
+    tokens = count_media_tokens(audio)
+
+    # MP3 is ~27KB, at 16KB/sec that's ~1.7 sec, at 50 tok/sec = ~85 tokens
+    # Should be significantly less than fallback (2000)
+    assert tokens < FALLBACK_AUDIO_TOKENS
+    assert tokens >= 50  # minimum
+
+
+def test_count_audio_tokens_data_uri_wav():
+    """Test audio token counting with WAV data URI estimates based on size."""
+    filepath = os.path.join(TEST_MEDIA_DIR, "sample.wav")
+    data_uri = _file_to_data_uri(filepath, "audio/wav")
+    audio = ContentAudio(audio=data_uri, format="wav")
+
+    tokens = count_media_tokens(audio)
+
+    # WAV is ~97KB, at 176KB/sec that's ~0.55 sec, at 50 tok/sec = ~28 tokens
+    # minimum is 50, so should get 50
+    assert tokens >= 50  # minimum
+    assert tokens < FALLBACK_AUDIO_TOKENS
+
+
+def test_count_video_tokens_file_path():
+    """Test video token counting with file path returns fallback."""
+    video = ContentVideo(video="video.mp4", format="mp4")
+    tokens = count_media_tokens(video)
+    assert tokens == FALLBACK_VIDEO_TOKENS
+
+
+def test_count_video_tokens_data_uri():
+    """Test video token counting with data URI estimates based on size."""
+    filepath = os.path.join(TEST_MEDIA_DIR, "video.mp4")
+    data_uri = _file_to_data_uri(filepath, "video/mp4")
+    video = ContentVideo(video=data_uri, format="mp4")
+
+    tokens = count_media_tokens(video)
+
+    # Video is ~139KB, at 500KB/sec that's ~0.28 sec, at 400 tok/sec = ~112 tokens
+    assert tokens >= 100  # minimum
+    assert tokens < FALLBACK_VIDEO_TOKENS
+
+
+def test_count_document_tokens_file_path():
+    """Test document token counting with file path returns fallback."""
+    document = ContentDocument(document="attention.pdf")
+    tokens = count_media_tokens(document)
+    assert tokens == FALLBACK_DOCUMENT_TOKENS
+
+
+def test_count_document_tokens_data_uri():
+    """Test document token counting with data URI estimates based on size."""
+    filepath = os.path.join(TEST_MEDIA_DIR, "attention.pdf")
+    data_uri = _file_to_data_uri(filepath, "application/pdf")
+    document = ContentDocument(document=data_uri)
+
+    tokens = count_media_tokens(document)
+
+    # PDF is ~17KB, at 100KB/page that's ~0.17 pages, at 1000 tok/page = ~175 tokens
+    assert tokens >= 100  # minimum
+    assert tokens < FALLBACK_DOCUMENT_TOKENS
