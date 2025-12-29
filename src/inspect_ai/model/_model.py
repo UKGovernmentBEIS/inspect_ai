@@ -239,6 +239,24 @@ class ModelAPI(abc.ABC):
         """
         ...
 
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        """Estimate token count for input.
+
+        This default implementation uses character-based heuristics for text
+        and standard estimates for images/media. Model providers can override
+        `count_text_tokens()` and `count_image_tokens()` for more accurate results,
+        or override this method entirely to use their native token counting APIs.
+
+        Args:
+            input: Input to count tokens for.
+        """
+        if isinstance(input, str):
+            return await self.count_text_tokens(input)
+        else:
+            return await count_tokens(
+                input, self.count_text_tokens, self.count_image_tokens
+            )
+
     async def count_text_tokens(self, text: str) -> int:
         """Estimate tokens from text using tiktoken (o200k_base with 10% buffer).
 
@@ -258,21 +276,6 @@ class ModelAPI(abc.ABC):
             image: Image to count.
         """
         return count_image_tokens(image)
-
-    async def count_tokens(self, messages: list[ChatMessage]) -> int:
-        """Estimate token count for a message.
-
-        This default implementation uses character-based heuristics for text
-        and standard estimates for images/media. Model providers can override
-        `count_text_tokens` and `count_image_tokens` for more accurate results,
-        or override this method entirely to use native token counting APIs.
-
-        Args:
-            messages: Messages to count tokens for.
-        """
-        return await count_tokens(
-            messages, self.count_text_tokens, self.count_image_tokens
-        )
 
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
@@ -620,11 +623,11 @@ class Model:
             else:
                 return messages[len(input) :], output
 
-    async def count_tokens(self, messages: list[ChatMessage]) -> int:
-        """Count the tokens in a list of messages.
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        """Estimate token count for input.
 
         Args:
-           messages: Messages to count tokens for.
+           input: Input to count tokens for.
         """
         model_name = ModelName(self)
         key = f"ModelCountTokens({self.api.connection_key()})"
@@ -642,11 +645,11 @@ class Model:
                     self.api.retry_wait(),
                 )
             )
-            async def _count_tokens(messages: list[ChatMessage]) -> int:
-                return await self.api.count_tokens(messages)
+            async def _count_tokens(input: str | list[ChatMessage]) -> int:
+                return await self.api.count_tokens(input)
 
             # count tokens
-            return await _count_tokens(messages)
+            return await _count_tokens(input)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
