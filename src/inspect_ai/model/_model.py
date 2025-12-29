@@ -243,6 +243,9 @@ class ModelAPI(abc.ABC):
         """Estimate tokens from text using tiktoken (o200k_base with 10% buffer).
 
         Override this method to use model-specific tokenizers.
+
+        Args:
+            text: Text to count.
         """
         return count_text_tokens(text)
 
@@ -250,6 +253,9 @@ class ModelAPI(abc.ABC):
         """Estimate tokens for an image based on detail level.
 
         Override this method for model-specific image token calculations.
+
+        Args:
+            image: Image to count.
         """
         return count_image_tokens(image)
 
@@ -260,6 +266,9 @@ class ModelAPI(abc.ABC):
         and standard estimates for images/media. Model providers can override
         `count_text_tokens` and `count_image_tokens` for more accurate results,
         or override this method entirely to use native token counting APIs.
+
+        Args:
+            messages: Messages to count tokens for.
         """
         return await count_tokens(
             messages, self.count_text_tokens, self.count_image_tokens
@@ -612,6 +621,11 @@ class Model:
                 return messages[len(input) :], output
 
     async def count_tokens(self, messages: list[ChatMessage]) -> int:
+        """Count the tokens in a list of messages.
+
+        Args:
+           messages: Messages to count tokens for.
+        """
         model_name = ModelName(self)
         key = f"ModelCountTokens({self.api.connection_key()})"
         async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):

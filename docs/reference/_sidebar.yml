@@ -356,6 +356,12 @@ website:
           href: reference/inspect_ai.model.qmd#execute_tools
         - text: ExecuteToolsResult
           href: reference/inspect_ai.model.qmd#executetoolsresult
+        - text: get_model_info
+          href: reference/inspect_ai.model.qmd#get_model_info
+        - text: set_model_info
+          href: reference/inspect_ai.model.qmd#set_model_info
+        - text: ModelInfo
+          href: reference/inspect_ai.model.qmd#modelinfo
         - text: Logprob
           href: reference/inspect_ai.model.qmd#logprob
         - text: Logprobs
