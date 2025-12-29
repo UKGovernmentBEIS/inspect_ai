@@ -34,6 +34,7 @@ def verbose_tool():
 
 def get_model_events(log: EvalLog) -> list:
     """Get all ModelEvents from sample."""
+    assert log.samples
     return [e for e in log.samples[0].events if e.event == "model"]
 
 
