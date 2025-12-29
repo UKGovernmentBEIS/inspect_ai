@@ -20,11 +20,11 @@ Compaction enables you to automatically manage conversation context as it grows,
 | `CompactionSummary` | Compact by having a model create a summary of the message history. |
 | `CompactionTrim` | Compact by trimming the message history to preserve a percentage of the input. |
 
-: {tbl-colwidths=\[30,70\]\]}
+: {tbl-colwidths=\[30,70\]}
 
-Compation works by monitoring model input and executing when input tokens get close to the model's context window size. You can configure this threshold, specifying either a percentage (e.g. 90%, which is the default) or a specific token count.
+Compaction works by monitoring model input and executing when input tokens get close to the model's context window size. You can configure this threshold, specifying either a percentage (e.g. 90%, which is the default) or a specific token count.
 
-One important thing to note about compaction is that it affects only the input which the model sees---the core history with all messages is still retained by agents when using compaction.
+One important thing to note about compaction is that it affects only the input that the model sees---the core history with all messages is still retained by agents when using compaction.
 
 ## Basic Usage
 
@@ -35,13 +35,13 @@ from inspect_ai.agent import react
 from inspect_ai.model import CompactionEdit, CompactionSummary
 from inspect_ai.tool import bash, text_editor
 
-# edit compation
+# edit compaction
 react(
     tools=[bash(), text_editor()],
     compaction=CompactionEdit(keep_tool_uses=3)
 )
 
-# summary compation
+# summary compaction
 react(
     tools=[bash(), text_editor()],
     compaction=CompactionSummary(threshold=0.8)
@@ -90,7 +90,7 @@ Here are all options available for `CompactionEdit`:
 
 Summary compaction uses a model to generate a concise summary of the conversation history, then replaces the conversation with this summary. This approach preserves the semantic content of the conversation while significantly reducing token count. System messages and input messages are preserved, while the conversation history is replaced with a summary message.
 
-For example, here we add edit compaction to a `react()` agent: 
+For example, here we add summary compaction to a `react()` agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -125,7 +125,7 @@ The default summarization prompt asks the model to capture the task overview, cu
 
 Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. 
 
-For example, here we add edit compaction to a `react()` agent (all parameters to `CompactionTrim` reflect the built-in defaults):
+For example, here we add trim compaction to a `react()` agent (all parameters to `CompactionTrim` reflect the built-in defaults):
 
 
 ``` python
