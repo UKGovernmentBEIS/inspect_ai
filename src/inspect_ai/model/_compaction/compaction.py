@@ -41,9 +41,9 @@ def compaction(
 
     while True:
         # perform compaction
-        input, message = await compact(state.messages)
+        input, c_message = await compact(state.messages)
         if message:
-            state.messages.append(message)
+            state.messages.append(c_message)
 
         # call model and append to messages
         state.output = await model.generate(

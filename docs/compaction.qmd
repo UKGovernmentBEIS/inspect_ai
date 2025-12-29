@@ -2,3 +2,75 @@
 title: Compaction
 ---
 
+::: {.callout-note appearance="minimal"}
+Support for compaction is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+## Overview
+
+Compaction enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Several compaction strategies are available:
+
+| Strategy | Description |
+|------------------------------------|------------------------------------|
+| `CompactionEdit` | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
+| `CompactionSummary` | Compact by having a model create a summary of the message history. |
+| `CompactionTrim` | Compact by trimming the message history to preserve a percentage of the input. |
+
+: {tbl-colwidths=\[30,70\]\]}
+
+Compation works by monitoring model input and executing when input tokens get close to the model's context window size. You can configure this threshold, specifying either a percentage (e.g. 90%, which is the default) or a specific token count.
+
+## Basic Usage
+
+Compaction is built-in to the [ReAct Agent](react-agent.qmd) and the [Agent Bridge](agent-bridge.qmd) and can also be added to custom agents. Here are some examples of using compaction with the `react()` agent:
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionEdit, CompactionSummary
+from inspect_ai.tool import bash, text_editor
+
+# edit compation
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionEdit(keep_tool_uses=3)
+)
+
+# summary compation
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionSummary(threshold=0.8)
+)
+```
+
+If you are creating a custom agent, you will need to incorporate compaction into your agent loop. See the [custom agent compaction](agent-custom.qmd#compaction) documentation for details.
+
+Note that compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction.
+
+## Edit Compaction
+
+TODO: Provide a general description of edit compaction as well as an example of its usage and a table enumerating its options (the arguments to its __init__ method)
+
+## Summary Compation
+
+TODO: Provide a general description of summary compaction as well as an example of its usage and a table enumerating its options (the arguments to its __init__ method)
+
+## Trim Compaction
+
+TODO: Provide a general description of trim compaction as well as an example of its usage and a table enumerating its options (the arguments to its __init__ method)
+
+## Memory Tool {#memory-tool}
+
+TODO: Describe how the memory tool can be optionally utilized with compaction, along with an example of passing the `memory()` tool to the react agent based on the example above. Note that memory integration happens by default and describe how to disable it.
+
+## Token Counting
+
+Compaction needs to both estimate the tokens currently used by the input as well as know the size of the target model's context window. Both of these dimensions are handled automatically as follows:
+
+1. Token counting is handled using the `model.count_tokens()` method. This in turn delegates to provider-specific token counting for the OpenAI, Anthropic, Google, and Grok providers. For other providers, [tiktoken](https://github.com/openai/tiktoken) is used with the "o200k_base" encoder, which will work reasonably well for models with 100k-150k vocabularies.
+
+2. Context window sizes are computed using Inspect's built-in [model database](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_model_data), which includes context window sizes for popular commercial and open-source models. If the context window for a model cannot be determined then a warning is printed and a default context-window of 128,000 is utilized.
+
