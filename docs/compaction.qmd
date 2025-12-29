@@ -30,7 +30,7 @@ Which strategy should you use? Here are some general guidelines:
 
 - `CompactionTrim` is the simplest option, useful when you just need to reduce history depth without concern for preserving specific content.
 
-Note that compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction.
+Compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction. 
 
 #### Compaction Threshold
 
