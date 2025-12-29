@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
-import requests
+import requests  # type: ignore
 import yaml
 
 TOGETHER_API_URL = "https://api.together.xyz/v1/models"
