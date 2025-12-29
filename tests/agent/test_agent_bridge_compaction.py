@@ -88,7 +88,9 @@ def test_bridge_compaction_edit_reduces_input() -> None:
     message_counts = count_messages_in_model_events(log)
 
     # Should have made 4 model calls
-    assert len(message_counts) >= 4, f"Expected at least 4 model calls, got {len(message_counts)}"
+    assert len(message_counts) >= 4, (
+        f"Expected at least 4 model calls, got {len(message_counts)}"
+    )
 
     # With compaction, message count should not grow unboundedly
     max_count = max(message_counts)

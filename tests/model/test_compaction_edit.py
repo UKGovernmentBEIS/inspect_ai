@@ -633,3 +633,202 @@ async def test_thinking_cleared_when_provider_supports_it() -> None:
         assert isinstance(msg, ChatMessageAssistant)
         assert isinstance(msg.content, list)
         assert not any(isinstance(c, ContentReasoning) for c in msg.content)
+
+
+# ==============================================================================
+# Complex Content Combination Tests
+# ==============================================================================
+
+
+@pytest.fixture
+def memory_tool_call() -> ToolCall:
+    """A memory tool call for testing mixed content."""
+    return ToolCall(
+        id="mem1",
+        function="memory",
+        arguments={
+            "command": "create",
+            "path": "/memories/notes.txt",
+            "file_text": "Large content that should be cleared...",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_mixed_thinking_tools_memory(
+    tool_call_1: ToolCall,
+    memory_tool_call: ToolCall,
+) -> None:
+    """Test compaction with thinking blocks + tool calls + memory calls."""
+    # Configure to clear thinking, tool results, and memory content
+    strategy = CompactionEdit(
+        keep_thinking_turns=1,  # Keep only last turn's thinking
+        keep_tool_uses=1,  # Keep only last tool use
+        memory=True,  # Enable memory content clearing
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(content="System prompt"),
+        ChatMessageUser(content="Question 1"),
+        # First turn: thinking + regular tool call
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking about first question"),
+                ContentText(text="Let me check something"),
+            ],
+            tool_calls=[tool_call_1],
+        ),
+        ChatMessageTool(
+            content="Weather is sunny in London",
+            tool_call_id="tool1",
+            function="get_weather",
+        ),
+        ChatMessageUser(content="Question 2"),
+        # Second turn: thinking + memory tool call
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking about second question"),
+                ContentText(text="Saving to memory"),
+            ],
+            tool_calls=[memory_tool_call],
+        ),
+        ChatMessageTool(
+            content="File created",
+            tool_call_id="mem1",
+            function="memory",
+        ),
+        ChatMessageUser(content="Question 3"),
+        # Third turn: just thinking (most recent, should be preserved)
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Final thinking"),
+                ContentText(text="Final answer"),
+            ]
+        ),
+    ]
+
+    compacted, summary = await strategy.compact(messages, get_model("mockllm/model"))
+
+    assert summary is None  # Edit strategy returns None
+
+    # First turn thinking should be cleared (not in last 1 turns)
+    first_assistant = compacted[2]
+    assert isinstance(first_assistant, ChatMessageAssistant)
+    assert isinstance(first_assistant.content, list)
+    assert not any(isinstance(c, ContentReasoning) for c in first_assistant.content)
+
+    # First tool result should be cleared (keep_tool_uses=1, this is turn 0)
+    first_tool = compacted[3]
+    assert isinstance(first_tool, ChatMessageTool)
+    assert first_tool.content == "(Tool result removed)"
+
+    # Second turn thinking should be cleared
+    second_assistant = compacted[5]
+    assert isinstance(second_assistant, ChatMessageAssistant)
+    assert isinstance(second_assistant.content, list)
+    assert not any(isinstance(c, ContentReasoning) for c in second_assistant.content)
+
+    # Memory content should be cleared
+    assert second_assistant.tool_calls is not None
+    mem_call = second_assistant.tool_calls[0]
+    assert mem_call.arguments["file_text"] == "(content saved to memory)"
+
+    # Last turn thinking should be preserved
+    last_assistant = compacted[8]
+    assert isinstance(last_assistant, ChatMessageAssistant)
+    assert isinstance(last_assistant.content, list)
+    assert any(isinstance(c, ContentReasoning) for c in last_assistant.content)
+
+
+@pytest.mark.asyncio
+async def test_sequential_compaction_cycles(
+    tool_call_1: ToolCall,
+    tool_call_2: ToolCall,
+) -> None:
+    """Test that multiple compaction calls preserve state correctly."""
+    strategy = CompactionEdit(keep_thinking_turns=1, keep_tool_uses=1)
+
+    # First set of messages - just regular content
+    messages_round1: list[ChatMessage] = [
+        ChatMessageSystem(content="System"),
+        ChatMessageUser(content="Q1"),
+        ChatMessageAssistant(content="A1"),
+    ]
+
+    compacted1, _ = await strategy.compact(messages_round1, get_model("mockllm/model"))
+    assert len(compacted1) == 3
+
+    # Second set - add thinking blocks
+    messages_round2: list[ChatMessage] = [
+        ChatMessageSystem(content="System"),
+        ChatMessageUser(content="Q1"),
+        ChatMessageAssistant(content="A1"),
+        ChatMessageUser(content="Q2"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking about Q2"),
+                ContentText(text="A2"),
+            ]
+        ),
+    ]
+
+    compacted2, _ = await strategy.compact(messages_round2, get_model("mockllm/model"))
+    # Last turn should keep thinking
+    last_msg = compacted2[4]
+    assert isinstance(last_msg, ChatMessageAssistant)
+    assert isinstance(last_msg.content, list)
+    assert any(isinstance(c, ContentReasoning) for c in last_msg.content)
+
+    # Third set - add tool calls
+    messages_round3: list[ChatMessage] = [
+        ChatMessageSystem(content="System"),
+        ChatMessageUser(content="Q1"),
+        ChatMessageAssistant(content="A1"),
+        ChatMessageUser(content="Q2"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Thinking about Q2"),
+                ContentText(text="A2"),
+            ]
+        ),
+        ChatMessageUser(content="Q3"),
+        ChatMessageAssistant(content="Using tool", tool_calls=[tool_call_1]),
+        ChatMessageTool(
+            content="Tool result", tool_call_id="tool1", function="get_weather"
+        ),
+        ChatMessageUser(content="Q4"),
+        ChatMessageAssistant(
+            content=[
+                ContentReasoning(reasoning="Final thinking"),
+                ContentText(text="Final answer"),
+            ],
+            tool_calls=[tool_call_2],
+        ),
+        ChatMessageTool(
+            content="Tool result 2", tool_call_id="tool2", function="get_time"
+        ),
+    ]
+
+    compacted3, _ = await strategy.compact(messages_round3, get_model("mockllm/model"))
+
+    # Earlier thinking should be cleared
+    msg_2 = compacted3[4]
+    assert isinstance(msg_2, ChatMessageAssistant)
+    assert isinstance(msg_2.content, list)
+    assert not any(isinstance(c, ContentReasoning) for c in msg_2.content)
+
+    # Earlier tool result should be cleared
+    tool_1 = compacted3[7]
+    assert isinstance(tool_1, ChatMessageTool)
+    assert tool_1.content == "(Tool result removed)"
+
+    # Last thinking should be preserved
+    last_assistant = compacted3[9]
+    assert isinstance(last_assistant, ChatMessageAssistant)
+    assert isinstance(last_assistant.content, list)
+    assert any(isinstance(c, ContentReasoning) for c in last_assistant.content)
+
+    # Last tool result should be preserved
+    last_tool = compacted3[10]
+    assert isinstance(last_tool, ChatMessageTool)
+    assert last_tool.content == "Tool result 2"
