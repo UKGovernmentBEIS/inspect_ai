@@ -13,6 +13,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model import Model
 from inspect_ai.tool import ToolCall
 
+from .memory import clear_memory_content
 from .types import CompactionStrategy
 
 
@@ -27,6 +28,7 @@ class CompactionEdit(CompactionStrategy):
     def __init__(
         self,
         threshold: int | float = 0.9,
+        memory: bool = True,
         keep_thinking_turns: Literal["all"] | int = 1,
         keep_tool_uses: int = 3,
         keep_tool_inputs: bool = True,
@@ -37,6 +39,8 @@ class CompactionEdit(CompactionStrategy):
         Args:
             threshold: Token count or percent of context window to trigger
                 compaction.
+            memory: Warn the model to save critical content to memory prior
+                to compaction when the memory tool is available.
             keep_thinking_turns: Defines how many recent assistant turns to
                 preserve thinking blocks within. Specify N to keep the thinking
                 blocks within the last N turns, or "all" to keep all thinking
@@ -56,7 +60,7 @@ class CompactionEdit(CompactionStrategy):
                 should never be cleared. Useful for preserving important
                 context.
         """
-        super().__init__(threshold)
+        super().__init__(threshold, memory)
         self.keep_thinking_turns = keep_thinking_turns
         self.keep_tool_uses = keep_tool_uses
         self.keep_tool_inputs = keep_tool_inputs
@@ -130,6 +134,10 @@ class CompactionEdit(CompactionStrategy):
                     cast(ChatMessageAssistant, result[assistant_idx]),
                     tool_call,
                 )
+
+        # Phase 4: Clear content from memory tool calls (if memory integration active)
+        if self.memory:
+            result = clear_memory_content(result)
 
         return result, None
 

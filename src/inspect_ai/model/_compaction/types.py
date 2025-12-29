@@ -6,14 +6,16 @@ from inspect_ai.model._model import Model
 
 
 class CompactionStrategy(abc.ABC):
-    def __init__(self, threshold: int | float = 0.9):
+    def __init__(self, threshold: int | float = 0.9, memory: bool = True):
         """Compaction strategy.
 
         Args:
             threshold: Token count or percent of context window to trigger compaction.
-            model: Model used by compaction strategy (optional, defaults to compaction model).
+            memory: Warn the model to save critical content to memory prior
+                to compaction when the memory tool is available.
         """
         self.threshold = threshold
+        self.memory = memory
 
     @abc.abstractmethod
     async def compact(

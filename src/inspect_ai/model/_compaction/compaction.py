@@ -11,6 +11,7 @@ from .._call_tools import get_tools_info, resolve_tools
 from .._chat_message import ChatMessage, ChatMessageUser
 from .._model import Model, get_model
 from .._model_info import get_model_info
+from .memory import MEMORY_TOOL, memory_warning_message
 from .types import Compact, CompactionStrategy
 
 logger = getLogger(__name__)
@@ -79,6 +80,9 @@ def compaction(
     # state: compacted input to send to the model
     compacted_input: list[ChatMessage] = []
 
+    # state: whether we've issued a memory warning for the current window
+    memory_warning_issued: bool = False
+
     # state: IDs of messages we've already processed (added to input)
     processed_message_ids: set[str] = set()
 
@@ -91,10 +95,12 @@ def compaction(
     # resolve target model
     target_model = get_model(model)
 
-    # resolve threshold
+    # resolve thresholds
     threshold = _resolve_threshold(target_model, strategy.threshold)
+    memory_warning_threshold = int(0.9 * threshold)
 
-    # count tool tokens once (tools don't change during conversation)
+    # resolve tool info and count tool tokens once (tools don't change during conversation)
+    tools_info: list[ToolInfo] = []
     tool_tokens: int | None = None
 
     # helper to get message ID (assert away id == None)
@@ -121,9 +127,11 @@ def compaction(
     async def compact_fn(
         messages: list[ChatMessage],
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        # state variables we modify
+        nonlocal tool_tokens, tools_info, memory_warning_issued
+
         # one time resolution of tool_tokens
         # (must be done here b/c calls are async)
-        nonlocal tool_tokens
         if tool_tokens is None:
             tools_info = get_tools_info(await resolve_tools(tools or []))
             tool_tokens = await target_model.count_tool_tokens(tools_info)
@@ -186,6 +194,9 @@ def compaction(
                     f"tool definitions."
                 )
 
+            # clear memory warning state
+            memory_warning_issued = False
+
             # return input and any extra message to append
             return list(c_input), c_message
 
@@ -196,6 +207,18 @@ def compaction(
 
             # extend input with unprocessed messages
             compacted_input.extend(unprocessed)
+
+            # check if we need to do a memory warning
+            if (
+                strategy.memory is True
+                and MEMORY_TOOL in [t.name for t in tools_info]
+                and total_tokens > memory_warning_threshold
+                and not memory_warning_issued
+            ):
+                memory_message = memory_warning_message()
+                compacted_input.append(memory_message)
+                processed_message_ids.add(message_id(memory_message))
+                memory_warning_issued = True
 
             # return
             return list(compacted_input), None

@@ -4,6 +4,7 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
 from inspect_ai.model._trim import trim_messages
 
+from .memory import clear_memory_content
 from .types import CompactionStrategy
 
 
@@ -18,14 +19,22 @@ class CompactionTrim(CompactionStrategy):
     - Ensure that the sequence of messages doesn't end with an assistant message.
     """
 
-    def __init__(self, *, threshold: int | float = 0.9, preserve: float = 0.8):
+    def __init__(
+        self,
+        *,
+        threshold: int | float = 0.9,
+        memory: bool = True,
+        preserve: float = 0.8,
+    ):
         """Message trimming compaction.
 
         Args:
             threshold: Token count or percent of context window to trigger compaction.
+            memory: Warn the model to save critical content to memory prior
+                to compaction when the memory tool is available.
             preserve: Ratio of conversation messages to preserve (defaults to 0.8).
         """
-        super().__init__(threshold=threshold)
+        super().__init__(threshold=threshold, memory=memory)
         self.preserve = preserve
 
     @override
@@ -40,4 +49,10 @@ class CompactionTrim(CompactionStrategy):
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """
-        return await trim_messages(messages, preserve=self.preserve), None
+        trimmed = await trim_messages(messages, preserve=self.preserve)
+
+        # Clear memory content from preserved messages
+        if self.memory:
+            trimmed = clear_memory_content(trimmed)
+
+        return trimmed, None

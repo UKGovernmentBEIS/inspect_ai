@@ -7,6 +7,7 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._trim import partition_messages
 
+from .memory import has_memory_calls
 from .types import CompactionStrategy
 
 
@@ -20,6 +21,7 @@ class CompactionSummary(CompactionStrategy):
         self,
         *,
         threshold: int | float = 0.9,
+        memory: bool = True,
         model: str | Model | None = None,
         prompt: str | None = None,
     ):
@@ -27,10 +29,12 @@ class CompactionSummary(CompactionStrategy):
 
         Args:
             threshold: Token count or percent of context window to trigger compaction.
+            memory: Warn the model to save critical content to memory prior
+                to compaction when the memory tool is available.
             model: Model to use for summarization (defaults to compaction target model).
             prompt: Prompt to use for summarization.
         """
-        super().__init__(threshold=threshold)
+        super().__init__(threshold=threshold, memory=memory)
         self.model = get_model(model) if model is not None else model
         self.prompt = prompt or self.DEFAULT_SUMMARY_PROMPT
 
@@ -59,11 +63,15 @@ class CompactionSummary(CompactionStrategy):
         )
 
         # build summarization input: system + input + conversation + prompt
+        prompt = self.prompt
+        if self.memory and has_memory_calls(partitioned.conversation):
+            prompt = prompt + self.MEMORY_SUMMARY_ADDENDUM
+
         summarization_input: list[ChatMessage] = (
             partitioned.system
             + partitioned.input
             + partitioned.conversation[conversation_start_index:]
-            + [ChatMessageUser(content=self.prompt)]
+            + [ChatMessageUser(content=prompt)]
         )
 
         # use model explicitly passed to us or fall back to compation model
@@ -118,4 +126,11 @@ class CompactionSummary(CompactionStrategy):
     Any promises made to the user
 
     Be concise but complete—err on the side of including information that would prevent duplicate work or repeated mistakes. Write in a way that enables immediate resumption of the task.
+    """)
+
+    MEMORY_SUMMARY_ADDENDUM = dedent("""
+    6. Memory Files
+    List any files you saved to memory during this conversation.
+    For each file, include the path and a brief description of what
+    information it contains and when to reference it.
     """)
