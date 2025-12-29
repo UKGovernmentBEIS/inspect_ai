@@ -171,7 +171,8 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
         name = model.canonical_name()
     else:
         try:
-            resolved = get_model(model)
+            # Pass dummy api_key since we only need the canonical name, not a working client
+            resolved = get_model(model, api_key="__model_info_lookup__")
             name = resolved.canonical_name()
         except ValueError:
             # Unknown provider - return None

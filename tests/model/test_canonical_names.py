@@ -61,6 +61,7 @@ class TestOpenRouterCanonicalName:
         api = OpenRouterAPI(
             model_name="together/meta-llama/Llama-3.1-8B",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "meta-llama/Llama-3.1-8B"
 
@@ -71,6 +72,7 @@ class TestOpenRouterCanonicalName:
         api = OpenRouterAPI(
             model_name="anthropic/claude-3.5-sonnet",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "anthropic/claude-3.5-sonnet"
 
@@ -81,6 +83,7 @@ class TestOpenRouterCanonicalName:
         api = OpenRouterAPI(
             model_name="anthropic/claude-3.5-sonnet:free",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "anthropic/claude-3.5-sonnet"
 
@@ -91,6 +94,7 @@ class TestOpenRouterCanonicalName:
         api = OpenRouterAPI(
             model_name="anthropic/claude-3.5-sonnet:extended",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "anthropic/claude-3.5-sonnet"
 
@@ -101,6 +105,7 @@ class TestOpenRouterCanonicalName:
         api = OpenRouterAPI(
             model_name="openai/gpt-4o:nitro",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "openai/gpt-4o"
 
@@ -111,6 +116,7 @@ class TestOpenRouterCanonicalName:
         api = OpenRouterAPI(
             model_name="together/meta-llama/Llama-3.1-8B:free",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "meta-llama/Llama-3.1-8B"
 
@@ -122,14 +128,14 @@ class TestOpenAICanonicalName:
         """Test OpenAI model canonical name includes provider prefix."""
         from inspect_ai.model._providers.openai import OpenAIAPI
 
-        api = OpenAIAPI(model_name="gpt-4o")
+        api = OpenAIAPI(model_name="gpt-4o", api_key="test-key")
         assert api.canonical_name() == "openai/gpt-4o"
 
     def test_o_series_model(self):
         """Test O-series model canonical name."""
         from inspect_ai.model._providers.openai import OpenAIAPI
 
-        api = OpenAIAPI(model_name="o1-preview")
+        api = OpenAIAPI(model_name="o1-preview", api_key="test-key")
         assert api.canonical_name() == "openai/o1-preview"
 
 
@@ -140,7 +146,7 @@ class TestAnthropicCanonicalName:
         """Test Anthropic model canonical name includes provider prefix."""
         from inspect_ai.model._providers.anthropic import AnthropicAPI
 
-        api = AnthropicAPI(model_name="claude-sonnet-4")
+        api = AnthropicAPI(model_name="claude-sonnet-4", api_key="test-key")
         assert api.canonical_name() == "anthropic/claude-sonnet-4"
 
 
@@ -151,7 +157,7 @@ class TestTogetherCanonicalName:
         """Test Together returns HuggingFace-style names."""
         from inspect_ai.model._providers.together import TogetherAIAPI
 
-        api = TogetherAIAPI(model_name="meta-llama/Llama-3.1-8B-Instruct")
+        api = TogetherAIAPI(model_name="meta-llama/Llama-3.1-8B-Instruct", api_key="test-key")
         assert api.canonical_name() == "meta-llama/Llama-3.1-8B-Instruct"
 
 
@@ -196,6 +202,7 @@ class TestOpenRouterFirstPartyDetection:
         api = OpenRouterAPI(
             model_name="grok/grok-3",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "grok/grok-3"
 
@@ -206,6 +213,7 @@ class TestOpenRouterFirstPartyDetection:
         api = OpenRouterAPI(
             model_name="grok/grok-3:free",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "grok/grok-3"
 
@@ -216,6 +224,7 @@ class TestOpenRouterFirstPartyDetection:
         api = OpenRouterAPI(
             model_name="deepseek/deepseek-chat",
             base_url=None,
+            api_key="test-key",
         )
         assert api.canonical_name() == "deepseek/deepseek-chat"
 
@@ -297,14 +306,14 @@ class TestMistralCanonicalName:
         """Test Mistral model canonical name includes mistral/ prefix."""
         from inspect_ai.model._providers.mistral import MistralAPI
 
-        api = MistralAPI(model_name="mistral-large-latest")
+        api = MistralAPI(model_name="mistral-large-latest", api_key="test-key")
         assert api.canonical_name() == "mistral/mistral-large-latest"
 
     def test_mistral_small(self):
         """Test Mistral small model."""
         from inspect_ai.model._providers.mistral import MistralAPI
 
-        api = MistralAPI(model_name="mistral-small-latest")
+        api = MistralAPI(model_name="mistral-small-latest", api_key="test-key")
         assert api.canonical_name() == "mistral/mistral-small-latest"
 
 
@@ -498,7 +507,7 @@ class TestCanonicalNameLookup:
         from inspect_ai.model._model_info import get_model_info
         from inspect_ai.model._providers.openai import OpenAIAPI
 
-        api = OpenAIAPI(model_name="gpt-4o")
+        api = OpenAIAPI(model_name="gpt-4o", api_key="test-key")
         canonical = api.canonical_name()
         info = get_model_info(canonical)
         assert info is not None
@@ -510,7 +519,7 @@ class TestCanonicalNameLookup:
         from inspect_ai.model._model_info import get_model_info
         from inspect_ai.model._providers.anthropic import AnthropicAPI
 
-        api = AnthropicAPI(model_name="claude-sonnet-4-20250514")
+        api = AnthropicAPI(model_name="claude-sonnet-4-20250514", api_key="test-key")
         canonical = api.canonical_name()
         info = get_model_info(canonical)
         assert info is not None
@@ -536,7 +545,7 @@ class TestCanonicalNameLookup:
         from inspect_ai.model._model_info import get_model_info
         from inspect_ai.model._providers.together import TogetherAIAPI
 
-        api = TogetherAIAPI(model_name="meta-llama/Llama-3.1-8B-Instruct")
+        api = TogetherAIAPI(model_name="meta-llama/Llama-3.1-8B-Instruct", api_key="test-key")
         canonical = api.canonical_name()
         info = get_model_info(canonical)
         # Should find via fuzzy matching or exact match
