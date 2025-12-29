@@ -252,4 +252,4 @@ inspect eval math.py \
 
 -   [Batch Mode](models-batch.qmd) covers using batch processing APIs for model inference.
 
--   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schem
+-   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
