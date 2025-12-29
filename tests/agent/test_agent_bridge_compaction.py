@@ -1,6 +1,7 @@
 """Tests for agent_bridge() compaction integration."""
 
 from openai import AsyncOpenAI
+from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
@@ -75,6 +76,7 @@ def run_bridge_with_compaction(
     return eval(task, model=model)[0]
 
 
+@skip_if_no_openai
 def test_bridge_compaction_edit_reduces_input() -> None:
     """Verify CompactionEdit reduces input when threshold exceeded."""
     log = run_bridge_with_compaction(
@@ -100,6 +102,7 @@ def test_bridge_compaction_edit_reduces_input() -> None:
     assert max_count < 10, f"Expected compaction to limit messages, got {max_count}"
 
 
+@skip_if_no_openai
 def test_bridge_compaction_trim_reduces_input() -> None:
     """Verify CompactionTrim trims older messages when threshold exceeded."""
     log = run_bridge_with_compaction(
@@ -117,6 +120,7 @@ def test_bridge_compaction_trim_reduces_input() -> None:
     assert max_count < 10, f"Expected compaction to limit messages, got {max_count}"
 
 
+@skip_if_no_openai
 def test_bridge_no_compaction_full_history() -> None:
     """Baseline: verify without compaction, full history grows."""
     log = run_bridge_with_compaction(
@@ -136,6 +140,7 @@ def test_bridge_no_compaction_full_history() -> None:
         )
 
 
+@skip_if_no_openai
 def test_bridge_compaction_preserves_prefix() -> None:
     """Verify initial user input is never removed by compaction."""
     log = run_bridge_with_compaction(
