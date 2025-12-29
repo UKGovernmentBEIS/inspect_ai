@@ -157,7 +157,9 @@ class TestTogetherCanonicalName:
         """Test Together returns HuggingFace-style names."""
         from inspect_ai.model._providers.together import TogetherAIAPI
 
-        api = TogetherAIAPI(model_name="meta-llama/Llama-3.1-8B-Instruct", api_key="test-key")
+        api = TogetherAIAPI(
+            model_name="meta-llama/Llama-3.1-8B-Instruct", api_key="test-key"
+        )
         assert api.canonical_name() == "meta-llama/Llama-3.1-8B-Instruct"
 
 
@@ -545,7 +547,9 @@ class TestCanonicalNameLookup:
         from inspect_ai.model._model_info import get_model_info
         from inspect_ai.model._providers.together import TogetherAIAPI
 
-        api = TogetherAIAPI(model_name="meta-llama/Llama-3.1-8B-Instruct", api_key="test-key")
+        api = TogetherAIAPI(
+            model_name="meta-llama/Llama-3.1-8B-Instruct", api_key="test-key"
+        )
         canonical = api.canonical_name()
         info = get_model_info(canonical)
         # Should find via fuzzy matching or exact match
