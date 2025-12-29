@@ -24,6 +24,8 @@ Compaction enables you to automatically manage conversation context as it grows,
 
 Compation works by monitoring model input and executing when input tokens get close to the model's context window size. You can configure this threshold, specifying either a percentage (e.g. 90%, which is the default) or a specific token count.
 
+One important thing to note about compaction is that it affects only the input which the model sees---the core history with all messages is still retained by agents when using compaction.
+
 ## Basic Usage
 
 Compaction is built-in to the [ReAct Agent](react-agent.qmd) and the [Agent Bridge](agent-bridge.qmd) and can also be added to custom agents. Here are some examples of using compaction with the `react()` agent:
@@ -52,19 +54,132 @@ Note that compaction can also make use of the [memory()](#memory-tool) tool to o
 
 ## Edit Compaction
 
-TODO: Provide a general description of edit compaction as well as an example of its usage and a table enumerating its options (the arguments to its __init__ method)
+Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions.
 
-## Summary Compation
+For example, here we add edit compaction to a `react()` agent (all parameters to `CompactionEdit` reflect the built-in defaults):
 
-TODO: Provide a general description of summary compaction as well as an example of its usage and a table enumerating its options (the arguments to its __init__ method)
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionEdit
+from inspect_ai.tool import bash, text_editor
+
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionEdit(
+        threshold=0.9,
+        keep_tool_uses=3,
+        keep_thinking_turns=1,
+    )
+)
+```
+
+Here are all options available for `CompactionEdit`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
+| `memory` | True | Warn the model to save content to memory before compaction (when the memory tool is available). |
+| `keep_thinking_turns` | 1 | Number of recent assistant turns to preserve thinking blocks in. Use `"all"` to keep all thinking blocks. |
+| `keep_tool_uses` | 3 | Number of recent tool use/result pairs to preserve. Oldest interactions are removed first. |
+| `keep_tool_inputs` | True | If `True`, only clears tool results while keeping the original tool calls visible. If `False`, removes both tool calls and results. |
+| `exclude_tools` | None | List of tool names whose uses/results should never be cleared. |
+
+: {tbl-colwidths=\[22,12,66\]}
+
+## Summary Compaction
+
+Summary compaction uses a model to generate a concise summary of the conversation history, then replaces the conversation with this summary. This approach preserves the semantic content of the conversation while significantly reducing token count. System messages and input messages are preserved, while the conversation history is replaced with a summary message.
+
+For example, here we add edit compaction to a `react()` agent: 
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionSummary
+from inspect_ai.tool import bash, text_editor
+
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionSummary(
+        threshold=0.9,
+        model="openai/gpt-5-mini"
+    )
+)
+```
+
+Note that we explicitly specify a `model`---this isn't required and will default to the target model for compaction if not specified.
+
+Here are all options available for `CompactionSummary`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
+| `memory` | True | Warn the model to save content to memory before compaction (when the memory tool is available). |
+| `model` | None | Model to use for generating the summary. Defaults to the compaction target model if not specified. |
+| `prompt` | None | Custom prompt for summarization. Uses a built-in default prompt if not provided. |
+
+: {tbl-colwidths=\[15,12,73\]}
+
+The default summarization prompt asks the model to capture the task overview, current state, important discoveries, next steps, and context to preserve. You can provide a custom `prompt` to tailor the summary to your specific use case.
 
 ## Trim Compaction
 
-TODO: Provide a general description of trim compaction as well as an example of its usage and a table enumerating its options (the arguments to its __init__ method)
+Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. 
+
+For example, here we add edit compaction to a `react()` agent (all parameters to `CompactionTrim` reflect the built-in defaults):
+
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionTrim
+from inspect_ai.tool import bash, text_editor
+
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionTrim(
+        threshold=0.9,
+        preserve=0.8
+    )
+)
+```
+
+Here are all options available for `CompactionTrim`:
+
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
+| `memory` | True | Warn the model to save content to memory before compaction (when the memory tool is available). |
+| `preserve` | 0.8 | Ratio of conversation messages to keep (0.0 to 1.0). For example, 0.8 preserves 80% of messages. |
+
+: {tbl-colwidths=\[15,12,73\]}
 
 ## Memory Tool {#memory-tool}
 
-TODO: Describe how the memory tool can be optionally utilized with compaction, along with an example of passing the `memory()` tool to the react agent based on the example above. Note that memory integration happens by default and describe how to disable it.
+The `memory()` tool provides a persistent file-based storage system that agents can use to save important information before compaction occurs. When memory integration is enabled (the default), compaction strategies will warn the model to save critical context to memory before compaction is triggered.
+
+To use memory with compaction, add the `memory()` tool to your agent:
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionEdit
+from inspect_ai.tool import bash, text_editor, memory
+
+react(
+    tools=[bash(), text_editor(), memory()],
+    compaction=CompactionEdit(keep_tool_uses=3)
+)
+```
+
+When the context approaches the compaction threshold, the model receives a warning message prompting it to save important information—such as key decisions, discoveries, file paths, and next steps to memory files in the `/memories` directory. After compaction, the content saved to memory is cleared from the message history (since it's now persisted in files), while metadata about what was saved is preserved.
+
+To disable memory integration, set `memory=False` on any compaction strategy:
+
+``` python
+from inspect_ai.model import CompactionEdit
+
+# disable memory warnings and cleanup
+CompactionEdit(memory=False, keep_tool_uses=3)
+```
 
 ## Token Counting
 
