@@ -9,7 +9,7 @@ from inspect_ai._util.json import json_changes
 from inspect_ai.event._state import StateEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model import ChatMessageUser, ModelName
-from inspect_ai.model._call_tools import tools_info
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState, state_jsonable
 from inspect_ai.solver._transcript import SolverTranscript
@@ -47,7 +47,7 @@ def _state_jsonable_baseline(state: TaskState) -> dict[str, Any]:
 
     state_data = dict(
         messages=as_jsonable(state.messages),
-        tools=tools_info(state.tools),
+        tools=get_tools_info(state.tools),
         tool_choice=state.tool_choice,
         store=deepcopy(dict_jsonable(state.store._data)),
         output=state.output,

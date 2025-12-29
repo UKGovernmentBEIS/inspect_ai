@@ -55,6 +55,12 @@ title: "inspect_ai.model"
 ### execute_tools
 ### ExecuteToolsResult
 
+## Model Info
+
+### get_model_info
+### set_model_info
+### ModelInfo
+
 ## Logprobs
 
 ### Logprob

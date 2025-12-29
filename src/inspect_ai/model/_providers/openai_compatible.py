@@ -263,6 +263,16 @@ class OpenAICompatibleAPI(ModelAPI):
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Returns a normalized model name suitable for looking up model info
+        (context window, etc.) in the model database. Subclasses may override
+        to normalize provider-specific model names to a common format
+        (e.g. HuggingFace-style names for open models).
+        """
+        return self.service_model_name()
+
     @override
     def should_retry(self, ex: BaseException) -> bool:
         return openai_should_retry(ex)

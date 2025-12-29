@@ -265,6 +265,15 @@ class GroqAPI(ModelAPI):
         return False
 
     @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Groq model names don't map directly to HuggingFace format.
+        Return the raw model name and rely on fuzzy matching in get_model_info().
+        """
+        return self.model_name
+
+    @override
     def max_tokens(self) -> Optional[int]:
         return DEFAULT_MAX_TOKENS
 

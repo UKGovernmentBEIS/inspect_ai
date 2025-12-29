@@ -128,7 +128,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
@@ -436,6 +436,22 @@ class AnthropicAPI(ModelAPI):
             else:
                 raise ex
 
+    @override
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        """Estimate token count for an input."""
+        # turn system into user for purposes of counting
+        if isinstance(input, str):
+            input = [ChatMessageUser(content=input)]
+        input = [
+            ChatMessageUser(content=m.content) if m.role == "system" else m
+            for m in input
+        ]
+        response = await self.client.messages.count_tokens(
+            model=self.service_model_name(),
+            messages=[await message_param(m) for m in input],
+        )
+        return response.input_tokens
+
     async def _perform_request_and_continuations(
         self,
         request: dict[str, Any],
@@ -638,7 +654,8 @@ class AnthropicAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     def canonical_name(self) -> str:
-        return self.service_model_name()
+        """Canonical model name for model info database lookup."""
+        return f"anthropic/{self.service_model_name()}"
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
@@ -2075,8 +2092,7 @@ async def count_tokens(
             "Anthropic",
             f"Unable to call count_tokens API for model {model} ({ex})",
         )
-        words = text.split()
-        estimated_tokens = int(len(words) * 1.3)
+        estimated_tokens = int(max(1, len(text) / 4))
         return estimated_tokens
 
 

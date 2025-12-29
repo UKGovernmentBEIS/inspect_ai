@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from inspect_ai._util.dateutil import UtcDate
 
@@ -13,8 +13,8 @@ class BaseModelDefinition(BaseModel):
     display_name: Optional[str] = None
     release_date: Optional[UtcDate] = None
     knowledge_cutoff_date: Optional[UtcDate] = None
-    context_length: Optional[float] = None
-    output_tokens: Optional[float] = None
+    context_length: Optional[int] = None
+    output_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
@@ -74,23 +74,29 @@ def create_model_info(
 class ModelInfo(BaseModel):
     """Model information and metadata"""
 
-    organization: str | None = None
+    organization: str | None = Field(default=None)
     """Model organization (e.g. Anthropic, OpenAI)."""
 
-    model: str | None = None
+    model: str | None = Field(default=None)
     """Model name (e.g. Gemini 2.5 Flash)."""
 
-    snapshot: str | None = None
+    snapshot: str | None = Field(default=None)
     """A snapshot (version) string, if available (e.g. “latest” or “20240229”).."""
 
-    release_date: UtcDate | None = None
+    release_date: UtcDate | None = Field(default=None)
     """The mode's release date."""
 
-    knowledge_cutoff_date: UtcDate | None = None
-    context_length: float | None = None
-    output_tokens: float | None = None
+    knowledge_cutoff_date: UtcDate | None = Field(default=None)
+    """The model's knowledge cutoff date."""
 
-    reasoning: bool | None = None
+    context_length: int | None = Field(default=None)
+    """The model's context length in tokens."""
+
+    output_tokens: int | None = Field(default=None)
+    """"The model's maximum output tokens."""
+
+    reasoning: bool | None = Field(default=None)
+    """Is this a reasoning model."""
 
 
 def read_model_info() -> dict[str, ModelInfo]:

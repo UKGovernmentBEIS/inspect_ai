@@ -1,5 +1,8 @@
 ## Unreleased
 
+- [Compaction](https://inspect.aisi.org.uk/compaction.html.md): Compacting message histories for long-running agents that exceed the context window.
+- Model API: `count_tokens()` method for estimating token usage for messages.
+- Model API: `ModelInfo` for retrieving information about models (e.g. organization, context window, reasoning, release date, etc.)
 - Eval Retry: Initialize model usage from usage recorded in retried eval log.
 - Anthropic: Use service model name when detecting tool compatibility.
 - Properly handle working time reporting for overlapping coroutines waiting on semaphores.
