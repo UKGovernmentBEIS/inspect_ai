@@ -55,6 +55,15 @@ title: "inspect_ai.model"
 ### execute_tools
 ### ExecuteToolsResult
 
+## Compaction
+
+### compaction
+### Compact
+### CompactionStrategy
+### CompactionEdit
+### CompactionSummary
+### CompactionTrim
+
 ## Model Info
 
 ### get_model_info

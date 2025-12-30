@@ -27,42 +27,7 @@ def compaction(
 
     Call the `Compact` handler with the full conversation history before sending input to the model. Send the returned `input` and append the supplemental message returned (if any) to the full history.
 
-    For example, in a simple agent loop:
-
-    ```python
-    model = get_model()
-
-    compact = compaction(
-        CompactionTrim(threshold=0.9),
-        prefix=state.messages,
-        tools=tools,
-        model=model
-    )
-
-    while True:
-        # perform compaction
-        input, c_message = await compact(state.messages)
-        if message:
-            state.messages.append(c_message)
-
-        # call model and append to messages
-        state.output = await model.generate(
-            input=input,
-            tools=tools,
-        )
-        state.messages.append(state.output.message)
-
-        # make tool calls or terminate if there are none
-        if state.output.message.tool_calls:
-            messages, state.output = await execute_tools(
-                state.messages, tools
-            )
-            state.messages.extend(messages)
-        else:
-            break
-    ```
-
-    Note: The returned handler maintains internal state and is designed for sequential use within a single conversation's agent loop. Do not call concurrently.
+    See the [Compaction](ttps://inspect.aisi.org.uk/compaction.html) for additional details on using compaction.
 
     Args:
         strategy: Compaction strategy (e.g. editing, trimming, summary, etc.)

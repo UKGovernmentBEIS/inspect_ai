@@ -1,4 +1,4 @@
-from .compaction import compaction
+from ._compaction import compaction
 from .edit import CompactionEdit
 from .summary import CompactionSummary
 from .trim import CompactionTrim

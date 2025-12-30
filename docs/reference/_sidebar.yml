@@ -356,6 +356,18 @@ website:
           href: reference/inspect_ai.model.qmd#execute_tools
         - text: ExecuteToolsResult
           href: reference/inspect_ai.model.qmd#executetoolsresult
+        - text: compaction
+          href: reference/inspect_ai.model.qmd#compaction
+        - text: Compact
+          href: reference/inspect_ai.model.qmd#compact
+        - text: CompactionStrategy
+          href: reference/inspect_ai.model.qmd#compactionstrategy
+        - text: CompactionEdit
+          href: reference/inspect_ai.model.qmd#compactionedit
+        - text: CompactionSummary
+          href: reference/inspect_ai.model.qmd#compactionsummary
+        - text: CompactionTrim
+          href: reference/inspect_ai.model.qmd#compactiontrim
         - text: get_model_info
           href: reference/inspect_ai.model.qmd#get_model_info
         - text: set_model_info
