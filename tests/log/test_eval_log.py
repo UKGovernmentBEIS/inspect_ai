@@ -1,3 +1,4 @@
+import io
 import math
 import os
 import tempfile
@@ -326,3 +327,52 @@ def test_message_deduplication(
                     messages_by_id[message.id] = message
                 else:
                     assert message is messages_by_id[message.id]
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_read_bytes_format(format):
+    file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
+
+    log = read_eval_log(file_path)
+
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    bytesio = io.BytesIO(file_bytes)
+    log2 = read_eval_log(bytesio, format=format)
+
+    assert not log2.location
+    assert log.eval.task == log2.eval.task
+    assert log2.samples
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_read_bytes_format_detection(format):
+    file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
+
+    log = read_eval_log(file_path)
+
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    bytesio = io.BytesIO(file_bytes)
+    log2 = read_eval_log(bytesio, format="auto")
+
+    assert log.eval.task == log2.eval.task
+    assert log2.samples
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_read_bytes_header(format):
+    file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
+
+    log = read_eval_log(file_path, header_only=True)
+
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    bytesio = io.BytesIO(file_bytes)
+    log2 = read_eval_log(bytesio, header_only=True, format=format)
+
+    assert log2.samples is None
+    assert log.eval.task == log2.eval.task
