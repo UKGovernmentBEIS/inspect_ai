@@ -6,6 +6,7 @@
 - Eval Retry: Initialize model usage from usage recorded in retried eval log.
 - Anthropic: Use service model name when detecting tool compatibility.
 - Google: Various mitigations for Gemini returning MALFORMED_FUNCTION_CALL.
+- Human CLI Agent: Ability to add custom instructions and .bashrc commands to agent shell.
 - Properly handle working time reporting for overlapping coroutines waiting on semaphores.
 - Inspect View: Properly display dict scores in sample list.
 - Inspect View: Improve display of Codex `shell_command` tool calls.
