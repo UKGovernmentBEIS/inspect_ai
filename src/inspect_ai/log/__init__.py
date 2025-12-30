@@ -4,6 +4,7 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 from ._bundle import bundle_log_dir
 from ._condense import condense_sample, resolve_sample_attachments
 from ._convert import convert_eval_logs
+from ._convert_errors import convert_errored_samples_to_incorrect
 from ._edit import (
     ProvenanceData,
     invalidate_samples,
@@ -70,6 +71,7 @@ __all__ = [
     "Transcript",
     "transcript",
     "convert_eval_logs",
+    "convert_errored_samples_to_incorrect",
     "list_eval_logs",
     "read_eval_log",
     "read_eval_log_async",
