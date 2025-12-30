@@ -7,6 +7,7 @@
 - Anthropic: Use service model name when detecting tool compatibility.
 - Properly handle working time reporting for overlapping coroutines waiting on semaphores.
 - Inspect View: Properly display dict scores in sample list.
+- Inspect View: Improve display of Codex `shell_command` tool calls.
 
 ## 0.3.158 (24 December 2025)
 
