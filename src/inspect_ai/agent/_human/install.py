@@ -19,6 +19,7 @@ RECORD_SESSION_DIR = "/var/tmp/user-sessions"
 async def install_human_agent(
     user: str | None,
     commands: list[HumanAgentCommand],
+    bashrc_content: str | None,
     record_session: bool,
 ) -> None:
     # see if we have already installed
@@ -41,7 +42,7 @@ async def install_human_agent(
     await checked_write_file(f"{INSTALL_DIR}/{TASK_PY}", task_py, executable=True)
 
     # generate .bashrc
-    bash_rc = human_agent_bashrc(commands, record_session)
+    bash_rc = human_agent_bashrc(commands, bashrc_content, record_session)
     await checked_write_file(f"{INSTALL_DIR}/{BASHRC}", bash_rc, executable=True)
 
     # write and run installation script
@@ -125,7 +126,9 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     return "\n".join([imports, command_handlers, parse, dispatch]) + "\n"
 
 
-def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) -> str:
+def human_agent_bashrc(
+    commands: list[HumanAgentCommand], bashrc_content: str | None, record_session: bool
+) -> str:
     # only run in interative terminals
     TERMINAL_CHECK = dedent("""
 
@@ -164,6 +167,9 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     }}
     complete -F _task_completion task
     """)
+
+    if bashrc_content:
+        COMMANDS = f"{COMMANDS}\n\n{bashrc_content}"
 
     # session recording
     if record_session:
