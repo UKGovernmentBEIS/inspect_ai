@@ -67,6 +67,12 @@ const extractInputMetadata = (
       descriptionArg: "description",
       contentType: "bash",
     };
+  } else if (toolName === "shell_command") {
+    return {
+      inputArg: "command",
+      descriptionArg: "description",
+      contentType: "bash",
+    };
   } else if (toolName === "shell") {
     return {
       inputArg: "command",
