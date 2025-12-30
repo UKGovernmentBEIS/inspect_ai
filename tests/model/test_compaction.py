@@ -11,7 +11,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._compaction import compaction
+from inspect_ai.model._compaction._compaction import compaction
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary

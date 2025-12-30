@@ -6,6 +6,7 @@ import os
 from copy import copy
 from io import BytesIO
 from logging import getLogger
+from textwrap import dedent
 from typing import Any, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
@@ -292,7 +293,9 @@ class GoogleGenAIAPI(ModelAPI):
                 if not has_native_tools and len(tools) > 0
                 else None
             )
-            system_instruction = await extract_system_message_as_parts(client, input)
+            system_instruction = await extract_system_message_as_parts(
+                client, input, tools
+            )
             parameters = GenerateContentConfig(
                 http_options=HttpOptions(
                     headers={HttpHooks.REQUEST_ID_HEADER: request_id}
@@ -334,26 +337,52 @@ class GoogleGenAIAPI(ModelAPI):
                 )
 
             try:
-                response = await (
-                    self._batcher.generate_for_request(
-                        {
-                            "contents": [
-                                content.model_dump(exclude_none=True)
-                                for content in gemini_contents
-                            ],
-                            **parameters.model_dump(exclude_none=True),
-                        }
+                # google sometimes requires retries for malformed function calls
+                # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+                tool_calling_attempts = 0
+                while tool_calling_attempts < 3:
+                    response = await (
+                        self._batcher.generate_for_request(
+                            {
+                                "contents": [
+                                    content.model_dump(exclude_none=True)
+                                    for content in gemini_contents
+                                ],
+                                **parameters.model_dump(exclude_none=True),
+                            }
+                        )
+                        if self._batcher
+                        else client.aio.models.generate_content(
+                            model=self.service_model_name(),
+                            contents=gemini_contents,  # type: ignore[arg-type]
+                            config=parameters,
+                        )
                     )
-                    if self._batcher
-                    else client.aio.models.generate_content(
-                        model=self.service_model_name(),
-                        contents=gemini_contents,  # type: ignore[arg-type]
-                        config=parameters,
-                    )
-                )
+                    # retry for MALFORMED_FUNCTION_CALL
+                    if (
+                        response.candidates
+                        and response.candidates[0].finish_reason
+                        == FinishReason.MALFORMED_FUNCTION_CALL
+                        and not has_native_tools
+                    ):
+                        # tick retries
+                        tool_calling_attempts += 1
+
+                        # apply retry context
+                        retry_contents, retry_tool_config = _malformed_function_retry(
+                            response, tool_choice
+                        )
+                        gemini_contents.extend(retry_contents)
+                        if retry_tool_config is not None:
+                            parameters.tool_config = retry_tool_config
+
+                    # otherwise we are done
+                    else:
+                        break
             except ClientError as ex:
                 return self.handle_client_error(ex), model_call()
 
+            assert response is not None  # mypy confused by retry loop
             model_name = response.model_version or self.service_model_name()
             output = ModelOutput(
                 model=model_name,
@@ -885,8 +914,7 @@ async def chat_content_to_part(
 
 
 async def extract_system_message_as_parts(
-    client: Client,
-    messages: list[ChatMessage],
+    client: Client, messages: list[ChatMessage], tools: list[ToolInfo]
 ) -> list[File | Part | Image | str] | None:
     system_parts: list[File | Part | Image | str] = []
     for message in messages:
@@ -900,6 +928,20 @@ async def extract_system_message_as_parts(
                 )
             else:
                 raise ValueError(f"Unsupported system message content: {content}")
+
+    # if there are tools then inject a message to prevent MALFORMED_FUNCTION_CALL
+    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+    if len(tools) > 0:
+        system_parts.append(
+            Part(
+                text=dedent("""
+                ## Function Calling
+                - Do not generate code. Always generate the function call json
+                When calling functions, output the function name exactly as defined. Do not prepend 'default_api.' or any other namespace to the function name
+                """)
+            )
+        )
+
     # google-genai raises "ValueError: content is required." if the list is empty.
     return system_parts or None
 
@@ -1142,6 +1184,19 @@ def completion_choice_from_candidate(
     stop_reason = finish_reason_to_stop_reason(
         candidate.finish_reason or FinishReason.STOP
     )
+
+    # if finish reason is MALFORMED_FUNCTION_CALL then we should put words the model's
+    # mouth indicating that it had trouble calling a tool
+    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+    if candidate.finish_reason == FinishReason.MALFORMED_FUNCTION_CALL:
+        content.append(
+            ContentText(
+                text=dedent(f"""
+                I seem to have had trouble calling a function and replied with {_malformed_function_message(candidate)}.
+                I need to fix this by generating the function call JSON instead.
+                """)
+            )
+        )
 
     # build choice
     choice = ChatCompletionChoice(
@@ -1411,3 +1466,49 @@ async def file_for_content(
         files_db.put(content_sha256, str(upload.name))
         # return the file
         return upload
+
+
+def _malformed_function_retry(
+    response: GenerateContentResponse, tool_choice: ToolChoice
+) -> tuple[list[Content], ToolConfig | None]:
+    content = [
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    text=f"I attempted to call a function but produced: {_malformed_function_message(response)}"
+                )
+            ],
+        ),
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    text="Please try again and generate valid function call JSON, not Python code."
+                )
+            ],
+        ),
+    ]
+
+    # force tool calling if it was 'auto'
+    tool_config = chat_tool_config("any") if tool_choice == "auto" else None
+
+    return content, tool_config
+
+
+def _malformed_function_message(candidate: Candidate | GenerateContentResponse) -> str:
+    DEFAULT_FINISH_MESSAGE = (
+        "a malformed function call (possibly Python code instead of JSON)"
+    )
+
+    # resolve candidate
+    if isinstance(candidate, GenerateContentResponse):
+        if not candidate.candidates:
+            return DEFAULT_FINISH_MESSAGE
+
+        candidate = candidate.candidates[0]
+
+    if candidate.finish_message:
+        return candidate.finish_message
+    else:
+        return DEFAULT_FINISH_MESSAGE
