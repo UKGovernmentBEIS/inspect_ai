@@ -16,7 +16,7 @@ from inspect_ai.model import (
     ModelName,
     ModelOutput,
 )
-from inspect_ai.model._call_tools import tools_info
+from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import sample_total_tokens
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer._metric import Score
@@ -438,7 +438,7 @@ def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
 
     state_data = dict(
         messages=state.messages,
-        tools=tools_info(state.tools),
+        tools=get_tools_info(state.tools),
         tool_choice=state.tool_choice,
         store=store_jsonable(state.store),
         output=state.output,

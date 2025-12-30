@@ -569,7 +569,26 @@ def prepend_agent_name(
         return message.model_copy(update=dict(content=content))
 
 
-def tools_info(
+async def resolve_tools(
+    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
+) -> list[Tool | ToolDef | ToolInfo]:
+    # resolve top level tool source
+    if isinstance(tools, ToolSource):
+        tools = await tools.tools()
+
+    # resolve tool sources
+    resolved_tools: list[Tool | ToolDef | ToolInfo] = []
+    for tool in tools:
+        if isinstance(tool, ToolSource):
+            source_tools = await tool.tools()
+            resolved_tools.extend(source_tools)
+        else:
+            resolved_tools.append(tool)
+
+    return resolved_tools
+
+
+def get_tools_info(
     tools: Sequence[Tool | ToolDef | ToolInfo],
 ) -> list[ToolInfo]:
     tools_info: list[ToolInfo] = []

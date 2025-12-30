@@ -113,6 +113,37 @@ class OpenRouterAPI(OpenAICompatibleAPI):
     def emulate_reasoning_history(self) -> bool:
         return False
 
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        OpenRouter model names may include provider prefixes like
+        'together/meta-llama/Llama-3.1-8B'. For inference providers (together,
+        fireworks, etc.), the prefix is stripped. For first-party providers
+        (anthropic, openai, etc.), the full name is preserved.
+
+        OpenRouter also supports suffixes like :free, :extended, :nitro,
+        :thinking, :online which are stripped for database lookup.
+        """
+        from ._first_party import FIRST_PARTY_PROVIDERS
+
+        name = self.service_model_name()
+
+        # Strip OpenRouter suffixes (:free, :extended, :nitro, :thinking, :online)
+        if ":" in name:
+            name = name.split(":")[0]
+
+        parts = name.split("/")
+        if len(parts) >= 2:
+            first_part = parts[0].lower()
+            # If first part is a known first-party provider, keep the full name
+            if first_part in FIRST_PARTY_PROVIDERS:
+                return name
+            # Otherwise strip the inference provider prefix (e.g., together/)
+            if len(parts) >= 3:
+                return "/".join(parts[1:])
+        return name
+
     async def messages_to_openai(
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:

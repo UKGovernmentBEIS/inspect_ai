@@ -18,6 +18,7 @@ from google.genai.types import (
     Content,
     ContentListUnion,
     ContentListUnionDict,
+    ContentUnion,
     ExecutableCode,
     File,
     FinishReason,
@@ -87,6 +88,7 @@ from inspect_ai.model import (
     StopReason,
     TopLogprob,
 )
+from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
@@ -274,12 +276,7 @@ class GoogleGenAIAPI(ModelAPI):
         self._resolve_batcher(config, http_options)
 
         # create client and manage its lifetime to this call
-        client = Client(
-            vertexai=self.is_vertex(),
-            api_key=self.api_key,
-            http_options=http_options,
-            **self.model_args,
-        )
+        client = self.model_client(http_options)
         async with client.aio:
             # create hooks and allocate request
             http_hooks = HttpxHooks(client._api_client._async_httpx_client)
@@ -366,12 +363,40 @@ class GoogleGenAIAPI(ModelAPI):
 
             return output, model_call()
 
+    @override
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        client = self.model_client()
+        async with client.aio:
+            # normalize to messages
+            if isinstance(input, str):
+                input = [ChatMessageUser(content=input)]
+
+            # turn system into user for purposes of counting
+            count_messages = [
+                ChatMessageUser(content=m.content)
+                if isinstance(m, ChatMessageSystem)
+                else m
+                for m in input
+            ]
+            contents: list[ContentUnion] = [
+                await content(client, m) for m in count_messages
+            ]
+            response = await client.aio.models.count_tokens(
+                model=self.service_model_name(), contents=contents
+            )
+            if response.total_tokens is not None:
+                return response.total_tokens
+            else:
+                logger.warning("Gemini token count returned None")
+                return await super().count_tokens(input)
+
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     def canonical_name(self) -> str:
-        return self.service_model_name()
+        """Canonical model name for model info database lookup."""
+        return f"google/{self.service_model_name()}"
 
     def is_gemini(self) -> bool:
         return "gemini-" in self.service_model_name()
@@ -423,6 +448,18 @@ class GoogleGenAIAPI(ModelAPI):
         if isinstance(ex, APIError):
             return ex.code == 401
         return False
+
+    def model_client(self, http_options: HttpOptions | None = None) -> Client:
+        http_options = http_options or HttpOptions(
+            base_url=self.base_url,
+            api_version=self.api_version,
+        )
+        return Client(
+            vertexai=self.is_vertex(),
+            api_key=self.api_key,
+            http_options=http_options,
+            **self.model_args,
+        )
 
     def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
         if (

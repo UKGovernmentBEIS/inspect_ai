@@ -246,6 +246,18 @@ class OpenAIAPI(ModelAPI):
         self._responses_batcher: OpenAIBatcher[Response] | None = None
         self._http_hooks = HttpxHooks(self.client._client)
 
+    @override
+    async def count_text_tokens(self, text: str) -> int:
+        import tiktoken
+
+        try:
+            enc = tiktoken.encoding_for_model(self.service_model_name())
+        except KeyError:
+            enc = tiktoken.get_encoding("o200k_base")  # fallback
+
+        tokens = enc.encode(text)
+        return len(tokens)
+
     def is_azure(self) -> bool:
         return self.service == "azure"
 
@@ -400,7 +412,8 @@ class OpenAIAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     def canonical_name(self) -> str:
-        return self.service_model_name()
+        """Canonical model name for model info database lookup."""
+        return f"openai/{self.service_model_name()}"
 
     @override
     def should_retry(self, ex: BaseException) -> bool:

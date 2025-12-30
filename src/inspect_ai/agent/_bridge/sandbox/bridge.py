@@ -6,6 +6,7 @@ from typing import AsyncIterator
 import anyio
 from shortuuid import uuid
 
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec, setup_bridged_tools
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
@@ -34,6 +35,7 @@ async def sandbox_agent_bridge(
     model: str | None = None,
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
+    compaction: CompactionStrategy | None = None,
     sandbox: str | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
@@ -58,6 +60,8 @@ async def sandbox_agent_bridge(
             "inspect/openai/gpt-4o" to force another specific model).
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
+        compaction: Compact the conversation when it it is close to overflowing
+            the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
         web_search: Configuration for mapping model internal
@@ -114,6 +118,7 @@ async def sandbox_agent_bridge(
                 state=state,
                 filter=filter,
                 retry_refusals=retry_refusals,
+                compaction=compaction,
                 port=port,
                 model=model,
                 mcp_server_configs=mcp_server_configs,

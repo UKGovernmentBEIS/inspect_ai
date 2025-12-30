@@ -273,7 +273,8 @@ class MistralAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     def canonical_name(self) -> str:
-        return self.service_model_name()
+        """Canonical model name for model info database lookup."""
+        return f"mistral/{self.service_model_name()}"
 
     @override
     def should_retry(self, ex: Exception) -> bool:
