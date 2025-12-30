@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from pydantic_core import from_json
 from typing_extensions import override
 
+from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
@@ -201,7 +202,7 @@ class JSONRecorder(FileRecorder):
 
         fs = filesystem(location)
         if fs.is_s3() and if_match_etag:
-            # Use S3 conditional write
+            # Use S3 conditional write (already has atomicity guarantees)
             await cls._write_log_s3_conditional(location, log, if_match_etag, fs)
         else:
             # Standard write
@@ -209,7 +210,9 @@ class JSONRecorder(FileRecorder):
             log_bytes = eval_log_json(log)
 
             with trace_action(logger, "Log Write", location):
-                with file(location, "wb") as f:
+                # Atomic write with durability guarantee to prevent corruption
+                # from disk-full errors or interruptions (issue #2949)
+                with atomic_write(location, fsync=True) as f:
                     f.write(log_bytes)
 
     @classmethod
