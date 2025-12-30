@@ -577,24 +577,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>CompactionEdit</code></td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionedit">CompactionEdit</a></span></td>
 <td>Compact by editing the message history to remove content (e.g.&nbsp;tool call results and reasoning).</td>
 </tr>
 <tr class="even">
-<td><code>CompactionSummary</code></td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionsummary">CompactionSummary</a></span></td>
 <td>Compact by having a model create a summary of the message history.</td>
 </tr>
 <tr class="odd">
-<td><code>CompactionTrim</code></td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactiontrim">CompactionTrim</a></span></td>
 <td>Compact by trimming the message history to preserve a percentage of the input.</td>
 </tr>
 </tbody>
 </table>
 <p>Which strategy should you use? Here are some general guidelines:</p>
 <ul>
-<li><p><code>CompactionEdit</code> is a good default choice—it’s efficient (no additional model calls) and preserves the conversation structure while removing older content.</p></li>
-<li><p><code>CompactionSummary</code> is good when maintaining semantic understanding of the full history is more important than preserving exact details; note this requires an additional model call for each compaction.</p></li>
-<li><p><code>CompactionTrim</code> is the simplest option, useful when you just need to reduce history depth without concern for preserving specific content.</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionedit">CompactionEdit</a></span> is a good default choice—it’s efficient (no additional model calls) and preserves the conversation structure while removing older content.</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionsummary">CompactionSummary</a></span> is good when maintaining semantic understanding of the full history is more important than preserving exact details; note this requires an additional model call for each compaction.</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactiontrim">CompactionTrim</a></span> is the simplest option, useful when you just need to reduce history depth without concern for preserving specific content.</p></li>
 </ul>
 <p>Compaction can also make use of the <a href="#memory-tool">memory()</a> tool to offload important context to files prior to compaction.</p>
 <section id="compaction-threshold" class="level4">
@@ -627,7 +627,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="edit-compaction" class="level2">
 <h2 class="anchored" data-anchor-id="edit-compaction">Edit Compaction</h2>
 <p>Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions. When compaction triggers multiple times, it continues clearing older content on each cycle.</p>
-<p>For example, here we add edit compaction to a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent (all parameters to <code>CompactionEdit</code> reflect the built-in defaults):</p>
+<p>For example, here we add edit compaction to a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent (all parameters to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionedit">CompactionEdit</a></span> reflect the built-in defaults):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionEdit</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
@@ -640,7 +640,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        keep_thinking_turns<span class="op">=</span><span class="dv">1</span>,</span>
 <span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Here are all options available for <code>CompactionEdit</code>:</p>
+<p>Here are all options available for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionedit">CompactionEdit</a></span>:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 22%">
@@ -704,7 +704,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that we explicitly specify a <code>model</code>—this isn’t required and will default to the target model for compaction if not specified.</p>
-<p>Here are all options available for <code>CompactionSummary</code>:</p>
+<p>Here are all options available for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionsummary">CompactionSummary</a></span>:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 15%">
@@ -746,7 +746,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="trim-compaction" class="level2">
 <h2 class="anchored" data-anchor-id="trim-compaction">Trim Compaction</h2>
 <p>Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. When compaction triggers multiple times, it continues discarding older messages on each cycle.</p>
-<p>For example, here we add trim compaction to a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent (all parameters to <code>CompactionTrim</code> reflect the built-in defaults):</p>
+<p>For example, here we add trim compaction to a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent (all parameters to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactiontrim">CompactionTrim</a></span> reflect the built-in defaults):</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionTrim</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
@@ -758,7 +758,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        preserve<span class="op">=</span><span class="fl">0.8</span></span>
 <span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Here are all options available for <code>CompactionTrim</code>:</p>
+<p>Here are all options available for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactiontrim">CompactionTrim</a></span>:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 15%">

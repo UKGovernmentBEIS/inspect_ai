@@ -240,6 +240,12 @@ Apply compaction prior to calling `model.generate()`—pass the compacted
 `input` to the model and append the `c_message` (if specified) to the
 message history.
 
+> [!NOTE]
+>
+> The returned `compact` function maintains internal state and is
+> designed for sequential use within a single conversation’s agent loop.
+> Do not call it concurrently.
+
 There are various configurable compaction strategies available—see the
 [Compaction](compaction.qmd) documentation for details.
 
