@@ -38,8 +38,7 @@ from inspect_ai.model._providers.google import (
     content,
 )
 from inspect_ai.scorer import includes
-from inspect_ai.tool import ToolCall
-from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
 
 
 @skip_if_no_google
@@ -500,9 +499,7 @@ def test_malformed_function_retry_forces_any_mode_when_auto():
 
     assert tool_config is not None
     assert tool_config.function_calling_config is not None
-    assert (
-        tool_config.function_calling_config.mode == FunctionCallingConfigMode.ANY
-    )
+    assert tool_config.function_calling_config.mode == FunctionCallingConfigMode.ANY
 
 
 def test_malformed_function_retry_no_tool_config_change_when_not_auto():
@@ -539,7 +536,9 @@ def _create_mock_google_client(mock_generate: AsyncMock) -> MagicMock:
     return mock_client
 
 
-def _create_malformed_response(finish_message: str | None = None) -> GenerateContentResponse:
+def _create_malformed_response(
+    finish_message: str | None = None,
+) -> GenerateContentResponse:
     """Create a response with MALFORMED_FUNCTION_CALL finish reason."""
     return GenerateContentResponse(
         candidates=[
@@ -562,11 +561,7 @@ def _create_success_response_with_tool_call() -> GenerateContentResponse:
                 content=Content(
                     role="model",
                     parts=[
-                        Part(
-                            function_call=FunctionCall(
-                                name="my_tool", args={"x": 1}
-                            )
-                        )
+                        Part(function_call=FunctionCall(name="my_tool", args={"x": 1}))
                     ],
                 ),
             )
@@ -582,7 +577,7 @@ def _create_test_tool() -> ToolInfo:
         description="A test tool",
         parameters=ToolParams(
             type="object",
-            properties={"x": {"type": "integer", "description": "A number"}},
+            properties={"x": ToolParam(type="integer", description="A number")},
             required=["x"],
         ),
     )
