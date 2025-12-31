@@ -1361,9 +1361,6 @@
   title: 'WorldSense: Grounded Reasoning Benchmark'
 - categories:
   - Reasoning
-  - Vim
-  - Editing
-  - Game
   contributors:
   - james4ever0
   description: 'A benchmark that evaluates LLMs in their ability to operate Vim editor
@@ -1376,10 +1373,6 @@
     sandbox:
     - scorer
   path: src/inspect_evals/vimgolf_challenges
-  tags:
-  - Vim
-  - Editing
-  - Game
   tasks:
   - vimgolf_single_turn
   title: 'VimGolf: Evaluating LLMs in Vim Editing Proficiency'
@@ -1528,8 +1521,6 @@
 - arxiv: https://arxiv.org/abs/2505.08775
   categories:
   - Knowledge
-  - Medical
-  - Healthcare
   contributors:
   - retroam
   description: 'A comprehensive evaluation benchmark designed to assess language models''
@@ -1538,9 +1529,6 @@
     '
   group: Knowledge
   path: src/inspect_evals/healthbench
-  tags:
-  - Medical
-  - Healthcare
   tasks:
   - healthbench
   - healthbench_hard
