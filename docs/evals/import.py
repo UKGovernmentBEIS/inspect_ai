@@ -27,6 +27,7 @@ group_order = {
 records = sorted(records, key=lambda x: group_order.get(x["group"], float('inf')))    
 
 for record in records:
+    record["url"] = f'https://ukgovernmentbeis.github.io/inspect_evals/evals/{record["group"].lower()}/{record["path"].split("/")[-1]}'
     record["categories"] = [record["group"]]
     if "tags" in record:
         record["categories"].extend(record["tags"])
