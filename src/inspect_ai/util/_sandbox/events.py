@@ -59,7 +59,28 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             params["concurrency"] = concurrency
 
         # make call
-        result = await self._sandbox.exec(**params)
+        try:
+            result = await self._sandbox.exec(**params)
+        except Exception as ex:
+            # check for policy violation
+            from inspect_ai._util.error import SandboxPolicyViolationError
+
+            if isinstance(ex, SandboxPolicyViolationError):
+                 if self._events:
+                    transcript()._event(
+                        SandboxEvent(
+                            timestamp=timestamp,
+                            action="exec",
+                            cmd=" ".join([shlex.quote(c) for c in cmd]),
+                            input=content_display(input) if input is not None else None,
+                            options=options,
+                            result="blocked",
+                            reason="policy",
+                            output=None,
+                            completed=datetime.now(timezone.utc),
+                        )
+                    )
+            raise ex
 
         # skip sandbox service events
         if any(SERVICES_DIR in c for c in cmd):
@@ -107,7 +128,25 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         timestamp = datetime.now(timezone.utc)
 
         # make call
-        await self._sandbox.write_file(file, contents)
+        try:
+            await self._sandbox.write_file(file, contents)
+        except Exception as ex:
+            from inspect_ai._util.error import SandboxPolicyViolationError
+
+            if isinstance(ex, SandboxPolicyViolationError):
+                if self._events:
+                    transcript()._event(
+                        SandboxEvent(
+                            timestamp=timestamp,
+                            action="write_file",
+                            file=file,
+                            input=content_display(contents),
+                            result="blocked",
+                            reason="policy",
+                            completed=datetime.now(timezone.utc),
+                        )
+                    )
+            raise ex
 
         # yield event
         if self._events:
@@ -135,10 +174,27 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         timestamp = datetime.now(timezone.utc)
 
         # make call
-        if text is True:
-            output: str | bytes = await self._sandbox.read_file(file, True)
-        else:
-            output = await self._sandbox.read_file(file, False)
+        try:
+            if text is True:
+                output: str | bytes = await self._sandbox.read_file(file, True)
+            else:
+                output = await self._sandbox.read_file(file, False)
+        except Exception as ex:
+            from inspect_ai._util.error import SandboxPolicyViolationError
+
+            if isinstance(ex, SandboxPolicyViolationError):
+                if self._events:
+                    transcript()._event(
+                        SandboxEvent(
+                            timestamp=timestamp,
+                            action="read_file",
+                            file=file,
+                            result="blocked",
+                            reason="policy",
+                            completed=datetime.now(timezone.utc),
+                        )
+                    )
+            raise ex
 
         # yield event
         if self._events:

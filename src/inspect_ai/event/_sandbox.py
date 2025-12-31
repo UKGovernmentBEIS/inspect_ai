@@ -28,8 +28,11 @@ class SandboxEvent(BaseEvent):
     input: str | None = Field(default=None)
     """Input (for cmd and write_file). Truncated to 100 lines."""
 
-    result: int | None = Field(default=None)
+    result: int | str | None = Field(default=None)
     """Result (for exec)"""
+
+    reason: str | None = Field(default=None)
+    """Reason for result (e.g. 'policy')"""
 
     output: str | None = Field(default=None)
     """Output (for exec and read_file). Truncated to 100 lines."""

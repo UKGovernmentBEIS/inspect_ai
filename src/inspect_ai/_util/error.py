@@ -59,6 +59,12 @@ class SilentException(Exception):
     pass
 
 
+class SandboxPolicyViolationError(PermissionError):
+    """Exception raised when a sandbox action violates the active policy."""
+
+    pass
+
+
 class WriteConflictError(Exception):
     """Exception raised when a conditional write fails due to concurrent modification.
 
