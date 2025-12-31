@@ -5,7 +5,7 @@ listing:
   id: evals
   template: evals.ejs
   contents: evals.yml
-  page-size: 100
+  page-size: 200
   categories: true
   image-height: "0px"
   filter-ui: false

@@ -13,6 +13,7 @@ def human_agent_commands(
     answer: bool | str,
     intermediate_scoring: bool,
     record_session: bool,
+    instructions: str | None,
 ) -> list[HumanAgentCommand]:
     # base submit, validate, and quit
     commands = [
@@ -36,4 +37,4 @@ def human_agent_commands(
     )
 
     # with instructions (letting it see the other commands)
-    return commands + [InstructionsCommand(commands)]
+    return commands + [InstructionsCommand(commands, instructions)]

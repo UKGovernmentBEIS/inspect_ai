@@ -2,7 +2,7 @@ import os
 import re
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Callable, Generator, Literal
+from typing import IO, Any, Callable, Generator, Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -23,7 +23,11 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 
 from ._log import EvalLog, EvalMetric, EvalSample
-from ._recorders import recorder_type_for_format, recorder_type_for_location
+from ._recorders import (
+    recorder_type_for_bytes,
+    recorder_type_for_format,
+    recorder_type_for_location,
+)
 
 logger = getLogger(__name__)
 
@@ -241,7 +245,7 @@ def write_log_dir_manifest(
 
 
 def read_eval_log(
-    log_file: str | Path | EvalLogInfo,
+    log_file: str | Path | EvalLogInfo | IO[bytes],
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
@@ -249,13 +253,15 @@ def read_eval_log(
     """Read an evaluation log.
 
     Args:
-       log_file (str | FileInfo): Log file to read.
+       log_file (str | Path | EvalLogInfo | IO[bytes]): Log file to read.
+          When providing IO[bytes], the returned EvalLog will have an
+          empty location (which can be set manually if needed).
        header_only (bool): Read only the header (i.e. exclude
           the "samples" and "logging" fields). Defaults to False.
        resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
-          (defaults to 'auto' based on `log_file` extension)
+          (defaults to 'auto' based on `log_file` extension).
 
     Returns:
        EvalLog object read from file.
@@ -279,7 +285,7 @@ def read_eval_log(
 
 
 async def read_eval_log_async(
-    log_file: str | Path | EvalLogInfo,
+    log_file: str | Path | EvalLogInfo | IO[bytes],
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
@@ -287,33 +293,46 @@ async def read_eval_log_async(
     """Read an evaluation log.
 
     Args:
-       log_file (str | FileInfo): Log file to read.
+       log_file (str | Path | EvalLogInfo | IO[bytes]): Log file to read.
+          When providing IO[bytes], the returned EvalLog will have an
+          empty location (which can be set manually if needed).
        header_only (bool): Read only the header (i.e. exclude
           the "samples" and "logging" fields). Defaults to False.
        resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
-          (defaults to 'auto' based on `log_file` extension)
+          (defaults to 'auto' based on `log_file` extension).
 
     Returns:
        EvalLog object read from file.
     """
-    # resolve to file path
-    log_file = (
-        log_file
-        if isinstance(log_file, str)
-        else log_file.as_posix()
-        if isinstance(log_file, Path)
-        else log_file.name
-    )
-    logger.debug(f"Reading eval log from {log_file}")
+    is_bytes = not isinstance(log_file, (str, Path, EvalLogInfo))
+    if is_bytes:
+        log_bytes = cast("IO[bytes]", log_file)
+        if format == "auto":
+            recorder_type = recorder_type_for_bytes(log_bytes)
+        else:
+            recorder_type = recorder_type_for_format(format)
 
-    # get recorder type
-    if format == "auto":
-        recorder_type = recorder_type_for_location(log_file)
+        logger.debug("Reading eval log from stream")
+        log = await recorder_type.read_log_bytes(log_bytes, header_only)
     else:
-        recorder_type = recorder_type_for_format(format)
-    log = await recorder_type.read_log(log_file, header_only)
+        # resolve to file path
+        log_file = (
+            log_file
+            if isinstance(log_file, str)
+            else log_file.as_posix()
+            if isinstance(log_file, Path)
+            else log_file.name
+        )
+        logger.debug(f"Reading eval log from {log_file}")
+
+        # get recorder type
+        if format == "auto":
+            recorder_type = recorder_type_for_location(log_file)
+        else:
+            recorder_type = recorder_type_for_format(format)
+        log = await recorder_type.read_log(log_file, header_only)
 
     # resolve attachement if requested
     if resolve_attachments and log.samples:
@@ -330,7 +349,8 @@ async def read_eval_log_async(
                 sample_ids[sample.id] = None
         log.eval.dataset.sample_ids = list(sample_ids.keys())
 
-    logger.debug(f"Completed reading eval log from {log_file}")
+    location = "stream" if is_bytes else log_file
+    logger.debug(f"Completed reading eval log from {location}")
 
     return log
 
