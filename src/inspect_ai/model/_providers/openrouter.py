@@ -11,11 +11,13 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._openai import (
-    REASONING_DETAILS_SIGNATURE,
     OpenAIResponseError,
     openai_chat_message,
 )
-from inspect_ai.model._reasoning import reasoning_to_think_tag
+from inspect_ai.model._reasoning import (
+    reasoning_to_openrouter_reasoning_details,
+    reasoning_to_think_tag,
+)
 
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
@@ -151,10 +153,9 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         def handle_reasoning_details(
             content: ContentReasoning,
         ) -> dict[str, JsonValue] | str:
-            if content.signature and content.signature.startswith(
-                REASONING_DETAILS_SIGNATURE
-            ):
-                return {"reasoning_details": json.loads(content.reasoning)}
+            details = reasoning_to_openrouter_reasoning_details(content)
+            if details is not None:
+                return details
             else:
                 return reasoning_to_think_tag(content)
 
