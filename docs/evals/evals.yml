@@ -205,6 +205,39 @@
   tasks:
   - core_bench
   title: CORE-Bench
+- arxiv: https://arxiv.org/abs/2504.01848
+  categories:
+  - Coding
+  - Agent
+  - AI R&D
+  contributors:
+  - vhong-aisi
+  dependency: paperbench
+  description: 'Agents are evaluated on their ability to replicate 20 ICML 2024 Spotlight
+
+    and Oral papers from scratch. Given a research paper PDF, an addendum with
+
+    clarifications, and a rubric defining evaluation criteria, the agent must
+
+    reproduce the paper''s key results by writing and executing code.
+
+
+    > **Note:** This eval is a work in progress. See <https://github.com/UKGovernmentBEIS/inspect_evals/issues/334>
+    for status.
+
+    '
+  group: Coding
+  metadata:
+    sandbox:
+    - solver
+    - scorer
+  path: src/inspect_evals/paperbench
+  tags:
+  - Agent
+  - AI R&D
+  tasks:
+  - paperbench
+  title: 'PaperBench: Evaluating AI''s Ability to Replicate AI Research (Work In Progress)'
 - arxiv: https://arxiv.org/abs/2404.10952
   categories:
   - Coding
@@ -222,6 +255,33 @@
   tasks:
   - usaco
   title: 'USACO: USA Computing Olympiad'
+- arxiv: https://www.tbench.ai/
+  categories:
+  - Coding
+  - Agent
+  contributors:
+  - iphan
+  dependency: terminal_bench_2
+  description: 'A popular benchmark for measuring the capabilities of agents and language
+    models to perform realistic, end-to-end challenges in containerized environments.
+
+    It measures whether an agent can execute workflows that resemble real engineering,
+    data, devops, and software-automation tasks, not just text generation.
+
+    '
+  group: Coding
+  metadata:
+    environment: Linux
+    requires_internet: true
+    sandbox:
+    - solver
+    - scorer
+  path: src/inspect_evals/terminal_bench_2
+  tags:
+  - Agent
+  tasks:
+  - terminal_bench_2
+  title: 'Terminal-Bench 2.0: Terminal Mastery Challenges'
 - arxiv: https://arxiv.org/abs/2311.12983
   categories:
   - Assistants
@@ -363,6 +423,45 @@
   tasks:
   - bfcl
   title: 'BFCL: Berkeley Function-Calling Leaderboard'
+- arxiv: https://arxiv.org/abs/2506.07982
+  categories:
+  - Assistants
+  - Agent
+  contributors:
+  - mmulet
+  description: 'Evaluating Conversational Agents in a Dual-Control Environment
+
+    '
+  group: Assistants
+  path: src/inspect_evals/tau2
+  tags:
+  - Agent
+  tasks:
+  - tau2_airline
+  - tau2_retail
+  - tau2_telecom
+  title: Tau2
+- arxiv: https://arxiv.org/abs/2510.04374
+  categories:
+  - Assistants
+  - Agent
+  contributors:
+  - jeqcho
+  dependency: gdpval
+  description: 'GDPval measures model performance on economically valuable, real-world
+    tasks across 44 occupations.
+
+    '
+  group: Assistants
+  metadata:
+    sandbox:
+    - solver
+  path: src/inspect_evals/gdpval
+  tags:
+  - Agent
+  tasks:
+  - gdpval
+  title: GDPval
 - arxiv: https://arxiv.org/abs/2503.17332
   categories:
   - Cybersecurity
@@ -431,6 +530,31 @@
   tasks:
   - cybench
   title: 'Cybench: Capture-The-Flag Cybersecurity Challenges'
+- categories:
+  - Cybersecurity
+  - Agent
+  contributors:
+  - prashantkul
+  description: 'Tests LLM agents'' ability to escape container sandboxes, exfiltrate
+    data
+
+    through network filters, and discover planted secrets. Focuses on defensive
+
+    containment testing rather than offensive capabilities.
+
+    '
+  group: Cybersecurity
+  metadata:
+    environment: Docker
+    requires_internet: true
+    sandbox:
+    - solver
+  path: src/inspect_evals/sandboxbench
+  tags:
+  - Agent
+  tasks:
+  - sandboxbench
+  title: 'SandboxBench: Agent Containment Evaluation'
 - arxiv: https://arxiv.org/abs/2402.07688
   categories:
   - Cybersecurity
@@ -596,6 +720,32 @@
   - threecb
   title: 'Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM
     Agent Cyber Offense Capabilities'
+- arxiv: https://arxiv.org/abs/2510.22620
+  categories:
+  - Safeguards
+  - Agent
+  contributors:
+  - jb-lakera
+  - mmathys
+  - Casuyan
+  - mrc-lakera
+  - xanderdavies
+  - alexandrasouly-aisi
+  - NiklasPfister
+  dependency: b3
+  description: 'A comprehensive benchmark for evaluating LLMs for agentic AI security
+    vulnerabilities including prompt attacks aimed at data exfiltration, content injection,
+    decision and behavior manipulation, denial of service, system and tool compromise,
+    and content policy bypass.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/b3
+  tags:
+  - Agent
+  tasks:
+  - b3
+  title: 'b3: Backbone Breaker Benchmark'
 - arxiv: https://arxiv.org/abs/2503.03750?
   categories:
   - Safeguards
@@ -699,7 +849,8 @@
   - Safeguards
   contributors:
   - nishu-builder
-  - akanepajs
+  - darkness8i8
+  - jm355
   description: 'Evaluates how models consider the welfare of animals in situations
     that may present them harm.
 
@@ -1232,6 +1383,22 @@
   tasks:
   - vimgolf_single_turn
   title: 'VimGolf: Evaluating LLMs in Vim Editing Proficiency'
+- arxiv: https://arxiv.org/abs/2504.05228
+  categories:
+  - Reasoning
+  contributors:
+  - iphan
+  dependency: novelty_bench
+  description: 'Evaluates how well language models generate diverse, humanlike responses
+    across multiple reasoning and generation tasks. This evaluation assesses whether
+    LLMs can produce varied outputs rather than repetitive or uniform answers.
+
+    '
+  group: Reasoning
+  path: src/inspect_evals/novelty_bench
+  tasks:
+  - novelty_bench
+  title: 'NoveltyBench: Evaluating Language Models for Humanlike Diversity'
 - arxiv: https://arxiv.org/abs/2009.03300
   categories:
   - Knowledge
@@ -1283,7 +1450,7 @@
   categories:
   - Knowledge
   contributors:
-  - jjallaire
+  - lauritowal
   description: 'Evaluates an AI model''s ability to correctly answer everyday questions
     that rely on basic commonsense knowledge and understanding of the world.
 
