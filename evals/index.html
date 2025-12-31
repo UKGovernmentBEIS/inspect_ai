@@ -81,9 +81,9 @@ ul.task-list li input[type="checkbox"] {
     }
 
     const options = {
-      valueNames: ['listing-arxiv','listing-categories','listing-contributors','listing-description','listing-group','listing-metadata','listing-tasks','listing-title','listing-dependency','listing-tags','listing-dependency-group',{ data: ['index'] },{ data: ['categories'] }],
+      valueNames: ['listing-arxiv','listing-categories','listing-contributors','listing-description','listing-group','listing-metadata','listing-tasks','listing-title','listing-url','listing-dependency','listing-tags','listing-dependency-group',{ data: ['index'] },{ data: ['categories'] }],
       
-      searchColumns: ["listing-arxiv","listing-categories","listing-contributors","listing-description","listing-group","listing-metadata","listing-tasks","listing-title","listing-dependency","listing-tags","listing-dependency-group"],
+      searchColumns: ["listing-arxiv","listing-categories","listing-contributors","listing-description","listing-group","listing-metadata","listing-tasks","listing-title","listing-url","listing-dependency","listing-tags","listing-dependency-group"],
     };
 
     window['quarto-listings'] = window['quarto-listings'] || {};
@@ -207,7 +207,7 @@ window.Quarto = {
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
         
-    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(107)</span></div><div class="category" data-category="QWdlbnQ=">Agent <span class="quarto-category-count">(25)</span></div><div class="category" data-category="QUklMjBSJTI2RA==">AI R&amp;D <span class="quarto-category-count">(1)</span></div><div class="category" data-category="QXNzaXN0YW50cw==">Assistants <span class="quarto-category-count">(9)</span></div><div class="category" data-category="Qmlhcw==">Bias <span class="quarto-category-count">(2)</span></div><div class="category" data-category="Q29kaW5n">Coding <span class="quarto-category-count">(14)</span></div><div class="category" data-category="Q3liZXJzZWN1cml0eQ==">Cybersecurity <span class="quarto-category-count">(11)</span></div><div class="category" data-category="S25vd2xlZGdl">Knowledge <span class="quarto-category-count">(20)</span></div><div class="category" data-category="TWF0aGVtYXRpY3M=">Mathematics <span class="quarto-category-count">(6)</span></div><div class="category" data-category="TXVsdGltb2RhbA==">Multimodal <span class="quarto-category-count">(9)</span></div><div class="category" data-category="UGVyc29uYWxpdHk=">Personality <span class="quarto-category-count">(1)</span></div><div class="category" data-category="UmVhc29uaW5n">Reasoning <span class="quarto-category-count">(20)</span></div><div class="category" data-category="U2FmZWd1YXJkcw==">Safeguards <span class="quarto-category-count">(15)</span></div><div class="category" data-category="U2NoZW1pbmc=">Scheming <span class="quarto-category-count">(4)</span></div><div class="category" data-category="V3JpdGluZw==">Writing <span class="quarto-category-count">(1)</span></div></div></div>
+    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(107)</span></div><div class="category" data-category="QWdlbnQ=">Agent <span class="quarto-category-count">(25)</span></div><div class="category" data-category="QUklMjBSJTI2RA==">AI R&amp;D <span class="quarto-category-count">(1)</span></div><div class="category" data-category="QXNzaXN0YW50cw==">Assistants <span class="quarto-category-count">(9)</span></div><div class="category" data-category="Qmlhcw==">Bias <span class="quarto-category-count">(2)</span></div><div class="category" data-category="Q29kaW5n">Coding <span class="quarto-category-count">(14)</span></div><div class="category" data-category="Q3liZXJzZWN1cml0eQ==">Cybersecurity <span class="quarto-category-count">(11)</span></div><div class="category" data-category="RWRpdGluZw==">Editing <span class="quarto-category-count">(1)</span></div><div class="category" data-category="R2FtZQ==">Game <span class="quarto-category-count">(1)</span></div><div class="category" data-category="SGVhbHRoY2FyZQ==">Healthcare <span class="quarto-category-count">(1)</span></div><div class="category" data-category="S25vd2xlZGdl">Knowledge <span class="quarto-category-count">(20)</span></div><div class="category" data-category="TWF0aGVtYXRpY3M=">Mathematics <span class="quarto-category-count">(6)</span></div><div class="category" data-category="TWVkaWNhbA==">Medical <span class="quarto-category-count">(1)</span></div><div class="category" data-category="TXVsdGltb2RhbA==">Multimodal <span class="quarto-category-count">(9)</span></div><div class="category" data-category="UGVyc29uYWxpdHk=">Personality <span class="quarto-category-count">(1)</span></div><div class="category" data-category="UmVhc29uaW5n">Reasoning <span class="quarto-category-count">(20)</span></div><div class="category" data-category="U2FmZWd1YXJkcw==">Safeguards <span class="quarto-category-count">(15)</span></div><div class="category" data-category="U2NoZW1pbmc=">Scheming <span class="quarto-category-count">(4)</span></div><div class="category" data-category="Vmlt">Vim <span class="quarto-category-count">(1)</span></div><div class="category" data-category="V3JpdGluZw==">Writing <span class="quarto-category-count">(1)</span></div></div></div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
@@ -251,7 +251,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/humaneval">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/humaneval">
             HumanEval: Python Function Generation from Instructions
           </a>
         </div>
@@ -272,7 +272,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mbpp">
             MBPP: Basic Python Coding Challenges
           </a>
         </div>
@@ -293,7 +293,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/swe_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/swe_bench">
             SWE-bench Verified: Resolving Real-World GitHub Issues
           </a>
         </div>
@@ -314,7 +314,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mle_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/mle_bench">
             MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering
           </a>
         </div>
@@ -335,7 +335,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/ds1000">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/ds1000">
             DS-1000: A Natural and Reliable Benchmark for Data Science Code Generation
           </a>
         </div>
@@ -355,7 +355,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bigcodebench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/bigcodebench">
             BigCodeBench: Benchmarking Code Generation with Diverse Function Calls and Complex Instructions
           </a>
         </div>
@@ -376,7 +376,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/class_eval">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/class_eval">
             ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level Code Generation
           </a>
         </div>
@@ -397,7 +397,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/scicode">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/scicode">
             SciCode: A Research Coding Benchmark Curated by Scientists
           </a>
         </div>
@@ -418,7 +418,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/apps">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/apps">
             APPS: Automated Programming Progress Standard
           </a>
         </div>
@@ -439,7 +439,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agent_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/agent_bench">
             AgentBench: Evaluate LLMs as Agents
           </a>
         </div>
@@ -459,7 +459,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/core_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/core_bench">
             CORE-Bench
           </a>
         </div>
@@ -479,7 +479,7 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/paperbench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/paperbench">
             PaperBench: Evaluating AI's Ability to Replicate AI Research (Work In Progress)
           </a>
         </div>
@@ -505,7 +505,7 @@ reproduce the paper's key results by writing and executing code.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/usaco">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/usaco">
             USACO: USA Computing Olympiad
           </a>
         </div>
@@ -526,7 +526,7 @@ reproduce the paper's key results by writing and executing code.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/terminal_bench_2">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/coding/terminal_bench_2">
             Terminal-Bench 2.0: Terminal Mastery Challenges
           </a>
         </div>
@@ -551,7 +551,7 @@ It measures whether an agent can execute workflows that resemble real engineerin
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gaia">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gaia">
             GAIA: A Benchmark for General AI Assistants
           </a>
         </div>
@@ -572,7 +572,7 @@ It measures whether an agent can execute workflows that resemble real engineerin
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/osworld">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/osworld">
             OSWorld: Multimodal Computer Interaction Tasks
           </a>
         </div>
@@ -593,7 +593,7 @@ It measures whether an agent can execute workflows that resemble real engineerin
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/assistant_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/assistant_bench">
             AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?
           </a>
         </div>
@@ -614,7 +614,7 @@ It measures whether an agent can execute workflows that resemble real engineerin
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sycophancy">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/sycophancy">
             Sycophancy Eval
           </a>
         </div>
@@ -635,7 +635,7 @@ It measures whether an agent can execute workflows that resemble real engineerin
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mind2web">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/mind2web">
             Mind2Web: Towards a Generalist Agent for the Web
           </a>
         </div>
@@ -656,7 +656,7 @@ It measures whether an agent can execute workflows that resemble real engineerin
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/browse_comp">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/browse_comp">
             BrowseComp: A Simple Yet Challenging Benchmark for Browsing Agents
           </a>
         </div>
@@ -678,7 +678,7 @@ The dataset consists of challenging questions that generally require web-access 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bfcl">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/bfcl">
             BFCL: Berkeley Function-Calling Leaderboard
           </a>
         </div>
@@ -699,7 +699,7 @@ The dataset consists of challenging questions that generally require web-access 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/tau2">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/tau2">
             Tau2
           </a>
         </div>
@@ -720,7 +720,7 @@ The dataset consists of challenging questions that generally require web-access 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdpval">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/gdpval">
             GDPval
           </a>
         </div>
@@ -744,7 +744,7 @@ The dataset consists of challenging questions that generally require web-access 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cve_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cve_bench">
             CVEBench:  Benchmark for AI Agents Ability to Exploit Real-World Web Application Vulnerabilities
           </a>
         </div>
@@ -765,7 +765,7 @@ The dataset consists of challenging questions that generally require web-access 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cybench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybench">
             Cybench: Capture-The-Flag Cybersecurity Challenges
           </a>
         </div>
@@ -786,7 +786,7 @@ The dataset consists of challenging questions that generally require web-access 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sandboxbench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sandboxbench">
             SandboxBench: Agent Containment Evaluation
           </a>
         </div>
@@ -809,7 +809,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cybermetric">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cybermetric">
             CyberMetric: A Benchmark Dataset based on Retrieval-Augmented Generation for Evaluating LLMs in Cybersecurity Knowledge
           </a>
         </div>
@@ -830,7 +830,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cyberseceval_2">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_2">
             CyberSecEval_2: Cybersecurity Risk and Vulnerability Evaluation
           </a>
         </div>
@@ -851,7 +851,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cyberseceval_3">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/cyberseceval_3">
             CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities in Large Language Models
           </a>
         </div>
@@ -872,7 +872,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/intercode_ctf">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf">
             InterCode: Security and Coding Capture-the-Flag Challenges
           </a>
         </div>
@@ -893,7 +893,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/in_house_ctf">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/in_house_ctf">
             GDM Dangerous Capabilities: Capture the Flag
           </a>
         </div>
@@ -914,7 +914,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sevenllm">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sevenllm">
             SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis and response abilities in LLMs for Security Events.
           </a>
         </div>
@@ -935,7 +935,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sec_qa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/sec_qa">
             SecQA: A Concise Question-Answering Dataset for Evaluating Large Language Models in Computer Security
           </a>
         </div>
@@ -956,7 +956,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/threecb">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/threecb">
             Catastrophic Cyber Capabilities Benchmark (3CB): Robustly Evaluating LLM Agent Cyber Offense Capabilities
           </a>
         </div>
@@ -980,7 +980,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/b3">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/b3">
             b3: Backbone Breaker Benchmark
           </a>
         </div>
@@ -1001,7 +1001,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mask">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mask">
             MASK: Disentangling Honesty from Accuracy in AI Systems
           </a>
         </div>
@@ -1022,7 +1022,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/lab_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/lab_bench">
             LAB-Bench: Measuring Capabilities of Language Models for Biology Research
           </a>
         </div>
@@ -1043,7 +1043,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agentdojo">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentdojo">
             AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents
           </a>
         </div>
@@ -1064,7 +1064,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agentharm">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agentharm">
             AgentHarm: Harmfulness Potential in AI Agents
           </a>
         </div>
@@ -1085,7 +1085,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/wmdp">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/wmdp">
             WMDP: Measuring and Reducing Malicious Use With Unlearning
           </a>
         </div>
@@ -1106,7 +1106,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/ahb">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/ahb">
             AHB: Animal Harm Benchmark
           </a>
         </div>
@@ -1127,7 +1127,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/coconot">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/coconot">
             The Art of Saying No: Contextual Noncompliance in Language Models
           </a>
         </div>
@@ -1148,7 +1148,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/strong_reject">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/strong_reject">
             StrongREJECT: Measuring LLM susceptibility to jailbreak attacks
           </a>
         </div>
@@ -1169,7 +1169,7 @@ containment testing rather than offensive capabilities.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/stereoset">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/stereoset">
             StereoSet: Measuring stereotypical bias in pretrained language models
           </a>
         </div>
@@ -1191,7 +1191,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/makemesay">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/makemesay">
             MakeMeSay
           </a>
         </div>
@@ -1212,7 +1212,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/make_me_pay">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/make_me_pay">
             Make Me Pay
           </a>
         </div>
@@ -1233,7 +1233,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/abstention_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/abstention_bench">
             AbstentionBench: Reasoning LLMs Fail on Unanswerable Questions
           </a>
         </div>
@@ -1254,7 +1254,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/fortress">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/fortress">
             FORTRESS
           </a>
         </div>
@@ -1275,7 +1275,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mind2web_sc">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/mind2web_sc">
             Mind2Web-SC
           </a>
         </div>
@@ -1299,7 +1299,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/math">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/math">
             MATH: Measuring Mathematical Problem Solving
           </a>
         </div>
@@ -1320,7 +1320,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gsm8k">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/gsm8k">
             GSM8K: Grade School Math Word Problems
           </a>
         </div>
@@ -1341,7 +1341,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mathvista">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mathvista">
             MathVista: Visual Math Problem-Solving
           </a>
         </div>
@@ -1362,7 +1362,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mgsm">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/mgsm">
             MGSM: Multilingual Grade School Math
           </a>
         </div>
@@ -1383,7 +1383,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/aime2024">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2024">
             AIME 2024: Problems from the American Invitational Mathematics Examination
           </a>
         </div>
@@ -1404,7 +1404,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/aime2025">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/mathematics/aime2025">
             AIME 2025: Problems from the American Invitational Mathematics Examination
           </a>
         </div>
@@ -1428,7 +1428,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/arc">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/arc">
             ARC: AI2 Reasoning Challenge
           </a>
         </div>
@@ -1448,7 +1448,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/hellaswag">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/hellaswag">
             HellaSwag: Commonsense Event Continuation
           </a>
         </div>
@@ -1469,7 +1469,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/piqa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/piqa">
             PIQA: Physical Commonsense Reasoning Test
           </a>
         </div>
@@ -1490,7 +1490,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/infinite_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/infinite_bench">
             ∞Bench: Extending Long Context Evaluation Beyond 100K Tokens
           </a>
         </div>
@@ -1511,7 +1511,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bbh">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbh">
             BBH: Challenging BIG-Bench Tasks
           </a>
         </div>
@@ -1532,7 +1532,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/boolq">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/boolq">
             BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions
           </a>
         </div>
@@ -1553,7 +1553,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/drop">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/drop">
             DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs
           </a>
         </div>
@@ -1574,7 +1574,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/winogrande">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/winogrande">
             WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale
           </a>
         </div>
@@ -1595,7 +1595,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race_h">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/race_h">
             RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models
           </a>
         </div>
@@ -1616,7 +1616,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmmu">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/mmmu">
             MMMU: Multimodal College-Level Understanding and Reasoning
           </a>
         </div>
@@ -1637,7 +1637,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/squad">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/squad">
             SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles
           </a>
         </div>
@@ -1658,7 +1658,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/ifeval">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/ifeval">
             IFEval: Instruction-Following Evaluation
           </a>
         </div>
@@ -1679,7 +1679,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/musr">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/musr">
             MuSR: Testing the Limits of Chain-of-thought with Multistep Soft Reasoning
           </a>
         </div>
@@ -1700,7 +1700,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/niah">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/niah">
             Needle in a Haystack (NIAH): In-Context Retrieval Benchmark for Long Context LLMs
           </a>
         </div>
@@ -1721,7 +1721,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/paws">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/paws">
             PAWS: Paraphrase Adversaries from Word Scrambling
           </a>
         </div>
@@ -1742,7 +1742,7 @@ Models choose between stereotype, anti-stereotype, and unrelated completions to 
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/lingoly">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/lingoly">
             LingOly
           </a>
         </div>
@@ -1765,7 +1765,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bbeh">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/bbeh">
             BIG-Bench Extra Hard
           </a>
         </div>
@@ -1786,7 +1786,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/worldsense">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/worldsense">
             WorldSense: Grounded Reasoning Benchmark
           </a>
         </div>
@@ -1800,14 +1800,14 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
   
     
   
-<li class="example" data-index="73" data-categories="UmVhc29uaW5n">
+<li class="example" data-index="73" data-categories="UmVhc29uaW5nJTJDVmltJTJDRWRpdGluZyUyQ0dhbWU=">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/vimgolf_challenges">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/vimgolf_challenges">
             VimGolf: Evaluating LLMs in Vim Editing Proficiency
           </a>
         </div>
@@ -1828,7 +1828,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/novelty_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/reasoning/novelty_bench">
             NoveltyBench: Evaluating Language Models for Humanlike Diversity
           </a>
         </div>
@@ -1852,7 +1852,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmlu">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu">
             MMLU: Measuring Massive Multitask Language Understanding
           </a>
         </div>
@@ -1873,7 +1873,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmlu_pro">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/mmlu_pro">
             MMLU-Pro: Advanced Multitask Knowledge and Reasoning Evaluation
           </a>
         </div>
@@ -1894,7 +1894,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gpqa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/gpqa">
             GPQA: Graduate-Level STEM Knowledge Challenge
           </a>
         </div>
@@ -1915,7 +1915,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/commonsense_qa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/commonsense_qa">
             CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge
           </a>
         </div>
@@ -1936,7 +1936,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/truthfulqa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/truthfulqa">
             TruthfulQA: Measuring How Models Mimic Human Falsehoods
           </a>
         </div>
@@ -1957,7 +1957,7 @@ LingOly-TOO (Linguistic Olympiad questions with Templatised Orthographic Obfusca
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/uccb">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/uccb">
             Uganda Cultural and Cognitive Benchmark (UCCB)
           </a>
         </div>
@@ -1981,7 +1981,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/xstest">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/xstest">
             XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's
           </a>
         </div>
@@ -2002,7 +2002,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pubmedqa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pubmedqa">
             PubMedQA: A Dataset for Biomedical Research Question Answering
           </a>
         </div>
@@ -2016,14 +2016,14 @@ and social norms.
   
     
   
-<li class="example" data-index="83" data-categories="S25vd2xlZGdl">
+<li class="example" data-index="83" data-categories="S25vd2xlZGdlJTJDTWVkaWNhbCUyQ0hlYWx0aGNhcmU=">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/healthbench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/healthbench">
             HealthBench: Evaluating Large Language Models Towards Improved Human Health
           </a>
         </div>
@@ -2044,7 +2044,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agieval">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/agieval">
             AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models
           </a>
         </div>
@@ -2065,7 +2065,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/livebench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/livebench">
             LiveBench: A Challenging, Contamination-Free LLM Benchmark
           </a>
         </div>
@@ -2086,7 +2086,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/onet">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/onet">
             O-NET: A high-school student knowledge test
           </a>
         </div>
@@ -2107,7 +2107,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/hle">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/hle">
             Humanity's Last Exam
           </a>
         </div>
@@ -2128,7 +2128,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/simpleqa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/simpleqa">
             SimpleQA/SimpleQA Verified: Measuring short-form factuality in large language models
           </a>
         </div>
@@ -2149,7 +2149,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pre_flight">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/pre_flight">
             Pre-Flight: Aviation Operations Knowledge Evaluation
           </a>
         </div>
@@ -2170,7 +2170,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/air_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/air_bench">
             AIR Bench: AI Risk Benchmark
           </a>
         </div>
@@ -2191,7 +2191,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sciknoweval">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sciknoweval">
             SciKnowEval: Evaluating Multi-level Scientific Knowledge of Large Language Models
           </a>
         </div>
@@ -2212,7 +2212,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/chembench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/chembench">
             ChemBench: Are large language models superhuman chemists?
           </a>
         </div>
@@ -2233,7 +2233,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sosbench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/sosbench">
             SOS BENCH: Benchmarking Safety Alignment on Scientific Knowledge
           </a>
         </div>
@@ -2254,7 +2254,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/medqa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/knowledge/medqa">
             MedQA: Medical exam Q&amp;A benchmark
           </a>
         </div>
@@ -2278,7 +2278,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/vstar_bench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/vstar_bench">
             V*Bench: A Visual QA Benchmark with Detailed High-resolution Images
           </a>
         </div>
@@ -2299,7 +2299,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/docvqa">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/docvqa">
             DocVQA: A Dataset for VQA on Document Images
           </a>
         </div>
@@ -2320,7 +2320,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmiu">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/mmiu">
             MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language Models
           </a>
         </div>
@@ -2340,7 +2340,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/zerobench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/multimodal/zerobench">
             ZeroBench
           </a>
         </div>
@@ -2363,7 +2363,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/writingbench">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/writing/writingbench">
             WritingBench: A Comprehensive Benchmark for Generative Writing
           </a>
         </div>
@@ -2387,7 +2387,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/self_reasoning">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/self_reasoning">
             GDM Dangerous Capabilities: Self-reasoning
           </a>
         </div>
@@ -2408,7 +2408,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/stealth">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/stealth">
             GDM Dangerous Capabilities: Stealth
           </a>
         </div>
@@ -2429,7 +2429,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agentic_misalignment">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/agentic_misalignment">
             Agentic Misalignment: How LLMs could be insider threats
           </a>
         </div>
@@ -2450,7 +2450,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/self_proliferation">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/scheming/self_proliferation">
             GDM Dangerous Capabilities: Self-proliferation
           </a>
         </div>
@@ -2474,7 +2474,7 @@ and social norms.
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/personality">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/personality/personality">
             Personality
           </a>
         </div>
@@ -2501,7 +2501,7 @@ Its primary goals are twofold:
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bbq">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bbq">
             BBQ: Bias Benchmark for Question Answering
           </a>
         </div>
@@ -2522,7 +2522,7 @@ Its primary goals are twofold:
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bold">
+          <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/bias/bold">
             BOLD: Bias in Open-ended Language Generation Dataset
           </a>
         </div>
