@@ -324,9 +324,12 @@ ul.task-list li input[type="checkbox"] {
 <li>Model API: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#modelinfo">ModelInfo</a></span> for retrieving information about models (e.g.&nbsp;organization, context window, reasoning, release date, etc.)</li>
 <li>Eval Retry: Initialize model usage from usage recorded in retried eval log.</li>
 <li>Anthropic: Use service model name when detecting tool compatibility.</li>
+<li>Google: Various mitigations for Gemini returning MALFORMED_FUNCTION_CALL.</li>
+<li>Human CLI Agent: Ability to add custom instructions and .bashrc commands to agent shell.</li>
 <li>Properly handle working time reporting for overlapping coroutines waiting on semaphores.</li>
 <li>Inspect View: Properly display dict scores in sample list.</li>
 <li>Inspect View: Improve display of Codex <code>shell_command</code> tool calls.</li>
+<li>Eval Logs: Support reading from <code>IO[bytes]</code> via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span>.</li>
 </ul>
 </section>
 <section id="december-2025" class="level2">

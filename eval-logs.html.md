@@ -246,7 +246,7 @@ helper functions from the `inspect_ai.log` module:
 | Function | Description |
 |----|----|
 | `list_eval_logs` | List all of the eval logs at a given location. |
-| `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
+| `read_eval_log` | Read an `EvalLog` from a log file path or `IO[bytes]` (pass `header_only` to not read samples). |
 | `read_eval_log_sample` | Read a single `EvalSample` from a log file |
 | `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
 | `read_eval_log_sample_summaries` | Read a summary of all samples (including scoring for each sample). |
