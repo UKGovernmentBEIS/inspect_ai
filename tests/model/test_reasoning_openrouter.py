@@ -1,4 +1,5 @@
 import json
+import logging
 
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.model._reasoning import (
@@ -89,7 +90,8 @@ class TestOpenrouterReasoningDetailsToReasoning:
 
     def test_empty_list_logs_warning(self, caplog):
         """Empty reasoning_details list logs warning and returns raw JSON."""
-        details = []
+        caplog.set_level(logging.WARNING, logger="inspect_ai.model._reasoning")
+        details: list[dict] = []
         result = openrouter_reasoning_details_to_reasoning(details)
 
         assert "Reasoning content not provided" in caplog.text
@@ -97,6 +99,7 @@ class TestOpenrouterReasoningDetailsToReasoning:
 
     def test_invalid_format_logs_warning(self, caplog):
         """Invalid/malformed data logs warning and returns raw JSON."""
+        caplog.set_level(logging.WARNING, logger="inspect_ai.model._reasoning")
         details = [{"type": "unknown.type", "foo": "bar"}]
         result = openrouter_reasoning_details_to_reasoning(details)
 
