@@ -1,5 +1,5 @@
 import json
-import logging
+from unittest.mock import patch
 
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.model._reasoning import (
@@ -88,24 +88,28 @@ class TestOpenrouterReasoningDetailsToReasoning:
         assert result.reasoning == "eyJlbmNyeXB0ZWQiOiJ0cnVlIn0="
         assert result.redacted is True
 
-    def test_empty_list_logs_warning(self, caplog):
+    def test_empty_list_logs_warning(self):
         """Empty reasoning_details list logs warning and returns raw JSON."""
-        caplog.set_level(logging.WARNING, logger="inspect_ai.model._reasoning")
-        details: list[dict] = []
-        result = openrouter_reasoning_details_to_reasoning(details)
+        with patch("inspect_ai.model._reasoning.logger") as mock_logger:
+            details: list[dict] = []
+            result = openrouter_reasoning_details_to_reasoning(details)
 
-        assert "Reasoning content not provided" in caplog.text
-        assert result.reasoning == "[]"
+            mock_logger.warning.assert_called_once()
+            call_args = mock_logger.warning.call_args[0][0]
+            assert "Reasoning content not provided" in call_args
+            assert result.reasoning == "[]"
 
-    def test_invalid_format_logs_warning(self, caplog):
+    def test_invalid_format_logs_warning(self):
         """Invalid/malformed data logs warning and returns raw JSON."""
-        caplog.set_level(logging.WARNING, logger="inspect_ai.model._reasoning")
-        details = [{"type": "unknown.type", "foo": "bar"}]
-        result = openrouter_reasoning_details_to_reasoning(details)
+        with patch("inspect_ai.model._reasoning.logger") as mock_logger:
+            details = [{"type": "unknown.type", "foo": "bar"}]
+            result = openrouter_reasoning_details_to_reasoning(details)
 
-        assert "Error parsing OpenRouter reasoning details" in caplog.text
-        # Falls back to raw JSON
-        assert result.signature is not None
+            mock_logger.warning.assert_called_once()
+            call_args = mock_logger.warning.call_args[0][0]
+            assert "Error parsing OpenRouter reasoning details" in call_args
+            # Falls back to raw JSON
+            assert result.signature is not None
 
     def test_signature_contains_original_json(self):
         """Signature preserves full original JSON for round-tripping."""
