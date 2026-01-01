@@ -42,7 +42,6 @@ from openai.types.chat.chat_completion_message_function_tool_call import Functio
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
-from shortuuid import uuid
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
@@ -64,6 +63,7 @@ from inspect_ai.model._internal import (
 )
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
 from inspect_ai.model._reasoning import (
+    openrouter_reasoning_details_to_reasoning,
     parse_content_with_reasoning,
     reasoning_to_think_tag,
 )
@@ -638,12 +638,7 @@ def chat_message_assistant_from_openai(
     msg_content = refusal or message.content or ""
     if reasoning_details is not None or reasoning is not None:
         reasoning = (
-            # openrouter uses reasoning_details
-            # https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#responses-api-shape
-            ContentReasoning(
-                reasoning=json.dumps(reasoning_details),
-                signature=f"{REASONING_DETAILS_SIGNATURE}-{uuid()}",
-            )
+            openrouter_reasoning_details_to_reasoning(reasoning_details)
             if reasoning_details is not None
             else ContentReasoning(reasoning=str(reasoning))
         )

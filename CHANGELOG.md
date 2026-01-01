@@ -6,6 +6,7 @@
 - Eval Retry: Initialize model usage from usage recorded in retried eval log.
 - Anthropic: Use service model name when detecting tool compatibility.
 - Google: Various mitigations for Gemini returning MALFORMED_FUNCTION_CALL.
+- OpenRouter: Improved integration with `reasoning_details` (map onto standard reasoning fields for viewer).
 - Human CLI Agent: Ability to add custom instructions and .bashrc commands to agent shell.
 - Properly handle working time reporting for overlapping coroutines waiting on semaphores.
 - Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
