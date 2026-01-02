@@ -432,3 +432,109 @@ def test_partition_edge_cases() -> None:
     # Without any user messages, all non-system become input
     assert partitioned.input == [assistant]
     assert partitioned.conversation == []
+
+
+# Tests for orphan tool_call removal
+@pytest.mark.asyncio
+async def test_orphan_tool_calls_removed() -> None:
+    """Test that tool_calls without corresponding tool results are removed."""
+    # Create an assistant message with 3 tool calls, but only 1 tool result
+    assistant = ChatMessageAssistant(
+        content="Making multiple tool calls",
+        tool_calls=[
+            ToolCall(id="tool1", function="func1", arguments={}),
+            ToolCall(id="tool2", function="func2", arguments={}),
+            ToolCall(id="tool3", function="func3", arguments={}),
+        ],
+    )
+    tool1 = ChatMessageTool(
+        content='{"result": "result1"}', tool_call_id="tool1", function="func1"
+    )
+    # tool2 and tool3 results are missing
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="User message"),
+        assistant,
+        tool1,
+    ]
+
+    trimmed = await trim_messages(messages, preserve=1.0)
+
+    # Find the assistant message in the result
+    assistant_msg = next(m for m in trimmed if m.role == "assistant")
+
+    # Should only have tool1, not tool2 or tool3
+    assert assistant_msg.tool_calls is not None
+    assert len(assistant_msg.tool_calls) == 1
+    assert assistant_msg.tool_calls[0].id == "tool1"
+
+
+@pytest.mark.asyncio
+async def test_all_orphan_tool_calls_removed() -> None:
+    """Test that assistant with all orphan tool_calls has tool_calls set to None."""
+    # Create an assistant message with tool calls, but no tool results at all
+    assistant = ChatMessageAssistant(
+        content="Making tool calls",
+        tool_calls=[
+            ToolCall(id="tool1", function="func1", arguments={}),
+            ToolCall(id="tool2", function="func2", arguments={}),
+        ],
+    )
+    # No tool results
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="User message"),
+        assistant,
+        ChatMessageUser(content="Follow up"),
+    ]
+
+    trimmed = await trim_messages(messages, preserve=1.0)
+
+    # Find the assistant message in the result
+    assistant_msg = next(m for m in trimmed if m.role == "assistant")
+
+    # tool_calls should be None since all were orphaned
+    assert assistant_msg.tool_calls is None
+
+
+@pytest.mark.asyncio
+async def test_orphan_tool_calls_from_trimming() -> None:
+    """Test that orphan tool_calls created by trimming are cleaned up."""
+    # Create a conversation where trimming will create orphan tool_calls
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="First user", source="input"),
+        # This assistant-tool pair will be trimmed (at the start of conversation)
+        ChatMessageAssistant(
+            content="Early assistant",
+            tool_calls=[ToolCall(id="early1", function="func1", arguments={})],
+        ),
+        ChatMessageTool(
+            content='{"result": "early"}', tool_call_id="early1", function="func1"
+        ),
+        # This user message will be preserved
+        ChatMessageUser(content="Middle user"),
+        # This assistant has tool_calls, but results will be at the end
+        ChatMessageAssistant(
+            content="Later assistant",
+            tool_calls=[
+                ToolCall(id="later1", function="func1", arguments={}),
+                ToolCall(id="later2", function="func2", arguments={}),
+            ],
+        ),
+        ChatMessageTool(
+            content='{"result": "later1"}', tool_call_id="later1", function="func1"
+        ),
+        ChatMessageTool(
+            content='{"result": "later2"}', tool_call_id="later2", function="func2"
+        ),
+    ]
+
+    # With preserve=0.5, we'll keep only the later half of conversation
+    trimmed = await trim_messages(messages, preserve=0.5)
+
+    # All tool_calls in the result should have corresponding tool results
+    for msg in trimmed:
+        if msg.role == "assistant" and msg.tool_calls:
+            tool_ids_in_result = {m.tool_call_id for m in trimmed if m.role == "tool"}
+            for tc in msg.tool_calls:
+                assert tc.id in tool_ids_in_result, f"Orphan tool_call {tc.id} found"
