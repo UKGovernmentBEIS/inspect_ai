@@ -12,6 +12,7 @@
 - Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
 - Inspect View: Properly display dict scores in sample list.
 - Inspect View: Improve display of Codex `shell_command` tool calls.
+- Inspect View: Improve the display of very wide metrics results in the results dialog.
 
 ## 0.3.158 (24 December 2025)
 

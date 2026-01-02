@@ -21048,7 +21048,7 @@ span.ap-marker-container:hover span.ap-marker {
 ._label_12472_14 {
   margin-left: 0.4em;
 }
-._modal_1tvha_1 {
+._modal_o64lp_1 {
   margin-left: auto;
   margin-right: auto;
   display: flex;
@@ -21061,21 +21061,21 @@ span.ap-marker-container:hover span.ap-marker {
   z-index: 1050;
 }
 
-._header_1tvha_14 {
+._header_o64lp_14 {
   height: 2em;
 }
 
-._modalTitle_1tvha_18 {
+._modalTitle_o64lp_18 {
   font-weight: 600;
 }
 
-._btnClose_1tvha_22 {
+._btnClose_o64lp_22 {
   height: 0.8em;
   width: 0.8em;
 }
 
 /* Backdrop styling for the glass effect */
-._backdrop_1tvha_28 {
+._backdrop_o64lp_28 {
   position: fixed;
   top: 0;
   left: 0;
@@ -21085,6 +21085,22 @@ span.ap-marker-container:hover span.ap-marker {
   opacity: var(--inspect-glass-opacity);
 
   z-index: 1040;
+}
+
+._overflowVisible_o64lp_40 {
+  overflow: visible;
+}
+
+._overflowHidden_o64lp_44 {
+  overflow: hidden;
+}
+
+._overflowScroll_o64lp_48 {
+  overflow: scroll;
+}
+
+._overflowAuto_o64lp_52 {
+  overflow: auto;
 }
 ._simpleMetricsRows_1itqo_1 {
   display: flex;
