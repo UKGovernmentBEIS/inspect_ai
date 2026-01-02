@@ -64,9 +64,10 @@ def compaction(
     threshold = _resolve_threshold(target_model, strategy.threshold)
     memory_warning_threshold = int(0.9 * threshold)
 
-    # resolve tool info and count tool tokens once (tools don't change during conversation)
+    # resolve tool info and count tool/prefix tokens once (they don't change during conversation)
     tools_info: list[ToolInfo] = []
     tool_tokens: int | None = None
+    prefix_tokens: int | None = None
 
     # helper to get message ID (assert away id == None)
     def message_id(message: ChatMessage) -> str:
@@ -93,13 +94,15 @@ def compaction(
         messages: list[ChatMessage],
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         # state variables we modify
-        nonlocal tool_tokens, tools_info, memory_warning_issued
+        nonlocal tool_tokens, tools_info, prefix_tokens, memory_warning_issued
 
-        # one time resolution of tool_tokens
+        # one time resolution of tool_tokens and prefix_tokens
         # (must be done here b/c calls are async)
         if tool_tokens is None:
             tools_info = get_tools_info(await resolve_tools(tools or []))
             tool_tokens = await target_model.count_tool_tokens(tools_info)
+        if prefix_tokens is None:
+            prefix_tokens = await target_model.count_tokens(prefix) if prefix else 0
 
         # determine unprocessed messages (messages not yet added to input).
         # we allow unprocessed messages to accumulate in the input until
@@ -117,8 +120,15 @@ def compaction(
         )
         total_tokens = tool_tokens + message_tokens
         if total_tokens > threshold:
-            # perform compaction
-            c_input, c_message = await strategy.compact(target_messages, target_model)
+            # perform compaction (with iteration if needed)
+            c_input, c_message = await _perform_compaction(
+                strategy=strategy,
+                messages=target_messages,
+                model=target_model,
+                threshold=threshold,
+                tool_tokens=tool_tokens,
+                prefix_tokens=prefix_tokens,
+            )
 
             # track all messages that were processed in this compaction pass
             for m in compacted_input + unprocessed:
@@ -147,17 +157,6 @@ def compaction(
                     "Messages": f"{len(target_messages):,} ⟶ {len(compacted_input):,}",
                 }
             )
-
-            # validate compaction was sufficient
-            total_compacted = tool_tokens + compacted_tokens
-            if total_compacted > threshold:
-                raise RuntimeError(
-                    f"Compaction insufficient: {total_compacted:,} tokens "
-                    f"still exceeds threshold of {threshold:,} "
-                    f"(tools: {tool_tokens:,}, messages: {compacted_tokens:,}). "
-                    f"Consider using a lower compaction threshold to accommodate "
-                    f"tool definitions."
-                )
 
             # clear memory warning state
             memory_warning_issued = False
@@ -192,6 +191,64 @@ def compaction(
 
 
 DEFAULT_CONTEXT_WINDOW = 128_000
+
+
+async def _perform_compaction(
+    strategy: CompactionStrategy,
+    messages: list[ChatMessage],
+    model: Model,
+    threshold: int,
+    tool_tokens: int,
+    prefix_tokens: int,
+) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+    """Perform compaction, iterating if necessary to get under threshold.
+
+    Args:
+        strategy: Compaction strategy to use.
+        messages: Messages to compact.
+        model: Target model for compaction.
+        threshold: Token threshold to stay under.
+        tool_tokens: Token count for tool definitions.
+        prefix_tokens: Token count for prefix messages (for error reporting).
+
+    Returns:
+        Tuple of (compacted messages, optional summary message).
+
+    Raises:
+        RuntimeError: If compaction cannot reduce tokens below threshold.
+    """
+    MAX_ITERATIONS = 3
+    c_input, c_message = await strategy.compact(messages, model)
+    compacted_tokens = await model.count_tokens(c_input)
+    total_compacted = tool_tokens + compacted_tokens
+
+    for _ in range(MAX_ITERATIONS):
+        if total_compacted <= threshold:
+            break  # Success
+
+        prev_tokens = compacted_tokens
+
+        # Try compacting again
+        c_input, c_message = await strategy.compact(list(c_input), model)
+        compacted_tokens = await model.count_tokens(c_input)
+        total_compacted = tool_tokens + compacted_tokens
+
+        # Stop if no progress (can't reduce further)
+        if compacted_tokens >= prev_tokens:
+            break
+
+    # Final validation
+    if total_compacted > threshold:
+        raise RuntimeError(
+            f"Compaction insufficient: {total_compacted:,} tokens "
+            f"still exceeds threshold of {threshold:,} "
+            f"(tools: {tool_tokens:,}, prefix: {prefix_tokens:,}, "
+            f"messages: {compacted_tokens:,}). "
+            f"Consider using a lower compaction threshold to accommodate "
+            f"tool definitions and prefix."
+        )
+
+    return c_input, c_message
 
 
 def _resolve_threshold(model: Model, threshold: int | float) -> int:
