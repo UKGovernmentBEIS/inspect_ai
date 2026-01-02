@@ -546,3 +546,80 @@ async def test_summary_integration() -> None:
     result2, summary2 = await compact(messages2)
     # The factory should handle the summary in the history
     assert result2 is not None
+
+
+# ==============================================================================
+# Iterative Compaction Tests
+# ==============================================================================
+
+
+@pytest.mark.asyncio
+async def test_iterative_compaction_succeeds() -> None:
+    """Test that iterative compaction retries until under threshold."""
+    # Use CompactionTrim with threshold that requires 2+ passes to succeed.
+    # preserve=0.5 means each pass keeps 50%, so:
+    # - Pass 1: 50% of messages remain
+    # - Pass 2: 25% of messages remain
+    # - Pass 3: 12.5% of messages remain
+    # We set threshold such that pass 1 fails but later passes succeed.
+    strategy = CompactionTrim(threshold=200, preserve=0.5)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = [system_msg("S", "sys1")]
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    # Create messages that exceed 200 tokens but can be reduced via iteration
+    messages: list[ChatMessage] = [system_msg("S", "sys1")]
+    for i in range(10):
+        messages.append(user_msg(f"Q{i}" * 10, f"u{i}"))
+        messages.append(assistant_msg(f"A{i}" * 10, f"a{i}"))
+
+    # Should succeed via iteration (not raise RuntimeError)
+    result, _ = await compact(messages)
+    assert result is not None
+    assert len(result) < len(messages)
+
+
+@pytest.mark.asyncio
+async def test_iterative_compaction_stops_when_no_progress() -> None:
+    """Test that iteration stops if compaction makes no progress."""
+    # CompactionEdit with nothing to clear should stop immediately
+    strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = [system_msg("System prompt " * 20, "sys1")]
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    # Messages with no tool calls (nothing for Edit to clear)
+    messages: list[ChatMessage] = [
+        system_msg("System prompt " * 20, "sys1"),
+        user_msg("Q" * 100, "msg1"),
+    ]
+
+    # Should raise RuntimeError since Edit can't reduce these messages
+    with pytest.raises(RuntimeError, match="Compaction insufficient"):
+        await compact(messages)
+
+
+@pytest.mark.asyncio
+async def test_compaction_error_message_breakdown() -> None:
+    """Test that RuntimeError includes tools, prefix, messages breakdown."""
+    strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = [system_msg("Prefix " * 10, "sys1")]
+    tool = ToolInfo(name="bash", description="Run commands")
+    compact = compaction(strategy, prefix=prefix, tools=[tool], model=model)
+
+    messages: list[ChatMessage] = [
+        system_msg("Prefix " * 10, "sys1"),
+        user_msg("Q" * 100, "msg1"),
+    ]
+
+    with pytest.raises(RuntimeError) as exc_info:
+        await compact(messages)
+
+    error_msg = str(exc_info.value)
+    assert "tools:" in error_msg
+    assert "prefix:" in error_msg
+    assert "messages:" in error_msg
