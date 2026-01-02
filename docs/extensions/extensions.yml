@@ -82,6 +82,12 @@
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
   categories: ["Sandbox"]
 
+- name: "[Modal Sandbox](https://github.com/anthonyduong9/inspect_modal_sandbox)"
+  description: |
+    Python package that provides a Modal container sandbox environment for Inspect.
+  author: "[Anthony Duong](https://github.com/anthonyduong9)"
+  categories: ["Sandbox"]
+
 - name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
   description: Use virtual machines, running within a [Proxmox](https://www.proxmox.com/en/products/proxmox-virtual-environment/overview) instance, as Inspect sandboxes.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
