@@ -446,9 +446,19 @@ class AnthropicAPI(ModelAPI):
             ChatMessageUser(content=m.content) if m.role == "system" else m
             for m in input
         ]
+
+        # Convert to Anthropic message format
+        messages = [await message_param(m) for m in input]
+
+        # Anthropic's API validates message structure even for token counting.
+        # When counting tokens for individual messages (e.g., for caching in
+        # compaction), we may have orphaned tool_use or tool_result blocks.
+        # Pad with fake paired items to satisfy API validation.
+        messages = pad_tool_messages_for_token_counting(messages)
+
         response = await self.client.messages.count_tokens(
             model=self.service_model_name(),
-            messages=[await message_param(m) for m in input],
+            messages=messages,
         )
         return response.input_tokens
 
@@ -2094,6 +2104,113 @@ async def count_tokens(
         )
         estimated_tokens = int(max(1, len(text) / 4))
         return estimated_tokens
+
+
+def pad_tool_messages_for_token_counting(
+    messages: list[MessageParam],
+) -> list[MessageParam]:
+    """Pad tool messages to satisfy Anthropic's API validation for token counting.
+
+    Anthropic's count_tokens API validates message structure and requires:
+    - Every tool_use block must have a corresponding tool_result in the next message
+    - Every tool_result block must have a corresponding tool_use in the previous message
+
+    When counting tokens for individual messages (e.g., for caching in compaction),
+    we may have orphaned tool_use or tool_result blocks. This function pads with
+    minimal fake paired items to satisfy API validation.
+
+    This slightly overcounts tokens but that's acceptable for compaction triggering.
+    """
+    if not messages:
+        return messages
+
+    result: list[MessageParam] = []
+
+    for i, msg in enumerate(messages):
+        # Check for tool_result blocks without preceding tool_use
+        if msg["role"] == "user":
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                tool_result_ids: list[str] = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                        tool_result_ids.append(block.get("tool_use_id", ""))
+
+                if tool_result_ids:
+                    # Check if previous message has corresponding tool_use blocks
+                    prev_tool_use_ids: set[str] = set()
+                    if result and result[-1]["role"] == "assistant":
+                        prev_content = result[-1].get("content", [])
+                        if isinstance(prev_content, list):
+                            for block in prev_content:
+                                if (
+                                    isinstance(block, dict)
+                                    and block.get("type") == "tool_use"
+                                ):
+                                    prev_tool_use_ids.add(block.get("id", ""))
+
+                    # Add fake assistant message with tool_use for orphaned results
+                    orphaned_ids = [
+                        tid for tid in tool_result_ids if tid not in prev_tool_use_ids
+                    ]
+                    if orphaned_ids:
+                        fake_tool_uses = [
+                            ToolUseBlockParam(
+                                type="tool_use",
+                                id=tid,
+                                name="placeholder",
+                                input={},
+                            )
+                            for tid in orphaned_ids
+                        ]
+                        result.append(
+                            MessageParam(role="assistant", content=fake_tool_uses)
+                        )
+
+        result.append(msg)
+
+        # Check for tool_use blocks without following tool_result
+        if msg["role"] == "assistant":
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                tool_use_ids: list[str] = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tool_use_ids.append(block.get("id", ""))
+
+                if tool_use_ids:
+                    # Check if next message has corresponding tool_result blocks
+                    next_tool_result_ids: set[str] = set()
+                    if i + 1 < len(messages) and messages[i + 1]["role"] == "user":
+                        next_content = messages[i + 1].get("content", [])
+                        if isinstance(next_content, list):
+                            for block in next_content:
+                                if (
+                                    isinstance(block, dict)
+                                    and block.get("type") == "tool_result"
+                                ):
+                                    next_tool_result_ids.add(
+                                        block.get("tool_use_id", "")
+                                    )
+
+                    # Add fake user message with tool_result for orphaned uses
+                    orphaned_ids = [
+                        tid for tid in tool_use_ids if tid not in next_tool_result_ids
+                    ]
+                    if orphaned_ids:
+                        fake_tool_results = [
+                            ToolResultBlockParam(
+                                type="tool_result",
+                                tool_use_id=tid,
+                                content="",
+                            )
+                            for tid in orphaned_ids
+                        ]
+                        result.append(
+                            MessageParam(role="user", content=fake_tool_results)
+                        )
+
+    return result
 
 
 def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:

@@ -24,7 +24,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageAssistant
+from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers._google_citations import (
@@ -697,3 +697,86 @@ async def test_malformed_function_call_retry_adds_feedback_messages():
         roles = [c.role for c in contents]
         assert "model" in roles
         assert "user" in roles
+
+
+# Tests for count_tokens with unpaired tool messages
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_google_count_tokens_single_tool_call() -> None:
+    """Test counting tokens for a single assistant message with one tool call."""
+    from inspect_ai.model import get_model
+
+    model = get_model("google/gemini-2.0-flash")
+
+    # Create an assistant message with a single tool call (no tool result)
+    assistant_msg = ChatMessageAssistant(
+        content="I'll help you with that.",
+        tool_calls=[
+            ToolCall(
+                id="call_test_123",
+                function="test_function",
+                arguments={"arg1": "value1"},
+            )
+        ],
+    )
+
+    # This should not raise - we're testing token counting for individual messages
+    token_count = await model.api.count_tokens([assistant_msg])
+    assert token_count > 0
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_google_count_tokens_multiple_tool_calls() -> None:
+    """Test counting tokens for a single assistant message with multiple tool calls."""
+    from inspect_ai.model import get_model
+
+    model = get_model("google/gemini-2.0-flash")
+
+    # Create an assistant message with multiple tool calls (no tool results)
+    assistant_msg = ChatMessageAssistant(
+        content="I'll run multiple tools.",
+        tool_calls=[
+            ToolCall(
+                id="call_test_abc",
+                function="function_a",
+                arguments={"x": 1},
+            ),
+            ToolCall(
+                id="call_test_def",
+                function="function_b",
+                arguments={"y": 2},
+            ),
+            ToolCall(
+                id="call_test_ghi",
+                function="function_c",
+                arguments={"z": 3},
+            ),
+        ],
+    )
+
+    # This should not raise - we're testing token counting for individual messages
+    token_count = await model.api.count_tokens([assistant_msg])
+    assert token_count > 0
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_google_count_tokens_single_tool_result() -> None:
+    """Test counting tokens for a single tool result message (no preceding tool use)."""
+    from inspect_ai.model import get_model
+
+    model = get_model("google/gemini-2.0-flash")
+
+    # Create a tool result message without a preceding assistant message
+    tool_msg = ChatMessageTool(
+        content="Tool result content here",
+        tool_call_id="call_test_xyz",
+        function="some_function",
+    )
+
+    # This should not raise - we're testing token counting for individual messages
+    token_count = await model.api.count_tokens([tool_msg])
+    assert token_count > 0
