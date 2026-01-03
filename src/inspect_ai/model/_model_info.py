@@ -139,11 +139,39 @@ def _fuzzy_match(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
     return None
 
 
+def _lookup_in_db(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
+    """Try to find a model in the database using various matching strategies.
+
+    Args:
+        name: The model name to look up.
+        db: The model info database.
+
+    Returns:
+        ModelInfo if found, None otherwise.
+    """
+    # Try exact match
+    if name in db:
+        return db[name]
+
+    # Try case-insensitive match using the lookup index
+    index = _get_lookup_index()
+    normalized = _normalize_for_lookup(name)
+    if normalized in index:
+        return db[index[normalized]]
+
+    # Try fuzzy matching
+    return _fuzzy_match(name, db)
+
+
 def get_model_info(model: str | Model) -> ModelInfo | None:
     """Get model information including context window, output tokens, etc.
 
     Looks up model information from a local database. Supports standard
     Inspect model strings and performs case-insensitive matching.
+
+    This function first tries direct database lookup, which does not require
+    provider SDKs to be installed. It only falls back to full provider
+    instantiation if direct lookup fails.
 
     Args:
         model: Model name or Model instance. Standard Inspect model strings
@@ -166,37 +194,44 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
     # Import here to avoid circular imports
     from inspect_ai.model._model import Model, get_model
 
-    # Resolve to Model and get canonical name
-    if isinstance(model, Model):
-        name = model.canonical_name()
-    else:
-        try:
-            # Pass dummy api_key since we only need the canonical name, not a working client
-            resolved = get_model(model, api_key="__model_info_lookup__")
-            name = resolved.canonical_name()
-        except ValueError:
-            # Unknown provider - return None
-            return None
-
-    # Check custom registry first
-    if name in _custom_models:
-        return _custom_models[name]
-
     # Get the database
     db = _get_model_info_db()
 
-    # Try exact match
-    if name in db:
-        return db[name]
+    # If already a Model instance, use its canonical name directly
+    if isinstance(model, Model):
+        name = model.canonical_name()
 
-    # Try case-insensitive match using the lookup index
-    index = _get_lookup_index()
-    normalized = _normalize_for_lookup(name)
-    if normalized in index:
-        return db[index[normalized]]
+        # Check custom registry first
+        if name in _custom_models:
+            return _custom_models[name]
 
-    # Try fuzzy matching as a last resort
-    return _fuzzy_match(name, db)
+        return _lookup_in_db(name, db)
+
+    # For string model names, try direct lookup first (no SDK required)
+    # The database includes aliases for common model name formats
+
+    # Check custom registry with original name
+    if model in _custom_models:
+        return _custom_models[model]
+
+    # Try direct database lookup
+    result = _lookup_in_db(model, db)
+    if result is not None:
+        return result
+
+    # Fall back to full provider instantiation (requires SDK)
+    # This handles cases where the model name needs provider-specific canonicalization
+    try:
+        resolved = get_model(model, api_key="__model_info_lookup__")
+        name = resolved.canonical_name()
+
+        if name in _custom_models:
+            return _custom_models[name]
+
+        return _lookup_in_db(name, db)
+    except (ValueError, Exception):
+        # Provider not available or unknown - already tried direct lookup
+        return None
 
 
 def set_model_info(model: str, info: ModelInfo) -> None:
