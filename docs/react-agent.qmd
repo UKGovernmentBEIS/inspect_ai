@@ -123,14 +123,6 @@ Submissions are evaluated using the task's main scorer, with value of 1.0 indica
 
 ## Compaction
 
-::: {.callout-note appearance="minimal"}
-Support for compaction is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 [Compaction](compaction.qmd) enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the `compaction()` function along with a compaction strategy to incorporate compaction into a react agent. For example:
 
 

@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.159 (03 January 2026)
 
 - [Compaction](https://inspect.aisi.org.uk/compaction.html.md): Compacting message histories for long-running agents that exceed the context window.
 - Model API: `count_tokens()` method for estimating token usage for messages.
