@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
@@ -65,7 +66,8 @@ class SampleBufferFilestore(SampleBuffer):
             self._fs.touch(f"{self._dir}.keep")
 
     def write_manifest(self, manifest: Manifest) -> None:
-        with file(self._manifest_file(), "wb") as f:
+        # Use atomic write for consistency with main log writes (issue #2949)
+        with atomic_write(self._manifest_file(), fsync=True) as f:
             f.write(to_json_safe(manifest))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
