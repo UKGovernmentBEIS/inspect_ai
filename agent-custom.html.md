@@ -160,15 +160,6 @@ overflow).
 
 ## Compaction
 
-> [!NOTE]
->
-> Support for compaction is available only in the development version of
-> Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 [Compaction](compaction.qmd) enables you to automatically manage
 conversation context as it grows, helping you optimize costs and stay
 within context window limits for long-running agents. Use the

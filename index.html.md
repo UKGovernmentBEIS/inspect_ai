@@ -24,7 +24,8 @@ understanding. Core features of Inspect include:
   multi-agent primitives, the ability to run arbitrary external agents
   like Claude Code and Codex CLI.
 - A sandboxing system that supports running untrusted model code in
-  Docker, Kubernetes, Proxmox, and other systems via an extension API.
+  Docker, Kubernetes, Modal, Proxmox, and other systems via an extension
+  API.
 
 We’ll walk through a fairly trivial “Hello, Inspect” example below. Read
 on to learn the basics, then read the documentation on

@@ -149,7 +149,7 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.159 (03 January 2026)</a></li>
   <li><a href="#december-2025" id="toc-december-2025" class="nav-link" data-scroll-target="#december-2025">0.3.158 (24 December 2025)</a></li>
   <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.157 (22 December 2025)</a></li>
   <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.156 (20 December 2025)</a></li>
@@ -316,8 +316,8 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="january-2026" class="level2">
+<h2 class="anchored" data-anchor-id="january-2026">0.3.159 (03 January 2026)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/compaction.html.md">Compaction</a>: Compacting message histories for long-running agents that exceed the context window.</li>
 <li>Model API: <code>count_tokens()</code> method for estimating token usage for messages.</li>
@@ -325,11 +325,13 @@ ul.task-list li input[type="checkbox"] {
 <li>Eval Retry: Initialize model usage from usage recorded in retried eval log.</li>
 <li>Anthropic: Use service model name when detecting tool compatibility.</li>
 <li>Google: Various mitigations for Gemini returning MALFORMED_FUNCTION_CALL.</li>
+<li>OpenRouter: Improved integration with <code>reasoning_details</code> (map onto standard reasoning fields for viewer).</li>
 <li>Human CLI Agent: Ability to add custom instructions and .bashrc commands to agent shell.</li>
 <li>Properly handle working time reporting for overlapping coroutines waiting on semaphores.</li>
+<li>Eval Logs: Support reading from <code>IO[bytes]</code> via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span>.</li>
 <li>Inspect View: Properly display dict scores in sample list.</li>
 <li>Inspect View: Improve display of Codex <code>shell_command</code> tool calls.</li>
-<li>Eval Logs: Support reading from <code>IO[bytes]</code> via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span>.</li>
+<li>Inspect View: Improve the display of very wide metrics results in the results dialog.</li>
 </ul>
 </section>
 <section id="december-2025" class="level2">
