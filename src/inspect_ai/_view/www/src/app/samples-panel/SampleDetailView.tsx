@@ -48,6 +48,11 @@ export const SampleDetailView: FC = () => {
   const showFind = useStore((state) => state.app.showFind);
   const setSampleTab = useStore((state) => state.appActions.setSampleTab);
 
+  // Extract sample properties
+  const summaryId = selectedSampleSummary?.id;
+  const summaryEpoch = selectedSampleSummary?.epoch;
+  const summaryCompleted = selectedSampleSummary?.completed;
+
   // Find current sample in displayed samples list
   const currentIndex = useMemo(() => {
     if (!displayedSamples || !selectedLogFile || !sampleId || !epoch) {
@@ -195,12 +200,21 @@ export const SampleDetailView: FC = () => {
 
   useEffect(() => {
     const exec = async () => {
-      if (selectedLogFile && selectedSampleSummary) {
-        await loadSample(selectedLogFile, selectedSampleSummary);
+      if (
+        selectedLogFile &&
+        summaryId !== undefined &&
+        summaryEpoch !== undefined
+      ) {
+        await loadSample(
+          selectedLogFile,
+          summaryId,
+          summaryEpoch,
+          summaryCompleted,
+        );
       }
     };
     void exec();
-  }, [loadSample, selectedLogFile, selectedSampleSummary]);
+  }, [loadSample, selectedLogFile, summaryId, summaryEpoch, summaryCompleted]);
 
   useEffect(() => {
     return () => {
