@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
+- Bugfix: Prevent component not found error during Human Agent transition.
 
 ## 0.3.159 (03 January 2026)
 
