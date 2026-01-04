@@ -17,7 +17,7 @@ from inspect_ai.model import get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Solver, solver
 from inspect_ai.tool import tool
-from inspect_ai.tool._mcp._config import MCPServerConfigStdio
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.util import sandbox
 
 # =============================================================================
@@ -75,10 +75,49 @@ def eval_bridged_tools_task(test_solver: Solver) -> EvalLog:
     return log
 
 
-async def call_mcp_tool(
-    config: MCPServerConfigStdio, tool_name: str, arguments: dict
+async def _mcp_http_request_with_retry(
+    url: str, request: str, max_retries: int = 30, retry_delay: float = 0.5
 ) -> dict:
-    """Send a tools/call JSON-RPC request to MCP server and return parsed response."""
+    """Send HTTP POST to MCP endpoint with retry logic for server startup."""
+    import asyncio
+
+    last_error = None
+    for attempt in range(max_retries):
+        result = await sandbox().exec(
+            cmd=[
+                "curl",
+                "-s",
+                "-f",  # Fail silently on HTTP errors
+                "-X",
+                "POST",
+                "-H",
+                "Content-Type: application/json",
+                "-d",
+                request,
+                url,
+            ],
+            timeout=30,
+        )
+        if result.success and result.stdout.strip():
+            try:
+                return json.loads(result.stdout.strip())
+            except json.JSONDecodeError as e:
+                last_error = e
+        else:
+            last_error = Exception(
+                f"curl failed: returncode={result.returncode}, "
+                f"stdout={result.stdout}, stderr={result.stderr}"
+            )
+        if attempt < max_retries - 1:
+            await asyncio.sleep(retry_delay)
+
+    raise RuntimeError(f"MCP request failed after {max_retries} retries: {last_error}")
+
+
+async def call_mcp_tool(
+    config: MCPServerConfigHTTP, tool_name: str, arguments: dict
+) -> dict:
+    """Send a tools/call JSON-RPC request to MCP HTTP server and return parsed response."""
     request = json.dumps(
         {
             "jsonrpc": "2.0",
@@ -87,25 +126,13 @@ async def call_mcp_tool(
             "params": {"name": tool_name, "arguments": arguments},
         }
     )
-    result = await sandbox().exec(
-        cmd=[config.command] + list(config.args),
-        env=config.env or {},
-        input=request + "\n",
-        timeout=30,
-    )
-    return json.loads(result.stdout.strip())
+    return await _mcp_http_request_with_retry(config.url, request)
 
 
-async def call_mcp_tools_list(config: MCPServerConfigStdio) -> dict:
-    """Send a tools/list JSON-RPC request to MCP server and return parsed response."""
+async def call_mcp_tools_list(config: MCPServerConfigHTTP) -> dict:
+    """Send a tools/list JSON-RPC request to MCP HTTP server and return parsed response."""
     request = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
-    result = await sandbox().exec(
-        cmd=[config.command] + list(config.args),
-        env=config.env or {},
-        input=request + "\n",
-        timeout=30,
-    )
-    return json.loads(result.stdout.strip())
+    return await _mcp_http_request_with_retry(config.url, request)
 
 
 # =============================================================================

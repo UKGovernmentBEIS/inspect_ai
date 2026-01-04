@@ -8,7 +8,7 @@ from shortuuid import uuid
 
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter
-from inspect_ai.tool._mcp._config import MCPServerConfigStdio
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SANDBOX_TOOLS_CLI,
@@ -173,24 +173,20 @@ async def run_model_proxy(
 
 def _register_bridged_tools(
     bridge: SandboxAgentBridge, spec: BridgedToolsSpec, port: int
-) -> MCPServerConfigStdio:
+) -> MCPServerConfigHTTP:
     """Register bridged tools with the bridge and return MCP config.
 
     Tools are registered in bridge.bridged_tools for execution by the service.
-    Returns an MCPServerConfigStdio that invokes the mcp_shim CLI command.
+    Returns an MCPServerConfigHTTP with URL pointing to the MCP HTTP endpoint.
     """
     # Build tool registry for this server
     tools_dict = {ToolDef(tool).name: tool for tool in spec.tools}
     bridge.bridged_tools[spec.name] = tools_dict
 
-    # Return MCP config that invokes the shim
-    return MCPServerConfigStdio(
+    # Return MCP config with HTTP URL
+    return MCPServerConfigHTTP(
         name=spec.name,
-        command=SANDBOX_TOOLS_CLI,
-        args=["mcp_shim"],
-        env={
-            "MCP_SERVER_NAME": spec.name,
-            "MCP_PROXY_URL": f"http://localhost:{port}",
-        },
+        type="http",
+        url=f"http://localhost:{port}/mcp/{spec.name}",
         tools="all",
     )

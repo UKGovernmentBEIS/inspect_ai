@@ -28,7 +28,7 @@ class BridgedToolsSpec:
         async with sandbox_agent_bridge(
             bridged_tools=[BridgedToolsSpec(name="my_tools", tools=[my_tool()])]
         ) as bridge:
-            # bridge.mcp_server_configs contains resolved MCPServerConfigStdio
+            # bridge.mcp_server_configs contains resolved MCPServerConfigHTTP
             pass
         ```
     """
