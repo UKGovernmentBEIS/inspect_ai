@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
+
 ## 0.3.159 (03 January 2026)
 
 - [Compaction](https://inspect.aisi.org.uk/compaction.html.md): Compacting message histories for long-running agents that exceed the context window.
