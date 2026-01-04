@@ -81,7 +81,7 @@ async def _mcp_http_request_with_retry(
     """Send HTTP POST to MCP endpoint with retry logic for server startup."""
     import asyncio
 
-    last_error = None
+    last_error: Exception | None = None
     for attempt in range(max_retries):
         result = await sandbox().exec(
             cmd=[
