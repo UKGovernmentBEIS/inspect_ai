@@ -17,6 +17,7 @@ from inspect_ai.model import get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Solver, solver
 from inspect_ai.tool import tool
+from inspect_ai.tool._mcp._config import MCPServerConfigStdio
 from inspect_ai.util import sandbox
 
 # =============================================================================
@@ -74,7 +75,9 @@ def eval_bridged_tools_task(test_solver: Solver) -> EvalLog:
     return log
 
 
-async def call_mcp_tool(script_path: str, tool_name: str, arguments: dict) -> dict:
+async def call_mcp_tool(
+    config: MCPServerConfigStdio, tool_name: str, arguments: dict
+) -> dict:
     """Send a tools/call JSON-RPC request to MCP server and return parsed response."""
     request = json.dumps(
         {
@@ -85,18 +88,20 @@ async def call_mcp_tool(script_path: str, tool_name: str, arguments: dict) -> di
         }
     )
     result = await sandbox().exec(
-        cmd=["python3", script_path],
+        cmd=[config.command] + list(config.args),
+        env=config.env or {},
         input=request + "\n",
         timeout=30,
     )
     return json.loads(result.stdout.strip())
 
 
-async def call_mcp_tools_list(script_path: str) -> dict:
+async def call_mcp_tools_list(config: MCPServerConfigStdio) -> dict:
     """Send a tools/list JSON-RPC request to MCP server and return parsed response."""
     request = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     result = await sandbox().exec(
-        cmd=["python3", script_path],
+        cmd=[config.command] + list(config.args),
+        env=config.env or {},
         input=request + "\n",
         timeout=30,
     )
@@ -122,9 +127,9 @@ def test_single_tool_call_returns_correct_result() -> None:
                     BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
                 ]
             ) as bridge:
-                script_path = bridge.mcp_server_configs[0].args[0]
+                config = bridge.mcp_server_configs[0]
                 response = await call_mcp_tool(
-                    script_path, "calculator_add", {"x": 5, "y": 3}
+                    config, "calculator_add", {"x": 5, "y": 3}
                 )
 
                 assert response["jsonrpc"] == "2.0"
@@ -157,15 +162,15 @@ def test_multiple_tools_in_single_spec() -> None:
                     )
                 ]
             ) as bridge:
-                script_path = bridge.mcp_server_configs[0].args[0]
+                config = bridge.mcp_server_configs[0]
 
                 add_response = await call_mcp_tool(
-                    script_path, "calculator_add", {"x": 10, "y": 20}
+                    config, "calculator_add", {"x": 10, "y": 20}
                 )
                 assert add_response["result"]["content"][0]["text"] == "30"
 
                 data_response = await call_mcp_tool(
-                    script_path, "get_structured_data", {"key": "foo"}
+                    config, "get_structured_data", {"key": "foo"}
                 )
                 data = json.loads(data_response["result"]["content"][0]["text"])
                 assert data == {
@@ -212,12 +217,12 @@ def test_multiple_bridged_tools_specs() -> None:
                 )
 
                 calc_response = await call_mcp_tool(
-                    calc_config.args[0], "calculator_add", {"x": 100, "y": 200}
+                    calc_config, "calculator_add", {"x": 100, "y": 200}
                 )
                 assert calc_response["result"]["content"][0]["text"] == "300"
 
                 data_response = await call_mcp_tool(
-                    data_config.args[0], "get_structured_data", {"key": "bar"}
+                    data_config, "get_structured_data", {"key": "bar"}
                 )
                 data = json.loads(data_response["result"]["content"][0]["text"])
                 assert data == {
@@ -253,8 +258,8 @@ def test_mcp_tools_list_returns_all_tools():
                     )
                 ]
             ) as bridge:
-                script_path = bridge.mcp_server_configs[0].args[0]
-                response = await call_mcp_tools_list(script_path)
+                config = bridge.mcp_server_configs[0]
+                response = await call_mcp_tools_list(config)
 
                 tools = response["result"]["tools"]
                 assert len(tools) == 2

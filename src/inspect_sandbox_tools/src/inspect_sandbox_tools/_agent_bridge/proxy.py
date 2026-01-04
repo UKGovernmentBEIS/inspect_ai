@@ -1732,6 +1732,57 @@ async def model_proxy_server(
             _handle_model_proxy_error(ex)
             os._exit(1)
 
+    # -------- MCP Tool Endpoints --------
+
+    @server.route("/mcp/tools/list", method="POST")
+    async def mcp_tools_list(request: dict[str, Any]) -> dict[str, Any]:
+        """List tools for a bridged tools server."""
+        try:
+            json_body = request.get("json", {}) or {}
+            server_name = json_body.get("server")
+            if not server_name:
+                return {
+                    "status": 400,
+                    "body": {"error": "Missing 'server' in request body"},
+                }
+
+            tools = await call_bridge_model_service_async(
+                "list_tools", server=server_name
+            )
+            # Wrap in dict to ensure proper JSON serialization
+            return {"status": 200, "body": {"tools": tools}}
+        except Exception as ex:
+            return {"status": 500, "body": {"error": str(ex)}}
+
+    @server.route("/mcp/tools/call", method="POST")
+    async def mcp_tools_call(request: dict[str, Any]) -> dict[str, Any]:
+        """Call a bridged tool."""
+        try:
+            json_body = request.get("json", {}) or {}
+            server_name = json_body.get("server")
+            tool_name = json_body.get("tool")
+            arguments = json_body.get("arguments", {})
+
+            if not server_name:
+                return {
+                    "status": 400,
+                    "body": {"error": "Missing 'server' in request body"},
+                }
+            if not tool_name:
+                return {
+                    "status": 400,
+                    "body": {"error": "Missing 'tool' in request body"},
+                }
+
+            result = await call_bridge_model_service_async(
+                "call_tool", server=server_name, tool=tool_name, arguments=arguments
+            )
+            # Wrap in dict to ensure proper JSON serialization (plain strings
+            # would be sent as raw bytes without quotes, breaking JSON parsing)
+            return {"status": 200, "body": {"result": result}}
+        except Exception as ex:
+            return {"status": 500, "body": {"error": str(ex)}}
+
     # return configured server
     return server
 
@@ -1840,6 +1891,178 @@ def _bridge_model_service_service_dir(subdir: str) -> Any:
     if instance is not None:
         service_dir = service_dir / instance
     return service_dir / subdir
+
+
+# ---------- MCP Shim (stdio to HTTP) ----------
+
+
+async def run_mcp_shim() -> None:
+    """Run MCP stdio shim that forwards requests to the HTTP proxy.
+
+    This translates MCP JSON-RPC over stdio to HTTP calls to the unified proxy.
+    """
+    import aiohttp
+
+    server_name = os.environ.get("MCP_SERVER_NAME")
+    proxy_url = os.environ.get("MCP_PROXY_URL", "http://localhost:13131")
+
+    if not server_name:
+        sys.stderr.write("MCP_SERVER_NAME environment variable required\n")
+        sys.stderr.flush()
+        sys.exit(1)
+
+    # Configure connection with retry support
+    timeout = aiohttp.ClientTimeout(total=30, connect=5)
+    connector = aiohttp.TCPConnector(force_close=True)
+
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                request = json.loads(line)
+                response = await _handle_mcp_request_with_retry(
+                    request, server_name, proxy_url, session
+                )
+                if response:
+                    print(json.dumps(response), flush=True)
+            except json.JSONDecodeError:
+                print(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": None,
+                            "error": {"code": -32700, "message": "Parse error"},
+                        }
+                    ),
+                    flush=True,
+                )
+
+
+async def _handle_mcp_request_with_retry(
+    request: dict[str, Any],
+    server_name: str,
+    proxy_url: str,
+    session: Any,  # aiohttp.ClientSession
+    max_retries: int = 30,
+    retry_delay: float = 0.5,
+) -> dict[str, Any] | None:
+    """Handle MCP request with retry logic for proxy startup."""
+    import aiohttp
+
+    # Handle initialize locally (no HTTP needed)
+    method = request.get("method")
+    if method in ("initialize", "notifications/initialized"):
+        return await _handle_mcp_request(request, server_name, proxy_url, session)
+
+    # For other methods, retry on connection errors
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            return await _handle_mcp_request(request, server_name, proxy_url, session)
+        except aiohttp.ClientConnectorError as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+
+    # All retries failed
+    req_id = request.get("id")
+    return {
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "result": {
+            "content": [{"type": "text", "text": f"Error: {last_error}"}],
+            "isError": True,
+        },
+    }
+
+
+async def _handle_mcp_request(
+    request: dict[str, Any],
+    server_name: str,
+    proxy_url: str,
+    session: Any,  # aiohttp.ClientSession
+) -> dict[str, Any] | None:
+    """Handle MCP JSON-RPC request by forwarding to HTTP proxy."""
+    method = request.get("method")
+    req_id = request.get("id")
+
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": server_name, "version": "1.0.0"},
+            },
+        }
+
+    elif method == "notifications/initialized":
+        return None
+
+    elif method == "tools/list":
+        # Let connection errors propagate for retry handling
+        async with session.post(
+            f"{proxy_url}/mcp/tools/list",
+            json={"server": server_name},
+        ) as resp:
+            if resp.status == 200:
+                body = await resp.json()
+                # Extract tools from wrapper dict
+                tools = body.get("tools", body) if isinstance(body, dict) else body
+                return {"jsonrpc": "2.0", "id": req_id, "result": {"tools": tools}}
+            else:
+                error_body = await resp.text()
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {
+                        "code": -32603,
+                        "message": f"HTTP {resp.status}: {error_body}",
+                    },
+                }
+
+    elif method == "tools/call":
+        params = request.get("params", {})
+        tool_name = params.get("name")
+        arguments = params.get("arguments", {})
+        # Let connection errors propagate for retry handling
+        async with session.post(
+            f"{proxy_url}/mcp/tools/call",
+            json={"server": server_name, "tool": tool_name, "arguments": arguments},
+        ) as resp:
+            if resp.status == 200:
+                body = await resp.json()
+                # Extract result from wrapper dict
+                result = body.get("result", body) if isinstance(body, dict) else body
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {"content": [{"type": "text", "text": result}]},
+                }
+            else:
+                error_body = await resp.text()
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": f"Error: HTTP {resp.status}: {error_body}",
+                            }
+                        ],
+                        "isError": True,
+                    },
+                }
+
+    return {
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "error": {"code": -32601, "message": f"Unknown method: {method}"},
+    }
 
 
 if __name__ == "__main__":

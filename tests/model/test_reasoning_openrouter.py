@@ -91,7 +91,7 @@ class TestOpenrouterReasoningDetailsToReasoning:
     def test_empty_list_logs_warning(self):
         """Empty reasoning_details list logs warning and returns raw JSON."""
         with patch("inspect_ai.model._reasoning.logger") as mock_logger:
-            details: list[dict] = []
+            details = []
             result = openrouter_reasoning_details_to_reasoning(details)
 
             mock_logger.warning.assert_called_once()
