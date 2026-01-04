@@ -15671,9 +15671,33 @@ so disabling selection can break that functionality */
 ._value_1ramc_16 {
   font-weight: 600;
 }
-.ansi-display {
+._toolButton_nu8dt_1 i {
+  margin-right: 0.5em;
+}
+
+._toolButton_nu8dt_1:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
+    inset 0 2px 4px rgba(0, 0, 0, 0.15),
+    inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+._latched_nu8dt_13,
+._latched_nu8dt_13:hover {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.15),
+    inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+._ansiDisplayContainer_sawhg_1 {
+  position: relative;
+  width: 100%;
+}
+
+._ansiDisplay_sawhg_1 {
   font-family: monospace;
   white-space: pre-wrap;
+  line-height: normal;
   --ansiBlack: #000000;
   --ansiRed: #cd3131;
   --ansiGreen: #00bc00;
@@ -15692,7 +15716,25 @@ so disabling selection can break that functionality */
   --ansiBrightWhite: #a5a5a5;
 }
 
-.dark-mode .ansi-display {
+._ansiDisplayRaw_sawhg_28 {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+._ansiDisplayToggle_sawhg_33 {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  z-index: 10;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+._ansiDisplayContainer_sawhg_1:hover ._ansiDisplayToggle_sawhg_33 {
+  opacity: 1;
+}
+
+.dark-mode ._ansiDisplay_sawhg_1 {
   --ansiBlack: #000000;
   --ansiRed: #cd3131;
   --ansiGreen: #0dbc79;
@@ -15711,10 +15753,16 @@ so disabling selection can break that functionality */
   --ansiBrightWhite: #e5e5e5;
 }
 
-@keyframes ansi-displaly-run-blink {
+@keyframes _ansi-display-run-blink_sawhg_1 {
   50% {
     opacity: 0;
   }
+}
+
+._ansiDisplayToggle_sawhg_33 {
+  padding: 0.1rem;
+  padding-left: 0.5rem;
+  background-color: var(--bs-body-bg);
 }
 .json-panel {
   width: 100%;
@@ -16413,24 +16461,6 @@ a._citationLink_1ggvf_9:hover {
 
 ._pathContainer_1u3sd_58 {
   overflow-x: hidden;
-}
-._toolButton_nu8dt_1 i {
-  margin-right: 0.5em;
-}
-
-._toolButton_nu8dt_1:focus {
-  outline: none;
-  box-shadow:
-    0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
-    inset 0 2px 4px rgba(0, 0, 0, 0.15),
-    inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-._latched_nu8dt_13,
-._latched_nu8dt_13:hover {
-  box-shadow:
-    inset 0 2px 4px rgba(0, 0, 0, 0.15),
-    inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 ._navbarButton_1gksz_1 {
   font-size: 0.6rem;
