@@ -1,4 +1,5 @@
 import atexit
+import os
 from logging import getLogger
 from subprocess import Popen
 from typing import Any
@@ -83,7 +84,10 @@ class SGLangAPI(OpenAICompatibleAPI):
             super().__init__(
                 model_name=model_name,
                 base_url=base_url,
-                api_key=api_key,
+                api_key=api_key
+                or os.environ.get(
+                    "SGLANG_API_KEY", "dummy"
+                ),  # we get the env var here so we can fallback to a non-none value
                 config=config,
                 service="SGLang",
                 service_base_url=base_url,

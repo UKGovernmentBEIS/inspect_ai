@@ -10,6 +10,7 @@ from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
+from inspect_ai._util.version import verify_required_version
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.dataset._dataset import DatasetRecord
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec
@@ -78,6 +79,9 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
     try:
         from huggingface_hub import errors as hf_errors
         from huggingface_hub import hf_hub_download
+
+        verify_required_version("HuggingFace Tasks", "huggingface_hub", "1.0.0")
+
     except ImportError:
         raise pip_dependency_error(
             "HuggingFace Dataset Tasks (hf/)", ["huggingface_hub"]
