@@ -89,6 +89,7 @@ export interface LogsState {
   };
   flow?: string;
   flowDir?: string;
+  showRetriedLogs: boolean;
 }
 
 export interface LogsListing {

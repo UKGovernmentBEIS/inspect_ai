@@ -43,6 +43,10 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const columnButtonRef = useRef<HTMLButtonElement>(null);
 
+  const showRetriedLogs = useStore((state) => state.logs.showRetriedLogs);
+  const setShowRetriedLogs = useStore(
+    (state) => state.logsActions.setShowRetriedLogs,
+  );
   const logDir = useStore((state) => state.logs.logDir);
   const logFiles = useStore((state) => state.logs.logs);
   const evalSet = useStore((state) => state.logs.evalSet);
@@ -171,10 +175,10 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       // order of all items isn't changed
       const collapsedLogItems: Array<
         FileLogItem | FolderLogItem | PendingTaskItem
-      > = collapseLogItems(evalSet, orderedItems);
+      > = collapseLogItems(evalSet, orderedItems, showRetriedLogs);
 
       return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [evalSet, logFiles, currentDir, logDir, logPreviews]);
+    }, [evalSet, logFiles, currentDir, logDir, logPreviews, showRetriedLogs]);
 
   const { columns, setColumnVisibility } = useLogListColumns();
 
@@ -266,6 +270,20 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           />
         )}
 
+        {evalSet && (
+          <NavbarButton
+            key="show-retried"
+            label="Show Retried Logs"
+            icon={
+              showRetriedLogs
+                ? ApplicationIcons.toggle.on
+                : ApplicationIcons.toggle.off
+            }
+            latched={showRetriedLogs}
+            onClick={() => setShowRetriedLogs(!showRetriedLogs)}
+          />
+        )}
+
         <NavbarButton
           key="choose-columns"
           ref={columnButtonRef}
@@ -321,15 +339,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 export const collapseLogItems = (
   evalSet: EvalSet | undefined,
   logItems: (FileLogItem | FolderLogItem | PendingTaskItem)[],
+  showRetriedLogs: boolean,
 ): (FileLogItem | FolderLogItem | PendingTaskItem)[] => {
-  if (!evalSet) {
-    return logItems;
-  }
-
-  const running = logItems.some(
-    (l) => l.type === "file" && l.logPreview?.status === "started",
-  );
-  if (!running) {
+  if (!evalSet || showRetriedLogs) {
     return logItems;
   }
 
