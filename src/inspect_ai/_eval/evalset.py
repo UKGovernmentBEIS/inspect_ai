@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
@@ -779,6 +780,15 @@ def resolve_solver(
         return cast(Solver | None, solver)
 
 
+@dataclass
+class SimpleHashFields:
+    version: int | str
+    message_limit: int | None
+    token_limit: int | None
+    time_limit: int | None
+    working_limit: int | None
+
+
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
 def task_identifier(
     task: ResolvedTask | EvalLog,
@@ -800,6 +810,13 @@ def task_identifier(
         model_args = task.model.model_args
         plan = resolve_plan(task.task, solver)
         eval_plan = plan_to_eval_plan(plan, task.task.config.merge(eval_set_config))
+        simple_hash_fields = SimpleHashFields(
+            version=task.task.version,
+            message_limit=task.task.message_limit,
+            token_limit=task.task.token_limit,
+            time_limit=task.task.time_limit,
+            working_limit=task.task.working_limit,
+        )
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
@@ -809,6 +826,13 @@ def task_identifier(
         model_roles = task.eval.model_roles or {}
         model_args = task.eval.model_args
         eval_plan = task.plan
+        simple_hash_fields = SimpleHashFields(
+            version=task.eval.task_version,
+            message_limit=task.eval.config.message_limit,
+            token_limit=task.eval.config.token_limit,
+            time_limit=task.eval.config.time_limit,
+            working_limit=task.eval.config.working_limit,
+        )
 
     # strip args from eval_plan as we've changed the way this is serialized
     # and we want to be compatible with older logs. this effectively uses
@@ -845,6 +869,8 @@ def task_identifier(
         additional_hash_input += to_json_safe(model_roles)
 
     additional_hash_input += to_json_safe(model_args)
+
+    additional_hash_input += to_json_safe(simple_hash_fields)
 
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
