@@ -6,6 +6,7 @@
 - Eval Set: Include task version and limits in task identifier hash to prevent incorrect log reuse.
 - Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
 - Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
+- Inspect View: Render custom tool view when viewing messages.
 - Bugfix: Prevent component not found error during Human Agent transition.
 
 ## 0.3.159 (03 January 2026)
