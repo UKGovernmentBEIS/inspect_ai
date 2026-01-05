@@ -780,21 +780,21 @@ def resolve_solver(
         return cast(Solver | None, solver)
 
 
-@dataclass
-class SimpleHashFields:
-    version: int | str
-    message_limit: int | None
-    token_limit: int | None
-    time_limit: int | None
-    working_limit: int | None
-
-
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
 def task_identifier(
     task: ResolvedTask | EvalLog,
     eval_set_config: GenerateConfig | None,
     eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
 ) -> str:
+    @dataclass
+    class AdditionalHashFields:
+        model_args: dict[str, Any]
+        version: int | str
+        message_limit: int | None
+        token_limit: int | None
+        time_limit: int | None
+        working_limit: int | None
+
     if isinstance(task, ResolvedTask):
         assert eval_set_config is not None, (
             "eval_set_config must be provided for ResolvedTask"
@@ -807,10 +807,10 @@ def task_identifier(
         model = str(task.model)
         model_generate_config = task.model.config
         model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
-        model_args = task.model.model_args
         plan = resolve_plan(task.task, solver)
         eval_plan = plan_to_eval_plan(plan, task.task.config.merge(eval_set_config))
-        simple_hash_fields = SimpleHashFields(
+        additional_hash_fields = AdditionalHashFields(
+            model_args=task.model.model_args,
             version=task.task.version,
             message_limit=task.task.message_limit,
             token_limit=task.task.token_limit,
@@ -824,9 +824,9 @@ def task_identifier(
         model = str(task.eval.model)
         model_generate_config = task.eval.model_generate_config
         model_roles = task.eval.model_roles or {}
-        model_args = task.eval.model_args
         eval_plan = task.plan
-        simple_hash_fields = SimpleHashFields(
+        additional_hash_fields = AdditionalHashFields(
+            model_args=task.eval.model_args,
             version=task.eval.task_version,
             message_limit=task.eval.config.message_limit,
             token_limit=task.eval.config.token_limit,
@@ -868,9 +868,7 @@ def task_identifier(
     if len(model_roles):
         additional_hash_input += to_json_safe(model_roles)
 
-    additional_hash_input += to_json_safe(model_args)
-
-    additional_hash_input += to_json_safe(simple_hash_fields)
+    additional_hash_input += to_json_safe(additional_hash_fields)
 
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
