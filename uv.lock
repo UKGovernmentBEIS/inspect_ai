@@ -1782,7 +1782,7 @@ requires-dist = [
     { name = "griffe", marker = "extra == 'doc'" },
     { name = "groq", marker = "extra == 'dev'" },
     { name = "httpx" },
-    { name = "huggingface-hub", marker = "extra == 'dev'" },
+    { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "ijson", specifier = ">=3.2.0" },
     { name = "inspect-scout", marker = "extra == 'dev'" },
     { name = "ipython", marker = "extra == 'dev'" },
