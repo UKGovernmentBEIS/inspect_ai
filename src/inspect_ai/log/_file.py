@@ -736,7 +736,7 @@ def write_eval_result_yaml(eval_log: EvalLog, log_location: str) -> None:
     if (
         hub_benchmark_metadata := eval_log.eval.metadata.get("hub_benchmark", None)
     ) is None:
-        print("No hub benchmark metadata found, skipping result file")
+        logger.info("No hub benchmark metadata found, skipping result file")
         return
 
     dataset_id = eval_log.eval.dataset.location
@@ -749,7 +749,7 @@ def write_eval_result_yaml(eval_log: EvalLog, log_location: str) -> None:
         value = default_scorer.metrics["accuracy"].value
     else:
         if len(eval_log.results.scores) > 1:
-            print(
+            logger.warning(
                 "Multiple scorers found, but no default scorer specified, using the first scorer"
             )
         value = eval_log.results.scores[0].metrics["accuracy"].value
@@ -770,7 +770,7 @@ def write_eval_result_yaml(eval_log: EvalLog, log_location: str) -> None:
 
     log_fs = filesystem(log_location)
     log_dir = os.path.dirname(log_location) if os.path.dirname(log_location) else "."
-    yaml_path = f"{log_dir}{log_fs.sep}{date}-{eval_log.eval.task.replace('/', '-')}-result.yaml"
+    yaml_path = f"{log_dir}{log_fs.sep}{date}-{eval_log.eval.task.replace('/', '-')}_{eval_log.eval.task_id}-result.yaml"
 
     yaml_content = yaml.dump([result], default_flow_style=False, sort_keys=False)
     with file(yaml_path, "w", fs_options={}) as f:
