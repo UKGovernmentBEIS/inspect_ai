@@ -567,6 +567,81 @@ def test_task_identifier_with_model_args_arg():
         assert len(all_logs) == 2
 
 
+def resolved_tasks_have_unique_identifiers(resolved_tasks: list[ResolvedTask]) -> bool:
+    identifiers = set()
+    for resolved_task in resolved_tasks:
+        identifier = task_identifier(
+            resolved_task, GenerateConfig(), eval_set_solver=None
+        )
+        if identifier in identifiers:
+            return False
+        identifiers.add(identifier)
+    return True
+
+
+def test_task_identifier_with_task_versions():
+    model1 = get_model("mockllm/model")
+    task1 = hello_world()
+    task2 = hello_world()
+    task3 = hello_world()
+    task_with(
+        task1,
+        model=model1,
+        version=1,
+    )
+    task_with(
+        task2,
+        model=model1,
+        version="1",
+    )
+    task_with(
+        task3,
+        model=model1,
+        version=2,
+    )
+    resolved_tasks = resolve_tasks([task1, task2, task3], {}, model1, None, None, None)
+    assert resolved_tasks_have_unique_identifiers(resolved_tasks)
+    run_eval_set(resolved_tasks)
+
+
+def test_task_identifier_with_task_limits():
+    model1 = get_model("mockllm/model")
+    task1 = hello_world()
+    task2 = hello_world()
+    task3 = hello_world()
+    task4 = hello_world()
+    task5 = hello_world()
+    task_with(
+        task1,
+        model=model1,
+    )
+    task_with(
+        task2,
+        model=model1,
+        message_limit=10,
+    )
+    task_with(
+        task3,
+        model=model1,
+        token_limit=100,
+    )
+    task_with(
+        task4,
+        model=model1,
+        time_limit=5,
+    )
+    task_with(
+        task5,
+        model=model1,
+        working_limit=60,
+    )
+    resolved_tasks = resolve_tasks(
+        [task1, task2, task3, task4, task5], {}, model1, None, None, None
+    )
+    assert resolved_tasks_have_unique_identifiers(resolved_tasks)
+    run_eval_set(resolved_tasks)
+
+
 def verify_logs(
     logs: list[EvalLog], log_dir: str, tasks: int = 1, samples: int = 1, epochs: int = 1
 ):
