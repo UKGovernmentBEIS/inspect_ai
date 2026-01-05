@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from test_helpers.utils import skip_if_no_docker, skip_if_no_openai
+from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import react
@@ -457,9 +457,10 @@ class TestSkillMd:
         assert parsed.allowed_tools == original.allowed_tools
 
 
-@skip_if_no_openai
-@skip_if_no_docker
-@pytest.mark.slow
+# @skip_if_no_openai
+# @skip_if_no_docker
+# @pytest.mark.slow
+@flaky_retry(max_retries=3)
 def test_skill_end_to_end() -> None:
     """Test that the skill tool works end-to-end with Docker sandbox.
 

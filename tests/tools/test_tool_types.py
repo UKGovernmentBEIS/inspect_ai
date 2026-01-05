@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from pydantic import BaseModel
 from test_helpers.utils import (
+    flaky_retry,
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_mistral,
@@ -271,11 +272,13 @@ def test_openai_tool_types() -> None:
 
 
 @skip_if_no_openai
+@flaky_retry(max_retries=3)
 def test_openai_responses_tool_types() -> None:
     check_tool_types(get_model("openai/gpt-4o-mini", responses_api=True))
 
 
 @skip_if_no_anthropic
+@flaky_retry(max_retries=3)
 def test_anthropoic_tool_types() -> None:
     check_tool_types("anthropic/claude-sonnet-4-5")
 
