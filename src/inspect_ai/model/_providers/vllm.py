@@ -109,7 +109,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             super().__init__(
                 model_name=model_name,
                 base_url=base_url,
-                api_key=api_key,
+                api_key=api_key or os.environ.get("VLLM_API_KEY", None) or "inspectai",
                 config=config,
                 service="vLLM",
                 service_base_url=base_url,

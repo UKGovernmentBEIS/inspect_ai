@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).
+- VLLM: Don't require VLLM_API_KEY to be set when using VLLM in local mode.
 - Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
 - Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
 - Bugfix: Prevent component not found error during Human Agent transition.
