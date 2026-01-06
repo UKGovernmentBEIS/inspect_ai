@@ -178,12 +178,13 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       FileLogItem | FolderLogItem | PendingTaskItem
     > = collapseLogItems(evalSet, orderedItems, showRetriedLogs);
 
+    // appendPendingItems mutates collapsedLogItems in place 😱 => check length first
+    const _isAnyLogItemHidden = collapsedLogItems.length < orderedItems.length;
     const _logItems = appendPendingItems(
       evalSet,
       existingLogTaskIds,
       collapsedLogItems,
     );
-    const _isAnyLogItemHidden = collapsedLogItems.length < orderedItems.length;
 
     return [_logItems, _isAnyLogItemHidden];
   }, [evalSet, logFiles, currentDir, logDir, logPreviews, showRetriedLogs]);
