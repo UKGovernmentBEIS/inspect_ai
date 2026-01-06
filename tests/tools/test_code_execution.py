@@ -1,5 +1,6 @@
 import pytest
 from test_helpers.utils import (
+    flaky_retry,
     skip_if_no_anthropic,
     skip_if_no_docker,
     skip_if_no_google,
@@ -67,6 +68,7 @@ def check_python_code_execution(provider: str, model: str) -> None:
 
 
 @skip_if_no_grok
+@flaky_retry(max_retries=3)
 def test_grok_code_execution() -> None:
     check_code_execution("grok/grok-4-fast")
 
@@ -74,6 +76,7 @@ def test_grok_code_execution() -> None:
 @pytest.mark.slow
 @skip_if_no_grok
 @skip_if_no_docker
+@flaky_retry(max_retries=3)
 def test_grok_code_execution_python() -> None:
     check_python_code_execution("grok", "grok-4-fast")
 
@@ -91,6 +94,7 @@ def test_mistral_code_execution_python() -> None:
 
 
 @skip_if_no_google
+@flaky_retry(max_retries=3)
 def test_google_code_execution() -> None:
     check_code_execution("google/gemini-3-pro-preview")
 
@@ -98,6 +102,7 @@ def test_google_code_execution() -> None:
 @pytest.mark.slow
 @skip_if_no_google
 @skip_if_no_docker
+@flaky_retry(max_retries=3)
 def test_google_code_execution_python() -> None:
     check_python_code_execution("google", "gemini-2.5-flash")
 
@@ -110,6 +115,7 @@ def test_openai_code_execution() -> None:
 @pytest.mark.slow
 @skip_if_no_openai
 @skip_if_no_docker
+@flaky_retry(max_retries=3)
 def test_openai_code_execution_python() -> None:
     check_python_code_execution("openai", "gpt-5-mini")
 

@@ -328,7 +328,7 @@ def validate_anthropic_client(feature: str) -> None:
 def validate_google_client(function_name: str) -> None:
     FEATURE = "Google API"
     PACKAGE = "google-genai"
-    MIN_VERSION = "1.51.0"
+    MIN_VERSION = "1.56.0"
 
     # verify we have the package
     try:

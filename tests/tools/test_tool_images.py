@@ -53,6 +53,7 @@ def test_openai_tool_image_result():
 
 
 @skip_if_no_openai
+@flaky_retry(max_retries=3)
 def test_openai_responses_tool_image_result():
     check_tool_image_result(get_model("openai/gpt-4o-mini", responses_api=True))
 

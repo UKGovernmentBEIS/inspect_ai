@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
@@ -785,6 +786,15 @@ def task_identifier(
     eval_set_config: GenerateConfig | None,
     eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
 ) -> str:
+    @dataclass
+    class AdditionalHashFields:
+        model_args: dict[str, Any]
+        version: int | str
+        message_limit: int | None
+        token_limit: int | None
+        time_limit: int | None
+        working_limit: int | None
+
     if isinstance(task, ResolvedTask):
         assert eval_set_config is not None, (
             "eval_set_config must be provided for ResolvedTask"
@@ -797,9 +807,16 @@ def task_identifier(
         model = str(task.model)
         model_generate_config = task.model.config
         model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
-        model_args = task.model.model_args
         plan = resolve_plan(task.task, solver)
         eval_plan = plan_to_eval_plan(plan, task.task.config.merge(eval_set_config))
+        additional_hash_fields = AdditionalHashFields(
+            model_args=task.model.model_args,
+            version=task.task.version,
+            message_limit=task.task.message_limit,
+            token_limit=task.task.token_limit,
+            time_limit=task.task.time_limit,
+            working_limit=task.task.working_limit,
+        )
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
@@ -807,8 +824,15 @@ def task_identifier(
         model = str(task.eval.model)
         model_generate_config = task.eval.model_generate_config
         model_roles = task.eval.model_roles or {}
-        model_args = task.eval.model_args
         eval_plan = task.plan
+        additional_hash_fields = AdditionalHashFields(
+            model_args=task.eval.model_args,
+            version=task.eval.task_version,
+            message_limit=task.eval.config.message_limit,
+            token_limit=task.eval.config.token_limit,
+            time_limit=task.eval.config.time_limit,
+            working_limit=task.eval.config.working_limit,
+        )
 
     # strip args from eval_plan as we've changed the way this is serialized
     # and we want to be compatible with older logs. this effectively uses
@@ -844,7 +868,7 @@ def task_identifier(
     if len(model_roles):
         additional_hash_input += to_json_safe(model_roles)
 
-    additional_hash_input += to_json_safe(model_args)
+    additional_hash_input += to_json_safe(additional_hash_fields)
 
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 
