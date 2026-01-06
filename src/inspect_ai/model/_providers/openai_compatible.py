@@ -63,6 +63,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_api: bool | None = None,
         responses_store: bool | None = None,
         stream: bool | None = None,
+        emulate_reasoning_history: bool = False,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -116,6 +117,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 "emulate_tools is not compatible with using the responses_api"
             )
         self.stream = False if stream is None else stream
+        self._emulate_reasoning_history = emulate_reasoning_history
 
         # store http_client and model_args for reinitialization
         self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
@@ -325,6 +327,9 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         return openai_handle_bad_request(self.service_model_name(), ex)
+
+    def emulate_reasoning_history(self) -> bool:
+        return self._emulate_reasoning_history
 
 
 class OpenAICompatibleHandler(Llama31Handler):
