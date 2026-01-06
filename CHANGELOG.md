@@ -3,6 +3,7 @@
 - Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).
 - Grok: Correctly replay tool calling errors in message history.
 - VLLM and SGLang: Don't require API key environment variable to be set when running in local mode.
+- Google: Support `minimal` and `medium` reasoning effort levels for Gemini 3 Flash.
 - HF Tasks: Require >1.0.0 of huggingface_hub package.
 - Eval Set: Include task version and limits in task identifier hash to prevent incorrect log reuse.
 - JSON Datasets: Support passing arbitrary `kwargs` to JSON readers (built-in reader and jsonlines reader).
@@ -10,6 +11,7 @@
 - Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
 - Inspect View: Render custom tool view when viewing messages.
 - Bugfix: Prevent component not found error during Human Agent transition.
+- OpenAI Compatible: Added support for disabling reasoning history emulation.
 
 ## 0.3.159 (03 January 2026)
 

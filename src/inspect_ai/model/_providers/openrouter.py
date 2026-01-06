@@ -103,6 +103,10 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         )
 
     @override
+    def emulate_reasoning_history(self) -> bool:
+        return False
+
+    @override
     def should_retry(self, ex: BaseException) -> bool:
         if super().should_retry(ex):
             return True
@@ -110,10 +114,6 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             return True
         else:
             return False
-
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
 
     @override
     def canonical_name(self) -> str:
