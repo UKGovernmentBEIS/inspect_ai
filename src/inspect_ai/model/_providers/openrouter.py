@@ -99,9 +99,12 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             service="OpenRouter",
             service_base_url="https://openrouter.ai/api/v1",
             emulate_tools=emulate_tools,
-            emulate_reasoning_history=False,
             **model_args,
         )
+
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return False
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
