@@ -102,83 +102,91 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     }
   }, [watchedLogs, startPolling, stopPolling]);
 
-  const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
-    useMemo(() => {
-      const folderItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
-        [];
-      const fileItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
-        [];
+  const [logItems, isAnyLogItemHidden]: [
+    Array<FileLogItem | FolderLogItem | PendingTaskItem>,
+    boolean,
+  ] = useMemo(() => {
+    const folderItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
+      [];
+    const fileItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> = [];
 
-      // Track processed folders to avoid duplicates
-      const processedFolders = new Set<string>();
-      const existingLogTaskIds = new Set<string>();
+    // Track processed folders to avoid duplicates
+    const processedFolders = new Set<string>();
+    const existingLogTaskIds = new Set<string>();
 
-      for (const logFile of logFiles) {
-        if (logFile.task_id) {
-          existingLogTaskIds.add(logFile.task_id);
-        }
-
-        const name = logFile.name;
-
-        const cleanDir = currentDir.endsWith("/")
-          ? currentDir.slice(0, -1)
-          : currentDir;
-
-        const dirWithSlash = !currentDir.endsWith("/")
-          ? currentDir + "/"
-          : currentDir;
-
-        if (isInDirectory(name, cleanDir)) {
-          const dirName = directoryRelativeUrl(currentDir, logDir);
-          const relativePath = directoryRelativeUrl(name, currentDir);
-
-          const fileOrFolderName = decodeURIComponent(rootName(relativePath));
-          const path = join(
-            decodeURIComponent(relativePath),
-            decodeURIComponent(dirName),
-          );
-
-          fileItems.push({
-            id: fileOrFolderName,
-            name: fileOrFolderName,
-            type: "file",
-            url: logsUrl(path, logDir),
-            log: logFile,
-            logPreview: logPreviews[logFile.name],
-          });
-        } else if (name.startsWith(dirWithSlash)) {
-          // This is file that is next level (or deeper) child of the current directory
-          const relativePath = directoryRelativeUrl(name, currentDir);
-
-          const dirName = decodeURIComponent(rootName(relativePath));
-          const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
-          const url = join(dirName, decodeURIComponent(currentDirRelative));
-          if (!processedFolders.has(dirName)) {
-            folderItems.push({
-              id: dirName,
-              name: dirName,
-              type: "folder",
-              url: logsUrl(url, logDir),
-              itemCount: logFiles.filter((file) =>
-                file.name.startsWith(dirname(name)),
-              ).length,
-            });
-            processedFolders.add(dirName);
-          }
-        }
+    for (const logFile of logFiles) {
+      if (logFile.task_id) {
+        existingLogTaskIds.add(logFile.task_id);
       }
 
-      const orderedItems = [...folderItems, ...fileItems];
+      const name = logFile.name;
 
-      // Ensure there is only one entry for each task id, preferring to
-      // always show running or complete tasks (over error tasks). Ensure that the
-      // order of all items isn't changed
-      const collapsedLogItems: Array<
-        FileLogItem | FolderLogItem | PendingTaskItem
-      > = collapseLogItems(evalSet, orderedItems, showRetriedLogs);
+      const cleanDir = currentDir.endsWith("/")
+        ? currentDir.slice(0, -1)
+        : currentDir;
 
-      return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [evalSet, logFiles, currentDir, logDir, logPreviews, showRetriedLogs]);
+      const dirWithSlash = !currentDir.endsWith("/")
+        ? currentDir + "/"
+        : currentDir;
+
+      if (isInDirectory(name, cleanDir)) {
+        const dirName = directoryRelativeUrl(currentDir, logDir);
+        const relativePath = directoryRelativeUrl(name, currentDir);
+
+        const fileOrFolderName = decodeURIComponent(rootName(relativePath));
+        const path = join(
+          decodeURIComponent(relativePath),
+          decodeURIComponent(dirName),
+        );
+
+        fileItems.push({
+          id: fileOrFolderName,
+          name: fileOrFolderName,
+          type: "file",
+          url: logsUrl(path, logDir),
+          log: logFile,
+          logPreview: logPreviews[logFile.name],
+        });
+      } else if (name.startsWith(dirWithSlash)) {
+        // This is file that is next level (or deeper) child of the current directory
+        const relativePath = directoryRelativeUrl(name, currentDir);
+
+        const dirName = decodeURIComponent(rootName(relativePath));
+        const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
+        const url = join(dirName, decodeURIComponent(currentDirRelative));
+        if (!processedFolders.has(dirName)) {
+          folderItems.push({
+            id: dirName,
+            name: dirName,
+            type: "folder",
+            url: logsUrl(url, logDir),
+            itemCount: logFiles.filter((file) =>
+              file.name.startsWith(dirname(name)),
+            ).length,
+          });
+          processedFolders.add(dirName);
+        }
+      }
+    }
+
+    const orderedItems = [...folderItems, ...fileItems];
+
+    // Ensure there is only one entry for each task id, preferring to
+    // always show running or complete tasks (over error tasks). Ensure that the
+    // order of all items isn't changed
+    const collapsedLogItems: Array<
+      FileLogItem | FolderLogItem | PendingTaskItem
+    > = collapseLogItems(evalSet, orderedItems, showRetriedLogs);
+
+    const _logItems = appendPendingItems(
+      evalSet,
+      existingLogTaskIds,
+      collapsedLogItems,
+    );
+    const _isAnyLogItemHidden = collapsedLogItems.length < orderedItems.length;
+
+    return [_logItems, _isAnyLogItemHidden];
+  }, [evalSet, logFiles, currentDir, logDir, logPreviews, showRetriedLogs]);
 
   const { columns, setColumnVisibility } = useLogListColumns();
 
@@ -270,7 +278,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           />
         )}
 
-        {evalSet && (
+        {evalSet && (isAnyLogItemHidden || showRetriedLogs) && (
           <NavbarButton
             key="show-retried"
             label="Show Retried Logs"
