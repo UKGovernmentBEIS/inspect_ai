@@ -99,6 +99,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             service="OpenRouter",
             service_base_url="https://openrouter.ai/api/v1",
             emulate_tools=emulate_tools,
+            emulate_reasoning_history=False,
             **model_args,
         )
 
@@ -110,10 +111,6 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             return True
         else:
             return False
-
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
 
     @override
     def canonical_name(self) -> str:
