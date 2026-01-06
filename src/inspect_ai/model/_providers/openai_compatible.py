@@ -63,7 +63,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_api: bool | None = None,
         responses_store: bool | None = None,
         stream: bool | None = None,
-        emulate_reasoning_history: bool = False,
+        emulate_reasoning_history: bool = True,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
