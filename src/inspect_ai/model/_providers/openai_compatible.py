@@ -108,7 +108,7 @@ class OpenAICompatibleAPI(ModelAPI):
                     [base_url_var],
                 )
 
-        # grab emulate_tools and responses_api arguments
+        # grab arguments
         self.emulate_tools = emulate_tools
         self.responses_api = responses_api
         self.responses_store = responses_store
