@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).
+- Anthropic: Correctly replay reasoning when sourced from Inspect cache.
 - Grok: Correctly replay tool calling errors in message history.
 - VLLM and SGLang: Don't require API key environment variable to be set when running in local mode.
 - Google: Support `minimal` and `medium` reasoning effort levels for Gemini 3 Flash.
@@ -9,6 +10,7 @@
 - JSON Datasets: Support passing arbitrary `kwargs` to JSON readers (built-in reader and jsonlines reader).
 - Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
 - Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
+- Inspect View: Scale ANSI display in messages view to preserve row/column layout without wrapping.
 - Inspect View: Render custom tool view when viewing messages.
 - Bugfix: Prevent component not found error during Human Agent transition.
 - OpenAI Compatible: Added support for disabling reasoning history emulation.
