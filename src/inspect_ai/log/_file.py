@@ -774,13 +774,13 @@ def write_eval_result_yaml(
     log_fs = filesystem(log_location)
     log_dir = os.path.dirname(log_location) if os.path.dirname(log_location) else "."
     yaml_path = f"{log_dir}{log_fs.sep}{date}-{eval_log.eval.task.replace('/', '-')}_{eval_log.eval.task_id}-result.yaml"
-
     yaml_content = yaml.dump([result], default_flow_style=False, sort_keys=False)
-    with file(yaml_path, "w", fs_options={}) as f:
-        f.write(yaml_content)
 
-    if True:
-        _push_result_to_hf_pr(eval_log, yaml_path)
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", name=yaml_path) as tmp:
+        tmp.write(yaml_content)
+        _push_result_to_hf_pr(eval_log, tmp.name)
 
 
 def _push_result_to_hf_pr(eval_log: EvalLog, yaml_path: str) -> None:
@@ -793,6 +793,7 @@ def _push_result_to_hf_pr(eval_log: EvalLog, yaml_path: str) -> None:
         logger.warning(f"Cannot determine model repo from model name: {model_name}")
         return
 
+    logger.info(f"Pushing result to model repo: {model_name}")
     api = HfApi()
     model_repo = model_name.split("/", 1)[-1]
     yaml_filename = os.path.basename(yaml_path)
