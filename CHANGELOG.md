@@ -10,6 +10,7 @@
 - Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
 - Inspect View: Render custom tool view when viewing messages.
 - Bugfix: Prevent component not found error during Human Agent transition.
+- OpenAI Compatible: Added support for disabling reasoning history emulation.
 
 ## 0.3.159 (03 January 2026)
 
