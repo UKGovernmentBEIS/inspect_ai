@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import functools
 import importlib.util
@@ -46,18 +47,33 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
     """
 
     def decorator(func: F) -> F:
+        if asyncio.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                last_exception = None
+                for attempt in range(max_retries + 1):
+                    try:
+                        return await func(*args, **kwargs)
+                    except Exception as e:
+                        last_exception = e
+                        if attempt < max_retries:
+                            continue
+                        raise last_exception
+
+            return async_wrapper  # type: ignore
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             last_exception = None
-            for attempt in range(max_retries + 1):  # +1 for initial attempt
+            for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
                     last_exception = e
                     if attempt < max_retries:
                         continue
-                    else:
-                        raise last_exception
+                    raise last_exception
 
         return wrapper  # type: ignore
 
