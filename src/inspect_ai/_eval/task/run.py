@@ -155,6 +155,7 @@ class TaskRunOptions:
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
+    open_results_pr: bool = field(default=False)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
 
@@ -469,7 +470,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
             # write YAML result file
             if eval_log.location:
-                write_eval_result_yaml(eval_log, eval_log.location)
+                write_eval_result_yaml(
+                    eval_log, eval_log.location, options.open_results_pr
+                )
 
             await emit_task_end(logger, eval_log)
 

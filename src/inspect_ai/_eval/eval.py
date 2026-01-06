@@ -121,6 +121,7 @@ def eval(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    open_results_pr: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -205,6 +206,7 @@ def eval(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        open_results_pr: If `True`, push the result to the model repo on HF Hub and open a PR.
         **kwargs: Model generation options.
 
     Returns:
@@ -322,6 +324,7 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    open_results_pr: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -387,6 +390,7 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        open_results_pr: If `True`, push the result to the model repo on HF Hub and open a PR.
         **kwargs: Model generation options.
 
     Returns:
@@ -441,6 +445,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                open_results_pr=open_results_pr,
                 **kwargs,
             )
         finally:
@@ -505,6 +510,7 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    open_results_pr: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
@@ -652,6 +658,7 @@ async def _eval_async_inner(
             log_buffer=log_buffer,
             log_shared=log_shared,
             score_display=score_display,
+            open_results_pr=open_results_pr,
         )
 
         # run tasks - 2 codepaths, one for the traditional task at a time

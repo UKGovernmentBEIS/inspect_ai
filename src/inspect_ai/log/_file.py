@@ -726,12 +726,15 @@ def to_overview(header: EvalLog) -> LogOverview:
     )
 
 
-def write_eval_result_yaml(eval_log: EvalLog, log_location: str) -> None:
+def write_eval_result_yaml(
+    eval_log: EvalLog, log_location: str, open_pr: bool = False
+) -> None:
     """Write a YAML result file for the evaluation.
 
     Args:
         eval_log: The evaluation log
         log_location: Path to the log file
+        open_pr: If True, push the result to the model repo on HF Hub and open a PR
     """
     if (
         hub_benchmark_metadata := eval_log.eval.metadata.get("hub_benchmark", None)
@@ -775,3 +778,35 @@ def write_eval_result_yaml(eval_log: EvalLog, log_location: str) -> None:
     yaml_content = yaml.dump([result], default_flow_style=False, sort_keys=False)
     with file(yaml_path, "w", fs_options={}) as f:
         f.write(yaml_content)
+
+    if True:
+        _push_result_to_hf_pr(eval_log, yaml_path)
+
+
+def _push_result_to_hf_pr(eval_log: EvalLog, yaml_path: str) -> None:
+    """Push result YAML to model repo on HuggingFace Hub and open a PR."""
+    from huggingface_hub import CommitOperationAdd, HfApi
+
+    model_name = eval_log.eval.model
+
+    if "/" not in model_name:
+        logger.warning(f"Cannot determine model repo from model name: {model_name}")
+        return
+
+    api = HfApi()
+    model_repo = model_name.split("/", 1)[-1]
+    yaml_filename = os.path.basename(yaml_path)
+    result_file_path = f"result_files/{yaml_filename}"
+
+    api.create_commit(
+        repo_id=model_repo,
+        repo_type="model",
+        commit_message=f"Add evaluation results for {eval_log.eval.task}",
+        operations=[
+            CommitOperationAdd(
+                path_in_repo=result_file_path,
+                path_or_fileobj=yaml_path,
+            )
+        ],
+        create_pr=True,
+    )
