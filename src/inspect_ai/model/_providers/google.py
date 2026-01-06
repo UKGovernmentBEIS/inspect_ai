@@ -430,6 +430,9 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini(self) -> bool:
         return "gemini-" in self.service_model_name()
 
+    def is_gemini_flash(self) -> bool:
+        return "flash" in self.service_model_name()
+
     def is_gemini_1_5(self) -> bool:
         return "gemini-1.5" in self.service_model_name()
 
@@ -441,6 +444,9 @@ class GoogleGenAIAPI(ModelAPI):
 
     def is_gemini_3(self) -> bool:
         return "gemini-3" in self.service_model_name()
+
+    def is_gemini_3_flash(self) -> bool:
+        return self.is_gemini_3() and self.is_gemini_flash()
 
     def is_gemini_3_plus(self) -> bool:
         return (
@@ -535,12 +541,20 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
+                # note: minimal and medium currently only supported by flash model
+                is_flash = self.is_gemini_3_flash()
                 match config.reasoning_effort:
-                    case "minimal" | "low":
-                        thinking_level: ThinkingLevel | None = ThinkingLevel.LOW
-                    case (
-                        "medium" | "high" | "xhigh"
-                    ):  # note: 'medium' thinking level coming soon
+                    case "minimal":
+                        thinking_level = (
+                            ThinkingLevel.MINIMAL if is_flash else ThinkingLevel.LOW
+                        )
+                    case "low":
+                        thinking_level = ThinkingLevel.LOW
+                    case "medium":
+                        thinking_level = (
+                            ThinkingLevel.MEDIUM if is_flash else ThinkingLevel.HIGH
+                        )
+                    case "high" | "xhigh":
                         thinking_level = ThinkingLevel.HIGH
                     case _:
                         thinking_level = None  # can't happen, keep mypy happy
