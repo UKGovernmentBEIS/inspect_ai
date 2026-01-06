@@ -430,6 +430,9 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini(self) -> bool:
         return "gemini-" in self.service_model_name()
 
+    def is_gemini_flash(self) -> bool:
+        return "flash" in self.service_model_name()
+
     def is_gemini_1_5(self) -> bool:
         return "gemini-1.5" in self.service_model_name()
 
@@ -443,7 +446,7 @@ class GoogleGenAIAPI(ModelAPI):
         return "gemini-3" in self.service_model_name()
 
     def is_gemini_3_flash(self) -> bool:
-        return "gemini-3-flash" in self.service_model_name()
+        return self.is_gemini_3() and self.is_gemini_flash()
 
     def is_gemini_3_plus(self) -> bool:
         return (
