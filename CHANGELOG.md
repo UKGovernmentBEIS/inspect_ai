@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).
+- Anthropic: Correctly replay reasoning when sourced from Inspect cache.
 - Grok: Correctly replay tool calling errors in message history.
 - VLLM and SGLang: Don't require API key environment variable to be set when running in local mode.
 - Google: Support `minimal` and `medium` reasoning effort levels for Gemini 3 Flash.

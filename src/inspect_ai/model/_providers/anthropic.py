@@ -1952,6 +1952,22 @@ async def message_block_params(
         )
         if thinking_block_param is not None:
             return [thinking_block_param]
+        else:
+            # reconstruct reasoning
+            if content.summary is not None:
+                return [
+                    ThinkingBlockParam(
+                        type="thinking",
+                        thinking=content.summary,
+                        signature=content.reasoning,
+                    )
+                ]
+            elif content.redacted and content.signature is not None:
+                return [
+                    RedactedThinkingBlockParam(
+                        type="redacted_thinking", data=content.signature
+                    )
+                ]
 
         # if it's not in there then this is reasoning that is coming from another
         # system (e.g. in an agent handoff) so we turn it into normal text
