@@ -253,7 +253,7 @@ class OpenAICompatibleAPI(ModelAPI):
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        if self.stream:
+        if self.stream or self.should_stream(config):
             async with self.client.chat.completions.stream(**request) as stream:
                 return await stream.get_final_completion()
         else:
@@ -300,6 +300,9 @@ class OpenAICompatibleAPI(ModelAPI):
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""
         pass
+
+    def should_stream(self, config: GenerateConfig) -> bool:
+        return False
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         """Hook for subclasses to do custom tools processing"""
