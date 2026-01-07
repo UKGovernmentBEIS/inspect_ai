@@ -161,7 +161,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
-                background=False,
+                background=None,
                 service_tier=None,
                 prompt_cache_key=NOT_GIVEN,
                 prompt_cache_retention=NOT_GIVEN,
