@@ -356,7 +356,6 @@ export const collapseLogItems = (
 
   // Group file items by task_id
   const taskIdToItems = new Map<string, FileLogItem[]>();
-  const itemsWithoutTaskId: Array<FolderLogItem | FileLogItem> = [];
 
   for (const item of logItems) {
     if (item.type === "file" && item.log.task_id) {
@@ -365,8 +364,6 @@ export const collapseLogItems = (
         taskIdToItems.set(taskId, []);
       }
       taskIdToItems.get(taskId)!.push(item);
-    } else if (item.type === "folder" || item.type === "file") {
-      itemsWithoutTaskId.push(item);
     }
   }
 
