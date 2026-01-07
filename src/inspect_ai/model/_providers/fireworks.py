@@ -36,3 +36,7 @@ class FireworksAIAPI(OpenAICompatibleAPI):
         if name.startswith(prefix):
             name = name[len(prefix) :]
         return name
+
+    @override
+    def should_stream(self, config: GenerateConfig) -> bool:
+        return config.max_tokens is not None and config.max_tokens > 16000

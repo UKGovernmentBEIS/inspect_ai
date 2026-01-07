@@ -7,6 +7,7 @@
 - Grok: Correctly replay tool calling errors in message history.
 - VLLM and SGLang: Don't require API key environment variable to be set when running in local mode.
 - Google: Support `minimal` and `medium` reasoning effort levels for Gemini 3 Flash.
+- Fireworks: Use streaming when `max_tokens` is greater than 16000.
 - HF Tasks: Require >1.0.0 of huggingface_hub package.
 - Eval Set: Include task version and limits in task identifier hash to prevent incorrect log reuse.
 - Scoring: Match only last line of output in answer(pattern="line").
