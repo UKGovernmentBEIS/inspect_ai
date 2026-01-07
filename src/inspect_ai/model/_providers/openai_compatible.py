@@ -63,6 +63,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_api: bool | None = None,
         responses_store: bool | None = None,
         stream: bool | None = None,
+        emulate_reasoning_history: bool = True,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -107,7 +108,7 @@ class OpenAICompatibleAPI(ModelAPI):
                     [base_url_var],
                 )
 
-        # grab emulate_tools and responses_api arguments
+        # grab arguments
         self.emulate_tools = emulate_tools
         self.responses_api = responses_api
         self.responses_store = responses_store
@@ -116,6 +117,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 "emulate_tools is not compatible with using the responses_api"
             )
         self.stream = False if stream is None else stream
+        self._emulate_reasoning_history = emulate_reasoning_history
 
         # store http_client and model_args for reinitialization
         self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
@@ -159,7 +161,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
-                background=False,
+                background=None,
                 service_tier=None,
                 prompt_cache_key=NOT_GIVEN,
                 prompt_cache_retention=NOT_GIVEN,
@@ -251,7 +253,7 @@ class OpenAICompatibleAPI(ModelAPI):
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        if self.stream:
+        if self.stream or self.should_stream(config):
             async with self.client.chat.completions.stream(**request) as stream:
                 return await stream.get_final_completion()
         else:
@@ -299,6 +301,9 @@ class OpenAICompatibleAPI(ModelAPI):
         """Hook for subclasses to do custom response handling."""
         pass
 
+    def should_stream(self, config: GenerateConfig) -> bool:
+        return False
+
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
         """Hook for subclasses to do custom tools processing"""
         return openai_chat_tools(tools)
@@ -325,6 +330,9 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         return openai_handle_bad_request(self.service_model_name(), ex)
+
+    def emulate_reasoning_history(self) -> bool:
+        return self._emulate_reasoning_history
 
 
 class OpenAICompatibleHandler(Llama31Handler):

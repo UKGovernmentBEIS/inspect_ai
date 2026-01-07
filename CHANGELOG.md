@@ -1,13 +1,20 @@
 ## Unreleased
 
 - Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).
+- Anthropic: Correctly replay reasoning when sourced from Inspect cache.
+- OpenAI Compatible: Don't ever send `background` parameter as this is OpenAI service-specific.
+- OpenAI Compatible: Added support for disabling reasoning history emulation.
 - Grok: Correctly replay tool calling errors in message history.
 - VLLM and SGLang: Don't require API key environment variable to be set when running in local mode.
 - Google: Support `minimal` and `medium` reasoning effort levels for Gemini 3 Flash.
+- Fireworks: Use streaming when `max_tokens` is greater than 16000.
 - HF Tasks: Require >1.0.0 of huggingface_hub package.
 - Eval Set: Include task version and limits in task identifier hash to prevent incorrect log reuse.
+- Scoring: Match only last line of output in answer(pattern="line").
+- JSON Datasets: Support passing arbitrary `kwargs` to JSON readers (built-in reader and jsonlines reader).
 - Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
 - Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
+- Inspect View: Scale ANSI display in messages view to preserve row/column layout without wrapping.
 - Inspect View: Render custom tool view when viewing messages.
 - Inspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).
 - Bugfix: Prevent component not found error during Human Agent transition.

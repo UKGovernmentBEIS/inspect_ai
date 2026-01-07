@@ -1,3 +1,4 @@
+import json as json_module
 import os
 from pathlib import Path
 from typing import Type, TypeVar
@@ -184,6 +185,38 @@ def test_dataset_zero_seed() -> None:
     dataset1 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
     dataset2 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
     assert [s.target for s in dataset1] == [s.target for s in dataset2]
+
+
+def test_json_dataset_supports_kwargs() -> None:
+    before = "Joe Biden"
+    after = "Donald Trump"
+
+    dataset_no_kwargs = json_dataset(dataset_path("dataset.jsonl"))
+    assert (
+        not isinstance((chat_message := dataset_no_kwargs[0].input[0]), str)
+        and before in chat_message.content
+        and after not in chat_message.content
+    )
+
+    def custom_loads(line: str):
+        # Not a recommended pattern.
+        # More idiomatic use cases
+        # involve dealing with NaNs
+        # and other nonstandard
+        # types.
+        data = json_module.loads(line)
+        data["input"][0]["content"] = data["input"][0]["content"].replace(
+            before,
+            after,
+        )
+        return data
+
+    dataset_custom = json_dataset(dataset_path("dataset.jsonl"), loads=custom_loads)
+    assert (
+        not isinstance((chat_message := dataset_custom[0].input[0]), str)
+        and after in chat_message.content
+        and before not in chat_message.content
+    )
 
 
 sample_field_spec = FieldSpec(input="input", target="label", metadata=["extra"])

@@ -883,6 +883,14 @@ You can enable the use of the streaming with the `openai-api` provider by passin
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 ```
 
+### Reasoning History Emulation {#reasoning-history-emulation-openai}
+
+Reasoning history emulation (where reasoning is represented by embedded `<think>` tags) is enabled by default. You can disable this behanvior via the `emulate_reasoning_history` model arg. For example:
+
+``` bash
+$ inspect eval arc.py --model openai-api/<provider>/<model> -M emulate_reasoning_history=false
+```
+
 ## OpenRouter
 
 To use the [OpenRouter](https://openrouter.ai/) provider, install the `openai` package (which the OpenRouter service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
