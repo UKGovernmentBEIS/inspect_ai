@@ -6,7 +6,12 @@ import { useNavigate } from "react-router-dom";
 import { EvalSet } from "../../@types/log";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
-import { useDocumentTitle, useLogs, useLogsListing } from "../../state/hooks";
+import {
+  useDocumentTitle,
+  useLogs,
+  useLogsListing,
+  useLogsWithSkipIfNotShowingRetries,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
@@ -24,10 +29,6 @@ import { LogListRow } from "./grid/columns/types";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import styles from "./LogsPanel.module.css";
-import {
-  OTHER_STATUS,
-  simplifiedStatusForDeduplication,
-} from "../../state/utils";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -52,7 +53,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     (state) => state.logsActions.setShowRetriedLogs,
   );
   const logDir = useStore((state) => state.logs.logDir);
-  const logFiles = useStore((state) => state.logs.logs);
+  const logFiles = useLogsWithSkipIfNotShowingRetries();
   const evalSet = useStore((state) => state.logs.evalSet);
   const logPreviews = useStore((state) => state.logs.logPreviews);
   const { filteredCount } = useLogsListing();
@@ -106,7 +107,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     }
   }, [watchedLogs, startPolling, stopPolling]);
 
-  const [logItems, isAnyLogItemHidden]: [
+  const [logItems, shouldDisplayShowRetriedLogs]: [
     Array<FileLogItem | FolderLogItem | PendingTaskItem>,
     boolean,
   ] = useMemo(() => {
@@ -117,6 +118,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     // Track processed folders to avoid duplicates
     const processedFolders = new Set<string>();
     const existingLogTaskIds = new Set<string>();
+    let _shouldDisplayShowRetriedLogs = false;
 
     for (const logFile of logFiles) {
       if (logFile.task_id) {
@@ -143,14 +145,20 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           decodeURIComponent(dirName),
         );
 
-        fileItems.push({
-          id: fileOrFolderName,
-          name: fileOrFolderName,
-          type: "file",
-          url: logsUrl(path, logDir),
-          log: logFile,
-          logPreview: logPreviews[logFile.name],
-        });
+        if (logFile.skipIfNotShowingRetries) {
+          _shouldDisplayShowRetriedLogs = true;
+        }
+
+        if (showRetriedLogs || !logFile.skipIfNotShowingRetries) {
+          fileItems.push({
+            id: fileOrFolderName,
+            name: fileOrFolderName,
+            type: "file",
+            url: logsUrl(path, logDir),
+            log: logFile,
+            logPreview: logPreviews[logFile.name],
+          });
+        }
       } else if (name.startsWith(dirWithSlash)) {
         // This is file that is next level (or deeper) child of the current directory
         const relativePath = directoryRelativeUrl(name, currentDir);
@@ -175,22 +183,13 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
 
     const orderedItems = [...folderItems, ...fileItems];
 
-    // Ensure there is only one entry for each task id, preferring to
-    // always show running or complete tasks (over error tasks). Ensure that the
-    // order of all items isn't changed
-    const collapsedLogItems: Array<
-      FileLogItem | FolderLogItem | PendingTaskItem
-    > = collapseLogItems(evalSet, orderedItems, showRetriedLogs);
-
-    // appendPendingItems mutates collapsedLogItems in place 😱 => check length first
-    const _isAnyLogItemHidden = collapsedLogItems.length < orderedItems.length;
-    const _logItems = appendPendingItems(
+    const _logFiles = appendPendingItems(
       evalSet,
       existingLogTaskIds,
-      collapsedLogItems,
+      orderedItems,
     );
 
-    return [_logItems, _isAnyLogItemHidden];
+    return [_logFiles, _shouldDisplayShowRetriedLogs];
   }, [evalSet, logFiles, currentDir, logDir, logPreviews, showRetriedLogs]);
 
   const { columns, setColumnVisibility } = useLogListColumns();
@@ -283,7 +282,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           />
         )}
 
-        {evalSet && (isAnyLogItemHidden || showRetriedLogs) && (
+        {shouldDisplayShowRetriedLogs && (
           <NavbarButton
             key="show-retried"
             label="Show Retried Logs"
@@ -347,84 +346,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       </>
     </div>
   );
-};
-
-export const collapseLogItems = (
-  evalSet: EvalSet | undefined,
-  logItems: (FileLogItem | FolderLogItem | PendingTaskItem)[],
-  showRetriedLogs: boolean,
-): (FileLogItem | FolderLogItem | PendingTaskItem)[] => {
-  if (!evalSet || showRetriedLogs) {
-    return logItems;
-  }
-
-  // Group file items by task_id
-  const taskIdToItems = new Map<string, FileLogItem[]>();
-
-  for (const item of logItems) {
-    if (item.type === "file" && item.log.task_id) {
-      const taskId = item.log.task_id;
-      if (!taskIdToItems.has(taskId)) {
-        taskIdToItems.set(taskId, []);
-      }
-      taskIdToItems.get(taskId)!.push(item);
-    }
-  }
-
-  // For each task_id, select the best item (prefer running/complete over error)
-  const selectedItems = new Map<string, FileLogItem>();
-  for (const [taskId, items] of taskIdToItems) {
-    // Sort by status priority: started > success > error, cancelled, or other future states
-    // If same priority, take the last one
-    let bestItem = items[0];
-    for (const item of items) {
-      const currentStatus = simplifiedStatusForDeduplication(
-        item.logPreview?.status,
-      );
-      const currentMtime = item.log.mtime ?? 0;
-      const bestStatus = simplifiedStatusForDeduplication(
-        bestItem.logPreview?.status,
-      );
-      const bestMtime = bestItem.log.mtime ?? 0;
-
-      // Prefer started over everything
-      if (currentStatus === "started" && bestStatus !== "started") {
-        bestItem = item;
-      }
-      // Prefer success over error
-      else if (currentStatus === "success" && bestStatus === OTHER_STATUS) {
-        bestItem = item;
-      }
-      // If same status or current is error, prefer most recent
-      else if (currentStatus === bestStatus && currentMtime > bestMtime) {
-        bestItem = item;
-      }
-    }
-    selectedItems.set(taskId, bestItem);
-  }
-
-  // Rebuild logItems maintaining order, replacing duplicates with selected item
-  const collapsedLogItems: Array<
-    FileLogItem | FolderLogItem | PendingTaskItem
-  > = [];
-  const processedTaskIds = new Set<string>();
-
-  for (const item of logItems) {
-    if (item.type === "file" && item.log.task_id) {
-      const taskId = item.log.task_id;
-      if (!processedTaskIds.has(taskId)) {
-        const selectedItem = selectedItems.get(taskId);
-        if (selectedItem) {
-          collapsedLogItems.push(selectedItem);
-        }
-        processedTaskIds.add(taskId);
-      }
-    } else {
-      // Include folders and files without task_id
-      collapsedLogItems.push(item);
-    }
-  }
-  return collapsedLogItems;
 };
 
 const appendPendingItems = (

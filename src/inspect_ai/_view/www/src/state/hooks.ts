@@ -12,13 +12,16 @@ import {
   sortSamples,
 } from "../app/samples/sample-tools/SortFilter";
 import { sampleIdsEqual } from "../app/shared/sample";
-import { LogHandle, SampleSummary } from "../client/api/types";
+import { LogHandle, LogPreview, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { prettyDirUri } from "../utils/uri";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
 import { useStore } from "./store";
-import { mergeSampleSummaries } from "./utils";
+import {
+  mergeSampleSummaries,
+  simplifiedStatusForDeduplication,
+} from "./utils";
 
 const log = createLogger("hooks");
 
@@ -689,3 +692,77 @@ export const useDocumentTitle = () => {
   };
   return { setDocumentTitle };
 };
+
+export type LogHandleWithSkipIfNotShowingRetries = LogHandle &
+  (
+    | { skipIfNotShowingRetries?: never; _debug?: never }
+    | { skipIfNotShowingRetries: true; _debug?: never }
+    | {
+        skipIfNotShowingRetries: false;
+        _debug: {
+          duplicatesFromPreviousLogs: LogHandle[];
+          logPreview: LogPreview;
+        };
+      }
+  );
+export const useLogsWithSkipIfNotShowingRetries =
+  (): LogHandleWithSkipIfNotShowingRetries[] => {
+    const logs = useStore((state) => state.logs.logs);
+    const logPreviews = useStore((state) => state.logs.logPreviews);
+
+    const logsWithEvalSetRetry = useMemo(() => {
+      const logsByTaskId = logs.reduce(
+        (acc: Record<string, LogHandleWithSkipIfNotShowingRetries[]>, log) => {
+          const taskId = log.task_id;
+          if (taskId) {
+            if (!(taskId in acc)) acc[taskId] = [];
+            acc[taskId].push(log);
+          }
+          return acc;
+        },
+        {},
+      );
+      const bestByName: Record<string, LogHandleWithSkipIfNotShowingRetries> =
+        {};
+      for (const items of Object.values(logsByTaskId)) {
+        items.sort((a, b) => {
+          const as = simplifiedStatusForDeduplication(
+            logPreviews[a.name]?.status,
+          );
+          const bs = simplifiedStatusForDeduplication(
+            logPreviews[b.name]?.status,
+          );
+          const am = a.mtime ?? 0;
+          const bm = b.mtime ?? 0;
+
+          if (as === bs) return bm - am; // newest on top
+          if (as === "started") return -1;
+          if (bs === "started") return 1;
+          if (as === "success") return -1;
+          if (bs === "success") return 1;
+
+          console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
+          return 0;
+        });
+        const { name } = items[0];
+        bestByName[name] = {
+          ...items[0],
+          skipIfNotShowingRetries: false,
+          _debug: {
+            duplicatesFromPreviousLogs: items.slice(1),
+            logPreview: logPreviews[name],
+          },
+        };
+      }
+
+      return logs.map(
+        (log) =>
+          bestByName[log.name] ?? {
+            ...log,
+            skipIfNotShowingRetries: true,
+          },
+      );
+    }, [logs, logPreviews]);
+
+    return logsWithEvalSetRetry;
+  };

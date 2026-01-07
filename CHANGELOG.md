@@ -9,7 +9,7 @@
 - Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
 - Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
 - Inspect View: Render custom tool view when viewing messages.
-- Inspect View: Add Show Retried Logs button for Tasks inside an eval set folder (retried logs are hidden by default for running sets, and now also for finished sets).
+- Inspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).
 - Bugfix: Prevent component not found error during Human Agent transition.
 
 ## 0.3.159 (03 January 2026)

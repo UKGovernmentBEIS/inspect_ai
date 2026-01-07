@@ -4,7 +4,11 @@ import { AgGridReact } from "ag-grid-react";
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
-import { useLogs } from "../../state/hooks";
+import {
+  LogHandleWithSkipIfNotShowingRetries,
+  useLogs,
+  useLogsWithSkipIfNotShowingRetries,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { join } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
@@ -21,7 +25,6 @@ import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
 import { SampleRow } from "./samples-grid/types";
 import { inputString } from "../../utils/format";
-import { simplifiedStatusForDeduplication } from "../../state/utils";
 
 export const SamplesPanel: FC = () => {
   const { samplesPath } = useSamplesRouteParams();
@@ -87,40 +90,44 @@ export const SamplesPanel: FC = () => {
   const currentDir = join(samplesPath || "", logDir);
 
   const evalSet = useStore((state) => state.logs.evalSet);
-  const logFiles = useStore((state) => state.logs.logs);
+  const logFiles = useLogsWithSkipIfNotShowingRetries();
   const logPreviews = useStore((state) => state.logs.logPreviews);
 
-  const currentDirLogFiles = useMemo(() => {
+  const currentDirLogFilesMaybeSkippedRetries = useMemo(() => {
     const files = [];
     for (const logFile of logFiles) {
-      if (logFile.name.startsWith(currentDir)) {
+      const inCurrentDir = logFile.name.startsWith(currentDir);
+      const notSkipped = showRetriedLogs || !logFile.skipIfNotShowingRetries;
+      if (inCurrentDir && notSkipped) {
         files.push(logFile);
       }
     }
     return files;
-  }, [currentDir, logFiles]);
+  }, [currentDir, logFiles, showRetriedLogs]);
 
   const totalTaskCount = useMemo(() => {
-    const currentDirTaskIds = new Set(currentDirLogFiles.map((f) => f.task_id));
-    let count = currentDirLogFiles.length;
+    const currentDirTaskIds = new Set(
+      currentDirLogFilesMaybeSkippedRetries.map((f) => f.task_id),
+    );
+    let count = currentDirLogFilesMaybeSkippedRetries.length;
     for (const task of evalSet?.tasks || []) {
       if (!currentDirTaskIds.has(task.task_id)) {
         count++;
       }
     }
     return count;
-  }, [currentDirLogFiles, evalSet]);
+  }, [currentDirLogFilesMaybeSkippedRetries, evalSet]);
 
   const completedTaskCount = useMemo(() => {
     let count = 0;
-    for (const logFile of currentDirLogFiles) {
+    for (const logFile of currentDirLogFilesMaybeSkippedRetries) {
       const preview = logPreviews[logFile.name];
       if (preview && preview.status !== "started") {
         count++;
       }
     }
     return count;
-  }, [logPreviews, currentDirLogFiles]);
+  }, [logPreviews, currentDirLogFilesMaybeSkippedRetries]);
 
   useEffect(() => {
     const exec = async () => {
@@ -150,9 +157,21 @@ export const SamplesPanel: FC = () => {
   }, [logDetails, logDir, samplesPath]);
 
   // Transform logDetails into flat rows
-  const [sampleRows, isAnyLogItemHidden] = useMemo(() => {
+  const [sampleRows, shouldDisplayShowRetriedLogs] = useMemo(() => {
     const allRows: SampleRow[] = [];
     let displayIndex = 1;
+
+    let anyLogInCurrentDirCouldBeSkipped = false;
+    const logInCurrentDirByName = currentDirLogFilesMaybeSkippedRetries.reduce(
+      (acc: Record<string, LogHandleWithSkipIfNotShowingRetries>, log) => {
+        if (log.skipIfNotShowingRetries) {
+          anyLogInCurrentDirCouldBeSkipped = true;
+        }
+        acc[log.name] = log;
+        return acc;
+      },
+      {},
+    );
 
     Object.entries(logDetailsInPath).forEach(([logFile, logDetail]) => {
       logDetail.sampleSummaries.forEach((sampleSummary) => {
@@ -173,10 +192,8 @@ export const SamplesPanel: FC = () => {
           retries: sampleSummary.retries,
           completed: sampleSummary.completed || false,
           displayIndex: displayIndex++,
-          // note: sampleSummary.uuid is different between errored out samples => not useful for de-duplication
-          sampleDeDuplicationId: `${logDetail.eval.task_id}-${sampleSummary.id}-${sampleSummary.epoch}`,
           _debug: {
-            duplicatesFromPreviousLogs: null,
+            log: logInCurrentDirByName[logFile],
             logDetail,
             sampleSummary,
           },
@@ -193,42 +210,14 @@ export const SamplesPanel: FC = () => {
       });
     });
 
-    if (!evalSet || showRetriedLogs) {
-      return [allRows, false];
-    }
-
-    const sampleRowsByUuid = allRows.reduce(
-      (acc: Record<string, SampleRow[]>, row) => {
-        if (!(row.sampleDeDuplicationId in acc))
-          acc[row.sampleDeDuplicationId] = [];
-        acc[row.sampleDeDuplicationId].push(row);
-        return acc;
-      },
-      {},
+    const _sampleRows = allRows.filter(
+      (row) => row.logFile in logInCurrentDirByName,
     );
-    const _sampleRows = Object.values(sampleRowsByUuid).map((rows) => {
-      rows.sort((a, b) => {
-        const as = simplifiedStatusForDeduplication(a.status);
-        const bs = simplifiedStatusForDeduplication(b.status);
-        const ac = a.created;
-        const bc = b.created;
+    const _shouldDisplayShowRetriedLogs =
+      _sampleRows.length < allRows.length || anyLogInCurrentDirCouldBeSkipped;
 
-        if (as === bs) return -ac.localeCompare(bc); // sort by datetime-string, newest on top
-        if (as === "started") return -1;
-        if (bs === "started") return 1;
-        if (as === "success") return -1;
-        if (bs === "success") return 1;
-
-        console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
-        return 0;
-      });
-      rows[0]._debug.duplicatesFromPreviousLogs = rows.slice(1);
-      return rows[0];
-    });
-    const _isAnyLogItemHidden = _sampleRows.length < allRows.length;
-
-    return [_sampleRows, _isAnyLogItemHidden];
-  }, [logDetailsInPath, evalSet, showRetriedLogs]);
+    return [_sampleRows, _shouldDisplayShowRetriedLogs];
+  }, [logDetailsInPath, currentDirLogFilesMaybeSkippedRetries]);
 
   const filterModel = gridRef.current?.api?.getFilterModel() || {};
   const filteredFields = Object.keys(filterModel);
@@ -246,7 +235,7 @@ export const SamplesPanel: FC = () => {
           />
         )}
 
-        {evalSet && (isAnyLogItemHidden || showRetriedLogs) && (
+        {shouldDisplayShowRetriedLogs && (
           <NavbarButton
             key="show-retried"
             label="Show Retried Logs"

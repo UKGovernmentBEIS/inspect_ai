@@ -141,6 +141,13 @@ export const LogListGrid: FC<LogListGridProps> = ({
           mouseEvent?.shiftKey ||
           mouseEvent?.button === 1;
 
+        // debug feature to see the whole Log object in console on alt+click (== option+click on mac)
+        const debugData = mouseEvent?.altKey;
+        if (debugData) {
+          console.log(e.data);
+          return;
+        }
+
         const url = e.data.url;
         if (url) {
           setTimeout(() => {

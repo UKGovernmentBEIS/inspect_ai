@@ -23,8 +23,7 @@ export const mergeSampleSummaries = (
   return [...logSamples, ...uniquePendingSamples];
 };
 
-export const OTHER_STATUS = "_other_";
 export const simplifiedStatusForDeduplication = (status: Status | undefined) =>
   ["started", "success"].includes(status!)
     ? (status as "started" | "success")
-    : OTHER_STATUS;
+    : "_other_";
