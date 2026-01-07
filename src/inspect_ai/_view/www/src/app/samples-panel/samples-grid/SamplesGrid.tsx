@@ -11,8 +11,6 @@ import { AgGridReact } from "ag-grid-react";
 import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useClientEvents } from "../../../state/clientEvents";
 import { useStore } from "../../../state/store";
-import { inputString } from "../../../utils/format";
-import { join } from "../../../utils/uri";
 import { useSamplesGridNavigation } from "../../routing/sampleNavigation";
 import { DisplayedSample } from "../../types";
 import "../../shared/agGrid";
@@ -23,6 +21,7 @@ import { SampleRow } from "./types";
 
 // Sample Grid Props
 interface SamplesGridProps {
+  items: SampleRow[];
   samplesPath?: string;
   gridRef?: RefObject<AgGridReact<SampleRow> | null>;
   columns: ColDef<SampleRow>[];
@@ -30,15 +29,14 @@ interface SamplesGridProps {
 
 // Sample Grid
 export const SamplesGrid: FC<SamplesGridProps> = ({
+  items,
   samplesPath,
   gridRef: externalGridRef,
   columns,
 }) => {
-  const logDetails = useStore((state) => state.logs.logDetails);
   const gridState = useStore((state) => state.logs.samplesListState.gridState);
   const setGridState = useStore((state) => state.logsActions.setGridState);
   const { navigateToSampleDetail } = useSamplesGridNavigation();
-  const logDir = useStore((state) => state.logs.logDir);
   const setFilteredSampleCount = useStore(
     (state) => state.logActions.setFilteredSampleCount,
   );
@@ -102,69 +100,9 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
     }
   }, [samplesPath, previousSamplesPath, setPreviousSamplesPath]);
 
-  // Filter logDetails based on samplesPath
-  const filteredLogDetails = useMemo(() => {
-    if (!samplesPath) {
-      return logDetails; // Show all samples when no path is specified
-    }
-
-    const samplesPathAbs = join(samplesPath, logDir);
-
-    return Object.entries(logDetails).reduce(
-      (acc, [logFile, details]) => {
-        // Check if the logFile starts with the samplesPath
-        if (logFile.startsWith(samplesPathAbs)) {
-          acc[logFile] = details;
-        }
-        return acc;
-      },
-      {} as typeof logDetails,
-    );
-  }, [logDetails, logDir, samplesPath]);
-
   useEffect(() => {
     gridContainerRef.current?.focus();
   }, []);
-
-  // Transform logDetails into flat rows
-  const data = useMemo(() => {
-    const rows: SampleRow[] = [];
-    let displayIndex = 1;
-
-    Object.entries(filteredLogDetails).forEach(([logFile, details]) => {
-      details.sampleSummaries.forEach((sample) => {
-        const row: SampleRow = {
-          logFile,
-          created: details.eval.created,
-          task: details.eval.task || "",
-          model: details.eval.model || "",
-          status: details.status,
-          sampleId: sample.id,
-          epoch: sample.epoch,
-          input: inputString(sample.input).join("\n"),
-          target: Array.isArray(sample.target)
-            ? sample.target.join(", ")
-            : sample.target,
-          error: sample.error,
-          limit: sample.limit,
-          retries: sample.retries,
-          completed: sample.completed || false,
-          displayIndex: displayIndex++,
-        };
-
-        // Add scores as individual fields
-        if (sample.scores) {
-          Object.entries(sample.scores).forEach(([scoreName, score]) => {
-            row[`score_${scoreName}`] = score.value;
-          });
-        }
-
-        rows.push(row);
-      });
-    });
-
-    return rows;
-  }, [filteredLogDetails]);
 
   const handleRowClick = useCallback(
     (e: RowClickedEvent<SampleRow>) => {
@@ -180,6 +118,13 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           mouseEvent?.ctrlKey ||
           mouseEvent?.shiftKey ||
           mouseEvent?.button === 1;
+
+        // easter-egg feature to see the whole SampleRow object in console on alt+click (== option+click on mac)
+        const debugData = mouseEvent?.altKey;
+        if (debugData) {
+          console.log(e.data);
+          return;
+        }
 
         const logFile = e.data.logFile;
         const sampleId = e.data.sampleId;
@@ -278,7 +223,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
       <div ref={gridContainerRef} className={styles.gridContainer} tabIndex={0}>
         <AgGridReact<SampleRow>
           ref={gridRef}
-          rowData={data}
+          rowData={items}
           animateRows={false}
           columnDefs={columns}
           defaultColDef={{
@@ -333,7 +278,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
             selectCurrentSample();
             clearSelectedSample();
           }}
-          loading={data.length === 0 && (loading > 0 || syncing)}
+          loading={items.length === 0 && (loading > 0 || syncing)}
         />
       </div>
     </div>

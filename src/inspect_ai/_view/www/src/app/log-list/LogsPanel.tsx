@@ -24,6 +24,10 @@ import { LogListRow } from "./grid/columns/types";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "./LogItem";
 import { LogListFooter } from "./LogListFooter";
 import styles from "./LogsPanel.module.css";
+import {
+  OTHER_STATUS,
+  simplifiedStatusForDeduplication,
+} from "../../state/utils";
 
 const rootName = (relativePath: string) => {
   const parts = relativePath.split("/");
@@ -370,13 +374,17 @@ export const collapseLogItems = (
   // For each task_id, select the best item (prefer running/complete over error)
   const selectedItems = new Map<string, FileLogItem>();
   for (const [taskId, items] of taskIdToItems) {
-    // Sort by status priority: started > success > error
+    // Sort by status priority: started > success > error, cancelled, or other future states
     // If same priority, take the last one
     let bestItem = items[0];
     for (const item of items) {
-      const currentStatus = item.logPreview?.status;
+      const currentStatus = simplifiedStatusForDeduplication(
+        item.logPreview?.status,
+      );
       const currentMtime = item.log.mtime ?? 0;
-      const bestStatus = bestItem.logPreview?.status;
+      const bestStatus = simplifiedStatusForDeduplication(
+        bestItem.logPreview?.status,
+      );
       const bestMtime = bestItem.log.mtime ?? 0;
 
       // Prefer started over everything
@@ -384,7 +392,7 @@ export const collapseLogItems = (
         bestItem = item;
       }
       // Prefer success over error
-      else if (currentStatus === "success" && bestStatus === "error") {
+      else if (currentStatus === "success" && bestStatus === OTHER_STATUS) {
         bestItem = item;
       }
       // If same status or current is error, prefer most recent

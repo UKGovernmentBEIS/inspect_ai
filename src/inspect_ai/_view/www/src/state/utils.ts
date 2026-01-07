@@ -1,3 +1,4 @@
+import { Status } from "../@types/log";
 import { SampleSummary } from "../client/api/types";
 
 // Function to merge log samples with pending samples
@@ -21,3 +22,9 @@ export const mergeSampleSummaries = (
   // Combine and return all samples
   return [...logSamples, ...uniquePendingSamples];
 };
+
+export const OTHER_STATUS = "_other_";
+export const simplifiedStatusForDeduplication = (status: Status | undefined) =>
+  ["started", "success"].includes(status!)
+    ? (status as "started" | "success")
+    : OTHER_STATUS;

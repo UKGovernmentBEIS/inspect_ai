@@ -19,6 +19,9 @@ import { ColumnSelectorPopover } from "../shared/ColumnSelectorPopover";
 import { useSampleColumns } from "./samples-grid/hooks";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
+import { SampleRow } from "./samples-grid/types";
+import { inputString } from "../../utils/format";
+import { simplifiedStatusForDeduplication } from "../../state/utils";
 
 export const SamplesPanel: FC = () => {
   const { samplesPath } = useSamplesRouteParams();
@@ -27,6 +30,10 @@ export const SamplesPanel: FC = () => {
 
   const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.syncing);
+  const showRetriedLogs = useStore((state) => state.logs.showRetriedLogs);
+  const setShowRetriedLogs = useStore(
+    (state) => state.logsActions.setShowRetriedLogs,
+  );
 
   const filteredSamplesCount = useStore(
     (state) => state.log.filteredSampleCount,
@@ -122,6 +129,107 @@ export const SamplesPanel: FC = () => {
     exec();
   }, [loadLogs, samplesPath]);
 
+  // Filter logDetails based on samplesPath
+  const logDetailsInPath = useMemo(() => {
+    if (!samplesPath) {
+      return logDetails; // Show all samples when no path is specified
+    }
+
+    const samplesPathAbs = join(samplesPath, logDir);
+
+    return Object.entries(logDetails).reduce(
+      (acc, [logFile, details]) => {
+        // Check if the logFile starts with the samplesPath
+        if (logFile.startsWith(samplesPathAbs)) {
+          acc[logFile] = details;
+        }
+        return acc;
+      },
+      {} as typeof logDetails,
+    );
+  }, [logDetails, logDir, samplesPath]);
+
+  // Transform logDetails into flat rows
+  const [sampleRows, isAnyLogItemHidden] = useMemo(() => {
+    const allRows: SampleRow[] = [];
+    let displayIndex = 1;
+
+    Object.entries(logDetailsInPath).forEach(([logFile, logDetail]) => {
+      logDetail.sampleSummaries.forEach((sampleSummary) => {
+        const row: SampleRow = {
+          logFile,
+          created: logDetail.eval.created,
+          task: logDetail.eval.task || "",
+          model: logDetail.eval.model || "",
+          status: logDetail.status,
+          sampleId: sampleSummary.id,
+          epoch: sampleSummary.epoch,
+          input: inputString(sampleSummary.input).join("\n"),
+          target: Array.isArray(sampleSummary.target)
+            ? sampleSummary.target.join(", ")
+            : sampleSummary.target,
+          error: sampleSummary.error,
+          limit: sampleSummary.limit,
+          retries: sampleSummary.retries,
+          completed: sampleSummary.completed || false,
+          displayIndex: displayIndex++,
+          // note: sampleSummary.uuid is different between errored out samples => not useful for de-duplication
+          sampleDeDuplicationId: `${logDetail.eval.task_id}-${sampleSummary.id}-${sampleSummary.epoch}`,
+          _debug: {
+            duplicatesFromPreviousLogs: null,
+            logDetail,
+            sampleSummary,
+          },
+        };
+
+        // Add scores as individual fields
+        if (sampleSummary.scores) {
+          Object.entries(sampleSummary.scores).forEach(([scoreName, score]) => {
+            row[`score_${scoreName}`] = score.value;
+          });
+        }
+
+        allRows.push(row);
+      });
+    });
+
+    if (!evalSet || showRetriedLogs) {
+      return [allRows, false];
+    }
+
+    const sampleRowsByUuid = allRows.reduce(
+      (acc: Record<string, SampleRow[]>, row) => {
+        if (!(row.sampleDeDuplicationId in acc))
+          acc[row.sampleDeDuplicationId] = [];
+        acc[row.sampleDeDuplicationId].push(row);
+        return acc;
+      },
+      {},
+    );
+    const _sampleRows = Object.values(sampleRowsByUuid).map((rows) => {
+      rows.sort((a, b) => {
+        const as = simplifiedStatusForDeduplication(a.status);
+        const bs = simplifiedStatusForDeduplication(b.status);
+        const ac = a.created;
+        const bc = b.created;
+
+        if (as === bs) return -ac.localeCompare(bc); // sort by datetime-string, newest on top
+        if (as === "started") return -1;
+        if (bs === "started") return 1;
+        if (as === "success") return -1;
+        if (bs === "success") return 1;
+
+        console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
+        return 0;
+      });
+      rows[0]._debug.duplicatesFromPreviousLogs = rows.slice(1);
+      return rows[0];
+    });
+    const _isAnyLogItemHidden = _sampleRows.length < allRows.length;
+
+    return [_sampleRows, _isAnyLogItemHidden];
+  }, [logDetailsInPath, evalSet, showRetriedLogs]);
+
   const filterModel = gridRef.current?.api?.getFilterModel() || {};
   const filteredFields = Object.keys(filterModel);
   const hasFilter = filteredFields.length > 0;
@@ -138,6 +246,19 @@ export const SamplesPanel: FC = () => {
           />
         )}
 
+        {evalSet && (isAnyLogItemHidden || showRetriedLogs) && (
+          <NavbarButton
+            key="show-retried"
+            label="Show Retried Logs"
+            icon={
+              showRetriedLogs
+                ? ApplicationIcons.toggle.on
+                : ApplicationIcons.toggle.off
+            }
+            latched={showRetriedLogs}
+            onClick={() => setShowRetriedLogs(!showRetriedLogs)}
+          />
+        )}
         <NavbarButton
           key="choose-columns"
           ref={columnButtonRef}
@@ -165,6 +286,7 @@ export const SamplesPanel: FC = () => {
       <ActivityBar animating={!!loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
         <SamplesGrid
+          items={sampleRows}
           samplesPath={samplesPath}
           gridRef={gridRef}
           columns={columns}

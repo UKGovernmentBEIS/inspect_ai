@@ -4,6 +4,7 @@ import { Status } from "../../../@types/log";
 export interface SampleRow {
   displayIndex?: number;
   logFile: string;
+  created: string; // representing datetime
   task: string;
   model: string;
   status?: Status;
@@ -15,5 +16,10 @@ export interface SampleRow {
   limit?: string;
   retries?: number;
   completed?: boolean;
+  sampleDeDuplicationId: string;
+  _debug: {
+    duplicatesFromPreviousLogs: SampleRow[] | null;
+    [key: string]: unknown;
+  };
   [key: string]: any; // For dynamic score columns
 }
