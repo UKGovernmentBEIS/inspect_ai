@@ -18,6 +18,7 @@
 - Inspect View: Scale ANSI display in messages view to preserve row/column layout without wrapping.
 - Inspect View: Render custom tool view when viewing messages.
 - Inspect View: Fix cmd+click on tasks/samples to open in new tab.
+- Inspect View: Only stream log bytes when requested chunks are large (>50MB)
 - Bugfix: Prevent component not found error during Human Agent transition.
 - Bugfix: Use `builtins` module rather than `__builtins__` when parsing tool function types.
 
