@@ -41,6 +41,9 @@ export const SamplesPanel: FC = () => {
   const filteredSamplesCount = useStore(
     (state) => state.log.filteredSampleCount,
   );
+  const setFilteredSampleCount = useStore(
+    (state) => state.logActions.setFilteredSampleCount,
+  );
 
   const gridRef = useRef<AgGridReact>(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
@@ -235,7 +238,17 @@ export const SamplesPanel: FC = () => {
                 : ApplicationIcons.toggle.off
             }
             latched={showRetriedLogs}
-            onClick={() => setShowRetriedLogs(!showRetriedLogs)}
+            onClick={() => {
+              setShowRetriedLogs(!showRetriedLogs);
+              // update number of samples displayed in lower right corner when toggling
+              setTimeout(() => {
+                if (gridRef.current) {
+                  setFilteredSampleCount(
+                    gridRef.current.api.getDisplayedRowCount(),
+                  );
+                }
+              }, 10);
+            }}
           />
         )}
         <NavbarButton
