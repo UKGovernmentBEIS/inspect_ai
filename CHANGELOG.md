@@ -19,6 +19,7 @@
 - Inspect View: Render custom tool view when viewing messages.
 - Inspect View: Fix cmd+click on tasks/samples to open in new tab.
 - Inspect View: Only stream log bytes when requested chunks are large (>50MB)
+- Inspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).
 - Bugfix: Prevent component not found error during Human Agent transition.
 - Bugfix: Use `builtins` module rather than `__builtins__` when parsing tool function types.
 

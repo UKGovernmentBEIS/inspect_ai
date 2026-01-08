@@ -1,6 +1,6 @@
 import { highlightElement } from "prismjs";
 import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
-import { EvalSample, EvalSpec, Events } from "../@types/log";
+import { EvalSample, EvalSpec, Events, Status } from "../@types/log";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
@@ -584,27 +584,17 @@ export const useSamplePopover = (id: string) => {
 };
 
 export const useLogs = () => {
-  // Loading logs
+  // Loading logs and eval set info
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
-
-  // Loading eval set info
   const syncEvalSetInfo = useStore(
     (state) => state.logsActions.syncEvalSetInfo,
   );
-
-  // Status
   const setLoading = useStore((state) => state.appActions.setLoading);
 
   const loadLogs = useCallback(
     async (logPath?: string) => {
-      const exec = async () => {
-        // Sync logs
-        await syncLogs();
-
-        // Sync eval set info
-        await syncEvalSetInfo(logPath);
-      };
-      exec().catch((e) => {
+      // load in parallel to display Show Retried Logs button as soon as we know current directory is an eval set without awaiting all logs
+      await Promise.all([syncEvalSetInfo(logPath), syncLogs()]).catch((e) => {
         log.error("Error loading logs", e);
         setLoading(false, e as Error);
       });
@@ -698,4 +688,66 @@ export const useDocumentTitle = () => {
     document.title = title.join(" - ");
   };
   return { setDocumentTitle };
+};
+
+const simplifiedStatusForDeduplication = (status: Status | undefined) =>
+  status === "started" || status === "success" ? status : "_other_";
+
+export type LogHandleWithretried = LogHandle & { retried?: boolean };
+export const useLogsWithretried = (): LogHandleWithretried[] => {
+  const logs = useStore((state) => state.logs.logs);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
+
+  const logsWithEvalSetRetry = useMemo(() => {
+    const logsByTaskId = logs.reduce(
+      (acc: Record<string, LogHandleWithretried[]>, log) => {
+        const taskId = log.task_id;
+        if (taskId) {
+          if (!(taskId in acc)) acc[taskId] = [];
+          acc[taskId].push(log);
+        }
+        return acc;
+      },
+      {},
+    );
+    // For each task_id, select the best item (prefer running/complete over error)
+    // Sort by status priority: started > success > error, cancelled, or missing if logPreview is not loaded
+    // If same priority, take the latest one
+    const bestByName: Record<string, LogHandleWithretried> = {};
+    for (const items of Object.values(logsByTaskId)) {
+      items.sort((a, b) => {
+        const as = simplifiedStatusForDeduplication(
+          logPreviews[a.name]?.status,
+        );
+        const bs = simplifiedStatusForDeduplication(
+          logPreviews[b.name]?.status,
+        );
+        const am = a.mtime ?? 0;
+        const bm = b.mtime ?? 0;
+
+        if (as === bs) return bm - am; // newest on top
+        if (as === "started") return -1;
+        if (bs === "started") return 1;
+        if (as === "success") return -1;
+        if (bs === "success") return 1;
+
+        console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
+        return 0;
+      });
+      const { name } = items[0];
+      bestByName[name] = { ...items[0], retried: false };
+    }
+
+    // Rebuild logs maintaining order, marking duplicates as skippable
+    return logs.map(
+      (log) =>
+        bestByName[log.name] ?? {
+          ...log,
+          // task_id is optional for backward compatibility, only new logs files can be skippable
+          retried: log.task_id ? true : undefined,
+        },
+    );
+  }, [logs, logPreviews]);
+
+  return logsWithEvalSetRetry;
 };

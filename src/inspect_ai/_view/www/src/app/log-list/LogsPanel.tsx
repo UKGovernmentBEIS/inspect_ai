@@ -6,7 +6,12 @@ import { useNavigate } from "react-router-dom";
 import { EvalSet } from "../../@types/log";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useClientEvents } from "../../state/clientEvents";
-import { useDocumentTitle, useLogs, useLogsListing } from "../../state/hooks";
+import {
+  useDocumentTitle,
+  useLogs,
+  useLogsListing,
+  useLogsWithretried,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
 import { directoryRelativeUrl, join } from "../../utils/uri";
@@ -43,8 +48,12 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const columnButtonRef = useRef<HTMLButtonElement>(null);
 
+  const showRetriedLogs = useStore((state) => state.logs.showRetriedLogs);
+  const setShowRetriedLogs = useStore(
+    (state) => state.logsActions.setShowRetriedLogs,
+  );
   const logDir = useStore((state) => state.logs.logDir);
-  const logFiles = useStore((state) => state.logs.logs);
+  const logFiles = useLogsWithretried();
   const evalSet = useStore((state) => state.logs.evalSet);
   const logPreviews = useStore((state) => state.logs.logPreviews);
   const { filteredCount } = useLogsListing();
@@ -98,42 +107,49 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     }
   }, [watchedLogs, startPolling, stopPolling]);
 
-  const logItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
-    useMemo(() => {
-      const folderItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
-        [];
-      const fileItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
-        [];
+  const [logItems, hasRetriedLogs]: [
+    Array<FileLogItem | FolderLogItem | PendingTaskItem>,
+    boolean,
+  ] = useMemo(() => {
+    const folderItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> =
+      [];
+    const fileItems: Array<FileLogItem | FolderLogItem | PendingTaskItem> = [];
 
-      // Track processed folders to avoid duplicates
-      const processedFolders = new Set<string>();
-      const existingLogTaskIds = new Set<string>();
+    // Track processed folders to avoid duplicates
+    const processedFolders = new Set<string>();
+    const existingLogTaskIds = new Set<string>();
+    let _hasRetriedLogs = false;
 
-      for (const logFile of logFiles) {
-        if (logFile.task_id) {
-          existingLogTaskIds.add(logFile.task_id);
+    for (const logFile of logFiles) {
+      if (logFile.task_id) {
+        existingLogTaskIds.add(logFile.task_id);
+      }
+
+      const name = logFile.name;
+
+      const cleanDir = currentDir.endsWith("/")
+        ? currentDir.slice(0, -1)
+        : currentDir;
+
+      const dirWithSlash = !currentDir.endsWith("/")
+        ? currentDir + "/"
+        : currentDir;
+
+      if (isInDirectory(name, cleanDir)) {
+        const dirName = directoryRelativeUrl(currentDir, logDir);
+        const relativePath = directoryRelativeUrl(name, currentDir);
+
+        const fileOrFolderName = decodeURIComponent(rootName(relativePath));
+        const path = join(
+          decodeURIComponent(relativePath),
+          decodeURIComponent(dirName),
+        );
+
+        if (logFile.retried) {
+          _hasRetriedLogs = true;
         }
 
-        const name = logFile.name;
-
-        const cleanDir = currentDir.endsWith("/")
-          ? currentDir.slice(0, -1)
-          : currentDir;
-
-        const dirWithSlash = !currentDir.endsWith("/")
-          ? currentDir + "/"
-          : currentDir;
-
-        if (isInDirectory(name, cleanDir)) {
-          const dirName = directoryRelativeUrl(currentDir, logDir);
-          const relativePath = directoryRelativeUrl(name, currentDir);
-
-          const fileOrFolderName = decodeURIComponent(rootName(relativePath));
-          const path = join(
-            decodeURIComponent(relativePath),
-            decodeURIComponent(dirName),
-          );
-
+        if (showRetriedLogs || !logFile.retried) {
           fileItems.push({
             id: fileOrFolderName,
             name: fileOrFolderName,
@@ -142,39 +158,39 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             log: logFile,
             logPreview: logPreviews[logFile.name],
           });
-        } else if (name.startsWith(dirWithSlash)) {
-          // This is file that is next level (or deeper) child of the current directory
-          const relativePath = directoryRelativeUrl(name, currentDir);
+        }
+      } else if (name.startsWith(dirWithSlash)) {
+        // This is file that is next level (or deeper) child of the current directory
+        const relativePath = directoryRelativeUrl(name, currentDir);
 
-          const dirName = decodeURIComponent(rootName(relativePath));
-          const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
-          const url = join(dirName, decodeURIComponent(currentDirRelative));
-          if (!processedFolders.has(dirName)) {
-            folderItems.push({
-              id: dirName,
-              name: dirName,
-              type: "folder",
-              url: logsUrl(url, logDir),
-              itemCount: logFiles.filter((file) =>
-                file.name.startsWith(dirname(name)),
-              ).length,
-            });
-            processedFolders.add(dirName);
-          }
+        const dirName = decodeURIComponent(rootName(relativePath));
+        const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
+        const url = join(dirName, decodeURIComponent(currentDirRelative));
+        if (!processedFolders.has(dirName)) {
+          folderItems.push({
+            id: dirName,
+            name: dirName,
+            type: "folder",
+            url: logsUrl(url, logDir),
+            itemCount: logFiles.filter((file) =>
+              file.name.startsWith(dirname(name)),
+            ).length,
+          });
+          processedFolders.add(dirName);
         }
       }
+    }
 
-      const orderedItems = [...folderItems, ...fileItems];
+    const orderedItems = [...folderItems, ...fileItems];
 
-      // Ensure there is only one entry for each task id, preferring to
-      // always show running or complete tasks (over error tasks). Ensure that the
-      // order of all items isn't changed
-      const collapsedLogItems: Array<
-        FileLogItem | FolderLogItem | PendingTaskItem
-      > = collapseLogItems(evalSet, orderedItems);
+    const _logFiles = appendPendingItems(
+      evalSet,
+      existingLogTaskIds,
+      orderedItems,
+    );
 
-      return appendPendingItems(evalSet, existingLogTaskIds, collapsedLogItems);
-    }, [evalSet, logFiles, currentDir, logDir, logPreviews]);
+    return [_logFiles, _hasRetriedLogs];
+  }, [evalSet, logFiles, currentDir, logDir, logPreviews, showRetriedLogs]);
 
   const { columns, setColumnVisibility } = useLogListColumns();
 
@@ -225,10 +241,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   }, [logItems]);
 
   useEffect(() => {
-    const exec = async () => {
-      await loadLogs(logPath);
-    };
-    exec();
+    loadLogs(logPath);
   }, [loadLogs, logPath]);
 
   const handleResetFilters = () => {
@@ -263,6 +276,20 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             label="Reset Filters"
             icon={ApplicationIcons.filter}
             onClick={handleResetFilters}
+          />
+        )}
+
+        {hasRetriedLogs && (
+          <NavbarButton
+            key="show-retried"
+            label="Show Retried Logs"
+            icon={
+              showRetriedLogs
+                ? ApplicationIcons.toggle.on
+                : ApplicationIcons.toggle.off
+            }
+            latched={showRetriedLogs}
+            onClick={() => setShowRetriedLogs(!showRetriedLogs)}
           />
         )}
 
@@ -316,89 +343,6 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       </>
     </div>
   );
-};
-
-export const collapseLogItems = (
-  evalSet: EvalSet | undefined,
-  logItems: (FileLogItem | FolderLogItem | PendingTaskItem)[],
-): (FileLogItem | FolderLogItem | PendingTaskItem)[] => {
-  if (!evalSet) {
-    return logItems;
-  }
-
-  const running = logItems.some(
-    (l) => l.type === "file" && l.logPreview?.status === "started",
-  );
-  if (!running) {
-    return logItems;
-  }
-
-  // Group file items by task_id
-  const taskIdToItems = new Map<string, FileLogItem[]>();
-  const itemsWithoutTaskId: Array<FolderLogItem | FileLogItem> = [];
-
-  for (const item of logItems) {
-    if (item.type === "file" && item.log.task_id) {
-      const taskId = item.log.task_id;
-      if (!taskIdToItems.has(taskId)) {
-        taskIdToItems.set(taskId, []);
-      }
-      taskIdToItems.get(taskId)!.push(item);
-    } else if (item.type === "folder" || item.type === "file") {
-      itemsWithoutTaskId.push(item);
-    }
-  }
-
-  // For each task_id, select the best item (prefer running/complete over error)
-  const selectedItems = new Map<string, FileLogItem>();
-  for (const [taskId, items] of taskIdToItems) {
-    // Sort by status priority: started > success > error
-    // If same priority, take the last one
-    let bestItem = items[0];
-    for (const item of items) {
-      const currentStatus = item.logPreview?.status;
-      const currentMtime = item.log.mtime ?? 0;
-      const bestStatus = bestItem.logPreview?.status;
-      const bestMtime = bestItem.log.mtime ?? 0;
-
-      // Prefer started over everything
-      if (currentStatus === "started" && bestStatus !== "started") {
-        bestItem = item;
-      }
-      // Prefer success over error
-      else if (currentStatus === "success" && bestStatus === "error") {
-        bestItem = item;
-      }
-      // If same status or current is error, prefer most recent
-      else if (currentStatus === bestStatus && currentMtime > bestMtime) {
-        bestItem = item;
-      }
-    }
-    selectedItems.set(taskId, bestItem);
-  }
-
-  // Rebuild logItems maintaining order, replacing duplicates with selected item
-  const collapsedLogItems: Array<
-    FileLogItem | FolderLogItem | PendingTaskItem
-  > = [];
-  const processedTaskIds = new Set<string>();
-
-  for (const item of logItems) {
-    if (item.type === "file" && item.log.task_id) {
-      const taskId = item.log.task_id;
-      if (!processedTaskIds.has(taskId)) {
-        const selectedItem = selectedItems.get(taskId);
-        if (selectedItem) {
-          collapsedLogItems.push(selectedItem);
-        }
-        processedTaskIds.add(taskId);
-      }
-    } else {
-      // Include folders and files without task_id
-      collapsedLogItems.push(item);
-    }
-  }
-  return collapsedLogItems;
 };
 
 const appendPendingItems = (
