@@ -19,6 +19,8 @@ from starlette.status import (
     HTTP_304_NOT_MODIFIED,
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
+    HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+    HTTP_502_BAD_GATEWAY,
 )
 from typing_extensions import override
 
@@ -30,6 +32,7 @@ from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
 from inspect_ai._view.common import (
     delete_log,
+    get_log_bytes,
     get_log_dir,
     get_log_file,
     get_log_files,
@@ -43,6 +46,12 @@ from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
 
 logger = getLogger(__name__)
+
+# Maximum size for buffered byte range requests (50MB).
+# Log viewing requests are typically bounded and buffering eliminates
+# "Response content shorter than Content-Length" errors from S3 streaming failures.
+# See: https://linear.app/metrevals/issue/ENG-408
+MAX_BUFFERED_RANGE = 50 * 1024 * 1024
 
 
 class AccessPolicy(Protocol):
@@ -140,21 +149,46 @@ def view_server_app(
         start: int = Query(...),
         end: int = Query(...),
     ) -> Response:
+        """Fetch a byte range from a log file.
+
+        Uses buffered response to eliminate "Response content shorter than
+        Content-Length" errors that occur when S3 streaming fails mid-transfer.
+        See: https://linear.app/metrevals/issue/ENG-408
+        """
         file = normalize_uri(log)
         await _validate_read(request, file)
         mapped_file = await _map_file(request, file)
 
-        # Get actual file size to ensure Content-Length is accurate
+        # Reject requests for ranges that exceed the buffer limit (check before fetch)
+        requested_range_size = end - start + 1
+        if requested_range_size > MAX_BUFFERED_RANGE:
+            raise HTTPException(
+                status_code=HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Requested range ({requested_range_size} bytes) exceeds maximum ({MAX_BUFFERED_RANGE} bytes)",
+            )
+
+        # Get actual file size to clamp the end
         file_size = await get_log_size(mapped_file)
 
-        # Clamp end to actual file size to prevent Content-Length mismatch
+        # Clamp end to actual file size
         actual_end = min(end, file_size - 1)
-        actual_content_length = actual_end - start + 1
 
-        response = await stream_log_bytes(mapped_file, start, actual_end)
-        return StreamingResponse(
-            content=response,
-            headers={"Content-Length": str(actual_content_length)},
+        # Buffer entire range - S3 failures happen here with clear errors
+        try:
+            data = await get_log_bytes(mapped_file, start, actual_end)
+        except Exception as e:
+            logger.error(
+                f"Failed to fetch {mapped_file} bytes {start}-{actual_end}: {e}"
+            )
+            raise HTTPException(
+                status_code=HTTP_502_BAD_GATEWAY,
+                detail="Failed to fetch log data from storage",
+            )
+
+        # Content-Length is always accurate since it's measured from actual data
+        return Response(
+            content=data,
+            headers={"Content-Length": str(len(data))},
             media_type="application/octet-stream",
         )
 

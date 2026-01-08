@@ -188,11 +188,12 @@ def test_api_log_bytes(test_client: TestClient, mock_s3_eval_file: str):
 def test_api_log_bytes_beyond_file_size(
     test_client: TestClient, mock_s3_eval_file: str
 ):
-    """Test that requesting bytes beyond file size returns correct Content-Length.
+    """Test that requesting bytes beyond file size returns clamped content.
 
-    This test verifies the fix for the bug where Content-Length was calculated
-    from requested range (end - start + 1) rather than actual bytes returned,
-    causing 'Response content shorter than Content-Length' errors.
+    This test verifies that the endpoint buffers the response and returns
+    accurate Content-Length headers. Buffering eliminates 'Response content
+    shorter than Content-Length' errors from S3 streaming failures.
+    See: https://linear.app/metrevals/issue/ENG-408
     """
     # First, get the actual file size
     size_response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
@@ -206,17 +207,35 @@ def test_api_log_bytes_beyond_file_size(
     )
     response.raise_for_status()
 
-    # Content-Length should match actual bytes returned (file_size), not requested range
+    # Should have accurate Content-Length (buffered response)
     content_length = int(response.headers["Content-Length"])
     actual_bytes = len(response.content)
 
-    assert content_length == actual_bytes, (
-        f"Content-Length ({content_length}) must match actual bytes ({actual_bytes}) "
-        f"to prevent 'Response content shorter than Content-Length' error"
+    assert content_length == file_size, (
+        f"Content-Length ({content_length}) should be clamped to file size ({file_size})"
     )
     assert actual_bytes == file_size, (
         f"Should return entire file ({file_size} bytes) when end exceeds file size"
     )
+    assert content_length == actual_bytes, (
+        "Content-Length must match actual response size for buffered responses"
+    )
+
+
+def test_api_log_bytes_oversized_range_rejected(test_client: TestClient):
+    """Test that requests exceeding MAX_BUFFERED_RANGE return 413."""
+    # Create a small file - the check happens before fetching
+    file_path = "test_dir/small_file.eval"
+    write_fake_eval_log(file_path)
+
+    # Request a range that exceeds MAX_BUFFERED_RANGE (50MB)
+    huge_range_end = 60 * 1024 * 1024  # 60MB
+    response = test_client.request(
+        "GET", f"/log-bytes/{file_path}?start=0&end={huge_range_end}"
+    )
+
+    assert response.status_code == 413
+    assert "exceeds maximum" in response.json()["detail"]
 
 
 def test_api_log_dir(test_client: TestClient):
