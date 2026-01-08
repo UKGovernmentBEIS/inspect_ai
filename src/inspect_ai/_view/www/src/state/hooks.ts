@@ -722,6 +722,9 @@ export const useLogsWithSkipIfNotShowingRetries =
         },
         {},
       );
+      // For each task_id, select the best item (prefer running/complete over error)
+      // Sort by status priority: started > success > error, cancelled, or missing if logPreview is not loaded
+      // If same priority, take the latest one
       const bestByName: Record<string, LogHandleWithSkipIfNotShowingRetries> =
         {};
       for (const items of Object.values(logsByTaskId)) {
@@ -755,6 +758,7 @@ export const useLogsWithSkipIfNotShowingRetries =
         };
       }
 
+      // Rebuild logs maintaining order, marking duplicates as skippable
       return logs.map(
         (log) =>
           bestByName[log.name] ?? {
