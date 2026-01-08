@@ -10,7 +10,7 @@ import {
   useDocumentTitle,
   useLogs,
   useLogsListing,
-  useLogsWithSkipIfNotShowingRetries,
+  useLogsWithretried,
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname, isInDirectory } from "../../utils/path";
@@ -53,7 +53,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     (state) => state.logsActions.setShowRetriedLogs,
   );
   const logDir = useStore((state) => state.logs.logDir);
-  const logFiles = useLogsWithSkipIfNotShowingRetries();
+  const logFiles = useLogsWithretried();
   const evalSet = useStore((state) => state.logs.evalSet);
   const logPreviews = useStore((state) => state.logs.logPreviews);
   const { filteredCount } = useLogsListing();
@@ -107,7 +107,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     }
   }, [watchedLogs, startPolling, stopPolling]);
 
-  const [logItems, shouldDisplayShowRetriedLogs]: [
+  const [logItems, hasRetriedLogs]: [
     Array<FileLogItem | FolderLogItem | PendingTaskItem>,
     boolean,
   ] = useMemo(() => {
@@ -118,7 +118,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     // Track processed folders to avoid duplicates
     const processedFolders = new Set<string>();
     const existingLogTaskIds = new Set<string>();
-    let _shouldDisplayShowRetriedLogs = false;
+    let _hasRetriedLogs = false;
 
     for (const logFile of logFiles) {
       if (logFile.task_id) {
@@ -145,11 +145,11 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           decodeURIComponent(dirName),
         );
 
-        if (logFile.skipIfNotShowingRetries) {
-          _shouldDisplayShowRetriedLogs = true;
+        if (logFile.retried) {
+          _hasRetriedLogs = true;
         }
 
-        if (showRetriedLogs || !logFile.skipIfNotShowingRetries) {
+        if (showRetriedLogs || !logFile.retried) {
           fileItems.push({
             id: fileOrFolderName,
             name: fileOrFolderName,
@@ -189,7 +189,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
       orderedItems,
     );
 
-    return [_logFiles, _shouldDisplayShowRetriedLogs];
+    return [_logFiles, _hasRetriedLogs];
   }, [evalSet, logFiles, currentDir, logDir, logPreviews, showRetriedLogs]);
 
   const { columns, setColumnVisibility } = useLogListColumns();
@@ -279,7 +279,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
           />
         )}
 
-        {shouldDisplayShowRetriedLogs && (
+        {hasRetriedLogs && (
           <NavbarButton
             key="show-retried"
             label="Show Retried Logs"

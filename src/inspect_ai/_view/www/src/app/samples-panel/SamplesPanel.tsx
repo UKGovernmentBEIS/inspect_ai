@@ -5,9 +5,9 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
 import {
-  LogHandleWithSkipIfNotShowingRetries,
+  LogHandleWithretried,
   useLogs,
-  useLogsWithSkipIfNotShowingRetries,
+  useLogsWithretried,
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { join } from "../../utils/uri";
@@ -90,15 +90,15 @@ export const SamplesPanel: FC = () => {
   const currentDir = join(samplesPath || "", logDir);
 
   const evalSet = useStore((state) => state.logs.evalSet);
-  const logFiles = useLogsWithSkipIfNotShowingRetries();
+  const logFiles = useLogsWithretried();
   const logPreviews = useStore((state) => state.logs.logPreviews);
 
-  const currentDirLogFilesMaybeSkippedRetries = useMemo(() => {
+  const currentDirLogFiles = useMemo(() => {
     const files = [];
     for (const logFile of logFiles) {
       const inCurrentDir = logFile.name.startsWith(currentDir);
-      const notSkipped = showRetriedLogs || !logFile.skipIfNotShowingRetries;
-      if (inCurrentDir && notSkipped) {
+      const skipped = !showRetriedLogs && logFile.retried;
+      if (inCurrentDir && !skipped) {
         files.push(logFile);
       }
     }
@@ -106,28 +106,26 @@ export const SamplesPanel: FC = () => {
   }, [currentDir, logFiles, showRetriedLogs]);
 
   const totalTaskCount = useMemo(() => {
-    const currentDirTaskIds = new Set(
-      currentDirLogFilesMaybeSkippedRetries.map((f) => f.task_id),
-    );
-    let count = currentDirLogFilesMaybeSkippedRetries.length;
+    const currentDirTaskIds = new Set(currentDirLogFiles.map((f) => f.task_id));
+    let count = currentDirLogFiles.length;
     for (const task of evalSet?.tasks || []) {
       if (!currentDirTaskIds.has(task.task_id)) {
         count++;
       }
     }
     return count;
-  }, [currentDirLogFilesMaybeSkippedRetries, evalSet]);
+  }, [currentDirLogFiles, evalSet]);
 
   const completedTaskCount = useMemo(() => {
     let count = 0;
-    for (const logFile of currentDirLogFilesMaybeSkippedRetries) {
+    for (const logFile of currentDirLogFiles) {
       const preview = logPreviews[logFile.name];
       if (preview && preview.status !== "started") {
         count++;
       }
     }
     return count;
-  }, [logPreviews, currentDirLogFilesMaybeSkippedRetries]);
+  }, [logPreviews, currentDirLogFiles]);
 
   useEffect(() => {
     loadLogs(samplesPath);
@@ -154,14 +152,14 @@ export const SamplesPanel: FC = () => {
   }, [logDetails, logDir, samplesPath]);
 
   // Transform logDetails into flat rows
-  const [sampleRows, shouldDisplayShowRetriedLogs] = useMemo(() => {
+  const [sampleRows, hasRetriedLogs] = useMemo(() => {
     const allRows: SampleRow[] = [];
     let displayIndex = 1;
 
     let anyLogInCurrentDirCouldBeSkipped = false;
-    const logInCurrentDirByName = currentDirLogFilesMaybeSkippedRetries.reduce(
-      (acc: Record<string, LogHandleWithSkipIfNotShowingRetries>, log) => {
-        if (log.skipIfNotShowingRetries) {
+    const logInCurrentDirByName = currentDirLogFiles.reduce(
+      (acc: Record<string, LogHandleWithretried>, log) => {
+        if (log.retried) {
           anyLogInCurrentDirCouldBeSkipped = true;
         }
         acc[log.name] = log;
@@ -210,11 +208,11 @@ export const SamplesPanel: FC = () => {
     const _sampleRows = allRows.filter(
       (row) => row.logFile in logInCurrentDirByName,
     );
-    const _shouldDisplayShowRetriedLogs =
+    const _hasRetriedLogs =
       _sampleRows.length < allRows.length || anyLogInCurrentDirCouldBeSkipped;
 
-    return [_sampleRows, _shouldDisplayShowRetriedLogs];
-  }, [logDetailsInPath, currentDirLogFilesMaybeSkippedRetries]);
+    return [_sampleRows, _hasRetriedLogs];
+  }, [logDetailsInPath, currentDirLogFiles]);
 
   const filterModel = gridRef.current?.api?.getFilterModel() || {};
   const filteredFields = Object.keys(filterModel);
@@ -232,7 +230,7 @@ export const SamplesPanel: FC = () => {
           />
         )}
 
-        {shouldDisplayShowRetriedLogs && (
+        {hasRetriedLogs && (
           <NavbarButton
             key="show-retried"
             label="Show Retried Logs"

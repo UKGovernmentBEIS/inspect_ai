@@ -693,81 +693,79 @@ export const useDocumentTitle = () => {
   return { setDocumentTitle };
 };
 
-export type LogHandleWithSkipIfNotShowingRetries = LogHandle &
+export type LogHandleWithretried = LogHandle &
   (
-    | { skipIfNotShowingRetries?: never; _debug?: never }
-    | { skipIfNotShowingRetries: true; _debug?: never }
+    | { retried?: never; _debug?: never }
+    | { retried: true; _debug?: never }
     | {
-        skipIfNotShowingRetries: false;
+        retried: false;
         _debug: {
           duplicatesFromPreviousLogs: LogHandle[];
           logPreview: LogPreview;
         };
       }
   );
-export const useLogsWithSkipIfNotShowingRetries =
-  (): LogHandleWithSkipIfNotShowingRetries[] => {
-    const logs = useStore((state) => state.logs.logs);
-    const logPreviews = useStore((state) => state.logs.logPreviews);
+export const useLogsWithretried = (): LogHandleWithretried[] => {
+  const logs = useStore((state) => state.logs.logs);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
 
-    const logsWithEvalSetRetry = useMemo(() => {
-      const logsByTaskId = logs.reduce(
-        (acc: Record<string, LogHandleWithSkipIfNotShowingRetries[]>, log) => {
-          const taskId = log.task_id;
-          if (taskId) {
-            if (!(taskId in acc)) acc[taskId] = [];
-            acc[taskId].push(log);
-          }
-          return acc;
+  const logsWithEvalSetRetry = useMemo(() => {
+    const logsByTaskId = logs.reduce(
+      (acc: Record<string, LogHandleWithretried[]>, log) => {
+        const taskId = log.task_id;
+        if (taskId) {
+          if (!(taskId in acc)) acc[taskId] = [];
+          acc[taskId].push(log);
+        }
+        return acc;
+      },
+      {},
+    );
+    // For each task_id, select the best item (prefer running/complete over error)
+    // Sort by status priority: started > success > error, cancelled, or missing if logPreview is not loaded
+    // If same priority, take the latest one
+    const bestByName: Record<string, LogHandleWithretried> = {};
+    for (const items of Object.values(logsByTaskId)) {
+      items.sort((a, b) => {
+        const as = simplifiedStatusForDeduplication(
+          logPreviews[a.name]?.status,
+        );
+        const bs = simplifiedStatusForDeduplication(
+          logPreviews[b.name]?.status,
+        );
+        const am = a.mtime ?? 0;
+        const bm = b.mtime ?? 0;
+
+        if (as === bs) return bm - am; // newest on top
+        if (as === "started") return -1;
+        if (bs === "started") return 1;
+        if (as === "success") return -1;
+        if (bs === "success") return 1;
+
+        console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
+        return 0;
+      });
+      const { name } = items[0];
+      bestByName[name] = {
+        ...items[0],
+        retried: false,
+        _debug: {
+          duplicatesFromPreviousLogs: items.slice(1),
+          logPreview: logPreviews[name],
         },
-        {},
-      );
-      // For each task_id, select the best item (prefer running/complete over error)
-      // Sort by status priority: started > success > error, cancelled, or missing if logPreview is not loaded
-      // If same priority, take the latest one
-      const bestByName: Record<string, LogHandleWithSkipIfNotShowingRetries> =
-        {};
-      for (const items of Object.values(logsByTaskId)) {
-        items.sort((a, b) => {
-          const as = simplifiedStatusForDeduplication(
-            logPreviews[a.name]?.status,
-          );
-          const bs = simplifiedStatusForDeduplication(
-            logPreviews[b.name]?.status,
-          );
-          const am = a.mtime ?? 0;
-          const bm = b.mtime ?? 0;
+      };
+    }
 
-          if (as === bs) return bm - am; // newest on top
-          if (as === "started") return -1;
-          if (bs === "started") return 1;
-          if (as === "success") return -1;
-          if (bs === "success") return 1;
+    // Rebuild logs maintaining order, marking duplicates as skippable
+    return logs.map(
+      (log) =>
+        bestByName[log.name] ?? {
+          ...log,
+          // task_id is optional for backward compatibility, only new logs files can be skippable
+          retried: log.task_id ? true : undefined,
+        },
+    );
+  }, [logs, logPreviews]);
 
-          console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
-          return 0;
-        });
-        const { name } = items[0];
-        bestByName[name] = {
-          ...items[0],
-          skipIfNotShowingRetries: false,
-          _debug: {
-            duplicatesFromPreviousLogs: items.slice(1),
-            logPreview: logPreviews[name],
-          },
-        };
-      }
-
-      // Rebuild logs maintaining order, marking duplicates as skippable
-      return logs.map(
-        (log) =>
-          bestByName[log.name] ?? {
-            ...log,
-            // task_id is optional for backward compatibility, only new logs files can be skippable
-            skipIfNotShowingRetries: log.task_id ? true : undefined,
-          },
-      );
-    }, [logs, logPreviews]);
-
-    return logsWithEvalSetRetry;
-  };
+  return logsWithEvalSetRetry;
+};
