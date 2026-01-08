@@ -270,7 +270,10 @@ def async_connection(log_file: str) -> AsyncFileSystem:
     # create connection if required
     if protocol not in _async_connections.keys():
         _async_connections[protocol] = fsspec.filesystem(
-            protocol, asynchronous=True, loop=asyncio.get_event_loop()
+            protocol,
+            asynchronous=True,
+            loop=asyncio.get_event_loop(),
+            **default_fs_options(log_file),
         )
 
     # return async file-system
@@ -344,7 +347,7 @@ async def list_eval_logs_async(
 
             if exists:
                 # prevent caching of listings
-                async_fs.invalidate_cache(log_dir)
+                # async_fs.invalidate_cache(log_dir)
                 # list logs
                 if recursive:
                     if _walk_supports_detail(async_fs):
