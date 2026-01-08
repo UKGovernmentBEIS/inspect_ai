@@ -17,6 +17,7 @@
 - Inspect View: Scale ANSI display in messages view to preserve row/column layout without wrapping.
 - Inspect View: Render custom tool view when viewing messages.
 - Bugfix: Prevent component not found error during Human Agent transition.
+- Bugfix: Use `builtins` module rather than `__builtins__` when parsing tool function types.
 
 ## 0.3.159 (03 January 2026)
 
