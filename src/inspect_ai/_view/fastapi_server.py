@@ -151,7 +151,9 @@ def view_server_app(
         actual_end = min(end, file_size - 1)
         actual_content_length = actual_end - start + 1
 
-        response = await stream_log_bytes(mapped_file, start, actual_end)
+        response = await stream_log_bytes(
+            mapped_file, start, actual_end, log_file_size=file_size
+        )
         return StreamingResponse(
             content=response,
             headers={"Content-Length": str(actual_content_length)},
@@ -169,7 +171,7 @@ def view_server_app(
         mapped_file = await _map_file(request, file)
 
         file_size = await get_log_size(mapped_file)
-        stream = await stream_log_bytes(mapped_file)
+        stream = await stream_log_bytes(mapped_file, log_file_size=file_size)
 
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
