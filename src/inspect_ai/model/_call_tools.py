@@ -654,7 +654,9 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         # as a fallback try to parse it from the docstring
         elif "docstring_type" in docstring_info:
             docstring_type = docstring_info["docstring_type"]
-            type_hint = getattr(__builtins__, docstring_type, None)
+            import builtins
+
+            type_hint = getattr(builtins, docstring_type, None)
 
         # error if there is no type_hint
         if type_hint is None:

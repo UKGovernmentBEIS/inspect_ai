@@ -12,12 +12,15 @@
 - Eval Set: Include task version and limits in task identifier hash to prevent incorrect log reuse.
 - Scoring: Match only last line of output in answer(pattern="line").
 - JSON Datasets: Support passing arbitrary `kwargs` to JSON readers (built-in reader and jsonlines reader).
+- Filesystems: Use default_fs_options() for `async_connection()`
 - Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
 - Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
 - Inspect View: Scale ANSI display in messages view to preserve row/column layout without wrapping.
 - Inspect View: Render custom tool view when viewing messages.
+- Inspect View: Fix cmd+click on tasks/samples to open in new tab.
 - Inspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).
 - Bugfix: Prevent component not found error during Human Agent transition.
+- Bugfix: Use `builtins` module rather than `__builtins__` when parsing tool function types.
 
 ## 0.3.159 (03 January 2026)
 
