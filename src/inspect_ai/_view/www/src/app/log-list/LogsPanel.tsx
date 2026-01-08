@@ -241,10 +241,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   }, [logItems]);
 
   useEffect(() => {
-    const exec = async () => {
-      await loadLogs(logPath);
-    };
-    exec();
+    loadLogs(logPath);
   }, [loadLogs, logPath]);
 
   const handleResetFilters = () => {

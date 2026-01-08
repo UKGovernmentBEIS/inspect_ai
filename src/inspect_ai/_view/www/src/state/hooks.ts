@@ -597,7 +597,7 @@ export const useLogs = () => {
   const loadLogs = useCallback(
     async (logPath?: string) => {
       // load in parallel to display Show Retried Logs button as soon as we know current directory is an eval set without awaiting all logs
-      Promise.all([syncEvalSetInfo(logPath), syncLogs()]).catch((e) => {
+      await Promise.all([syncEvalSetInfo(logPath), syncLogs()]).catch((e) => {
         log.error("Error loading logs", e);
         setLoading(false, e as Error);
       });

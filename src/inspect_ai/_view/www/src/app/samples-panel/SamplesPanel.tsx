@@ -130,10 +130,7 @@ export const SamplesPanel: FC = () => {
   }, [logPreviews, currentDirLogFilesMaybeSkippedRetries]);
 
   useEffect(() => {
-    const exec = async () => {
-      await loadLogs(samplesPath);
-    };
-    exec();
+    loadLogs(samplesPath);
   }, [loadLogs, samplesPath]);
 
   // Filter logDetails based on samplesPath
