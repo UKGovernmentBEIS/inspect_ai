@@ -145,7 +145,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
         if (url) {
           setTimeout(() => {
             if (openInNewWindow) {
-              window.open(url, "_blank");
+              window.open(`#${url}`, "_blank");
             } else {
               navigate(url);
             }
@@ -163,7 +163,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
       }
       const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
       if (openInNewWindow) {
-        window.open(rowNode.data.url, "_blank");
+        window.open(`#${rowNode.data.url}`, "_blank");
       } else {
         navigate(rowNode.data.url);
       }
