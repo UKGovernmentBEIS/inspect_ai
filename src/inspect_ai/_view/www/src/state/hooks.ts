@@ -1,6 +1,6 @@
 import { highlightElement } from "prismjs";
 import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
-import { EvalSample, EvalSpec, Events } from "../@types/log";
+import { EvalSample, EvalSpec, Events, Status } from "../@types/log";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
@@ -18,10 +18,7 @@ import { createLogger } from "../utils/logger";
 import { prettyDirUri } from "../utils/uri";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
 import { useStore } from "./store";
-import {
-  mergeSampleSummaries,
-  simplifiedStatusForDeduplication,
-} from "./utils";
+import { mergeSampleSummaries } from "./utils";
 
 const log = createLogger("hooks");
 
@@ -692,6 +689,9 @@ export const useDocumentTitle = () => {
   };
   return { setDocumentTitle };
 };
+
+const simplifiedStatusForDeduplication = (status: Status | undefined) =>
+  status === "started" || status === "success" ? status : "_other_";
 
 export type LogHandleWithretried = LogHandle & { retried?: boolean };
 export const useLogsWithretried = (): LogHandleWithretried[] => {
