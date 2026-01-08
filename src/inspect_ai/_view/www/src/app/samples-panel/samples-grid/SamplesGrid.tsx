@@ -119,13 +119,6 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
           mouseEvent?.shiftKey ||
           mouseEvent?.button === 1;
 
-        // debug feature to see the whole SampleRow object in console on alt+click (== option+click on mac)
-        const debugData = mouseEvent?.altKey;
-        if (debugData) {
-          console.log(e.data);
-          return;
-        }
-
         const logFile = e.data.logFile;
         const sampleId = e.data.sampleId;
         const epoch = e.data.epoch;

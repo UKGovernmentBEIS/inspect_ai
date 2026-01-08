@@ -187,11 +187,6 @@ export const SamplesPanel: FC = () => {
           retries: sampleSummary.retries,
           completed: sampleSummary.completed || false,
           displayIndex: displayIndex++,
-          _debug: {
-            log: logInCurrentDirByName[logFile],
-            logDetail,
-            sampleSummary,
-          },
         };
 
         // Add scores as individual fields

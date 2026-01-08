@@ -16,8 +16,5 @@ export interface SampleRow {
   limit?: string;
   retries?: number;
   completed?: boolean;
-  _debug: {
-    [key: string]: unknown;
-  };
   [key: string]: any; // For dynamic score columns
 }

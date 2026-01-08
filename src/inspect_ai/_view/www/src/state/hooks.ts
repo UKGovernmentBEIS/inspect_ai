@@ -12,7 +12,7 @@ import {
   sortSamples,
 } from "../app/samples/sample-tools/SortFilter";
 import { sampleIdsEqual } from "../app/shared/sample";
-import { LogHandle, LogPreview, SampleSummary } from "../client/api/types";
+import { LogHandle, SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { prettyDirUri } from "../utils/uri";
@@ -693,18 +693,7 @@ export const useDocumentTitle = () => {
   return { setDocumentTitle };
 };
 
-export type LogHandleWithretried = LogHandle &
-  (
-    | { retried?: never; _debug?: never }
-    | { retried: true; _debug?: never }
-    | {
-        retried: false;
-        _debug: {
-          duplicatesFromPreviousLogs: LogHandle[];
-          logPreview: LogPreview;
-        };
-      }
-  );
+export type LogHandleWithretried = LogHandle & { retried?: boolean };
 export const useLogsWithretried = (): LogHandleWithretried[] => {
   const logs = useStore((state) => state.logs.logs);
   const logPreviews = useStore((state) => state.logs.logPreviews);
@@ -746,14 +735,7 @@ export const useLogsWithretried = (): LogHandleWithretried[] => {
         return 0;
       });
       const { name } = items[0];
-      bestByName[name] = {
-        ...items[0],
-        retried: false,
-        _debug: {
-          duplicatesFromPreviousLogs: items.slice(1),
-          logPreview: logPreviews[name],
-        },
-      };
+      bestByName[name] = { ...items[0], retried: false };
     }
 
     // Rebuild logs maintaining order, marking duplicates as skippable
