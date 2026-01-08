@@ -8,6 +8,7 @@ from shortuuid import uuid
 from ..environment import SandboxEnvironmentConfigType
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
+    DockerConfig,
     auto_compose_file,
     ensure_auto_compose_file,
     is_dockerfile,
@@ -24,6 +25,7 @@ class ComposeProject:
     sample_id: int | str | None
     epoch: int | None
     env: dict[str, str] | None
+    docker_host: str | None = None
 
     @classmethod
     async def create(
@@ -35,12 +37,27 @@ class ComposeProject:
         epoch: int | None = None,
         env: dict[str, str] = {},
     ) -> "ComposeProject":
+        docker_host = None
+        compose_file = None
+
+        if isinstance(config, DockerConfig):
+            docker_host = config.host
+            compose_file = None  # No compose file specified in DockerConfig
+        elif isinstance(config, str):
+            # String config is a compose file path
+            compose_file = config
+        elif config is not None:
+            # For other BaseModel instances, try to extract host if it exists
+            if hasattr(config, "host") and isinstance(
+                getattr(config, "host", None), str | type(None)
+            ):
+                docker_host = getattr(config, "host", None)
+            compose_file = None
+
         # resolve config to full path if we have one
         config_path = None
-        if isinstance(config, str):
-            config_path = Path(config).resolve()
-        elif config is not None:
-            raise ValueError(f"Unsupported config type: {type(config)}. Expected str.")
+        if compose_file:
+            config_path = Path(compose_file).resolve()
 
         # if its a Dockerfile, then config is the auto-generated .compose.yaml
         if config_path and is_dockerfile(config_path.name):
@@ -63,7 +80,14 @@ class ComposeProject:
         ensure_auto_compose_file(config)
 
         # return project
-        return ComposeProject(name, config, sample_id=sample_id, epoch=epoch, env=env)
+        return ComposeProject(
+            name,
+            config,
+            sample_id=sample_id,
+            epoch=epoch,
+            env=env,
+            docker_host=docker_host,
+        )
 
     def __init__(
         self,
@@ -72,12 +96,14 @@ class ComposeProject:
         sample_id: int | str | None,
         epoch: int | None,
         env: dict[str, str],
+        docker_host: str | None = None,
     ) -> None:
         self.name = name
         self.config = config
         self.sample_id = sample_id
         self.epoch = epoch
         self.env = env
+        self.docker_host = docker_host
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ComposeProject):
