@@ -759,7 +759,8 @@ export const useLogsWithSkipIfNotShowingRetries =
         (log) =>
           bestByName[log.name] ?? {
             ...log,
-            skipIfNotShowingRetries: true,
+            // task_id is optional for backward compatibility, only new logs files can be skippable
+            skipIfNotShowingRetries: log.task_id ? true : undefined,
           },
       );
     }, [logs, logPreviews]);
