@@ -2,6 +2,7 @@
 
 - Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).
 - Anthropic: Correctly replay reasoning when sourced from Inspect cache.
+- Anthropic: Tolerate `{}` as value for `additionalProperties` in tool schema.
 - OpenAI Compatible: Don't ever send `background` parameter as this is OpenAI service-specific.
 - OpenAI Compatible: Added support for disabling reasoning history emulation.
 - Grok: Correctly replay tool calling errors in message history.

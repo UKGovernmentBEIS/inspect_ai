@@ -564,7 +564,7 @@ export type Name9 = string;
 export type Description2 = string;
 export type Type18 = "object";
 export type Required1 = string[];
-export type Additionalproperties1 = boolean;
+export type Additionalproperties1 = JSONSchema | boolean | null;
 export type Options3 = {
   [k: string]: unknown;
 } | null;

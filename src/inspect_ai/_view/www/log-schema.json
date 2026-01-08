@@ -7314,9 +7314,19 @@
           "type": "array"
         },
         "additionalProperties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JSONSchema"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": false,
-          "title": "Additionalproperties",
-          "type": "boolean"
+          "title": "Additionalproperties"
         }
       },
       "title": "ToolParams",
