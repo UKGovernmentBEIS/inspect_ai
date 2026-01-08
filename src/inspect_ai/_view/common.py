@@ -347,7 +347,7 @@ async def list_eval_logs_async(
 
             if exists:
                 # prevent caching of listings
-                # async_fs.invalidate_cache(log_dir)
+                async_fs.invalidate_cache(log_dir)
                 # list logs
                 if recursive:
                     if _walk_supports_detail(async_fs):
