@@ -177,15 +177,24 @@ async def get_log_bytes(
 
 
 async def stream_log_bytes(
-    log_file: str, start: int | None = None, end: int | None = None
+    log_file: str,
+    start: int | None = None,
+    end: int | None = None,
+    stream_threshold_bytes: int = 50 * 1024 * 1024,
 ) -> AsyncIterable[bytes] | BytesIO:
     if (start is None) != (end is None):
         raise ValueError("start and end must be both specified or both None")
 
+    # Calculate the size of data being requested
+    if start is not None and end is not None:
+        request_size = end - start + 1
+    else:
+        request_size = await get_log_size(log_file)
+
     # fetch bytes
     fs = filesystem(log_file)
-    if not fs.is_async() or not fs.is_s3():
-        # We only implement streaming for s3:
+    if not fs.is_async() or not fs.is_s3() or request_size <= stream_threshold_bytes:
+        # We only implement streaming for s3 and for large files (>50MB):
         bs = await get_log_bytes(log_file, start, end)
         return BytesIO(bs)
 
