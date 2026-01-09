@@ -141,6 +141,23 @@ class EvalRecorder(FileRecorder):
     ) -> EvalLog:
         # get the key and log
         key = self._log_file_key(eval)
+        if key not in self.data:
+            # Check if log_finish was already called (idempotent)
+            # by checking if the log file exists and is complete
+            log_path = self._log_file_path(eval)
+            if self.fs.exists(log_path):
+                # Log file exists, try to read it
+                logger.debug(
+                    f"log_finish called for key {key} which is not in data, "
+                    f"but log file exists. Reading existing log file."
+                )
+                return await self.read_log(log_path, header_only=header_only)
+            else:
+                # Log file doesn't  exist, log was never initialized
+                raise RuntimeError(
+                    f"Log not initialized for key: {key}. "
+                    f"Available keys: {list(self.data.keys())}"
+                )
         log = self.data[key]
 
         # write the buffered samples

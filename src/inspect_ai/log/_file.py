@@ -776,16 +776,13 @@ def write_eval_result_yaml(
     yaml_path = f"{log_dir}{log_fs.sep}{date}-{eval_log.eval.task.replace('/', '-')}_{eval_log.eval.task_id}-result.yaml"
     yaml_content = yaml.dump([result], default_flow_style=False, sort_keys=False)
 
-    import tempfile
-
-    with tempfile.NamedTemporaryFile("w", name=yaml_path) as tmp:
-        tmp.write(yaml_content)
-        _push_result_to_hf_pr(eval_log, tmp.name)
+    _push_result_to_hf_pr(eval_log, yaml_content, yaml_path)
 
 
-def _push_result_to_hf_pr(eval_log: EvalLog, yaml_path: str) -> None:
+def _push_result_to_hf_pr(eval_log: EvalLog, yaml_content: str, yaml_path: str) -> None:
     """Push result YAML to model repo on HuggingFace Hub and open a PR."""
     from huggingface_hub import CommitOperationAdd, HfApi
+    import io
 
     model_name = eval_log.eval.model
 
@@ -806,7 +803,7 @@ def _push_result_to_hf_pr(eval_log: EvalLog, yaml_path: str) -> None:
         operations=[
             CommitOperationAdd(
                 path_in_repo=result_file_path,
-                path_or_fileobj=yaml_path,
+                path_or_fileobj=io.BytesIO(yaml_content.encode("utf-8")),
             )
         ],
         create_pr=True,

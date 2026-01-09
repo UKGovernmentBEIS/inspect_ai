@@ -79,7 +79,8 @@ def google() -> type[ModelAPI]:
 def hf() -> type[ModelAPI]:
     try:
         from .hf import HuggingFaceAPI
-    except ImportError:
+    except ImportError as e:
+        print(e)
         raise pip_dependency_error(
             "Hugging Face Models", ["torch", "transformers", "accelerate"]
         )
