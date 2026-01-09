@@ -1656,14 +1656,21 @@ def combine_messages(
     # `content` have default values, it's more the case that they're reset to
     # default values rather than dropped.
 
+    # track combination
+    metadata = {"combined_from": [a.id, b.id]}
+
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(content=f"{a.content}\n{b.content}")
+        return message_type(content=f"{a.content}\n{b.content}", metadata=metadata)
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(content=a.content + b.content)
+        return message_type(content=a.content + b.content, metadata=metadata)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(content=[ContentText(text=a.content), *b.content])
+        return message_type(
+            content=[ContentText(text=a.content), *b.content], metadata=metadata
+        )
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(content=a.content + [ContentText(text=b.content)])
+        return message_type(
+            content=a.content + [ContentText(text=b.content)], metadata=metadata
+        )
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
