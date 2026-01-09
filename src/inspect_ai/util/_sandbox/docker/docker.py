@@ -13,6 +13,7 @@ from typing_extensions import override
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
+from ..compose import COMPOSE_FILES
 from ..environment import (
     HostMapping,
     PortMapping,
@@ -45,7 +46,7 @@ from .compose import (
     compose_services,
     compose_up,
 )
-from .config import CONFIG_FILES, DOCKERFILE
+from .config import DOCKERFILE
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
@@ -57,7 +58,7 @@ logger = getLogger(__name__)
 class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     def config_files(cls) -> list[str]:
-        return CONFIG_FILES + [DOCKERFILE]
+        return COMPOSE_FILES + [DOCKERFILE]
 
     @classmethod
     def default_concurrency(cls) -> int | None:

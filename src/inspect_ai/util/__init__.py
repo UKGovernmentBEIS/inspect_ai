@@ -32,6 +32,10 @@ from ._json import JSONSchema, JSONType, json_schema
 from ._panel import InputPanel, input_panel
 from ._resource import resource
 from ._sandbox import (
+    ComposeBuild,
+    ComposeConfig,
+    ComposeHealthcheck,
+    ComposeService,
     OutputLimitExceededError,
     SandboxConnection,
     SandboxEnvironment,
@@ -40,6 +44,7 @@ from ._sandbox import (
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
+    parse_compose_file,
     sandbox,
     sandbox_default,
     sandbox_service,
@@ -60,6 +65,10 @@ __all__ = [
     "apply_limits",
     "sample_limits",
     "SampleLimits",
+    "ComposeBuild",
+    "ComposeConfig",
+    "ComposeHealthcheck",
+    "ComposeService",
     "ExecResult",
     "concurrency",
     "DisplayType",
@@ -74,6 +83,7 @@ __all__ = [
     "Limit",
     "message_limit",
     "OutputLimitExceededError",
+    "parse_compose_file",
     "resource",
     "subprocess",
     "LimitExceededError",
