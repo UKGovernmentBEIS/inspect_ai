@@ -546,12 +546,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Format for writing log files.",
     )
     @click.option(
-        "--open-results-pr",
+        "--push-hub-results",
         type=bool,
         is_flag=True,
         default=False,
         help="Push result YAML files to the model repo on HuggingFace Hub and open a PR.",
-        envvar="INSPECT_EVAL_OPEN_RESULTS_PR",
+        envvar="INSPECT_EVAL_PUSH_HUB_RESULTS",
     )
     @click.option(
         "--log-level-transcript",
@@ -650,7 +650,7 @@ def eval_command(
     no_score_display: bool | None,
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
-    open_results_pr: bool | None,
+    push_hub_results: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Evaluate tasks."""
@@ -710,7 +710,7 @@ def eval_command(
         no_score=no_score,
         no_score_display=no_score_display,
         is_eval_set=False,
-        open_results_pr=open_results_pr,
+        push_hub_results=push_hub_results,
         **config,
     )
 
@@ -989,7 +989,7 @@ def eval_exec(
     bundle_overwrite: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
-    open_results_pr: bool | None = None,
+    push_hub_results: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
@@ -1048,7 +1048,7 @@ def eval_exec(
     trace = True if trace else None
     score = False if no_score else True
     score_display = False if no_score_display else None
-    open_results_pr = open_results_pr if open_results_pr is not None else False
+    push_hub_results = push_hub_results if push_hub_results is not None else False
 
     # build params
     params: dict[str, Any] = (
@@ -1093,7 +1093,7 @@ def eval_exec(
             log_shared=log_shared,
             score=score,
             score_display=score_display,
-            open_results_pr=open_results_pr,
+            push_hub_results=push_hub_results,
         )
         | kwargs
     )

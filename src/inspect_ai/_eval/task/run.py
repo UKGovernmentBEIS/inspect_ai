@@ -155,7 +155,7 @@ class TaskRunOptions:
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
-    open_results_pr: bool = field(default=False)
+    push_hub_results: bool = field(default=False)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
 
@@ -469,7 +469,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             )
 
             # push eval result to model repo
-            if options.open_results_pr and eval_log.location:
+            if options.push_hub_results and eval_log.location:
                 push_eval_result_to_model_repo(eval_log, eval_log.location)
 
             await emit_task_end(logger, eval_log)
