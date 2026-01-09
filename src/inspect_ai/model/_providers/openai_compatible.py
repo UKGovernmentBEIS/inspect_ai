@@ -305,8 +305,11 @@ class OpenAICompatibleAPI(ModelAPI):
         return False
 
     def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-        """Hook for subclasses to do custom tools processing"""
-        return openai_chat_tools(tools)
+        # some inference platforms (e.g. hf-inference) require strict=True
+        openai_tools = openai_chat_tools(tools)
+        for tool in openai_tools:
+            tool["function"]["strict"] = True
+        return openai_tools
 
     async def messages_to_openai(
         self, input: list[ChatMessage]
