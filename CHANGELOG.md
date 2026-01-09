@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.160 (09 January 2026)
 
 - Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).
 - Anthropic: Correctly replay reasoning when sourced from Inspect cache.
