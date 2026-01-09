@@ -149,7 +149,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.159 (03 January 2026)</a></li>
+  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.160 (09 January 2026)</a></li>
+  <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.159 (03 January 2026)</a></li>
   <li><a href="#december-2025" id="toc-december-2025" class="nav-link" data-scroll-target="#december-2025">0.3.158 (24 December 2025)</a></li>
   <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.157 (22 December 2025)</a></li>
   <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.156 (20 December 2025)</a></li>
@@ -317,7 +318,36 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="january-2026" class="level2">
-<h2 class="anchored" data-anchor-id="january-2026">0.3.159 (03 January 2026)</h2>
+<h2 class="anchored" data-anchor-id="january-2026">0.3.160 (09 January 2026)</h2>
+<ul>
+<li>Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).</li>
+<li>Anthropic: Correctly replay reasoning when sourced from Inspect cache.</li>
+<li>Anthropic: Tolerate <code>{}</code> as value for <code>additionalProperties</code> in tool schema.</li>
+<li>OpenAI Compatible: Don’t ever send <code>background</code> parameter as this is OpenAI service-specific.</li>
+<li>OpenAI Compatible: Added support for disabling reasoning history emulation.</li>
+<li>Grok: Correctly replay tool calling errors in message history.</li>
+<li>VLLM and SGLang: Don’t require API key environment variable to be set when running in local mode.</li>
+<li>Google: Support <code>minimal</code> and <code>medium</code> reasoning effort levels for Gemini 3 Flash.</li>
+<li>Fireworks: Use streaming when <code>max_tokens</code> is greater than 16000.</li>
+<li>Model API: Add <code>combined_from</code> metadata field when combining consecutive user or assistant messages for call to generate.</li>
+<li>HF Tasks: Require &gt;1.0.0 of huggingface_hub package.</li>
+<li>Eval Set: Include task version and limits in task identifier hash to prevent incorrect log reuse.</li>
+<li>Scoring: Match only last line of output in answer(pattern=“line”).</li>
+<li>JSON Datasets: Support passing arbitrary <code>kwargs</code> to JSON readers (built-in reader and jsonlines reader).</li>
+<li>Filesystems: Use default_fs_options() for <code>async_connection()</code></li>
+<li>Inspect View: Don’t attempt to display events when the events are too large for the browser to deserialize (e.g.&nbsp;350MB+ of events).</li>
+<li>Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.</li>
+<li>Inspect View: Scale ANSI display in messages view to preserve row/column layout without wrapping.</li>
+<li>Inspect View: Render custom tool view when viewing messages.</li>
+<li>Inspect View: Fix cmd+click on tasks/samples to open in new tab.</li>
+<li>Inspect View: Only stream log bytes when requested chunks are large (&gt;50MB)</li>
+<li>Inspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).</li>
+<li>Bugfix: Prevent component not found error during Human Agent transition.</li>
+<li>Bugfix: Use <code>builtins</code> module rather than <code>__builtins__</code> when parsing tool function types.</li>
+</ul>
+</section>
+<section id="january-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="january-2026-1">0.3.159 (03 January 2026)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/compaction.html.md">Compaction</a>: Compacting message histories for long-running agents that exceed the context window.</li>
 <li>Model API: <code>count_tokens()</code> method for estimating token usage for messages.</li>

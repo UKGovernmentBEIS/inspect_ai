@@ -60,7 +60,7 @@ from inspect_ai.agent import (
 from inspect_ai.model import messages_to_openai
 
 @agent
-def my_agent() -> AgentState:
+def my_agent() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
             client = AsyncOpenAI()
@@ -133,7 +133,7 @@ from inspect_ai.model import user_prompt
 from inspect_ai.util import sandbox
 
 @agent
-def my_agent() -> AgentState:
+def my_agent() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with sandbox_agent_bridge(state) as bridge:
             

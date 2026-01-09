@@ -1168,6 +1168,16 @@ by passing the `stream` model arg. For example:
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 ```
 
+### Reasoning History Emulation
+
+Reasoning history emulation (where reasoning is represented by embedded
+`<think>` tags) is enabled by default. You can disable this behanvior
+via the `emulate_reasoning_history` model arg. For example:
+
+``` bash
+$ inspect eval arc.py --model openai-api/<provider>/<model> -M emulate_reasoning_history=false
+```
+
 ## OpenRouter
 
 To use the [OpenRouter](https://openrouter.ai/) provider, install the
