@@ -726,70 +726,59 @@ def to_overview(header: EvalLog) -> LogOverview:
     )
 
 
-def write_eval_result_yaml(
-    eval_log: EvalLog, log_location: str, open_pr: bool = False
-) -> None:
-    """Write a YAML result file for the evaluation.
+def push_eval_result_to_model_repo(eval_log: EvalLog, log_location: str) -> None:
+    """Pushed an eval result file to a hugging face model repo.
+
+    more details: https://huggingface.co/docs/hub/eval-results
 
     Args:
         eval_log: The evaluation log
         log_location: Path to the log file
-        open_pr: If True, push the result to the model repo on HF Hub and open a PR
     """
+    import io
+
+    from huggingface_hub import CommitOperationAdd, HfApi
+
     if (
         hub_benchmark_metadata := eval_log.eval.metadata.get("hub_benchmark", None)
     ) is None:
         logger.info("No hub benchmark metadata found, skipping result file")
         return
 
-    dataset_id = eval_log.eval.dataset.location
-    date = eval_log.eval.created
-
-    if (
-        default_scorer_key := hub_benchmark_metadata.get("default_scorer", None)
-    ) is not None:
+    # Get accuracy value from default scorer or first scorer
+    if default_scorer_key := hub_benchmark_metadata.get("default_scorer"):
         default_scorer = eval_log.results.scores[default_scorer_key]
-        value = default_scorer.metrics["accuracy"].value
+        accuracy_value = default_scorer.metrics["accuracy"].value
     else:
         if len(eval_log.results.scores) > 1:
             logger.warning(
                 "Multiple scorers found, but no default scorer specified, using the first scorer"
             )
-        value = eval_log.results.scores[0].metrics["accuracy"].value
+        accuracy_value = eval_log.results.scores[0].metrics["accuracy"].value
 
-    result = {
-        "dataset": {
-            "id": dataset_id,
-        },
-        "value": value,
-        "date": date,
+    # Build result dictionary
+    result: dict[str, Any] = {
+        "dataset": {"id": eval_log.eval.dataset.location},
+        "value": accuracy_value,
+        "date": eval_log.eval.created,
     }
 
-    if task_id := hub_benchmark_metadata.get("id", None):
+    if task_id := hub_benchmark_metadata.get("id"):
         result["dataset"]["task_id"] = task_id
 
-    if dataset_revision := hub_benchmark_metadata.get("dataset_revision", None):
+    if dataset_revision := hub_benchmark_metadata.get("dataset_revision"):
         result["dataset"]["revision"] = dataset_revision
 
     log_fs = filesystem(log_location)
-    log_dir = os.path.dirname(log_location) if os.path.dirname(log_location) else "."
-    yaml_path = f"{log_dir}{log_fs.sep}{date}-{eval_log.eval.task.replace('/', '-')}_{eval_log.eval.task_id}-result.yaml"
+    log_dir = os.path.dirname(log_location) or "."
+    task_name = eval_log.eval.task.replace("/", "-")
+    filename = (
+        f"{eval_log.eval.created}-{task_name}_{eval_log.eval.task_id}-result.yaml"
+    )
+    yaml_path = f"{log_dir}{log_fs.sep}{filename}"
     yaml_content = yaml.dump([result], default_flow_style=False, sort_keys=False)
 
-    _push_result_to_hf_pr(eval_log, yaml_content, yaml_path)
-
-
-def _push_result_to_hf_pr(eval_log: EvalLog, yaml_content: str, yaml_path: str) -> None:
-    """Push result YAML to model repo on HuggingFace Hub and open a PR."""
-    from huggingface_hub import CommitOperationAdd, HfApi
-    import io
-
     model_name = eval_log.eval.model
-
-    if "/" not in model_name:
-        logger.warning(f"Cannot determine model repo from model name: {model_name}")
-        return
-
     logger.info(f"Pushing result to model repo: {model_name}")
     api = HfApi()
     model_repo = model_name.split("/", 1)[-1]

@@ -58,7 +58,7 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._condense import condense_sample
-from inspect_ai.log._file import eval_log_json_str, write_eval_result_yaml
+from inspect_ai.log._file import eval_log_json_str, push_eval_result_to_model_repo
 from inspect_ai.log._log import (
     EvalSampleLimit,
     EvalSampleReductions,
@@ -468,11 +468,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 "error" if mark_log_as_error else "success", stats, results, reductions
             )
 
-            # write YAML result file
-            if eval_log.location:
-                write_eval_result_yaml(
-                    eval_log, eval_log.location, options.open_results_pr
-                )
+            # push eval result to model repo
+            if options.open_results_pr and eval_log.location:
+                push_eval_result_to_model_repo(eval_log, eval_log.location)
 
             await emit_task_end(logger, eval_log)
 

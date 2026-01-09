@@ -549,6 +549,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--open-results-pr",
         type=bool,
         is_flag=True,
+        default=False,
         help="Push result YAML files to the model repo on HuggingFace Hub and open a PR.",
         envvar="INSPECT_EVAL_OPEN_RESULTS_PR",
     )
@@ -1047,6 +1048,7 @@ def eval_exec(
     trace = True if trace else None
     score = False if no_score else True
     score_display = False if no_score_display else None
+    open_results_pr = open_results_pr if open_results_pr is not None else False
 
     # build params
     params: dict[str, Any] = (

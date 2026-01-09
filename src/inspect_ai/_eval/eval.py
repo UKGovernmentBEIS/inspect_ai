@@ -265,6 +265,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                open_results_pr=open_results_pr,
                 **kwargs,
             )
         # exceptions can escape when debug_errors is True and that's okay
@@ -658,7 +659,6 @@ async def _eval_async_inner(
             log_buffer=log_buffer,
             log_shared=log_shared,
             score_display=score_display,
-            open_results_pr=open_results_pr,
         )
 
         # run tasks - 2 codepaths, one for the traditional task at a time
@@ -693,6 +693,7 @@ async def _eval_async_inner(
                         run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors is True,
+                        open_results_pr=open_results_pr,
                         **kwargs,
                     )
                 )
@@ -720,6 +721,7 @@ async def _eval_async_inner(
                 metadata=metadata,
                 run_samples=run_samples,
                 score=score,
+                open_results_pr=open_results_pr,
                 **kwargs,
             )
             logs = EvalLogs(results)
