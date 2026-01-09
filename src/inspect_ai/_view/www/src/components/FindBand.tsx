@@ -233,7 +233,8 @@ export const FindBand: FC<FindBandProps> = () => {
       }
 
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key.length !== 1 && e.key !== "Backspace" && e.key !== "Delete") return;
+      if (e.key.length !== 1 && e.key !== "Backspace" && e.key !== "Delete")
+        return;
 
       const input = searchBoxRef.current;
       if (!input) return;
