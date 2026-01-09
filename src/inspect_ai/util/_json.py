@@ -30,7 +30,7 @@ JSONType = Literal["string", "integer", "number", "boolean", "array", "object", 
 class JSONSchema(BaseModel):
     """JSON Schema for type."""
 
-    type: JSONType | None = Field(default=None)
+    type: JSONType | list[JSONType] | None = Field(default=None)
     """JSON type of tool parameter."""
 
     format: str | None = Field(default=None)

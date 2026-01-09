@@ -23,6 +23,7 @@ from anthropic import (
     APITimeoutError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
+    AsyncAnthropicFoundry,
     AsyncAnthropicVertex,
     BadRequestError,
     NotGiven,
@@ -137,12 +138,26 @@ from .._providers._anthropic_citations import (
     to_inspect_citation,
 )
 from ._anthropic_batch import AnthropicBatcher
-from .util import environment_prerequisite_error, model_base_url
+from .util import (
+    check_azure_deployment_mismatch,
+    environment_prerequisite_error,
+    model_base_url,
+    require_azure_base_url,
+    resolve_api_key,
+)
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
+AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
+AZURE_ANTHROPIC_API_KEY = "AZURE_ANTHROPIC_API_KEY"
+
+# Azure base URL environment variables
+AZURE_ANTHROPIC_BASE_URL_VARS = [
+    "AZUREAI_ANTHROPIC_BASE_URL",
+    "AZURE_ANTHROPIC_BASE_URL",
+]
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
@@ -184,16 +199,34 @@ class AnthropicAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[ANTHROPIC_API_KEY],
+            api_key_vars=[
+                ANTHROPIC_API_KEY,
+                AZUREAI_ANTHROPIC_API_KEY,
+                AZURE_ANTHROPIC_API_KEY,
+            ],
             config=config,
         )
+
+        # check for Azure model/URL mismatch
+        if self.is_azure():
+            check_azure_deployment_mismatch(
+                self.service_model_name(),
+                base_url,
+                AZURE_ANTHROPIC_BASE_URL_VARS,
+                "AZUREAI_ANTHROPIC",
+            )
 
         self.model_args = model_args
         self.initialize()
 
     def _create_client(
         self,
-    ) -> AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex:
+    ) -> (
+        AsyncAnthropic
+        | AsyncAnthropicBedrock
+        | AsyncAnthropicVertex
+        | AsyncAnthropicFoundry
+    ):
         if self.is_bedrock():
             base_url = model_base_url(
                 self.base_url,
@@ -222,6 +255,28 @@ class AnthropicAPI(ModelAPI):
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
+                **self.model_args,
+            )
+        elif self.is_azure():
+            # resolve base_url (required for Azure)
+            base_url = require_azure_base_url(
+                self.base_url, AZURE_ANTHROPIC_BASE_URL_VARS, "Anthropic"
+            )
+
+            # resolve api_key (required for Azure)
+            if not self.api_key:
+                self.api_key = resolve_api_key(
+                    [AZUREAI_ANTHROPIC_API_KEY, AZURE_ANTHROPIC_API_KEY]
+                )
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "Anthropic on Azure",
+                    [AZUREAI_ANTHROPIC_API_KEY, AZURE_ANTHROPIC_API_KEY],
+                )
+
+            return AsyncAnthropicFoundry(
+                base_url=base_url,
+                api_key=self.api_key,
                 **self.model_args,
             )
         else:
@@ -253,6 +308,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_vertex(self) -> bool:
         return self.service == "vertex"
+
+    def is_azure(self) -> bool:
+        return self.service == "azure"
 
     async def generate(
         self,
@@ -869,7 +927,8 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            if self.is_claude_4_5():
+            # computer_20251124 is only supported by Claude Opus 4.5
+            if self.is_claude_4_5() and self.is_claude_4_opus():
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
                     name="computer",
@@ -1419,7 +1478,9 @@ async def assistant_message_block_params(
 
 @dataclass
 class _AssistantInternal:
-    thinking_signatures: dict[str, str] = field(default_factory=dict)
+    thinking_blocks: dict[str, ThinkingBlockParam | RedactedThinkingBlockParam] = field(
+        default_factory=dict
+    )
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
@@ -1738,23 +1799,34 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     else None,
                 )
             )
+
+        elif isinstance(content_block, ThinkingBlock):
+            # anthropic reasoning is now always a summary (save for Sonnet 3.7):
+            # https://platform.claude.com/docs/en/build-with-claude/extended-thinking#differences-in-thinking-across-model-versions
+            content.append(
+                ContentReasoning(
+                    summary=content_block.thinking,
+                    reasoning=content_block.signature,
+                    redacted=True,
+                )
+            )
+
+            # reasoning won't round trip through bridges w/ simplistic handling
+            # (e.g. OpenAI completions) so we also save for replay)
+            assistant_internal().thinking_blocks[mm3_hash(content_block.signature)] = (
+                cast(ThinkingBlockParam, content_block.model_dump(exclude_none=True))
+            )
+
         elif isinstance(content_block, RedactedThinkingBlock):
+            # redacted reasoning has no summary
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
             )
-        elif isinstance(content_block, ThinkingBlock):
-            # also record the thinking signature for this thinking in the side list
-            # this is b/c if we are operating within a bridge then scaffolds (e.g.
-            # responses with store=False) will not send back the id/signature.
-            assistant_internal().thinking_signatures[
-                mm3_hash(content_block.thinking)
-            ] = content_block.signature
 
-            # append the content
-            content.append(
-                ContentReasoning(
-                    reasoning=content_block.thinking, signature=content_block.signature
-                )
+            # reasoning won't round trip through bridges w/ simplistic handling
+            # (e.g. OpenAI completions) so we also save for replay
+            assistant_internal().thinking_blocks[mm3_hash(content_block.data)] = cast(
+                RedactedThinkingBlockParam, content_block.model_dump(exclude_none=True)
             )
 
     return content, tool_calls
@@ -1847,29 +1919,16 @@ async def message_block_params(
         return [await image_block_param(content.image)]
 
     elif isinstance(content, ContentReasoning):
-        if content.redacted:
-            return [
-                RedactedThinkingBlockParam(
-                    type="redacted_thinking",
-                    data=content.reasoning,
-                )
-            ]
-        else:
-            signature = content.signature
-            if signature is None:
-                # see if we can get it from assistant_internal()
-                signature = assistant_internal().thinking_signatures.get(
-                    mm3_hash(content.reasoning), None
-                )
-                if signature is None:
-                    raise ValueError("Thinking content without signature.")
-            return [
-                ThinkingBlockParam(
-                    type="thinking",
-                    thinking=content.reasoning,
-                    signature=signature,
-                )
-            ]
+        # lookup in assistant internal
+        thinking_block_param = assistant_internal().thinking_blocks.get(
+            mm3_hash(content.reasoning), None
+        )
+        if thinking_block_param is not None:
+            return [thinking_block_param]
+
+        # if it's not in there then this is reasoning that is coming from another
+        # system (e.g. in an agent handoff) so we turn it into normal text
+        return [TextBlockParam(type="text", text=content.text)]
 
     elif isinstance(content, ContentToolUse):
         if content.id in assistant_internal().server_mcp_tool_uses:

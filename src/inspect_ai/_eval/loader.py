@@ -118,22 +118,13 @@ def resolve_tasks(
             loaded_tasks_args.append(loaded_task_args)
 
         return [
-            ResolvedTask(
-                task=loaded_task,
-                task_args=loaded_task_args,
-                task_file=previous_task.log.eval.task_file,
-                model=previous_task.model or loaded_task.model or model,
-                model_roles=(
-                    previous_task.model_roles or loaded_task.model_roles or model_roles
-                ),
-                sandbox=resolve_task_file_sandbox(
-                    previous_task.log.eval.task_file, previous_task.log.eval.sandbox
-                ),
-                sequence=sequence,
-                id=previous_task.id,
-                sample_source=eval_log_sample_source(
-                    previous_task.log, loaded_task.dataset
-                ),
+            resolve_previous_task(
+                loaded_task,
+                loaded_task_args,
+                model,
+                model_roles,
+                previous_task,
+                sequence,
             )
             for sequence, loaded_task, loaded_task_args, previous_task in zip(
                 range(0, len(loaded_tasks)),
@@ -161,6 +152,33 @@ def resolve_tasks(
 
     # done! let's load the tasks
     return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
+
+
+def resolve_previous_task(
+    loaded_task: Task,
+    loaded_task_args: dict[str, Any],
+    model: Model,
+    model_roles: dict[str, Model] | None,
+    previous_task: PreviousTask,
+    sequence: int,
+) -> ResolvedTask:
+    return ResolvedTask(
+        task=loaded_task,
+        task_args=loaded_task_args,
+        task_file=previous_task.log.eval.task_file,
+        model=previous_task.model or loaded_task.model or model,
+        model_roles=(
+            previous_task.model_roles or loaded_task.model_roles or model_roles
+        ),
+        sandbox=resolve_task_file_sandbox(
+            previous_task.log.eval.task_file, previous_task.log.eval.sandbox
+        ),
+        sequence=sequence,
+        id=previous_task.id,
+        sample_source=eval_log_sample_source(
+            previous_task.log, previous_task.log_info, loaded_task.dataset
+        ),
+    )
 
 
 def resolve_task_args(task: Task) -> dict[str, Any]:

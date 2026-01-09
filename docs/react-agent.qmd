@@ -119,6 +119,19 @@ react(
 
 Submissions are evaluated using the task's main scorer, with value of 1.0 indicating a correct answer. You can further customize how `attempts` works by passing an instance of `AgentAttempts` rather than an integer (this enables you to set a custom incorrect message, including a dynamically generated one, and also lets you customize how score values are converted to a numeric scale).
 
+### Refusals
+
+In some cases models refuse requests and simply retrying will result in a successful completion (this might be the case if requests are near the decision boundary of a filter). To provide some resilience against this you can specify the `retry_refusals` option. For example:
+
+``` python
+react(
+    ...
+    retry_refusals=3,
+)
+```
+
+Retries will be triggered when `ModelOutput` has a `stop_reason` of "content_filter".
+
 ### Continuation
 
 In some cases models in a tool use loop will simply fail to call a tool (or just talk about calling the `submit()` tool but not actually call it!). This is typically an oversight, and models simply need to be encouraged to call `submit()` or alternatively continue if they haven't yet completed the task.

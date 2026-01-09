@@ -666,6 +666,14 @@ class Model:
         else:
             cache_policy = cache
 
+        # track reported waiting time during this generate call
+        reported_waiting_time = 0.0
+
+        def report_waiting_time(waiting_time: float) -> None:
+            nonlocal reported_waiting_time
+            report_sample_waiting_time(waiting_time)
+            reported_waiting_time += waiting_time
+
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -674,6 +682,7 @@ class Model:
                 self.should_retry,
                 self.before_retry,
                 log_model_retry,
+                report_waiting_time,
                 self.api.retry_wait(),
             )
         )
@@ -808,13 +817,19 @@ class Model:
 
             return output, event
 
-        # call the model (this will so retries, etc., so report waiting time
+        # call the model (this will do retries, etc., so report waiting time
         # as elapsed time - actual time for successful model call)
         time_start = time.monotonic()
         model_output, event = await generate()
         total_time = time.monotonic() - time_start
         if model_output.time:
-            report_sample_waiting_time(total_time - model_output.time)
+            # we've already reported some of the waiting time in tenacity callbacks
+            # any remaining waiting time will have been due to internal retry within
+            # model providers, which we can get from:
+            #    total_time - reported_waiting_time - model_call_time
+            report_sample_waiting_time(
+                total_time - reported_waiting_time - model_output.time
+            )
 
         # return results
         return model_output, event
