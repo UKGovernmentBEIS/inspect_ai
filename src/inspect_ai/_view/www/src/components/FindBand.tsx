@@ -25,6 +25,9 @@ export const FindBand: FC<FindBandProps> = () => {
     parentElement: Element;
   } | null>(null);
   const currentSearchTerm = useRef<string>("");
+  const debounceTimerRef = useRef<number | null>(null);
+  const needsCursorRestoreRef = useRef<boolean>(false);
+  const lastNoResultTerm = useRef<string>("");
 
   const getParentExpandablePanel = useCallback(
     (selection: Selection): HTMLElement | undefined => {
@@ -32,7 +35,7 @@ export const FindBand: FC<FindBandProps> = () => {
       while (node) {
         if (
           node instanceof HTMLElement &&
-          node.classList.contains("expandable-panel")
+          node.hasAttribute("data-expandable-panel")
         ) {
           return node;
         }
@@ -57,6 +60,27 @@ export const FindBand: FC<FindBandProps> = () => {
         currentSearchTerm.current = searchTerm;
       }
 
+      // Clear no-result cache if search term changed to something new
+      if (
+        lastNoResultTerm.current &&
+        !searchTerm.startsWith(lastNoResultTerm.current)
+      ) {
+        lastNoResultTerm.current = "";
+      }
+
+      const noResultEl = document.getElementById("inspect-find-no-results");
+
+      // Skip search if we already know this term has no results
+      if (
+        lastNoResultTerm.current &&
+        searchTerm.startsWith(lastNoResultTerm.current)
+      ) {
+        if (noResultEl) {
+          noResultEl.style.opacity = "1";
+        }
+        return;
+      }
+
       // Capture the curently focused element so we can restore focus later
       const focusedElement = document.activeElement as HTMLElement;
 
@@ -68,13 +92,14 @@ export const FindBand: FC<FindBandProps> = () => {
         extendedFindTerm,
       );
 
-      const noResultEl = document.getElementById("inspect-find-no-results");
       if (!noResultEl) {
         return;
       }
 
       // Show "No results" if neither current DOM nor virtual search found anything
       noResultEl.style.opacity = result ? "0" : "1";
+
+      lastNoResultTerm.current = result ? "" : searchTerm;
 
       if (result) {
         const selection = window.getSelection();
@@ -93,6 +118,7 @@ export const FindBand: FC<FindBandProps> = () => {
           const parentPanel = getParentExpandablePanel(selection);
           if (parentPanel) {
             parentPanel.style.display = "block";
+            parentPanel.style.maxHeight = "none";
             parentPanel.style.webkitLineClamp = "";
             parentPanel.style.webkitBoxOrient = "";
           }
@@ -162,13 +188,71 @@ export const FindBand: FC<FindBandProps> = () => {
     [storeHideFind, handleSearch],
   );
 
-  const showSearch = useCallback(() => {
+  const findPrevious = useCallback(() => {
     handleSearch(true);
   }, [handleSearch]);
 
-  const hideSearch = useCallback(() => {
+  const findNext = useCallback(() => {
     handleSearch(false);
   }, [handleSearch]);
+
+  const restoreCursor = useCallback(() => {
+    if (!needsCursorRestoreRef.current) return;
+    needsCursorRestoreRef.current = false;
+    const input = searchBoxRef.current;
+    if (input) {
+      const len = input.value.length;
+      input.setSelectionRange(len, len);
+    }
+  }, []);
+
+  // Debounced auto-search as you type
+  const handleInputChange = useCallback(() => {
+    if (debounceTimerRef.current !== null) {
+      window.clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = window.setTimeout(async () => {
+      debounceTimerRef.current = null;
+      if (!searchBoxRef.current) return;
+      await handleSearch(false);
+      // Mark for cursor restore on next keypress (keeps find highlight visible)
+      needsCursorRestoreRef.current = true;
+    }, 300);
+  }, [handleSearch]);
+
+  const handleBeforeInput = useCallback(() => {
+    restoreCursor();
+  }, [restoreCursor]);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "F3") {
+        e.preventDefault();
+        handleSearch(e.shiftKey);
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key.length !== 1 && e.key !== "Backspace" && e.key !== "Delete")
+        return;
+
+      const input = searchBoxRef.current;
+      if (!input) return;
+
+      restoreCursor();
+      if (document.activeElement !== input) {
+        input.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeyDown);
+      if (debounceTimerRef.current !== null) {
+        window.clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [handleSearch, restoreCursor]);
 
   return (
     <div data-unsearchable="true" className={clsx("findBand")}>
@@ -177,13 +261,15 @@ export const FindBand: FC<FindBandProps> = () => {
         ref={searchBoxRef}
         placeholder="Find"
         onKeyDown={handleKeyDown}
+        onBeforeInput={handleBeforeInput}
+        onChange={handleInputChange}
       />
       <span id="inspect-find-no-results">No results</span>
       <button
         type="button"
         title="Previous match"
         className="btn next"
-        onClick={showSearch}
+        onClick={findPrevious}
       >
         <i className={ApplicationIcons.arrows.up} />
       </button>
@@ -191,7 +277,7 @@ export const FindBand: FC<FindBandProps> = () => {
         type="button"
         title="Next match"
         className="btn prev"
-        onClick={hideSearch}
+        onClick={findNext}
       >
         <i className={ApplicationIcons.arrows.down} />
       </button>

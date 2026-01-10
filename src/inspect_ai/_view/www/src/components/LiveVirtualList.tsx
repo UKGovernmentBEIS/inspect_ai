@@ -207,6 +207,14 @@ export const LiveVirtualList = <T,>({
             align: "center",
           });
 
+          // Fallback timeout if Virtuoso doesn't trigger scroll callbacks
+          setTimeout(() => {
+            if (pendingSearchCallback.current === onContentReady) {
+              pendingSearchCallback.current = null;
+              onContentReady();
+            }
+          }, 200);
+
           return true;
         }
       }

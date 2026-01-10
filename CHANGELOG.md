@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI Compatible: Always pass function definitions with `strict=True`. This is required by HF Inference Providers and Fireworks (and possibly others).
+- Eval Log: Add version of the package exporting the task (if any) to the eval log.
 
 ## 0.3.160 (09 January 2026)
 
@@ -26,6 +27,7 @@
 - Inspect View: Fix cmd+click on tasks/samples to open in new tab.
 - Inspect View: Only stream log bytes when requested chunks are large (>50MB)
 - Inspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).
+- Inspect View: Improved non-native find for virtualized lists (better CTRL-f)
 - Bugfix: Prevent component not found error during Human Agent transition.
 - Bugfix: Use `builtins` module rather than `__builtins__` when parsing tool function types.
 
