@@ -44,6 +44,7 @@ export interface SampleSlice {
     collapseId: (key: string, id: string, collapsed: boolean) => void;
     clearCollapsedIds: (key: string) => void;
     setCollapsedMode: (mode: "collapsed" | "expanded" | null) => void;
+    setFlatView: (value: boolean) => void;
 
     setFilteredEventTypes: (types: string[]) => void;
 
@@ -88,6 +89,7 @@ const initialState: SampleState = {
   runningEvents: [],
   collapsedEvents: null,
   collapsedMode: null,
+  flatView: false,
   eventFilter: {
     filteredTypes: [...kDefaultExcludeEvents],
   },
@@ -221,6 +223,11 @@ export const createSampleSlice = (
       setCollapsedMode: (mode: "collapsed" | "expanded" | null) => {
         set((state) => {
           state.sample.collapsedMode = mode;
+        });
+      },
+      setFlatView: (value: boolean) => {
+        set((state) => {
+          state.sample.flatView = value;
         });
       },
       setFilteredEventTypes: (types: string[]) => {

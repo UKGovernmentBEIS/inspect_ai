@@ -218,6 +218,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     setCollapsedMode(isCollapsed(collapsedMode) ? "expanded" : "collapsed");
   }, [collapsedMode, setCollapsedMode]);
 
+  const flatView = useStore((state) => state.sample.flatView);
+  const setFlatView = useStore((state) => state.sampleActions.setFlatView);
+
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
   const tools = [];
@@ -278,6 +281,15 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             : ApplicationIcons.collapse.all
         }
         onClick={toggleCollapsedMode}
+      />,
+    );
+
+    tools.push(
+      <ToolButton
+        key="sample-flat-view"
+        label={flatView ? "Tree" : "Flat"}
+        icon={flatView ? "bi bi-list-nested" : "bi bi-diagram-3"}
+        onClick={() => setFlatView(!flatView)}
       />,
     );
   }

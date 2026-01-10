@@ -150,6 +150,7 @@ export interface SampleState {
   collapsedEvents: Record<string, Record<string, boolean>> | null;
   collapsedIdBuckets: Record<string, Record<string, boolean>>;
   collapsedMode: "collapsed" | "expanded" | null;
+  flatView: boolean;
   eventFilter: EventFilter;
 
   selectedOutlineId?: string;
