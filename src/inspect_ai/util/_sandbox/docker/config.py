@@ -2,12 +2,9 @@ import os
 from logging import getLogger
 from pathlib import Path
 
-from ..compose import COMPOSE_FILES
+from ..compose import COMPOSE_FILES, DOCKERFILE
 
 logger = getLogger(__name__)
-
-
-DOCKERFILE = "Dockerfile"
 
 
 def resolve_compose_file(parent: str = "") -> str:
@@ -36,11 +33,6 @@ def find_compose_file(parent: str = "") -> str | None:
         if os.path.isfile(os.path.join(parent, file)):
             return file
     return None
-
-
-def is_dockerfile(file: str) -> bool:
-    path = Path(file)
-    return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
 
 
 def has_dockerfile(parent: str = "") -> bool:

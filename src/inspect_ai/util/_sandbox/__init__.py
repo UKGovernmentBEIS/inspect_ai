@@ -6,10 +6,10 @@ from .compose import (
     ComposeHealthcheck,
     ComposeService,
     is_compose_yaml,
+    is_dockerfile,
     parse_compose_yaml,
 )
 from .context import sandbox, sandbox_default, sandbox_with
-from .docker.config import is_dockerfile
 from .docker.docker import DockerSandboxEnvironment  # noqa: F401
 from .environment import (
     SandboxConnection,

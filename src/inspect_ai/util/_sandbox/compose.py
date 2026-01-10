@@ -37,60 +37,112 @@ def is_compose_yaml(file: str) -> bool:
     return Path(file).name in COMPOSE_FILES
 
 
+DOCKERFILE = "Dockerfile"
+
+
+def is_dockerfile(file: str) -> bool:
+    """Check if a path is a Dockerfile.
+
+    Args:
+        file: Path to check.
+
+    Returns:
+        True if the path is a Dockerfile (Dockerfile, name.Dockerfile,
+        or Dockerfile.name), False otherwise.
+    """
+    path = Path(file)
+    return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
+
+
 class ComposeHealthcheck(BaseModel):
     """Healthcheck configuration for a compose service."""
 
     test: list[str] | str | None = Field(default=None)
+    """Command to run to check health."""
+
     interval: str | None = Field(default=None)
+    """Time between health checks (e.g., '30s', '1m')."""
+
     timeout: str | None = Field(default=None)
+    """Maximum time to wait for a check to complete."""
+
     start_period: str | None = Field(default=None)
+    """Time to wait before starting health checks."""
+
     start_interval: str | None = Field(default=None)
+    """Time between checks during the start period."""
+
     retries: int | None = Field(default=None)
+    """Number of consecutive failures needed to consider unhealthy."""
 
 
 class ComposeBuild(BaseModel):
     """Build configuration for a compose service."""
 
     context: str | None = Field(default=None)
+    """Path to the build context directory."""
+
     dockerfile: str | None = Field(default=None)
+    """Path to the Dockerfile, relative to context."""
 
 
 class ComposeResources(BaseModel):
     """Resource limits/reservations for a compose service."""
 
     cpus: str | None = Field(default=None)
+    """CPU limit (e.g., '0.5', '2')."""
+
     memory: str | None = Field(default=None)
+    """Memory limit (e.g., '512m', '2g')."""
 
 
 class ComposeDeviceReservation(BaseModel):
     """Device reservation for GPU and other devices."""
 
     driver: str | None = Field(default=None)
-    count: int | str | None = Field(default=None)  # Can be int or "all"
+    """Device driver (e.g., 'nvidia')."""
+
+    count: int | str | None = Field(default=None)
+    """Number of devices to reserve, or 'all'."""
+
     device_ids: list[str] | None = Field(default=None)
+    """Specific device IDs to reserve."""
+
     capabilities: list[str] | None = Field(default=None)
+    """Required device capabilities (e.g., ['gpu'])."""
+
     options: dict[str, str] | None = Field(default=None)
+    """Driver-specific options."""
 
 
 class ComposeResourceReservations(BaseModel):
     """Resource reservations including devices."""
 
     cpus: str | None = Field(default=None)
+    """Reserved CPU (e.g., '0.5', '2')."""
+
     memory: str | None = Field(default=None)
+    """Reserved memory (e.g., '512m', '2g')."""
+
     devices: list[ComposeDeviceReservation] | None = Field(default=None)
+    """Device reservations (e.g., GPUs)."""
 
 
 class ComposeResourceConfig(BaseModel):
     """Deploy resources configuration."""
 
     limits: ComposeResources | None = Field(default=None)
+    """Resource limits for the service."""
+
     reservations: ComposeResourceReservations | None = Field(default=None)
+    """Resource reservations for the service."""
 
 
 class ComposeDeploy(BaseModel):
     """Deploy configuration for a compose service."""
 
     resources: ComposeResourceConfig | None = Field(default=None)
+    """Resource limits and reservations."""
 
 
 class ComposeService(BaseModel):
@@ -98,33 +150,71 @@ class ComposeService(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    # Standard compose fields
     image: str | None = Field(default=None)
+    """Docker image to use (e.g., 'python:3.11')."""
+
     build: ComposeBuild | str | None = Field(default=None)
+    """Build configuration or path to build context."""
+
     command: list[str] | str | None = Field(default=None)
+    """Command to run in the container."""
+
     entrypoint: list[str] | str | None = Field(default=None)
+    """Entrypoint for the container."""
+
     working_dir: str | None = Field(default=None)
+    """Working directory inside the container."""
+
     environment: list[str] | dict[str, str | None] | None = Field(default=None)
+    """Environment variables."""
+
     env_file: list[str] | str | None = Field(default=None)
+    """Path(s) to file(s) containing environment variables."""
+
     user: str | None = Field(default=None)
+    """User to run the container as."""
+
     healthcheck: ComposeHealthcheck | None = Field(default=None)
+    """Health check configuration."""
+
     ports: list[str | int] | None = Field(default=None)
+    """Port mappings (host:container)."""
+
     expose: list[str | int] | None = Field(default=None)
+    """Ports to expose without publishing to the host."""
+
     volumes: list[str] | None = Field(default=None)
+    """Volume mounts."""
+
     networks: list[str] | dict[str, Any] | None = Field(default=None)
+    """Networks to connect to."""
+
     network_mode: str | None = Field(default=None)
+    """Network mode (e.g., 'host', 'none', 'bridge')."""
+
     hostname: str | None = Field(default=None)
+    """Container hostname."""
+
     runtime: str | None = Field(default=None)
+    """Runtime to use (e.g., 'nvidia')."""
+
     init: bool | None = Field(default=None)
+    """Run an init process inside the container."""
+
     deploy: ComposeDeploy | None = Field(default=None)
+    """Deployment configuration including resources."""
 
-    # Memory/CPU shortcuts (alternative to deploy.resources)
     mem_limit: str | None = Field(default=None)
-    mem_reservation: str | None = Field(default=None)
-    cpus: float | None = Field(default=None)
+    """Memory limit (shortcut for deploy.resources.limits.memory)."""
 
-    # x-default is explicit since all providers use it to identify the default service
+    mem_reservation: str | None = Field(default=None)
+    """Memory reservation (shortcut for deploy.resources.reservations.memory)."""
+
+    cpus: float | None = Field(default=None)
+    """CPU limit (shortcut for deploy.resources.limits.cpus)."""
+
     x_default: bool | None = Field(default=None, alias="x-default")
+    """Mark this service as the default for sandbox providers."""
 
     @property
     def extensions(self) -> dict[str, Any]:
@@ -152,8 +242,13 @@ class ComposeConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     services: dict[str, ComposeService]
+    """Service definitions, keyed by service name."""
+
     volumes: dict[str, Any] | None = Field(default=None)
+    """Volume definitions."""
+
     networks: dict[str, Any] | None = Field(default=None)
+    """Network definitions."""
 
     @property
     def extensions(self) -> dict[str, Any]:

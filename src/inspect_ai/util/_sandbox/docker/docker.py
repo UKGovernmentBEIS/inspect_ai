@@ -13,7 +13,7 @@ from typing_extensions import override
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
-from ..compose import COMPOSE_FILES
+from ..compose import COMPOSE_FILES, DOCKERFILE
 from ..environment import (
     HostMapping,
     PortMapping,
@@ -46,7 +46,6 @@ from .compose import (
     compose_services,
     compose_up,
 )
-from .config import DOCKERFILE
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, task_project_name
