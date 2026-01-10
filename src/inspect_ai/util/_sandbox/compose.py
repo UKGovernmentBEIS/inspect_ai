@@ -24,6 +24,19 @@ COMPOSE_FILES = [
 ]
 
 
+def is_compose_yaml(file: str) -> bool:
+    """Check if a path is a Docker Compose file.
+
+    Args:
+        file: Path to check.
+
+    Returns:
+        True if the path is a compose file (compose.yaml, compose.yml,
+        docker-compose.yaml, or docker-compose.yml), False otherwise.
+    """
+    return Path(file).name in COMPOSE_FILES
+
+
 class ComposeHealthcheck(BaseModel):
     """Healthcheck configuration for a compose service."""
 
@@ -158,18 +171,6 @@ class ComposeConfig(BaseModel):
                     result[k] = v
         return result
 
-    @staticmethod
-    def is_compose_file(path: str) -> bool:
-        """Check if a path is a Docker Compose file.
-
-        Args:
-            path: Path to check.
-
-        Returns:
-            True if the path is a compose file, False otherwise.
-        """
-        return Path(path).name in COMPOSE_FILES
-
 
 def _get_used_fields(service: ComposeService) -> set[str]:
     """Get the set of fields that are set (not None) in a service."""
@@ -201,7 +202,7 @@ def _warn_unsupported_fields(
         )
 
 
-def parse_compose_file(
+def parse_compose_yaml(
     file: str,
     *,
     supported_fields: list[str] | None = None,

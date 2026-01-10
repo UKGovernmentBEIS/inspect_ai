@@ -5,9 +5,11 @@ from .compose import (
     ComposeConfig,
     ComposeHealthcheck,
     ComposeService,
-    parse_compose_file,
+    is_compose_yaml,
+    parse_compose_yaml,
 )
 from .context import sandbox, sandbox_default, sandbox_with
+from .docker.config import is_dockerfile
 from .docker.docker import DockerSandboxEnvironment  # noqa: F401
 from .environment import (
     SandboxConnection,
@@ -27,8 +29,10 @@ __all__ = [
     "ComposeConfig",
     "ComposeHealthcheck",
     "ComposeService",
+    "is_compose_yaml",
+    "is_dockerfile",
     "OutputLimitExceededError",
-    "parse_compose_file",
+    "parse_compose_yaml",
     "SandboxEnvironment",
     "SandboxEnvironmentConfigType",
     "SandboxEnvironmentLimits",
