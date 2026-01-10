@@ -27,57 +27,57 @@ COMPOSE_FILES = [
 class ComposeHealthcheck(BaseModel):
     """Healthcheck configuration for a compose service."""
 
-    test: list[str] | str | None = None
-    interval: str | None = None
-    timeout: str | None = None
-    start_period: str | None = None
-    start_interval: str | None = None
-    retries: int | None = None
+    test: list[str] | str | None = Field(default=None)
+    interval: str | None = Field(default=None)
+    timeout: str | None = Field(default=None)
+    start_period: str | None = Field(default=None)
+    start_interval: str | None = Field(default=None)
+    retries: int | None = Field(default=None)
 
 
 class ComposeBuild(BaseModel):
     """Build configuration for a compose service."""
 
-    context: str | None = None
-    dockerfile: str | None = None
+    context: str | None = Field(default=None)
+    dockerfile: str | None = Field(default=None)
 
 
 class ComposeResources(BaseModel):
     """Resource limits/reservations for a compose service."""
 
-    cpus: str | None = None
-    memory: str | None = None
+    cpus: str | None = Field(default=None)
+    memory: str | None = Field(default=None)
 
 
 class ComposeDeviceReservation(BaseModel):
     """Device reservation for GPU and other devices."""
 
-    driver: str | None = None
-    count: int | str | None = None  # Can be int or "all"
-    device_ids: list[str] | None = None
-    capabilities: list[str] | None = None
-    options: dict[str, str] | None = None
+    driver: str | None = Field(default=None)
+    count: int | str | None = Field(default=None)  # Can be int or "all"
+    device_ids: list[str] | None = Field(default=None)
+    capabilities: list[str] | None = Field(default=None)
+    options: dict[str, str] | None = Field(default=None)
 
 
 class ComposeResourceReservations(BaseModel):
     """Resource reservations including devices."""
 
-    cpus: str | None = None
-    memory: str | None = None
-    devices: list[ComposeDeviceReservation] | None = None
+    cpus: str | None = Field(default=None)
+    memory: str | None = Field(default=None)
+    devices: list[ComposeDeviceReservation] | None = Field(default=None)
 
 
 class ComposeResourceConfig(BaseModel):
     """Deploy resources configuration."""
 
-    limits: ComposeResources | None = None
-    reservations: ComposeResourceReservations | None = None
+    limits: ComposeResources | None = Field(default=None)
+    reservations: ComposeResourceReservations | None = Field(default=None)
 
 
 class ComposeDeploy(BaseModel):
     """Deploy configuration for a compose service."""
 
-    resources: ComposeResourceConfig | None = None
+    resources: ComposeResourceConfig | None = Field(default=None)
 
 
 class ComposeService(BaseModel):
@@ -86,29 +86,29 @@ class ComposeService(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     # Standard compose fields
-    image: str | None = None
-    build: ComposeBuild | str | None = None
-    command: list[str] | str | None = None
-    entrypoint: list[str] | str | None = None
-    working_dir: str | None = None
-    environment: list[str] | dict[str, str | None] | None = None
-    env_file: list[str] | str | None = None
-    user: str | None = None
-    healthcheck: ComposeHealthcheck | None = None
-    ports: list[str | int] | None = None
-    expose: list[str | int] | None = None
-    volumes: list[str] | None = None
-    networks: list[str] | dict[str, Any] | None = None
-    network_mode: str | None = None
-    hostname: str | None = None
-    runtime: str | None = None
-    init: bool | None = None
-    deploy: ComposeDeploy | None = None
+    image: str | None = Field(default=None)
+    build: ComposeBuild | str | None = Field(default=None)
+    command: list[str] | str | None = Field(default=None)
+    entrypoint: list[str] | str | None = Field(default=None)
+    working_dir: str | None = Field(default=None)
+    environment: list[str] | dict[str, str | None] | None = Field(default=None)
+    env_file: list[str] | str | None = Field(default=None)
+    user: str | None = Field(default=None)
+    healthcheck: ComposeHealthcheck | None = Field(default=None)
+    ports: list[str | int] | None = Field(default=None)
+    expose: list[str | int] | None = Field(default=None)
+    volumes: list[str] | None = Field(default=None)
+    networks: list[str] | dict[str, Any] | None = Field(default=None)
+    network_mode: str | None = Field(default=None)
+    hostname: str | None = Field(default=None)
+    runtime: str | None = Field(default=None)
+    init: bool | None = Field(default=None)
+    deploy: ComposeDeploy | None = Field(default=None)
 
     # Memory/CPU shortcuts (alternative to deploy.resources)
-    mem_limit: str | None = None
-    mem_reservation: str | None = None
-    cpus: float | None = None
+    mem_limit: str | None = Field(default=None)
+    mem_reservation: str | None = Field(default=None)
+    cpus: float | None = Field(default=None)
 
     # x-default is explicit since all providers use it to identify the default service
     x_default: bool | None = Field(default=None, alias="x-default")
@@ -139,8 +139,8 @@ class ComposeConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     services: dict[str, ComposeService]
-    volumes: dict[str, Any] | None = None
-    networks: dict[str, Any] | None = None
+    volumes: dict[str, Any] | None = Field(default=None)
+    networks: dict[str, Any] | None = Field(default=None)
 
     @property
     def extensions(self) -> dict[str, Any]:
