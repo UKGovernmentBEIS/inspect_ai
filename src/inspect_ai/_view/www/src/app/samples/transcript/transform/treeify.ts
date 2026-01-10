@@ -1,6 +1,6 @@
 import { Events, SpanBeginEvent, SpanEndEvent } from "../../../../@types/log";
 import { EventNode, EventType } from "../types";
-import { transformTree } from "./transform";
+import { transformTree, TransformOptions } from "./transform";
 import {
   ACTION_BEGIN,
   SPAN_BEGIN,
@@ -11,7 +11,11 @@ import {
   hasSpans,
 } from "./utils";
 
-export function treeifyEvents(events: Events, depth: number): EventNode[] {
+export function treeifyEvents(
+  events: Events,
+  depth: number,
+  options: TransformOptions = {},
+): EventNode[] {
   const useSpans = hasSpans(events);
 
   // First inject spans that may be needed
@@ -21,8 +25,26 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
     ? treeifyWithSpans(events, depth)
     : treeifyWithSteps(events, depth);
 
-  return useSpans ? transformTree(nodes) : nodes;
+  let result = useSpans ? transformTree(nodes, options) : nodes;
+
+  // When flatView is enabled, sort root nodes chronologically by working_start
+  // so events from different (now-discarded) solvers are interleaved by time
+  if (options.flatView) {
+    result = sortNodesByTime(result);
+  }
+
+  return result;
 }
+
+// Recursively sort nodes and their children by working_start time
+const sortNodesByTime = (nodes: EventNode[]): EventNode[] => {
+  return [...nodes]
+    .sort((a, b) => a.event.working_start - b.event.working_start)
+    .map((node) => ({
+      ...node,
+      children: node.children.length > 0 ? sortNodesByTime(node.children) : [],
+    }));
+};
 
 const treeifyWithSpans = (events: Events, depth: number): EventNode[] => {
   const { rootNodes, createNode } = createNodeFactory(depth);
