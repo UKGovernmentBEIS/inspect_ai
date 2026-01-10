@@ -68,6 +68,7 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
         <div
           style={baseStyles}
           ref={contentRef}
+          data-expandable-panel="true"
           className={clsx(
             styles.expandablePanel,
             collapsed ? styles.expandableCollapsed : undefined,
