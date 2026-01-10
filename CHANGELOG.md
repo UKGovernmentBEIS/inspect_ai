@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI Compatible: Always pass function definitions with `strict=True`. This is required by HF Inference Providers and Fireworks (and possibly others).
+- Eval Log: Add version of the package exporting the task (if any) to the eval log.
 
 ## 0.3.160 (09 January 2026)
 
