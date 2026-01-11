@@ -956,8 +956,26 @@ async def extract_system_message_as_parts(
             )
         )
 
-    # google-genai raises "ValueError: content is required." if the list is empty.
-    return system_parts or None
+    # if every part is text then return list[str] rather than list[Part]
+    # works around issue w/ open-telemetry not expecting parts
+    if system_parts:
+        text_parts: list[File | Part | Image | str] = []
+        for p in system_parts:
+            if isinstance(p, str):
+                text_parts.append(p)
+            elif isinstance(p, Part) and p.text is not None:
+                text_parts.append(p.text)
+            else:
+                break
+
+        if len(text_parts) == len(system_parts):
+            return text_parts
+        else:
+            return system_parts
+
+    else:
+        # google-genai raises "ValueError: content is required." if the list is empty.
+        return None
 
 
 # https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
