@@ -748,6 +748,20 @@ website:
           href: reference/inspect_ai.util.qmd#earlystoppingsummary
         - text: EarlyStop
           href: reference/inspect_ai.util.qmd#earlystop
+        - text: parse_compose_yaml
+          href: reference/inspect_ai.util.qmd#parse_compose_yaml
+        - text: is_compose_yaml
+          href: reference/inspect_ai.util.qmd#is_compose_yaml
+        - text: is_dockerfile
+          href: reference/inspect_ai.util.qmd#is_dockerfile
+        - text: ComposeConfig
+          href: reference/inspect_ai.util.qmd#composeconfig
+        - text: ComposeService
+          href: reference/inspect_ai.util.qmd#composeservice
+        - text: ComposeBuild
+          href: reference/inspect_ai.util.qmd#composebuild
+        - text: ComposeHealthcheck
+          href: reference/inspect_ai.util.qmd#composehealthcheck
       - section: inspect_ai.hooks
         href: reference/inspect_ai.hooks.qmd
         contents:
