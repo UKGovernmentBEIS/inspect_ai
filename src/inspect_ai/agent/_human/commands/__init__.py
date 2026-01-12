@@ -1,3 +1,5 @@
+from inspect_ai.tool import Tool
+
 from ..._agent import AgentState
 from .clock import StartCommand, StopCommand
 from .command import HumanAgentCommand
@@ -6,6 +8,7 @@ from .note import NoteCommand
 from .score import ScoreCommand
 from .status import StatusCommand
 from .submit import QuitCommand, SubmitCommand, ValidateCommand
+from .tool import ToolCommand
 
 
 def human_agent_commands(
@@ -14,6 +17,7 @@ def human_agent_commands(
     intermediate_scoring: bool,
     record_session: bool,
     instructions: str | None,
+    tools: list[Tool] | None = None,
 ) -> list[HumanAgentCommand]:
     # base submit, validate, and quit
     commands = [
@@ -35,6 +39,10 @@ def human_agent_commands(
             StopCommand(),
         ]
     )
+
+    # optional tools
+    if tools:
+        commands.append(ToolCommand(tools, state))
 
     # with instructions (letting it see the other commands)
     return commands + [InstructionsCommand(commands, instructions)]
