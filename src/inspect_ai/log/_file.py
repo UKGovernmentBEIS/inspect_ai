@@ -742,7 +742,7 @@ def push_eval_result_to_model_repo(eval_log: EvalLog, log_location: str) -> None
     if (
         hub_benchmark_metadata := eval_log.eval.metadata.get("hub_benchmark", None)
     ) is None:
-        logger.info("No hub benchmark metadata found, skipping result file")
+        logger.warning("No hub benchmark metadata found, skipping result file")
         return
 
     # Get accuracy value from default scorer or first scorer
@@ -779,21 +779,23 @@ def push_eval_result_to_model_repo(eval_log: EvalLog, log_location: str) -> None
     yaml_content = yaml.dump([result], default_flow_style=False, sort_keys=False)
 
     model_name = eval_log.eval.model
-    logger.info(f"Pushing result to model repo: {model_name}")
-    api = HfApi()
     model_repo = model_name.split("/", 1)[-1]
     yaml_filename = os.path.basename(yaml_path)
     result_file_path = f"result_files/{yaml_filename}"
 
-    api.create_commit(
-        repo_id=model_repo,
-        repo_type="model",
-        commit_message=f"Add evaluation results for {eval_log.eval.task}",
-        operations=[
-            CommitOperationAdd(
-                path_in_repo=result_file_path,
-                path_or_fileobj=io.BytesIO(yaml_content.encode("utf-8")),
-            )
-        ],
-        create_pr=True,
-    )
+    api = HfApi()
+    try:
+        api.create_commit(
+            repo_id=model_repo,
+            repo_type="model",
+            commit_message=f"Add evaluation results for {eval_log.eval.task}",
+            operations=[
+                CommitOperationAdd(
+                    path_in_repo=result_file_path,
+                    path_or_fileobj=io.BytesIO(yaml_content.encode("utf-8")),
+                )
+            ],
+            create_pr=True,
+        )
+    except Exception as e:
+        logger.warning(f"Error pushing result to model repo: {e}")
