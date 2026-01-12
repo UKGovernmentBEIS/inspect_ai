@@ -4,6 +4,7 @@
 - Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).
 - OpenAI Compatible: Always pass function definitions with `strict=True`. This is required by HF Inference Providers and Fireworks (and possibly others).
 - OpenAI Compatible: Convert function arguments to JSON if they are provided as a string (as is done by xAI and perhaps other providers).
+- Model API: Improvements in model detection for hosting providers (e.g. Azure, Bedrock, etc.).
 - Eval Log: Add version of the package exporting the task (if any) to the eval log.
 - Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.
 
