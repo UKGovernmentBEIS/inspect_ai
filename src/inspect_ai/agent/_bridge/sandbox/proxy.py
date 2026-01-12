@@ -1732,6 +1732,137 @@ async def model_proxy_server(
             _handle_model_proxy_error(ex)
             os._exit(1)
 
+    # ---------- Google Gemini API routes ----------
+    # Route patterns for Google's Gemini API using wildcard matching
+    # Supports: /v1beta/models/{model}:generateContent and /models/{model}:generateContent
+
+    def _extract_model_from_google_path(path: str) -> str:
+        """Extract model name from Google API path.
+
+        Examples:
+            /v1beta/models/gemini-2.5-pro:generateContent -> gemini-2.5-pro
+            /models/gemini-2.5-flash:streamGenerateContent -> gemini-2.5-flash
+        """
+        # Path format: /v1beta/models/{model}:{action} or /models/{model}:{action}
+        parts = path.split("/")
+        for i, part in enumerate(parts):
+            if part == "models" and i + 1 < len(parts):
+                model_action = parts[i + 1]
+                # Split on : to separate model from action
+                if ":" in model_action:
+                    return model_action.split(":")[0]
+                return model_action
+        return "inspect"
+
+    @server.route("/v1beta/models/*", method="POST")
+    @server.route("/models/*", method="POST")
+    async def google_generate_content(request: dict[str, Any]) -> dict[str, Any]:
+        """Handle Google Gemini API generateContent and streamGenerateContent requests."""
+        try:
+            path = request.get("path", "")
+            json_body = request.get("json", {}) or {}
+
+            # Determine if streaming based on path
+            is_streaming = ":streamGenerateContent" in path
+
+            # Extract model from path and add to request
+            model_name = _extract_model_from_google_path(path)
+            json_body["model"] = model_name
+
+            # Call the bridge service
+            completion = await call_bridge_model_service_async(
+                "generate_google", json_data=json_body
+            )
+
+            if is_streaming:
+
+                async def stream_response() -> AsyncIterator[bytes]:
+                    # Parse the completion as a dict
+                    resp = (
+                        completion
+                        if isinstance(completion, dict)
+                        else json.loads(completion)
+                    )
+
+                    # Google streams as Server-Sent Events with data: prefix
+                    # For generateContent, we simulate streaming by chunking the response
+                    candidates = resp.get("candidates", [])
+                    for candidate in candidates:
+                        content = candidate.get("content", {})
+                        parts = content.get("parts", [])
+
+                        for part in parts:
+                            if "text" in part:
+                                # Stream text in chunks
+                                text = part["text"]
+                                for chunk in _iter_chunks(text):
+                                    chunk_response = {
+                                        "candidates": [
+                                            {
+                                                "content": {
+                                                    "parts": [{"text": chunk}],
+                                                    "role": "model",
+                                                },
+                                                "finishReason": None,
+                                                "index": candidate.get("index", 0),
+                                            }
+                                        ]
+                                    }
+                                    yield f"data: {json.dumps(chunk_response)}\n\n".encode(
+                                        "utf-8"
+                                    )
+
+                            elif "functionCall" in part:
+                                # Function calls are sent as a single chunk
+                                fc_response = {
+                                    "candidates": [
+                                        {
+                                            "content": {
+                                                "parts": [
+                                                    {"functionCall": part["functionCall"]}
+                                                ],
+                                                "role": "model",
+                                            },
+                                            "finishReason": None,
+                                            "index": candidate.get("index", 0),
+                                        }
+                                    ]
+                                }
+                                yield f"data: {json.dumps(fc_response)}\n\n".encode(
+                                    "utf-8"
+                                )
+
+                        # Final chunk with finish reason
+                        final_response = {
+                            "candidates": [
+                                {
+                                    "content": {"parts": [], "role": "model"},
+                                    "finishReason": candidate.get(
+                                        "finishReason", "STOP"
+                                    ),
+                                    "index": candidate.get("index", 0),
+                                }
+                            ],
+                            "usageMetadata": resp.get("usageMetadata", {}),
+                        }
+                        yield f"data: {json.dumps(final_response)}\n\n".encode("utf-8")
+
+                return {
+                    "status": 200,
+                    "body_iter": stream_response(),
+                    "headers": {
+                        "Content-Type": "text/event-stream; charset=utf-8",
+                        "Cache-Control": "no-cache",
+                    },
+                    "chunked": True,
+                }
+            else:
+                return {"status": 200, "body": completion}
+
+        except Exception as ex:
+            _handle_model_proxy_error(ex)
+            os._exit(1)
+
     # return configured server
     return server
 
