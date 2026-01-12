@@ -305,6 +305,30 @@ class AzureAIAPI(ModelAPI):
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
 
+    def is_openai_model(self) -> bool:
+        """Check if this is an OpenAI model (gpt-*, o1, o3, o4, etc.)."""
+        name = self.model_name.lower()
+        return (
+            name.startswith("gpt-")
+            or name.startswith("o1")
+            or name.startswith("o3")
+            or name.startswith("o4")
+        )
+
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Maps AzureAI model names to their organization's canonical format.
+        For example, "gpt-4o" → "openai/gpt-4o".
+        """
+        if self.is_openai_model():
+            return f"openai/{self.model_name}"
+        elif self.is_mistral():
+            return f"mistral/{self.model_name}"
+        # For other models (e.g., Llama), return as-is and rely on fuzzy matching
+        return self.model_name
+
     def handle_azure_error(self, ex: AzureError) -> ModelOutput | Exception:
         if isinstance(ex, HttpResponseError):
             response = str(ex.message)
