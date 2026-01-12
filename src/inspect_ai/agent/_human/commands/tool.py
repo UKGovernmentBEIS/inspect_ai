@@ -13,7 +13,7 @@ from inspect_ai._util.content import (
 from inspect_ai.model._call_tools import tool_params
 from inspect_ai.tool import Tool
 from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
+from inspect_ai.tool._tool_def import ToolDef
 
 from ..._agent import AgentState
 from ..state import HumanAgentState
@@ -52,12 +52,12 @@ class ToolCommand(HumanAgentCommand):
     def __init__(self, tools: list[Tool], state: AgentState):
         self._tools = tools
         self._state = state
-        self._tool_infos: dict[str, ToolInfo] = {}
+        self._tool_defs: dict[str, ToolDef] = {}
         self._tool_map: dict[str, Tool] = {}
         for tool in tools:
-            info = parse_tool_info(tool)
-            self._tool_infos[info.name] = info
-            self._tool_map[info.name] = tool
+            tool_def = ToolDef(tool)
+            self._tool_defs[tool_def.name] = tool_def
+            self._tool_map[tool_def.name] = tool
 
     @property
     def name(self) -> str:
@@ -128,25 +128,25 @@ class ToolCommand(HumanAgentCommand):
     def _format_tool_list(self) -> str:
         """Format available tools with descriptions."""
         lines = ["Available tools:", ""]
-        for name, info in self._tool_infos.items():
-            lines.append(f"  {name}: {info.description}")
+        for name, tool_def in self._tool_defs.items():
+            lines.append(f"  {name}: {tool_def.description}")
         lines.append("")
         lines.append("Use 'task tool <name> --help' for details on a specific tool.")
         return "\n".join(lines)
 
     def _format_tool_help(self, name: str) -> str:
         """Format description + full JSON schema for a tool."""
-        info = self._tool_infos.get(name)
-        if info is None:
+        tool_def = self._tool_defs.get(name)
+        if tool_def is None:
             lines = [f"Error: Unknown tool '{name}'", "", "Available tools:"]
-            for tool_name in self._tool_infos:
+            for tool_name in self._tool_defs:
                 lines.append(f"  {tool_name}")
             return "\n".join(lines)
 
         lines = [
-            f"{info.name}: {info.description}",
+            f"{tool_def.name}: {tool_def.description}",
             "",
             "Parameters:",
-            json.dumps(info.parameters.model_dump(exclude_none=True), indent=2),
+            json.dumps(tool_def.parameters.model_dump(exclude_none=True), indent=2),
         ]
         return "\n".join(lines)
