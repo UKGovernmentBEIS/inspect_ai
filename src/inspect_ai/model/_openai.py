@@ -1,6 +1,5 @@
 import functools
 import json
-import socket
 from copy import copy
 from typing import Any, Literal
 
@@ -735,36 +734,19 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 
 class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that deals better with long running Async requests.
+    """Custom async client that uses OpenAI's default settings.
 
-    Based on Anthropic DefaultAsyncHttpClient implementation that they
-    released along with Claude 3.7 as well as the OpenAI DefaultAsyncHttpxClient
+    This ensures proper proxy support and follows OpenAI's recommended configuration.
+    OpenAI has already incorporated timeout improvements for reasoning models in their
+    default transport, so we don't need custom socket options.
 
     """
 
     def __init__(self, **kwargs: Any) -> None:
-        # This is based on the openai DefaultAsyncHttpxClient:
+        # Use OpenAI's default settings which handle proxies correctly
         # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
         kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
         kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
         kwargs.setdefault("follow_redirects", True)
-
-        # This is based on the anthrpopic changes for claude 3.7:
-        # https://github.com/anthropics/anthropic-sdk-python/commit/c5387e69e799f14e44006ea4e54fdf32f2f74393#diff-3acba71f89118b06b03f2ba9f782c49ceed5bb9f68d62727d929f1841b61d12bR1387-R1403
-
-        # set socket options to deal with long running reasoning requests
-        socket_options = [
-            (socket.SOL_SOCKET, socket.SO_KEEPALIVE, True),
-            (socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 60),
-            (socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5),
-        ]
-        TCP_KEEPIDLE = getattr(socket, "TCP_KEEPIDLE", None)
-        if TCP_KEEPIDLE is not None:
-            socket_options.append((socket.IPPROTO_TCP, TCP_KEEPIDLE, 60))
-
-        kwargs["transport"] = httpx.AsyncHTTPTransport(
-            limits=DEFAULT_CONNECTION_LIMITS,
-            socket_options=socket_options,
-        )
 
         super().__init__(**kwargs)

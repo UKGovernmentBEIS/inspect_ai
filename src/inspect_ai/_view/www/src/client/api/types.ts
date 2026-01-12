@@ -147,6 +147,7 @@ export interface LogViewAPI {
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
   get_flow: (dir?: string) => Promise<string | undefined>;
   get_log_dir?: () => Promise<string | undefined>;
+  get_log_dir_handle?: (log_dir: string | undefined) => string;
   get_logs?: (
     mtime: number,
     clientFileCount: number,
@@ -189,6 +190,8 @@ export interface LogViewAPI {
 export interface ClientAPI {
   // Basic initialization
   get_log_dir: () => Promise<string | undefined>;
+
+  get_log_dir_handle: (log_dir: string | undefined) => string;
 
   // List of files
   get_logs: (

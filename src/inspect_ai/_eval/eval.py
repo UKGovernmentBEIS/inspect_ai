@@ -1095,6 +1095,7 @@ async def eval_retry_async(
                     model=None,
                     model_roles=None,
                     log=eval_log,
+                    log_info=None,
                 ),
                 model=model,
                 model_roles=cast(dict[str, str | Model], model_roles),

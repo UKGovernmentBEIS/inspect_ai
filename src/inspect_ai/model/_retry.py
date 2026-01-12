@@ -27,6 +27,7 @@ def model_retry_config(
     should_retry: Callable[[BaseException], bool],
     before_retry: Callable[[BaseException], (Awaitable[None] | None)],
     log_model_retry: Callable[[str, RetryCallState], Awaitable[None] | None],
+    report_waiting_time: Callable[[float], None] | None = None,
     wait: WaitBaseT | None = None,
 ) -> ModelRetryConfig:
     # retry for transient http errors:
@@ -36,6 +37,11 @@ def model_retry_config(
     #   subsequent retries)
 
     async def on_before_sleep(rs: RetryCallState) -> None:
+        # report the upcoming sleep as waiting time (that way the working time can't
+        # expire while we are waiting b/c we've already offset it)
+        if report_waiting_time is not None:
+            report_waiting_time(rs.upcoming_sleep)
+
         res = log_model_retry(model_name, rs)
         if res is not None:
             await res
