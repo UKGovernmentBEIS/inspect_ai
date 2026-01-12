@@ -31,9 +31,15 @@ def tool_result_to_str(result: ToolResult) -> str:
     elif isinstance(result, list):
         if len(result) == 0:
             return ""
-        if all(isinstance(c, ContentText) for c in result):
-            return "\n".join(c.text for c in result)
-        raise NotImplementedError("Tool returned non-text content (images/audio/video)")
+        texts: list[str] = []
+        for c in result:
+            if isinstance(c, ContentText):
+                texts.append(c.text)
+            else:
+                raise NotImplementedError(
+                    "Tool returned non-text content (images/audio/video)"
+                )
+        return "\n".join(texts)
     elif isinstance(result, (ContentImage, ContentAudio, ContentVideo)):
         raise NotImplementedError("Tool returned non-text content (images/audio/video)")
     else:
