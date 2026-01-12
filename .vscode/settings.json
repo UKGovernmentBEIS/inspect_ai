@@ -13,6 +13,9 @@
   "[html]": {
     "editor.formatOnSave": false
   },
+  "[yaml]": {
+    "editor.formatOnSave": false
+  },
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
   },

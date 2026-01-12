@@ -6,11 +6,14 @@ from typing import Any, Iterable, Set, cast
 from openai.types.responses import (
     Response,
     ResponseCodeInterpreterToolCall,
+    ResponseCodeInterpreterToolCallParam,
     ResponseComputerToolCall,
+    ResponseComputerToolCallParam,
     ResponseCustomToolCall,
     ResponseFunctionCallOutputItemListParam,
     ResponseFunctionToolCall,
     ResponseFunctionWebSearch,
+    ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputFileParam,
     ResponseInputImageParam,
@@ -42,6 +45,10 @@ from openai.types.responses.response_custom_tool_call_output_param import (
 from openai.types.responses.response_function_web_search import (
     Action,
     ActionSearch,
+)
+from openai.types.responses.response_input_item_param import McpCall as McpCallParam
+from openai.types.responses.response_input_item_param import (
+    McpListTools as McpListToolsParam,
 )
 from openai.types.responses.response_input_item_param import (
     Message,
@@ -206,7 +213,11 @@ async def inspect_responses_api_request_impl(
     config = resolve_generate_config(model, config)
 
     # if there is a bridge filter give it a shot first
-    output = await bridge_generate(bridge, model, messages, tools, tool_choice, config)
+    output, c_message = await bridge_generate(
+        bridge, model, messages, tools, tool_choice, config
+    )
+    if c_message is not None:
+        messages.append(c_message)
 
     debug_log("INSPECT OUTPUT", output.message)
 
@@ -472,6 +483,21 @@ def messages_from_responses_input(
     pending_assistant_message_params: list[ResponseInputItemParam] = []
 
     def collect_pending_assistant_message() -> None:
+        # codex treats many id fields that are required in the openai sdk types
+        # as optional (https://github.com/openai/codex/blob/main/codex-rs/protocol/src/models.rs#L67)
+        # this is likely correct for store=False (which codex uses by default).
+        # consequently, we provide some ids automatically so that validation succeeds.
+        def ensure_id(
+            param: ResponseFunctionWebSearchParam
+            | ResponseComputerToolCallParam
+            | ResponseCodeInterpreterToolCallParam
+            | McpListToolsParam
+            | McpCallParam,
+            prefix: str = "id",
+        ) -> None:
+            if "id" not in param:
+                param["id"] = f"{prefix}_{uuid()}"
+
         if len(pending_assistant_message_params) > 0:
             content: list[Content] = []
             tool_calls: list[ToolCall] = []
@@ -528,6 +554,7 @@ def messages_from_responses_input(
                     )
                     tool_calls.append(tool_call)
                 elif is_response_computer_tool_call(param):
+                    ensure_id(param)
                     computer_call = ResponseComputerToolCall.model_validate(param)
                     tool_calls.append(
                         tool_call_from_openai_computer_tool_call(computer_call)
@@ -536,6 +563,7 @@ def messages_from_responses_input(
                 elif is_response_reasoning_item(param):
                     content.append(reasoning_from_responses_reasoning(param))
                 elif is_response_web_search_call(param):
+                    ensure_id(param, "ws")
                     # Workaround for OpenAI server implementation change
                     # https://github.com/openai/openai-java/issues/526
                     action = param["action"]
@@ -544,14 +572,17 @@ def messages_from_responses_input(
                     web_search = ResponseFunctionWebSearch.model_validate(param)
                     content.append(web_search_to_tool_use(web_search))
                 elif is_response_code_interpreter_call(param):
+                    ensure_id(param)
                     code_execution = ResponseCodeInterpreterToolCall.model_validate(
                         param
                     )
                     content.append(code_interpreter_to_tool_use(code_execution))
                 elif is_response_mcp_list_tools(param):
+                    ensure_id(param)
                     mcp_list_tools = McpListTools.model_validate(param)
                     content.append(mcp_list_tools_to_tool_use(mcp_list_tools))
                 elif is_response_mcp_call(param):
+                    ensure_id(param)
                     mcp_call = McpCall.model_validate(param)
                     content.append(mcp_call_to_tool_use(mcp_call))
                 else:

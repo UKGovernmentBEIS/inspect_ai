@@ -1,11 +1,10 @@
 import contextlib
-import time
 from collections.abc import Iterable
 from typing import Any, AsyncIterator, Protocol
 
 import anyio
 
-from inspect_ai._util.working import report_sample_waiting_time
+from inspect_ai._util.working import sample_waiting_for
 
 
 class ConcurrencySemaphore(Protocol):
@@ -101,10 +100,9 @@ async def concurrency(
     # do we have an existing semaphore? if not create one and store it
     semaphore = await get_or_create_semaphore(name, concurrency, key, visible)
 
-    # wait and yield to protected code
-    start_wait = time.monotonic()
-    async with semaphore.semaphore:
-        report_sample_waiting_time(time.monotonic() - start_wait)
+    # wait and yield to protected code (sample_waiting_for tracks concurrent waits
+    # to avoid double-counting overlapping wait times within a sample)
+    async with sample_waiting_for(semaphore.semaphore):
         yield
 
 

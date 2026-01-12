@@ -73,3 +73,13 @@ title: "inspect_ai.util"
 ### EarlyStopping
 ### EarlyStoppingSummary
 ### EarlyStop
+
+## Compose
+
+### parse_compose_yaml
+### is_compose_yaml
+### is_dockerfile
+### ComposeConfig
+### ComposeService
+### ComposeBuild
+### ComposeHealthcheck

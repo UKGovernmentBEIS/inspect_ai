@@ -20,10 +20,7 @@ export const FlowPanel: FC = () => {
   // Get the logs from the store
   const { loadLogs } = useLogs();
   useEffect(() => {
-    const exec = async () => {
-      await loadLogs(flowDir);
-    };
-    exec();
+    loadLogs(flowDir);
   }, [loadLogs, flowDir]);
 
   // Retrieve flow data

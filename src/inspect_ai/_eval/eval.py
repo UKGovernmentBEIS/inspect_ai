@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 import sys
@@ -53,6 +54,7 @@ from inspect_ai.model._model import (
     get_model,
     init_active_model,
     init_model_roles,
+    init_model_usage,
     resolve_models,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
@@ -991,7 +993,11 @@ async def eval_retry_async(
 
         # see if there is solver spec in the eval log
         solver = (
-            SolverSpec(eval_log.eval.solver, eval_log.eval.solver_args or {})
+            SolverSpec(
+                eval_log.eval.solver,
+                eval_log.eval.solver_args or {},
+                eval_log.eval.solver_args_passed or {},
+            )
             if eval_log.eval.solver
             else None
         )
@@ -1084,6 +1090,15 @@ async def eval_retry_async(
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
         config.max_connections = max_connections or config.max_connections
+
+        # extract previous model usage to continue token counting (make a deep copy to avoid modifying the original log)
+        initial_model_usage = (
+            copy.deepcopy(eval_log.stats.model_usage)
+            if eval_log.stats.model_usage
+            else None
+        )
+        if initial_model_usage:
+            init_model_usage(initial_model_usage)
 
         # run the eval
         log = (

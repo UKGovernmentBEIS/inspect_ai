@@ -1,7 +1,7 @@
 from typing import Sequence, cast
 
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import (
     GenerateInput,
@@ -28,7 +28,7 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
-) -> ModelOutput:
+) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
 
     If a filter is configured, it will be called on each attempt (including retries).
@@ -37,8 +37,16 @@ async def bridge_generate(
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
     """
-    # Store original inputs for potential retries
-    original_input = input
+    # get compaction function and run compaction once before retry loop
+    compact = bridge.compaction(tools, model)
+    if compact is not None:
+        input_messages, c_message = await compact(input)
+    else:
+        input_messages = input
+        c_message = None
+
+    # Store original inputs for potential retries (using compacted input)
+    original_input = input_messages
     original_tools = tools
     original_tool_choice = tool_choice
     original_config = config
@@ -46,7 +54,7 @@ async def bridge_generate(
     refusals = 0
     while True:
         # Reset to original inputs for each retry
-        input = original_input
+        input_messages = original_input
         tools = original_tools
         tool_choice = original_tool_choice
         config = original_config
@@ -59,18 +67,18 @@ async def bridge_generate(
                 for tool in tools
             ]
             result = await bridge.filter(
-                model.name, input, tool_info, tool_choice, config
+                model.name, input_messages, tool_info, tool_choice, config
             )
             if isinstance(result, ModelOutput):
                 output = result
             elif isinstance(result, GenerateInput):
                 # Update the inputs that will be used for generation
-                input, tools, tool_choice, config = result
+                input_messages, tools, tool_choice, config = result
 
         # Run the generation if the filter didn't
         if output is None:
             output = await model.generate(
-                input=input,
+                input=input_messages,
                 tool_choice=tool_choice,
                 tools=tools,
                 config=config,
@@ -84,7 +92,7 @@ async def bridge_generate(
         ):
             refusals += 1
         else:
-            return output
+            return output, c_message
 
 
 def resolve_generate_config(

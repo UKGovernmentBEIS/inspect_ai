@@ -56,12 +56,15 @@ export interface SampleSlice {
     // Loading
     loadSample: (
       logFile: string,
-      sampleSummary: SampleSummary,
+      id: number | string,
+      epoch: number,
+      completed?: boolean,
     ) => Promise<void>;
 
     pollSample: (
       logFile: string,
-      sampleSummary: SampleSummary,
+      id: number | string,
+      epoch: number,
     ) => Promise<void>;
   };
 }
@@ -245,7 +248,11 @@ export const createSampleSlice = (
           state.sample.selectedOutlineId = undefined;
         });
       },
-      pollSample: async (logFile: string, sampleSummary: SampleSummary) => {
+      pollSample: async (
+        logFile: string,
+        id: number | string,
+        epoch: number,
+      ) => {
         // Poll running sample
         const state = get();
         const sampleExists = state.sample.sampleInState
@@ -253,10 +260,17 @@ export const createSampleSlice = (
           : !!selectedSampleRef.current;
 
         if (state.log.loadedLog && sampleExists) {
+          // Create a minimal SampleSummary object for polling
+          const sampleSummary: SampleSummary = { id, epoch } as SampleSummary;
           samplePolling.startPolling(logFile, sampleSummary);
         }
       },
-      loadSample: async (logFile: string, sampleSummary: SampleSummary) => {
+      loadSample: async (
+        logFile: string,
+        id: number | string,
+        epoch: number,
+        completed?: boolean,
+      ) => {
         const sampleActions = get().sampleActions;
 
         sampleActions.setSampleError(undefined);
@@ -264,18 +278,10 @@ export const createSampleSlice = (
         const state = get();
 
         try {
-          if (sampleSummary.completed !== false) {
-            log.debug(
-              `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`,
-            );
-            const sample = await get().api?.get_log_sample(
-              logFile,
-              sampleSummary.id,
-              sampleSummary.epoch,
-            );
-            log.debug(
-              `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`,
-            );
+          if (completed !== false) {
+            log.debug(`LOADING COMPLETED SAMPLE: ${id}-${epoch}`);
+            const sample = await get().api?.get_log_sample(logFile, id, epoch);
+            log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
             if (sample) {
               if (
                 state.sample.sample_identifier?.id !== sample.id &&
@@ -293,11 +299,10 @@ export const createSampleSlice = (
               );
             }
           } else {
-            log.debug(
-              `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`,
-            );
+            log.debug(`POLLING RUNNING SAMPLE: ${id}-${epoch}`);
 
-            // Poll running sample
+            // Poll running sample - create a minimal SampleSummary object
+            const sampleSummary: SampleSummary = { id, epoch } as SampleSummary;
             samplePolling.startPolling(logFile, sampleSummary);
           }
         } catch (e) {

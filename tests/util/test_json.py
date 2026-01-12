@@ -1,6 +1,10 @@
 import json
 
 from inspect_ai._util.json import json_changes, to_json_str_safe
+from inspect_ai.dataset._sources.json import (
+    json_dataset_reader,
+    jsonlines_dataset_reader,
+)
 
 
 def test_json_unicode_replace():
@@ -269,3 +273,38 @@ def test_get_active_container_selects_longest_match():
     container, rel_path = _get_active_container("/other/path", tracked)
     assert container is None
     assert rel_path is None
+
+
+def test_jsonlines_reader_kwargs(tmp_path):
+    jsonl_content = '{"a": NaN}\n{"b": 123}\n'
+    json_file = tmp_path / "test.jsonl"
+    json_file.write_text(jsonl_content, encoding="utf-8")
+
+    def safe_load(s):
+        return json.loads(s.replace("NaN", "null"))
+
+    with open(json_file, "r", encoding="utf-8") as f:
+        result = list(jsonlines_dataset_reader(f, loads=safe_load))
+
+    assert result == [{"a": None}, {"b": 123}]
+
+
+def test_json_dataset_reader_kwargs(tmp_path):
+    json_content = '{"x": NaN, "y": Infinity, "z": -Infinity, "a": "5", "b": 5}'
+    json_file = tmp_path / "test.json"
+    json_file.write_text(json_content, encoding="utf-8")
+
+    def parse_values(constant: str):
+        mapping = {
+            "NaN": None,
+            "Infinity": float("inf"),
+            "-Infinity": float("-inf"),
+        }
+        return mapping.get(constant, constant)
+
+    with open(json_file, "r", encoding="utf-8") as f:
+        result = list(json_dataset_reader(f, parse_constant=parse_values))
+
+    assert result == [
+        {"x": None, "y": float("inf"), "z": float("-inf"), "a": "5", "b": 5}
+    ]

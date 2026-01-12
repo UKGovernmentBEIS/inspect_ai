@@ -22,7 +22,7 @@ Inspect can be used for a broad range of evaluations that measure coding, agenti
 -   Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
 -   Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
 -   Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents like Claude Code and Codex CLI.
--   A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Proxmox, and other systems via an extension API.
+-   A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, and other systems via an extension API.
 :::
 
 We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Datasets](datasets.qmd), [Solvers](solvers.qmd), [Scorers](scorers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) to learn how to create more advanced evaluations.
@@ -226,6 +226,8 @@ These sections cover how to use various language models with Inspect:
 
 -   [Caching](caching.qmd) explains how to cache model output to reduce the number of API calls made.
 
+-   [Compaction](compaction.qmd) covers compacting message histories for long-running agents that exceed the context window.
+
 -   [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
 
 -   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
@@ -259,8 +261,6 @@ These sections discuss more advanced features and workflows. You don't need to r
 -   [Eval Sets](eval-sets.qmd) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 
 -   [Errors and Limits](errors-and-limits.qmd) covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.
-
--   [Multimodal](multimodal.qmd) documents the APIs available for creating multimodal evaluations (including images, audio, and video).
 
 -   [Typing](typing.qmd): provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
 

@@ -1,3 +1,4 @@
+import logging
 import os
 from importlib import metadata as importlib_metadata
 from typing import Any, Literal, cast
@@ -12,6 +13,7 @@ from inspect_ai._util.git import git_context
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.registry import (
     registry_log_name,
+    registry_package_name,
     registry_params,
 )
 from inspect_ai.dataset import Dataset
@@ -51,9 +53,42 @@ from inspect_ai.model._model_config import (
 )
 from inspect_ai.scorer._metric import MetricSpec
 from inspect_ai.scorer._scorer import ScorerSpec
+from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_revision() -> EvalRevision | None:
+    git = git_context()
+    return (
+        EvalRevision(type="git", origin=git.origin, commit=git.commit, dirty=git.dirty)
+        if git
+        else None
+    )
+
+
+def resolve_external_registry_package_version(
+    task_registry_name: str | None,
+) -> tuple[str, str] | None:
+    if task_registry_name is None:
+        return None
+
+    package_name = registry_package_name(task_registry_name)
+
+    is_external = package_name != PKG_NAME
+    if package_name is None or not is_external:
+        return None
+
+    try:
+        package_version = importlib_metadata.version(package_name)
+    except importlib_metadata.PackageNotFoundError:
+        logger.warning(f"Could not resolve version for {package_name=}")
+        return None
+
+    return package_name, package_version
 
 
 class TaskLogger:
@@ -86,16 +121,16 @@ class TaskLogger:
         recorder: Recorder,
         header_only: bool,
     ) -> None:
-        # determine versions
-        git = git_context()
-        revision = (
-            EvalRevision(
-                type="git", origin=git.origin, commit=git.commit, dirty=git.dirty
-            )
-            if git
-            else None
+        packages = {
+            PKG_NAME: importlib_metadata.version(PKG_NAME),
+        }
+        revision = resolve_revision()
+        resolved_registry = resolve_external_registry_package_version(
+            task_registry_name
         )
-        packages = {PKG_NAME: importlib_metadata.version(PKG_NAME)}
+        if resolved_registry:
+            external_package, external_package_version = resolved_registry
+            packages[external_package] = external_package_version
 
         # redact authentication oriented model_args
         model_args = model_args_for_log(model_args)
@@ -145,6 +180,7 @@ class TaskLogger:
             solver=solver.solver if solver else None,
             tags=tags,
             solver_args=solver.args if solver else None,
+            solver_args_passed=solver.args_passed if solver else None,
             model=f"{ModelName(model).api}/{model.name}",
             model_generate_config=model.config,
             model_base_url=model.api.base_url,
@@ -276,7 +312,9 @@ class TaskLogger:
 def plan_to_eval_plan(plan: Plan, config: GenerateConfig) -> EvalPlan:
     def eval_plan_step(solver: Solver) -> EvalPlanStep:
         return EvalPlanStep(
-            solver=registry_log_name(solver), params=registry_params(solver)
+            solver=registry_log_name(solver),
+            params=getattr(solver, SOLVER_ALL_PARAMS_ATTR, {}),
+            params_passed=registry_params(solver),
         )
 
     eval_plan = EvalPlan(

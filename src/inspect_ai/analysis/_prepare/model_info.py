@@ -1,10 +1,8 @@
 from typing import Dict
 
-from inspect_ai.analysis._prepare.model_data.model_data import (
-    ModelInfo,
-    read_model_info,
-)
 from inspect_ai.analysis._prepare.operation import Operation
+from inspect_ai.model import get_model_info
+from inspect_ai.model._model_data.model_data import ModelInfo
 
 
 def model_info(
@@ -36,12 +34,6 @@ def model_info(
     """
     import pandas as pd
 
-    # Read built in model info
-    builtin_model_info = read_model_info()
-
-    # Merge with user provided model info
-    resolved_model_info = builtin_model_info | (model_info or {})
-
     def transform(df: pd.DataFrame) -> pd.DataFrame:
         # Column mapping from DataFrame to ModelInfo field to read
         fields = {
@@ -60,8 +52,15 @@ def model_info(
                 df[field] = None
 
         for idx in df.index:
-            model = df.loc[idx, "model"]
-            model_data = resolved_model_info.get(str(model))
+            model = str(df.loc[idx, "model"])
+
+            # Check transient user-provided model_info first
+            model_data = model_info.get(model) if model_info else None
+
+            # Fall back to get_model_info() for built-in + globally registered models
+            if model_data is None:
+                model_data = get_model_info(model)
+
             if model_data is not None:
                 for df_field, model_field in fields.items():
                     value = getattr(model_data, model_field, None)

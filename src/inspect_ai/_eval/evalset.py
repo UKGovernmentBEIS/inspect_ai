@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from dataclasses import dataclass
 from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
@@ -420,7 +421,11 @@ def eval_set(
         else:
             # look for retryable eval logs and cleave them into success/failed
             success_logs, failed_logs = list_latest_eval_logs(
-                all_logs, epochs, retry_cleanup
+                all_tasks,
+                all_logs,
+                epochs=epochs,
+                limit=limit,
+                cleanup_older=retry_cleanup,
             )
 
             # retry the failed logs (look them up in resolved_tasks)
@@ -575,7 +580,11 @@ def list_all_eval_logs(log_dir: str) -> list[Log]:
 
 # get the latest logs (cleaning if requested). returns tuple of successful/unsuccessful
 def list_latest_eval_logs(
-    logs: list[Log], epochs: int | Epochs | None, cleanup_older: bool
+    all_tasks: list[tuple[str, ResolvedTask]],
+    logs: list[Log],
+    epochs: int | Epochs | None,
+    limit: int | tuple[int, int] | None,
+    cleanup_older: bool,
 ) -> tuple[list[Log], list[Log]]:
     latest_logs = latest_completed_task_eval_logs(
         logs=logs, cleanup_older=cleanup_older
@@ -594,10 +603,47 @@ def list_latest_eval_logs(
             incomplete_logs.append(log)
         elif log.header.invalidated:
             incomplete_logs.append(log)
+        elif not log_samples_complete(log, all_tasks, epochs=epochs, limit=limit):
+            incomplete_logs.append(log)
         else:
             complete_logs.append(log)
 
     return (complete_logs, incomplete_logs)
+
+
+def log_samples_complete(
+    log: Log,
+    all_tasks: list[tuple[str, ResolvedTask]],
+    epochs: Epochs | None,
+    limit: int | tuple[int, int] | None,
+) -> bool:
+    if not log.header.results:
+        return False
+    id = task_identifier(log.header, None, None)
+    task = next((task for tid, task in all_tasks if tid == id), None)
+    if not task:
+        # This should not happen since we have already validated prerequisites
+        raise PrerequisiteError(
+            f"[bold]ERROR[/bold]: Could not find task for log '{log.header.location}'."
+        )
+    epochs = epochs or resolve_epochs(task.task.epochs or 1)
+    if epochs_changed(epochs, log.header.eval.config):
+        return False
+    epoch_count = epochs.epochs if epochs else 1
+
+    count = len(task.task.dataset)
+    if isinstance(limit, tuple):
+        start, stop = limit
+        if start >= count:
+            count = 0
+        else:
+            count = min(stop, count) - start
+    elif isinstance(limit, int):
+        count = min(limit, count)
+
+    if log.header.results.total_samples < count * epoch_count:
+        return False
+    return True
 
 
 def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
@@ -610,6 +656,9 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     # number of epochs differs (changed)
     elif epochs.epochs != config.epochs:
         return True
+    # default to mean reducer should match (not changed)
+    if epochs.reducer is None and config.epochs_reducer == ["mean"]:
+        return False
     # different reducer list (changed)
     elif [r.__name__ for r in (epochs.reducer or [])] != [
         r for r in (config.epochs_reducer or [])
@@ -737,6 +786,15 @@ def task_identifier(
     eval_set_config: GenerateConfig | None,
     eval_set_solver: Solver | SolverSpec | Agent | list[Solver] | None,
 ) -> str:
+    @dataclass
+    class AdditionalHashFields:
+        model_args: dict[str, Any]
+        version: int | str
+        message_limit: int | None
+        token_limit: int | None
+        time_limit: int | None
+        working_limit: int | None
+
     if isinstance(task, ResolvedTask):
         assert eval_set_config is not None, (
             "eval_set_config must be provided for ResolvedTask"
@@ -749,9 +807,16 @@ def task_identifier(
         model = str(task.model)
         model_generate_config = task.model.config
         model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
-        model_args = task.model.model_args
         plan = resolve_plan(task.task, solver)
         eval_plan = plan_to_eval_plan(plan, task.task.config.merge(eval_set_config))
+        additional_hash_fields = AdditionalHashFields(
+            model_args=task.model.model_args,
+            version=task.task.version,
+            message_limit=task.task.message_limit,
+            token_limit=task.task.token_limit,
+            time_limit=task.task.time_limit,
+            working_limit=task.task.working_limit,
+        )
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
@@ -759,8 +824,28 @@ def task_identifier(
         model = str(task.eval.model)
         model_generate_config = task.eval.model_generate_config
         model_roles = task.eval.model_roles or {}
-        model_args = task.eval.model_args
         eval_plan = task.plan
+        additional_hash_fields = AdditionalHashFields(
+            model_args=task.eval.model_args,
+            version=task.eval.task_version,
+            message_limit=task.eval.config.message_limit,
+            token_limit=task.eval.config.token_limit,
+            time_limit=task.eval.config.time_limit,
+            working_limit=task.eval.config.working_limit,
+        )
+
+    # strip args from eval_plan as we've changed the way this is serialized
+    # and we want to be compatible with older logs. this effectively uses
+    # 'params_passed' as the basis of comparison as opposed to 'params' which
+    # in newer logs includes the fully resolve params
+    eval_plan = eval_plan.model_copy(
+        update={
+            "finish": None,
+            "steps": [
+                step.model_copy(update={"params": None}) for step in eval_plan.steps
+            ],
+        }
+    )
 
     # hash for task args
     task_args_hash = hashlib.sha256(
@@ -783,7 +868,7 @@ def task_identifier(
     if len(model_roles):
         additional_hash_input += to_json_safe(model_roles)
 
-    additional_hash_input += to_json_safe(model_args)
+    additional_hash_input += to_json_safe(additional_hash_fields)
 
     additional_hash = hashlib.sha256(additional_hash_input).hexdigest()
 

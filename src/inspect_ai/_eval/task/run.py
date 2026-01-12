@@ -873,6 +873,7 @@ async def task_run_sample(
                                 id=sample_id,
                                 epoch=state.epoch,
                                 input=sample.input,
+                                choices=sample.choices,
                                 target=sample.target,
                                 metadata=sample.metadata or {},
                             )

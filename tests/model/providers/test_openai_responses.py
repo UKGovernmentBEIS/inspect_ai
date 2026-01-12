@@ -142,3 +142,34 @@ def test_mixed_reasoning_blocks_filtering():
     assert len(reasoning_items) == 5
     ids = {item["id"] for item in reasoning_items}
     assert ids == {"r1", "r2", "r3", "r4", "r5"}
+
+
+def test_fix_function_tool_parameters_string_to_dict():
+    """Test that string parameters in FunctionTool are parsed to dicts."""
+    from openai.types.responses import FunctionTool, Response
+
+    from inspect_ai.model._providers.openai_responses import (
+        _fix_function_tool_parameters,
+    )
+
+    tool = FunctionTool.model_construct(
+        name="test_tool",
+        type="function",
+        parameters='{"type":"object","properties":{}}',
+        strict=False,
+    )
+    response = Response.model_construct(
+        id="test",
+        created_at=0.0,
+        model="test",
+        object="response",
+        output=[],
+        parallel_tool_calls=False,
+        tool_choice="auto",
+        tools=[tool],
+    )
+
+    _fix_function_tool_parameters(response)
+
+    dumped = response.model_dump()
+    assert dumped["tools"][0]["parameters"] == {"type": "object", "properties": {}}

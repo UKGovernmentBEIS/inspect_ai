@@ -67,7 +67,7 @@ export const createEvalDescriptor = (
     scorer: ScoreLabel,
   ): string | undefined => {
     if (sample && sample.scores) {
-      const sampleScore = sample.scores[scorer.name];
+      const sampleScore = sample.scores[scorer.scorer];
       if (sampleScore && sampleScore.answer) {
         return sampleScore.answer;
       }

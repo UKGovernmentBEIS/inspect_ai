@@ -38,6 +38,14 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from ._compaction import (
+    Compact,
+    CompactionEdit,
+    CompactionStrategy,
+    CompactionSummary,
+    CompactionTrim,
+    compaction,
+)
 from ._conversation import ModelConversation
 from ._generate_config import (
     BatchConfig,
@@ -56,6 +64,8 @@ from ._model import (
 )
 from ._model_call import ModelCall
 from ._model_config import ModelConfig
+from ._model_data.model_data import ModelInfo
+from ._model_info import get_model_info, set_model_info
 from ._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -114,6 +124,12 @@ __all__ = [
     "ModelCall",
     "ModelOutput",
     "ModelConversation",
+    "compaction",
+    "Compact",
+    "CompactionStrategy",
+    "CompactionEdit",
+    "CompactionSummary",
+    "CompactionTrim",
     "Logprobs",
     "Logprob",
     "TopLogprob",
@@ -134,6 +150,9 @@ __all__ = [
     "cache_prune",
     "cache_size",
     "get_model",
+    "get_model_info",
+    "set_model_info",
+    "ModelInfo",
     "modelapi",
     "Citation",
     "CitationBase",

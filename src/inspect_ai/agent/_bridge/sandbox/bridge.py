@@ -6,12 +6,15 @@ from typing import AsyncIterator
 import anyio
 from shortuuid import uuid
 
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter
-from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec, setup_bridged_tools
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
+from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SANDBOX_TOOLS_CLI,
     sandbox_with_injected_tools,
 )
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -34,6 +37,7 @@ async def sandbox_agent_bridge(
     model: str | None = None,
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
+    compaction: CompactionStrategy | None = None,
     sandbox: str | None = None,
     port: int = 13131,
     web_search: WebSearchProviders | None = None,
@@ -58,6 +62,8 @@ async def sandbox_agent_bridge(
             "inspect/openai/gpt-4o" to force another specific model).
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
+        compaction: Compact the conversation when it it is close to overflowing
+            the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
         web_search: Configuration for mapping model internal
@@ -96,8 +102,17 @@ async def sandbox_agent_bridge(
             # event to signal startup of model service
             started = anyio.Event()
 
-            # set up bridged tools (host tools exposed via MCP)
-            mcp_server_configs = []
+            # create the bridge (will register bridged tools below)
+            bridge = SandboxAgentBridge(
+                state=state,
+                filter=filter,
+                retry_refusals=retry_refusals,
+                compaction=compaction,
+                port=port,
+                model=model,
+            )
+
+            # register bridged tools with the bridge
             seen_names: set[str] = set()
             for spec in bridged_tools or []:
                 if spec.name in seen_names:
@@ -106,20 +121,10 @@ async def sandbox_agent_bridge(
                         "Each BridgedToolsSpec must have a unique name."
                     )
                 seen_names.add(spec.name)
-                config = await setup_bridged_tools(sandbox_env, tg, spec)
-                mcp_server_configs.append(config)
+                config = _register_bridged_tools(bridge, spec, port)
+                bridge.mcp_server_configs.append(config)
 
-            # create the bridge
-            bridge = SandboxAgentBridge(
-                state=state,
-                filter=filter,
-                retry_refusals=retry_refusals,
-                port=port,
-                model=model,
-                mcp_server_configs=mcp_server_configs,
-            )
-
-            # sandbox service that receives model requests
+            # sandbox service that receives model requests (and tool calls)
             tg.start_soon(
                 run_model_service,
                 sandbox_env,
@@ -164,3 +169,24 @@ async def run_model_proxy(
         raise RuntimeError(
             f"Error running model proxy script for agent bridge: {result.stderr}"
         )
+
+
+def _register_bridged_tools(
+    bridge: SandboxAgentBridge, spec: BridgedToolsSpec, port: int
+) -> MCPServerConfigHTTP:
+    """Register bridged tools with the bridge and return MCP config.
+
+    Tools are registered in bridge.bridged_tools for execution by the service.
+    Returns an MCPServerConfigHTTP with URL pointing to the MCP HTTP endpoint.
+    """
+    # Build tool registry for this server
+    tools_dict = {ToolDef(tool).name: tool for tool in spec.tools}
+    bridge.bridged_tools[spec.name] = tools_dict
+
+    # Return MCP config with HTTP URL
+    return MCPServerConfigHTTP(
+        name=spec.name,
+        type="http",
+        url=f"http://localhost:{port}/mcp/{spec.name}",
+        tools="all",
+    )

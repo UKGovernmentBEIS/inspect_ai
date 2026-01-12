@@ -10,6 +10,7 @@ from copy import copy, deepcopy
 from datetime import datetime, timezone
 from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Awaitable,
@@ -21,6 +22,9 @@ from typing import (
     TypeAlias,
     cast,
 )
+
+if TYPE_CHECKING:
+    from inspect_ai.tool import ToolInfo
 
 import anyio
 from pydantic import BaseModel
@@ -38,9 +42,12 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.content import (
     Content,
+    ContentAudio,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
+    ContentVideo,
 )
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
@@ -54,6 +61,7 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -71,10 +79,9 @@ from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     disable_parallel_tools,
     execute_tools,
+    get_tools_info,
+    resolve_tools,
     tool_call_view,
-)
-from ._call_tools import (
-    tools_info as get_tools_info,
 )
 from ._chat_message import (
     ChatMessage,
@@ -94,6 +101,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
+from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +242,48 @@ class ModelAPI(abc.ABC):
         """
         ...
 
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        """Estimate token count for input.
+
+        This default implementation uses character-based heuristics for text
+        and size-based estimates for media. Model providers can override
+        `count_text_tokens()` and `count_media_tokens()` for more accurate results,
+        or override this method entirely to use their native token counting APIs.
+
+        Args:
+            input: Input to count tokens for.
+        """
+        if isinstance(input, str):
+            return await self.count_text_tokens(input)
+        else:
+            return await count_tokens(
+                input, self.count_text_tokens, self.count_media_tokens
+            )
+
+    async def count_text_tokens(self, text: str) -> int:
+        """Estimate tokens from text using tiktoken (o200k_base with 10% buffer).
+
+        Override this method to use model-specific tokenizers.
+
+        Args:
+            text: Text to count.
+        """
+        return count_text_tokens(text)
+
+    async def count_media_tokens(
+        self, media: ContentImage | ContentAudio | ContentVideo | ContentDocument
+    ) -> int:
+        """Estimate tokens for media content (images, audio, video, documents).
+
+        For data URIs, estimates are based on decoded size. For URLs/file paths,
+        uses conservative fixed fallbacks. Override this method for provider-specific
+        media token calculations.
+
+        Args:
+            media: Media content to count tokens for.
+        """
+        return count_media_tokens(media)
+
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
@@ -315,6 +365,10 @@ class ModelAPI(abc.ABC):
         """Behavior to use for reasoning_history='auto'"""
         return "all"
 
+    def compact_reasoning_history(self) -> bool:
+        """Is reasoning history eligible for compation for this provider?"""
+        return True
+
 
 class Model:
     """Model interface.
@@ -392,6 +446,10 @@ class Model:
     def name(self) -> str:
         """Model name."""
         return self.api.model_name
+
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup."""
+        return self.api.canonical_name()
 
     @property
     def role(self) -> str | None:
@@ -572,6 +630,58 @@ class Model:
             else:
                 return messages[len(input) :], output
 
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        """Estimate token count for input.
+
+        Args:
+           input: Input to count tokens for.
+        """
+        model_name = ModelName(self)
+        key = f"ModelCountTokens({self.api.connection_key()})"
+        async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
+            # retry handler for token counting
+            @retry(
+                **model_retry_config(
+                    self.api.model_name,
+                    self.config.max_retries,
+                    self.config.timeout,
+                    self.should_retry,
+                    self.before_retry,
+                    log_model_retry,
+                    report_sample_waiting_time,
+                    self.api.retry_wait(),
+                )
+            )
+            async def _count_tokens(input: str | list[ChatMessage]) -> int:
+                return await self.api.count_tokens(input)
+
+            # count tokens
+            return await _count_tokens(input)
+
+    async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
+        """Count tokens for tool definitions.
+
+        Args:
+            tools: List of tool definitions.
+
+        Returns:
+            Total token count for all tool definitions.
+        """
+        # create a message with the tool tokens embedded and count that
+        tool_json = ""
+        for tool in tools:
+            tool_json += json.dumps(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters.model_dump(exclude_none=True),
+                    },
+                }
+            )
+        return await self.count_tokens([ChatMessageUser(content=tool_json)])
+
     async def _generate(
         self,
         input: list[ChatMessage],
@@ -588,18 +698,8 @@ class Model:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
 
-        # resolve top level tool source
-        if isinstance(tools, ToolSource):
-            tools = await tools.tools()
-
-        # resolve tool sources
-        resolved_tools: list[Tool | ToolDef | ToolInfo] = []
-        for tool in tools:
-            if isinstance(tool, ToolSource):
-                source_tools = await tool.tools()
-                resolved_tools.extend(source_tools)
-            else:
-                resolved_tools.append(tool)
+        # resolve tools
+        resolved_tools = await resolve_tools(tools)
 
         # extract tool defs if we can
         tdefs = await tool_defs(
@@ -1349,9 +1449,7 @@ def resolve_reasoning_history(
                 content: list[Content] = []
                 for c in message.content:
                     if isinstance(c, ContentReasoning):
-                        content.append(
-                            ContentText(text=f"<think>\n{c.reasoning}\n</think>")
-                        )
+                        content.append(ContentText(text=reasoning_to_think_tag(c)))
                     else:
                         content.append(c)
                 message = message.model_copy(update={"content": content})
@@ -1558,14 +1656,21 @@ def combine_messages(
     # `content` have default values, it's more the case that they're reset to
     # default values rather than dropped.
 
+    # track combination
+    metadata = {"combined_from": [a.id, b.id]}
+
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(content=f"{a.content}\n{b.content}")
+        return message_type(content=f"{a.content}\n{b.content}", metadata=metadata)
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(content=a.content + b.content)
+        return message_type(content=a.content + b.content, metadata=metadata)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(content=[ContentText(text=a.content), *b.content])
+        return message_type(
+            content=[ContentText(text=a.content), *b.content], metadata=metadata
+        )
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(content=a.content + [ContentText(text=b.content)])
+        return message_type(
+            content=a.content + [ContentText(text=b.content)], metadata=metadata
+        )
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
@@ -1616,8 +1721,14 @@ def set_total_messages(input: str | list[ChatMessage]) -> None:
     set_active_sample_total_messages(total_messages)
 
 
-def init_model_usage() -> None:
-    model_usage_context_var.set({})
+def init_model_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
+    # explicit intialization
+    if initial_usage is not None:
+        model_usage_context_var.set(initial_usage)
+
+    # default initialization (ignore if we've already been explicitly intialized)
+    elif len(model_usage_context_var.get()) == 0:
+        model_usage_context_var.set({})
 
 
 def init_sample_model_usage() -> None:

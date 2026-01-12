@@ -2,17 +2,9 @@ import os
 from logging import getLogger
 from pathlib import Path
 
+from ..compose import COMPOSE_FILES, DOCKERFILE
+
 logger = getLogger(__name__)
-
-
-CONFIG_FILES = [
-    "compose.yaml",
-    "compose.yml",
-    "docker-compose.yaml",
-    "docker-compose.yml",
-]
-
-DOCKERFILE = "Dockerfile"
 
 
 def resolve_compose_file(parent: str = "") -> str:
@@ -37,15 +29,10 @@ def resolve_compose_file(parent: str = "") -> str:
 
 
 def find_compose_file(parent: str = "") -> str | None:
-    for file in CONFIG_FILES:
+    for file in COMPOSE_FILES:
         if os.path.isfile(os.path.join(parent, file)):
             return file
     return None
-
-
-def is_dockerfile(file: str) -> bool:
-    path = Path(file)
-    return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
 
 
 def has_dockerfile(parent: str = "") -> bool:

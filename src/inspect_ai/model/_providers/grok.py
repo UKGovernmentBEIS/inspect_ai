@@ -142,6 +142,22 @@ class GrokAPI(ModelAPI):
     def is_at_least_grok_4(self) -> bool:
         return not self.is_grok_2() and not self.is_grok_3()
 
+    def model_client(self) -> AsyncClient:
+        return AsyncClient(
+            api_key=self.api_key,
+            api_host=self.base_url,
+            timeout=3600,
+            **self.model_args,
+        )
+
+    @override
+    async def count_text_tokens(self, text: str) -> int:
+        async with self.model_client() as client:
+            tokens = await client.tokenize.tokenize_text(
+                text=text, model=self.model_name
+            )
+            return len(tokens)
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -149,87 +165,82 @@ class GrokAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # create client
-        client = AsyncClient(
-            api_key=self.api_key,
-            api_host=self.base_url,
-            timeout=3600,  # api docs show tweaking this up for reasoning models
-            **self.model_args,
-        )
+        async with self.model_client() as client:
+            # set start time
+            start_time = time.monotonic()
 
-        # set start time
-        start_time = time.monotonic()
+            # setup request and response for ModelCall
+            request: dict[str, Any] = {}
+            response: dict[str, Any] = {}
 
-        # setup request and response for ModelCall
-        request: dict[str, Any] = {}
-        response: dict[str, Any] = {}
-
-        def model_call() -> ModelCall:
-            return ModelCall.create(
-                request=request,
-                response=response,
-                filter=_grok_media_filter,
-                time=time.monotonic() - start_time,
-            )
-
-        try:
-            # prepare input for chat call
-            grok_messages = await _grok_messages(input)
-            grok_tools = [self._grok_tool(tool) for tool in tools]
-            grok_tool_choice = (
-                self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
-            )
-            grok_params = self._grok_params(config)
-
-            # update request (convert proto to dict)
-            request = dict(
-                model=self.model_name,
-                messages=[MessageToDict(m) for m in grok_messages],
-                tools=[MessageToDict(t) for t in grok_tools],
-                tool_choice=MessageToDict(grok_tool_choice)
-                if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
-                else grok_tool_choice,
-                **grok_params,
-            )
-
-            # chat call
-            chat = client.chat.create(
-                model=self.model_name,
-                messages=grok_messages,
-                tools=grok_tools,
-                tool_choice=grok_tool_choice,
-                **grok_params,
-            )
-
-            # handle structured output
-            if config.response_schema is not None:
-                chat_response, _ = await chat.parse(
-                    json_schema_to_base_model(config.response_schema.json_schema)
+            def model_call() -> ModelCall:
+                return ModelCall.create(
+                    request=request,
+                    response=response,
+                    filter=_grok_media_filter,
+                    time=time.monotonic() - start_time,
                 )
-            # stream the reponse for improved connectivity for long requests
-            else:
-                if self.streaming:
-                    async for chat_response, _ in chat.stream():
-                        pass
+
+            try:
+                # prepare input for chat call
+                grok_messages = await _grok_messages(input)
+                grok_tools = [self._grok_tool(tool) for tool in tools]
+                grok_tool_choice = (
+                    self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
+                )
+                grok_params = self._grok_params(config)
+
+                # update request (convert proto to dict)
+                request = dict(
+                    model=self.model_name,
+                    messages=[MessageToDict(m) for m in grok_messages],
+                    tools=[MessageToDict(t) for t in grok_tools],
+                    tool_choice=MessageToDict(grok_tool_choice)
+                    if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
+                    else grok_tool_choice,
+                    **grok_params,
+                )
+
+                # chat call
+                chat = client.chat.create(
+                    model=self.model_name,
+                    messages=grok_messages,
+                    tools=grok_tools,
+                    tool_choice=grok_tool_choice,
+                    **grok_params,
+                )
+
+                # handle structured output
+                if config.response_schema is not None:
+                    chat_response, _ = await chat.parse(
+                        json_schema_to_base_model(config.response_schema.json_schema)
+                    )
+                # stream the reponse for improved connectivity for long requests
                 else:
-                    chat_response = await chat.sample()
+                    if self.streaming:
+                        async for chat_response, _ in chat.stream():
+                            pass
+                    else:
+                        chat_response = await chat.sample()
 
-            # update response
-            response = MessageToDict(chat_response._proto)
+                # update response
+                response = MessageToDict(chat_response._proto)
 
-            # return
-            return self._model_output_from_response(chat_response, tools), model_call()
-        except grpc.RpcError as ex:
-            if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
-                handled = self._handle_grpc_permission_denied(ex)
-                if handled:
-                    return handled, model_call()
+                # return
+                return self._model_output_from_response(
+                    chat_response, tools
+                ), model_call()
+            except grpc.RpcError as ex:
+                if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
+                    handled = self._handle_grpc_permission_denied(ex)
+                    if handled:
+                        return handled, model_call()
+                    else:
+                        raise ex
+                elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
+                    return self._handle_grpc_bad_request(ex), model_call()
                 else:
                     raise ex
-            elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
-                return self._handle_grpc_bad_request(ex), model_call()
-            else:
-                raise ex
 
     def is_auth_failure(self, ex: Exception) -> bool:
         return (
@@ -254,6 +265,11 @@ class GrokAPI(ModelAPI):
             return wait_exponential_jitter(max=(30 * 60))
         else:
             return None
+
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup."""
+        return f"grok/{self.model_name}"
 
     @override
     def emulate_reasoning_history(self) -> bool:
@@ -547,7 +563,9 @@ async def _grok_message(message: ChatMessage) -> chat_pb2.Message:
         case ChatMessageAssistant():
             return await _grok_assistant_message(message)
         case ChatMessageTool():
-            return tool_result(message.text)
+            return tool_result(
+                f"Error: {message.error.message}" if message.error else message.text
+            )
 
 
 async def _grok_assistant_message(message: ChatMessageAssistant) -> chat_pb2.Message:

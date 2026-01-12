@@ -1,3 +1,4 @@
+import json
 from logging import getLogger
 from typing import Any, Callable
 
@@ -50,6 +51,23 @@ from .util.hooks import HttpxHooks
 logger = getLogger(__name__)
 
 
+def _fix_function_tool_parameters(response: Response) -> None:
+    """Fix string parameters in FunctionTool objects.
+
+    Some OpenAI-compatible providers (e.g., xAI) return FunctionTool.parameters
+    as JSON strings instead of dicts. This causes Pydantic serialization warnings.
+    This function parses those strings to dicts in-place.
+    """
+    from openai.types.responses import FunctionTool
+
+    for tool in response.tools:
+        if isinstance(tool, FunctionTool) and isinstance(tool.parameters, str):
+            try:
+                tool.parameters = json.loads(tool.parameters)
+            except json.JSONDecodeError:
+                pass  # Leave as-is if not valid JSON
+
+
 async def generate_responses(
     client: AsyncAzureOpenAI | AsyncOpenAI,
     http_hooks: HttpxHooks,
@@ -69,13 +87,13 @@ async def generate_responses(
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-    # batch mode and background are incompatible
-    if batcher:
-        background = False
-
     # background in extra_body should be applied
     if background is None and config.extra_body:
         background = config.extra_body.pop("background", None)
+
+    # batch mode and background are incompatible
+    if batcher:
+        background = None
 
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
@@ -144,6 +162,7 @@ async def generate_responses(
             )
 
         # save response for model_call
+        _fix_function_tool_parameters(model_response)
         response = model_response.model_dump()
 
         # parse out choices

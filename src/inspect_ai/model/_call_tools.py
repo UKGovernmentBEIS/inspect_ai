@@ -569,7 +569,26 @@ def prepend_agent_name(
         return message.model_copy(update=dict(content=content))
 
 
-def tools_info(
+async def resolve_tools(
+    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
+) -> list[Tool | ToolDef | ToolInfo]:
+    # resolve top level tool source
+    if isinstance(tools, ToolSource):
+        tools = await tools.tools()
+
+    # resolve tool sources
+    resolved_tools: list[Tool | ToolDef | ToolInfo] = []
+    for tool in tools:
+        if isinstance(tool, ToolSource):
+            source_tools = await tool.tools()
+            resolved_tools.extend(source_tools)
+        else:
+            resolved_tools.append(tool)
+
+    return resolved_tools
+
+
+def get_tools_info(
     tools: Sequence[Tool | ToolDef | ToolInfo],
 ) -> list[ToolInfo]:
     tools_info: list[ToolInfo] = []
@@ -635,7 +654,9 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         # as a fallback try to parse it from the docstring
         elif "docstring_type" in docstring_info:
             docstring_type = docstring_info["docstring_type"]
-            type_hint = getattr(__builtins__, docstring_type, None)
+            import builtins
+
+            type_hint = getattr(builtins, docstring_type, None)
 
         # error if there is no type_hint
         if type_hint is None:

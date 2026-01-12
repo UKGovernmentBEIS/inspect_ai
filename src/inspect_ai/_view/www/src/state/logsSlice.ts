@@ -1,8 +1,3 @@
-import {
-  ColumnFiltersState,
-  ColumnResizeMode,
-  SortingState,
-} from "@tanstack/react-table";
 import { GridState } from "ag-grid-community";
 import { EvalSet } from "../@types/log";
 import { DisplayedSample, LogsState } from "../app/types";
@@ -52,22 +47,23 @@ export interface LogsSlice {
 
     updateFlowData: (flowPath: string, flowData?: string) => void;
 
-    setSorting: (sorting: SortingState) => void;
-    setFiltering: (filtering: ColumnFiltersState) => void;
-    setGlobalFilter: (globalFilter: string) => void;
-    setColumnResizeMode: (mode: ColumnResizeMode) => void;
-    setColumnSize: (columnId: string, size: number) => void;
     setFilteredCount: (count: number) => void;
     setWatchedLogs: (logs: LogHandle[]) => void;
     clearWatchedLogs: () => void;
     setSelectedRowIndex: (index: number | null) => void;
 
+    setLogsGridState: (gridState: GridState | undefined) => void;
+    clearLogsGridState: () => void;
+    setPreviousLogsPath: (path: string | undefined) => void;
+    setLogsColumnVisibility: (visibility: Record<string, boolean>) => void;
+
     setGridState: (gridState: GridState) => void;
     clearGridState: () => void;
     setDisplayedSamples: (samples: Array<DisplayedSample>) => void;
     clearDisplayedSamples: () => void;
-    setColumnVisibility: (visibility: Record<string, boolean>) => void;
+    setSamplesColumnVisibility: (visibility: Record<string, boolean>) => void;
     setPreviousSamplesPath: (path: string | undefined) => void;
+    setShowRetriedLogs: (showRetriedLogs: boolean) => void;
   };
 }
 
@@ -77,7 +73,9 @@ const initialState: LogsState = {
   logPreviews: {},
   logDetails: {},
   selectedLogFile: undefined as string | undefined,
-  listing: {},
+  listing: {
+    columnVisibility: {},
+  },
   pendingRequests: new Map<string, Promise<EvalHeader | null>>(),
   dbStats: {
     logCount: 0,
@@ -87,6 +85,7 @@ const initialState: LogsState = {
   samplesListState: {
     columnVisibility: {},
   },
+  showRetriedLogs: false,
 };
 
 export const createLogsSlice = (
@@ -105,6 +104,8 @@ export const createLogsSlice = (
           if (logDir !== state.logs.logDir) {
             state.logs.logDir = logDir;
             state.logs.samplesListState.gridState = undefined;
+            state.logs.listing.gridState = undefined;
+            state.logs.listing.previousLogPath = undefined;
           }
         });
       },
@@ -169,7 +170,7 @@ export const createLogsSlice = (
           state.logs.samplesListState.displayedSamples = undefined;
         });
       },
-      setColumnVisibility: (visibility: Record<string, boolean>) => {
+      setSamplesColumnVisibility: (visibility: Record<string, boolean>) => {
         set((state) => {
           state.logs.samplesListState.columnVisibility = visibility;
         });
@@ -378,34 +379,6 @@ export const createLogsSlice = (
           state.logs.selectedLogFile = absoluteLogfile;
         });
       },
-      setSorting: (sorting: SortingState) => {
-        set((state) => {
-          state.logs.listing.sorting = sorting;
-        });
-      },
-      setFiltering: (filtering: ColumnFiltersState) => {
-        set((state) => {
-          state.logs.listing.filtering = filtering;
-        });
-      },
-      setGlobalFilter: (globalFilter: string) => {
-        set((state) => {
-          state.logs.listing.globalFilter = globalFilter;
-        });
-      },
-      setColumnResizeMode: (mode: ColumnResizeMode) => {
-        set((state) => {
-          state.logs.listing.columnResizeMode = mode;
-        });
-      },
-      setColumnSize: (columnId: string, size: number) => {
-        set((state) => {
-          if (!state.logs.listing.columnSizes) {
-            state.logs.listing.columnSizes = {};
-          }
-          state.logs.listing.columnSizes[columnId] = size;
-        });
-      },
       setFilteredCount: (count: number) => {
         set((state) => {
           state.logs.listing.filteredCount = count;
@@ -424,6 +397,26 @@ export const createLogsSlice = (
       setSelectedRowIndex: (index: number | null) => {
         set((state) => {
           state.logs.listing.selectedRowIndex = index;
+        });
+      },
+      setLogsGridState: (gridState: GridState | undefined) => {
+        set((state) => {
+          state.logs.listing.gridState = gridState;
+        });
+      },
+      clearLogsGridState: () => {
+        set((state) => {
+          state.logs.listing.gridState = undefined;
+        });
+      },
+      setPreviousLogsPath: (path: string | undefined) => {
+        set((state) => {
+          state.logs.listing.previousLogPath = path;
+        });
+      },
+      setLogsColumnVisibility: (visibility: Record<string, boolean>) => {
+        set((state) => {
+          state.logs.listing.columnVisibility = visibility;
         });
       },
       clearSelectedLogFile: () => {
@@ -467,6 +460,11 @@ export const createLogsSlice = (
           log.debug("Sample query failed, returning empty results");
           return [];
         }
+      },
+      setShowRetriedLogs: (showRetriedLogs: boolean) => {
+        set((state) => {
+          state.logs.showRetriedLogs = showRetriedLogs;
+        });
       },
     },
   } as const;

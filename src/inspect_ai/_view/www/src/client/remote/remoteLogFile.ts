@@ -1,5 +1,6 @@
 import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../../@types/log";
 import { asyncJsonParse } from "../../utils/json-worker";
+import { clearLargeEventsArray } from "../../utils/clear-events-preprocessor";
 import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
@@ -15,8 +16,6 @@ import {
   openRemoteZipFile,
 } from "./remoteZipFile";
 
-// don't try to load samples greater than 50mb
-const MAX_BYTES = 100 * 1024 * 1024;
 const OPEN_RETRY_LIMIT = 5;
 
 interface SampleEntry {
@@ -87,17 +86,38 @@ export const openRemoteLogFile = async (
     );
   }
 
+  interface JSONPreprocessor {
+    preprocess: (data: Uint8Array) => Uint8Array;
+  }
+
   /**
    * Reads and parses a JSON file from the zip.
+   * Optionally applies a preprocessor to transform bytes before decoding.
    */
   const readJSONFile = async (
     file: string,
     maxBytes?: number,
+    preprocessor?: JSONPreprocessor,
   ): Promise<Object> => {
     try {
-      const data = await remoteZipFile.readFile(file, maxBytes);
+      let data = await remoteZipFile.readFile(file, maxBytes);
+
+      // Apply preprocessor if provided
+      if (preprocessor) {
+        data = preprocessor.preprocess(data);
+      }
+
       const textDecoder = new TextDecoder("utf-8");
       const jsonString = textDecoder.decode(data);
+
+      // Check if decoding failed (resulted in empty string)
+      if (data.length > 0 && jsonString.length === 0) {
+        throw new Error(
+          `Failed to decode ${file} (${(data.length / 1024 / 1024).toFixed(0)}MB). ` +
+            `The file may be corrupted or contain invalid UTF-8 sequences.`,
+        );
+      }
+
       return asyncJsonParse(jsonString);
     } catch (error) {
       if (error instanceof FileSizeLimitError) {
@@ -140,13 +160,22 @@ export const openRemoteLogFile = async (
     epoch: number,
   ): Promise<EvalSample> => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
-    if (remoteZipFile.centralDirectory.has(sampleFile)) {
-      return (await readJSONFile(sampleFile, MAX_BYTES)) as EvalSample;
-    } else {
+
+    if (!remoteZipFile.centralDirectory.has(sampleFile)) {
       throw new SampleNotFoundError(
         `Unable to read sample file ${sampleFile} - it is not present in the manifest.`,
       );
     }
+
+    // Use a preprocessor to clear large events arrays
+    const eventsPreprocessor: JSONPreprocessor = {
+      preprocess: clearLargeEventsArray,
+    };
+    return (await readJSONFile(
+      sampleFile,
+      undefined,
+      eventsPreprocessor,
+    )) as EvalSample;
   };
 
   /**

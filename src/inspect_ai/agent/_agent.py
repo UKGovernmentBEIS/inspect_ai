@@ -15,6 +15,7 @@ from typing import (
 
 from inspect_ai._util.registry import (
     RegistryInfo,
+    extract_named_params,
     is_registry_object,
     registry_add,
     registry_info,
@@ -158,6 +159,8 @@ def agent(
     """
 
     def create_agent_wrapper(agent_type: Callable[P, Agent]) -> Callable[P, Agent]:
+        from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
+
         # determine the name (explicit or implicit from object)
         agent_name = registry_name(
             agent_type, name if name else getattr(agent_type, "__name__")
@@ -169,14 +172,12 @@ def agent(
             # create agent
             agent = agent_type(*args, **kwargs)
 
-            # this might already have registry info, if so capture that
-            # and use it as default
+            # capture explicit description that agent may have
+            # (still use passed description if specified)
             if is_registry_object(agent):
                 info = registry_info(agent)
-                registry_name = info.name
                 registry_description = info.metadata.get(AGENT_DESCRIPTION, None)
             else:
-                registry_name = None
                 registry_description = None
 
             registry_tag(
@@ -184,12 +185,16 @@ def agent(
                 agent,
                 RegistryInfo(
                     type="agent",
-                    name=registry_name or agent_name,
-                    metadata={AGENT_DESCRIPTION: registry_description or description},
+                    name=agent_name,
+                    metadata={AGENT_DESCRIPTION: description or registry_description},
                 ),
                 *args,
                 **kwargs,
             )
+
+            named_params = extract_named_params(agent_type, True, *args, **kwargs)
+            setattr(agent, SOLVER_ALL_PARAMS_ATTR, named_params)
+
             return agent
 
         # If a user's code runs "from __future__ import annotations", all type annotations are stored as strings,
@@ -200,6 +205,7 @@ def agent(
         agent_wrapper.__annotations__ = get_type_hints(
             agent_wrapper, agent_type.__globals__
         )
+        agent_wrapper.__annotations__["return"] = Agent
         agent_wrapper.__signature__ = signature(agent_type)  # type: ignore[attr-defined]
 
         # register

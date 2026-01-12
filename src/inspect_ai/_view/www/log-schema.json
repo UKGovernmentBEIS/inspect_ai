@@ -2296,11 +2296,17 @@
           "additionalProperties": true,
           "title": "Params",
           "type": "object"
+        },
+        "params_passed": {
+          "additionalProperties": true,
+          "title": "Params Passed",
+          "type": "object"
         }
       },
       "required": [
         "solver",
-        "params"
+        "params",
+        "params_passed"
       ],
       "title": "EvalPlanStep",
       "type": "object",
@@ -3266,6 +3272,19 @@
           "default": null,
           "title": "Solver Args"
         },
+        "solver_args_passed": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solver Args Passed"
+        },
         "tags": {
           "anyOf": [
             {
@@ -3437,6 +3456,7 @@
         "task_args_passed",
         "solver",
         "solver_args",
+        "solver_args_passed",
         "tags",
         "dataset",
         "sandbox",
@@ -7294,9 +7314,19 @@
           "type": "array"
         },
         "additionalProperties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JSONSchema"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": false,
-          "title": "Additionalproperties",
-          "type": "boolean"
+          "title": "Additionalproperties"
         }
       },
       "title": "ToolParams",

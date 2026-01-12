@@ -144,6 +144,7 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
               showing={showing}
               setShowing={setShowing}
               title={"Scoring Detail"}
+              overflow="scroll"
             >
               <ScoreGrid
                 scoreGroups={grouped}

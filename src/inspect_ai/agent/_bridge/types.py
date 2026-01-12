@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Set
+from typing import Sequence, Set
 
 from shortuuid import uuid
 
@@ -7,8 +7,17 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._model import GenerateFilter
+from inspect_ai.model._compaction import (
+    Compact,
+    CompactionStrategy,
+)
+from inspect_ai.model._compaction import (
+    compaction as create_compaction,
+)
+from inspect_ai.model._model import GenerateFilter, Model
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool import Tool
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 class AgentBridge:
@@ -19,10 +28,14 @@ class AgentBridge:
         state: AgentState,
         filter: GenerateFilter | None = None,
         retry_refusals: int | None = None,
+        compaction: CompactionStrategy | None = None,
     ) -> None:
         self.state = state
         self.filter = filter
         self.retry_refusals = retry_refusals
+        self._compaction = compaction
+        self._compaction_prefix = state.messages.copy()
+        self._compact: Compact | None = None
         self._message_ids = {}
         self._last_message_count = 0
 
@@ -34,6 +47,27 @@ class AgentBridge:
 
     A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
     """
+
+    def compaction(
+        self, tools: Sequence[ToolInfo | Tool], model: Model
+    ) -> Compact | None:
+        """Compaction function for bridge.
+
+        Note: This will always return the same compaction function for a
+        given instance of the bridge.
+
+        Args:
+            tools: Tool definitions (included in token count as they consume context).
+            model: Target model for compacted input.
+        """
+        if self._compact is None and self._compaction is not None:
+            self._compact = create_compaction(
+                self._compaction,
+                prefix=self._compaction_prefix,
+                tools=tools,
+                model=model,
+            )
+        return self._compact
 
     def _id_for_message(
         self, message: ChatMessage, conversation: list[ChatMessage]

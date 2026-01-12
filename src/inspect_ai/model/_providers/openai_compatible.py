@@ -10,7 +10,11 @@ from openai import (
     UnprocessableEntityError,
 )
 from openai._types import NOT_GIVEN
-from openai.types.chat import ChatCompletion
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessageParam,
+    ChatCompletionToolParam,
+)
 from typing_extensions import override
 
 from inspect_ai.model._openai import chat_choices_from_openai
@@ -59,6 +63,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_api: bool | None = None,
         responses_store: bool | None = None,
         stream: bool | None = None,
+        emulate_reasoning_history: bool = True,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -103,7 +108,7 @@ class OpenAICompatibleAPI(ModelAPI):
                     [base_url_var],
                 )
 
-        # grab emulate_tools and responses_api arguments
+        # grab arguments
         self.emulate_tools = emulate_tools
         self.responses_api = responses_api
         self.responses_store = responses_store
@@ -112,6 +117,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 "emulate_tools is not compatible with using the responses_api"
             )
         self.stream = False if stream is None else stream
+        self._emulate_reasoning_history = emulate_reasoning_history
 
         # store http_client and model_args for reinitialization
         self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
@@ -155,7 +161,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
-                background=False,
+                background=None,
                 service_tier=None,
                 prompt_cache_key=NOT_GIVEN,
                 prompt_cache_retention=NOT_GIVEN,
@@ -203,8 +209,8 @@ class OpenAICompatibleAPI(ModelAPI):
             # prepare request (we do this so we can log the ModelCall)
             have_tools = (len(tools) > 0) and not self.emulate_tools
             request = dict(
-                messages=await messages_to_openai(input),
-                tools=openai_chat_tools(tools) if have_tools else NOT_GIVEN,
+                messages=await self.messages_to_openai(input),
+                tools=self.tools_to_openai(tools) if have_tools else NOT_GIVEN,
                 tool_choice=openai_chat_tool_choice(tool_choice)
                 if have_tools
                 else NOT_GIVEN,
@@ -247,7 +253,7 @@ class OpenAICompatibleAPI(ModelAPI):
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
-        if self.stream:
+        if self.stream or self.should_stream(config):
             async with self.client.chat.completions.stream(**request) as stream:
                 return await stream.get_final_completion()
         else:
@@ -258,6 +264,16 @@ class OpenAICompatibleAPI(ModelAPI):
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
+
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Returns a normalized model name suitable for looking up model info
+        (context window, etc.) in the model database. Subclasses may override
+        to normalize provider-specific model names to a common format
+        (e.g. HuggingFace-style names for open models).
+        """
+        return self.service_model_name()
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
@@ -285,6 +301,21 @@ class OpenAICompatibleAPI(ModelAPI):
         """Hook for subclasses to do custom response handling."""
         pass
 
+    def should_stream(self, config: GenerateConfig) -> bool:
+        return False
+
+    def tools_to_openai(self, tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
+        # some inference platforms (e.g. hf-inference) require strict=True
+        openai_tools = openai_chat_tools(tools)
+        for tool in openai_tools:
+            tool["function"]["strict"] = True
+        return openai_tools
+
+    async def messages_to_openai(
+        self, input: list[ChatMessage]
+    ) -> list[ChatCompletionMessageParam]:
+        return await messages_to_openai(input)
+
     def chat_choices_from_completion(
         self, completion: ChatCompletion, tools: list[ToolInfo]
     ) -> list[ChatCompletionChoice]:
@@ -302,6 +333,9 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         return openai_handle_bad_request(self.service_model_name(), ex)
+
+    def emulate_reasoning_history(self) -> bool:
+        return self._emulate_reasoning_history
 
 
 class OpenAICompatibleHandler(Llama31Handler):

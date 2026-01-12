@@ -1,0 +1,49 @@
+.nameCell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.modelCell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.scoreCell {
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--bs-gray-600);
+}
+
+.error {
+  color: var(--bs-danger);
+}
+
+.started {
+  color: var(--bs-secondary);
+}
+
+.success {
+  color: var(--bs-success);
+}
+
+.cancelled {
+  color: var(--bs-secondary);
+}
+
+.statusCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dateCell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
