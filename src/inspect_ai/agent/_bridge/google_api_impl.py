@@ -17,13 +17,15 @@ Inspect format:
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 from logging import getLogger
 from typing import Any
 
 from shortuuid import uuid
 
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import Content, ContentImage, ContentReasoning, ContentText
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -243,8 +245,9 @@ def messages_from_google_contents(
         if system_text:
             messages.append(ChatMessageSystem(content=system_text))
 
-    # Track function names by call ID for tool results
-    function_names: dict[str, str] = {}
+    # Track tool call IDs by function name for matching with tool results
+    # Maps function_name -> list of call_ids (in order, for multiple calls to same function)
+    pending_tool_calls: dict[str, list[str]] = {}
 
     for content in contents:
         role = content.get("role", "user")
@@ -252,7 +255,7 @@ def messages_from_google_contents(
 
         if role == "user":
             # Handle user messages and function responses
-            user_content, tool_messages = _extract_user_parts(parts)
+            user_content, tool_messages = _extract_user_parts(parts, pending_tool_calls)
             if user_content:
                 messages.append(ChatMessageUser(content=user_content))
             messages.extend(tool_messages)
@@ -261,9 +264,13 @@ def messages_from_google_contents(
             # Handle model/assistant messages with potential function calls
             assistant_content, tool_calls = _extract_model_parts(parts)
 
-            # Record function names for later tool results
+            # Record tool call IDs for later matching with tool results
+            # Clear pending calls since new model turn means new tool calls
+            pending_tool_calls.clear()
             for tc in tool_calls:
-                function_names[tc.id] = tc.function
+                if tc.function not in pending_tool_calls:
+                    pending_tool_calls[tc.function] = []
+                pending_tool_calls[tc.function].append(tc.id)
 
             # Build assistant message - content defaults to empty string if None
             messages.append(
@@ -289,8 +296,15 @@ def _extract_text_from_parts(parts: list[dict[str, Any]]) -> str:
 
 def _extract_user_parts(
     parts: list[dict[str, Any]],
+    pending_tool_calls: dict[str, list[str]],
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
-    """Extract user content and function responses from parts."""
+    """Extract user content and function responses from parts.
+
+    Args:
+        parts: The parts from a user message
+        pending_tool_calls: Maps function_name -> list of call_ids from the previous
+            model message. Used to match functionResponse with the correct tool_use_id.
+    """
     content_parts: list[Content] = []
     tool_messages: list[ChatMessageTool] = []
 
@@ -321,8 +335,17 @@ def _extract_user_parts(
             func_name = func_response.get("name", "")
             response = func_response.get("response", {})
 
-            # Generate a call ID based on function name
-            call_id = f"call_{func_name}_{uuid()[:8]}"
+            # Use the matching call_id from the previous model message
+            # Pop from the front of the list to maintain order for multiple calls
+            if func_name in pending_tool_calls and pending_tool_calls[func_name]:
+                call_id = pending_tool_calls[func_name].pop(0)
+            else:
+                # Fallback: generate a new ID (shouldn't happen in normal flow)
+                call_id = f"call_{func_name}_{uuid()[:8]}"
+                logger.warning(
+                    f"No pending tool call found for function '{func_name}', "
+                    f"generating new call_id: {call_id}"
+                )
 
             # Serialize response to string if it's a dict
             if isinstance(response, dict):
@@ -347,21 +370,81 @@ def _extract_user_parts(
         return None, tool_messages
 
 
+# Marker prefix for embedded thought signature in text parts
+# Used to preserve signature through CLI's history reconstruction
+THOUGHT_SIG_MARKER = "__THOUGHT_SIG__:"
+
+# Storage for thought signatures - maps hash of function calls to signature
+# This allows us to restore signatures when CLI's history reconstruction drops them
+_thought_signature_store: dict[str, str] = {}
+
+
+def _compute_function_calls_hash(parts: list[dict[str, Any]]) -> str:
+    """Compute a hash of function calls in parts for signature lookup."""
+    fc_data = []
+    for part in parts:
+        if isinstance(part, dict):
+            fc = part.get("functionCall", part.get("function_call"))
+            if fc:
+                name = fc.get("name", "")
+                args = fc.get("args", {})
+                fc_data.append(f"{name}:{json.dumps(args, sort_keys=True)}")
+    return hashlib.md5("|".join(fc_data).encode()).hexdigest()
+
+
 def _extract_model_parts(
     parts: list[dict[str, Any]],
-) -> tuple[list[Content] | str | None, list[ToolCall]]:
-    """Extract assistant content and function calls from model parts."""
+) -> tuple[list[Content] | None, list[ToolCall]]:
+    """Extract assistant content and function calls from model parts.
+
+    Returns content as a list of Content parts (never simplified to string)
+    to maintain consistency with model output format for message ID stability.
+
+    Also extracts thoughtSignature from function call parts and stores them
+    in ContentReasoning blocks (following the pattern from main Google provider).
+    Per Gemini API docs, only the first function call in a message has a signature.
+
+    Additionally looks for stored signatures in _thought_signature_store when
+    the CLI's history reconstruction has dropped the signature.
+    """
     content_parts: list[Content] = []
     tool_calls: list[ToolCall] = []
+    first_fc_signature_captured = False
+    embedded_signature: str | None = None
 
+    # First pass: look for embedded signature in text parts
     for part in parts:
+        if isinstance(part, dict) and "text" in part:
+            text = part["text"]
+            if text.startswith(THOUGHT_SIG_MARKER):
+                embedded_signature = text[len(THOUGHT_SIG_MARKER) :]
+                break
+
+    # Check for stored signature if we have function calls
+    stored_signature: str | None = None
+    has_function_calls = any(
+        isinstance(p, dict) and ("functionCall" in p or "function_call" in p)
+        for p in parts
+    )
+    if has_function_calls:
+        fc_hash = _compute_function_calls_hash(parts)
+        stored_signature = _thought_signature_store.get(fc_hash)
+
+    for part_idx, part in enumerate(parts):
         if not isinstance(part, dict):
             if isinstance(part, str):
                 content_parts.append(ContentText(text=part))
             continue
 
         if "text" in part:
-            content_parts.append(ContentText(text=part["text"]))
+            text = part["text"]
+            # Skip our embedded signature marker - it's for internal use only
+            if text.startswith(THOUGHT_SIG_MARKER):
+                continue
+            # Also skip "(no content)" placeholder that CLI adds
+            if text == "(no content)":
+                continue
+            content_parts.append(ContentText(text=text))
 
         elif "functionCall" in part or "function_call" in part:
             # Function call -> ToolCall
@@ -369,12 +452,44 @@ def _extract_model_parts(
             func_name = func_call.get("name", "")
             args = func_call.get("args", {})
 
-            # Generate a unique call ID
-            call_id = f"call_{func_name}_{uuid()[:8]}"
+            # Capture thought_signature on first function call (per Gemini API docs)
+            # Store it as a ContentReasoning block with redacted=True
+            # This follows the pattern from the main Google provider.
+            thought_sig = part.get("thoughtSignature", part.get("thought_signature"))
+
+            # If no direct signature on part, check embedded or stored signatures
+            if not thought_sig and not first_fc_signature_captured:
+                if embedded_signature:
+                    thought_sig = embedded_signature
+                    embedded_signature = None
+                elif stored_signature:
+                    thought_sig = stored_signature
+                    stored_signature = None  # Use only once
+
+            if thought_sig and not first_fc_signature_captured:
+                # JSON API returns signature as base64 string already
+                if isinstance(thought_sig, str):
+                    sig_str = thought_sig
+                else:
+                    # If bytes (unlikely in JSON), base64 encode it
+                    sig_str = base64.b64encode(thought_sig).decode()
+                content_parts.append(
+                    ContentReasoning(
+                        reasoning=sig_str,
+                        redacted=True,
+                    )
+                )
+                first_fc_signature_captured = True
 
             # Ensure args is a dict
             if not isinstance(args, dict):
                 args = {"value": args}
+
+            # Generate a DETERMINISTIC call ID based on function name, args, and position
+            # This ensures the same call always gets the same ID for message ID stability
+            args_str = json.dumps(args, sort_keys=True) if args else ""
+            call_hash = hashlib.md5(f"{func_name}:{args_str}:{part_idx}".encode()).hexdigest()[:8]
+            call_id = f"call_{func_name}_{call_hash}"
 
             tool_calls.append(
                 ToolCall(
@@ -385,20 +500,28 @@ def _extract_model_parts(
                 )
             )
 
-    # Simplify content if only one text part
-    if len(content_parts) == 1 and isinstance(content_parts[0], ContentText):
-        return content_parts[0].text, tool_calls
-    elif content_parts:
+    # Keep content as list to match model output format for ID stability
+    # (Don't simplify to string even if only one text part)
+    if content_parts:
         return content_parts, tool_calls
     else:
         return None, tool_calls
 
 
 def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[str, Any]:
-    """Translate Inspect ModelOutput to Google Gemini API response format."""
-    parts: list[dict[str, Any]] = []
+    """Translate Inspect ModelOutput to Google Gemini API response format.
 
-    # Add text content
+    Also handles thought_signature by looking for ContentReasoning blocks with
+    redacted=True and attaching the signature to the first function call.
+
+    Additionally embeds the signature in a text part with a special marker so that
+    the CLI will preserve it in its history reconstruction. We then extract it
+    in messages_from_google_contents when receiving the next request.
+    """
+    parts: list[dict[str, Any]] = []
+    working_reasoning_block: ContentReasoning | None = None
+
+    # Add text content and capture reasoning blocks
     if output.message.content:
         if isinstance(output.message.content, str):
             if output.message.content:
@@ -408,10 +531,15 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
                 if isinstance(c, ContentText):
                     if c.text:
                         parts.append({"text": c.text})
+                elif isinstance(c, ContentReasoning):
+                    # Store reasoning block with signature for attaching to first tool call
+                    if c.redacted and c.reasoning:
+                        working_reasoning_block = c
 
-    # Add function calls
+    # Add function calls with signature as sibling property (per Gemini API docs)
+    # thoughtSignature is a sibling to functionCall, not a separate part
     if output.message.tool_calls:
-        for tc in output.message.tool_calls:
+        for idx, tc in enumerate(output.message.tool_calls):
             # Parse arguments back to dict
             if isinstance(tc.arguments, str):
                 try:
@@ -421,7 +549,36 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
             else:
                 args = tc.arguments
 
-            parts.append({"functionCall": {"name": tc.function, "args": args}})
+            fc_part: dict[str, Any] = {"functionCall": {"name": tc.function, "args": args}}
+
+            # Attach signature to first function call only (per Gemini API docs)
+            if idx == 0 and working_reasoning_block is not None:
+                fc_part["thoughtSignature"] = working_reasoning_block.reasoning
+                working_reasoning_block = None
+
+            parts.append(fc_part)
+
+    # If we have a thought signature, also:
+    # 1. Embed it in a text part (in case CLI preserves text)
+    # 2. Store it in our signature store keyed by function call hash
+    for part in parts:
+        if "thoughtSignature" in part:
+            signature = part["thoughtSignature"]
+
+            # Store signature mapped to hash of function calls
+            # This allows us to restore it when CLI drops the signature
+            fc_hash = _compute_function_calls_hash(parts)
+            _thought_signature_store[fc_hash] = signature
+
+            # Also insert the signature text BEFORE function calls as fallback
+            insert_pos = 0
+            for i, p in enumerate(parts):
+                if "functionCall" in p:
+                    insert_pos = i
+                    break
+            sig_text_part = {"text": f"{THOUGHT_SIG_MARKER}{signature}"}
+            parts.insert(insert_pos, sig_text_part)
+            break
 
     # Ensure at least empty text part if no content
     if not parts:
@@ -441,9 +598,11 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
         "modelVersion": model_name,
     }
 
-    # Add convenience text field if there's text content
+    # Add convenience text field if there's text content (excluding our marker)
     text_content = "".join(
-        p.get("text", "") for p in parts if isinstance(p, dict) and "text" in p
+        p.get("text", "")
+        for p in parts
+        if isinstance(p, dict) and "text" in p and not p["text"].startswith(THOUGHT_SIG_MARKER)
     )
     if text_content:
         response["text"] = text_content

@@ -1,5 +1,6 @@
+import json
 from functools import lru_cache
-from typing import Sequence, Set
+from typing import Any, Sequence, Set
 
 from shortuuid import uuid
 
@@ -75,8 +76,10 @@ class AgentBridge:
         # message_id we will return
         message_id: str | None = None
 
-        # turn message into a hash so it can be a dictionary key
-        message_key = message_json_hash(to_json_str_safe(message))
+        # turn message into a normalized hash so it can be a dictionary key
+        # We normalize to remove fields that may differ between message instances
+        # that should be considered the same (e.g., source field, tool_call IDs)
+        message_key = _normalized_message_hash(message)
 
         # do we already have an id for this message that isn't in the conversation?
         conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
@@ -111,9 +114,58 @@ class AgentBridge:
         if len(messages) > self._last_message_count:
             self.state.messages = messages
             self.state.output = output
+
+            # Store the output message's hash->ID mapping so that when the same
+            # content comes back as input in future requests, we can reuse the ID.
+            # This is critical for message ID stability across API format conversions.
+            out_msg = output.message
+            if out_msg.id is not None:
+                msg_key = _normalized_message_hash(out_msg)
+                if msg_key not in self._message_ids:
+                    self._message_ids[msg_key] = []
+                if out_msg.id not in self._message_ids[msg_key]:
+                    self._message_ids[msg_key].append(out_msg.id)
+
         self._last_message_count = len(messages)
 
 
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
+
+
+def _normalized_message_hash(message: ChatMessage) -> str:
+    """Create a hash for message matching that ignores variable fields.
+
+    When messages travel through different API formats (e.g., Google Gemini -> Inspect),
+    some fields may differ even for logically identical messages:
+    - `id`: Always excluded (it's what we're trying to match)
+    - `source`: May be present in outputs ("generate") but not in converted inputs
+    - `model`: Present in outputs but not in converted inputs
+    - `tool_calls[].id`: Different API formats use different ID schemes
+
+    This function normalizes these differences to enable matching.
+    """
+    # Get message as dict
+    msg_dict = message.model_dump()
+
+    # Remove variable fields that may differ between output and converted input
+    msg_dict.pop("id", None)
+    msg_dict.pop("source", None)
+    msg_dict.pop("model", None)
+
+    # Normalize tool_calls by removing their IDs but keeping function name and arguments
+    if "tool_calls" in msg_dict and msg_dict["tool_calls"]:
+        normalized_tool_calls = []
+        for tc in msg_dict["tool_calls"]:
+            normalized_tc = {
+                "function": tc.get("function"),
+                "arguments": tc.get("arguments"),
+                "type": tc.get("type"),
+            }
+            normalized_tool_calls.append(normalized_tc)
+        msg_dict["tool_calls"] = normalized_tool_calls
+
+    # Create deterministic JSON string for hashing
+    normalized_json = json.dumps(msg_dict, sort_keys=True, default=str)
+    return mm3_hash(normalized_json)
