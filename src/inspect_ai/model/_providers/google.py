@@ -164,7 +164,7 @@ class GoogleGenAIAPI(ModelAPI):
         self.api_version = api_version
 
         # record streaming preference
-        self.streaming = bool(model_args.get("streaming", False))
+        self.streaming = bool(model_args.pop("streaming", False))
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
