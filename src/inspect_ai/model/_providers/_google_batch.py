@@ -33,6 +33,15 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
         retry_config: ModelRetryConfig,
         model_name: str,
     ):
+        # add failsafe against using batch mode when client is vertexai
+        if hasattr(client, '_api_client') and hasattr(client._api_client, 'vertexai'):
+            if client._api_client.vertexai:
+                raise NotImplementedError(
+                        "Cannot use batch inferencing."
+                        "Vertex requires GCS-based batch jobs, but we currently "
+                    "use file-upload batching which works for Gemini Developer API only."
+                )
+
         super().__init__(
             config=config,
             retry_config=retry_config,
