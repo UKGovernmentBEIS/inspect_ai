@@ -1776,9 +1776,7 @@ async def model_proxy_server(
 
             # Parse the completion
             resp = (
-                completion
-                if isinstance(completion, dict)
-                else json.loads(completion)
+                completion if isinstance(completion, dict) else json.loads(completion)
             )
 
             # Check if response has function calls with thoughtSignature
@@ -1804,6 +1802,7 @@ async def model_proxy_server(
             # If we have thoughtSignature, return as a single SSE chunk to preserve it
             # (streaming multiple chunks seems to cause CLI to lose the signature)
             if has_thought_signature:
+
                 async def single_chunk_stream() -> AsyncIterator[bytes]:
                     # Send the complete response as a single SSE event
                     yield f"data: {json.dumps(resp)}\n\n".encode("utf-8")
@@ -1854,7 +1853,9 @@ async def model_proxy_server(
 
                         elif "functionCall" in part:
                             # Collect function calls with thoughtSignature as sibling
-                            fc_part: dict[str, Any] = {"functionCall": part["functionCall"]}
+                            fc_part: dict[str, Any] = {
+                                "functionCall": part["functionCall"]
+                            }
                             if "thoughtSignature" in part:
                                 fc_part["thoughtSignature"] = part["thoughtSignature"]
                             fc_parts.append(fc_part)
@@ -1873,18 +1874,14 @@ async def model_proxy_server(
                                 }
                             ]
                         }
-                        yield f"data: {json.dumps(fc_response)}\n\n".encode(
-                            "utf-8"
-                        )
+                        yield f"data: {json.dumps(fc_response)}\n\n".encode("utf-8")
 
                     # Final chunk with finish reason
                     final_response = {
                         "candidates": [
                             {
                                 "content": {"parts": [], "role": "model"},
-                                "finishReason": candidate.get(
-                                    "finishReason", "STOP"
-                                ),
+                                "finishReason": candidate.get("finishReason", "STOP"),
                                 "index": candidate.get("index", 0),
                             }
                         ],
