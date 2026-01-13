@@ -150,7 +150,6 @@ class GoogleGenAIAPI(ModelAPI):
         api_key: str | None,
         config: GenerateConfig = GenerateConfig(),
         api_version: str | None = None,
-        streaming: bool = False,
         **model_args: Any,
     ) -> None:
         super().__init__(
@@ -165,7 +164,7 @@ class GoogleGenAIAPI(ModelAPI):
         self.api_version = api_version
 
         # record streaming preference
-        self.streaming = streaming
+        self.streaming = bool(model_args.get("streaming", False))
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
@@ -457,8 +456,6 @@ class GoogleGenAIAPI(ModelAPI):
             new_parts: list[Part] = []
 
             if accumulated_thoughts:
-                # According to Google's API docs, thought_signature should be attached
-                # to the Part with text, not as a standalone Part
                 thought_part = Part(
                     text="".join(accumulated_thoughts),
                     thought=True,

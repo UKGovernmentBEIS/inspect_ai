@@ -845,13 +845,8 @@ def test_google_streaming_large_output():
 
 
 @skip_if_no_google
-def test_google_streaming_reasoning_summaries():
-    """Test that non-streaming does NOT capture reasoning summaries from Gemini 3 thinking.
-
-    This test demonstrates the original problem: without streaming, ContentReasoning
-    blocks from Gemini 3's thinking mode don't include summaries (they only have
-    encrypted reasoning). Streaming is required to capture the readable summaries.
-    """
+def test_google_nonstreaming_loses_reasoning_summaries():
+    """Test that non-streaming does NOT capture reasoning summaries from Gemini 3 thinking."""
     from inspect_ai.model._chat_message import ContentReasoning
 
     result = eval(
