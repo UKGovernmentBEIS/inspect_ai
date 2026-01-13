@@ -164,7 +164,7 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
-        # record streaming preference (also check model_args in case it was passed there)
+        # record streaming preference
         if "streaming" in model_args:
             self.streaming = model_args.pop("streaming")
         else:
@@ -254,7 +254,7 @@ class GoogleGenAIAPI(ModelAPI):
             # custom base_url
             self.base_url = model_base_url(self.base_url, "GOOGLE_BASE_URL")
 
-        # save model args (streaming is already extracted, don't pass it to Client)
+        # save model args
         self.model_args = model_args
 
         # initialize batcher
@@ -412,27 +412,14 @@ class GoogleGenAIAPI(ModelAPI):
         contents: list[ContentUnion],
         config: GenerateContentConfig,
     ) -> GenerateContentResponse:
-        """Stream content generation and return accumulated response.
+        """Stream content generation and accumulate response.
 
-        Iterates through streaming chunks, accumulating thought parts
-        (where part.thought=True) separately from regular content parts.
-        This ensures reasoning summaries are properly captured from the
-        streaming response.
-
-        Args:
-            client: Google GenAI client
-            model: Model name
-            contents: Message contents
-            config: Generation configuration
-
-        Returns:
-            Complete GenerateContentResponse with accumulated content
+        Accumulates thought parts separately to ensure reasoning summaries
+        are properly captured.
 
         Raises:
             RuntimeError: If no chunks received from stream
         """
-        from google.genai.types import Candidate, Content, Part
-
         accumulated_thoughts: list[str] = []
         accumulated_text: list[str] = []
         last_chunk: GenerateContentResponse | None = None
@@ -445,18 +432,14 @@ class GoogleGenAIAPI(ModelAPI):
         ):
             last_chunk = chunk
 
-            # Accumulate parts from this chunk
             if chunk.candidates and chunk.candidates[0].content:
                 parts = chunk.candidates[0].content.parts
                 if parts:
                     for part in parts:
-                        # Accumulate thought parts separately
                         if part.thought is True and part.text:
                             accumulated_thoughts.append(part.text)
-                        # Accumulate regular text parts (thought is None or False)
                         elif part.text and part.thought is not True:
                             accumulated_text.append(part.text)
-                        # Capture thought signature if present
                         if part.thought_signature:
                             thought_signature = part.thought_signature
 
@@ -465,39 +448,24 @@ class GoogleGenAIAPI(ModelAPI):
                 f"No response chunks received from streaming API for model {model}"
             )
 
-        # If we accumulated thoughts, reconstruct the response with a proper thought part
         if accumulated_thoughts:
-            # Combine all thought text into one
-            combined_thoughts = "".join(accumulated_thoughts)
+            new_parts: list[Part] = [
+                Part(text="".join(accumulated_thoughts), thought=True)
+            ]
 
-            # Create new parts list with consolidated thought
-            new_parts: list[Part] = []
-
-            # Add consolidated thought part
-            thought_part = Part(text=combined_thoughts, thought=True)
-            new_parts.append(thought_part)
-
-            # Add thought signature if we have one
             if thought_signature:
-                signature_part = Part(thought_signature=thought_signature)
-                new_parts.append(signature_part)
+                new_parts.append(Part(thought_signature=thought_signature))
 
-            # Add accumulated regular text if any
             if accumulated_text:
-                text_part = Part(text="".join(accumulated_text))
-                new_parts.append(text_part)
+                new_parts.append(Part(text="".join(accumulated_text)))
 
-            # Add any non-text/thought parts from the last chunk (like function calls)
             if last_chunk.candidates and last_chunk.candidates[0].content:
                 for part in last_chunk.candidates[0].content.parts or []:
                     if part.function_call or part.executable_code:
                         new_parts.append(part)
 
-            # Reconstruct the content with our consolidated parts
             new_content = Content(parts=new_parts, role="model")
 
-            # Create modified candidate with our reconstructed content
-            # We know candidates exist because we accumulated thoughts from them
             if last_chunk.candidates:
                 last_candidate = last_chunk.candidates[0]
                 modified_candidate = Candidate(
@@ -510,14 +478,12 @@ class GoogleGenAIAPI(ModelAPI):
                     avg_logprobs=last_candidate.avg_logprobs,
                 )
 
-                # Return modified response with consolidated thought
                 return GenerateContentResponse(
                     candidates=[modified_candidate],
                     usage_metadata=last_chunk.usage_metadata,
                     model_version=last_chunk.model_version,
                 )
 
-        # No thoughts to accumulate, return last chunk as-is
         return last_chunk
 
     @override
