@@ -7,8 +7,8 @@
 - Model API: Improvements in model detection for hosting providers (e.g. Azure, Bedrock, etc.).
 - Eval Log: Add version of the package exporting the task (if any) to the eval log.
 - Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.
-- Bugfix: Print only enabled hooks at CLI startup.
 - Human Agent: Fixed non-scalar intermediate score values breaking task commands like `task status` and `task stop`.
+- Bugfix: Print only enabled hooks at CLI startup.
 
 ## 0.3.160 (09 January 2026)
 
