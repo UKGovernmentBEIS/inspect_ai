@@ -449,9 +449,8 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
         if accumulated_thoughts:
-            new_parts: list[Part] = [
-                Part(text="".join(accumulated_thoughts), thought=True)
-            ]
+            thought_part = Part(text="".join(accumulated_thoughts), thought=True)
+            new_parts: list[Part] = [thought_part]
 
             if thought_signature:
                 new_parts.append(Part(thought_signature=thought_signature))
@@ -1201,8 +1200,12 @@ def completion_choice_from_candidate(
         # traverse parts
         parts = candidate.content.parts
         for i, part in enumerate(parts):
-            if part.text is None and part.executable_code is None:
-                continue  # We only care about text and executable_code here
+            if (
+                part.text is None
+                and part.executable_code is None
+                and part.thought_signature is None
+            ):
+                continue  # We only care about text, executable_code, and thought_signature here
 
             if part.code_execution_result is not None:
                 continue  # We pickup code execution results with part.executable_code
