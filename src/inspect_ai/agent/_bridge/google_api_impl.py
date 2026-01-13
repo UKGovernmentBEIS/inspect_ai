@@ -25,7 +25,12 @@ from typing import Any
 
 from shortuuid import uuid
 
-from inspect_ai._util.content import Content, ContentImage, ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -149,12 +154,16 @@ def generate_config_from_google(
         config.max_tokens = generation_config["maxOutputTokens"]
     # Only set top_p if temperature wasn't set (they're often mutually exclusive)
     # Check both camelCase (Gemini) and snake_case variants
-    if ("topP" in generation_config or "top_p" in generation_config) and not has_temperature:
+    if (
+        "topP" in generation_config or "top_p" in generation_config
+    ) and not has_temperature:
         config.top_p = generation_config.get("topP", generation_config.get("top_p"))
     if "topK" in generation_config or "top_k" in generation_config:
         config.top_k = generation_config.get("topK", generation_config.get("top_k"))
     if "stopSequences" in generation_config or "stop_sequences" in generation_config:
-        config.stop_seqs = generation_config.get("stopSequences", generation_config.get("stop_sequences"))
+        config.stop_seqs = generation_config.get(
+            "stopSequences", generation_config.get("stop_sequences")
+        )
 
     # System instruction from top level
     system_instruction = json_data.get(
@@ -488,7 +497,9 @@ def _extract_model_parts(
             # Generate a DETERMINISTIC call ID based on function name, args, and position
             # This ensures the same call always gets the same ID for message ID stability
             args_str = json.dumps(args, sort_keys=True) if args else ""
-            call_hash = hashlib.md5(f"{func_name}:{args_str}:{part_idx}".encode()).hexdigest()[:8]
+            call_hash = hashlib.md5(
+                f"{func_name}:{args_str}:{part_idx}".encode()
+            ).hexdigest()[:8]
             call_id = f"call_{func_name}_{call_hash}"
 
             tool_calls.append(
@@ -549,7 +560,9 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
             else:
                 args = tc.arguments
 
-            fc_part: dict[str, Any] = {"functionCall": {"name": tc.function, "args": args}}
+            fc_part: dict[str, Any] = {
+                "functionCall": {"name": tc.function, "args": args}
+            }
 
             # Attach signature to first function call only (per Gemini API docs)
             if idx == 0 and working_reasoning_block is not None:
@@ -602,7 +615,9 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
     text_content = "".join(
         p.get("text", "")
         for p in parts
-        if isinstance(p, dict) and "text" in p and not p["text"].startswith(THOUGHT_SIG_MARKER)
+        if isinstance(p, dict)
+        and "text" in p
+        and not p["text"].startswith(THOUGHT_SIG_MARKER)
     )
     if text_content:
         response["text"] = text_content

@@ -1,11 +1,10 @@
 import json
 from functools import lru_cache
-from typing import Any, Sequence, Set
+from typing import Sequence, Set
 
 from shortuuid import uuid
 
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._compaction import (
