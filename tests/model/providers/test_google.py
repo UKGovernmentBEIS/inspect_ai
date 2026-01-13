@@ -842,3 +842,46 @@ def test_google_streaming_large_output():
 
     assert result.status == "success"
     assert result.samples[0].output
+
+
+@skip_if_no_google
+def test_google_streaming_reasoning_summaries():
+    """Test that non-streaming does NOT capture reasoning summaries from Gemini 3 thinking.
+
+    This test demonstrates the original problem: without streaming, ContentReasoning
+    blocks from Gemini 3's thinking mode don't include summaries (they only have
+    encrypted reasoning). Streaming is required to capture the readable summaries.
+    """
+    from inspect_ai.model._chat_message import ContentReasoning
+
+    result = eval(
+        Task(
+            dataset=[
+                Sample(
+                    input="Solve this logic puzzle step by step: If all cats are animals, and some animals are pets, does that mean all cats are pets?",
+                    target="logic",
+                )
+            ],
+            scorer=includes(),
+        ),
+        model="google/gemini-3-pro-preview",
+        model_args=dict(streaming=False),
+    )[0]
+
+    assert result.status == "success"
+    assert result.samples
+
+    # Without streaming, reasoning summaries should NOT be present
+    sample = result.samples[0]
+    has_reasoning_with_summary = False
+
+    for message in sample.messages:
+        if message.role == "assistant" and isinstance(message.content, list):
+            for content in message.content:
+                if isinstance(content, ContentReasoning) and content.summary:
+                    has_reasoning_with_summary = True
+                    break
+
+    assert not has_reasoning_with_summary, (
+        "Non-streaming should not capture reasoning summaries (they are only available via streaming)"
+    )

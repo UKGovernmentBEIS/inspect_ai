@@ -165,10 +165,7 @@ class GoogleGenAIAPI(ModelAPI):
         self.api_version = api_version
 
         # record streaming preference
-        if "streaming" in model_args:
-            self.streaming = model_args.pop("streaming")
-        else:
-            self.streaming = streaming
+        self.streaming = streaming
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
@@ -422,14 +419,17 @@ class GoogleGenAIAPI(ModelAPI):
         """
         accumulated_thoughts: list[str] = []
         accumulated_text: list[str] = []
+        accumulated_other_parts: list[Part] = []
         last_chunk: GenerateContentResponse | None = None
         thought_signature: bytes | None = None
+        thought_signature_attached_to_part: bool = False
 
-        async for chunk in await client.aio.models.generate_content_stream(
+        stream = await client.aio.models.generate_content_stream(
             model=model,
             contents=contents,
             config=config,
-        ):
+        )
+        async for chunk in stream:
             last_chunk = chunk
 
             if chunk.candidates and chunk.candidates[0].content:
@@ -440,6 +440,11 @@ class GoogleGenAIAPI(ModelAPI):
                             accumulated_thoughts.append(part.text)
                         elif part.text and part.thought is not True:
                             accumulated_text.append(part.text)
+                        elif part.function_call or part.executable_code:
+                            accumulated_other_parts.append(part)
+                            if part.thought_signature:
+                                thought_signature_attached_to_part = True
+
                         if part.thought_signature:
                             thought_signature = part.thought_signature
 
@@ -448,20 +453,25 @@ class GoogleGenAIAPI(ModelAPI):
                 f"No response chunks received from streaming API for model {model}"
             )
 
-        if accumulated_thoughts:
-            thought_part = Part(text="".join(accumulated_thoughts), thought=True)
-            new_parts: list[Part] = [thought_part]
+        if accumulated_thoughts or accumulated_text or accumulated_other_parts:
+            new_parts: list[Part] = []
 
-            if thought_signature:
-                new_parts.append(Part(thought_signature=thought_signature))
+            if accumulated_thoughts:
+                # According to Google's API docs, thought_signature should be attached
+                # to the Part with text, not as a standalone Part
+                thought_part = Part(
+                    text="".join(accumulated_thoughts),
+                    thought=True,
+                    thought_signature=thought_signature
+                    if not thought_signature_attached_to_part
+                    else None,
+                )
+                new_parts.append(thought_part)
 
             if accumulated_text:
                 new_parts.append(Part(text="".join(accumulated_text)))
 
-            if last_chunk.candidates and last_chunk.candidates[0].content:
-                for part in last_chunk.candidates[0].content.parts or []:
-                    if part.function_call or part.executable_code:
-                        new_parts.append(part)
+            new_parts.extend(accumulated_other_parts)
 
             new_content = Content(parts=new_parts, role="model")
 
@@ -1223,7 +1233,9 @@ def completion_choice_from_candidate(
             else:
                 # Check if this block has an associated thought_signature and
                 # whether it corresponds to the previous ContentReasoning block.
-                if part.thought_signature is not None:
+                # Skip thought_signature processing here if the part has a function_call
+                # (it will be handled in the function_call section below)
+                if part.thought_signature is not None and part.function_call is None:
                     if working_reasoning_block is None:
                         # append the reasoning block to the list
                         content.append(
