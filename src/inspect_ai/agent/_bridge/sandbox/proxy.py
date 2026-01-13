@@ -1809,53 +1809,73 @@ async def model_proxy_server(
                 "generate_google", json_data=json_body
             )
 
+            # Parse the completion
+            resp = (
+                completion
+                if isinstance(completion, dict)
+                else json.loads(completion)
+            )
+
+            # Check if response has function calls with thoughtSignature
+            # If so, return non-streaming to preserve thoughtSignature
+            # (Gemini CLI may not handle thoughtSignature correctly in streaming mode)
+            has_thought_signature = False
             if is_streaming:
+                candidates = resp.get("candidates", [])
+                for candidate in candidates:
+                    content = candidate.get("content", {})
+                    parts = content.get("parts", [])
+                    for part in parts:
+                        if "thoughtSignature" in part:
+                            has_thought_signature = True
+                            break
+                    if has_thought_signature:
+                        break
 
-                async def stream_response() -> AsyncIterator[bytes]:
-                    # Parse the completion as a dict
-                    resp = (
-                        completion
-                        if isinstance(completion, dict)
-                        else json.loads(completion)
-                    )
+            # Return non-streaming if not requested
+            if not is_streaming:
+                return {"status": 200, "body": resp}
 
-                    # Google streams as Server-Sent Events with data: prefix
-                    # For generateContent, we simulate streaming by chunking the response
-                    candidates = resp.get("candidates", [])
-                    for candidate in candidates:
-                        content = candidate.get("content", {})
-                        parts = content.get("parts", [])
+            # If we have thoughtSignature, return as a single SSE chunk to preserve it
+            # (streaming multiple chunks seems to cause CLI to lose the signature)
+            if has_thought_signature:
+                async def single_chunk_stream() -> AsyncIterator[bytes]:
+                    # Send the complete response as a single SSE event
+                    yield f"data: {json.dumps(resp)}\n\n".encode("utf-8")
 
-                        for part in parts:
-                            if "text" in part:
-                                # Stream text in chunks
-                                text = part["text"]
-                                for chunk in _iter_chunks(text):
-                                    chunk_response = {
-                                        "candidates": [
-                                            {
-                                                "content": {
-                                                    "parts": [{"text": chunk}],
-                                                    "role": "model",
-                                                },
-                                                "finishReason": None,
-                                                "index": candidate.get("index", 0),
-                                            }
-                                        ]
-                                    }
-                                    yield f"data: {json.dumps(chunk_response)}\n\n".encode(
-                                        "utf-8"
-                                    )
+                return {
+                    "status": 200,
+                    "body_iter": single_chunk_stream(),
+                    "headers": {
+                        "Content-Type": "text/event-stream; charset=utf-8",
+                        "Cache-Control": "no-cache",
+                    },
+                    "chunked": True,
+                }
 
-                            elif "functionCall" in part:
-                                # Function calls are sent as a single chunk
-                                fc_response = {
+            # Otherwise, stream the response
+            async def stream_response() -> AsyncIterator[bytes]:
+                # Google streams as Server-Sent Events with data: prefix
+                # For generateContent, we simulate streaming by chunking the response
+                candidates = resp.get("candidates", [])
+                for candidate in candidates:
+                    content = candidate.get("content", {})
+                    parts = content.get("parts", [])
+
+                    # Collect function calls to send together (they shouldn't be split)
+                    # Per Gemini docs: thoughtSignature is sibling to functionCall in same part
+                    fc_parts: list[dict[str, Any]] = []
+
+                    for part in parts:
+                        if "text" in part:
+                            # Stream text in chunks
+                            text = part["text"]
+                            for chunk in _iter_chunks(text):
+                                chunk_response = {
                                     "candidates": [
                                         {
                                             "content": {
-                                                "parts": [
-                                                    {"functionCall": part["functionCall"]}
-                                                ],
+                                                "parts": [{"text": chunk}],
                                                 "role": "model",
                                             },
                                             "finishReason": None,
@@ -1863,36 +1883,59 @@ async def model_proxy_server(
                                         }
                                     ]
                                 }
-                                yield f"data: {json.dumps(fc_response)}\n\n".encode(
+                                yield f"data: {json.dumps(chunk_response)}\n\n".encode(
                                     "utf-8"
                                 )
 
-                        # Final chunk with finish reason
-                        final_response = {
+                        elif "functionCall" in part:
+                            # Collect function calls with thoughtSignature as sibling
+                            fc_part: dict[str, Any] = {"functionCall": part["functionCall"]}
+                            if "thoughtSignature" in part:
+                                fc_part["thoughtSignature"] = part["thoughtSignature"]
+                            fc_parts.append(fc_part)
+
+                    # Send all function calls in a single chunk
+                    if fc_parts:
+                        fc_response = {
                             "candidates": [
                                 {
-                                    "content": {"parts": [], "role": "model"},
-                                    "finishReason": candidate.get(
-                                        "finishReason", "STOP"
-                                    ),
+                                    "content": {
+                                        "parts": fc_parts,
+                                        "role": "model",
+                                    },
+                                    "finishReason": None,
                                     "index": candidate.get("index", 0),
                                 }
-                            ],
-                            "usageMetadata": resp.get("usageMetadata", {}),
+                            ]
                         }
-                        yield f"data: {json.dumps(final_response)}\n\n".encode("utf-8")
+                        yield f"data: {json.dumps(fc_response)}\n\n".encode(
+                            "utf-8"
+                        )
 
-                return {
-                    "status": 200,
-                    "body_iter": stream_response(),
-                    "headers": {
-                        "Content-Type": "text/event-stream; charset=utf-8",
-                        "Cache-Control": "no-cache",
-                    },
-                    "chunked": True,
-                }
-            else:
-                return {"status": 200, "body": completion}
+                    # Final chunk with finish reason
+                    final_response = {
+                        "candidates": [
+                            {
+                                "content": {"parts": [], "role": "model"},
+                                "finishReason": candidate.get(
+                                    "finishReason", "STOP"
+                                ),
+                                "index": candidate.get("index", 0),
+                            }
+                        ],
+                        "usageMetadata": resp.get("usageMetadata", {}),
+                    }
+                    yield f"data: {json.dumps(final_response)}\n\n".encode("utf-8")
+
+            return {
+                "status": 200,
+                "body_iter": stream_response(),
+                "headers": {
+                    "Content-Type": "text/event-stream; charset=utf-8",
+                    "Cache-Control": "no-cache",
+                },
+                "chunked": True,
+            }
 
         except Exception as ex:
             _handle_model_proxy_error(ex)
