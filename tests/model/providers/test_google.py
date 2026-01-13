@@ -38,7 +38,8 @@ from inspect_ai.model._providers.google import (
     content,
 )
 from inspect_ai.scorer import includes
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
+from inspect_ai.solver import use_tools
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams, tool
 
 
 @skip_if_no_google
@@ -780,3 +781,64 @@ async def test_google_count_tokens_single_tool_result() -> None:
     # This should not raise - we're testing token counting for individual messages
     token_count = await model.api.count_tokens([tool_msg])
     assert token_count > 0
+
+
+@skip_if_no_google
+def test_google_streaming_basic():
+    """Test basic streaming with simple prompt."""
+    result = eval(
+        Task(
+            dataset=[Sample(input="Say hello in one sentence", target="hello")],
+            scorer=includes(),
+        ),
+        model="google/gemini-2.0-flash",
+        model_args=dict(streaming=True),
+    )[0]
+
+    assert result.status == "success"
+    assert result.samples
+    assert result.samples[0].output
+
+
+@skip_if_no_google
+def test_google_streaming_with_tools():
+    """Test streaming with tool calls."""
+
+    @tool
+    def add(x: int, y: int) -> int:
+        """Add two numbers."""
+        return x + y
+
+    result = eval(
+        Task(
+            dataset=[Sample(input="What is 5 + 3?", target="8")],
+            solver=use_tools([add]),
+            scorer=includes(),
+        ),
+        model="google/gemini-2.0-flash",
+        model_args=dict(streaming=True),
+    )[0]
+
+    assert result.status == "success"
+
+
+@skip_if_no_google
+def test_google_streaming_large_output():
+    """Test streaming with large max_tokens."""
+    result = eval(
+        Task(
+            dataset=[
+                Sample(
+                    input="Write a detailed story about space exploration",
+                    target="space",
+                )
+            ],
+            scorer=includes(),
+        ),
+        model="google/gemini-2.0-flash",
+        model_args=dict(streaming=True),
+        max_tokens=4096,
+    )[0]
+
+    assert result.status == "success"
+    assert result.samples[0].output

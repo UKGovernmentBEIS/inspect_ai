@@ -150,6 +150,7 @@ class GoogleGenAIAPI(ModelAPI):
         api_key: str | None,
         config: GenerateConfig = GenerateConfig(),
         api_version: str | None = None,
+        streaming: bool = False,
         **model_args: Any,
     ) -> None:
         super().__init__(
@@ -162,6 +163,12 @@ class GoogleGenAIAPI(ModelAPI):
 
         # record api version
         self.api_version = api_version
+
+        # record streaming preference (also check model_args in case it was passed there)
+        if "streaming" in model_args:
+            self.streaming = model_args.pop("streaming")
+        else:
+            self.streaming = streaming
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
@@ -247,7 +254,7 @@ class GoogleGenAIAPI(ModelAPI):
             # custom base_url
             self.base_url = model_base_url(self.base_url, "GOOGLE_BASE_URL")
 
-        # save model args
+        # save model args (streaming is already extracted, don't pass it to Client)
         self.model_args = model_args
 
         # initialize batcher
@@ -341,8 +348,8 @@ class GoogleGenAIAPI(ModelAPI):
                 # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
                 tool_calling_attempts = 0
                 while tool_calling_attempts < 3:
-                    response = await (
-                        self._batcher.generate_for_request(
+                    if self._batcher:
+                        response = await self._batcher.generate_for_request(
                             {
                                 "contents": [
                                     content.model_dump(exclude_none=True)
@@ -351,13 +358,19 @@ class GoogleGenAIAPI(ModelAPI):
                                 **parameters.model_dump(exclude_none=True),
                             }
                         )
-                        if self._batcher
-                        else client.aio.models.generate_content(
+                    elif self.streaming:
+                        response = await self._stream_generate_content(
+                            client=client,
                             model=self.service_model_name(),
                             contents=gemini_contents,  # type: ignore[arg-type]
                             config=parameters,
                         )
-                    )
+                    else:
+                        response = await client.aio.models.generate_content(
+                            model=self.service_model_name(),
+                            contents=gemini_contents,  # type: ignore[arg-type]
+                            config=parameters,
+                        )
                     # retry for MALFORMED_FUNCTION_CALL
                     if (
                         response.candidates
@@ -391,6 +404,121 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
             return output, model_call()
+
+    async def _stream_generate_content(
+        self,
+        client: Client,
+        model: str,
+        contents: list[ContentUnion],
+        config: GenerateContentConfig,
+    ) -> GenerateContentResponse:
+        """Stream content generation and return accumulated response.
+
+        Iterates through streaming chunks, accumulating thought parts
+        (where part.thought=True) separately from regular content parts.
+        This ensures reasoning summaries are properly captured from the
+        streaming response.
+
+        Args:
+            client: Google GenAI client
+            model: Model name
+            contents: Message contents
+            config: Generation configuration
+
+        Returns:
+            Complete GenerateContentResponse with accumulated content
+
+        Raises:
+            RuntimeError: If no chunks received from stream
+        """
+        from google.genai.types import Candidate, Content, Part
+
+        accumulated_thoughts: list[str] = []
+        accumulated_text: list[str] = []
+        last_chunk: GenerateContentResponse | None = None
+        thought_signature: bytes | None = None
+
+        async for chunk in await client.aio.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=config,
+        ):
+            last_chunk = chunk
+
+            # Accumulate parts from this chunk
+            if chunk.candidates and chunk.candidates[0].content:
+                parts = chunk.candidates[0].content.parts
+                if parts:
+                    for part in parts:
+                        # Accumulate thought parts separately
+                        if part.thought is True and part.text:
+                            accumulated_thoughts.append(part.text)
+                        # Accumulate regular text parts (thought is None or False)
+                        elif part.text and part.thought is not True:
+                            accumulated_text.append(part.text)
+                        # Capture thought signature if present
+                        if part.thought_signature:
+                            thought_signature = part.thought_signature
+
+        if last_chunk is None:
+            raise RuntimeError(
+                f"No response chunks received from streaming API for model {model}"
+            )
+
+        # If we accumulated thoughts, reconstruct the response with a proper thought part
+        if accumulated_thoughts:
+            # Combine all thought text into one
+            combined_thoughts = "".join(accumulated_thoughts)
+
+            # Create new parts list with consolidated thought
+            new_parts: list[Part] = []
+
+            # Add consolidated thought part
+            thought_part = Part(text=combined_thoughts, thought=True)
+            new_parts.append(thought_part)
+
+            # Add thought signature if we have one
+            if thought_signature:
+                signature_part = Part(thought_signature=thought_signature)
+                new_parts.append(signature_part)
+
+            # Add accumulated regular text if any
+            if accumulated_text:
+                text_part = Part(text="".join(accumulated_text))
+                new_parts.append(text_part)
+
+            # Add any non-text/thought parts from the last chunk (like function calls)
+            if last_chunk.candidates and last_chunk.candidates[0].content:
+                for part in last_chunk.candidates[0].content.parts or []:
+                    if part.function_call or part.executable_code:
+                        new_parts.append(part)
+
+            # Reconstruct the content with our consolidated parts
+            new_content = Content(parts=new_parts, role="model")
+
+            # Create modified candidate with our reconstructed content
+            # We know candidates exist because we accumulated thoughts from them
+            if last_chunk.candidates:
+                last_candidate = last_chunk.candidates[0]
+                modified_candidate = Candidate(
+                    content=new_content,
+                    finish_reason=last_candidate.finish_reason,
+                    safety_ratings=last_candidate.safety_ratings,
+                    citation_metadata=last_candidate.citation_metadata,
+                    token_count=last_candidate.token_count,
+                    grounding_metadata=last_candidate.grounding_metadata,
+                    avg_logprobs=last_candidate.avg_logprobs,
+                )
+
+                # Return modified response with consolidated thought
+                return GenerateContentResponse(
+                    candidates=[modified_candidate],
+                    usage_metadata=last_chunk.usage_metadata,
+                    model_version=last_chunk.model_version,
+                )
+
+        # No thoughts to accumulate, return last chunk as-is
+        return last_chunk
 
     @override
     async def count_tokens(self, input: str | list[ChatMessage]) -> int:
@@ -1107,8 +1235,12 @@ def completion_choice_from_candidate(
         # traverse parts
         parts = candidate.content.parts
         for i, part in enumerate(parts):
-            if part.text is None and part.executable_code is None:
-                continue  # We only care about text and executable_code here
+            if (
+                part.text is None
+                and part.executable_code is None
+                and part.thought_signature is None
+            ):
+                continue  # We only care about text, executable_code, and thought_signature here
 
             if part.code_execution_result is not None:
                 continue  # We pickup code execution results with part.executable_code
