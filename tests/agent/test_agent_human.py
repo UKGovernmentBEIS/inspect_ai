@@ -152,10 +152,7 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
             capture_output=True,
             text=True,
         )
-        assert "addition" in list_result.stdout, (
-            f"Expected 'addition' in output: {list_result.stdout}"
-        )
-        assert "Add two numbers" in list_result.stdout
+        assert "addition: Add two numbers" in list_result.stdout
 
         # Test: task tool addition --help
         help_result = subprocess.run(
@@ -163,19 +160,20 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
             capture_output=True,
             text=True,
         )
-        assert "Add two numbers" in help_result.stdout
-        assert '"x"' in help_result.stdout  # JSON schema should include parameter
+        assert "addition: Add two numbers" in help_result.stdout
+        assert (
+            '"x": {"type": "integer","description": "First number to add."}'
+            in help_result.stdout
+        )
 
         # Test: task tool addition '{"x": 1, "y": 2}'
         exec_result = subprocess.run(
             docker_exec
-            + ['python3 /opt/human_agent/task.py tool addition \'{"x": 1, "y": 2}\''],
+            + ['python3 /opt/human_agent/task.py tool addition \'{"x": 12, "y": 34}\''],
             capture_output=True,
             text=True,
         )
-        assert "3" in exec_result.stdout, (
-            f"Expected '3' in output: {exec_result.stdout}"
-        )
+        assert exec_result.stdout.strip() == "46"
 
         # Clean up: start and submit to complete the task
         subprocess.check_call(docker_exec + ["python3 /opt/human_agent/task.py start"])
