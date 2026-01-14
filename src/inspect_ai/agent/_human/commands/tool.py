@@ -338,9 +338,12 @@ def generate_tool_parser(
 
     # If tool has complex params, don't generate CLI args - user must use escape hatch
     if has_complex_params:
+        schema_json = json.dumps(params.model_dump(exclude_none=True), indent=2)
+        escaped_schema = _escape_string(schema_json)
         lines.append(
-            f"{tool_name}_parser.epilog = "
-            f'"This tool has complex parameters. You must use --raw-json-escape-hatch for all parameters."'
+            f'{tool_name}_parser.epilog = '
+            f'"This tool has complex parameters. You must use --raw-json-escape-hatch.\\n\\n'
+            f'Parameters:\\n{escaped_schema}"'
         )
     else:
         # Generate arguments in signature order (all as named args)
