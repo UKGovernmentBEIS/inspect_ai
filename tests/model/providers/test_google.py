@@ -845,8 +845,8 @@ def test_google_streaming_large_output():
 
 
 @skip_if_no_google
-def test_google_nonstreaming_loses_reasoning_summaries():
-    """Test that non-streaming does NOT capture reasoning summaries from Gemini 3 thinking."""
+def test_google_streaming_captures_reasoning_summaries():
+    """Test that streaming DOES capture reasoning summaries from Gemini 3 thinking."""
     from inspect_ai.model._chat_message import ContentReasoning
 
     result = eval(
@@ -860,23 +860,24 @@ def test_google_nonstreaming_loses_reasoning_summaries():
             scorer=includes(),
         ),
         model="google/gemini-3-pro-preview",
-        model_args=dict(streaming=False),
+        model_args=dict(streaming=True),
     )[0]
 
     assert result.status == "success"
-    assert result.samples
 
-    # Without streaming, reasoning summaries should NOT be present
-    sample = result.samples[0]
-    has_reasoning_with_summary = False
+    # Find assistant messages with reasoning
+    reasoning_blocks = []
+    for msg in result.samples[0].messages:
+        if msg.role == "assistant":
+            reasoning_blocks.extend(
+                [c for c in msg.content if isinstance(c, ContentReasoning)]
+            )
 
-    for message in sample.messages:
-        if message.role == "assistant" and isinstance(message.content, list):
-            for content in message.content:
-                if isinstance(content, ContentReasoning) and content.summary:
-                    has_reasoning_with_summary = True
-                    break
-
-    assert not has_reasoning_with_summary, (
-        "Non-streaming should not capture reasoning summaries (they are only available via streaming)"
+    # Should have at least one reasoning block with a summary
+    assert len(reasoning_blocks) > 0, "Expected at least one ContentReasoning block"
+    assert any(r.summary and len(r.summary) > 0 for r in reasoning_blocks), (
+        "Expected at least one reasoning block with summary text"
+    )
+    assert all(r.redacted for r in reasoning_blocks), (
+        "All reasoning blocks should have signatures (redacted=True)"
     )
