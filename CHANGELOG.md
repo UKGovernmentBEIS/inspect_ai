@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.161 (10 January 2026)
 
 - Sandbox: `parse_compose_yaml()` for parsing Docker Compose files into typed configuration for sandbox providers.
 - Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).
@@ -11,6 +11,7 @@
 - Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.
 - Human Agent: Fixed non-scalar intermediate score values breaking task commands like `task status` and `task stop`.
 - Bugfix: Print only enabled hooks at CLI startup.
+- Bugfix: Fix eval_set log reuse when setting limits as eval set args.
 
 ## 0.3.160 (09 January 2026)
 
