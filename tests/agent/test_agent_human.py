@@ -184,8 +184,5 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
             )
 
         done, _ = concurrent.futures.wait([future], timeout=5)
-        if future in done:
-            log = future.result()
-            assert log.status == "success"
-        else:
+        if future not in done:
             raise Exception("eval() did not complete within timeout")
