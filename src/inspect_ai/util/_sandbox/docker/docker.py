@@ -13,7 +13,7 @@ from typing_extensions import override
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
-from ..compose import COMPOSE_FILES, DOCKERFILE
+from ..compose import COMPOSE_FILES, DOCKERFILE, ComposeConfig
 from ..environment import (
     HostMapping,
     PortMapping,
@@ -591,5 +591,9 @@ def resolve_config_environment(
 
         # return resolved
         return ConfigEnvironment(config_file, config_text, env)
+    elif isinstance(config, ComposeConfig):
+        # ComposeConfig objects don't support metadata interpolation
+        # (they are already fully resolved)
+        return None
     else:
         return None

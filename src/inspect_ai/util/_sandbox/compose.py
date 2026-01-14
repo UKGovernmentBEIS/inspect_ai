@@ -250,6 +250,16 @@ class ComposeConfig(BaseModel):
     networks: dict[str, Any] | None = Field(default=None)
     """Network definitions."""
 
+    def __hash__(self) -> int:
+        """Make ComposeConfig hashable by hashing its JSON representation."""
+        return hash(self.model_dump_json())
+
+    def __eq__(self, other: object) -> bool:
+        """Compare ComposeConfig objects by their content."""
+        if not isinstance(other, ComposeConfig):
+            return NotImplemented
+        return self.model_dump() == other.model_dump()
+
     @property
     def extensions(self) -> dict[str, Any]:
         """Access all top-level x- extension fields.
