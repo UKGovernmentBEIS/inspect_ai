@@ -430,7 +430,10 @@ class GoogleGenAIAPI(ModelAPI):
             last_chunk = chunk
             if chunk.candidates:
                 for candidate in chunk.candidates:
-                    idx = candidate.index or 0
+                    if candidate.index is None:
+                        continue
+
+                    idx = candidate.index
                     if idx not in candidates_parts:
                         candidates_parts[idx] = []
 
@@ -1225,9 +1228,7 @@ def completion_choice_from_candidate(
             else:
                 # Check if this block has an associated thought_signature and
                 # whether it corresponds to the previous ContentReasoning block.
-                # Skip thought_signature processing here if the part has a function_call
-                # (it will be handled in the function_call section below)
-                if part.thought_signature is not None and part.function_call is None:
+                if part.thought_signature is not None:
                     if working_reasoning_block is None:
                         # append the reasoning block to the list
                         content.append(
