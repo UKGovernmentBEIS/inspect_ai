@@ -38,6 +38,14 @@ def wait_for_human_agent(docker_exec: list[str], timeout: int = 10) -> None:
     raise Exception("Human agent sandbox service not found")
 
 
+def submit_task(docker_exec: list[str], answer: str = "done") -> None:
+    subprocess.check_call(docker_exec + ["python3 /opt/human_agent/task.py start"])
+    subprocess.check_call(
+        docker_exec
+        + [f'echo -e "y\\n" | python3 /opt/human_agent/task.py submit "{answer}"']
+    )
+
+
 @pytest.mark.slow
 @skip_if_no_docker
 @pytest.mark.parametrize("user", ["root", "nonroot", None])
@@ -199,13 +207,7 @@ options:
 
         finally:
             # Always call task start/submit to unblock eval thread (otherwise test hangs!)
-            subprocess.check_call(
-                docker_exec + ["python3 /opt/human_agent/task.py start"]
-            )
-            subprocess.check_call(
-                docker_exec
-                + ['echo -e "y\\n" | python3 /opt/human_agent/task.py submit "done"'],
-            )
+            submit_task(docker_exec)
 
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
@@ -284,13 +286,7 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
 
         finally:
             # Always call task start/submit to unblock eval thread (otherwise test hangs!)
-            subprocess.check_call(
-                docker_exec + ["python3 /opt/human_agent/task.py start"]
-            )
-            subprocess.check_call(
-                docker_exec
-                + ['echo -e "y\\n" | python3 /opt/human_agent/task.py submit "done"'],
-            )
+            submit_task(docker_exec)
 
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
@@ -356,13 +352,7 @@ def test_human_cli_with_tools_no_args(capsys: pytest.CaptureFixture[str]):
 
         finally:
             # Always call task start/submit to unblock eval thread (otherwise test hangs!)
-            subprocess.check_call(
-                docker_exec + ["python3 /opt/human_agent/task.py start"]
-            )
-            subprocess.check_call(
-                docker_exec
-                + ['echo -e "y\\n" | python3 /opt/human_agent/task.py submit "done"'],
-            )
+            submit_task(docker_exec)
 
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
