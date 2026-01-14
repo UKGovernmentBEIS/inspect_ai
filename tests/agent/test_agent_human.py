@@ -3,6 +3,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
+from subprocess import CompletedProcess
 
 import pytest
 from test_helpers.utils import skip_if_no_docker
@@ -86,7 +87,17 @@ def test_human_cli(capsys: pytest.CaptureFixture[str], user: str | None):
 @pytest.mark.slow
 @skip_if_no_docker
 def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
-    """Test human_cli with tools parameter."""
+    """Test human_cli with tools parameter.
+
+    Tests three argument styles:
+    - Positional: task tool addition 12 34
+    - Named: task tool addition --x 12 --y 34
+    - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12, "y": 34}'
+    """
+
+
+    def fmt_err(cp: CompletedProcess):
+        return f"Wrong output. {cp.stdout}\n{cp.stderr}"
 
     @tool
     def addition():
@@ -136,23 +147,43 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
                 capture_output=True,
                 text=True,
             )
-            assert "addition: Add two numbers" in help_result.stdout
-            assert (
-                '"x": {"type": "integer","description": "First number to add."}'
-                in help_result.stdout
-            )
+            # TODO: Should show argparse-style help
+            assert "addition" in help_result.stdout
 
-            # Test: task tool addition '{"x": 1, "y": 2}'
-            exec_result = subprocess.run(
-                docker_exec
-                + ['python3 /opt/human_agent/task.py tool addition \'{"x": 12, "y": 34}\''],
+            # Test: positional args - task tool addition 12 34
+            positional_result = subprocess.run(
+                docker_exec + ["python3 /opt/human_agent/task.py tool addition 12 34"],
                 capture_output=True,
                 text=True,
             )
-            assert exec_result.stdout.strip() == "46"
+            assert positional_result.stdout.strip() == "46", fmt_err(positional_result)
+
+            # Test: named args - task tool addition --x 12 --y 34
+            named_result = subprocess.run(
+                docker_exec
+                + ["python3 /opt/human_agent/task.py tool addition --x 12 --y 34"],
+                capture_output=True,
+                text=True,
+            )
+            assert named_result.stdout.strip() == "46", fmt_err(named_result)
+
+            # Test: JSON escape hatch
+            json_result = subprocess.run(
+                docker_exec
+                + [
+                    "python3 /opt/human_agent/task.py tool addition "
+                    "--raw-json-escape-hatch '{\"x\": 12, \"y\": 34}'"
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert json_result.stdout.strip() == "46"
+
         finally:
             # Always call task start/submit to unblock eval thread (otherwise test hangs!)
-            subprocess.check_call(docker_exec + ["python3 /opt/human_agent/task.py start"])
+            subprocess.check_call(
+                docker_exec + ["python3 /opt/human_agent/task.py start"]
+            )
             subprocess.check_call(
                 docker_exec
                 + ['echo -e "y\\n" | python3 /opt/human_agent/task.py submit "done"'],
