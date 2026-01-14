@@ -295,3 +295,75 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
             raise Exception("eval() did not complete within timeout")
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_with_tools_no_args(capsys: pytest.CaptureFixture[str]):
+    """Test human_cli with a tool that takes no arguments."""
+
+    def fmt_err(cp: CompletedProcess):
+        return f"Wrong output. {cp.stdout}\n{cp.stderr}"
+
+    @tool
+    def get_timestamp():
+        async def execute() -> str:
+            """Get the current timestamp.
+
+            Returns:
+                A fixed timestamp string for testing.
+            """
+            return "2024-01-01T00:00:00Z"
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[get_timestamp()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        try:
+            # Test: tool is listed
+            list_result = subprocess.run(
+                docker_exec + ["python3 /opt/human_agent/task.py tool"],
+                capture_output=True,
+                text=True,
+            )
+            assert "get_timestamp" in list_result.stdout, fmt_err(list_result)
+
+            # Test: calling without arguments works
+            call_result = subprocess.run(
+                docker_exec
+                + ["python3 /opt/human_agent/task.py tool get_timestamp"],
+                capture_output=True,
+                text=True,
+            )
+            assert call_result.stdout.strip() == "2024-01-01T00:00:00Z", fmt_err(
+                call_result
+            )
+
+        finally:
+            # Always call task start/submit to unblock eval thread (otherwise test hangs!)
+            subprocess.check_call(
+                docker_exec + ["python3 /opt/human_agent/task.py start"]
+            )
+            subprocess.check_call(
+                docker_exec
+                + ['echo -e "y\\n" | python3 /opt/human_agent/task.py submit "done"'],
+            )
+
+        done, _ = concurrent.futures.wait([future], timeout=5)
+        if future not in done:
+            raise Exception("eval() did not complete within timeout")
