@@ -141,7 +141,7 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
             )
             assert "addition: Add two numbers" in list_result.stdout
 
-            # Test: task tool addition --help
+            # Test: task tool addition --help (note this will clash with a tool argument called 'help')
             help_result = subprocess.run(
                 docker_exec + ["python3 /opt/human_agent/task.py tool addition --help"],
                 capture_output=True,
