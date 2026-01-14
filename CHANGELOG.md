@@ -6,6 +6,7 @@
 - OpenAI Compatible: Convert function arguments to JSON if they are provided as a string (as is done by xAI and perhaps other providers).
 - Model API: Improvements in model detection for hosting providers (e.g. Azure, Bedrock, etc.).
 - Eval Log: Add version of the package exporting the task (if any) to the eval log.
+- Analysis: Convert mixed-type object columns to string for PyArrow conversion.
 - Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.
 - Human Agent: Fixed non-scalar intermediate score values breaking task commands like `task status` and `task stop`.
 - Bugfix: Print only enabled hooks at CLI startup.
