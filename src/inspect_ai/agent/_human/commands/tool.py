@@ -336,64 +336,59 @@ def generate_tool_parser(
         f'help="{escaped_desc}")'
     )
 
-    # Generate arguments in signature order (all as named args)
-    for name in param_order:
-        if name not in param_infos:
-            continue
-
-        info = param_infos[name]
-
-        if not _is_simple_type(info):
-            # Complex type - skip, user must use --raw-json-escape-hatch
-            continue
-
-        arg_name = name.replace("_", "-")
-        parts: list[str] = []
-
-        # Always use named args (--x, --y)
-        named_params.append(name)
-        parts.append(f'"--{arg_name}"')
-        parts.append(f'dest="{name}"')
-
-        # Type conversion
-        if info.schema_type == "integer":
-            parts.append("type=int")
-        elif info.schema_type == "number":
-            parts.append("type=float")
-        elif info.schema_type == "boolean":
-            parts.append('action="store_true"')
-            parts.append("default=False")
-        elif info.schema_type == "array":
-            parts.append('nargs="*"')
-            if info.array_item_type == "integer":
-                parts.append("type=int")
-            elif info.array_item_type == "number":
-                parts.append("type=float")
-
-        # Enum/choices
-        if info.enum:
-            parts.append(f"choices={info.enum!r}")
-
-        # Required/default
-        if info.schema_type != "boolean":
-            if info.is_optional or not info.is_required:
-                parts.append("default=None")
-            else:
-                parts.append("required=True")
-
-        # Help text
-        if info.description:
-            escaped = _escape_string(info.description)
-            parts.append(f'help="{escaped}"')
-
-        lines.append(f'{tool_name}_parser.add_argument({", ".join(parts)})')
-
-    # If tool has complex params, add a note in help
+    # If tool has complex params, don't generate CLI args - user must use escape hatch
     if has_complex_params:
         lines.append(
             f"{tool_name}_parser.epilog = "
-            f'"Note: This tool has complex parameters. Use --raw-json-escape-hatch."'
+            f'"This tool has complex parameters. You must use --raw-json-escape-hatch for all parameters."'
         )
+    else:
+        # Generate arguments in signature order (all as named args)
+        for name in param_order:
+            if name not in param_infos:
+                continue
+
+            info = param_infos[name]
+            arg_name = name.replace("_", "-")
+            parts: list[str] = []
+
+            # Always use named args (--x, --y)
+            named_params.append(name)
+            parts.append(f'"--{arg_name}"')
+            parts.append(f'dest="{name}"')
+
+            # Type conversion
+            if info.schema_type == "integer":
+                parts.append("type=int")
+            elif info.schema_type == "number":
+                parts.append("type=float")
+            elif info.schema_type == "boolean":
+                parts.append('action="store_true"')
+                parts.append("default=False")
+            elif info.schema_type == "array":
+                parts.append('nargs="*"')
+                if info.array_item_type == "integer":
+                    parts.append("type=int")
+                elif info.array_item_type == "number":
+                    parts.append("type=float")
+
+            # Enum/choices
+            if info.enum:
+                parts.append(f"choices={info.enum!r}")
+
+            # Required/default
+            if info.schema_type != "boolean":
+                if info.is_optional or not info.is_required:
+                    parts.append("default=None")
+                else:
+                    parts.append("required=True")
+
+            # Help text
+            if info.description:
+                escaped = _escape_string(info.description)
+                parts.append(f'help="{escaped}"')
+
+            lines.append(f'{tool_name}_parser.add_argument({", ".join(parts)})')
 
     parser_code = "\n".join(lines)
     return parser_code, named_params

@@ -258,18 +258,17 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
         wait_for_human_agent(docker_exec)
 
         try:
-            # Test: tool help shows epilog about complex parameters
+            # Test: tool help shows epilog about complex parameters, no CLI args
             help_result = subprocess.run(
                 docker_exec
                 + ["python3 /opt/human_agent/task.py tool process_config --help"],
                 capture_output=True,
                 text=True,
             )
-            # Only the simple 'name' parameter appears as --name
-            assert "--name" in help_result.stdout, fmt_err(help_result)
-            # 'config' (dict) is not a CLI arg - epilog mentions escape hatch
+            # No CLI args shown - user must use escape hatch for all params
+            assert "--name" not in help_result.stdout, fmt_err(help_result)
             assert "--config" not in help_result.stdout, fmt_err(help_result)
-            assert "Note: This tool has complex parameters. Use --raw-json-escape-hatch." in help_result.stdout, fmt_err(help_result)
+            assert "This tool has complex parameters. You must use --raw-json-escape-hatch" in help_result.stdout, fmt_err(help_result)
 
             # Test: calling with JSON escape hatch works
             json_result = subprocess.run(
