@@ -470,18 +470,35 @@ class GoogleGenAIAPI(ModelAPI):
                             )
                         )
                         output_texts = []
-                    else:
+                    elif part.function_call or part.executable_code:
                         if output_texts:
                             merged_parts.append(Part(text="".join(output_texts)))
                             output_texts = []
 
-                        new_part_kwargs = {"thought_signature": part.thought_signature}
                         if part.function_call:
-                            new_part_kwargs["function_call"] = part.function_call
-                        if part.executable_code:
-                            new_part_kwargs["executable_code"] = part.executable_code
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    function_call=part.function_call,
+                                )
+                            )
+                        elif part.executable_code:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    executable_code=part.executable_code,
+                                )
+                            )
+                    else:
+                        if output_texts:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    text="".join(output_texts),
+                                )
+                            )
+                            output_texts = []
 
-                        merged_parts.append(Part(**new_part_kwargs))
                 elif part.thought is True and part.text:
                     if output_texts:
                         merged_parts.append(Part(text="".join(output_texts)))

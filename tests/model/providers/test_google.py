@@ -853,8 +853,8 @@ def test_google_streaming_captures_reasoning_summaries():
         Task(
             dataset=[
                 Sample(
-                    input="Solve this logic puzzle step by step: If all cats are animals, and some animals are pets, does that mean all cats are pets?",
-                    target="logic",
+                    input="What is the sum of the first 50 prime numbers?",
+                    target="5117",
                 )
             ],
             scorer=includes(),
@@ -879,5 +879,5 @@ def test_google_streaming_captures_reasoning_summaries():
         "Expected at least one reasoning block with summary text"
     )
     assert all(r.redacted for r in reasoning_blocks), (
-        "All reasoning blocks should have signatures (redacted=True)"
+        "All reasoning blocks should be redacted"
     )
