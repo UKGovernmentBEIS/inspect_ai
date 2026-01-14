@@ -18,6 +18,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
+    EvalSetArgsInTaskIdentifier,
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
@@ -192,8 +193,9 @@ def test_validate_eval_set_prerequisites_ok() -> None:
         resolved_tasks=resolved_tasks,
         all_logs=all_logs,
         log_dir_allow_dirty=False,
-        config=GenerateConfig(),
-        eval_set_solver=None,
+        eval_set_args=EvalSetArgsInTaskIdentifier(
+            config=GenerateConfig(),
+        ),
     )
     assert len(all_logs) == 2
 
@@ -213,8 +215,7 @@ def test_validate_eval_set_prerequisites_mismatch() -> None:
             resolved_tasks=resolved_tasks,
             all_logs=all_logs,
             log_dir_allow_dirty=False,
-            config=GenerateConfig(),
-            eval_set_solver=None,
+            eval_set_args=EvalSetArgsInTaskIdentifier(config=GenerateConfig()),
         )
 
 
@@ -232,8 +233,7 @@ def test_validate_eval_set_prerequisites_mismatch_log_dir_allow_dirty() -> None:
         resolved_tasks=resolved_tasks,
         all_logs=all_logs,
         log_dir_allow_dirty=True,
-        config=GenerateConfig(),
-        eval_set_solver=None,
+        eval_set_args=EvalSetArgsInTaskIdentifier(config=GenerateConfig()),
     )
     assert len(all_logs) == 0
 
@@ -381,12 +381,20 @@ def run_eval_set(
 
         all_logs = list_all_eval_logs(log_dir)
 
+        eval_set_args = EvalSetArgsInTaskIdentifier(
+            config=config,
+            solver=solver,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            time_limit=time_limit,
+            working_limit=working_limit,
+        )
+
         all_logs = validate_eval_set_prerequisites(
             resolved_tasks=resolved_tasks,
             all_logs=all_logs,
             log_dir_allow_dirty=False,
-            config=config,
-            eval_set_solver=solver,
+            eval_set_args=eval_set_args,
         )
         assert len(all_logs) == len(resolved_tasks)
 
@@ -438,8 +446,10 @@ def test_task_identifier_with_model_configs():
 
     resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
     run_eval_set(create_resolved_tasks)
 
 
@@ -465,8 +475,10 @@ def test_task_identifier_with_model_roles_model_configs():
 
     resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
     run_eval_set(create_resolved_tasks)
 
 
@@ -492,8 +504,10 @@ def test_task_identifier_with_task_generate_configs():
 
     resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
 
     with tempfile.TemporaryDirectory() as log_dir:
         config = GenerateConfig(temperature=0.7)
@@ -533,8 +547,10 @@ def test_task_identifier_with_solvers():
 
     resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
     run_eval_set(create_resolved_tasks)
 
 
@@ -573,8 +589,10 @@ def test_task_identifier_with_model_args():
 
     resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
     run_eval_set(create_resolved_tasks)
 
 
@@ -610,7 +628,7 @@ def resolved_tasks_have_unique_identifiers(resolved_tasks: list[ResolvedTask]) -
     identifiers = set()
     for resolved_task in resolved_tasks:
         identifier = task_identifier(
-            resolved_task, GenerateConfig(), eval_set_solver=None
+            resolved_task, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
         )
         if identifier in identifiers:
             return False
@@ -687,13 +705,14 @@ def test_task_identifier_with_task_limits():
     resolved_tasks = create_resolved_tasks()
     assert resolved_tasks_have_unique_identifiers(resolved_tasks)
     run_eval_set(create_resolved_tasks)
-    run_eval_set(
-        create_resolved_tasks,
-        message_limit=20,
-        token_limit=200,
-        time_limit=10,
-        working_limit=120,
-    )
+    for i in range(len(resolved_tasks)):
+        run_eval_set(
+            lambda i=i: [create_resolved_tasks()[i]],
+            message_limit=20,
+            token_limit=200,
+            time_limit=10,
+            working_limit=120,
+        )
 
 
 def verify_logs(
