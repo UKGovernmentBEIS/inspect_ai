@@ -93,8 +93,6 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
     - Named: task tool addition --x 12 --y 34
     - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12, "y": 34}'
     """
-
-
     def fmt_err(cp: CompletedProcess):
         return f"Wrong output. {cp.stdout}\n{cp.stderr}"
 
@@ -132,17 +130,21 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
         wait_for_human_agent(docker_exec)
 
         try:
-            # Test: task tool (list tools)
+            # Test: task tool (list tools via argparse help)
             list_result = subprocess.run(
                 docker_exec + ["python3 /opt/human_agent/task.py tool"],
                 capture_output=True,
                 text=True,
             )
-            assert """Available tools:
+            # argparse help shows tool names and descriptions
+            assert """usage: task.py tool [-h] {addition} ...
 
-  addition: Add two numbers together.
+positional arguments:
+  {addition}
+    addition  Add two numbers together.
 
-Use 'task tool <name> --help' for details on a specific tool.
+options:
+  -h, --help  show this help message and exit
 """ in list_result.stdout, fmt_err(list_result)
 
             # Test: task tool addition --help (note this will clash with a tool argument called 'help')

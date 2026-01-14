@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import json
 from argparse import Namespace
-from typing import Awaitable, Callable, Literal, NamedTuple, Any
+from typing import Any, Awaitable, Callable, Literal, NamedTuple
 
 from pydantic import JsonValue
 
@@ -20,7 +20,7 @@ from inspect_ai.tool._tool_def import ToolDef
 
 from ..._agent import AgentState
 from ..state import HumanAgentState
-from .command import HumanAgentCommand, call_human_agent
+from .command import HumanAgentCommand
 
 
 def tool_result_to_str(result: ToolResult) -> str:
@@ -52,8 +52,7 @@ def tool_result_to_str(result: ToolResult) -> str:
 class ToolCommand(HumanAgentCommand):
     """Command for calling tools: 'task tool <name> [args]'
 
-    Supports three argument styles:
-    - Positional: task tool addition 12 34
+    Supports two argument styles:
     - Named: task tool addition --x 12 --y 34
     - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12}'
     """
@@ -126,8 +125,7 @@ class ToolCommand(HumanAgentCommand):
         """Generate CLI handler code for the tool command.
 
         Returns Python code for the tool() function that:
-        - Pre-parses for --raw-json-escape-hatch to bypass argparse validation
-        - Lists tools if no tool_name
+        - Shows tool list via argparse help if no tool_name
         - Converts args to JSON and calls the service
         """
         return f"""
@@ -136,15 +134,15 @@ class ToolCommand(HumanAgentCommand):
 def tool(args):
     tool_name = getattr(args, 'tool_name', None) or ""
 
-    # Handle: task tool (list all tools)
+    # Handle: task tool (list all tools via argparse help)
     if not tool_name:
-        print(call_human_agent("tool", name="", json_args=""))
+        tool_parser.print_help()
         return
 
     # Get parameter names for this tool
     param_names = TOOL_PARAMS.get(tool_name, [])
 
-    # Build JSON from positional/named args
+    # Build JSON from named args
     json_args = args_to_json(vars(args), param_names)
 
     print(call_human_agent("tool", name=tool_name, json_args=json_args))
@@ -158,14 +156,6 @@ def tool(args):
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def call_tool(name: str, json_args: str) -> str:
-            # Handle: task tool (no args) - list tools
-            if not name:
-                return self._format_tool_list()
-
-            # Handle: task tool <name> --help or task tool <name> (no json)
-            if not json_args or json_args == "--help":
-                return self._format_tool_help(name)
-
             # Look up tool
             tool = self._tool_map.get(name)
             if tool is None:
@@ -190,32 +180,6 @@ def tool(args):
             return tool_result_to_str(result)
 
         return call_tool
-
-    def _format_tool_list(self) -> str:
-        """Format available tools with descriptions."""
-        lines = ["Available tools:", ""]
-        for name, tool_def in self._tool_defs.items():
-            lines.append(f"  {name}: {tool_def.description}")
-        lines.append("")
-        lines.append("Use 'task tool <name> --help' for details on a specific tool.")
-        return "\n".join(lines)
-
-    def _format_tool_help(self, name: str) -> str:
-        """Format description + full JSON schema for a tool."""
-        tool_def = self._tool_defs.get(name)
-        if tool_def is None:
-            lines = [f"Error: Unknown tool '{name}'", "", "Available tools:"]
-            for tool_name in self._tool_defs:
-                lines.append(f"  {tool_name}")
-            return "\n".join(lines)
-
-        lines = [
-            f"{tool_def.name}: {tool_def.description}",
-            "",
-            "Parameters:",
-            json.dumps(tool_def.parameters.model_dump(exclude_none=True), indent=2),
-        ]
-        return "\n".join(lines)
 
 
 class ParamInfo(NamedTuple):
