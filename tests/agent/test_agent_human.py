@@ -12,6 +12,31 @@ from inspect_ai.agent._human.agent import human_cli
 from inspect_ai.tool import tool
 
 
+def wait_for_container_name(
+    capsys: pytest.CaptureFixture[str], timeout: int = 10
+) -> str:
+    """Wait for the container name to appear in captured output."""
+    out = ""
+    for _ in range(timeout):
+        out += capsys.readouterr().out
+        if match := re.search(r"inspect-task-\S+-default-1", out):
+            return match.group(0)
+        time.sleep(1)
+    raise Exception("Failed to find container name")
+
+
+def wait_for_human_agent(docker_exec: list[str], timeout: int = 10) -> None:
+    """Wait for the human agent sandbox service to be available."""
+    for _ in range(timeout):
+        result = subprocess.run(
+            docker_exec + ["ls /var/tmp/sandbox-services/human_agent/human_agent.py"]
+        )
+        if result.returncode == 0:
+            return
+        time.sleep(1)
+    raise Exception("Human agent sandbox service not found")
+
+
 @pytest.mark.slow
 @skip_if_no_docker
 @pytest.mark.parametrize("user", ["root", "nonroot", None])
@@ -29,18 +54,7 @@ def test_human_cli(capsys: pytest.CaptureFixture[str], user: str | None):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(run_eval)
 
-        out = ""
-        container_name = None
-        for _ in range(10):
-            out += capsys.readouterr().out
-            if match := re.search(r"inspect-task-\S+-default-1", out):
-                container_name = match.group(0)
-                break
-            time.sleep(1)
-
-        if not container_name:
-            raise Exception("Failed to find container name")
-
+        container_name = wait_for_container_name(capsys)
         docker_exec = [
             "docker",
             "exec",
@@ -50,20 +64,7 @@ def test_human_cli(capsys: pytest.CaptureFixture[str], user: str | None):
             "-l",
             "-c",
         ]
-
-        human_agent_found = False
-        for _ in range(10):
-            result = subprocess.run(
-                docker_exec
-                + ["ls /var/tmp/sandbox-services/human_agent/human_agent.py"]
-            )
-            if result.returncode == 0:
-                human_agent_found = True
-                break
-            time.sleep(1)
-
-        if not human_agent_found:
-            raise Exception("Human agent sandbox service not found")
+        wait_for_human_agent(docker_exec)
 
         subprocess.check_call(docker_exec + ["python3 /opt/human_agent/task.py start"])
         subprocess.check_call(
@@ -116,35 +117,9 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(run_eval)
 
-        # Wait for container (same pattern as test_human_cli)
-        out = ""
-        container_name = None
-        for _ in range(10):
-            out += capsys.readouterr().out
-            if match := re.search(r"inspect-task-\S+-default-1", out):
-                container_name = match.group(0)
-                break
-            time.sleep(1)
-
-        if not container_name:
-            raise Exception("Failed to find container name")
-
+        container_name = wait_for_container_name(capsys)
         docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
-
-        # Wait for human_agent service
-        human_agent_found = False
-        for _ in range(10):
-            ls_result = subprocess.run(
-                docker_exec
-                + ["ls /var/tmp/sandbox-services/human_agent/human_agent.py"]
-            )
-            if ls_result.returncode == 0:
-                human_agent_found = True
-                break
-            time.sleep(1)
-
-        if not human_agent_found:
-            raise Exception("Human agent sandbox service not found")
+        wait_for_human_agent(docker_exec)
 
         try:
             # Test: task tool (list tools)
