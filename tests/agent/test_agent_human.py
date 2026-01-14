@@ -180,6 +180,21 @@ options:
             )
             assert json_result.stdout.strip() == "46"
 
+            # Json escape hatch only applied to `task tool`, not to other commands
+            invalid_json_result = subprocess.run(
+                docker_exec
+                + [
+                    "python3 /opt/human_agent/task.py submit "
+                    '--raw-json-escape-hatch \'{"answer": "test"}\''
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert (
+                "Error: --raw-json-escape-hatch requires: tool <name> --raw-json-escape-hatch '<json>'"
+                in invalid_json_result.stdout
+            )
+
         finally:
             # Always call task start/submit to unblock eval thread (otherwise test hangs!)
             subprocess.check_call(
