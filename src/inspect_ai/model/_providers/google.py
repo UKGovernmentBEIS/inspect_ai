@@ -410,87 +410,96 @@ class GoogleGenAIAPI(ModelAPI):
     ) -> GenerateContentResponse:
         """Stream content generation and accumulate response.
 
-        Accumulates thought parts separately to ensure reasoning summaries
-        are properly captured.
+        Accumulates parts from streaming chunks and constructs a response
+        that matches non-streaming structure, allowing existing parsing logic
+        to handle the conversion to Inspect format.
 
         Raises:
             RuntimeError: If no chunks received from stream
         """
-        accumulated_thoughts: list[str] = []
-        accumulated_text: list[str] = []
-        accumulated_other_parts: list[Part] = []
+        # Group parts by candidate index across all chunks
+        candidates_parts: dict[int, list[Part]] = {}
         last_chunk: GenerateContentResponse | None = None
-        thought_signature: bytes | None = None
-        thought_signature_attached_to_part: bool = False
 
         stream = await client.aio.models.generate_content_stream(
             model=model,
             contents=contents,
             config=config,
         )
+
         async for chunk in stream:
             last_chunk = chunk
+            if chunk.candidates:
+                for candidate in chunk.candidates:
+                    idx = candidate.index or 0
+                    if idx not in candidates_parts:
+                        candidates_parts[idx] = []
 
-            if chunk.candidates and chunk.candidates[0].content:
-                parts = chunk.candidates[0].content.parts
-                if parts:
-                    for part in parts:
-                        if part.thought is True and part.text:
-                            accumulated_thoughts.append(part.text)
-                        elif part.text and part.thought is not True:
-                            accumulated_text.append(part.text)
-                        elif part.function_call or part.executable_code:
-                            accumulated_other_parts.append(part)
-                            if part.thought_signature:
-                                thought_signature_attached_to_part = True
-
-                        if part.thought_signature:
-                            thought_signature = part.thought_signature
+                    if candidate.content and candidate.content.parts:
+                        candidates_parts[idx].extend(candidate.content.parts)
 
         if last_chunk is None:
             raise RuntimeError(
                 f"No response chunks received from streaming API for model {model}"
             )
 
-        if accumulated_thoughts or accumulated_text or accumulated_other_parts:
-            new_parts: list[Part] = []
+        # Build final candidates with accumulated parts
+        final_candidates = []
+        for idx in sorted(candidates_parts.keys()):
+            accumulated_parts = candidates_parts[idx]
 
-            if accumulated_thoughts:
-                thought_part = Part(
-                    text="".join(accumulated_thoughts),
-                    thought=True,
-                    thought_signature=thought_signature
-                    if not thought_signature_attached_to_part
-                    else None,
-                )
-                new_parts.append(thought_part)
+            # Merge consecutive thought=True parts to match non-streaming structure.
+            # Streaming sends thinking incrementally across chunks, but non-streaming
+            # combines all thinking into a single Part. We need to emulate non-streaming.
+            merged_parts: list[Part] = []
+            thinking_texts: list[str] = []
 
-            if accumulated_text:
-                new_parts.append(Part(text="".join(accumulated_text)))
+            for part in accumulated_parts:
+                if part.thought is True and part.text:
+                    # Accumulate thinking text
+                    thinking_texts.append(part.text)
+                else:
+                    # Flush accumulated thinking as a single Part if any exists
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
 
-            new_parts.extend(accumulated_other_parts)
+                    # Add non-thinking part as-is
+                    merged_parts.append(part)
 
-            new_content = Content(parts=new_parts, role="model")
+            # Flush any remaining thinking
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
 
+            # Find the last candidate with this index for metadata
+            last_candidate_for_idx = None
             if last_chunk.candidates:
-                last_candidate = last_chunk.candidates[0]
-                modified_candidate = Candidate(
-                    content=new_content,
-                    finish_reason=last_candidate.finish_reason,
-                    safety_ratings=last_candidate.safety_ratings,
-                    citation_metadata=last_candidate.citation_metadata,
-                    token_count=last_candidate.token_count,
-                    grounding_metadata=last_candidate.grounding_metadata,
-                    avg_logprobs=last_candidate.avg_logprobs,
+                for c in last_chunk.candidates:
+                    if (c.index or 0) == idx:
+                        last_candidate_for_idx = c
+                        break
+
+            if last_candidate_for_idx:
+                final_candidates.append(
+                    Candidate(
+                        content=Content(parts=merged_parts, role="model"),
+                        finish_reason=last_candidate_for_idx.finish_reason,
+                        safety_ratings=last_candidate_for_idx.safety_ratings,
+                        citation_metadata=last_candidate_for_idx.citation_metadata,
+                        token_count=last_candidate_for_idx.token_count,
+                        grounding_metadata=last_candidate_for_idx.grounding_metadata,
+                        avg_logprobs=last_candidate_for_idx.avg_logprobs,
+                        index=idx,
+                    )
                 )
 
-                return GenerateContentResponse(
-                    candidates=[modified_candidate],
-                    usage_metadata=last_chunk.usage_metadata,
-                    model_version=last_chunk.model_version,
-                )
-
-        return last_chunk
+        return GenerateContentResponse(
+            candidates=final_candidates,
+            usage_metadata=last_chunk.usage_metadata,
+            model_version=last_chunk.model_version,
+        )
 
     @override
     async def count_tokens(self, input: str | list[ChatMessage]) -> int:
@@ -1207,12 +1216,8 @@ def completion_choice_from_candidate(
         # traverse parts
         parts = candidate.content.parts
         for i, part in enumerate(parts):
-            if (
-                part.text is None
-                and part.executable_code is None
-                and part.thought_signature is None
-            ):
-                continue  # We only care about text, executable_code, and thought_signature here
+            if part.text is None and part.executable_code is None:
+                continue  # We only care about text and executable_code here
 
             if part.code_execution_result is not None:
                 continue  # We pickup code execution results with part.executable_code
