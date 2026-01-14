@@ -210,3 +210,89 @@ options:
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
             raise Exception("eval() did not complete within timeout")
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
+    """Test human_cli with a tool that has complex types requiring JSON escape hatch.
+
+    Complex types (dicts, nested objects) can't be mapped to argparse arguments,
+    so users must use --raw-json-escape-hatch to pass them.
+    """
+
+    def fmt_err(cp: CompletedProcess):
+        return f"Wrong output. {cp.stdout}\n{cp.stderr}"
+
+    @tool
+    def process_config():
+        async def execute(config: dict, name: str) -> str:
+            """Process a configuration object.
+
+            Args:
+                config: Configuration dictionary with settings.
+                name: Name for the configuration.
+
+            Returns:
+                A summary of the configuration.
+            """
+            return f"{name}: {len(config)} settings"
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[process_config()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        try:
+            # Test: tool help shows epilog about complex parameters
+            help_result = subprocess.run(
+                docker_exec
+                + ["python3 /opt/human_agent/task.py tool process_config --help"],
+                capture_output=True,
+                text=True,
+            )
+            # Only the simple 'name' parameter appears as --name
+            assert "--name" in help_result.stdout, fmt_err(help_result)
+            # 'config' (dict) is not a CLI arg - epilog mentions escape hatch
+            assert "--config" not in help_result.stdout, fmt_err(help_result)
+            assert "Note: This tool has complex parameters. Use --raw-json-escape-hatch." in help_result.stdout, fmt_err(help_result)
+
+            # Test: calling with JSON escape hatch works
+            json_result = subprocess.run(
+                docker_exec
+                + [
+                    "python3 /opt/human_agent/task.py tool process_config "
+                    '--raw-json-escape-hatch \'{"config": {"a": 1, "b": 2}, "name": "test"}\''
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert json_result.stdout.strip() == "test: 2 settings", fmt_err(json_result)
+
+        finally:
+            # Always call task start/submit to unblock eval thread (otherwise test hangs!)
+            subprocess.check_call(
+                docker_exec + ["python3 /opt/human_agent/task.py start"]
+            )
+            subprocess.check_call(
+                docker_exec
+                + ['echo -e "y\\n" | python3 /opt/human_agent/task.py submit "done"'],
+            )
+
+        done, _ = concurrent.futures.wait([future], timeout=5)
+        if future not in done:
+            raise Exception("eval() did not complete within timeout")
