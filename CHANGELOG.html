@@ -149,8 +149,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.160 (09 January 2026)</a></li>
-  <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.159 (03 January 2026)</a></li>
+  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.161 (10 January 2026)</a></li>
+  <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.160 (09 January 2026)</a></li>
+  <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.159 (03 January 2026)</a></li>
   <li><a href="#december-2025" id="toc-december-2025" class="nav-link" data-scroll-target="#december-2025">0.3.158 (24 December 2025)</a></li>
   <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.157 (22 December 2025)</a></li>
   <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.156 (20 December 2025)</a></li>
@@ -318,7 +319,24 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="january-2026" class="level2">
-<h2 class="anchored" data-anchor-id="january-2026">0.3.160 (09 January 2026)</h2>
+<h2 class="anchored" data-anchor-id="january-2026">0.3.161 (10 January 2026)</h2>
+<ul>
+<li>Sandbox: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#parse_compose_yaml">parse_compose_yaml()</a></span> for parsing Docker Compose files into typed configuration for sandbox providers.</li>
+<li>Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).</li>
+<li>Google: Raise error if batch processing is used with Vertex hosted models.</li>
+<li>OpenAI Compatible: Always pass function definitions with <code>strict=True</code>. This is required by HF Inference Providers and Fireworks (and possibly others).</li>
+<li>OpenAI Compatible: Convert function arguments to JSON if they are provided as a string (as is done by xAI and perhaps other providers).</li>
+<li>Model API: Improvements in model detection for hosting providers (e.g.&nbsp;Azure, Bedrock, etc.).</li>
+<li>Eval Log: Add version of the package exporting the task (if any) to the eval log.</li>
+<li>Analysis: Convert mixed-type object columns to string for PyArrow conversion.</li>
+<li>Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.</li>
+<li>Human Agent: Fixed non-scalar intermediate score values breaking task commands like <code>task status</code> and <code>task stop</code>.</li>
+<li>Bugfix: Print only enabled hooks at CLI startup.</li>
+<li>Bugfix: Fix eval_set log reuse when setting limits as eval set args.</li>
+</ul>
+</section>
+<section id="january-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="january-2026-1">0.3.160 (09 January 2026)</h2>
 <ul>
 <li>Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).</li>
 <li>Anthropic: Correctly replay reasoning when sourced from Inspect cache.</li>
@@ -342,12 +360,13 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Fix cmd+click on tasks/samples to open in new tab.</li>
 <li>Inspect View: Only stream log bytes when requested chunks are large (&gt;50MB)</li>
 <li>Inspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).</li>
+<li>Inspect View: Improved non-native find for virtualized lists (better CTRL-f)</li>
 <li>Bugfix: Prevent component not found error during Human Agent transition.</li>
 <li>Bugfix: Use <code>builtins</code> module rather than <code>__builtins__</code> when parsing tool function types.</li>
 </ul>
 </section>
-<section id="january-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="january-2026-1">0.3.159 (03 January 2026)</h2>
+<section id="january-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="january-2026-2">0.3.159 (03 January 2026)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/compaction.html.md">Compaction</a>: Compacting message histories for long-running agents that exceed the context window.</li>
 <li>Model API: <code>count_tokens()</code> method for estimating token usage for messages.</li>
