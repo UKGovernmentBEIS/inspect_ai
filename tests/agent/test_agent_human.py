@@ -138,9 +138,12 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
                 capture_output=True,
                 text=True,
             )
-            assert "Available tools:" in list_result.stdout
-            assert "addition: Add two numbers" in list_result.stdout
-            assert "Use 'task tool <name> --help' for details on a specific tool." in list_result.stdout
+            assert """Available tools:
+
+  addition: Add two numbers together.
+
+Use 'task tool <name> --help' for details on a specific tool.
+""" in list_result.stdout, fmt_err(list_result)
 
             # Test: task tool addition --help (note this will clash with a tool argument called 'help')
             help_result = subprocess.run(
@@ -148,8 +151,13 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
                 capture_output=True,
                 text=True,
             )
-            # TODO: Should show argparse-style help
-            assert "addition" in help_result.stdout
+            assert """usage: task.py tool addition [-h] --x X --y Y
+
+options:
+  -h, --help  show this help message and exit
+  --x X       First number to add.
+  --y Y       Second number to add.
+""" in help_result.stdout, fmt_err(help_result)
 
             # Test: named args - task tool addition --x 12 --y 34
             named_result = subprocess.run(
