@@ -89,8 +89,7 @@ def test_human_cli(capsys: pytest.CaptureFixture[str], user: str | None):
 def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
     """Test human_cli with tools parameter.
 
-    Tests three argument styles:
-    - Positional: task tool addition 12 34
+    Tests two argument styles:
     - Named: task tool addition --x 12 --y 34
     - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12, "y": 34}'
     """
@@ -139,7 +138,9 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
                 capture_output=True,
                 text=True,
             )
+            assert "Available tools:" in list_result.stdout
             assert "addition: Add two numbers" in list_result.stdout
+            assert "Use 'task tool <name> --help' for details on a specific tool." in list_result.stdout
 
             # Test: task tool addition --help (note this will clash with a tool argument called 'help')
             help_result = subprocess.run(
@@ -149,14 +150,6 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
             )
             # TODO: Should show argparse-style help
             assert "addition" in help_result.stdout
-
-            # Test: positional args - task tool addition 12 34
-            positional_result = subprocess.run(
-                docker_exec + ["python3 /opt/human_agent/task.py tool addition 12 34"],
-                capture_output=True,
-                text=True,
-            )
-            assert positional_result.stdout.strip() == "46", fmt_err(positional_result)
 
             # Test: named args - task tool addition --x 12 --y 34
             named_result = subprocess.run(

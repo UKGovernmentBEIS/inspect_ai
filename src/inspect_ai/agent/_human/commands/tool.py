@@ -346,7 +346,6 @@ def generate_tool_parser(
         - param_names: List of parameter names for handler metadata
     """
     lines: list[str] = []
-    positional_params: list[str] = []
     named_params: list[str] = []
     has_complex_params = False
 
@@ -373,7 +372,7 @@ def generate_tool_parser(
         f'help="{escaped_desc}")'
     )
 
-    # Generate arguments in signature order
+    # Generate arguments in signature order (all as named args)
     for name in param_order:
         if name not in param_infos:
             continue
@@ -387,21 +386,10 @@ def generate_tool_parser(
         arg_name = name.replace("_", "-")
         parts: list[str] = []
 
-        # Determine if positional or named
-        # Positional: required, simple type, not boolean, not array
-        use_positional = (
-            info.is_required
-            and not info.is_optional
-            and info.schema_type not in ("boolean", "array")
-        )
-
-        if use_positional:
-            positional_params.append(name)
-            parts.append(f'"{name}"')  # Positional arg (no --)
-        else:
-            named_params.append(name)
-            parts.append(f'"--{arg_name}"')
-            parts.append(f'dest="{name}"')
+        # Always use named args (--x, --y)
+        named_params.append(name)
+        parts.append(f'"--{arg_name}"')
+        parts.append(f'dest="{name}"')
 
         # Type conversion
         if info.schema_type == "integer":
@@ -422,8 +410,8 @@ def generate_tool_parser(
         if info.enum:
             parts.append(f"choices={info.enum!r}")
 
-        # Required/default for named args
-        if not use_positional and info.schema_type != "boolean":
+        # Required/default
+        if info.schema_type != "boolean":
             if info.is_optional or not info.is_required:
                 parts.append("default=None")
             else:
@@ -444,9 +432,7 @@ def generate_tool_parser(
         )
 
     parser_code = "\n".join(lines)
-    all_param_names = positional_params + named_params
-
-    return parser_code, all_param_names
+    return parser_code, named_params
 
 
 def get_param_order_from_tool(tool: Callable[..., Any]) -> list[str]:
