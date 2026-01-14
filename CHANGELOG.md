@@ -2,6 +2,7 @@
 
 - Sandbox: `parse_compose_yaml()` for parsing Docker Compose files into typed configuration for sandbox providers.
 - Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).
+- Google: Raise error if batch processing is used with Vertex hosted models.
 - OpenAI Compatible: Always pass function definitions with `strict=True`. This is required by HF Inference Providers and Fireworks (and possibly others).
 - OpenAI Compatible: Convert function arguments to JSON if they are provided as a string (as is done by xAI and perhaps other providers).
 - Model API: Improvements in model detection for hosting providers (e.g. Azure, Bedrock, etc.).
