@@ -449,28 +449,45 @@ class GoogleGenAIAPI(ModelAPI):
         for idx in sorted(candidates_parts.keys()):
             accumulated_parts = candidates_parts[idx]
 
+            # Merge consecutive parts of the same type to match non-streaming structure.
+            # Streaming sends both thinking and output text incrementally across chunks.
             merged_parts: list[Part] = []
             thinking_texts: list[str] = []
+            output_texts: list[str] = []
 
             for part in accumulated_parts:
                 if part.thought is True and part.text:
+                    if output_texts:
+                        merged_parts.append(Part(text="".join(output_texts)))
+                        output_texts = []
                     thinking_texts.append(part.text)
+                elif part.text and part.thought is not True:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+                    output_texts.append(part.text)
                 else:
                     if thinking_texts:
                         merged_parts.append(
                             Part(thought=True, text="".join(thinking_texts))
                         )
                         thinking_texts = []
-
+                    if output_texts:
+                        merged_parts.append(Part(text="".join(output_texts)))
+                        output_texts = []
                     merged_parts.append(part)
 
             if thinking_texts:
                 merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+            if output_texts:
+                merged_parts.append(Part(text="".join(output_texts)))
 
             last_candidate_for_idx = None
             if last_chunk.candidates:
                 for c in last_chunk.candidates:
-                    if (c.index or 0) == idx:
+                    if c.index == idx:
                         last_candidate_for_idx = c
                         break
 
