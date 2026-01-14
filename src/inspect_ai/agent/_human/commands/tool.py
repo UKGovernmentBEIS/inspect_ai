@@ -151,11 +151,10 @@ def tool(args):
 """
 
     def cli(self, args: Namespace) -> None:
-        # This method is not used when uses_custom_cli=True
-        # But keep it for backwards compatibility
-        tool_name = getattr(args, "tool_name", None) or ""
-        json_args = getattr(args, "raw_json_escape_hatch", None) or ""
-        print(call_human_agent("tool", name=tool_name, json_args=json_args))
+        # This method is not called - ToolCommand generates its own handler via
+        # get_cli_handler_code() which replaces this method in the generated CLI.
+        # Method only present to satisfy abstract base class.
+        raise Exception("This should never appear in the generated code")
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def call_tool(name: str, json_args: str) -> str:
