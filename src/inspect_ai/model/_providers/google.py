@@ -449,8 +449,6 @@ class GoogleGenAIAPI(ModelAPI):
         for idx in sorted(candidates_parts.keys()):
             accumulated_parts = candidates_parts[idx]
 
-            # Merge consecutive parts of the same type to match non-streaming structure.
-            # Streaming sends both thinking and output text incrementally across chunks.
             merged_parts: list[Part] = []
             thinking_texts: list[str] = []
             output_texts: list[str] = []
