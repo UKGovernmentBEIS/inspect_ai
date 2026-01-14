@@ -146,41 +146,42 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
         if not human_agent_found:
             raise Exception("Human agent sandbox service not found")
 
-        # Test: task tool (list tools)
-        list_result = subprocess.run(
-            docker_exec + ["python3 /opt/human_agent/task.py tool"],
-            capture_output=True,
-            text=True,
-        )
-        assert "addition: Add two numbers" in list_result.stdout
+        try:
+            # Test: task tool (list tools)
+            list_result = subprocess.run(
+                docker_exec + ["python3 /opt/human_agent/task.py tool"],
+                capture_output=True,
+                text=True,
+            )
+            assert "addition: Add two numbers" in list_result.stdout
 
-        # Test: task tool addition --help
-        help_result = subprocess.run(
-            docker_exec + ["python3 /opt/human_agent/task.py tool addition --help"],
-            capture_output=True,
-            text=True,
-        )
-        assert "addition: Add two numbers" in help_result.stdout
-        assert (
-            '"x": {"type": "integer","description": "First number to add."}'
-            in help_result.stdout
-        )
+            # Test: task tool addition --help
+            help_result = subprocess.run(
+                docker_exec + ["python3 /opt/human_agent/task.py tool addition --help"],
+                capture_output=True,
+                text=True,
+            )
+            assert "addition: Add two numbers" in help_result.stdout
+            assert (
+                '"x": {"type": "integer","description": "First number to add."}'
+                in help_result.stdout
+            )
 
-        # Test: task tool addition '{"x": 1, "y": 2}'
-        exec_result = subprocess.run(
-            docker_exec
-            + ['python3 /opt/human_agent/task.py tool addition \'{"x": 12, "y": 34}\''],
-            capture_output=True,
-            text=True,
-        )
-        assert exec_result.stdout.strip() == "46"
-
-        # Clean up: start and submit to complete the task
-        subprocess.check_call(docker_exec + ["python3 /opt/human_agent/task.py start"])
-        subprocess.check_call(
-            docker_exec
-            + ['echo -e "y\\n" | python3 /opt/human_agent/task.py submit "done"'],
-        )
+            # Test: task tool addition '{"x": 1, "y": 2}'
+            exec_result = subprocess.run(
+                docker_exec
+                + ['python3 /opt/human_agent/task.py tool addition \'{"x": 12, "y": 34}\''],
+                capture_output=True,
+                text=True,
+            )
+            assert exec_result.stdout.strip() == "46"
+        finally:
+            # Always call task start/submit to unblock eval thread (otherwise test hangs!)
+            subprocess.check_call(docker_exec + ["python3 /opt/human_agent/task.py start"])
+            subprocess.check_call(
+                docker_exec
+                + ['echo -e "y\\n" | python3 /opt/human_agent/task.py submit "done"'],
+            )
 
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future in done:
