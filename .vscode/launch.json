@@ -17,7 +17,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": ["-k", "test_mcp_server_sandbox"],
+      "args": [
+        "-k",
+        "test_mcp_server_sandbox"
+      ],
       // "args": ["-k", "test_mcp_server_sandbox", "--runapi"],
       "cwd": "${workspaceFolder}"
     },
@@ -28,6 +31,25 @@
       "program": "${file}",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Debug Inspect",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/.venv/bin/inspect",
+      "console": "integratedTerminal",
+      "args": [
+        "eval",
+        "../apex-triplet/apolloevals/apex/tasks/end_to_end_scheming/oversight_subversion/task.py@oversight_subversion",
+        "--model",
+        "google/gemini-3-pro-preview",
+        "--limit",
+        "1",
+        "-M",
+        "streaming=true"
+      ],
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
     }
   ],
   "inputs": [

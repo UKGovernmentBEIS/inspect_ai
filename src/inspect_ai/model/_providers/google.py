@@ -454,12 +454,40 @@ class GoogleGenAIAPI(ModelAPI):
             output_texts: list[str] = []
 
             for part in accumulated_parts:
-                if part.thought is True and part.text:
+                if part.thought_signature:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+
+                    if part.text:
+                        combined_text = "".join(output_texts) + part.text
+                        merged_parts.append(
+                            Part(
+                                thought_signature=part.thought_signature,
+                                text=combined_text,
+                            )
+                        )
+                        output_texts = []
+                    else:
+                        if output_texts:
+                            merged_parts.append(Part(text="".join(output_texts)))
+                            output_texts = []
+
+                        new_part_kwargs = {"thought_signature": part.thought_signature}
+                        if part.function_call:
+                            new_part_kwargs["function_call"] = part.function_call
+                        if part.executable_code:
+                            new_part_kwargs["executable_code"] = part.executable_code
+
+                        merged_parts.append(Part(**new_part_kwargs))
+                elif part.thought is True and part.text:
                     if output_texts:
                         merged_parts.append(Part(text="".join(output_texts)))
                         output_texts = []
                     thinking_texts.append(part.text)
-                elif part.text and part.thought is not True:
+                elif part.text:
                     if thinking_texts:
                         merged_parts.append(
                             Part(thought=True, text="".join(thinking_texts))
@@ -1311,7 +1339,7 @@ def completion_choice_from_candidate(
 
                         content.append(reasoning_block)
                     else:
-                        # attach the though_signature to the previous reasoning block
+                        # attach the thought_signature to the previous reasoning block
                         working_reasoning_block.summary = (
                             working_reasoning_block.reasoning
                         )
