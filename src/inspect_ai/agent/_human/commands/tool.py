@@ -102,22 +102,22 @@ class ToolCommand(HumanAgentCommand):
         lines.append('tool_subparsers = tool_parser.add_subparsers(dest="tool_name")')
 
         # Generate subparser for each tool
-        tool_param_names: dict[str, list[str]] = {}
+        tools_with_complex_params: set[str] = set()
         for tool_name, tool_def in self._tool_defs.items():
             param_order = self._tool_param_order[tool_name]
-            parser_code, param_names = generate_tool_parser(
+            parser_code, has_complex = generate_tool_parser(
                 tool_name,
                 tool_def.description,
                 tool_def.parameters,
                 param_order,
             )
             lines.append(parser_code)
-            tool_param_names[tool_name] = param_names
+            if has_complex:
+                tools_with_complex_params.add(tool_name)
 
-        # Generate TOOL_PARAMS metadata dict
+        # Generate metadata for tools with complex params (require escape hatch)
         lines.append("")
-        lines.append("# Tool parameter metadata for arg conversion")
-        lines.append(f"TOOL_PARAMS = {tool_param_names!r}")
+        lines.append(f"TOOLS_WITH_COMPLEX_PARAMS = {tools_with_complex_params!r}")
 
         return "\n".join(lines)
 
@@ -126,11 +126,10 @@ class ToolCommand(HumanAgentCommand):
 
         Returns Python code for the tool() function that:
         - Shows tool list via argparse help if no tool_name
-        - Converts args to JSON and calls the service
+        - Shows tool help for complex tools (must use --raw-json-escape-hatch)
+        - Passes tool args as kwargs to the service
         """
-        return f"""
-{ARGS_TO_JSON_CODE}
-
+        return """
 def tool(args):
     tool_name = getattr(args, 'tool_name', None) or ""
 
@@ -139,13 +138,17 @@ def tool(args):
         tool_parser.print_help()
         return
 
-    # Get parameter names for this tool
-    param_names = TOOL_PARAMS.get(tool_name, [])
+    # Tools with complex params must use --raw-json-escape-hatch (handled in pre-parse)
+    # If we reach here, show help since they didn't use the escape hatch
+    if tool_name in TOOLS_WITH_COMPLEX_PARAMS:
+        tool_subparsers.choices[tool_name].print_help()
+        return
 
-    # Build JSON from named args
-    json_args = args_to_json(vars(args), param_names)
+    # Build tool args from parsed args (exclude tool_name and command)
+    tool_args = {k: v for k, v in vars(args).items()
+                 if k not in ('tool_name', 'command') and v is not None}
 
-    print(call_human_agent("tool", name=tool_name, json_args=json_args))
+    print(call_human_agent("tool", name=tool_name, **tool_args))
 """
 
     def cli(self, args: Namespace) -> None:
@@ -155,21 +158,15 @@ def tool(args):
         raise Exception("This should never appear in the generated code")
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        async def call_tool(name: str, json_args: str) -> str:
+        async def call_tool(name: str, **kwargs: Any) -> str:
             # Look up tool
             tool = self._tool_map.get(name)
             if tool is None:
                 return f"Error: Unknown tool '{name}'"
 
-            # Parse JSON
-            try:
-                args = json.loads(json_args)
-            except json.JSONDecodeError as e:
-                return f"Error: Invalid JSON: {e}"
-
             # Convert args using tool_params()
             try:
-                params = tool_params(args, tool)
+                params = tool_params(kwargs, tool)
             except Exception as e:
                 return f"Error parsing tool arguments: {e}"
 
@@ -295,7 +292,7 @@ def generate_tool_parser(
     tool_description: str,
     params: ToolParams,
     param_order: list[str],
-) -> tuple[str, list[str]]:
+) -> tuple[str, bool]:
     """Generate argparse subparser code for a tool.
 
     Args:
@@ -307,10 +304,9 @@ def generate_tool_parser(
     Returns:
         Tuple of:
         - parser_code: Python code to add subparser and arguments
-        - param_names: List of parameter names for handler metadata
+        - has_complex_params: True if tool has complex params requiring escape hatch
     """
     lines: list[str] = []
-    named_params: list[str] = []
     has_complex_params = False
 
     # Analyze each parameter
@@ -356,7 +352,6 @@ def generate_tool_parser(
             parts: list[str] = []
 
             # Always use named args (--x, --y)
-            named_params.append(name)
             parts.append(f'"--{arg_name}"')
             parts.append(f'dest="{name}"')
 
@@ -394,7 +389,7 @@ def generate_tool_parser(
             lines.append(f'{tool_name}_parser.add_argument({", ".join(parts)})')
 
     parser_code = "\n".join(lines)
-    return parser_code, named_params
+    return parser_code, has_complex_params
 
 
 def get_param_order_from_tool(tool: Callable[..., Any]) -> list[str]:
@@ -410,16 +405,3 @@ def get_param_order_from_tool(tool: Callable[..., Any]) -> list[str]:
     return list(sig.parameters.keys())
 
 
-ARGS_TO_JSON_CODE = '''
-def args_to_json(args_dict, param_names):
-    """Convert argparse namespace to JSON string."""
-    import json
-    result = {}
-    for name in param_names:
-        # Handle both underscore and hyphen variants
-        key = name.replace("-", "_")
-        value = args_dict.get(key)
-        if value is not None:
-            result[name] = value
-    return json.dumps(result) if result else "{}"
-'''

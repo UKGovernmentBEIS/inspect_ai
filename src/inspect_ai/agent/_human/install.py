@@ -141,6 +141,7 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     if has_tool_command:
         escape_hatch_preparse = dedent("""
     # Pre-parse for --raw-json-escape-hatch (bypasses argparse validation)
+    import json
     ESCAPE_HATCH = "--raw-json-escape-hatch"
     if ESCAPE_HATCH in sys.argv:
         idx = sys.argv.index(ESCAPE_HATCH)
@@ -148,8 +149,13 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         # sys.argv[0] = script, [1] = "tool", [2] = tool_name, [idx] = flag, [idx+1] = json
         if len(sys.argv) > 2 and sys.argv[1] == "tool":
             tool_name = sys.argv[2]
-            json_args = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "{}"
-            print(call_human_agent("tool", name=tool_name, json_args=json_args))
+            json_str = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "{}"
+            try:
+                tool_args = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON: {e}")
+                sys.exit(1)
+            print(call_human_agent("tool", name=tool_name, **tool_args))
             sys.exit(0)
         else:
             print("Error: --raw-json-escape-hatch requires: tool <name> --raw-json-escape-hatch '<json>'")

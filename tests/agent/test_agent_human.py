@@ -272,13 +272,11 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
             assert "--config" not in help_result.stdout, fmt_err(help_result)
             assert "This tool has complex parameters. You must use --raw-json-escape-hatch" in help_result.stdout, fmt_err(help_result)
             # JSON schema is shown so user knows what to pass
-            assert '''Parameters: { "type": "object",
-"properties": { "config": { "type": "object",
-"description": "Configuration dictionary with
-settings.", "additionalProperties": {} }, "name": {
-"type": "string", "description": "Name for the
-configuration." } }, "required": [ "config", "name"
-], "additionalProperties": false }''' in help_result.stdout, fmt_err(help_result)
+            assert '''Parameters: { "type": "object", "properties": { "config": { "type": "object",
+"description": "Configuration dictionary with settings.",
+"additionalProperties": {} }, "name": { "type": "string", "description": "Name
+for the configuration." } }, "required": [ "config", "name" ],
+"additionalProperties": false }''' in help_result.stdout, fmt_err(help_result)
 
             # Test: calling with JSON escape hatch works
             json_result = subprocess.run(
