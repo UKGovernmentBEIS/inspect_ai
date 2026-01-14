@@ -254,6 +254,27 @@ def messages_from_google_contents(
         if system_text:
             messages.append(ChatMessageSystem(content=system_text))
 
+    # Gemini API requires that function call turns come after a user turn or
+    # function response turn. If the CLI's history reconstruction starts with
+    # a model message (common with --resume), we need to prepend a user message.
+    # This happens when the CLI drops the initial user prompt from its history.
+    if contents:
+        first_content = contents[0]
+        first_role = first_content.get("role", "user")
+        if first_role == "model":
+            # Check if the first model message has function calls
+            first_parts = first_content.get("parts", [])
+            has_function_calls = any(
+                isinstance(p, dict) and ("functionCall" in p or "function_call" in p)
+                for p in first_parts
+            )
+            if has_function_calls:
+                # Prepend a placeholder user message to satisfy API constraints
+                messages.append(ChatMessageUser(content="(continuing from previous context)"))
+                logger.debug(
+                    "Prepending user message before model function call to satisfy Gemini API constraints"
+                )
+
     # Track tool call IDs by function name for matching with tool results
     # Maps function_name -> list of call_ids (in order, for multiple calls to same function)
     pending_tool_calls: dict[str, list[str]] = {}

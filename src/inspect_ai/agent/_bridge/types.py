@@ -110,6 +110,20 @@ class AgentBridge:
         # calls that tend to be shorter. finally, this should handle recovering from
         # history compaction, which will shorten the message history considerably
         messages = input + [output.message]
+
+        # Detect potential compaction: if input is significantly shorter than our
+        # last tracked count AND it's not just a trivial side call (has enough messages
+        # to likely be a main thread continuation), reset the counter.
+        # This handles the case where history is compacted from many messages to fewer.
+        min_main_thread_messages = 5
+        if (
+            len(input) >= min_main_thread_messages
+            and self._last_message_count > 0
+            and len(input) < self._last_message_count // 2
+        ):
+            # Likely compaction - reset the high water mark
+            self._last_message_count = 0
+
         if len(messages) > self._last_message_count:
             self.state.messages = messages
             self.state.output = output
@@ -125,7 +139,11 @@ class AgentBridge:
                 if out_msg.id not in self._message_ids[msg_key]:
                     self._message_ids[msg_key].append(out_msg.id)
 
-        self._last_message_count = len(messages)
+            # Only update _last_message_count when we update state.
+            # This keeps the "high water mark" and prevents side calls from
+            # resetting it, which would allow shorter side calls to incorrectly
+            # update the state later.
+            self._last_message_count = len(messages)
 
 
 @lru_cache(maxsize=100)
@@ -142,6 +160,8 @@ def _normalized_message_hash(message: ChatMessage) -> str:
     - `source`: May be present in outputs ("generate") but not in converted inputs
     - `model`: Present in outputs but not in converted inputs
     - `tool_calls[].id`: Different API formats use different ID schemes
+    - `ContentReasoning.reasoning`: May contain encrypted signature or summary text,
+      which can vary when CLI reconstructs history
 
     This function normalizes these differences to enable matching.
     """
@@ -164,6 +184,28 @@ def _normalized_message_hash(message: ChatMessage) -> str:
             }
             normalized_tool_calls.append(normalized_tc)
         msg_dict["tool_calls"] = normalized_tool_calls
+
+    # Normalize content if it's a list (may contain ContentReasoning blocks)
+    # ContentReasoning blocks are problematic because:
+    # 1. The CLI may show "<ENCRYPTED>" instead of the actual reasoning
+    # 2. The signature may be stored differently across API round-trips
+    # 3. The summary field may be present or absent
+    # We normalize by keeping only the redacted flag for ContentReasoning blocks
+    if "content" in msg_dict and isinstance(msg_dict["content"], list):
+        normalized_content = []
+        for part in msg_dict["content"]:
+            if isinstance(part, dict) and part.get("type") == "reasoning":
+                # For reasoning blocks, only keep the redacted flag and type
+                # This allows matching regardless of how the reasoning content
+                # is reconstructed by the CLI
+                normalized_part = {
+                    "type": "reasoning",
+                    "redacted": part.get("redacted", False),
+                }
+                normalized_content.append(normalized_part)
+            else:
+                normalized_content.append(part)
+        msg_dict["content"] = normalized_content
 
     # Create deterministic JSON string for hashing
     normalized_json = json.dumps(msg_dict, sort_keys=True, default=str)
