@@ -101,7 +101,7 @@ async def inspect_google_api_request_impl(
     messages = messages_from_google_contents(contents, system_instruction)
 
     # extract generate config
-    config = generate_config_from_google(generation_config, json_data)
+    config = generate_config_from_google(generation_config)
 
     # track if temperature was explicitly set (for top_p conflict resolution)
     has_explicit_temperature = "temperature" in generation_config
@@ -138,9 +138,7 @@ async def inspect_google_api_request_impl(
     return gemini_response_from_output(output, model.api.model_name)
 
 
-def generate_config_from_google(
-    generation_config: dict[str, Any], json_data: dict[str, Any]
-) -> GenerateConfig:
+def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateConfig:
     """Extract GenerateConfig from Google API parameters."""
     config = GenerateConfig()
 
@@ -165,22 +163,10 @@ def generate_config_from_google(
             "stopSequences", generation_config.get("stop_sequences")
         )
 
-    # System instruction from top level (can be dict with "parts" or list)
-    system_instruction = json_data.get(
-        "systemInstruction", json_data.get("system_instruction")
-    )
-    if system_instruction:
-        if isinstance(system_instruction, dict):
-            parts = system_instruction.get("parts", [])
-            if parts and isinstance(parts[0], dict) and "text" in parts[0]:
-                config.system_message = parts[0]["text"]
-        elif isinstance(system_instruction, list) and system_instruction:
-            # List format: extract first text item
-            first_item = system_instruction[0]
-            if isinstance(first_item, str):
-                config.system_message = first_item
-            elif isinstance(first_item, dict) and "text" in first_item:
-                config.system_message = first_item["text"]
+    # NOTE: We deliberately do NOT set config.system_message from system_instruction here.
+    # The system_instruction is already converted to ChatMessageSystem messages in
+    # messages_from_google_contents(). Setting config.system_message would cause
+    # model.generate() to prepend a duplicate system message.
 
     return config
 
