@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,6 +16,9 @@ from inspect_ai.dataset._dataset import DatasetRecord
 from inspect_ai.model import ChatMessageUser
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
+
+if TYPE_CHECKING:
+    from inspect_ai.model import ChatMessage
 
 
 class TaskComponent(BaseModel):
@@ -208,13 +211,11 @@ def _sanitize_choices(
 
 
 def _record_to_sample_hf(record: DatasetRecord, field_spec: FieldSpecHF) -> Sample:
-    sample_kwargs = {}
-
     # Handle multimodal input if input_image is specified
     if field_spec.input_image and record[field_spec.input_image] not in [None, ""]:
         text_input = record[field_spec.input]
         image_data_uri = record[field_spec.input_image]
-        sample_kwargs["input"] = [
+        input_value: str | list[ChatMessage] = [
             ChatMessageUser(
                 content=[
                     ContentText(text=text_input),
@@ -224,7 +225,9 @@ def _record_to_sample_hf(record: DatasetRecord, field_spec: FieldSpecHF) -> Samp
         ]
     else:
         # Standard text input
-        sample_kwargs["input"] = record[field_spec.input]
+        input_value = record[field_spec.input]
+
+    sample_kwargs: dict[str, Any] = {"input": input_value}
 
     if target := _sanitize_target(record, field_spec.target):
         sample_kwargs["target"] = target
