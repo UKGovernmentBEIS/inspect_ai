@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
-from typing import Annotated, Any, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -243,7 +243,7 @@ def _sanitize_choices(
         return record[choices]
 
 
-def _record_to_sample_hf(record: DatasetRecord, field_spec: FieldSpecHF) -> Sample:
+def _record_to_sample_hf(record: DatasetRecord, field_spec: HFFieldSpec) -> Sample:
     # Handle multimodal input if input_image is specified
     if field_spec.input_image and record[field_spec.input_image] not in [None, ""]:
         text_input = record[field_spec.input]
