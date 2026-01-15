@@ -24,7 +24,7 @@ from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
 from inspect_ai.event._event import Event
 from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
-    read_eval_log_samples,
+    read_eval_log_samples_batch,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.model._chat_message import ChatMessage
@@ -316,9 +316,8 @@ def _read_samples_df_serial(
                     sample for sample in eval_log.samples
                 )
             elif require_full_samples:
-                samples = read_eval_log_samples(
+                samples = read_eval_log_samples_batch(
                     eval_log.location,
-                    all_samples_required=False,
                     resolve_attachments=True,
                 )
             else:

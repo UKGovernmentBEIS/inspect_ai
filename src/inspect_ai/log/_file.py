@@ -1,5 +1,6 @@
 import os
 import re
+from collections.abc import AsyncGenerator
 from logging import getLogger
 from pathlib import Path
 from typing import IO, Any, Callable, Generator, Literal, cast
@@ -583,6 +584,68 @@ def read_eval_log_samples(
             except IndexError:
                 if all_samples_required:
                     raise
+
+
+def read_eval_log_samples_batch(
+    log_file: str | Path | EvalLogInfo,
+    resolve_attachments: bool | Literal["full", "core"] = False,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> Generator[EvalSample, None, None]:
+    """Read all samples from an evaluation log efficiently in a single pass.
+
+    This function opens the log file once and yields all samples, avoiding
+    the overhead of reopening the file for each sample. This is significantly
+    faster than read_eval_log_samples() when reading all samples.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       resolve_attachments (bool): Resolve attachments (duplicated content blocks)
+          to their full content.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+
+    Yields:
+       EvalSample objects from the log file.
+    """
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
+        raise RuntimeError(
+            "read_eval_log_samples_batch cannot be called from a trio async context"
+        )
+
+    # resolve to file path
+    log_file_path = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+
+    if format == "auto":
+        recorder_type = recorder_type_for_location(log_file_path)
+    else:
+        recorder_type = recorder_type_for_format(format)
+
+    # Use the batch read method from the recorder
+    async def read_samples() -> AsyncGenerator[EvalSample, None]:
+        async for sample in recorder_type.read_log_all_samples(log_file_path):
+            yield sample
+
+    # Consume the async generator synchronously
+    async def collect_samples() -> list[EvalSample]:
+        samples = []
+        async for sample in read_samples():
+            samples.append(sample)
+        return samples
+
+    samples = run_coroutine(collect_samples())
+
+    # Yield samples, optionally resolving attachments
+    for sample in samples:
+        if resolve_attachments:
+            sample = resolve_sample_attachments(sample, resolve_attachments)
+        yield sample
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:

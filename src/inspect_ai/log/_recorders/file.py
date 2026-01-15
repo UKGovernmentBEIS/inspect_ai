@@ -1,4 +1,5 @@
 import os
+from collections.abc import AsyncGenerator
 from logging import getLogger
 from typing import Any
 
@@ -81,6 +82,17 @@ class FileRecorder(Recorder):
         if not eval_log.samples:
             return []
         return [sample.summary() for sample in eval_log.samples]
+
+    @classmethod
+    @override
+    async def read_log_all_samples(
+        cls, location: str
+    ) -> AsyncGenerator[EvalSample, None]:
+        """Read all samples from a JSON log file."""
+        eval_log = await cls._log_file_maybe_cached(location)
+        if eval_log.samples:
+            for sample in eval_log.samples:
+                yield sample
 
     @classmethod
     async def _log_file_maybe_cached(cls, location: str) -> EvalLog:
