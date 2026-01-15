@@ -123,7 +123,11 @@ async def inspect_anthropic_api_request_impl(
     config = resolve_generate_config(model, config)
 
     # if there is a bridge filter give it a shot first
-    output = await bridge_generate(bridge, model, messages, tools, tool_choice, config)
+    output, c_message = await bridge_generate(
+        bridge, model, messages, tools, tool_choice, config
+    )
+    if c_message is not None:
+        messages.append(c_message)
 
     debug_log("INSPECT OUTPUT", output.message)
 

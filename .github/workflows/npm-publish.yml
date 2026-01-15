@@ -21,6 +21,7 @@ jobs:
   publish:
     name: Publish to NPM
     runs-on: ubuntu-latest
+    environment: npm
     defaults:
       run:
         working-directory: src/inspect_ai/_view/www
@@ -38,6 +39,11 @@ jobs:
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade npm (for Trusted Publishing)
+        run: |
+          npm i -g npm@^11.5.1
+          npm --version          
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
@@ -64,11 +70,7 @@ jobs:
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}
         run: npm publish --dry-run --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to NPM
         if: ${{ !inputs.dry-run }}
         run: npm publish --access public ${{ inputs.prerelease && '--tag beta --ignore-scripts' || '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

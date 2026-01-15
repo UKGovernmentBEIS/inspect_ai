@@ -135,7 +135,7 @@ def view_server(
 
         # get file size and stream
         file_size = await get_log_size(file)
-        stream = await stream_log_bytes(file)
+        stream = await stream_log_bytes(file, log_file_size=file_size)
 
         # determine filename
         base_name = Path(file).stem

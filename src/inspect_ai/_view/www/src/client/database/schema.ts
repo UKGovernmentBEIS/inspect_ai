@@ -40,8 +40,8 @@ export interface LogDetailsRecord {
 export const DB_VERSION = 9;
 
 // Resolves a log dir into a database name
-function resolveDBName(logDir: string): string {
-  const sanitizedDir = logDir.replace(/[^a-zA-Z0-9_-]/g, "_");
+function resolveDBName(databaseHandle: string): string {
+  const sanitizedDir = databaseHandle.replace(/[^a-zA-Z0-9_-]/g, "_");
   const dbName = `InspectAI_${sanitizedDir}`;
   return dbName;
 }
@@ -55,8 +55,8 @@ export class AppDatabase extends Dexie {
    * Check if an existing database needs to be recreated due to version mismatch.
    * Returns true if the database should be deleted and recreated.
    */
-  static async checkVersionMismatch(logDir: string): Promise<boolean> {
-    const dbName = resolveDBName(logDir);
+  static async checkVersionMismatch(databaseHandle: string): Promise<boolean> {
+    const dbName = resolveDBName(databaseHandle);
 
     try {
       // Check if database exists and get its version
@@ -84,8 +84,8 @@ export class AppDatabase extends Dexie {
     }
   }
 
-  constructor(logDir: string) {
-    super(resolveDBName(logDir));
+  constructor(databaseHandle: string) {
+    super(resolveDBName(databaseHandle));
 
     this.version(DB_VERSION).stores({
       // Basic file listing - indexes for querying and sorting

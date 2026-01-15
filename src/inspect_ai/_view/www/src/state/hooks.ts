@@ -1,6 +1,6 @@
 import { highlightElement } from "prismjs";
 import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
-import { EvalSample, EvalSpec, Events } from "../@types/log";
+import { EvalSample, EvalSpec, Events, Status } from "../@types/log";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
@@ -584,27 +584,17 @@ export const useSamplePopover = (id: string) => {
 };
 
 export const useLogs = () => {
-  // Loading logs
+  // Loading logs and eval set info
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
-
-  // Loading eval set info
   const syncEvalSetInfo = useStore(
     (state) => state.logsActions.syncEvalSetInfo,
   );
-
-  // Status
   const setLoading = useStore((state) => state.appActions.setLoading);
 
   const loadLogs = useCallback(
     async (logPath?: string) => {
-      const exec = async () => {
-        // Sync logs
-        await syncLogs();
-
-        // Sync eval set info
-        await syncEvalSetInfo(logPath);
-      };
-      exec().catch((e) => {
+      // load in parallel to display Show Retried Logs button as soon as we know current directory is an eval set without awaiting all logs
+      await Promise.all([syncEvalSetInfo(logPath), syncLogs()]).catch((e) => {
         log.error("Error loading logs", e);
         setLoading(false, e as Error);
       });
@@ -640,84 +630,32 @@ export const useLogs = () => {
   return { loadLogs, loadLogOverviews, loadAllLogOverviews };
 };
 
-export const usePagination = (name: string, defaultPageSize: number) => {
-  const page = useStore((state) => state.app.pagination[name]?.page || 0);
-  const itemsPerPage = useStore(
-    (state) => state.app.pagination[name]?.pageSize || defaultPageSize,
-  );
-  const setPagination = useStore((state) => state.appActions.setPagination);
-
-  const setPage = useCallback(
-    (newPage: number) => {
-      setPagination(name, { page: newPage, pageSize: itemsPerPage });
-    },
-    [name, setPagination, itemsPerPage],
-  );
-
-  const setPageSize = useCallback(
-    (newPageSize: number) => {
-      setPagination(name, { page, pageSize: newPageSize });
-    },
-    [name, setPagination, page],
-  );
-
-  return {
-    page,
-    itemsPerPage,
-    setPage,
-    setPageSize,
-  };
-};
-
 export const useLogsListing = () => {
-  const sorting = useStore((state) => state.logs.listing.sorting);
-  const setSorting = useStore((state) => state.logsActions.setSorting);
-
-  const filtering = useStore((state) => state.logs.listing.filtering);
-  const setFiltering = useStore((state) => state.logsActions.setFiltering);
-
-  const globalFilter = useStore((state) => state.logs.listing.globalFilter);
-  const setGlobalFilter = useStore(
-    (state) => state.logsActions.setGlobalFilter,
-  );
-
-  const columnResizeMode = useStore(
-    (state) => state.logs.listing.columnResizeMode,
-  );
-  const setColumnResizeMode = useStore(
-    (state) => state.logsActions.setColumnResizeMode,
-  );
-
-  const columnSizes = useStore((state) => state.logs.listing.columnSizes);
-  const setColumnSize = useStore((state) => state.logsActions.setColumnSize);
-
   const filteredCount = useStore((state) => state.logs.listing.filteredCount);
   const setFilteredCount = useStore(
     (state) => state.logsActions.setFilteredCount,
   );
 
-  const selectedRowIndex = useStore(
-    (state) => state.logs.listing.selectedRowIndex,
+  const gridState = useStore((state) => state.logs.listing.gridState);
+  const setGridState = useStore((state) => state.logsActions.setLogsGridState);
+  const clearGridState = useStore(
+    (state) => state.logsActions.clearLogsGridState,
   );
-  const setSelectedRowIndex = useStore(
-    (state) => state.logsActions.setSelectedRowIndex,
+  const previousLogPath = useStore(
+    (state) => state.logs.listing.previousLogPath,
+  );
+  const setPreviousLogPath = useStore(
+    (state) => state.logsActions.setPreviousLogsPath,
   );
 
   return {
-    sorting,
-    setSorting,
-    filtering,
-    setFiltering,
-    globalFilter,
-    setGlobalFilter,
-    columnResizeMode,
-    setColumnResizeMode,
-    columnSizes,
-    setColumnSize,
     filteredCount,
     setFilteredCount,
-    selectedRowIndex,
-    setSelectedRowIndex,
+    gridState,
+    setGridState,
+    clearGridState,
+    previousLogPath,
+    setPreviousLogPath,
   };
 };
 
@@ -750,4 +688,66 @@ export const useDocumentTitle = () => {
     document.title = title.join(" - ");
   };
   return { setDocumentTitle };
+};
+
+const simplifiedStatusForDeduplication = (status: Status | undefined) =>
+  status === "started" || status === "success" ? status : "_other_";
+
+export type LogHandleWithretried = LogHandle & { retried?: boolean };
+export const useLogsWithretried = (): LogHandleWithretried[] => {
+  const logs = useStore((state) => state.logs.logs);
+  const logPreviews = useStore((state) => state.logs.logPreviews);
+
+  const logsWithEvalSetRetry = useMemo(() => {
+    const logsByTaskId = logs.reduce(
+      (acc: Record<string, LogHandleWithretried[]>, log) => {
+        const taskId = log.task_id;
+        if (taskId) {
+          if (!(taskId in acc)) acc[taskId] = [];
+          acc[taskId].push(log);
+        }
+        return acc;
+      },
+      {},
+    );
+    // For each task_id, select the best item (prefer running/complete over error)
+    // Sort by status priority: started > success > error, cancelled, or missing if logPreview is not loaded
+    // If same priority, take the latest one
+    const bestByName: Record<string, LogHandleWithretried> = {};
+    for (const items of Object.values(logsByTaskId)) {
+      items.sort((a, b) => {
+        const as = simplifiedStatusForDeduplication(
+          logPreviews[a.name]?.status,
+        );
+        const bs = simplifiedStatusForDeduplication(
+          logPreviews[b.name]?.status,
+        );
+        const am = a.mtime ?? 0;
+        const bm = b.mtime ?? 0;
+
+        if (as === bs) return bm - am; // newest on top
+        if (as === "started") return -1;
+        if (bs === "started") return 1;
+        if (as === "success") return -1;
+        if (bs === "success") return 1;
+
+        console.warn(`Unexpected status combination: ${as}, ${bs}`, a, b);
+        return 0;
+      });
+      const { name } = items[0];
+      bestByName[name] = { ...items[0], retried: false };
+    }
+
+    // Rebuild logs maintaining order, marking duplicates as skippable
+    return logs.map(
+      (log) =>
+        bestByName[log.name] ?? {
+          ...log,
+          // task_id is optional for backward compatibility, only new logs files can be skippable
+          retried: log.task_id ? true : undefined,
+        },
+    );
+  }, [logs, logPreviews]);
+
+  return logsWithEvalSetRetry;
 };

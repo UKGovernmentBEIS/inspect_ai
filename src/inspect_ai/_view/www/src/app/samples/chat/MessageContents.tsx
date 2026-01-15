@@ -86,6 +86,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
             contentType={contentType}
             output={resolvedToolOutput}
             collapsible={false}
+            view={tool_call.view ? tool_call.view : undefined}
           />
         );
       }

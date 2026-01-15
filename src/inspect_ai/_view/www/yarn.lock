@@ -2084,18 +2084,6 @@
   resolved "https://registry.yarnpkg.com/@solid-primitives/utils/-/utils-6.3.2.tgz#13d6126fc5a498965d7c45dd41c052e42dcfd7e1"
   integrity sha512-hZ/M/qr25QOCcwDPOHtGjxTD8w2mNyVAYvcfgwzBHq2RwNqHNdDNsMZYap20+ruRwW4A3Cdkczyoz0TSxLCAPQ==
 
-"@tanstack/react-table@^8.21.3":
-  version "8.21.3"
-  resolved "https://registry.npmjs.org/@tanstack/react-table/-/react-table-8.21.3.tgz"
-  integrity sha512-5nNMTSETP4ykGegmVkhjcS8tTLW6Vl4axfEGQN3v0zdHYbK4UfoqfPChclTrJ4EoK9QynqAu9oUf8VEmrpZ5Ww==
-  dependencies:
-    "@tanstack/table-core" "8.21.3"
-
-"@tanstack/table-core@8.21.3":
-  version "8.21.3"
-  resolved "https://registry.npmjs.org/@tanstack/table-core/-/table-core-8.21.3.tgz"
-  integrity sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==
-
 "@testing-library/dom@^10.4.1":
   version "10.4.1"
   resolved "https://registry.yarnpkg.com/@testing-library/dom/-/dom-10.4.1.tgz#d444f8a889e9a46e9a3b4f3b88e0fcb3efb6cf95"
@@ -2768,10 +2756,10 @@ aria-query@^5.0.0:
   resolved "https://registry.npmjs.org/aria-query/-/aria-query-5.3.2.tgz"
   integrity sha512-COROpnaoap1E2F000S62r6A60uHZnmlvomhfyT2DlTcrY1OrBKn2UhH7qn5wTC9zMvD0AY7csdPSNwKP+7WiQw==
 
-asciinema-player@^3.11.1:
-  version "3.12.1"
-  resolved "https://registry.yarnpkg.com/asciinema-player/-/asciinema-player-3.12.1.tgz#dec4a126aa2940f6ee095c6aca1f45a2181e36aa"
-  integrity sha512-X4tIjZEIsD7Keeu1cJbrsZZCbPSO85w2OiDRGui68JHQPjthIG2jh68TARDrf2CP2l1Lko4mevnBdwwmJfD0iw==
+asciinema-player@^3.13.5:
+  version "3.14.0"
+  resolved "https://registry.yarnpkg.com/asciinema-player/-/asciinema-player-3.14.0.tgz#4660595433dd538cc5a31badadb9e76d3eee6d17"
+  integrity sha512-44m3CpNavn8i7DSr/AeeV+rJpHpcqc/OCildCs9FAu5gnXB6XNBdbhfg6mHMG4uU3R1rxFNA3ZRTt8FMhHC48Q==
   dependencies:
     "@babel/runtime" "^7.21.0"
     solid-js "^1.3.0"
@@ -5179,6 +5167,13 @@ react-dom@^19.1.1:
   dependencies:
     scheduler "^0.27.0"
 
+react-dom@^19.2.1:
+  version "19.2.3"
+  resolved "https://registry.yarnpkg.com/react-dom/-/react-dom-19.2.3.tgz#f0b61d7e5c4a86773889fcc1853af3ed5f215b17"
+  integrity sha512-yELu4WmLPw5Mr/lmeEpox5rw3RETacE++JgHqQzd2dg+YbJuat3jH4ingc+WPZhxaoFzdv9y33G+F7Nl5O0GBg==
+  dependencies:
+    scheduler "^0.27.0"
+
 react-fast-compare@^3.0.1:
   version "3.2.2"
   resolved "https://registry.npmjs.org/react-fast-compare/-/react-fast-compare-3.2.2.tgz"
@@ -5212,30 +5207,35 @@ react-refresh@^0.17.0:
   resolved "https://registry.npmjs.org/react-refresh/-/react-refresh-0.17.0.tgz"
   integrity sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==
 
-react-router-dom@^7.9.5:
-  version "7.9.6"
-  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-7.9.6.tgz#f2a0d12961d67bd87ab48e5ef42fa1f45beae357"
-  integrity sha512-2MkC2XSXq6HjGcihnx1s0DBWQETI4mlis4Ux7YTLvP67xnGxCvq+BcCQSO81qQHVUTM1V53tl4iVVaY5sReCOA==
+react-router-dom@^7.10.1:
+  version "7.11.0"
+  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-7.11.0.tgz#2165f63e52798bd0eb138480c098ad058cdf3413"
+  integrity sha512-e49Ir/kMGRzFOOrYQBdoitq3ULigw4lKbAyKusnvtDu2t4dBX4AGYPrzNvorXmVuOyeakai6FUPW5MmibvVG8g==
   dependencies:
-    react-router "7.9.6"
+    react-router "7.11.0"
 
-react-router@7.9.6:
-  version "7.9.6"
-  resolved "https://registry.yarnpkg.com/react-router/-/react-router-7.9.6.tgz#003c8de335fdd7390286a478dcfd9579c1826137"
-  integrity sha512-Y1tUp8clYRXpfPITyuifmSoE2vncSME18uVLgaqyxh9H35JWpIfzHo+9y3Fzh5odk/jxPW29IgLgzcdwxGqyNA==
+react-router@7.11.0:
+  version "7.11.0"
+  resolved "https://registry.yarnpkg.com/react-router/-/react-router-7.11.0.tgz#d3b91567fdbe910caf9064ea69b7b4d9264f2945"
+  integrity sha512-uI4JkMmjbWCZc01WVP2cH7ZfSzH91JAZUDd7/nIprDgWxBV1TkkmLToFh7EbMTcMak8URFRa2YoBL/W8GWnCTQ==
   dependencies:
     cookie "^1.0.1"
     set-cookie-parser "^2.6.0"
 
-react-virtuoso@^4.14.1:
-  version "4.14.1"
-  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.14.1.tgz#78a5e796a3f9ec501499f01962ec6fc7eed77d8d"
-  integrity sha512-NRUF1ak8lY+Tvc6WN9cce59gU+lilzVtOozP+pm9J7iHshLGGjsiAB4rB2qlBPHjFbcXOQpT+7womNHGDUql8w==
+react-virtuoso@^4.15.0:
+  version "4.17.0"
+  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.17.0.tgz#e81f2da99792cfd9317e910b243d847ebeb09248"
+  integrity sha512-od3pi2v13v31uzn5zPXC2u3ouISFCVhjFVFch2VvS2Cx7pWA2F1aJa3XhNTN2F07M3lhfnMnsmGeH+7wZICr7w==
 
 react@^19.2.0:
   version "19.2.0"
   resolved "https://registry.yarnpkg.com/react/-/react-19.2.0.tgz#d33dd1721698f4376ae57a54098cb47fc75d93a5"
   integrity sha512-tmbWg6W31tQLeB5cdIBOicJDJRR2KzXsV7uSK9iNfLWQ5bIZfxuPEHp7M8wiHyHnn0DD1i7w3Zmin0FtkrwoCQ==
+
+react@^19.2.1:
+  version "19.2.3"
+  resolved "https://registry.yarnpkg.com/react/-/react-19.2.3.tgz#d83e5e8e7a258cf6b4fe28640515f99b87cd19b8"
+  integrity sha512-Ku/hhYbVjOQnXDZFv2+RibmLFGwFdeeKHFcOTlrt7xplBnya5OGn/hIRDsqDiSUcfORsDC7MPxwork8jBwsIWA==
 
 redent@^3.0.0:
   version "3.0.0"
@@ -6109,7 +6109,7 @@ yocto-queue@^0.1.0:
   resolved "https://registry.npmjs.org/yocto-queue/-/yocto-queue-0.1.0.tgz"
   integrity sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==
 
-zustand@^5.0.7:
-  version "5.0.8"
-  resolved "https://registry.npmjs.org/zustand/-/zustand-5.0.8.tgz"
-  integrity sha512-gyPKpIaxY9XcO2vSMrLbiER7QMAMGOQZVRdJ6Zi782jkbzZygq5GI9nG8g+sMgitRtndwaBSl7uiqC49o1SSiw==
+zustand@^5.0.9:
+  version "5.0.9"
+  resolved "https://registry.yarnpkg.com/zustand/-/zustand-5.0.9.tgz#389dcd0309b9c545d7a461bd3c54955962847654"
+  integrity sha512-ALBtUj0AfjJt3uNRQoL1tL2tMvj6Gp/6e39dnfT6uzpelGru8v1tPOGBzayOWbPJvujM8JojDk3E1LxeFisBNg==

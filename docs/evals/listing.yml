@@ -1,5 +1,27 @@
 # Groups: Assistants Bias Coding Cybersecurity Knowledge Mathematics Multimodal Personality Reasoning Safeguards Scheming Writing
 
+- title: "b3: Backbone Breaker Benchmark"
+  description: |
+    A comprehensive benchmark for evaluating LLMs for agentic AI security vulnerabilities including prompt attacks aimed at data exfiltration, content injection, decision and behavior manipulation, denial of service, system and tool compromise, and content policy bypass.
+  path: src/inspect_evals/b3
+  arxiv: https://arxiv.org/abs/2510.22620
+  group: Safeguards
+  contributors:
+    [
+      "jb-lakera",
+      "mmathys",
+      "Casuyan",
+      "mrc-lakera",
+      "xanderdavies",
+      "alexandrasouly-aisi",
+      "NiklasPfister",
+    ]
+  tasks:
+    - name: b3
+      dataset_samples: 630
+  tags: ["Agent"]
+  dependency: "b3"
+
 - title: "MASK: Disentangling Honesty from Accuracy in AI Systems"
   description: |
     Evaluates honesty in large language models by testing whether they contradict their own beliefs when pressured to lie.
@@ -226,6 +248,23 @@
     requires_internet: true
     environment: "Kali-Linux"
   dependency: "cybench"
+
+- title: "SandboxBench: Agent Containment Evaluation"
+  description: |
+    Tests LLM agents' ability to escape container sandboxes, exfiltrate data
+    through network filters, and discover planted secrets. Focuses on defensive
+    containment testing rather than offensive capabilities.
+  path: src/inspect_evals/sandboxbench
+  group: Cybersecurity
+  contributors: ["prashantkul"]
+  tasks:
+    - name: sandboxbench
+      dataset_samples: 15
+  tags: ["Agent"]
+  metadata:
+    sandbox: ["solver"]
+    requires_internet: true
+    environment: "Docker"
 
 - title: "CyberMetric: A Benchmark Dataset based on Retrieval-Augmented Generation for Evaluating LLMs in Cybersecurity Knowledge"
   description: |
@@ -476,7 +515,7 @@
   path: src/inspect_evals/ahb
   arxiv: https://arxiv.org/abs/2503.04804
   group: Safeguards
-  contributors: ["nishu-builder", "akanepajs"]
+  contributors: ["nishu-builder", "darkness8i8", "jm355"]
   tasks:
     - name: ahb
       dataset_samples: 26
@@ -834,7 +873,7 @@
   path: src/inspect_evals/commonsense_qa
   arxiv: https://arxiv.org/abs/1811.00937
   group: Knowledge
-  contributors: ["jjallaire"]
+  contributors: ["lauritowal"]
   tasks:
     - name: commonsense_qa
       dataset_samples: 1221
@@ -1117,6 +1156,26 @@
     sandbox: ["solver", "scorer"]
   dependency: "core_bench"
 
+- title: "PaperBench: Evaluating AI's Ability to Replicate AI Research (Work In Progress)"
+  description: |
+    Agents are evaluated on their ability to replicate 20 ICML 2024 Spotlight
+    and Oral papers from scratch. Given a research paper PDF, an addendum with
+    clarifications, and a rubric defining evaluation criteria, the agent must
+    reproduce the paper's key results by writing and executing code.
+
+    > **Note:** This eval is a work in progress. See <https://github.com/UKGovernmentBEIS/inspect_evals/issues/334> for status.
+  path: src/inspect_evals/paperbench
+  arxiv: https://arxiv.org/abs/2504.01848
+  group: Coding
+  contributors: ["vhong-aisi"]
+  tasks:
+    - name: paperbench
+      dataset_samples: 23
+  tags: ["Agent", "AI R&D"]
+  metadata:
+    sandbox: ["solver", "scorer"]
+  dependency: "paperbench"
+
 - title: "AIR Bench: AI Risk Benchmark"
   description: |
     A safety benchmark evaluating language models against risk categories derived from government regulations and company policies.
@@ -1239,6 +1298,24 @@
   metadata:
     requires_internet: true
     sandbox: ["solver"]
+
+- title: "Terminal-Bench 2.0: Terminal Mastery Challenges"
+  description: |
+    A popular benchmark for measuring the capabilities of agents and language models to perform realistic, end-to-end challenges in containerized environments.
+    It measures whether an agent can execute workflows that resemble real engineering, data, devops, and software-automation tasks, not just text generation.
+  path: src/inspect_evals/terminal_bench_2
+  arxiv: https://www.tbench.ai/
+  group: Coding
+  contributors: ["iphan"]
+  tasks:
+    - name: terminal_bench_2
+      dataset_samples: 89
+  tags: ["Agent"]
+  metadata:
+    sandbox: ["solver", "scorer"]
+    requires_internet: true
+    environment: "Linux"
+  dependency: "terminal_bench_2"
 
 - title: "ZeroBench"
   description: A lightweight visual reasoning benchmark that is (1) Challenging, (2) Lightweight, (3) Diverse, and (4) High-quality.
@@ -1430,3 +1507,46 @@
     - name: mind2web_sc
       dataset_samples: 200
   tags: ["Agent"]
+
+- title: "Tau2"
+  description: |
+    Evaluating Conversational Agents in a Dual-Control Environment
+  path: src/inspect_evals/tau2
+  arxiv: https://arxiv.org/abs/2506.07982
+  group: Assistants
+  contributors: ["mmulet"]
+  tasks:
+    - name: tau2_airline
+      dataset_samples: 50
+    - name: tau2_retail
+      dataset_samples: 114
+    - name: tau2_telecom
+      dataset_samples: 114
+  tags: ["Agent"]
+
+- title: "NoveltyBench: Evaluating Language Models for Humanlike Diversity"
+  description: |
+    Evaluates how well language models generate diverse, humanlike responses across multiple reasoning and generation tasks. This evaluation assesses whether LLMs can produce varied outputs rather than repetitive or uniform answers.
+  path: src/inspect_evals/novelty_bench
+  arxiv: https://arxiv.org/abs/2504.05228
+  dependency: "novelty_bench"
+  group: Reasoning
+  contributors: ["iphan"]
+  tasks:
+    - name: novelty_bench
+      dataset_samples: 1100
+
+- title: "GDPval"
+  description: |
+    GDPval measures model performance on economically valuable, real-world tasks across 44 occupations.
+  path: src/inspect_evals/gdpval
+  group: Assistants
+  arxiv: https://arxiv.org/abs/2510.04374
+  contributors: ["jeqcho"]
+  tasks:
+    - name: gdpval
+      dataset_samples: 220
+  tags: ["Agent"]
+  dependency: "gdpval"
+  metadata:
+    sandbox: ["solver"]

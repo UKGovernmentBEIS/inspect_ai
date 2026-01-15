@@ -54,6 +54,11 @@ ConverseStopReason = Literal[
     "stop_sequence",
     "guardrail_intervened",
     "content_filtered",
+    "malformed_model_output",
+    "malformed_tool_use",
+    "invalid_query",
+    "max_tool_invocations",
+    "model_context_window_exceeded",
 ]
 ConverseGuardContentQualifier = Literal["grounding_source", "query", "guard_content"]
 ConverseFilterType = Literal[
@@ -332,6 +337,34 @@ class BedrockAPI(ModelAPI):
         return True
 
     @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        Bedrock model names use the format: provider.model-name-version:variant
+        e.g., anthropic.claude-3-5-sonnet-20241022-v2:0
+
+        Returns the canonical format: provider/model-name
+        e.g., anthropic/claude-3-5-sonnet-20241022
+        """
+        name = self.model_name
+        provider: str | None = None
+
+        # Extract provider prefix (e.g., "anthropic." or "meta.")
+        if "." in name:
+            provider, name = name.split(".", 1)
+
+        # Strip variant suffix (e.g., ":0")
+        if ":" in name:
+            name = name.split(":")[0]
+
+        # Strip version suffix like -v1, -v2
+        if name.endswith(("-v1", "-v2", "-v3")):
+            name = name[:-3]
+
+        # Return with provider prefix for database lookup
+        return f"{provider}/{name}" if provider else name
+
+    @override
     def emulate_reasoning_history(self) -> bool:
         # claude needs reasoning history emulation because the reasoning signature doesn't
         # make it all the way through the converse api (so when we try to replay it there is
@@ -561,6 +594,16 @@ def message_stop_reason(
             return "content_filter"
         case "guardrail_intervened":
             return "content_filter"
+        case "model_context_window_exceeded":
+            return "model_length"
+        # these are basically server errors which we don't have a way to encode right now
+        case (
+            "malformed_model_output"
+            | "malformed_tool_use"
+            | "invalid_query"
+            | "max_tool_invocations"
+        ):
+            return "unknown"
         case _:
             return "unknown"
 

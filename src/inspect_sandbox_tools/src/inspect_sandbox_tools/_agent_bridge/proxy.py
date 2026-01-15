@@ -1732,6 +1732,97 @@ async def model_proxy_server(
             _handle_model_proxy_error(ex)
             os._exit(1)
 
+    # -------- MCP HTTP Server Endpoint --------
+
+    def _jsonrpc_response(req_id: Any, result: Any) -> dict[str, Any]:
+        """Build a JSON-RPC 2.0 success response."""
+        return {
+            "status": 200,
+            "body": {"jsonrpc": "2.0", "id": req_id, "result": result},
+        }
+
+    def _jsonrpc_error(
+        req_id: Any, code: int, message: str, data: Any = None
+    ) -> dict[str, Any]:
+        """Build a JSON-RPC 2.0 error response."""
+        error: dict[str, Any] = {"code": code, "message": message}
+        if data is not None:
+            error["data"] = data
+        return {"status": 200, "body": {"jsonrpc": "2.0", "id": req_id, "error": error}}
+
+    @server.route("/mcp/*", method="POST")
+    async def mcp_endpoint(request: dict[str, Any]) -> dict[str, Any]:
+        """MCP HTTP server endpoint implementing JSON-RPC 2.0 over HTTP.
+
+        Routes: /mcp/{server_name}
+        Handles: initialize, notifications/initialized, tools/list, tools/call
+        """
+        try:
+            # Extract server name from path: /mcp/{server_name}
+            path = request.get("path", "")
+            if "/mcp/" in path:
+                server_name = path.split("/mcp/", 1)[1]
+                # Remove any trailing slashes or path segments
+                if "/" in server_name:
+                    server_name = server_name.split("/")[0]
+            else:
+                return _jsonrpc_error(
+                    None, -32600, "Invalid path: expected /mcp/{server_name}"
+                )
+
+            json_body = request.get("json", {}) or {}
+            method = json_body.get("method")
+            req_id = json_body.get("id")
+
+            # Handle MCP methods
+            if method == "initialize":
+                return _jsonrpc_response(
+                    req_id,
+                    {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": server_name, "version": "1.0.0"},
+                    },
+                )
+
+            elif method == "notifications/initialized":
+                # Notifications don't get a response
+                return {"status": 202}
+
+            elif method == "tools/list":
+                tools = await call_bridge_model_service_async(
+                    "list_tools", server=server_name
+                )
+                return _jsonrpc_response(req_id, {"tools": tools})
+
+            elif method == "tools/call":
+                params = json_body.get("params", {})
+                tool_name = params.get("name")
+                arguments = params.get("arguments", {})
+
+                if not tool_name:
+                    return _jsonrpc_error(req_id, -32602, "Missing 'name' in params")
+
+                result = await call_bridge_model_service_async(
+                    "call_tool",
+                    server=server_name,
+                    tool=tool_name,
+                    arguments=arguments,
+                )
+                return _jsonrpc_response(
+                    req_id, {"content": [{"type": "text", "text": result}]}
+                )
+
+            else:
+                return _jsonrpc_error(req_id, -32601, f"Unknown method: {method}")
+
+        except Exception as ex:
+            return _jsonrpc_error(
+                json_body.get("id") if "json_body" in dir() else None,
+                -32603,
+                str(ex),
+            )
+
     # return configured server
     return server
 

@@ -5,12 +5,12 @@ from pathlib import Path
 
 from shortuuid import uuid
 
+from ..compose import is_dockerfile
 from ..environment import SandboxEnvironmentConfigType
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
     auto_compose_file,
     ensure_auto_compose_file,
-    is_dockerfile,
     resolve_compose_file,
 )
 

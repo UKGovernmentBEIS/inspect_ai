@@ -1,8 +1,17 @@
 import asyncio
 import base64
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from google.genai.types import Candidate, Content, FinishReason, FunctionCall, Part
+import pytest
+from google.genai.types import (
+    Candidate,
+    Content,
+    FinishReason,
+    FunctionCall,
+    FunctionCallingConfigMode,
+    GenerateContentResponse,
+    Part,
+)
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
@@ -15,16 +24,21 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageAssistant
+from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
+from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
 from inspect_ai.model._providers.google import (
+    GoogleGenAIAPI,
+    _malformed_function_message,
+    _malformed_function_retry,
     completion_choice_from_candidate,
     content,
 )
 from inspect_ai.scorer import includes
-from inspect_ai.tool import ToolCall
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
 
 
 @skip_if_no_google
@@ -79,7 +93,9 @@ def test_completion_choice_malformed_function_call():
     choice = completion_choice_from_candidate("", candidate)
 
     # Verify the conversion
-    assert choice.message.content == ""  # Empty content for malformed calls
+    assert "I seem to have had trouble calling a function" in str(
+        choice.message.content
+    )
     assert choice.stop_reason == "unknown"  # MALFORMED_FUNCTION_CALL maps to "unknown"
     assert (
         choice.message.tool_calls is None
@@ -390,3 +406,377 @@ def test_thought_signature_on_tool_call():
     assert result.parts[1].function_call is not None
     assert result.parts[1].function_call.name == "bash"
     assert result.parts[1].thought_signature == thought_sig
+
+
+# Tests for MALFORMED_FUNCTION_CALL retry logic helper functions
+
+
+def test_malformed_function_message_with_finish_message():
+    """Test _malformed_function_message extracts finish_message from Candidate."""
+    candidate = Candidate(
+        finish_reason=FinishReason.MALFORMED_FUNCTION_CALL,
+        finish_message="print(default_api.foo(x=1))",
+        content=Content(parts=None, role="model"),
+    )
+    result = _malformed_function_message(candidate)
+    assert result == "print(default_api.foo(x=1))"
+
+
+def test_malformed_function_message_without_finish_message():
+    """Test _malformed_function_message returns default when finish_message is None."""
+    candidate = Candidate(
+        finish_reason=FinishReason.MALFORMED_FUNCTION_CALL,
+        finish_message=None,
+        content=Content(parts=None, role="model"),
+    )
+    result = _malformed_function_message(candidate)
+    assert "malformed function call" in result.lower()
+
+
+def test_malformed_function_message_from_response():
+    """Test _malformed_function_message works with GenerateContentResponse."""
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                finish_reason=FinishReason.MALFORMED_FUNCTION_CALL,
+                finish_message="print(api.bar())",
+                content=Content(parts=None, role="model"),
+            )
+        ]
+    )
+    result = _malformed_function_message(response)
+    assert result == "print(api.bar())"
+
+
+def test_malformed_function_message_from_empty_response():
+    """Test _malformed_function_message handles empty candidates list."""
+    response = GenerateContentResponse(candidates=[])
+    result = _malformed_function_message(response)
+    assert "malformed function call" in result.lower()
+
+
+def test_malformed_function_retry_returns_correct_content():
+    """Test _malformed_function_retry returns model and user messages."""
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                finish_reason=FinishReason.MALFORMED_FUNCTION_CALL,
+                finish_message="print(foo())",
+                content=Content(parts=None, role="model"),
+            )
+        ]
+    )
+
+    contents, _ = _malformed_function_retry(response, "auto")
+
+    # Should return two Content objects: model acknowledgment + user instruction
+    assert len(contents) == 2
+    assert contents[0].role == "model"
+    assert contents[1].role == "user"
+
+    # Model message should contain the error
+    assert contents[0].parts is not None
+    assert "print(foo())" in contents[0].parts[0].text
+
+    # User message should instruct to fix
+    assert contents[1].parts is not None
+    assert "JSON" in contents[1].parts[0].text
+
+
+def test_malformed_function_retry_forces_any_mode_when_auto():
+    """Test _malformed_function_retry sets tool_config to ANY when tool_choice is auto."""
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                finish_reason=FinishReason.MALFORMED_FUNCTION_CALL,
+                finish_message=None,
+                content=Content(parts=None, role="model"),
+            )
+        ]
+    )
+
+    _, tool_config = _malformed_function_retry(response, "auto")
+
+    assert tool_config is not None
+    assert tool_config.function_calling_config is not None
+    assert tool_config.function_calling_config.mode == FunctionCallingConfigMode.ANY
+
+
+def test_malformed_function_retry_no_tool_config_change_when_not_auto():
+    """Test _malformed_function_retry doesn't change tool_config when already forced."""
+    response = GenerateContentResponse(
+        candidates=[
+            Candidate(
+                finish_reason=FinishReason.MALFORMED_FUNCTION_CALL,
+                finish_message=None,
+                content=Content(parts=None, role="model"),
+            )
+        ]
+    )
+
+    # When tool_choice is already "any", no need to change tool_config
+    _, tool_config = _malformed_function_retry(response, "any")
+    assert tool_config is None
+
+    # Same for "none"
+    _, tool_config = _malformed_function_retry(response, "none")
+    assert tool_config is None
+
+
+# Integration tests for MALFORMED_FUNCTION_CALL retry loop with mocked client
+
+
+def _create_mock_google_client(mock_generate: AsyncMock) -> MagicMock:
+    """Create a mock Google client with the right structure for testing."""
+    mock_client = MagicMock()
+    mock_client.aio.__aenter__ = AsyncMock(return_value=mock_client.aio)
+    mock_client.aio.__aexit__ = AsyncMock(return_value=None)
+    mock_client.aio.models.generate_content = mock_generate
+    mock_client._api_client._async_httpx_client = MagicMock()
+    return mock_client
+
+
+def _create_malformed_response(
+    finish_message: str | None = None,
+) -> GenerateContentResponse:
+    """Create a response with MALFORMED_FUNCTION_CALL finish reason."""
+    return GenerateContentResponse(
+        candidates=[
+            Candidate(
+                finish_reason=FinishReason.MALFORMED_FUNCTION_CALL,
+                finish_message=finish_message or "print(default_api.my_tool(x=1))",
+                content=Content(parts=None, role="model"),
+            )
+        ],
+        usage_metadata=None,
+    )
+
+
+def _create_success_response_with_tool_call() -> GenerateContentResponse:
+    """Create a successful response with a tool call."""
+    return GenerateContentResponse(
+        candidates=[
+            Candidate(
+                finish_reason=FinishReason.STOP,
+                content=Content(
+                    role="model",
+                    parts=[
+                        Part(function_call=FunctionCall(name="my_tool", args={"x": 1}))
+                    ],
+                ),
+            )
+        ],
+        usage_metadata=None,
+    )
+
+
+def _create_test_tool() -> ToolInfo:
+    """Create a simple test tool for testing."""
+    return ToolInfo(
+        name="my_tool",
+        description="A test tool",
+        parameters=ToolParams(
+            type="object",
+            properties={"x": ToolParam(type="integer", description="A number")},
+            required=["x"],
+        ),
+    )
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_succeeds():
+    """Test that retry succeeds after initial MALFORMED_FUNCTION_CALL."""
+    # First call returns malformed, second call succeeds
+    mock_generate = AsyncMock(
+        side_effect=[
+            _create_malformed_response(),
+            _create_success_response_with_tool_call(),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool with x=1")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+        # Verify retry happened (2 calls total)
+        assert mock_generate.call_count == 2
+
+        # Verify successful tool call in output
+        assert output.choices[0].message.tool_calls is not None
+        assert len(output.choices[0].message.tool_calls) == 1
+        assert output.choices[0].message.tool_calls[0].function == "my_tool"
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_exhausted():
+    """Test behavior when all retry attempts fail with MALFORMED_FUNCTION_CALL."""
+    # All 3 calls return malformed
+    mock_generate = AsyncMock(
+        side_effect=[
+            _create_malformed_response("print(api.call1())"),
+            _create_malformed_response("print(api.call2())"),
+            _create_malformed_response("print(api.call3())"),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        output, _ = await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+        # Verify all 3 attempts were made
+        assert mock_generate.call_count == 3
+
+        # Verify the synthesized error message is in the output
+        content_str = str(output.choices[0].message.content)
+        assert "trouble calling a function" in content_str
+
+        # Verify stop reason
+        assert output.choices[0].stop_reason == "unknown"
+
+
+@pytest.mark.anyio
+async def test_malformed_function_call_retry_adds_feedback_messages():
+    """Test that retry adds feedback messages to the conversation."""
+    # First call returns malformed, second call succeeds
+    mock_generate = AsyncMock(
+        side_effect=[
+            _create_malformed_response(),
+            _create_success_response_with_tool_call(),
+        ]
+    )
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Call my_tool")],
+            tools=[_create_test_tool()],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+
+        # Verify 2 calls were made
+        assert mock_generate.call_count == 2
+
+        # The second call should have additional feedback messages
+        # We can check by examining the call args
+        second_call_kwargs = mock_generate.call_args_list[1].kwargs
+        contents = second_call_kwargs.get("contents", [])
+
+        # Original message + model feedback + user instruction = at least 3 messages
+        assert len(contents) >= 3
+
+        # Check that feedback messages were added
+        roles = [c.role for c in contents]
+        assert "model" in roles
+        assert "user" in roles
+
+
+# Tests for count_tokens with unpaired tool messages
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_google_count_tokens_single_tool_call() -> None:
+    """Test counting tokens for a single assistant message with one tool call."""
+    from inspect_ai.model import get_model
+
+    model = get_model("google/gemini-2.0-flash")
+
+    # Create an assistant message with a single tool call (no tool result)
+    assistant_msg = ChatMessageAssistant(
+        content="I'll help you with that.",
+        tool_calls=[
+            ToolCall(
+                id="call_test_123",
+                function="test_function",
+                arguments={"arg1": "value1"},
+            )
+        ],
+    )
+
+    # This should not raise - we're testing token counting for individual messages
+    token_count = await model.api.count_tokens([assistant_msg])
+    assert token_count > 0
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_google_count_tokens_multiple_tool_calls() -> None:
+    """Test counting tokens for a single assistant message with multiple tool calls."""
+    from inspect_ai.model import get_model
+
+    model = get_model("google/gemini-2.0-flash")
+
+    # Create an assistant message with multiple tool calls (no tool results)
+    assistant_msg = ChatMessageAssistant(
+        content="I'll run multiple tools.",
+        tool_calls=[
+            ToolCall(
+                id="call_test_abc",
+                function="function_a",
+                arguments={"x": 1},
+            ),
+            ToolCall(
+                id="call_test_def",
+                function="function_b",
+                arguments={"y": 2},
+            ),
+            ToolCall(
+                id="call_test_ghi",
+                function="function_c",
+                arguments={"z": 3},
+            ),
+        ],
+    )
+
+    # This should not raise - we're testing token counting for individual messages
+    token_count = await model.api.count_tokens([assistant_msg])
+    assert token_count > 0
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_google_count_tokens_single_tool_result() -> None:
+    """Test counting tokens for a single tool result message (no preceding tool use)."""
+    from inspect_ai.model import get_model
+
+    model = get_model("google/gemini-2.0-flash")
+
+    # Create a tool result message without a preceding assistant message
+    tool_msg = ChatMessageTool(
+        content="Tool result content here",
+        tool_call_id="call_test_xyz",
+        function="some_function",
+    )
+
+    # This should not raise - we're testing token counting for individual messages
+    token_count = await model.api.count_tokens([tool_msg])
+    assert token_count > 0

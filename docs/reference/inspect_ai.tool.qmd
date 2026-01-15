@@ -15,6 +15,7 @@ title: "inspect_ai.tool"
 
 ## Agentic Tools
 
+### skill
 ### memory
 ### update_plan
 ### think
@@ -31,6 +32,14 @@ title: "inspect_ai.tool"
 ### MCPServerConfig 
 ### MCPServerConfigStdio
 ### MCPServerConfigHTTP 
+
+## Skills
+
+### skill
+### read_skills
+### install_skills
+### Skill
+### SkillInfo
 
 ## Dynamic 
 

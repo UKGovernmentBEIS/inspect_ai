@@ -127,6 +127,72 @@ if state.output.stop_reason == "model_length":
 
 Note that the standard `react()` agent provides some of these agent loop enhancements (urging the model to continue and handling context window overflow).
 
+## Compaction
+
+[Compaction](compaction.qmd) enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the `compaction()` function along with a compaction strategy to incorporate compaction into your custom agent.
+
+For example, here we enhance the simple agent loop example from above with compaction. Note that the `compact` function returns both compacted `input` for us to pass to `model.generate()` as well as an optional compaction message (`c_message`) to be added to the main history.
+
+``` python
+from typing import Sequence
+from inspect_ai.agent import AgentState, agent
+from inspect_ai.model import (
+    CompactionEdit, compaction, execute_tools, get_model
+from inspect_ai.tool import (
+    Tool, ToolDef, ToolSource, mcp_connection
+)
+
+@agent
+def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
+    async def execute(state: AgentState):
+
+        # create compaction handler              # <1>
+        compact = compaction(                    # <1>
+            CompactionEdit(threshold=0.9),       # <1>
+            prefix=state.messages,               # <1>
+            tools=tools                          # <1>
+        )                                        # <1>
+
+        # establish MCP server connections required by tools
+        async with mcp_connection(tools):
+
+            while True:
+                # perform compaction                              # <2>
+                input, c_message = await compact(state.messages)  # <2>
+                if message:                                       # <2>
+                    state.messages.append(c_message)              # <2>
+
+                # call model and append to messages
+                state.output = await get_model().generate(
+                    input=input,                          
+                    tools=tools,                                   
+                )                                                  
+                state.messages.append(output.message)              
+
+                # make tool calls or terminate if there are none
+                if output.message.tool_calls:                      
+                    messages, state.output = await execute_tools(
+                        message, tools     
+                    )
+                    state.messages.extend(messages)
+                else:
+                    break
+
+            return state
+
+    return execute
+```
+
+1. Create the `compact()` function using the specified strategy. Pass a `prefix` that should always be included in any compacted history as well as `tools` (used for computing the input tokens).
+
+2. Apply compaction prior to calling `model.generate()`---pass the compacted `input` to the model and append the `c_message` (if specified) to the message history.
+
+::: {.callout-note}
+The returned `compact` function maintains internal state and is designed for sequential use within a single conversation's agent loop. Do not call it concurrently.
+:::
+
+There are various configurable compaction strategies available---see the [Compaction](compaction.qmd) documentation for details.
+
 ## Sample Store {#agent-store}
 
 In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.

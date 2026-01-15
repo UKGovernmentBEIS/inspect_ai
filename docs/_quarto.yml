@@ -80,6 +80,7 @@ website:
                  href: providers.qmd
                - caching.qmd
                - models-batch.qmd
+               - compaction.qmd
                - multimodal.qmd
                - reasoning.qmd
                - structured.qmd

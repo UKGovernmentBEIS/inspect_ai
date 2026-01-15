@@ -23,6 +23,7 @@ from anthropic import (
     APITimeoutError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
+    AsyncAnthropicFoundry,
     AsyncAnthropicVertex,
     BadRequestError,
     NotGiven,
@@ -127,7 +128,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
@@ -137,12 +138,26 @@ from .._providers._anthropic_citations import (
     to_inspect_citation,
 )
 from ._anthropic_batch import AnthropicBatcher
-from .util import environment_prerequisite_error, model_base_url
+from .util import (
+    check_azure_deployment_mismatch,
+    environment_prerequisite_error,
+    model_base_url,
+    require_azure_base_url,
+    resolve_api_key,
+)
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
+AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
+AZURE_ANTHROPIC_API_KEY = "AZURE_ANTHROPIC_API_KEY"
+
+# Azure base URL environment variables
+AZURE_ANTHROPIC_BASE_URL_VARS = [
+    "AZUREAI_ANTHROPIC_BASE_URL",
+    "AZURE_ANTHROPIC_BASE_URL",
+]
 
 INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
@@ -184,16 +199,34 @@ class AnthropicAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[ANTHROPIC_API_KEY],
+            api_key_vars=[
+                ANTHROPIC_API_KEY,
+                AZUREAI_ANTHROPIC_API_KEY,
+                AZURE_ANTHROPIC_API_KEY,
+            ],
             config=config,
         )
+
+        # check for Azure model/URL mismatch
+        if self.is_azure():
+            check_azure_deployment_mismatch(
+                self.service_model_name(),
+                base_url,
+                AZURE_ANTHROPIC_BASE_URL_VARS,
+                "AZUREAI_ANTHROPIC",
+            )
 
         self.model_args = model_args
         self.initialize()
 
     def _create_client(
         self,
-    ) -> AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex:
+    ) -> (
+        AsyncAnthropic
+        | AsyncAnthropicBedrock
+        | AsyncAnthropicVertex
+        | AsyncAnthropicFoundry
+    ):
         if self.is_bedrock():
             base_url = model_base_url(
                 self.base_url,
@@ -222,6 +255,28 @@ class AnthropicAPI(ModelAPI):
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
+                **self.model_args,
+            )
+        elif self.is_azure():
+            # resolve base_url (required for Azure)
+            base_url = require_azure_base_url(
+                self.base_url, AZURE_ANTHROPIC_BASE_URL_VARS, "Anthropic"
+            )
+
+            # resolve api_key (required for Azure)
+            if not self.api_key:
+                self.api_key = resolve_api_key(
+                    [AZUREAI_ANTHROPIC_API_KEY, AZURE_ANTHROPIC_API_KEY]
+                )
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "Anthropic on Azure",
+                    [AZUREAI_ANTHROPIC_API_KEY, AZURE_ANTHROPIC_API_KEY],
+                )
+
+            return AsyncAnthropicFoundry(
+                base_url=base_url,
+                api_key=self.api_key,
                 **self.model_args,
             )
         else:
@@ -253,6 +308,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_vertex(self) -> bool:
         return self.service == "vertex"
+
+    def is_azure(self) -> bool:
+        return self.service == "azure"
 
     async def generate(
         self,
@@ -377,6 +435,32 @@ class AnthropicAPI(ModelAPI):
                 ), model_call()
             else:
                 raise ex
+
+    @override
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        """Estimate token count for an input."""
+        # turn system into user for purposes of counting
+        if isinstance(input, str):
+            input = [ChatMessageUser(content=input)]
+        input = [
+            ChatMessageUser(content=m.content) if m.role == "system" else m
+            for m in input
+        ]
+
+        # Convert to Anthropic message format
+        messages = [await message_param(m) for m in input]
+
+        # Anthropic's API validates message structure even for token counting.
+        # When counting tokens for individual messages (e.g., for caching in
+        # compaction), we may have orphaned tool_use or tool_result blocks.
+        # Pad with fake paired items to satisfy API validation.
+        messages = pad_tool_messages_for_token_counting(messages)
+
+        response = await self.client.messages.count_tokens(
+            model=self.service_model_name(),
+            messages=messages,
+        )
+        return response.input_tokens
 
     async def _perform_request_and_continuations(
         self,
@@ -580,7 +664,8 @@ class AnthropicAPI(ModelAPI):
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     def canonical_name(self) -> str:
-        return self.service_model_name()
+        """Canonical model name for model info database lookup."""
+        return f"anthropic/{self.service_model_name()}"
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
@@ -869,7 +954,8 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            if self.is_claude_4_5():
+            # computer_20251124 is only supported by Claude Opus 4.5
+            if self.is_claude_4_5() and self.is_claude_4_opus():
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
                     name="computer",
@@ -901,7 +987,7 @@ class AnthropicAPI(ModelAPI):
     ):
         # See: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool#before-using-the-text-editor-tool
         # TODO: It would be great to enhance our `is_claude_xxx` functions to help here.
-        if self.model_name.startswith(("claude-3-5-haiku", "claude-3-opus")):
+        if self.service_model_name().startswith(("claude-3-5-haiku", "claude-3-opus")):
             return None
 
         # check for compatible 'text editor' tool
@@ -947,7 +1033,7 @@ class AnthropicAPI(ModelAPI):
             tool.name == "web_search"
             and tool.options
             and "anthropic" in tool.options
-            and _supports_web_search(self.model_name)
+            and _supports_web_search(self.service_model_name())
         ):
             return _web_search_tool_params(tool.options["anthropic"])
         else:
@@ -958,7 +1044,7 @@ class AnthropicAPI(ModelAPI):
     ) -> BetaCodeExecutionTool20250825Param | None:
         if (
             tool.name == "code_execution"
-            and _supports_web_search(self.model_name)
+            and _supports_code_interpreter(self.service_model_name())
             and tool.options
             and "anthropic" in tool.options.get("providers", {})
         ):
@@ -988,7 +1074,7 @@ class AnthropicAPI(ModelAPI):
             )
         ):
             # memory tool supported on Claude 4+ models
-            if _supports_memory(self.model_name):
+            if _supports_memory(self.service_model_name()):
                 return BetaMemoryTool20250818Param(
                     type="memory_20250818",
                     name="memory",
@@ -1419,7 +1505,9 @@ async def assistant_message_block_params(
 
 @dataclass
 class _AssistantInternal:
-    thinking_signatures: dict[str, str] = field(default_factory=dict)
+    thinking_blocks: dict[str, ThinkingBlockParam | RedactedThinkingBlockParam] = field(
+        default_factory=dict
+    )
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
@@ -1738,23 +1826,34 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     else None,
                 )
             )
+
+        elif isinstance(content_block, ThinkingBlock):
+            # anthropic reasoning is now always a summary (save for Sonnet 3.7):
+            # https://platform.claude.com/docs/en/build-with-claude/extended-thinking#differences-in-thinking-across-model-versions
+            content.append(
+                ContentReasoning(
+                    summary=content_block.thinking,
+                    reasoning=content_block.signature,
+                    redacted=True,
+                )
+            )
+
+            # reasoning won't round trip through bridges w/ simplistic handling
+            # (e.g. OpenAI completions) so we also save for replay)
+            assistant_internal().thinking_blocks[mm3_hash(content_block.signature)] = (
+                cast(ThinkingBlockParam, content_block.model_dump(exclude_none=True))
+            )
+
         elif isinstance(content_block, RedactedThinkingBlock):
+            # redacted reasoning has no summary
             content.append(
                 ContentReasoning(reasoning=content_block.data, redacted=True)
             )
-        elif isinstance(content_block, ThinkingBlock):
-            # also record the thinking signature for this thinking in the side list
-            # this is b/c if we are operating within a bridge then scaffolds (e.g.
-            # responses with store=False) will not send back the id/signature.
-            assistant_internal().thinking_signatures[
-                mm3_hash(content_block.thinking)
-            ] = content_block.signature
 
-            # append the content
-            content.append(
-                ContentReasoning(
-                    reasoning=content_block.thinking, signature=content_block.signature
-                )
+            # reasoning won't round trip through bridges w/ simplistic handling
+            # (e.g. OpenAI completions) so we also save for replay
+            assistant_internal().thinking_blocks[mm3_hash(content_block.data)] = cast(
+                RedactedThinkingBlockParam, content_block.model_dump(exclude_none=True)
             )
 
     return content, tool_calls
@@ -1847,29 +1946,32 @@ async def message_block_params(
         return [await image_block_param(content.image)]
 
     elif isinstance(content, ContentReasoning):
-        if content.redacted:
-            return [
-                RedactedThinkingBlockParam(
-                    type="redacted_thinking",
-                    data=content.reasoning,
-                )
-            ]
+        # lookup in assistant internal
+        thinking_block_param = assistant_internal().thinking_blocks.get(
+            mm3_hash(content.reasoning), None
+        )
+        if thinking_block_param is not None:
+            return [thinking_block_param]
         else:
-            signature = content.signature
-            if signature is None:
-                # see if we can get it from assistant_internal()
-                signature = assistant_internal().thinking_signatures.get(
-                    mm3_hash(content.reasoning), None
-                )
-                if signature is None:
-                    raise ValueError("Thinking content without signature.")
-            return [
-                ThinkingBlockParam(
-                    type="thinking",
-                    thinking=content.reasoning,
-                    signature=signature,
-                )
-            ]
+            # reconstruct reasoning
+            if content.summary is not None:
+                return [
+                    ThinkingBlockParam(
+                        type="thinking",
+                        thinking=content.summary,
+                        signature=content.reasoning,
+                    )
+                ]
+            elif content.redacted and content.signature is not None:
+                return [
+                    RedactedThinkingBlockParam(
+                        type="redacted_thinking", data=content.signature
+                    )
+                ]
+
+        # if it's not in there then this is reasoning that is coming from another
+        # system (e.g. in an agent handoff) so we turn it into normal text
+        return [TextBlockParam(type="text", text=content.text)]
 
     elif isinstance(content, ContentToolUse):
         if content.id in assistant_internal().server_mcp_tool_uses:
@@ -2016,9 +2118,115 @@ async def count_tokens(
             "Anthropic",
             f"Unable to call count_tokens API for model {model} ({ex})",
         )
-        words = text.split()
-        estimated_tokens = int(len(words) * 1.3)
+        estimated_tokens = int(max(1, len(text) / 4))
         return estimated_tokens
+
+
+def pad_tool_messages_for_token_counting(
+    messages: list[MessageParam],
+) -> list[MessageParam]:
+    """Pad tool messages to satisfy Anthropic's API validation for token counting.
+
+    Anthropic's count_tokens API validates message structure and requires:
+    - Every tool_use block must have a corresponding tool_result in the next message
+    - Every tool_result block must have a corresponding tool_use in the previous message
+
+    When counting tokens for individual messages (e.g., for caching in compaction),
+    we may have orphaned tool_use or tool_result blocks. This function pads with
+    minimal fake paired items to satisfy API validation.
+
+    This slightly overcounts tokens but that's acceptable for compaction triggering.
+    """
+    if not messages:
+        return messages
+
+    result: list[MessageParam] = []
+
+    for i, msg in enumerate(messages):
+        # Check for tool_result blocks without preceding tool_use
+        if msg["role"] == "user":
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                tool_result_ids: list[str] = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                        tool_result_ids.append(block.get("tool_use_id", ""))
+
+                if tool_result_ids:
+                    # Check if previous message has corresponding tool_use blocks
+                    prev_tool_use_ids: set[str] = set()
+                    if result and result[-1]["role"] == "assistant":
+                        prev_content = result[-1].get("content", [])
+                        if isinstance(prev_content, list):
+                            for block in prev_content:
+                                if (
+                                    isinstance(block, dict)
+                                    and block.get("type") == "tool_use"
+                                ):
+                                    prev_tool_use_ids.add(block.get("id", ""))
+
+                    # Add fake assistant message with tool_use for orphaned results
+                    orphaned_ids = [
+                        tid for tid in tool_result_ids if tid not in prev_tool_use_ids
+                    ]
+                    if orphaned_ids:
+                        fake_tool_uses = [
+                            ToolUseBlockParam(
+                                type="tool_use",
+                                id=tid,
+                                name="placeholder",
+                                input={},
+                            )
+                            for tid in orphaned_ids
+                        ]
+                        result.append(
+                            MessageParam(role="assistant", content=fake_tool_uses)
+                        )
+
+        result.append(msg)
+
+        # Check for tool_use blocks without following tool_result
+        if msg["role"] == "assistant":
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                tool_use_ids: list[str] = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tool_use_ids.append(block.get("id", ""))
+
+                if tool_use_ids:
+                    # Check if next message has corresponding tool_result blocks
+                    next_tool_result_ids: set[str] = set()
+                    if i + 1 < len(messages) and messages[i + 1]["role"] == "user":
+                        next_content = messages[i + 1].get("content", [])
+                        if isinstance(next_content, list):
+                            for block in next_content:
+                                if (
+                                    isinstance(block, dict)
+                                    and block.get("type") == "tool_result"
+                                ):
+                                    next_tool_result_ids.add(
+                                        block.get("tool_use_id", "")
+                                    )
+
+                    # Add fake user message with tool_result for orphaned uses
+                    orphaned_ids = [
+                        tid for tid in tool_use_ids if tid not in next_tool_result_ids
+                    ]
+                    if orphaned_ids:
+                        fake_tool_results = [
+                            ToolResultBlockParam(
+                                type="tool_result",
+                                tool_use_id=tid,
+                                content="",
+                            )
+                            for tid in orphaned_ids
+                        ]
+                        result.append(
+                            MessageParam(role="user", content=fake_tool_results)
+                        )
+
+    return result
 
 
 def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:

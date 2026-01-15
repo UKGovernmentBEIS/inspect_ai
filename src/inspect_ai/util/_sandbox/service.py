@@ -109,7 +109,10 @@ async def sandbox_service(
     # wait for and process methods
     while not until():
         await anyio.sleep(polling_interval)
-        await service.handle_requests()
+        try:
+            await service.handle_requests()
+        except RuntimeError as ex:
+            logger.warning(f"Error waiting for sandbox rpc: {ex}")
 
 
 class SandboxService:

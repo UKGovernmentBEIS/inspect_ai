@@ -1,8 +1,3 @@
-import {
-  ColumnFiltersState,
-  ColumnResizeMode,
-  SortingState,
-} from "@tanstack/react-table";
 import { GridState } from "ag-grid-community";
 import { StateSnapshot } from "react-virtuoso";
 import {
@@ -61,7 +56,6 @@ export interface AppState {
     sample_epoch?: string;
   };
   rehydrated?: boolean;
-  pagination: Record<string, { page: number; pageSize: number }>;
   singleFileMode?: boolean;
   displayMode?: "rendered" | "raw";
   logsSampleView: boolean;
@@ -95,17 +89,16 @@ export interface LogsState {
   };
   flow?: string;
   flowDir?: string;
+  showRetriedLogs: boolean;
 }
 
 export interface LogsListing {
-  sorting?: SortingState;
-  filtering?: ColumnFiltersState;
-  globalFilter?: string;
-  columnResizeMode?: ColumnResizeMode;
-  columnSizes?: Record<string, number>;
   filteredCount?: number;
   watchedLogs?: LogHandle[];
   selectedRowIndex?: number | null;
+  gridState?: GridState;
+  previousLogPath?: string;
+  columnVisibility: Record<string, boolean>;
 }
 
 export interface SampleHandle {

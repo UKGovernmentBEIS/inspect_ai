@@ -14,6 +14,7 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.log._samples import sample_active
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter, get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai_convert import (
@@ -45,6 +46,7 @@ async def agent_bridge(
     *,
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
+    compaction: CompactionStrategy | None = None,
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
@@ -64,6 +66,8 @@ async def agent_bridge(
           an updated state based on traffic over the bridge.
        filter: Filter for bridge model generation.
        retry_refusals: Should refusals be retried? (pass number of times to retry)
+       compaction: Compact the conversation when it it is close to overflowing
+          the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
        web_search: Configuration for mapping model internal
           web_search tools to Inspect. By default, will map to the
           internal provider of the target model (supported for OpenAI,
@@ -88,7 +92,7 @@ async def agent_bridge(
     state = state or AgentState(messages=[])
 
     # create the bridge
-    bridge = AgentBridge(state, filter, retry_refusals)
+    bridge = AgentBridge(state, filter, retry_refusals, compaction)
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(

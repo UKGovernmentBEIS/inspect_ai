@@ -10,6 +10,7 @@ Inspect has built-in tools for computing and agentic planning. Computing tools i
 
 Agentic tools include:
 
+-   [Skill](tools-standard.qmd#sec-skill) which provides agent skill specifications to the model with specialized knowledge and expertise for specific tasks.
 -   [Update Plan](tools-standard.qmd#sec-update-plan) which helps the model tracks steps and progress across longer horizon tasks.
 -   [Memory](tools-standard.qmd#sec-memory) which enables storing and retrieving information through a memory file directory.
 -   [Think](tools-standard.qmd#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.

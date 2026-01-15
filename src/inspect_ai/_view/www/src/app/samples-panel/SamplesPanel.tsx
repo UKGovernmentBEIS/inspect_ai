@@ -4,7 +4,11 @@ import { AgGridReact } from "ag-grid-react";
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBar } from "../../components/ActivityBar";
 import { ProgressBar } from "../../components/ProgressBar";
-import { useLogs } from "../../state/hooks";
+import {
+  LogHandleWithretried,
+  useLogs,
+  useLogsWithretried,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { join } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
@@ -15,10 +19,12 @@ import { ApplicationNavbar } from "../navbar/ApplicationNavbar";
 import { NavbarButton } from "../navbar/NavbarButton";
 import { ViewSegmentedControl } from "../navbar/ViewSegmentedControl";
 import { samplesUrl, useSamplesRouteParams } from "../routing/url";
-import { ColumnSelectorPopover } from "./samples-grid/ColumnSelectorPopover";
+import { ColumnSelectorPopover } from "../shared/ColumnSelectorPopover";
 import { useSampleColumns } from "./samples-grid/hooks";
 import { SamplesGrid } from "./samples-grid/SamplesGrid";
 import styles from "./SamplesPanel.module.css";
+import { SampleRow } from "./samples-grid/types";
+import { inputString } from "../../utils/format";
 
 export const SamplesPanel: FC = () => {
   const { samplesPath } = useSamplesRouteParams();
@@ -27,9 +33,16 @@ export const SamplesPanel: FC = () => {
 
   const loading = useStore((state) => state.app.status.loading);
   const syncing = useStore((state) => state.app.status.syncing);
+  const showRetriedLogs = useStore((state) => state.logs.showRetriedLogs);
+  const setShowRetriedLogs = useStore(
+    (state) => state.logsActions.setShowRetriedLogs,
+  );
 
   const filteredSamplesCount = useStore(
     (state) => state.log.filteredSampleCount,
+  );
+  const setFilteredSampleCount = useStore(
+    (state) => state.logActions.setFilteredSampleCount,
   );
 
   const gridRef = useRef<AgGridReact>(null);
@@ -80,18 +93,20 @@ export const SamplesPanel: FC = () => {
   const currentDir = join(samplesPath || "", logDir);
 
   const evalSet = useStore((state) => state.logs.evalSet);
-  const logFiles = useStore((state) => state.logs.logs);
+  const logFiles = useLogsWithretried();
   const logPreviews = useStore((state) => state.logs.logPreviews);
 
   const currentDirLogFiles = useMemo(() => {
     const files = [];
     for (const logFile of logFiles) {
-      if (logFile.name.startsWith(currentDir)) {
+      const inCurrentDir = logFile.name.startsWith(currentDir);
+      const skipped = !showRetriedLogs && logFile.retried;
+      if (inCurrentDir && !skipped) {
         files.push(logFile);
       }
     }
     return files;
-  }, [currentDir, logFiles]);
+  }, [currentDir, logFiles, showRetriedLogs]);
 
   const totalTaskCount = useMemo(() => {
     const currentDirTaskIds = new Set(currentDirLogFiles.map((f) => f.task_id));
@@ -116,11 +131,86 @@ export const SamplesPanel: FC = () => {
   }, [logPreviews, currentDirLogFiles]);
 
   useEffect(() => {
-    const exec = async () => {
-      await loadLogs(samplesPath);
-    };
-    exec();
+    loadLogs(samplesPath);
   }, [loadLogs, samplesPath]);
+
+  // Filter logDetails based on samplesPath
+  const logDetailsInPath = useMemo(() => {
+    if (!samplesPath) {
+      return logDetails; // Show all samples when no path is specified
+    }
+
+    const samplesPathAbs = join(samplesPath, logDir);
+
+    return Object.entries(logDetails).reduce(
+      (acc, [logFile, details]) => {
+        // Check if the logFile starts with the samplesPath
+        if (logFile.startsWith(samplesPathAbs)) {
+          acc[logFile] = details;
+        }
+        return acc;
+      },
+      {} as typeof logDetails,
+    );
+  }, [logDetails, logDir, samplesPath]);
+
+  // Transform logDetails into flat rows
+  const [sampleRows, hasRetriedLogs] = useMemo(() => {
+    const allRows: SampleRow[] = [];
+    let displayIndex = 1;
+
+    let anyLogInCurrentDirCouldBeSkipped = false;
+    const logInCurrentDirByName = currentDirLogFiles.reduce(
+      (acc: Record<string, LogHandleWithretried>, log) => {
+        if (log.retried) {
+          anyLogInCurrentDirCouldBeSkipped = true;
+        }
+        acc[log.name] = log;
+        return acc;
+      },
+      {},
+    );
+
+    Object.entries(logDetailsInPath).forEach(([logFile, logDetail]) => {
+      logDetail.sampleSummaries.forEach((sampleSummary) => {
+        const row: SampleRow = {
+          logFile,
+          created: logDetail.eval.created,
+          task: logDetail.eval.task || "",
+          model: logDetail.eval.model || "",
+          status: logDetail.status,
+          sampleId: sampleSummary.id,
+          epoch: sampleSummary.epoch,
+          input: inputString(sampleSummary.input).join("\n"),
+          target: Array.isArray(sampleSummary.target)
+            ? sampleSummary.target.join(", ")
+            : sampleSummary.target,
+          error: sampleSummary.error,
+          limit: sampleSummary.limit,
+          retries: sampleSummary.retries,
+          completed: sampleSummary.completed || false,
+          displayIndex: displayIndex++,
+        };
+
+        // Add scores as individual fields
+        if (sampleSummary.scores) {
+          Object.entries(sampleSummary.scores).forEach(([scoreName, score]) => {
+            row[`score_${scoreName}`] = score.value;
+          });
+        }
+
+        allRows.push(row);
+      });
+    });
+
+    const _sampleRows = allRows.filter(
+      (row) => row.logFile in logInCurrentDirByName,
+    );
+    const _hasRetriedLogs =
+      _sampleRows.length < allRows.length || anyLogInCurrentDirCouldBeSkipped;
+
+    return [_sampleRows, _hasRetriedLogs];
+  }, [logDetailsInPath, currentDirLogFiles]);
 
   const filterModel = gridRef.current?.api?.getFilterModel() || {};
   const filteredFields = Object.keys(filterModel);
@@ -138,6 +228,29 @@ export const SamplesPanel: FC = () => {
           />
         )}
 
+        {hasRetriedLogs && (
+          <NavbarButton
+            key="show-retried"
+            label="Show Retried Logs"
+            icon={
+              showRetriedLogs
+                ? ApplicationIcons.toggle.on
+                : ApplicationIcons.toggle.off
+            }
+            latched={showRetriedLogs}
+            onClick={() => {
+              setShowRetriedLogs(!showRetriedLogs);
+              // update number of samples displayed in lower right corner when toggling
+              setTimeout(() => {
+                if (gridRef.current) {
+                  setFilteredSampleCount(
+                    gridRef.current.api.getDisplayedRowCount(),
+                  );
+                }
+              }, 10);
+            }}
+          />
+        )}
         <NavbarButton
           key="choose-columns"
           ref={columnButtonRef}
@@ -165,6 +278,7 @@ export const SamplesPanel: FC = () => {
       <ActivityBar animating={!!loading} />
       <div className={clsx(styles.list, "text-size-smaller")}>
         <SamplesGrid
+          items={sampleRows}
           samplesPath={samplesPath}
           gridRef={gridRef}
           columns={columns}
@@ -172,10 +286,8 @@ export const SamplesPanel: FC = () => {
       </div>
 
       <LogListFooter
-        id={"samples-list-footer"}
         itemCount={filteredSamplesCount ?? 0}
         itemCountLabel={filteredSamplesCount === 1 ? "sample" : "samples"}
-        paginated={false}
         progressText={
           syncing
             ? `Syncing${filteredSamplesCount ? ` (${filteredSamplesCount.toLocaleString()} samples)` : ""}`

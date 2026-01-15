@@ -975,7 +975,7 @@ def _maybe_native_tool_param(
 ) -> ToolParam | None:
     return (
         (
-            maybe_computer_use_preview_tool(tool)
+            maybe_computer_use_preview_tool(model_name, tool)
             or maybe_web_search_tool(model_name, tool)
             or maybe_mcp_tool(tool)
             or maybe_code_interpreter_tool(model_name, tool)

@@ -1,450 +1,279 @@
-import {
-  ColumnFiltersState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  PaginationState,
-  SortingState,
-  Updater,
-  useReactTable,
-} from "@tanstack/react-table";
+import type {
+  GridColumnsChangedEvent,
+  IRowNode,
+  RowClickedEvent,
+  StateUpdatedEvent,
+} from "ag-grid-community";
+import { themeBalham } from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
 import clsx from "clsx";
-import {
-  forwardRef,
-  KeyboardEvent,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-} from "react";
+import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { LogHandle } from "../../../client/api/types";
-import { useLogs, useLogsListing, usePagination } from "../../../state/hooks";
+import { useLogs, useLogsListing } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
+import "../../shared/agGrid";
+import styles from "../../shared/gridCells.module.css";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
+import { createGridColumnResizer } from "../../shared/gridUtils";
 import { FileLogItem, FolderLogItem, PendingTaskItem } from "../LogItem";
-import { kDefaultPageSize, kLogsPaginationId } from "../LogsPanel";
-import styles from "./LogListGrid.module.css";
-import { getColumns } from "./columns/columns";
+import { useLogListColumns } from "./columns/hooks";
+import { LogListRow } from "./columns/types";
 
 interface LogListGridProps {
   items: Array<FileLogItem | FolderLogItem | PendingTaskItem>;
+  currentPath?: string;
+  gridRef?: RefObject<AgGridReact<LogListRow> | null>;
 }
 
-export interface LogListGridHandle {
-  focus: () => void;
-}
+export const LogListGrid: FC<LogListGridProps> = ({
+  items,
+  currentPath,
+  gridRef: externalGridRef,
+}) => {
+  const {
+    gridState,
+    setGridState,
+    setFilteredCount,
+    previousLogPath,
+    setPreviousLogPath,
+  } = useLogsListing();
 
-export const LogListGrid = forwardRef<LogListGridHandle, LogListGridProps>(
-  ({ items }, ref) => {
-    const {
-      sorting,
-      setSorting,
-      filtering,
-      setFiltering,
-      globalFilter,
-      setGlobalFilter,
-      columnResizeMode,
-      setFilteredCount,
-      columnSizes,
-      setColumnSize,
-      selectedRowIndex,
-      setSelectedRowIndex,
-    } = useLogsListing();
+  const { loadLogOverviews, loadAllLogOverviews } = useLogs();
 
-    const { loadLogOverviews, loadAllLogOverviews } = useLogs();
+  const loading = useStore((state) => state.app.status.loading);
+  const syncing = useStore((state) => state.app.status.syncing);
+  const setWatchedLogs = useStore((state) => state.logsActions.setWatchedLogs);
 
-    const { page, itemsPerPage, setPage } = usePagination(
-      kLogsPaginationId,
-      kDefaultPageSize,
-    );
+  const logPreviews = useStore((state) => state.logs.logPreviews);
+  const logDetails = useStore((state) => state.logs.logDetails);
+  const navigate = useNavigate();
+  const internalGridRef = useRef<AgGridReact<LogListRow>>(null);
+  const gridRef = externalGridRef ?? internalGridRef;
+  const gridContainerRef = useRef<HTMLDivElement>(null);
 
-    const loading = useStore((state) => state.app.status.loading);
-    const setWatchedLogs = useStore(
-      (state) => state.logsActions.setWatchedLogs,
-    );
+  const logFiles = useMemo(() => {
+    return items
+      .filter((item) => item.type === "file")
+      .map((item) => item.log)
+      .filter((file) => file !== undefined);
+  }, [items]);
 
-    const logPreviews = useStore((state) => state.logs.logPreviews);
-    const sortingRef = useRef(sorting);
-    const navigate = useNavigate();
-    const gridRef = useRef<HTMLDivElement>(null);
+  const { columns } = useLogListColumns();
 
-    useImperativeHandle(ref, () => ({
-      focus: () => {
-        gridRef.current?.focus();
-      },
-    }));
+  const initialGridState = useMemo(() => {
+    if (previousLogPath !== undefined && previousLogPath !== currentPath) {
+      const result = { ...gridState };
+      delete result.filter;
+      return result;
+    }
+    return gridState;
+  }, [currentPath, gridState, previousLogPath]);
 
-    const logFiles = useMemo(() => {
-      return items
-        .filter((item) => item.type === "file")
-        .map((item) => item.log)
-        .filter((file) => file !== undefined);
-    }, [items]);
+  useEffect(() => {
+    if (currentPath !== previousLogPath) {
+      setPreviousLogPath(currentPath);
+    }
+  }, [currentPath, previousLogPath, setPreviousLogPath]);
 
-    // Load all headers when needed (store handles deduplication)
-    const loadAllHeadersForItems = useCallback(
-      async (files: LogHandle[]) => {
-        await loadAllLogOverviews();
-        setWatchedLogs(files);
-      },
-      [loadAllLogOverviews, setWatchedLogs],
-    );
+  useEffect(() => {
+    gridContainerRef.current?.focus();
+  }, []);
 
-    // Keep ref updated
-    useEffect(() => {
-      sortingRef.current = sorting;
-    }, [sorting]);
+  const data: LogListRow[] = useMemo(() => {
+    return items.map((item) => {
+      const preview = item.type === "file" ? item.logPreview : undefined;
+      const details =
+        item.type === "file" && item.log
+          ? logDetails[item.log.name]
+          : undefined;
 
-    // Initial sort
-    useEffect(() => {
-      setSorting([{ id: "icon", desc: false }]);
-    }, [setSorting]);
-
-    // Force re-sort when logHeaders change (affects task column sorting)
-    useEffect(() => {
-      // Only re-sort if we're currently sorting by a column that depends on logHeaders
-      const currentSort = sortingRef.current?.find(
-        (sort) =>
-          sort.id === "task" || sort.id === "model" || sort.id === "score",
-      );
-      if (currentSort) {
-        // Trigger a re-sort by updating the sorting state
-        setSorting([...(sortingRef.current || [])]);
-      }
-    }, [logPreviews, setSorting]);
-
-    const columns = useMemo(() => {
-      return getColumns();
-    }, []);
-
-    const table = useReactTable({
-      data: items,
-      columns,
-      columnResizeMode: columnResizeMode || "onChange",
-      state: {
-        sorting,
-        columnFilters: filtering,
-        globalFilter,
-        pagination: {
-          pageIndex: page,
-          pageSize: itemsPerPage,
-        },
-        columnSizing: columnSizes || {},
-      },
-      rowCount: items.length,
-      onSortingChange: async (updater: Updater<SortingState>) => {
-        await loadAllHeadersForItems(logFiles);
-        setSorting(
-          typeof updater === "function" ? updater(sorting || []) : updater,
-        );
-      },
-      onColumnFiltersChange: async (updater: Updater<ColumnFiltersState>) => {
-        await loadAllHeadersForItems(logFiles);
-        setFiltering(
-          typeof updater === "function" ? updater(filtering || []) : updater,
-        );
-      },
-      onGlobalFilterChange: (updater: Updater<string>) => {
-        setGlobalFilter(
-          typeof updater === "function" ? updater(globalFilter || "") : updater,
-        );
-      },
-      onPaginationChange: (updater: Updater<PaginationState>) => {
-        const newPagination =
-          typeof updater === "function"
-            ? updater({ pageIndex: page, pageSize: itemsPerPage })
-            : updater;
-        setPage(newPagination.pageIndex);
-      },
-      onColumnSizingChange: (updater: Updater<Record<string, number>>) => {
-        const newSizes =
-          typeof updater === "function"
-            ? updater(table.getState().columnSizing || {})
-            : updater;
-        for (const [columnId, size] of Object.entries(newSizes)) {
-          setColumnSize(columnId, size);
-        }
-      },
-      getCoreRowModel: getCoreRowModel(),
-      getSortedRowModel: getSortedRowModel(),
-      getFilteredRowModel: getFilteredRowModel(),
-      getPaginationRowModel: getPaginationRowModel(),
-      enableColumnResizing: true,
-      autoResetPageIndex: false,
-    });
-
-    // Update filtered count in store when table filtering changes
-    useEffect(() => {
-      const filteredRowCount = table.getFilteredRowModel().rows.length;
-      setFilteredCount(filteredRowCount);
-    }, [setFilteredCount, table]);
-
-    // Load all headers when globalFilter changes
-    const filterText = useRef(globalFilter);
-    useEffect(() => {
-      const timeoutId = setTimeout(() => {
-        if (
-          globalFilter &&
-          globalFilter.trim() &&
-          filterText.current !== globalFilter
-        ) {
-          loadAllHeadersForItems(logFiles);
-          filterText.current = globalFilter;
-        }
-      }, 200);
-      return () => clearTimeout(timeoutId);
-    }, [globalFilter, logFiles, loadAllHeadersForItems]);
-
-    // Load headers for current page (demand loading)
-    useEffect(() => {
-      const exec = async () => {
-        const startIndex = page * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const currentPageItems = items.slice(startIndex, endIndex);
-
-        const fileItems = currentPageItems.filter(
-          (item) => item.type === "file",
-        );
-        const logFiles = fileItems
-          .map((item) => item.log)
-          .filter((file) => file !== undefined);
-
-        // Only load headers for files that don't already have headers loaded
-        const filesToLoad = logFiles.filter((file) => !logPreviews[file.name]);
-
-        if (filesToLoad.length > 0) {
-          await loadLogOverviews(filesToLoad);
-        }
-
-        setWatchedLogs(logFiles);
+      const row: LogListRow = {
+        id: item.id,
+        name: item.name,
+        displayIndex:
+          item.type === "file" || item.type === "pending-task"
+            ? item.displayIndex
+            : undefined,
+        type: item.type,
+        url: item.url,
+        task: item.type === "file" ? preview?.task : item.name,
+        model:
+          item.type === "file"
+            ? preview?.model
+            : item.type === "pending-task"
+              ? item.model
+              : undefined,
+        score: preview?.primary_metric?.value,
+        status: preview?.status,
+        completedAt: preview?.completed_at,
+        itemCount: item.type === "folder" ? item.itemCount : undefined,
+        log: item.type === "file" ? item.log : undefined,
       };
-      exec();
-    }, [
-      page,
-      itemsPerPage,
-      items,
-      loadLogOverviews,
-      setWatchedLogs,
-      logPreviews,
-    ]);
 
-    const placeholderText = useMemo(() => {
-      if (loading) {
-        if (globalFilter) {
-          return "searching...";
-        } else {
-          return "loading...";
-        }
-      } else {
-        if (globalFilter) {
-          return "no matching logs";
-        } else {
-          return "no logs";
-        }
-      }
-    }, [loading, globalFilter]);
-
-    const handleKeyDown = useCallback(
-      (e: KeyboardEvent<HTMLDivElement>) => {
-        const rowCount = table.getRowModel().rows.length;
-        const totalPages = table.getPageCount();
-
-        if (rowCount === 0) return;
-
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          if (selectedRowIndex === null || selectedRowIndex === undefined) {
-            setSelectedRowIndex(0);
-          } else if (selectedRowIndex >= rowCount - 1) {
-            setSelectedRowIndex(0);
-          } else {
-            setSelectedRowIndex(selectedRowIndex + 1);
-          }
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          if (selectedRowIndex === null || selectedRowIndex === undefined) {
-            setSelectedRowIndex(rowCount - 1);
-          } else if (selectedRowIndex === 0) {
-            setSelectedRowIndex(rowCount - 1);
-          } else {
-            setSelectedRowIndex(selectedRowIndex - 1);
-          }
-        } else if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          if (page > 0) {
-            setPage(page - 1);
-            setSelectedRowIndex(null);
-          }
-        } else if (e.key === "ArrowRight") {
-          e.preventDefault();
-          if (page < totalPages - 1) {
-            setPage(page + 1);
-            setSelectedRowIndex(null);
-          }
-        } else if (e.key === "Home") {
-          e.preventDefault();
-          if (e.ctrlKey || e.metaKey) {
-            setPage(0);
-            setSelectedRowIndex(null);
-          } else {
-            setSelectedRowIndex(0);
-          }
-        } else if (e.key === "End") {
-          e.preventDefault();
-          if (e.ctrlKey || e.metaKey) {
-            setPage(totalPages - 1);
-            setSelectedRowIndex(null);
-          } else {
-            setSelectedRowIndex(rowCount - 1);
-          }
-        } else if (e.key === "Enter") {
-          e.preventDefault();
-          if (
-            selectedRowIndex !== null &&
-            selectedRowIndex !== undefined &&
-            selectedRowIndex >= 0
-          ) {
-            const selectedRow = table.getRowModel().rows[selectedRowIndex];
-            const item = selectedRow?.original;
-            if (item?.url) {
-              navigate(item.url);
+      // Add individual scorer columns from results
+      if (details?.results?.scores) {
+        for (const evalScore of details.results.scores) {
+          if (evalScore.metrics) {
+            for (const [metricName, metric] of Object.entries(
+              evalScore.metrics,
+            )) {
+              row[`score_${metricName}`] = metric.value;
             }
           }
         }
-      },
-      [table, page, setPage, selectedRowIndex, navigate, setSelectedRowIndex],
-    );
+      }
 
-    useEffect(() => {
-      setSelectedRowIndex(null);
-    }, [page, setSelectedRowIndex]);
+      return row;
+    });
+  }, [items, logDetails]);
 
-    useEffect(() => {
-      gridRef.current?.focus();
-    }, []);
+  const handleRowClick = useCallback(
+    (e: RowClickedEvent<LogListRow>) => {
+      if (e.data && e.node && gridRef.current?.api) {
+        gridRef.current.api.deselectAll();
+        e.node.setSelected(true);
 
-    return (
-      <div
-        ref={gridRef}
-        className={styles.gridContainer}
-        onKeyDown={handleKeyDown}
-        tabIndex={0}
-        role="grid"
-      >
-        <div className={styles.grid}>
-          {/* Header */}
-          <div
-            className={styles.headerRow}
-            style={{
-              gridTemplateColumns:
-                table
-                  .getHeaderGroups()[0]
-                  ?.headers.map((header) => `${header.getSize()}px`)
-                  .join(" ") || "40px 0.5fr 0.25fr 0.25fr 0.1fr",
-            }}
-          >
-            {table.getHeaderGroups().map((headerGroup) =>
-              headerGroup.headers.map((header) => (
-                <div
-                  key={header.id}
-                  className={clsx(styles.headerCell, {
-                    [styles.sortable]: header.column.getCanSort(),
-                    [styles.resizing]: header.column.getIsResizing(),
-                  })}
-                  onClick={(event) => {
-                    header.column.getToggleSortingHandler()?.(event);
-                  }}
-                  style={{
-                    width: header.getSize(),
-                    position: "relative",
-                  }}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                  {header.column.getCanSort() && (
-                    <span className={styles.sortIndicator}>
-                      {{
-                        asc: " ↑",
-                        desc: " ↓",
-                      }[header.column.getIsSorted() as string] ?? ""}
-                    </span>
-                  )}
-                  {header.column.getCanResize() && (
-                    <div
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        header.getResizeHandler()(e);
-                      }}
-                      onTouchStart={(e) => {
-                        e.stopPropagation();
-                        header.getResizeHandler()(e);
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                      className={clsx(styles.resizer, {
-                        [styles.isResizing]: header.column.getIsResizing(),
-                      })}
-                    />
-                  )}
-                </div>
-              )),
-            )}
-          </div>
+        const mouseEvent = e.event as MouseEvent | undefined;
+        const openInNewWindow =
+          mouseEvent?.metaKey ||
+          mouseEvent?.ctrlKey ||
+          mouseEvent?.shiftKey ||
+          mouseEvent?.button === 1;
 
-          {/* Body */}
-          <div className={styles.bodyContainer}>
-            {table.getRowModel().rows.length === 0 && (
-              <div className={styles.emptyMessage}>{placeholderText}</div>
-            )}
-            {table.getRowModel().rows.map((row, index) => (
-              <div
-                key={row.id}
-                className={clsx(styles.bodyRow, {
-                  [styles.selectedRow]: selectedRowIndex === index,
-                })}
-                style={{
-                  gridTemplateColumns: row
-                    .getVisibleCells()
-                    .map((cell) => `${cell.column.getSize()}px`)
-                    .join(" "),
-                }}
-                data-testid={
-                  selectedRowIndex === index
-                    ? `row-${index}-selected`
-                    : undefined
-                }
-                onClick={() => setSelectedRowIndex(index)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <div
-                    key={cell.id}
-                    className={clsx(
-                      styles.bodyCell,
-                      styles[`${cell.column.id}Cell`],
-                    )}
-                    style={{
-                      width: cell.column.getSize(),
-                    }}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
+        const url = e.data.url;
+        if (url) {
+          setTimeout(() => {
+            if (openInNewWindow) {
+              window.open(`#${url}`, "_blank");
+            } else {
+              navigate(url);
+            }
+          }, 10);
+        }
+      }
+    },
+    [navigate, gridRef],
+  );
+
+  const handleOpenRow = useCallback(
+    (rowNode: IRowNode<LogListRow>, e: KeyboardEvent) => {
+      if (!rowNode.data?.url) {
+        return;
+      }
+      const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey;
+      if (openInNewWindow) {
+        window.open(`#${rowNode.data.url}`, "_blank");
+      } else {
+        navigate(rowNode.data.url);
+      }
+    },
+    [navigate],
+  );
+
+  const handleKeyDown = useMemo(
+    () =>
+      createGridKeyboardHandler<LogListRow>({
+        gridRef,
+        onOpenRow: handleOpenRow,
+      }),
+    [gridRef, handleOpenRow],
+  );
+
+  useEffect(() => {
+    const gridElement = gridContainerRef.current;
+    if (!gridElement) return;
+
+    gridElement.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      gridElement.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  useEffect(() => {
+    const loadHeaders = async () => {
+      const filesToLoad = logFiles.filter((file) => !logPreviews[file.name]);
+      if (filesToLoad.length > 0) {
+        await loadLogOverviews(filesToLoad);
+      }
+      setWatchedLogs(logFiles);
+    };
+    loadHeaders();
+  }, [logFiles, loadLogOverviews, setWatchedLogs, logPreviews]);
+
+  const handleSortChanged = useCallback(async () => {
+    await loadAllLogOverviews();
+    setWatchedLogs(logFiles);
+  }, [loadAllLogOverviews, setWatchedLogs, logFiles]);
+
+  const handleFilterChanged = useCallback(async () => {
+    await loadAllLogOverviews();
+    setWatchedLogs(logFiles);
+    if (gridRef.current?.api) {
+      const displayedRowCount = gridRef.current.api.getDisplayedRowCount();
+      setFilteredCount(displayedRowCount);
+    }
+  }, [
+    loadAllLogOverviews,
+    setWatchedLogs,
+    logFiles,
+    setFilteredCount,
+    gridRef,
+  ]);
+
+  const maxColCount = useRef(0);
+
+  const resizeGridColumns = useRef(createGridColumnResizer(gridRef)).current;
+
+  // Resize grid columns when columns prop changes (e.g., when columns are hidden/unhidden)
+  useEffect(() => {
+    resizeGridColumns();
+  }, [columns, resizeGridColumns]);
+
+  return (
+    <div className={clsx(styles.gridWrapper)}>
+      <div ref={gridContainerRef} className={styles.gridContainer} tabIndex={0}>
+        <AgGridReact<LogListRow>
+          ref={gridRef}
+          rowData={data}
+          animateRows={false}
+          columnDefs={columns}
+          defaultColDef={{
+            sortable: true,
+            filter: true,
+            resizable: true,
+          }}
+          autoSizeStrategy={{ type: "fitGridWidth" }}
+          headerHeight={25}
+          rowSelection={{ mode: "singleRow", checkboxes: false }}
+          getRowId={(params) => params.data.id}
+          onGridColumnsChanged={(e: GridColumnsChangedEvent<LogListRow>) => {
+            const cols = e.api.getColumnDefs();
+            if (cols && cols?.length > maxColCount.current) {
+              maxColCount.current = cols.length;
+              resizeGridColumns();
+            }
+          }}
+          onGridSizeChanged={resizeGridColumns}
+          theme={themeBalham}
+          enableCellTextSelection={true}
+          initialState={initialGridState}
+          suppressCellFocus={true}
+          onStateUpdated={(e: StateUpdatedEvent<LogListRow>) => {
+            setGridState(e.state);
+            if (gridRef.current?.api) {
+              const displayedRowCount =
+                gridRef.current.api.getDisplayedRowCount();
+              setFilteredCount(displayedRowCount);
+            }
+          }}
+          onRowClicked={handleRowClick}
+          onSortChanged={handleSortChanged}
+          onFilterChanged={handleFilterChanged}
+          loading={data.length === 0 && (loading > 0 || syncing)}
+        />
       </div>
-    );
-  },
-);
-
-LogListGrid.displayName = "LogListGrid";
+    </div>
+  );
+};

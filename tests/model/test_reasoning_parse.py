@@ -152,3 +152,84 @@ def test_reasoning_parse_with_attributes_and_multiline():
     assert content == "Content\n            here"
     assert reasoning.signature == "45ef5ab"
     assert reasoning.redacted is True
+
+
+# Tests for summary field
+def test_reasoning_parse_with_summary():
+    content, reasoning = parse_content_with_reasoning(
+        "<think><summary>This is a summary</summary>Reasoning content</think>Content"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Reasoning content"
+    assert reasoning.summary == "This is a summary"
+    assert content == "Content"
+
+
+def test_reasoning_parse_with_all_attributes_and_summary():
+    content, reasoning = parse_content_with_reasoning(
+        '<think signature="abc" redacted="true"><summary>Summary text</summary>Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.signature == "abc"
+    assert reasoning.redacted is True
+    assert reasoning.summary == "Summary text"
+    assert reasoning.reasoning == "Reasoning"
+
+
+def test_reasoning_parse_attributes_any_order():
+    content, reasoning = parse_content_with_reasoning(
+        '<think redacted="true" signature="sig">Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.signature == "sig"
+    assert reasoning.redacted is True
+
+
+def test_reasoning_parse_multiline_summary():
+    content, reasoning = parse_content_with_reasoning(
+        "<think><summary>Line 1\nLine 2\nLine 3</summary>Reasoning</think>Content"
+    )
+    assert reasoning is not None
+    assert reasoning.summary == "Line 1\nLine 2\nLine 3"
+    assert reasoning.reasoning == "Reasoning"
+
+
+def test_reasoning_round_trip():
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test reasoning",
+        signature="sig123",
+        redacted=True,
+        summary="A summary\nwith multiple lines",
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.reasoning == original.reasoning
+    assert parsed.signature == original.signature
+    assert parsed.redacted == original.redacted
+    assert parsed.summary == original.summary
+
+
+def test_reasoning_round_trip_no_summary():
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test reasoning",
+        signature="sig123",
+        redacted=False,
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.reasoning == original.reasoning
+    assert parsed.signature == original.signature
+    assert parsed.redacted == original.redacted
+    assert parsed.summary is None
