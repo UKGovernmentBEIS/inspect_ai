@@ -165,14 +165,22 @@ def generate_config_from_google(
             "stopSequences", generation_config.get("stop_sequences")
         )
 
-    # System instruction from top level
+    # System instruction from top level (can be dict with "parts" or list)
     system_instruction = json_data.get(
         "systemInstruction", json_data.get("system_instruction")
     )
     if system_instruction:
-        parts = system_instruction.get("parts", [])
-        if parts and isinstance(parts[0], dict) and "text" in parts[0]:
-            config.system_message = parts[0]["text"]
+        if isinstance(system_instruction, dict):
+            parts = system_instruction.get("parts", [])
+            if parts and isinstance(parts[0], dict) and "text" in parts[0]:
+                config.system_message = parts[0]["text"]
+        elif isinstance(system_instruction, list) and system_instruction:
+            # List format: extract first text item
+            first_item = system_instruction[0]
+            if isinstance(first_item, str):
+                config.system_message = first_item
+            elif isinstance(first_item, dict) and "text" in first_item:
+                config.system_message = first_item["text"]
 
     return config
 
@@ -242,17 +250,38 @@ def tool_choice_from_google_tool_config(
 
 def messages_from_google_contents(
     contents: list[dict[str, Any]],
-    system_instruction: dict[str, Any] | None,
+    system_instruction: dict[str, Any] | list[Any] | None,
 ) -> list[ChatMessage]:
     """Translate Google contents format to Inspect messages."""
     messages: list[ChatMessage] = []
 
-    # Handle system instruction
+    # Handle system instruction (can be dict with "parts" or list of strings)
     if system_instruction:
-        parts = system_instruction.get("parts", [])
-        system_text = _extract_text_from_parts(parts)
-        if system_text:
-            messages.append(ChatMessageSystem(content=system_text))
+        if isinstance(system_instruction, dict):
+            # Standard format: {"parts": [{"text": "..."}]}
+            parts = system_instruction.get("parts", [])
+            system_text = _extract_text_from_parts(parts)
+            if system_text:
+                messages.append(ChatMessageSystem(content=system_text))
+        elif isinstance(system_instruction, list):
+            # List format: ["text1", "text2", ...] or [{"text": "..."}, ...]
+            # Combine all items into a single system message
+            texts = []
+            for item in system_instruction:
+                if isinstance(item, str):
+                    texts.append(item)
+                elif isinstance(item, dict) and "text" in item:
+                    texts.append(item["text"])
+            if texts:
+                # Use first unique text only to avoid duplicates
+                seen = set()
+                unique_texts = []
+                for t in texts:
+                    if t not in seen:
+                        seen.add(t)
+                        unique_texts.append(t)
+                combined_text = "\n\n".join(unique_texts)
+                messages.append(ChatMessageSystem(content=combined_text))
 
     # Gemini API requires that function call turns come after a user turn or
     # function response turn. If the CLI's history reconstruction starts with

@@ -168,16 +168,19 @@ class AgentBridge:
             self.state.messages = messages
             self.state.output = output
 
-            # Store the output message's hash->ID mapping so that when the same
-            # content comes back as input in future requests, we can reuse the ID.
+            # Store ALL message hash->ID mappings so that when the same content
+            # comes back as input in future requests, we can reuse the ID.
             # This is critical for message ID stability across API format conversions.
-            out_msg = output.message
-            if out_msg.id is not None:
-                msg_key = _normalized_message_hash(out_msg)
-                if msg_key not in self._message_ids:
-                    self._message_ids[msg_key] = []
-                if out_msg.id not in self._message_ids[msg_key]:
-                    self._message_ids[msg_key].append(out_msg.id)
+            # We store both input and output messages to ensure stability for
+            # ephemeral messages (like system messages from CLI that aren't
+            # persisted in state.messages).
+            for msg in messages:
+                if msg.id is not None:
+                    msg_key = _normalized_message_hash(msg)
+                    if msg_key not in self._message_ids:
+                        self._message_ids[msg_key] = []
+                    if msg.id not in self._message_ids[msg_key]:
+                        self._message_ids[msg_key].append(msg.id)
 
             # Only update _last_message_count when we update state.
             # This keeps the "high water mark" and prevents side calls from
