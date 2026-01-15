@@ -9,9 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.dataset._dataset import DatasetRecord
+from inspect_ai.model import ChatMessageUser
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
 
@@ -25,6 +27,8 @@ class TaskComponent(BaseModel):
 class FieldSpecHF(FieldSpec):
     choices: str | list[str] | None = field(default=None)  # type: ignore[assignment]
     """ Overriding the FieldSpec to fit field spec coming from the eval.yaml """
+    input_image: str | None = field(default=None)
+    """ Optional field name for image data (data URI) to combine with text input for multimodal tasks """
 
 
 class HFTask(BaseModel):
@@ -205,7 +209,22 @@ def _sanitize_choices(
 
 def _record_to_sample_hf(record: DatasetRecord, field_spec: FieldSpecHF) -> Sample:
     sample_kwargs = {}
-    sample_kwargs["input"] = record[field_spec.input]
+
+    # Handle multimodal input if input_image is specified
+    if field_spec.input_image and record[field_spec.input_image] not in [None, ""]:
+        text_input = record[field_spec.input]
+        image_data_uri = record[field_spec.input_image]
+        sample_kwargs["input"] = [
+            ChatMessageUser(
+                content=[
+                    ContentText(text=text_input),
+                    ContentImage(image=image_data_uri),
+                ]
+            )
+        ]
+    else:
+        # Standard text input
+        sample_kwargs["input"] = record[field_spec.input]
 
     if target := _sanitize_target(record, field_spec.target):
         sample_kwargs["target"] = target
