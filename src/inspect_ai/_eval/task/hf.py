@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -9,12 +9,17 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.dataset._dataset import DatasetRecord
+from inspect_ai.model import ChatMessageUser
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
+
+if TYPE_CHECKING:
+    from inspect_ai.model import ChatMessage
 
 
 class HFSolver(BaseModel):
@@ -50,6 +55,8 @@ class HFScorer(BaseModel):
 class HFFieldSpec(FieldSpec):
     choices: str | list[str] | None = field(default=None)  # type: ignore[assignment]
     """ Overriding the FieldSpec to fit field spec coming from the eval.yaml """
+    input_image: str | None = field(default=None)
+    """ Optional field name for image data (data URI) to combine with text input for multimodal tasks """
 
 
 HFEpochReducer = Annotated[
@@ -237,8 +244,23 @@ def _sanitize_choices(
 
 
 def _record_to_sample_hf(record: DatasetRecord, field_spec: HFFieldSpec) -> Sample:
-    sample_kwargs = {}
-    sample_kwargs["input"] = record[field_spec.input]
+    # Handle multimodal input if input_image is specified
+    if field_spec.input_image and record[field_spec.input_image] not in [None, ""]:
+        text_input = record[field_spec.input]
+        image_data_uri = record[field_spec.input_image]
+        input_value: str | list[ChatMessage] = [
+            ChatMessageUser(
+                content=[
+                    ContentText(text=text_input),
+                    ContentImage(image=image_data_uri),
+                ]
+            )
+        ]
+    else:
+        # Standard text input
+        input_value = record[field_spec.input]
+
+    sample_kwargs: dict[str, Any] = {"input": input_value}
 
     if target := _sanitize_target(record, field_spec.target):
         sample_kwargs["target"] = target

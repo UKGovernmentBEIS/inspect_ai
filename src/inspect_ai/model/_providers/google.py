@@ -831,6 +831,12 @@ class GoogleGenAIAPI(ModelAPI):
         if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
             return
 
+        # verify we aren't trying to use the batcher with vertex
+        if self.is_vertex():
+            raise NotImplementedError(
+                "Cannot use batch inference with Vertex AI (GCS-based batch jobs not supported)"
+            )
+
         # create a dedicated client instance for the batcher
         client = Client(
             vertexai=self.is_vertex(),
