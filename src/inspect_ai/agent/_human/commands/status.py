@@ -8,6 +8,7 @@ from rich.text import Text
 
 from inspect_ai._util.ansi import render_text
 from inspect_ai._util.format import format_progress_time
+from inspect_ai._util.json import to_json_str_safe
 
 from ..state import HumanAgentState
 from .command import HumanAgentCommand, call_human_agent
@@ -52,9 +53,14 @@ def render_status(state: HumanAgentState) -> str:
         scores_table.add_column("Time", justify="right")
 
         for score in state.scorings:
+            score_value = (
+                score.scores[0].value
+                if isinstance(score.scores[0].value, str)
+                else to_json_str_safe(score.scores[0].value)
+            )
             scores_table.add_row(
                 score.scores[0].answer,
-                score.scores[0].as_str(),
+                score_value,
                 format_progress_time(score.time),
             )
         content.append(scores_table)

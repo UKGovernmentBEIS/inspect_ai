@@ -1,12 +1,23 @@
 ## Unreleased
 
+- Google: Add `streaming` model arg to opt-in to streaming generation.
+- HF tasks: Support for `image_input` (data URI) in field spec for multimodal tasks
+- Scoring: Enable editing scores for samples that do not yet have a score.
+
+## 0.3.161 (10 January 2026)
+
 - Sandbox: `parse_compose_yaml()` for parsing Docker Compose files into typed configuration for sandbox providers.
 - Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).
+- Google: Raise error if batch processing is used with Vertex hosted models.
 - OpenAI Compatible: Always pass function definitions with `strict=True`. This is required by HF Inference Providers and Fireworks (and possibly others).
 - OpenAI Compatible: Convert function arguments to JSON if they are provided as a string (as is done by xAI and perhaps other providers).
 - Model API: Improvements in model detection for hosting providers (e.g. Azure, Bedrock, etc.).
 - Eval Log: Add version of the package exporting the task (if any) to the eval log.
+- Analysis: Convert mixed-type object columns to string for PyArrow conversion.
 - Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.
+- Human Agent: Fixed non-scalar intermediate score values breaking task commands like `task status` and `task stop`.
+- Bugfix: Print only enabled hooks at CLI startup.
+- Bugfix: Fix eval_set log reuse when setting limits as eval set args.
 
 ## 0.3.160 (09 January 2026)
 

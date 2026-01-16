@@ -18,7 +18,8 @@ def init_hooks() -> None:
 
     registry_hooks = _load_registry_hooks()
     if registry_hooks:
-        hook_names = [f"  {_format_hook_for_printing(hook)}" for hook in registry_hooks]
+        enabled_hooks = [h for h in registry_hooks if h.enabled()]
+        hook_names = [f"  {_format_hook_for_printing(hook)}" for hook in enabled_hooks]
         hook_names_joined = "\n".join(hook_names)
         messages.append(
             f"[bold]hooks enabled: {len(hook_names)}[/bold]\n{hook_names_joined}"
