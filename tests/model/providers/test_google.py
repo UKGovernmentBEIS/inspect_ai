@@ -806,7 +806,16 @@ def test_google_streaming_with_tools():
 
     @tool
     def add(x: int, y: int) -> int:
-        """Add two numbers."""
+        """
+        Add two numbers.
+
+        Args:
+            x: The first number to add.
+            y: The second number to add.
+
+        Returns:
+            The sum of the two numbers.
+        """
         return x + y
 
     result = eval(
