@@ -84,7 +84,7 @@
     "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/language": "^6.12.1",
     "@codemirror/lint": "^6.9.2",
-    "@codemirror/state": "^6.5.2",
+    "@codemirror/state": "^6.5.3",
     "@lezer/highlight": "^1.2.2",
     "@popperjs/core": "^2.11.8",
     "ag-grid-community": "^34.3.1",
