@@ -1,6 +1,7 @@
 ## Unreleased
 
 - HF tasks: Support for `image_input` (data URI) in field spec for multimodal tasks
+- Scoring: Enable editing scores for samples that do not yet have a score.
 
 ## 0.3.161 (10 January 2026)
 
