@@ -5227,10 +5227,10 @@ react-router@7.12.0:
     cookie "^1.0.1"
     set-cookie-parser "^2.6.0"
 
-react-virtuoso@^4.15.0:
-  version "4.17.0"
-  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.17.0.tgz#e81f2da99792cfd9317e910b243d847ebeb09248"
-  integrity sha512-od3pi2v13v31uzn5zPXC2u3ouISFCVhjFVFch2VvS2Cx7pWA2F1aJa3XhNTN2F07M3lhfnMnsmGeH+7wZICr7w==
+react-virtuoso@^4.18.0:
+  version "4.18.1"
+  resolved "https://registry.yarnpkg.com/react-virtuoso/-/react-virtuoso-4.18.1.tgz#3eb7078f2739a31b96c723374019e587deeb6ebc"
+  integrity sha512-KF474cDwaSb9+SJ380xruBB4P+yGWcVkcu26HtMqYNMTYlYbrNy8vqMkE+GpAApPPufJqgOLMoWMFG/3pJMXUA==
 
 react@^19.2.0:
   version "19.2.0"
