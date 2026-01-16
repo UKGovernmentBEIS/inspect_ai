@@ -1,5 +1,11 @@
 import clsx from "clsx";
-import { EvalSample, Target, TotalTime, WorkingTime } from "../../@types/log";
+import {
+  EvalSample,
+  ProvenanceData,
+  Target,
+  TotalTime,
+  WorkingTime,
+} from "../../@types/log";
 import { arrayToString, formatTime, inputString } from "../../utils/format";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
@@ -220,52 +226,94 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     });
   }
 
+  // Check if sample is invalidated (only available on full EvalSample)
+  const invalidation: ProvenanceData | null | undefined = isEvalSample(sample)
+    ? sample.invalidation
+    : undefined;
+
   return (
-    <div
-      id={`sample-heading-${parent_id}`}
-      className={clsx(styles.grid, "text-size-base")}
-      style={{
-        gridTemplateColumns: `${columns
-          .map((col) => {
-            return col.size;
-          })
-          .join(" ")}`,
-      }}
-    >
-      {columns.map((col, idx) => {
-        return (
-          <div
-            key={`sample-summ-lbl-${idx}`}
-            className={clsx(
-              "text-style-label",
-              "text-style-secondary",
-              "text-size-smallest",
-              col.title ? styles.titled : undefined,
-              col.center ? styles.centerLabel : undefined,
-            )}
-            title={col.title}
-            data-unsearchable={true}
-          >
-            {col.label}
-          </div>
-        );
-      })}
-      {columns.map((col, idx) => {
-        return (
-          <div
-            key={`sample-summ-val-${idx}`}
-            className={clsx(
-              styles.value,
-              styles.wrap,
-              col.clamp ? "three-line-clamp" : undefined,
-              col.center ? styles.centerValue : undefined,
-            )}
-            data-unsearchable={true}
-          >
-            {col.value}
-          </div>
-        );
-      })}
+    <div id={`sample-heading-${parent_id}`}>
+      {invalidation && <InvalidationBanner invalidation={invalidation} />}
+      <div
+        className={clsx(styles.grid, "text-size-base")}
+        style={{
+          gridTemplateColumns: `${columns
+            .map((col) => {
+              return col.size;
+            })
+            .join(" ")}`,
+        }}
+      >
+        {columns.map((col, idx) => {
+          return (
+            <div
+              key={`sample-summ-lbl-${idx}`}
+              className={clsx(
+                "text-style-label",
+                "text-style-secondary",
+                "text-size-smallest",
+                col.title ? styles.titled : undefined,
+                col.center ? styles.centerLabel : undefined,
+              )}
+              title={col.title}
+              data-unsearchable={true}
+            >
+              {col.label}
+            </div>
+          );
+        })}
+        {columns.map((col, idx) => {
+          return (
+            <div
+              key={`sample-summ-val-${idx}`}
+              className={clsx(
+                styles.value,
+                styles.wrap,
+                col.clamp ? "three-line-clamp" : undefined,
+                col.center ? styles.centerValue : undefined,
+              )}
+              data-unsearchable={true}
+            >
+              {col.value}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Banner component to display when a sample has been invalidated.
+ */
+const InvalidationBanner: FC<{ invalidation: ProvenanceData }> = ({
+  invalidation,
+}) => {
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      return new Date(timestamp).toLocaleString();
+    } catch {
+      return timestamp;
+    }
+  };
+
+  return (
+    <div className={styles.invalidationBanner}>
+      <div className={styles.invalidationIcon}>⚠</div>
+      <div className={styles.invalidationContent}>
+        <div className={styles.invalidationTitle}>Sample Invalidated</div>
+        <div className={styles.invalidationDetails}>
+          {invalidation.author && <span>By: {invalidation.author}</span>}
+          {invalidation.timestamp && (
+            <span>On: {formatTimestamp(invalidation.timestamp)}</span>
+          )}
+          {invalidation.reason && (
+            <span className={styles.invalidationReason}>
+              Reason: {invalidation.reason}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
