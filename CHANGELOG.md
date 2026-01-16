@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Google: Add `streaming` model arg to opt-in to streaming generation.
 - HF tasks: Support for `image_input` (data URI) in field spec for multimodal tasks
 - Scoring: Enable editing scores for samples that do not yet have a score.
 
