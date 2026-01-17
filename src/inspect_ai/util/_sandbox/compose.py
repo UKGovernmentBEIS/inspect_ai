@@ -9,12 +9,11 @@ enabling portability across different sandbox types (Docker, Modal, K8s, etc.).
 
 from __future__ import annotations
 
-import warnings
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 COMPOSE_FILES = [
     "compose.yaml",
@@ -22,6 +21,8 @@ COMPOSE_FILES = [
     "docker-compose.yaml",
     "docker-compose.yml",
 ]
+
+DOCKERFILE = "Dockerfile"
 
 
 def is_compose_yaml(file: str) -> bool:
@@ -35,9 +36,6 @@ def is_compose_yaml(file: str) -> bool:
         docker-compose.yaml, or docker-compose.yml), False otherwise.
     """
     return Path(file).name in COMPOSE_FILES
-
-
-DOCKERFILE = "Dockerfile"
 
 
 def is_dockerfile(file: str) -> bool:
@@ -54,7 +52,28 @@ def is_dockerfile(file: str) -> bool:
     return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
 
 
-class ComposeHealthcheck(BaseModel):
+class ComposeModel(BaseModel):
+    """Base model that allows x- extensions while rejecting other unknown fields."""
+
+    model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode="before")
+    @classmethod
+    def allow_only_extensions(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        field_names = set(cls.model_fields.keys())
+        # Also allow aliased field names (e.g., "x-default" for x_default)
+        for field_info in cls.model_fields.values():
+            if field_info.alias:
+                field_names.add(field_info.alias)
+        for key in data:
+            if key not in field_names and not key.startswith("x-"):
+                raise ValueError(f"Unknown field: '{key}'")
+        return data
+
+
+class ComposeHealthcheck(ComposeModel):
     """Healthcheck configuration for a compose service."""
 
     test: list[str] | str | None = Field(default=None)
@@ -76,7 +95,7 @@ class ComposeHealthcheck(BaseModel):
     """Number of consecutive failures needed to consider unhealthy."""
 
 
-class ComposeBuild(BaseModel):
+class ComposeBuild(ComposeModel):
     """Build configuration for a compose service."""
 
     context: str | None = Field(default=None)
@@ -86,7 +105,7 @@ class ComposeBuild(BaseModel):
     """Path to the Dockerfile, relative to context."""
 
 
-class ComposeResources(BaseModel):
+class ComposeResources(ComposeModel):
     """Resource limits/reservations for a compose service."""
 
     cpus: str | None = Field(default=None)
@@ -96,7 +115,7 @@ class ComposeResources(BaseModel):
     """Memory limit (e.g., '512m', '2g')."""
 
 
-class ComposeDeviceReservation(BaseModel):
+class ComposeDeviceReservation(ComposeModel):
     """Device reservation for GPU and other devices."""
 
     driver: str | None = Field(default=None)
@@ -115,7 +134,7 @@ class ComposeDeviceReservation(BaseModel):
     """Driver-specific options."""
 
 
-class ComposeResourceReservations(BaseModel):
+class ComposeResourceReservations(ComposeModel):
     """Resource reservations including devices."""
 
     cpus: str | None = Field(default=None)
@@ -128,7 +147,7 @@ class ComposeResourceReservations(BaseModel):
     """Device reservations (e.g., GPUs)."""
 
 
-class ComposeResourceConfig(BaseModel):
+class ComposeResourceConfig(ComposeModel):
     """Deploy resources configuration."""
 
     limits: ComposeResources | None = Field(default=None)
@@ -138,17 +157,15 @@ class ComposeResourceConfig(BaseModel):
     """Resource reservations for the service."""
 
 
-class ComposeDeploy(BaseModel):
+class ComposeDeploy(ComposeModel):
     """Deploy configuration for a compose service."""
 
     resources: ComposeResourceConfig | None = Field(default=None)
     """Resource limits and reservations."""
 
 
-class ComposeService(BaseModel):
+class ComposeService(ComposeModel):
     """A service definition from a compose file."""
-
-    model_config = ConfigDict(extra="allow")
 
     image: str | None = Field(default=None)
     """Docker image to use (e.g., 'python:3.11')."""
@@ -216,30 +233,9 @@ class ComposeService(BaseModel):
     x_default: bool | None = Field(default=None, alias="x-default")
     """Mark this service as the default for sandbox providers."""
 
-    @property
-    def extensions(self) -> dict[str, Any]:
-        """Access all x- extension fields.
 
-        Returns a dict of all x- prefixed fields from the compose file.
-        Providers can read arbitrary extensions like:
-            service.extensions.get("x-timeout")
-            service.extensions.get("x-block-network")
-        """
-        result = {}
-        # Include x_default if set (it's an explicit field, not in model_extra)
-        if self.x_default is not None:
-            result["x-default"] = self.x_default
-        if self.model_extra:
-            for k, v in self.model_extra.items():
-                if k.startswith("x-"):
-                    result[k] = v
-        return result
-
-
-class ComposeConfig(BaseModel):
+class ComposeConfig(ComposeModel):
     """Parsed Docker Compose configuration."""
-
-    model_config = ConfigDict(extra="allow")
 
     services: dict[str, ComposeService]
     """Service definitions, keyed by service name."""
@@ -250,66 +246,16 @@ class ComposeConfig(BaseModel):
     networks: dict[str, Any] | None = Field(default=None)
     """Network definitions."""
 
-    @property
-    def extensions(self) -> dict[str, Any]:
-        """Access all top-level x- extension fields.
-
-        Returns a dict of all x- prefixed fields from the compose file.
-        Providers can read arbitrary extensions like:
-            config.extensions.get("x-inspect_modal_sandbox")
-            config.extensions.get("x-allow-domains")
-        """
-        result = {}
-        if self.model_extra:
-            for k, v in self.model_extra.items():
-                if k.startswith("x-"):
-                    result[k] = v
-        return result
-
-
-def _get_used_fields(service: ComposeService) -> set[str]:
-    """Get the set of fields that are set (not None) in a service."""
-    used = set()
-    for field_name, value in service.model_dump(
-        by_alias=False, exclude={"x_default"}
-    ).items():
-        if value is not None:
-            used.add(field_name)
-    for key in service.extensions:
-        used.add(key)
-    return used
-
-
-def _warn_unsupported_fields(
-    config: ComposeConfig, supported_fields: list[str], path: str
-) -> None:
-    """Warn about fields in the compose file that are not supported."""
-    supported = set(supported_fields)
-    unsupported = set()
-    for service in config.services.values():
-        unsupported.update(_get_used_fields(service) - supported)
-
-    if unsupported:
-        warnings.warn(
-            f"Compose file '{path}' uses fields not supported by this provider: "
-            f"{sorted(unsupported)}",
-            UserWarning,
-        )
-
 
 def parse_compose_yaml(
     file: str,
     *,
-    supported_fields: list[str] | None = None,
     multiple_services: bool = True,
 ) -> ComposeConfig:
     """Parse a Docker Compose file into a ComposeConfig.
 
     Args:
         file: Path to the compose file.
-        supported_fields: Optional list of supported field names. If provided,
-            a warning will be issued for any fields in the compose file that
-            are not in this list.
         multiple_services: Whether the provider supports multiple services.
             If False and the compose file has multiple services, a ValueError
             will be raised.
@@ -320,7 +266,8 @@ def parse_compose_yaml(
     Raises:
         FileNotFoundError: If the compose file does not exist.
         ValueError: If the compose file is invalid or has multiple services
-            when multiple_services=False.
+            when multiple_services=False, or if the compose file contains
+            unknown fields (fields not supported by any sandbox provider).
     """
     path = Path(file)
     if not path.exists():
@@ -343,8 +290,5 @@ def parse_compose_yaml(
             f"Provider does not support multiple services. "
             f"Found {len(config.services)} services: {service_names}"
         )
-
-    if supported_fields is not None:
-        _warn_unsupported_fields(config, supported_fields, file)
 
     return config

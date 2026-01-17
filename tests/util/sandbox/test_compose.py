@@ -22,9 +22,9 @@ x-inspect_k8s_sandbox:
 
     assert config.services["default"].image == "ubuntu"
     assert config.services["default"].working_dir == "/app"
-    assert config.services["default"].extensions["x-default"] is True
-    assert config.services["default"].extensions["x-timeout"] == 300
-    assert config.extensions["x-inspect_k8s_sandbox"]["allow_domains"] == [
+    assert config.services["default"].x_default is True
+    assert config.services["default"].model_extra["x-timeout"] == 300
+    assert config.model_extra["x-inspect_k8s_sandbox"]["allow_domains"] == [
         "example.com"
     ]
 
