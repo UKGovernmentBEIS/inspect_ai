@@ -4,8 +4,10 @@ import { ToolButton } from "../../components/ToolButton";
 
 import styles from "./NavbarButton.module.css";
 
-interface NavbarButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> {
+interface NavbarButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "className"
+> {
   label: string | ReactNode;
   className?: string | string[];
   icon?: string;

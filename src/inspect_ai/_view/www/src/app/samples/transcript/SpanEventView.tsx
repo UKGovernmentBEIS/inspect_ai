@@ -3,6 +3,7 @@ import { FC, useMemo } from "react";
 import { SpanBeginEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "./event/EventPanel";
+import { formatTitle } from "./event/utils";
 import { kSandboxSignalName } from "./transform/fixups";
 import { EventNode, EventType } from "./types";
 
@@ -35,7 +36,7 @@ export const SpanEventView: FC<SpanEventViewProps> = ({
       depth={eventNode.depth}
       childIds={childIds}
       className={clsx("transcript-span", className)}
-      title={title}
+      title={formatTitle(title, undefined, event.working_start)}
       subTitle={formatDateTime(new Date(event.timestamp))}
       text={text}
       icon={descriptor.icon}
