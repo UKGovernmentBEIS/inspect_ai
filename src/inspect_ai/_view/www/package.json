@@ -82,7 +82,7 @@
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
-    "@codemirror/language": "^6.11.3",
+    "@codemirror/language": "^6.12.1",
     "@codemirror/lint": "^6.9.2",
     "@codemirror/state": "^6.5.2",
     "@lezer/highlight": "^1.2.2",
@@ -111,7 +111,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-popper": "^2.3.0",
-    "react-router-dom": "^7.10.1",
+    "react-router-dom": "^7.12.0",
     "react-virtuoso": "^4.15.0",
     "zustand": "^5.0.9"
   },
