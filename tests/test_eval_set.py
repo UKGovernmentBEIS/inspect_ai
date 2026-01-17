@@ -2,6 +2,7 @@ import shutil
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+from typing import Callable
 from unittest.mock import patch
 
 import pytest
@@ -17,6 +18,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
+    EvalSetArgsInTaskIdentifier,
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
@@ -191,8 +193,9 @@ def test_validate_eval_set_prerequisites_ok() -> None:
         resolved_tasks=resolved_tasks,
         all_logs=all_logs,
         log_dir_allow_dirty=False,
-        config=GenerateConfig(),
-        eval_set_solver=None,
+        eval_set_args=EvalSetArgsInTaskIdentifier(
+            config=GenerateConfig(),
+        ),
     )
     assert len(all_logs) == 2
 
@@ -212,8 +215,7 @@ def test_validate_eval_set_prerequisites_mismatch() -> None:
             resolved_tasks=resolved_tasks,
             all_logs=all_logs,
             log_dir_allow_dirty=False,
-            config=GenerateConfig(),
-            eval_set_solver=None,
+            eval_set_args=EvalSetArgsInTaskIdentifier(config=GenerateConfig()),
         )
 
 
@@ -231,8 +233,7 @@ def test_validate_eval_set_prerequisites_mismatch_log_dir_allow_dirty() -> None:
         resolved_tasks=resolved_tasks,
         all_logs=all_logs,
         log_dir_allow_dirty=True,
-        config=GenerateConfig(),
-        eval_set_solver=None,
+        eval_set_args=EvalSetArgsInTaskIdentifier(config=GenerateConfig()),
     )
     assert len(all_logs) == 0
 
@@ -352,27 +353,48 @@ def sleep_for_3_task(task_arg: str):
 
 
 def run_eval_set(
-    resolved_tasks: list[ResolvedTask],
+    create_resolved_tasks: Callable[[], list[ResolvedTask]],
     solver: Solver | None = None,
     config: GenerateConfig = GenerateConfig(temperature=0.7),
+    message_limit: int | None = None,
+    token_limit: int | None = None,
+    time_limit: int | None = None,
+    working_limit: int | None = None,
 ) -> None:
+    resolved_tasks = create_resolved_tasks()
     tasks = [task.task for task in resolved_tasks]
     with tempfile.TemporaryDirectory() as log_dir:
         eval_set(
             tasks=tasks,
             log_dir=log_dir,
             solver=solver,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            time_limit=time_limit,
+            working_limit=working_limit,
             **config.model_dump(),
         )
 
+        # eval_set modifies the resolved tasks, so need to recreate them
+        resolved_tasks = create_resolved_tasks()
+        tasks = [task.task for task in resolved_tasks]
+
         all_logs = list_all_eval_logs(log_dir)
+
+        eval_set_args = EvalSetArgsInTaskIdentifier(
+            config=config,
+            solver=solver,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            time_limit=time_limit,
+            working_limit=working_limit,
+        )
 
         all_logs = validate_eval_set_prerequisites(
             resolved_tasks=resolved_tasks,
             all_logs=all_logs,
             log_dir_allow_dirty=False,
-            config=config,
-            eval_set_solver=solver,
+            eval_set_args=eval_set_args,
         )
         assert len(all_logs) == len(resolved_tasks)
 
@@ -380,6 +402,10 @@ def run_eval_set(
             tasks=tasks,
             log_dir=log_dir,
             solver=solver,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            time_limit=time_limit,
+            working_limit=working_limit,
             **config.model_dump(),
         )
 
@@ -404,75 +430,91 @@ def hello_world(arg: str = "arg", samples: int = 1) -> Task:
 def test_task_identifier_with_model_configs():
     model1 = get_model("mockllm/model", config=GenerateConfig(temperature=0.7))
     model2 = get_model("mockllm/model", config=GenerateConfig(temperature=0))
-    task1 = hello_world()
-    task2 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-    )
-    task_with(
-        task2,
-        model=model2,
-    )
-    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
 
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task2 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+        )
+        task_with(
+            task2,
+            model=model2,
+        )
+        return resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
-    run_eval_set(resolved_tasks)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
+    run_eval_set(create_resolved_tasks)
 
 
 def test_task_identifier_with_model_roles_model_configs():
     # ensure that model roles with different configs produce different task identifiers
     model1 = get_model("mockllm/model")
     model2 = get_model("mockllm/model", config=GenerateConfig(temperature=0))
-    task1 = hello_world()
-    task2 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-        model_roles={"scorer": model1},
-    )
-    task_with(
-        task2,
-        model=model1,
-        model_roles={"scorer": model2},
-    )
-    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
 
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task2 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+            model_roles={"scorer": model1},
+        )
+        task_with(
+            task2,
+            model=model1,
+            model_roles={"scorer": model2},
+        )
+        return resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
-    run_eval_set(resolved_tasks)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
+    run_eval_set(create_resolved_tasks)
 
 
 def test_task_identifier_with_task_generate_configs():
     model1 = get_model("mockllm/model")
-    task1 = hello_world()
-    task2 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-        config=GenerateConfig(temperature=0.0),
-        model_roles={"scorer": model1},
-    )
-    task_with(
-        task2,
-        model=model1,
-        config=GenerateConfig(temperature=0.5),
-        model_roles={"scorer": model1},
-    )
-    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task2 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+            config=GenerateConfig(temperature=0.0),
+            model_roles={"scorer": model1},
+        )
+        task_with(
+            task2,
+            model=model1,
+            config=GenerateConfig(temperature=0.5),
+            model_roles={"scorer": model1},
+        )
+        return resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
 
     with tempfile.TemporaryDirectory() as log_dir:
         config = GenerateConfig(temperature=0.7)
         # Since eval_set config overrides the task config, both tasks will be the same and this should raise an error
         with pytest.raises(PrerequisiteError):
             eval_set(
-                tasks=[task1, task2],
+                tasks=[resolved_tasks[0].task, resolved_tasks[1].task],
                 log_dir=log_dir,
                 model="mockllm/model",
                 **config.model_dump(),
@@ -480,63 +522,78 @@ def test_task_identifier_with_task_generate_configs():
 
     # system_message will not override the value set in the task config, so these tasks will still be unique
     run_eval_set(
-        resolved_tasks, config=GenerateConfig(system_message="Test System Message")
+        create_resolved_tasks,
+        config=GenerateConfig(system_message="Test System Message"),
     )
 
 
 def test_task_identifier_with_solvers():
     # test that tasks with different solvers produce different task identifiers
     model1 = get_model("mockllm/model")
-    task1 = hello_world()
-    task2 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-    )
-    task_with(
-        task2,
-        model=model1,
-        solver=[identity_solver(2)],
-    )
-    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task2 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+        )
+        task_with(
+            task2,
+            model=model1,
+            solver=[identity_solver(2)],
+        )
+        return resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
-    run_eval_set(resolved_tasks)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
+    run_eval_set(create_resolved_tasks)
 
 
 def test_task_identifier_with_solver_arg():
     # test that tasks with different solvers produce different task identifiers
     model1 = get_model("mockllm/model")
-    task1 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-    )
+
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+        )
+        return resolve_tasks([task1], {}, model1, None, None, None)
+
     id5 = identity_solver(5)
-    resolved_tasks = resolve_tasks([task1], {}, model1, None, None, None)
-    run_eval_set(resolved_tasks, solver=id5)
+    run_eval_set(create_resolved_tasks, solver=id5)
 
 
 def test_task_identifier_with_model_args():
     model1 = get_model("mockllm/model", max_tokens=100)
     model2 = get_model("mockllm/model", max_tokens=200)
-    task1 = hello_world()
-    task2 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-    )
-    task_with(
-        task2,
-        model=model2,
-    )
-    resolved_tasks = resolve_tasks([task1, task2], {}, model1, None, None, None)
 
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task2 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+        )
+        task_with(
+            task2,
+            model=model2,
+        )
+        return resolve_tasks([task1, task2], {}, model1, None, None, None)
+
+    resolved_tasks = create_resolved_tasks()
     assert task_identifier(
-        resolved_tasks[0], GenerateConfig(), eval_set_solver=None
-    ) != task_identifier(resolved_tasks[1], GenerateConfig(), eval_set_solver=None)
-    run_eval_set(resolved_tasks)
+        resolved_tasks[0], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    ) != task_identifier(
+        resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+    )
+    run_eval_set(create_resolved_tasks)
 
 
 def test_task_identifier_with_model_args_arg():
@@ -571,7 +628,7 @@ def resolved_tasks_have_unique_identifiers(resolved_tasks: list[ResolvedTask]) -
     identifiers = set()
     for resolved_task in resolved_tasks:
         identifier = task_identifier(
-            resolved_task, GenerateConfig(), eval_set_solver=None
+            resolved_task, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
         )
         if identifier in identifiers:
             return False
@@ -581,65 +638,81 @@ def resolved_tasks_have_unique_identifiers(resolved_tasks: list[ResolvedTask]) -
 
 def test_task_identifier_with_task_versions():
     model1 = get_model("mockllm/model")
-    task1 = hello_world()
-    task2 = hello_world()
-    task3 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-        version=1,
-    )
-    task_with(
-        task2,
-        model=model1,
-        version="1",
-    )
-    task_with(
-        task3,
-        model=model1,
-        version=2,
-    )
-    resolved_tasks = resolve_tasks([task1, task2, task3], {}, model1, None, None, None)
+
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task2 = hello_world()
+        task3 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+            version=1,
+        )
+        task_with(
+            task2,
+            model=model1,
+            version="1",
+        )
+        task_with(
+            task3,
+            model=model1,
+            version=2,
+        )
+        return resolve_tasks([task1, task2, task3], {}, model1, None, None, None)
+
+    resolved_tasks = create_resolved_tasks()
     assert resolved_tasks_have_unique_identifiers(resolved_tasks)
-    run_eval_set(resolved_tasks)
+    run_eval_set(create_resolved_tasks)
 
 
 def test_task_identifier_with_task_limits():
     model1 = get_model("mockllm/model")
-    task1 = hello_world()
-    task2 = hello_world()
-    task3 = hello_world()
-    task4 = hello_world()
-    task5 = hello_world()
-    task_with(
-        task1,
-        model=model1,
-    )
-    task_with(
-        task2,
-        model=model1,
-        message_limit=10,
-    )
-    task_with(
-        task3,
-        model=model1,
-        token_limit=100,
-    )
-    task_with(
-        task4,
-        model=model1,
-        time_limit=5,
-    )
-    task_with(
-        task5,
-        model=model1,
-        working_limit=60,
-    )
-    resolved_tasks = resolve_tasks(
-        [task1, task2, task3, task4, task5], {}, model1, None, None, None
-    )
+
+    def create_resolved_tasks() -> list[ResolvedTask]:
+        task1 = hello_world()
+        task2 = hello_world()
+        task3 = hello_world()
+        task4 = hello_world()
+        task5 = hello_world()
+        task_with(
+            task1,
+            model=model1,
+        )
+        task_with(
+            task2,
+            model=model1,
+            message_limit=10,
+        )
+        task_with(
+            task3,
+            model=model1,
+            token_limit=100,
+        )
+        task_with(
+            task4,
+            model=model1,
+            time_limit=5,
+        )
+        task_with(
+            task5,
+            model=model1,
+            working_limit=60,
+        )
+        return resolve_tasks(
+            [task1, task2, task3, task4, task5], {}, model1, None, None, None
+        )
+
+    resolved_tasks = create_resolved_tasks()
     assert resolved_tasks_have_unique_identifiers(resolved_tasks)
-    run_eval_set(resolved_tasks)
+    run_eval_set(create_resolved_tasks)
+    for i in range(len(resolved_tasks)):
+        run_eval_set(
+            lambda i=i: [create_resolved_tasks()[i]],
+            message_limit=20,
+            token_limit=200,
+            time_limit=10,
+            working_limit=120,
+        )
 
 
 def verify_logs(
