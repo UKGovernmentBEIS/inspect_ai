@@ -3,9 +3,10 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 
+import yaml
 from shortuuid import uuid
 
-from ..compose import is_dockerfile
+from ..compose import ComposeConfig, is_dockerfile
 from ..environment import SandboxEnvironmentConfigType
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
@@ -39,8 +40,18 @@ class ComposeProject:
         config_path = None
         if isinstance(config, str):
             config_path = Path(config).resolve()
+        elif isinstance(config, ComposeConfig):
+            # serialize ComposeConfig to YAML and write to auto-compose file
+            config_yaml = yaml.dump(
+                config.model_dump(mode="json", by_alias=True, exclude_none=True),
+                default_flow_style=False,
+                sort_keys=False,
+            )
+            config = auto_compose_file(config_yaml)
         elif config is not None:
-            raise ValueError(f"Unsupported config type: {type(config)}. Expected str.")
+            raise ValueError(
+                f"Unsupported config type: {type(config)}. Expected str or ComposeConfig."
+            )
 
         # if its a Dockerfile, then config is the auto-generated .compose.yaml
         if config_path and is_dockerfile(config_path.name):
@@ -54,7 +65,7 @@ class ComposeProject:
             config = config_path.as_posix()
 
         # no config passed, look for 'auto-config' (compose.yaml, Dockerfile, etc.)
-        else:
+        elif config is None:
             config = resolve_compose_file()
 
         # this could be a cleanup where docker has tracked a .compose.yaml file
