@@ -261,6 +261,7 @@ class ComposeConfig(ComposeModel):
             return NotImplemented
         return self.model_dump() == other.model_dump()
 
+
 def parse_compose_yaml(
     file: str,
     *,
