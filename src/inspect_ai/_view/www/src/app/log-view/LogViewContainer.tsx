@@ -144,9 +144,9 @@ export const LogViewContainer: FC = () => {
 
   // Handle sample selection from URL params
   useEffect(() => {
-    if (sampleId && filteredSamples) {
+    if (sampleId && filteredSamples && logPath) {
       const targetEpoch = epoch ? parseInt(epoch, 10) : 1;
-      selectSample(sampleId, targetEpoch);
+      selectSample(sampleId, targetEpoch, logPath);
 
       // Set the sample tab if specified in the URL
       if (sampleTabId) {
@@ -168,6 +168,7 @@ export const LogViewContainer: FC = () => {
     sampleId,
     epoch,
     sampleTabId,
+    logPath,
     filteredSamples,
     totalSampleCount,
     selectSample,
