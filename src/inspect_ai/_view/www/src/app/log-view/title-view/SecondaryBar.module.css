@@ -26,3 +26,8 @@
   margin: 0;
   width: 100%;
 }
+
+.invalidationStatus {
+  color: var(--bs-warning-text-emphasis, #664d03);
+  cursor: help;
+}
