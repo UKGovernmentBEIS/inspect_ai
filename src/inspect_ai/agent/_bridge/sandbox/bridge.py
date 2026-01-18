@@ -143,7 +143,8 @@ async def sandbox_agent_bridge(
             tg.start_soon(run_model_proxy, sandbox_env, port, instance, started)
 
             # ensure services are up
-            await anyio.sleep(0.1)
+            # Give proxy server time to initialize HTTP server
+            await anyio.sleep(1.0)
 
             # main agent
             try:
