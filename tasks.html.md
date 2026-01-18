@@ -465,6 +465,10 @@ in constructing `Task` instances:
   - A field name corresponding to a letter, or an integer; in this case,
     the integer (e.g., 0, 1, 2) will be mapped to a letter (`A`, `B`,
     `C`, etc.) for use as the target.
+- `field_spec.input_image` is an optional field name for multimodal
+  tasks. When specified, it should reference a field containing image
+  data as a data URI (base64 encoded). The image will be combined with
+  the text input to create a multimodal chat message. For example:
 
 ### Multiple Tasks
 

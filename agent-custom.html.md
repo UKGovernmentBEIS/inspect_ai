@@ -635,11 +635,30 @@ async def calculator_service():
     await sandbox_service(
         name="calculator",
         methods=[add, subtract],
-        until=lambda: True,
+        until=lambda: False,
         sandbox=sandbox()
     )
 
 background(calculator_service)
+```
+
+Above we run the sandbox service in the background so it doesn’t block
+the main task while waiting for requests. You can also pass
+`handle_requests=False` to manually handle requests (e.g. poll for them
+periodically). In this the `sandbox_service()` returns a function you
+can call to process requests:
+
+``` python
+handle_requests = await sandbox_service(
+    name="calculator",
+    methods=[add, subtract],
+    until=lambda: False,
+    sandbox=sandbox(),
+    handle_requests=False
+)
+
+# now call handle_requests periodically to handle requests
+await handle_requests()
 ```
 
 To use the service from within a sandbox, either add it to the sys path

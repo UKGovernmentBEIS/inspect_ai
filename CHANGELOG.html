@@ -149,9 +149,10 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.161 (10 January 2026)</a></li>
-  <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.160 (09 January 2026)</a></li>
-  <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.159 (03 January 2026)</a></li>
+  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.162 (18 January 2026)</a></li>
+  <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.161 (10 January 2026)</a></li>
+  <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.160 (09 January 2026)</a></li>
+  <li><a href="#january-2026-3" id="toc-january-2026-3" class="nav-link" data-scroll-target="#january-2026-3">0.3.159 (03 January 2026)</a></li>
   <li><a href="#december-2025" id="toc-december-2025" class="nav-link" data-scroll-target="#december-2025">0.3.158 (24 December 2025)</a></li>
   <li><a href="#december-2025-1" id="toc-december-2025-1" class="nav-link" data-scroll-target="#december-2025-1">0.3.157 (22 December 2025)</a></li>
   <li><a href="#december-2025-2" id="toc-december-2025-2" class="nav-link" data-scroll-target="#december-2025-2">0.3.156 (20 December 2025)</a></li>
@@ -319,7 +320,24 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="january-2026" class="level2">
-<h2 class="anchored" data-anchor-id="january-2026">0.3.161 (10 January 2026)</h2>
+<h2 class="anchored" data-anchor-id="january-2026">0.3.162 (18 January 2026)</h2>
+<ul>
+<li>Google: Add <code>streaming</code> model arg to opt-in to streaming generation.</li>
+<li>TogetherAI: Support for parsing logprobs returned in OpenAI format (e.g.&nbsp;for gpt-oss-20b).</li>
+<li>HF tasks: Support for <code>image_input</code> (data URI) in field spec for multimodal tasks</li>
+<li>Scoring: Enable editing scores for samples that do not yet have a score.</li>
+<li>Task Display: Throttle updates to running samples according to total samples.</li>
+<li>Sandbox: Support passing a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#composeconfig">ComposeConfig</a></span> directly to Docker sandbox provider.</li>
+<li>Sandbox: Remove <code>supported_fields</code> parameter from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#parse_compose_yaml">parse_compose_yaml()</a></span> (packages handle their own validation).</li>
+<li>Sandbox Service: Provide option to trigger request processing manually.</li>
+<li>Inspect View: Fix regression where viewing samples with identical id/epoch would re-use the previous sample details.</li>
+<li>Inspect View: Show event timestamp in tooltips in all types of events in transcripts.</li>
+<li>Inspect View: Show sample invalidation status in sample header.</li>
+<li>Bugfix: Compose models now correctly handle x- extensions at all levels (inner models discarded them, outer models accepted non-extensions).</li>
+</ul>
+</section>
+<section id="january-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="january-2026-1">0.3.161 (10 January 2026)</h2>
 <ul>
 <li>Sandbox: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#parse_compose_yaml">parse_compose_yaml()</a></span> for parsing Docker Compose files into typed configuration for sandbox providers.</li>
 <li>Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).</li>
@@ -335,8 +353,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix eval_set log reuse when setting limits as eval set args.</li>
 </ul>
 </section>
-<section id="january-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="january-2026-1">0.3.160 (09 January 2026)</h2>
+<section id="january-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="january-2026-2">0.3.160 (09 January 2026)</h2>
 <ul>
 <li>Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).</li>
 <li>Anthropic: Correctly replay reasoning when sourced from Inspect cache.</li>
@@ -365,8 +383,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Use <code>builtins</code> module rather than <code>__builtins__</code> when parsing tool function types.</li>
 </ul>
 </section>
-<section id="january-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="january-2026-2">0.3.159 (03 January 2026)</h2>
+<section id="january-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="january-2026-3">0.3.159 (03 January 2026)</h2>
 <ul>
 <li><a href="https://inspect.aisi.org.uk/compaction.html.md">Compaction</a>: Compacting message histories for long-running agents that exceed the context window.</li>
 <li>Model API: <code>count_tokens()</code> method for estimating token usage for messages.</li>

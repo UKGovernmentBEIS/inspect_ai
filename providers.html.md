@@ -394,6 +394,20 @@ This also can be done from the command line:
 inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 ```
 
+### Streaming
+
+The Google provider supports a `streaming` model arg (`-M`) that
+controls whether streaming responses are used. Streaming is disabled by
+default. Pass `true` to enable streaming:
+
+``` bash
+inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
+```
+
+Streaming is particularly useful for Gemini 3+ models that support
+thinking/reasoning, as it enables proper capture of reasoning summaries
+from the streaming API.
+
 ## Mistral
 
 To use the [Mistral](https://mistral.ai/) provider, install the

@@ -997,6 +997,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>A literal value, specified as <code>literal:&lt;value&gt;</code>, where <code>&lt;value&gt;</code> will be used directly as the target.</li>
 <li>A field name corresponding to a letter, or an integer; in this case, the integer (e.g., 0, 1, 2) will be mapped to a letter (<code>A</code>, <code>B</code>, <code>C</code>, etc.) for use as the target.</li>
 </ul></li>
+<li><code>field_spec.input_image</code> is an optional field name for multimodal tasks. When specified, it should reference a field containing image data as a data URI (base64 encoded). The image will be combined with the text input to create a multimodal chat message. For example:</li>
 </ul>
 <section id="multiple-tasks" class="level3">
 <h3 class="anchored" data-anchor-id="multiple-tasks">Multiple Tasks</h3>

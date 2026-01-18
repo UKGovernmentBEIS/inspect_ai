@@ -243,6 +243,43 @@ as follows:
 sandbox=("docker", "attacker-compose.yaml")
 ```
 
+### Programmatic Configuration
+
+For more dynamic scenarios, you can construct a `ComposeConfig` object
+programmatically rather than using a static YAML file. This is useful
+when you need to vary container configuration based on task parameters:
+
+``` python
+from inspect_ai.util import ComposeConfig, ComposeService, SandboxEnvironmentSpec
+
+@task
+def my_task(cpus: float = 1.0):
+  config = ComposeConfig(
+    services={
+        "default": ComposeService(
+            image="python:3.12-bookworm",
+            init=True,
+            command="tail -f /dev/null",
+            mem_limit="512m",
+            cpus=cpus,
+            network_mode="none",
+        )
+    }
+  )
+
+  return Task(
+    dataset=dataset,
+    solver=[use_tools([read_file()]), generate()],
+    scorer=match(),
+    sandbox=SandboxEnvironmentSpec("docker", config),
+  )
+```
+
+The `ComposeConfig` and `ComposeService` classes mirror the structure of
+Docker Compose files, supporting fields like `image`, `build`,
+`command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and
+more. Extension fields (prefixed with `x-`) are also supported.
+
 ## Per Sample Setup
 
 The `Sample` class includes `sandbox`, `files` and `setup` fields that
@@ -258,8 +295,12 @@ and/or custom compose configuration file. (Note, each sample gets its
 own sandbox *instance*, even if the sandbox is defined at Task level. So
 samples do not interfere with each other’s sandboxes.)
 
-The `sandbox` can be specified as a string (e.g. `"docker`“) or a tuple
-of sandbox type and config file (e.g. `("docker", "compose.yaml")`).
+The `sandbox` can be specified as a string (e.g. `"docker`“), a tuple of
+sandbox type and config file (e.g. `("docker", "compose.yaml")`), or a
+`SandboxEnvironmentSpec` with a `ComposeConfig` for [Programmatic
+Configuration](#programmatic-configuration). This last option is
+particularly useful when you need to vary container configuration
+(e.g. docker image) on a per-sample basis.
 
 ### Files
 
