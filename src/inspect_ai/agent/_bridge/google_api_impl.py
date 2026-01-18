@@ -241,6 +241,11 @@ def messages_from_google_contents(
     """Translate Google contents format to Inspect messages."""
     messages: list[ChatMessage] = []
 
+    # Extract system prompt text for deduplication
+    # Gemini CLI sometimes includes the system prompt as a prefix in user messages
+    # (e.g., when sending continuation prompts). We detect and strip these duplicates.
+    system_prompt_text: str | None = None
+
     # Handle system instruction (can be dict with "parts" or list of strings)
     if system_instruction:
         if isinstance(system_instruction, dict):
@@ -249,6 +254,7 @@ def messages_from_google_contents(
             system_text = _extract_text_from_parts(parts)
             if system_text:
                 messages.append(ChatMessageSystem(content=system_text))
+                system_prompt_text = system_text
         elif isinstance(system_instruction, list):
             # List format: ["text1", "text2", ...] or [{"text": "..."}, ...]
             # Combine all items into a single system message
@@ -268,6 +274,7 @@ def messages_from_google_contents(
                         unique_texts.append(t)
                 combined_text = "\n\n".join(unique_texts)
                 messages.append(ChatMessageSystem(content=combined_text))
+                system_prompt_text = combined_text
 
     # Gemini API requires that function call turns come after a user turn or
     # function response turn. If the CLI's history reconstruction starts with
@@ -302,7 +309,13 @@ def messages_from_google_contents(
             # Handle user messages and function responses
             user_content, tool_messages = _extract_user_parts(parts, pending_tool_calls)
             if user_content:
-                messages.append(ChatMessageUser(content=user_content))
+                # Strip duplicate system prompt prefix from user messages
+                # Gemini CLI sometimes prepends the system prompt to continuation messages
+                user_content = _strip_system_prompt_prefix(
+                    user_content, system_prompt_text
+                )
+                if user_content:  # Only add if there's content after stripping
+                    messages.append(ChatMessageUser(content=user_content))
             messages.extend(tool_messages)
 
         elif role == "model":
@@ -337,6 +350,65 @@ def _extract_text_from_parts(parts: list[dict[str, Any]]) -> str:
         elif isinstance(part, str):
             texts.append(part)
     return "".join(texts)
+
+
+def _strip_system_prompt_prefix(
+    user_content: list[Content] | str,
+    system_prompt: str | None,
+) -> list[Content] | str | None:
+    """Strip duplicate system prompt prefix from user message content.
+
+    Gemini CLI sometimes prepends the full system prompt to user messages,
+    particularly when sending continuation prompts (e.g., "[System] You haven't
+    called the done tool yet..."). This creates duplicate system prompts in the
+    trajectory and wastes tokens.
+
+    This function detects when user content starts with the system prompt and
+    strips it, leaving only the actual user content.
+
+    Args:
+        user_content: The user message content (string or list of Content)
+        system_prompt: The system prompt text to check for and strip
+
+    Returns:
+        The user content with system prompt prefix stripped, or None if
+        the content was entirely the system prompt
+    """
+    if not system_prompt:
+        return user_content
+
+    # Handle string content
+    if isinstance(user_content, str):
+        if user_content.startswith(system_prompt):
+            # Strip the system prompt and any leading whitespace/newlines
+            stripped = user_content[len(system_prompt) :].lstrip("\n\r\t ")
+            return stripped if stripped else None
+        return user_content
+
+    # Handle list of Content
+    if isinstance(user_content, list) and user_content:
+        first_content = user_content[0]
+        if isinstance(first_content, ContentText):
+            if first_content.text.startswith(system_prompt):
+                # Strip the system prompt prefix
+                stripped_text = first_content.text[len(system_prompt) :].lstrip(
+                    "\n\r\t "
+                )
+                if stripped_text:
+                    # Replace first content with stripped version
+                    new_content = [ContentText(text=stripped_text)] + list(
+                        user_content[1:]
+                    )
+                    return new_content if new_content else None
+                elif len(user_content) > 1:
+                    # First content was only the system prompt, return rest
+                    return list(user_content[1:])
+                else:
+                    # Entire content was just the system prompt
+                    return None
+        return user_content
+
+    return user_content
 
 
 def _extract_user_parts(

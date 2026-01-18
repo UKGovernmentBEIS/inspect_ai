@@ -1905,11 +1905,18 @@ async def model_proxy_server(
 
     # -------- MCP HTTP Server Endpoint --------
 
+    # MCP protocol version to use (2025-03-26 is the default assumed by MCP spec)
+    MCP_PROTOCOL_VERSION = "2025-03-26"
+
     def _jsonrpc_response(req_id: Any, result: Any) -> dict[str, Any]:
         """Build a JSON-RPC 2.0 success response."""
         return {
             "status": 200,
             "body": {"jsonrpc": "2.0", "id": req_id, "result": result},
+            "headers": {
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            },
         }
 
     def _jsonrpc_error(
@@ -1919,7 +1926,25 @@ async def model_proxy_server(
         error: dict[str, Any] = {"code": code, "message": message}
         if data is not None:
             error["data"] = data
-        return {"status": 200, "body": {"jsonrpc": "2.0", "id": req_id, "error": error}}
+        return {
+            "status": 200,
+            "body": {"jsonrpc": "2.0", "id": req_id, "error": error},
+            "headers": {
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            },
+        }
+
+    @server.route("/mcp/*", method="GET")
+    async def mcp_endpoint_get(_request: dict[str, Any]) -> dict[str, Any]:
+        """MCP HTTP GET endpoint - return 405 as we don't support SSE streaming."""
+        return {
+            "status": 405,
+            "headers": {
+                "Allow": "POST",
+                "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            },
+        }
 
     @server.route("/mcp/*", method="POST")
     async def mcp_endpoint(request: dict[str, Any]) -> dict[str, Any]:
@@ -1945,12 +1970,11 @@ async def model_proxy_server(
             method = json_body.get("method")
             req_id = json_body.get("id")
 
-            # Handle MCP methods
             if method == "initialize":
                 return _jsonrpc_response(
                     req_id,
                     {
-                        "protocolVersion": "2024-11-05",
+                        "protocolVersion": MCP_PROTOCOL_VERSION,
                         "capabilities": {"tools": {}},
                         "serverInfo": {"name": server_name, "version": "1.0.0"},
                     },
