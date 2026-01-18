@@ -69,6 +69,16 @@ async def test_together_logprobs() -> None:
     )
 
 
+@pytest.mark.asynio
+@skip_if_no_together
+async def test_together_logprobs_openai_format() -> None:
+    response = await generate_with_logprobs("together/openai/gpt-oss-20b")
+    assert response.choices[0].logprobs is not None
+    top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
+    assert top_logprobs is not None
+    assert len(top_logprobs) == 1
+
+
 @pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_transformers
