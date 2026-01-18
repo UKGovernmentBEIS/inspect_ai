@@ -223,6 +223,28 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const tools = [];
   const [icon, setIcon] = useState(ApplicationIcons.copy);
 
+  // Add invalidation chip if sample is invalidated
+  if (sample?.invalidation) {
+    tools.push(
+      <div
+        key="sample-invalidation-chip"
+        className={styles.invalidationChip}
+        title={[
+          sample.invalidation.author && `By: ${sample.invalidation.author}`,
+          sample.invalidation.timestamp &&
+            `On: ${new Date(sample.invalidation.timestamp).toLocaleString()}`,
+          sample.invalidation.reason &&
+            `Reason: ${sample.invalidation.reason}`,
+        ]
+          .filter(Boolean)
+          .join("\n")}
+      >
+        <span className={styles.invalidationChipIcon}>⚠</span>
+        <span>Invalidated</span>
+      </div>,
+    );
+  }
+
   tools.push(
     <ToolDropdownButton
       key="sample-copy"

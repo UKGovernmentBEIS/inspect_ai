@@ -232,26 +232,17 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
 
   return (
     <div id={`sample-heading-${parent_id}`}>
+      {invalidation && <InvalidationBanner invalidation={invalidation} />}
       <div
         className={clsx(styles.grid, "text-size-base")}
         style={{
-          gridTemplateColumns: `${invalidation ? "auto " : ""}${columns
+          gridTemplateColumns: `${columns
             .map((col) => {
               return col.size;
             })
             .join(" ")}`,
         }}
       >
-        {invalidation && (
-          <div
-            className={clsx(
-              "text-style-label",
-              "text-style-secondary",
-              "text-size-smallest",
-            )}
-            data-unsearchable={true}
-          />
-        )}
         {columns.map((col, idx) => {
           return (
             <div
@@ -270,7 +261,6 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
             </div>
           );
         })}
-        {invalidation && <InvalidationChip invalidation={invalidation} />}
         {columns.map((col, idx) => {
           return (
             <div
@@ -293,9 +283,9 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
 };
 
 /**
- * Chip component to display invalidation status inline in the header.
+ * Banner component to display when a sample has been invalidated.
  */
-const InvalidationChip: FC<{ invalidation: ProvenanceData }> = ({
+const InvalidationBanner: FC<{ invalidation: ProvenanceData }> = ({
   invalidation,
 }) => {
   const formatTimestamp = (timestamp: string) => {
@@ -306,24 +296,23 @@ const InvalidationChip: FC<{ invalidation: ProvenanceData }> = ({
     }
   };
 
-  const tooltipParts = [];
-  if (invalidation.author) {
-    tooltipParts.push(`By: ${invalidation.author}`);
-  }
-  if (invalidation.timestamp) {
-    tooltipParts.push(`On: ${formatTimestamp(invalidation.timestamp)}`);
-  }
-  if (invalidation.reason) {
-    tooltipParts.push(`Reason: ${invalidation.reason}`);
-  }
-
   return (
-    <div
-      className={styles.invalidationChip}
-      title={tooltipParts.join("\n")}
-    >
-      <span className={styles.invalidationChipIcon}>⚠</span>
-      <span>Invalidated</span>
+    <div className={styles.invalidationBanner}>
+      <div className={styles.invalidationIcon}>⚠</div>
+      <div className={styles.invalidationContent}>
+        <div className={styles.invalidationTitle}>Sample Invalidated</div>
+        <div className={styles.invalidationDetails}>
+          {invalidation.author && <span>By: {invalidation.author}</span>}
+          {invalidation.timestamp && (
+            <span>On: {formatTimestamp(invalidation.timestamp)}</span>
+          )}
+          {invalidation.reason && (
+            <span className={styles.invalidationReason}>
+              Reason: {invalidation.reason}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
