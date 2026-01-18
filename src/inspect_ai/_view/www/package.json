@@ -82,9 +82,9 @@
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
-    "@codemirror/language": "^6.11.3",
+    "@codemirror/language": "^6.12.1",
     "@codemirror/lint": "^6.9.2",
-    "@codemirror/state": "^6.5.2",
+    "@codemirror/state": "^6.5.4",
     "@lezer/highlight": "^1.2.2",
     "@popperjs/core": "^2.11.8",
     "ag-grid-community": "^34.3.1",
@@ -96,7 +96,7 @@
     "clipboard": "^2.0.11",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
-    "dexie": "^4.2.1",
+    "dexie": "^4.3.0",
     "fast-json-patch": "^3.1.1",
     "fflate": "^0.8.2",
     "filtrex": "^3.1.0",
@@ -111,8 +111,8 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-popper": "^2.3.0",
-    "react-router-dom": "^7.10.1",
-    "react-virtuoso": "^4.15.0",
+    "react-router-dom": "^7.12.0",
+    "react-virtuoso": "^4.18.0",
     "zustand": "^5.0.9"
   },
   "resolutions": {
@@ -120,6 +120,7 @@
     "react-popper/react-dom": "^19.1.1",
     "glob": "^10.5.0",
     "js-yaml": "^4.1.0",
-    "brace-expansion": "^1.1.12"
+    "brace-expansion": "^1.1.12",
+    "@codemirror/state": "^6.5.4"
   }
 }

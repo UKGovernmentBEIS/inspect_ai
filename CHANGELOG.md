@@ -1,5 +1,17 @@
 ## Unreleased
 
+- Google: Add `streaming` model arg to opt-in to streaming generation.
+- HF tasks: Support for `image_input` (data URI) in field spec for multimodal tasks
+- Scoring: Enable editing scores for samples that do not yet have a score.
+- Task Display: Throttle updates to running samples according to total samples.
+- Sandbox Service: Provide option to trigger request processing manually.
+- Inspect View: Show event timestamp in tooltips in all types of events in transcripts.
+- Inspect View: Show sample invalidation status in sample header.
+- Sandbox: Remove `supported_fields` parameter from `parse_compose_yaml()` (packages handle their own validation).
+- Bugfix: Compose models now correctly handle x- extensions at all levels (inner models discarded them, outer models accepted non-extensions).
+
+## 0.3.161 (10 January 2026)
+
 - Sandbox: `parse_compose_yaml()` for parsing Docker Compose files into typed configuration for sandbox providers.
 - Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).
 - Google: Raise error if batch processing is used with Vertex hosted models.
@@ -11,6 +23,7 @@
 - Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.
 - Human Agent: Fixed non-scalar intermediate score values breaking task commands like `task status` and `task stop`.
 - Bugfix: Print only enabled hooks at CLI startup.
+- Bugfix: Fix eval_set log reuse when setting limits as eval set args.
 
 ## 0.3.160 (09 January 2026)
 

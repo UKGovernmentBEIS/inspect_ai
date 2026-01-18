@@ -10,6 +10,7 @@ import { EventSection } from "./event/EventSection";
 
 import clsx from "clsx";
 import { FC } from "react";
+import { formatTitle } from "./event/utils";
 import styles from "./SampleInitEventView.module.css";
 import { EventNode } from "./types";
 
@@ -59,7 +60,7 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
       className={className}
-      title="Sample"
+      title={formatTitle("Sample", undefined, event.working_start)}
       icon={ApplicationIcons.sample}
       subTitle={formatDateTime(new Date(event.timestamp))}
     >
