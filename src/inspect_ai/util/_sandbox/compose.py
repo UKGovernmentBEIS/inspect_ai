@@ -271,8 +271,7 @@ def parse_compose_yaml(
     Raises:
         FileNotFoundError: If the compose file does not exist.
         ValueError: If the compose file is invalid or has multiple services
-            when multiple_services=False, or if the compose file contains
-            unknown fields (fields not supported by any sandbox provider).
+            when multiple_services=False.
     """
     path = Path(file)
     if not path.exists():

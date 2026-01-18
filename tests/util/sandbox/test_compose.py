@@ -12,6 +12,8 @@ services:
     working_dir: /app
     x-default: true
     x-timeout: 300
+    healthcheck:
+      x-custom: nested
 
 x-inspect_k8s_sandbox:
   allow_domains:
@@ -24,6 +26,7 @@ x-inspect_k8s_sandbox:
     assert config.services["default"].working_dir == "/app"
     assert config.services["default"].x_default is True
     assert config.services["default"].extensions["x-timeout"] == 300
+    assert config.services["default"].healthcheck.extensions["x-custom"] == "nested"
     assert config.extensions["x-inspect_k8s_sandbox"]["allow_domains"] == [
         "example.com"
     ]
@@ -65,4 +68,15 @@ x-inspect_k8s_sandbox:
 """)
 
     with pytest.raises(ValueError, match="must have 'services'"):
+        parse_compose_yaml(str(compose_file))
+
+
+def test_parse_compose_yaml_rejects_unknown_field(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services: {}
+unknown_field: value
+""")
+
+    with pytest.raises(Exception, match="Unknown field"):
         parse_compose_yaml(str(compose_file))
