@@ -82,6 +82,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
 
   const sampleSummaries = useFilteredSamples();
   const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 
   // Compute the limit to apply to the sample count (this is so)
   // we can provide a total expected sample count for this evaluation
@@ -195,11 +196,11 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   }, [showingSampleDialog]);
 
   useEffect(() => {
-    if (sampleSummaries.length === 1) {
+    if (sampleSummaries.length === 1 && selectedLogFile) {
       const sample = sampleSummaries[0];
-      selectSample(sample.id, sample.epoch);
+      selectSample(sample.id, sample.epoch, selectedLogFile);
     }
-  }, [sampleSummaries, selectSample]);
+  }, [sampleSummaries, selectSample, selectedLogFile]);
 
   const title = useMemo(() => {
     if (selectedSampleHandle) {

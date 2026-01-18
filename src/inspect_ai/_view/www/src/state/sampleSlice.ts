@@ -26,7 +26,7 @@ export interface SampleSlice {
   sample: SampleState;
   sampleActions: {
     // The actual sample data
-    setSelectedSample: (sample: EvalSample) => void;
+    setSelectedSample: (sample: EvalSample, logFile: string) => void;
     getSelectedSample: () => EvalSample | undefined;
     clearSelectedSample: () => void;
 
@@ -108,7 +108,7 @@ export const createSampleSlice = (
     // Actions
     sample: initialState,
     sampleActions: {
-      setSelectedSample: (sample: EvalSample) => {
+      setSelectedSample: (sample: EvalSample, logFile: string) => {
         const isLarge = isLargeSample(sample);
 
         // Update state based on sample size
@@ -116,6 +116,7 @@ export const createSampleSlice = (
           state.sample.sample_identifier = {
             id: sample.id,
             epoch: sample.epoch,
+            logFile: logFile,
           };
           state.sample.sampleInState = !isLarge;
 
@@ -284,13 +285,14 @@ export const createSampleSlice = (
             log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
             if (sample) {
               if (
-                state.sample.sample_identifier?.id !== sample.id &&
-                state.sample.sample_identifier?.epoch !== sample.epoch
+                state.sample.sample_identifier?.id !== sample.id ||
+                state.sample.sample_identifier?.epoch !== sample.epoch ||
+                state.sample.sample_identifier?.logFile !== logFile
               ) {
                 sampleActions.clearCollapsedEvents();
               }
               const migratedSample = resolveSample(sample);
-              sampleActions.setSelectedSample(migratedSample);
+              sampleActions.setSelectedSample(migratedSample, logFile);
               sampleActions.setSampleStatus("ok");
             } else {
               sampleActions.setSampleStatus("error");

@@ -8,6 +8,7 @@
 - Sandbox: Support passing a `ComposeConfig` directly to Docker sandbox provider.
 - Sandbox: Remove `supported_fields` parameter from `parse_compose_yaml()` (packages handle their own validation).
 - Sandbox Service: Provide option to trigger request processing manually.
+- Inspect View: Fix regression where viewing samples with identical id/epoch would re-use the previous sample details.
 - Inspect View: Show event timestamp in tooltips in all types of events in transcripts.
 - Inspect View: Show sample invalidation status in sample header.
 - Bugfix: Compose models now correctly handle x- extensions at all levels (inner models discarded them, outer models accepted non-extensions).
