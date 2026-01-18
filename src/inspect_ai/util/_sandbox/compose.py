@@ -72,6 +72,11 @@ class ComposeModel(BaseModel):
                 raise ValueError(f"Unknown field: '{key}'")
         return data
 
+    @property
+    def extensions(self) -> dict[str, Any]:
+        """Get x- extension fields."""
+        return self.model_extra or {}
+
 
 class ComposeHealthcheck(ComposeModel):
     """Healthcheck configuration for a compose service."""
