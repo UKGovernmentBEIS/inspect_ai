@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Google: Add `streaming` model arg to opt-in to streaming generation.
+- TogetherAI: Support for parsing logprobs returned in OpenAI format (e.g. for gpt-oss-20b).
 - HF tasks: Support for `image_input` (data URI) in field spec for multimodal tasks
 - Scoring: Enable editing scores for samples that do not yet have a score.
 - Task Display: Throttle updates to running samples according to total samples.
