@@ -7,6 +7,8 @@
 - Sandbox Service: Provide option to trigger request processing manually.
 - Inspect View: Show event timestamp in tooltips in all types of events in transcripts.
 - Inspect View: Show sample invalidation status in sample header.
+- Sandbox: Remove `supported_fields` parameter from `parse_compose_yaml()` (packages handle their own validation).
+- Bugfix: Compose models now correctly handle x- extensions at all levels (inner models discarded them, outer models accepted non-extensions).
 
 ## 0.3.161 (10 January 2026)
 
