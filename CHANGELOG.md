@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.162 (18 January 2026)
 
 - Google: Add `streaming` model arg to opt-in to streaming generation.
 - TogetherAI: Support for parsing logprobs returned in OpenAI format (e.g. for gpt-oss-20b).
