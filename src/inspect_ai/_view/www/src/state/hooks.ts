@@ -275,9 +275,7 @@ export const useSampleInvalidation = () => {
   const getSelectedSample = useStore(
     (state) => state.sampleActions.getSelectedSample,
   );
-  const sampleIdentifier = useStore(
-    (state) => state.sample.sample_identifier,
-  );
+  const sampleIdentifier = useStore((state) => state.sample.sample_identifier);
   return useMemo(() => {
     const sample = getSelectedSample();
     return sample?.invalidation || null;
