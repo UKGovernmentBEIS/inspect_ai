@@ -333,7 +333,6 @@ export const LiveVirtualList = <T,>({
   );
 };
 
-
 type PreparedSearchTerms = {
   simple: string;
   unquoted?: string;
@@ -344,7 +343,7 @@ const prepareSearchTerm = (term: string): PreparedSearchTerms => {
   const lower = term.toLowerCase();
 
   // No special characters that need JSON handling
-  if (!term.includes('"') && !term.includes(':')) {
+  if (!term.includes('"') && !term.includes(":")) {
     return { simple: lower };
   }
 
@@ -352,8 +351,8 @@ const prepareSearchTerm = (term: string): PreparedSearchTerms => {
   return {
     simple: lower,
     // Remove quotes
-    unquoted: lower.replace(/"/g, ''),
+    unquoted: lower.replace(/"/g, ""),
     // Escape quotes for JSON
-    jsonEscaped: lower.replace(/"/g, '\\"')
+    jsonEscaped: lower.replace(/"/g, '\\"'),
   };
 };
