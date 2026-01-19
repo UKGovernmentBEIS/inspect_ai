@@ -14,16 +14,16 @@ import {
 
 export const useLogNavigation = () => {
   const navigate = useNavigate();
-  const { logPath } = useLogRouteParams();
+  const { logPath: routeLogPath } = useLogRouteParams();
   const logDir = useStore((state) => state.logs.logDir);
   const loadedLog = useStore((state) => state.log.loadedLog);
 
   const selectTab = useCallback(
     (tabId: string) => {
       // Only update URL if we have a loaded log
-      if (loadedLog && logPath) {
+      if (loadedLog && routeLogPath) {
         // We already have the logPath from params, just navigate to the tab
-        const url = logsUrlRaw(logPath, tabId);
+        const url = logsUrlRaw(routeLogPath, tabId);
         navigate(url);
       } else if (loadedLog) {
         // Fallback to constructing the path if needed
@@ -31,7 +31,7 @@ export const useLogNavigation = () => {
         navigate(url);
       }
     },
-    [loadedLog, logPath, logDir, navigate],
+    [loadedLog, routeLogPath, logDir, navigate],
   );
 
   return {
@@ -145,7 +145,7 @@ export const useSampleNavigation = () => {
 
       if (resolvedPath) {
         // Update internal state
-        selectSample(id, epoch);
+        selectSample(id, epoch, resolvedPath);
         setShowingSampleDialog(true);
 
         // Use specified sampleTabId if provided, otherwise use current sampleTabId from URL params
@@ -185,7 +185,11 @@ export const useSampleNavigation = () => {
           }
         } else {
           const summary = sampleSummaries[index];
-          selectSample(summary.id, summary.epoch);
+          // Use logPath from url, otherwise fall back to selectedLogFile
+          const logFile = logPath || selectedLogFile;
+          if (logFile) {
+            selectSample(summary.id, summary.epoch, logFile);
+          }
         }
       }
     },
@@ -196,6 +200,8 @@ export const useSampleNavigation = () => {
       sampleTabId,
       navigate,
       selectSample,
+      logPath,
+      selectedLogFile,
     ],
   );
 

@@ -2,8 +2,7 @@ import clsx from "clsx";
 import { ButtonHTMLAttributes, forwardRef, ReactNode, useState } from "react";
 import styles from "./ToolDropdownButton.module.css";
 
-interface ToolDropdownButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ToolDropdownButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string | ReactNode;
   icon?: string;
   items: Record<string, () => void>;

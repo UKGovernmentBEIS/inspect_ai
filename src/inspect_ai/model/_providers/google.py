@@ -163,6 +163,9 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
+        # record streaming preference
+        self.streaming = bool(model_args.pop("streaming", False))
+
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
         if SAFETY_SETTINGS in model_args:
@@ -341,8 +344,8 @@ class GoogleGenAIAPI(ModelAPI):
                 # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
                 tool_calling_attempts = 0
                 while tool_calling_attempts < 3:
-                    response = await (
-                        self._batcher.generate_for_request(
+                    if self._batcher:
+                        response = await self._batcher.generate_for_request(
                             {
                                 "contents": [
                                     content.model_dump(exclude_none=True)
@@ -351,13 +354,19 @@ class GoogleGenAIAPI(ModelAPI):
                                 **parameters.model_dump(exclude_none=True),
                             }
                         )
-                        if self._batcher
-                        else client.aio.models.generate_content(
+                    elif self.streaming:
+                        response = await self._stream_generate_content(
+                            client=client,
                             model=self.service_model_name(),
                             contents=gemini_contents,  # type: ignore[arg-type]
                             config=parameters,
                         )
-                    )
+                    else:
+                        response = await client.aio.models.generate_content(
+                            model=self.service_model_name(),
+                            contents=gemini_contents,  # type: ignore[arg-type]
+                            config=parameters,
+                        )
                     # retry for MALFORMED_FUNCTION_CALL
                     if (
                         response.candidates
@@ -391,6 +400,159 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
             return output, model_call()
+
+    async def _stream_generate_content(
+        self,
+        client: Client,
+        model: str,
+        contents: list[ContentUnion],
+        config: GenerateContentConfig,
+    ) -> GenerateContentResponse:
+        """Stream content generation and accumulate response.
+
+        Accumulates parts from streaming chunks and constructs a response
+        that matches non-streaming structure, allowing existing parsing logic
+        to handle the conversion to Inspect format.
+
+        Raises:
+            RuntimeError: If no chunks received from stream
+        """
+        candidates_parts: dict[int, list[Part]] = {}
+        last_chunk: GenerateContentResponse | None = None
+
+        stream = await client.aio.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=config,
+        )
+
+        async for chunk in stream:
+            last_chunk = chunk
+            if chunk.candidates:
+                for candidate in chunk.candidates:
+                    if candidate.index is None:
+                        continue
+
+                    idx = candidate.index
+                    if idx not in candidates_parts:
+                        candidates_parts[idx] = []
+
+                    if candidate.content and candidate.content.parts:
+                        candidates_parts[idx].extend(candidate.content.parts)
+
+        if last_chunk is None:
+            raise RuntimeError(
+                f"No response chunks received from streaming API for model {model}"
+            )
+
+        final_candidates = []
+        for idx in sorted(candidates_parts.keys()):
+            accumulated_parts = candidates_parts[idx]
+
+            merged_parts: list[Part] = []
+            thinking_texts: list[str] = []
+            output_texts: list[str] = []
+
+            for part in accumulated_parts:
+                if part.thought_signature:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+
+                    if part.text:
+                        combined_text = "".join(output_texts) + part.text
+                        merged_parts.append(
+                            Part(
+                                thought_signature=part.thought_signature,
+                                text=combined_text,
+                            )
+                        )
+                        output_texts = []
+                    elif part.function_call or part.executable_code:
+                        if output_texts:
+                            merged_parts.append(Part(text="".join(output_texts)))
+                            output_texts = []
+
+                        if part.function_call:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    function_call=part.function_call,
+                                )
+                            )
+                        elif part.executable_code:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    executable_code=part.executable_code,
+                                )
+                            )
+                    else:
+                        if output_texts:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    text="".join(output_texts),
+                                )
+                            )
+                            output_texts = []
+
+                elif part.thought is True and part.text:
+                    if output_texts:
+                        merged_parts.append(Part(text="".join(output_texts)))
+                        output_texts = []
+                    thinking_texts.append(part.text)
+                elif part.text:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+                    output_texts.append(part.text)
+                else:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+                    if output_texts:
+                        merged_parts.append(Part(text="".join(output_texts)))
+                        output_texts = []
+                    merged_parts.append(part)
+
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+            if output_texts:
+                merged_parts.append(Part(text="".join(output_texts)))
+
+            last_candidate_for_idx = None
+            if last_chunk.candidates:
+                for c in last_chunk.candidates:
+                    if c.index == idx:
+                        last_candidate_for_idx = c
+                        break
+
+            if last_candidate_for_idx:
+                final_candidates.append(
+                    Candidate(
+                        content=Content(parts=merged_parts, role="model"),
+                        finish_reason=last_candidate_for_idx.finish_reason,
+                        safety_ratings=last_candidate_for_idx.safety_ratings,
+                        citation_metadata=last_candidate_for_idx.citation_metadata,
+                        token_count=last_candidate_for_idx.token_count,
+                        grounding_metadata=last_candidate_for_idx.grounding_metadata,
+                        avg_logprobs=last_candidate_for_idx.avg_logprobs,
+                        index=idx,
+                    )
+                )
+
+        return GenerateContentResponse(
+            candidates=final_candidates,
+            usage_metadata=last_chunk.usage_metadata,
+            model_version=last_chunk.model_version,
+        )
 
     @override
     async def count_tokens(self, input: str | list[ChatMessage]) -> int:
@@ -1200,7 +1362,7 @@ def completion_choice_from_candidate(
 
                         content.append(reasoning_block)
                     else:
-                        # attach the though_signature to the previous reasoning block
+                        # attach the thought_signature to the previous reasoning block
                         working_reasoning_block.summary = (
                             working_reasoning_block.reasoning
                         )

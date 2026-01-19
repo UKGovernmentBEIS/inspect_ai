@@ -141,7 +141,7 @@ export function createSamplePolling(
 
               // Update the store with the completed sample
               set((state) => {
-                state.sampleActions.setSelectedSample(migratedSample);
+                state.sampleActions.setSelectedSample(migratedSample, logFile);
                 state.sampleActions.setSampleStatus("ok");
                 state.sample.runningEvents = [];
               });
