@@ -175,9 +175,10 @@ class AgentBridge:
             # We store both input and output messages to ensure stability for
             # ephemeral messages (like system messages from CLI that aren't
             # persisted in state.messages).
-            for msg in messages:
+            # Key includes index to match the lookup in _id_for_message.
+            for idx, msg in enumerate(messages):
                 if msg.id is not None:
-                    msg_key = _normalized_message_hash(msg)
+                    msg_key = f"{idx}:{_normalized_message_hash(msg)}"
                     if msg_key not in self._message_ids:
                         self._message_ids[msg_key] = []
                     if msg.id not in self._message_ids[msg_key]:
