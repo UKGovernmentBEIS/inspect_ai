@@ -3,7 +3,6 @@ import logging
 import math
 import os
 import tempfile
-from collections.abc import AsyncGenerator
 from logging import getLogger
 from typing import IO, Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -280,25 +279,6 @@ class EvalRecorder(FileRecorder):
                 summary_counter = _read_summary_counter(zip)
                 summaries = _read_all_summaries(zip, summary_counter)
                 return summaries
-
-    @classmethod
-    @override
-    async def read_log_all_samples(
-        cls, location: str
-    ) -> AsyncGenerator[EvalSample, None]:
-        """Read all samples from a .eval file efficiently.
-
-        Opens the ZIP file once and yields all samples, avoiding the overhead
-        of reopening the file for each sample.
-        """
-        with file(location, "rb") as z:
-            with ZipFile(z, mode="r") as zip:
-                for name in zip.namelist():
-                    if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
-                        with zip.open(name, "r") as f:
-                            yield EvalSample.model_validate(
-                                json.load(f), context=get_deserializing_context()
-                            )
 
     @classmethod
     @override

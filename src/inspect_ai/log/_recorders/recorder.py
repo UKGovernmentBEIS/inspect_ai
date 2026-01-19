@@ -1,5 +1,4 @@
 import abc
-from collections.abc import AsyncGenerator
 from typing import IO, Literal
 
 from inspect_ai._util.error import EvalError
@@ -80,12 +79,6 @@ class Recorder(abc.ABC):
     async def read_log_sample_summaries(
         cls, location: str
     ) -> list[EvalSampleSummary]: ...
-
-    @classmethod
-    @abc.abstractmethod
-    def read_log_all_samples(
-        cls, location: str
-    ) -> AsyncGenerator[EvalSample, None]: ...
 
     @classmethod
     async def read_log_sample_ids(cls, location: str) -> list[tuple[str | int, int]]:
