@@ -164,11 +164,25 @@ export const LiveVirtualList = <T,>({
   // Default search function that uses JSON.stringify as fallback
   const defaultSearchInItem = useCallback(
     (item: T, searchTerm: string): boolean => {
-      const searchLower = searchTerm.toLowerCase();
       try {
-        // TODO: should we make this more pluggable?
         const itemString = JSON.stringify(item).toLowerCase();
-        return itemString.includes(searchLower);
+        const prepared = prepareSearchTerm(searchTerm);
+
+        // Simple search
+        if (itemString.includes(prepared.simple)) {
+          return true;
+        }
+
+        // Check variations
+        if (prepared.unquoted && itemString.includes(prepared.unquoted)) {
+          return true;
+        }
+
+        if (prepared.jsonEscaped && itemString.includes(prepared.jsonEscaped)) {
+          return true;
+        }
+
+        return false;
       } catch {
         return false;
       }
@@ -317,4 +331,29 @@ export const LiveVirtualList = <T,>({
       }}
     />
   );
+};
+
+
+type PreparedSearchTerms = {
+  simple: string;
+  unquoted?: string;
+  jsonEscaped?: string;
+};
+
+const prepareSearchTerm = (term: string): PreparedSearchTerms => {
+  const lower = term.toLowerCase();
+
+  // No special characters that need JSON handling
+  if (!term.includes('"') && !term.includes(':')) {
+    return { simple: lower };
+  }
+
+  // Generate variations for JSON-like syntax
+  return {
+    simple: lower,
+    // Remove quotes
+    unquoted: lower.replace(/"/g, ''),
+    // Escape quotes for JSON
+    jsonEscaped: lower.replace(/"/g, '\\"')
+  };
 };
