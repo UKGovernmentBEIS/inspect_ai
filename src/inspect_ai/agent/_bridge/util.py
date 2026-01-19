@@ -147,7 +147,7 @@ def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
     for message in messages:
         message.id = None
 
-    # allocate ids based on message content (re-applying the same id for the same
-    # content, but also ensuring that if an id is already used we generate a new one)
-    for message in messages:
-        message.id = bridge._id_for_message(message, messages)
+    # allocate ids based on message content and position (re-applying the same id for
+    # the same content at the same position, but ensuring duplicates get unique ids)
+    for idx, message in enumerate(messages):
+        message.id = bridge._id_for_message(message, idx, messages)
