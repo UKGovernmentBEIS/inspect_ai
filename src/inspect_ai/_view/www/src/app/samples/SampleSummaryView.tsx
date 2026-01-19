@@ -7,6 +7,7 @@ import {
   WorkingTime,
 } from "../../@types/log";
 import { arrayToString, formatTime, inputString } from "../../utils/format";
+import { truncateMarkdown } from "../../utils/markdown";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
@@ -16,8 +17,7 @@ import { RenderedText } from "../content/RenderedText";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
-const kMaxRowTextSize = 1024 * 5;
-
+const kMaxCellTextLength = 256;
 interface SampleSummaryViewProps {
   parent_id: string;
   sample: SampleSummary | EvalSample;
@@ -127,11 +127,10 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     label: "Input",
     value: (
       <RenderedText
-        markdown={fields.input.join(" ").slice(0, kMaxRowTextSize)}
+        markdown={truncateMarkdown(fields.input.join(" "), kMaxCellTextLength)}
       />
     ),
     size: `minmax(auto, 5fr)`,
-    clamp: true,
   });
 
   if (fields.target) {
@@ -139,9 +138,9 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       label: "Target",
       value: (
         <RenderedText
-          markdown={arrayToString(fields?.target || "none").slice(
-            0,
-            kMaxRowTextSize,
+          markdown={truncateMarkdown(
+            arrayToString(fields?.target || "none"),
+            kMaxCellTextLength,
           )}
           className={clsx("no-last-para-padding", styles.target)}
         />
@@ -156,7 +155,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       label: "Answer",
       value: sample ? (
         <RenderedText
-          markdown={(fields.answer || "").slice(0, kMaxRowTextSize)}
+          markdown={truncateMarkdown(fields.answer || "", kMaxCellTextLength)}
           className={clsx("no-last-para-padding", styles.answer)}
         />
       ) : (
