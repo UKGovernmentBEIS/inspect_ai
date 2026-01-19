@@ -1,3 +1,7 @@
+## Unreleased
+
+- Analysis: Read all samples at once in implementation of `samples_df()`.
+
 ## 0.3.162 (18 January 2026)
 
 - Google: Add `streaming` model arg to opt-in to streaming generation.
