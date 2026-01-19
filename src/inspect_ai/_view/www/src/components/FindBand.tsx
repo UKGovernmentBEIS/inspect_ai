@@ -206,6 +206,19 @@ export const FindBand: FC<FindBandProps> = () => {
     }
   }, []);
 
+  const handleRestoreCursorIfNeeded = useCallback(() => {
+    const input = searchBoxRef.current;
+    if (!input) return;
+
+    // Only restore cursor if there's no selection range or if the selection is collapsed
+    if (input.selectionStart === input.selectionEnd) {
+      restoreCursor();
+    } else {
+      // If there's a selection, clear the restore flag so we don't interfere
+      needsCursorRestoreRef.current = false;
+    }
+  }, [restoreCursor]);
+
   // Debounced auto-search as you type
   const handleInputChange = useCallback(() => {
     if (debounceTimerRef.current !== null) {
@@ -221,8 +234,8 @@ export const FindBand: FC<FindBandProps> = () => {
   }, [handleSearch]);
 
   const handleBeforeInput = useCallback(() => {
-    restoreCursor();
-  }, [restoreCursor]);
+    handleRestoreCursorIfNeeded();
+  }, [handleRestoreCursorIfNeeded]);
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
@@ -239,9 +252,13 @@ export const FindBand: FC<FindBandProps> = () => {
       const input = searchBoxRef.current;
       if (!input) return;
 
-      restoreCursor();
+      // If the input is not focused, restore cursor and focus it
       if (document.activeElement !== input) {
+        restoreCursor();
         input.focus();
+      } else {
+        // Input is already focused, handle cursor restoration conditionally
+        handleRestoreCursorIfNeeded();
       }
     };
 
@@ -252,7 +269,7 @@ export const FindBand: FC<FindBandProps> = () => {
         window.clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [handleSearch, restoreCursor]);
+  }, [handleSearch, restoreCursor, handleRestoreCursorIfNeeded]);
 
   return (
     <div data-unsearchable="true" className={clsx("findBand")}>
