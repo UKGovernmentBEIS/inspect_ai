@@ -71,7 +71,7 @@ class AgentBridge:
         return self._compact
 
     def _id_for_message(
-        self, message: ChatMessage, conversation: list[ChatMessage]
+        self, message: ChatMessage, index: int, conversation: list[ChatMessage]
     ) -> str:
         # message_id we will return
         message_id: str | None = None
@@ -79,7 +79,8 @@ class AgentBridge:
         # turn message into a normalized hash so it can be a dictionary key
         # We normalize to remove fields that may differ between message instances
         # that should be considered the same (e.g., source field, tool_call IDs)
-        message_key = _normalized_message_hash(message)
+        # Include index to distinguish identical messages at different positions
+        message_key = f"{index}:{_normalized_message_hash(message)}"
 
         # do we already have an id for this message that isn't in the conversation?
         conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
@@ -203,8 +204,8 @@ def _normalized_message_hash(message: ChatMessage) -> str:
     - `source`: May be present in outputs ("generate") but not in converted inputs
     - `model`: Present in outputs but not in converted inputs
     - `tool_calls[].id`: Different API formats use different ID schemes
-    - `ContentReasoning.reasoning`: May contain encrypted signature or summary text,
-      which can vary when CLI reconstructs history
+    - `ContentReasoning`: Stripped entirely - CLI drops reasoning blocks when
+      reconstructing history for subsequent requests
 
     This function normalizes these differences to enable matching.
     """
@@ -217,38 +218,19 @@ def _normalized_message_hash(message: ChatMessage) -> str:
     msg_dict.pop("model", None)
 
     # Normalize tool_calls by removing their IDs but keeping function name and arguments
-    if "tool_calls" in msg_dict and msg_dict["tool_calls"]:
-        normalized_tool_calls = []
-        for tc in msg_dict["tool_calls"]:
-            normalized_tc = {
-                "function": tc.get("function"),
-                "arguments": tc.get("arguments"),
-                "type": tc.get("type"),
-            }
-            normalized_tool_calls.append(normalized_tc)
-        msg_dict["tool_calls"] = normalized_tool_calls
+    if msg_dict.get("tool_calls"):
+        msg_dict["tool_calls"] = [
+            {"function": tc.get("function"), "arguments": tc.get("arguments"), "type": tc.get("type")}
+            for tc in msg_dict["tool_calls"]
+        ]
 
-    # Normalize content if it's a list (may contain ContentReasoning blocks)
-    # ContentReasoning blocks are problematic because:
-    # 1. The CLI may show "<ENCRYPTED>" instead of the actual reasoning
-    # 2. The signature may be stored differently across API round-trips
-    # 3. The summary field may be present or absent
-    # We normalize by keeping only the redacted flag for ContentReasoning blocks
-    if "content" in msg_dict and isinstance(msg_dict["content"], list):
-        normalized_content = []
-        for part in msg_dict["content"]:
-            if isinstance(part, dict) and part.get("type") == "reasoning":
-                # For reasoning blocks, only keep the redacted flag and type
-                # This allows matching regardless of how the reasoning content
-                # is reconstructed by the CLI
-                normalized_part = {
-                    "type": "reasoning",
-                    "redacted": part.get("redacted", False),
-                }
-                normalized_content.append(normalized_part)
-            else:
-                normalized_content.append(part)
-        msg_dict["content"] = normalized_content
+    # Remove ContentReasoning blocks from content - CLI strips them when reconstructing
+    # history, so we need to ignore them for matching purposes
+    if isinstance(msg_dict.get("content"), list):
+        msg_dict["content"] = [
+            part for part in msg_dict["content"]
+            if not (isinstance(part, dict) and part.get("type") == "reasoning")
+        ]
 
     # Create deterministic JSON string for hashing
     normalized_json = json.dumps(msg_dict, sort_keys=True, default=str)
