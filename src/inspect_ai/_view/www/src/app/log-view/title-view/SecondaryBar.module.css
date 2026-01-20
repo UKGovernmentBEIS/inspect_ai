@@ -29,9 +29,5 @@
 
 .invalidationStatus {
   color: var(--bs-warning-text-emphasis, #664d03);
-  background-color: var(--bs-warning-bg-subtle, #fff3cd);
-  padding: 0.15em 0.5em;
-  border-radius: 0.25em;
-  font-weight: 500;
   cursor: help;
 }
