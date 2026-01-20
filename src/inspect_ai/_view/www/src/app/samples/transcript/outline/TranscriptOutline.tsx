@@ -19,7 +19,6 @@ import { useSampleDetailNavigation } from "../../../routing/sampleNavigation";
 import { kSandboxSignalName } from "../transform/fixups";
 import { flatTree } from "../transform/flatten";
 import { OutlineRow } from "./OutlineRow";
-import styles from "./TranscriptOutline.module.css";
 import {
   collapseScoring,
   collapseTurns,
@@ -214,7 +213,6 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       if (node === EventPaddingNode) {
         return (
           <div
-            className={clsx(styles.eventPadding)}
             key={node.id}
             style={{ height: "2em" }}
           ></div>

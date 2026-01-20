@@ -32,7 +32,6 @@ export const ContentDataView: FC<ContentDataProps> = ({ id, contentData }) => {
         <RecordTree
           id={`${id}-tree`}
           record={record}
-          className={clsx(styles.data)}
           defaultExpandLevel={0}
         />
       </div>
@@ -97,7 +96,6 @@ const serverToolRenderer: ContentDataRenderer = {
         <RecordTree
           id={data.name || "server-tool"}
           record={data}
-          className={clsx(styles.data)}
         />
       </>
     );

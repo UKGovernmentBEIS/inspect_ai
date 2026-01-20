@@ -45,7 +45,6 @@ export const SampleScoresView: FC<SampleScoresViewProps> = ({
         "container-fluid",
         className,
         "font-size-base",
-        styles.container,
       )}
     >
       <Card className={clsx(styles.scoreCard)}>

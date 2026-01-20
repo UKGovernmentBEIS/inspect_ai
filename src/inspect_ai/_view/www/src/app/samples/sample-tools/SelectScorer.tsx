@@ -69,7 +69,6 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         <div className={clsx(styles.links, "text-size-smaller")}>
           <a
             className={clsx(
-              styles.link,
               !allScoresSelected ? styles.selected : undefined,
             )}
             onClick={() => {
@@ -83,7 +82,6 @@ export const SelectScorer: FC<SelectScorerProps> = ({
           |
           <a
             className={clsx(
-              styles.link,
               allScoresSelected ? styles.selected : undefined,
             )}
             onClick={() => {

@@ -51,7 +51,6 @@ export const TodoWriteInput: FC<{
             />
             <span
               className={clsx(
-                styles.todoItem,
                 "text-size-smallest",
                 todo.status === "in_progress" ? styles.inProgress : undefined,
               )}

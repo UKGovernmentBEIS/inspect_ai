@@ -94,7 +94,7 @@ export const TranscriptVirtualListComponent: FC<
 
   const renderRow = useCallback(
     (index: number, item: EventNode, style?: CSSProperties) => {
-      const paddingClass = index === 0 ? styles.first : undefined;
+      const paddingClass = undefined;
 
       const previousIndex = index - 1;
       const nextIndex = index + 1;

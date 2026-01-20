@@ -75,7 +75,6 @@ const RenderTool: FC<RenderToolProps> = ({
         className={clsx(
           "tool-output",
           styles.outputPre,
-          styles.bottomMargin,
           className,
         )}
       >

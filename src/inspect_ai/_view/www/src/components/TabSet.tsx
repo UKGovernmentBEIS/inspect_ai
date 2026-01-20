@@ -105,7 +105,7 @@ const Tab: FC<{
           "nav-link",
           className,
           isActive && "active",
-          type === "pills" ? moduleStyles.pill : moduleStyles.tab,
+          type === "pills" ? undefined : moduleStyles.tab,
           "text-size-small",
           "text-style-label",
         )}
