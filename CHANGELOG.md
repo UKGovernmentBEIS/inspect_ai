@@ -2,6 +2,8 @@
 
 - Analysis: Read all samples at once in implementation of `samples_df()`.
 - Inspect View: Improve sample summary truncation (use markdown truncation instead of line clamping).
+- Inspect View: Fix issue with typing over selection in 'Find'
+- Inspect View: Support find using JSON-like syntax.
 
 ## 0.3.162 (18 January 2026)
 
