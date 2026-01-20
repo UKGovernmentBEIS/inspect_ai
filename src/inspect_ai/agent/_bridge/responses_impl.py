@@ -18,6 +18,7 @@ from openai.types.responses import (
     ResponseInputFileParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
+    ResponseInputMessageContentListParam,
     ResponseInputTextParam,
     ResponseOutputItem,
     ResponseOutputMessage,
@@ -64,6 +65,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.content import (
     Content,
+    ContentDocument,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -115,6 +117,7 @@ from inspect_ai.model._openai_responses import (
     is_response_output_text,
     is_response_reasoning_item,
     is_response_web_search_call,
+    is_simple_assistant_message,
     is_tool_choice_function_param,
     is_tool_choice_mcp_param,
     is_web_search_tool_param,
@@ -502,7 +505,42 @@ def messages_from_responses_input(
             content: list[Content] = []
             tool_calls: list[ToolCall] = []
             for param in pending_assistant_message_params:
-                if is_response_output_message(param):
+                # convert simple assistant message to standard format
+                if is_simple_assistant_message(param):
+                    if isinstance(param["content"], str):
+                        param_content: ResponseInputMessageContentListParam = [
+                            ResponseInputTextParam(
+                                text=param["content"], type="input_text"
+                            )
+                        ]
+                    else:
+                        param_content = param["content"]
+                    for c in param_content:
+                        if c["type"] == "input_text":
+                            asst_content, content_internal = (
+                                parse_content_with_internal(
+                                    c["text"], CONTENT_INTERNAL_TAG
+                                )
+                            )
+                            content.append(
+                                ContentText(
+                                    text=asst_content, internal=content_internal
+                                )
+                            )
+                        elif c["type"] == "input_image" and c["image_url"] is not None:
+                            content.append(
+                                ContentImage(image=c["image_url"], detail=c["detail"])
+                            )
+                        elif c["type"] == "input_file":
+                            content.append(
+                                ContentDocument(
+                                    document=c["file_data"],
+                                    filename=c["filename"],
+                                    # mime_type auto-detected from file_data URI
+                                )
+                            )
+
+                elif is_response_output_message(param):
                     for output in param["content"]:
                         text = str(output.get("text", output.get("refusal", "")))
 
