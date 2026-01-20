@@ -44,9 +44,10 @@ interface LiveVirtualListProps<T> {
 
   components?: Components<T>;
 
-  // Optional function to search within data items for text
+  // Optional function to extract searchable text from data items
   // If not provided, will use JSON.stringify as fallback
-  searchInItem?: (item: T, searchTerm: string) => boolean;
+  // Return a string or array of strings to search within
+  itemSearchText?: (item: T) => string | string[];
 }
 
 /**
@@ -64,7 +65,7 @@ export const LiveVirtualList = <T,>({
   initialTopMostItemIndex,
   offsetTop,
   components,
-  searchInItem,
+  itemSearchText,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
   const { getRestoreState, isScrolling, visibleRange, setVisibleRange } =
@@ -161,33 +162,50 @@ export const LiveVirtualList = <T,>({
 
   const [, forceRender] = useState({});
 
-  // Default search function that uses JSON.stringify as fallback
-  const defaultSearchInItem = useCallback(
-    (item: T, searchTerm: string): boolean => {
-      try {
-        const itemString = JSON.stringify(item).toLowerCase();
-        const prepared = prepareSearchTerm(searchTerm);
+  // Default function to extract searchable text using JSON.stringify
+  const defaultItemSearchText = useCallback((item: T): string => {
+    try {
+      return JSON.stringify(item);
+    } catch {
+      return "";
+    }
+  }, []);
 
-        // Simple search
-        if (itemString.includes(prepared.simple)) {
-          return true;
-        }
+  // Search within a single text string
+  const searchInText = useCallback(
+    (text: string, searchTerm: string): boolean => {
+      const lowerText = text.toLowerCase();
+      const prepared = prepareSearchTerm(searchTerm);
 
-        // Check variations
-        if (prepared.unquoted && itemString.includes(prepared.unquoted)) {
-          return true;
-        }
-
-        if (prepared.jsonEscaped && itemString.includes(prepared.jsonEscaped)) {
-          return true;
-        }
-
-        return false;
-      } catch {
-        return false;
+      // Simple search
+      if (lowerText.includes(prepared.simple)) {
+        return true;
       }
+
+      // Check variations
+      if (prepared.unquoted && lowerText.includes(prepared.unquoted)) {
+        return true;
+      }
+
+      if (prepared.jsonEscaped && lowerText.includes(prepared.jsonEscaped)) {
+        return true;
+      }
+
+      return false;
     },
     [],
+  );
+
+  // Search within an item using itemSearchText
+  const searchInItem = useCallback(
+    (item: T, searchTerm: string): boolean => {
+      const getSearchText = itemSearchText ?? defaultItemSearchText;
+      const texts = getSearchText(item);
+      const textArray = Array.isArray(texts) ? texts : [texts];
+
+      return textArray.some((text) => searchInText(text, searchTerm));
+    },
+    [itemSearchText, defaultItemSearchText, searchInText],
   );
 
   // Search in data function
@@ -199,7 +217,6 @@ export const LiveVirtualList = <T,>({
     ) => {
       if (!data.length || !term) return false;
 
-      const searchFn = searchInItem || defaultSearchInItem;
       const currentIndex =
         direction === "forward"
           ? visibleRange.endIndex
@@ -211,7 +228,7 @@ export const LiveVirtualList = <T,>({
       const step = direction === "forward" ? 1 : -1;
 
       for (let i = searchStart; i >= 0 && i < data.length; i += step) {
-        if (searchFn(data[i], term)) {
+        if (searchInItem(data[i], term)) {
           // Found a match! Set up callback and scroll to it
           pendingSearchCallback.current = onContentReady;
 
@@ -238,7 +255,6 @@ export const LiveVirtualList = <T,>({
     [
       data,
       searchInItem,
-      defaultSearchInItem,
       visibleRange.endIndex,
       visibleRange.startIndex,
       listHandle,

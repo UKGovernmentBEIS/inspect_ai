@@ -15,6 +15,7 @@ import { VirtuosoHandle } from "react-virtuoso";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import { useStore } from "../../../state/store";
 import styles from "./TranscriptVirtualListComponent.module.css";
+import { eventSearchText } from "./eventSearchText";
 
 interface TranscriptVirtualListComponentProps {
   id: string;
@@ -161,6 +162,7 @@ export const TranscriptVirtualListComponent: FC<
         offsetTop={offsetTop}
         renderRow={renderRow}
         live={running}
+        itemSearchText={eventSearchText}
       />
     );
   } else {
