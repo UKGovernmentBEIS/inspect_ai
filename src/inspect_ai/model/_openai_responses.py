@@ -1178,6 +1178,10 @@ def is_computer_call_output(
 def is_assistant_message_param(
     param: ResponseInputItemParam,
 ) -> bool:
+    # simple format w/o 'type' used by some scaffolds (e.g. Pydantic AI)
+    if is_simple_assistant_message(param):
+        return True
+
     return "type" in param and (
         is_response_output_message(param)
         or is_response_computer_tool_call(param)
@@ -1187,6 +1191,16 @@ def is_assistant_message_param(
         or is_response_reasoning_item(param)
         or is_response_mcp_list_tools(param)
         or is_response_mcp_call(param)
+    )
+
+
+def is_simple_assistant_message(
+    param: ResponseInputItemParam,
+) -> TypeGuard[EasyInputMessageParam | Message]:
+    # EasyInputMessageParam has optional type: "message", so we check "type" not in param
+    # to distinguish simple assistant messages (e.g. from Pydantic-AI) from full message params
+    return (
+        param.get("role") == "assistant" and "content" in param and "type" not in param
     )
 
 
