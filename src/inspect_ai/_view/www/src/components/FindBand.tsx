@@ -210,11 +210,16 @@ export const FindBand: FC<FindBandProps> = () => {
     const input = searchBoxRef.current;
     if (!input) return;
 
-    // Only restore cursor if there's no selection range or if the selection is collapsed
-    if (input.selectionStart === input.selectionEnd) {
+    // Only restore cursor if it's at position 0 (not explicitly positioned by user)
+    // If user clicked to position cursor elsewhere, respect their position
+    if (
+      input.selectionStart === 0 &&
+      input.selectionEnd === 0 &&
+      input.value.length > 0
+    ) {
       restoreCursor();
     } else {
-      // If there's a selection, clear the restore flag so we don't interfere
+      // User has positioned cursor or made a selection, don't interfere
       needsCursorRestoreRef.current = false;
     }
   }, [restoreCursor]);
