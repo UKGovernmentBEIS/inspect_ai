@@ -211,12 +211,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   const renderRow = useCallback(
     (index: number, node: EventNode) => {
       if (node === EventPaddingNode) {
-        return (
-          <div
-            key={node.id}
-            style={{ height: "2em" }}
-          ></div>
-        );
+        return <div key={node.id} style={{ height: "2em" }}></div>;
       } else {
         return (
           <OutlineRow

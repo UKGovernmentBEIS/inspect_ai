@@ -68,9 +68,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
       >
         <div className={clsx(styles.links, "text-size-smaller")}>
           <a
-            className={clsx(
-              !allScoresSelected ? styles.selected : undefined,
-            )}
+            className={clsx(!allScoresSelected ? styles.selected : undefined)}
             onClick={() => {
               if (scores.length > 0) {
                 setSelectedScores([scores[0]]);
@@ -81,9 +79,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
           </a>
           |
           <a
-            className={clsx(
-              allScoresSelected ? styles.selected : undefined,
-            )}
+            className={clsx(allScoresSelected ? styles.selected : undefined)}
             onClick={() => {
               setSelectedScores(scores);
             }}

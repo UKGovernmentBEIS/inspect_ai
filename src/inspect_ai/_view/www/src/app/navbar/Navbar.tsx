@@ -101,9 +101,7 @@ export const Navbar: FC<NavbarProps> = ({
                       {segment.url && !isLast ? (
                         <Link to={segment.url}>{segment.text}</Link>
                       ) : (
-                        <span>
-                          {segment.text}
-                        </span>
+                        <span>{segment.text}</span>
                       )}
                     </li>
                   </Fragment>
