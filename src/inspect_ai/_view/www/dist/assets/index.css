@@ -19523,23 +19523,23 @@ thead th {
   margin-right: 0.3em;
   margin-top: -0.1em;
 }
-._staticCol_xzzhl_1 {
+._staticCol_qgv1z_1 {
   flex-shrink: 0;
 }
 
-._justifyLeft_xzzhl_5 {
+._justifyLeft_qgv1z_5 {
   justify-self: left;
 }
 
-._justifyCenter_xzzhl_9 {
+._justifyCenter_qgv1z_9 {
   justify-self: center;
 }
 
-._justifyRight_xzzhl_13 {
+._justifyRight_qgv1z_13 {
   justify-self: right;
 }
 
-._valueGrid_xzzhl_17 {
+._valueGrid_qgv1z_17 {
   margin: 0;
   padding: 0.2em 1em 0.2em 1em;
   display: grid;
@@ -19547,9 +19547,14 @@ thead th {
   border-top: 1px solid var(--bs-border-color);
 }
 
-._container_xzzhl_25 {
+._container_qgv1z_25 {
   margin: 0;
   width: 100%;
+}
+
+._invalidationStatus_qgv1z_30 {
+  color: var(--bs-warning-text-emphasis, #664d03);
+  cursor: help;
 }
 ._navbarWrapper_14eve_1 {
   width: 100%;
