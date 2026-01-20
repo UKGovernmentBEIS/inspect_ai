@@ -92,6 +92,9 @@ export const SamplesPanel: FC = () => {
 
   const currentDir = join(samplesPath || "", logDir);
 
+  // Detect multi-eval-set mode (synthetic log directory)
+  const isMultiEvalSet = logDir?.startsWith("__multi_eval_set__") ?? false;
+
   const evalSet = useStore((state) => state.logs.evalSet);
   const logFiles = useLogsWithretried();
   const logPreviews = useStore((state) => state.logs.logPreviews);
@@ -99,14 +102,16 @@ export const SamplesPanel: FC = () => {
   const currentDirLogFiles = useMemo(() => {
     const files = [];
     for (const logFile of logFiles) {
-      const inCurrentDir = logFile.name.startsWith(currentDir);
+      // For multi-eval-sets, skip directory filtering since files are already
+      // specifically collected and their paths don't include the synthetic prefix
+      const inCurrentDir = isMultiEvalSet || logFile.name.startsWith(currentDir);
       const skipped = !showRetriedLogs && logFile.retried;
       if (inCurrentDir && !skipped) {
         files.push(logFile);
       }
     }
     return files;
-  }, [currentDir, logFiles, showRetriedLogs]);
+  }, [currentDir, logFiles, showRetriedLogs, isMultiEvalSet]);
 
   const totalTaskCount = useMemo(() => {
     const currentDirTaskIds = new Set(currentDirLogFiles.map((f) => f.task_id));
@@ -136,8 +141,10 @@ export const SamplesPanel: FC = () => {
 
   // Filter logDetails based on samplesPath
   const logDetailsInPath = useMemo(() => {
-    if (!samplesPath) {
-      return logDetails; // Show all samples when no path is specified
+    // For multi-eval-sets, skip path filtering since files are already
+    // specifically collected and their paths don't include the synthetic prefix
+    if (!samplesPath || isMultiEvalSet) {
+      return logDetails;
     }
 
     const samplesPathAbs = join(samplesPath, logDir);
@@ -152,7 +159,7 @@ export const SamplesPanel: FC = () => {
       },
       {} as typeof logDetails,
     );
-  }, [logDetails, logDir, samplesPath]);
+  }, [logDetails, logDir, samplesPath, isMultiEvalSet]);
 
   // Transform logDetails into flat rows
   const [sampleRows, hasRetriedLogs] = useMemo(() => {
