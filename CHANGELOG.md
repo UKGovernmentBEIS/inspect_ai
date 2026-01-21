@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: Only re-order reasoning blocks for Claude 3 (as we use interleaved thinking for Claude 4).
 - Analysis: Read all samples at once in implementation of `samples_df()`.
 - Agent Bridge: Handle OpenAI assistant message params with no 'type' field (Pydantic AI compatibility).
 - Inspect View: Improve sample summary truncation (use markdown truncation instead of line clamping).

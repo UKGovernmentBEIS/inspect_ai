@@ -1475,12 +1475,14 @@ async def assistant_message_block_params(
         )
     )
 
-    # move the first instance of thinking to the front
-    for i, c in enumerate(block_params):
-        if c["type"] in ["thinking", "redacted_thinking"] and i > 0:
-            block_params.pop(i)
-            block_params.insert(0, c)
-            break
+    # move the first instance of thinking to the front (we only need to do this
+    # for claude 3 models as we enable interleaved thinking for claude 4)
+    if message.model and message.model.startswith("claude-3"):
+        for i, c in enumerate(block_params):
+            if c["type"] in ["thinking", "redacted_thinking"] and i > 0:
+                block_params.pop(i)
+                block_params.insert(0, c)
+                break
 
     # filter out empty text content (sometimes claude passes empty text
     # context back with tool calls but won't let us play them back)
