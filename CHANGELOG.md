@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.163 (21 January 2026)
 
 - Anthropic: Only re-order reasoning blocks for Claude 3 (as we use interleaved thinking for Claude 4).
 - Analysis: Read all samples at once in implementation of `samples_df()`.
