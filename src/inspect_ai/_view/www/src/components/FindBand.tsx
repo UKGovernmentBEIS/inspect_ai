@@ -1,7 +1,16 @@
 import clsx from "clsx";
-import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
+import {
+  FC,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
+import { findScrollableParent, scrollRangeToCenter } from "../utils/dom";
+import { debounce } from "../utils/sync";
 import { useExtendedFind } from "./ExtendedFindContext";
 import "./FindBand.css";
 
@@ -25,7 +34,6 @@ export const FindBand: FC<FindBandProps> = () => {
     parentElement: Element;
   } | null>(null);
   const currentSearchTerm = useRef<string>("");
-  const debounceTimerRef = useRef<number | null>(null);
   const needsCursorRestoreRef = useRef<boolean>(false);
   const lastNoResultTerm = useRef<string>("");
   const lastNoResultDirection = useRef<boolean | null>(null);
@@ -114,23 +122,10 @@ export const FindBand: FC<FindBandProps> = () => {
       }
 
       // Save scroll position before search (window.find may scroll during search)
-      let savedScrollParent: HTMLElement | null = null;
-      let savedScrollTop = 0;
-      if (savedRange) {
-        let current = savedRange.startContainer.parentElement;
-        while (current && current !== document.body) {
-          const style = getComputedStyle(current);
-          if (
-            (style.overflowY === "auto" || style.overflowY === "scroll") &&
-            current.scrollHeight > current.clientHeight + 100
-          ) {
-            savedScrollParent = current;
-            savedScrollTop = current.scrollTop;
-            break;
-          }
-          current = current.parentElement;
-        }
-      }
+      const savedScrollParent = savedRange
+        ? findScrollableParent(savedRange.startContainer.parentElement)
+        : null;
+      const savedScrollTop = savedScrollParent?.scrollTop ?? 0;
 
       // Find the term in the DOM
       let result = await findExtendedInDOM(
@@ -199,52 +194,12 @@ export const FindBand: FC<FindBandProps> = () => {
             parentPanel.style.webkitBoxOrient = "";
           }
 
-          // Scroll the selection into view
-          // We can't use element.scrollIntoView() because for large elements
-          // (like CODE blocks), it scrolls to the element's top, not the selection
+          // Scroll the selection into view (with a small delay for DOM updates)
           if (scrollTimeoutRef.current !== null) {
             window.clearTimeout(scrollTimeoutRef.current);
           }
           scrollTimeoutRef.current = window.setTimeout(() => {
-            const selectionRects = range.getClientRects();
-            if (selectionRects.length === 0) return;
-
-            const selectionRect = selectionRects[0];
-
-            // Find the nearest scrollable ancestor with significant scroll height
-            let scrollableParent: HTMLElement | null = null;
-            let current = range.startContainer.parentElement;
-            while (current && current !== document.body) {
-              const style = getComputedStyle(current);
-              if (
-                (style.overflowY === "auto" || style.overflowY === "scroll") &&
-                current.scrollHeight > current.clientHeight + 100
-              ) {
-                scrollableParent = current;
-                break;
-              }
-              current = current.parentElement;
-            }
-
-            if (scrollableParent) {
-              const parentRect = scrollableParent.getBoundingClientRect();
-              const selectionOffsetInParent =
-                selectionRect.top - parentRect.top + scrollableParent.scrollTop;
-              const targetScrollTop =
-                selectionOffsetInParent - scrollableParent.clientHeight / 2;
-
-              scrollableParent.scrollTo({
-                top: Math.max(0, targetScrollTop),
-                behavior: "auto",
-              });
-            } else {
-              // Fallback to scrollIntoView if no scrollable parent found
-              const element = range.startContainer.parentElement;
-              element?.scrollIntoView({
-                behavior: "auto",
-                block: "center",
-              });
-            }
+            scrollRangeToCenter(range);
           }, 100);
         }
       }
@@ -260,32 +215,12 @@ export const FindBand: FC<FindBandProps> = () => {
       searchBoxRef.current?.select();
     }, 10);
 
-    // Block browser find when FindBand is active
-    const handleGlobalKeydown = (e: globalThis.KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        e.preventDefault();
-        e.stopPropagation();
-        // Focus our search box instead
-        searchBoxRef.current?.focus();
-        searchBoxRef.current?.select();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "g") {
-        e.preventDefault();
-        e.stopPropagation();
-        const back = e.shiftKey;
-        // Find next / previous
-        void handleSearch(back);
-      }
-    };
-
-    document.addEventListener("keydown", handleGlobalKeydown, true); // Use capture phase
-
     // Capture ref values for cleanup
     const mutatedPanels = mutatedPanelsRef.current;
     const scrollTimeout = scrollTimeoutRef.current;
     const focusTimeout = focusTimeoutRef.current;
 
     return () => {
-      document.removeEventListener("keydown", handleGlobalKeydown, true);
       if (scrollTimeout !== null) {
         window.clearTimeout(scrollTimeout);
       }
@@ -301,7 +236,7 @@ export const FindBand: FC<FindBandProps> = () => {
       });
       mutatedPanels.clear();
     };
-  }, [handleSearch]);
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -339,18 +274,20 @@ export const FindBand: FC<FindBandProps> = () => {
   }, []);
 
   // Debounced auto-search as you type
+  const debouncedSearch = useMemo(
+    () =>
+      debounce(async () => {
+        if (!searchBoxRef.current) return;
+        await handleSearch(false);
+        // Mark for cursor restore on next keypress (keeps find highlight visible)
+        needsCursorRestoreRef.current = true;
+      }, 300),
+    [handleSearch],
+  );
+
   const handleInputChange = useCallback(() => {
-    if (debounceTimerRef.current !== null) {
-      window.clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = window.setTimeout(async () => {
-      debounceTimerRef.current = null;
-      if (!searchBoxRef.current) return;
-      await handleSearch(false);
-      // Mark for cursor restore on next keypress (keeps find highlight visible)
-      needsCursorRestoreRef.current = true;
-    }, 300);
-  }, [handleSearch]);
+    debouncedSearch();
+  }, [debouncedSearch]);
 
   const handleBeforeInput = useCallback(() => {
     // Only restore cursor if no text is selected
@@ -364,15 +301,37 @@ export const FindBand: FC<FindBandProps> = () => {
     }
   }, [restoreCursor]);
 
+  // Consolidated global keyboard handler
   useEffect(() => {
     const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      // F3: Find next/previous
       if (e.key === "F3") {
         e.preventDefault();
         void handleSearch(e.shiftKey);
         return;
       }
 
+      // Ctrl/Cmd+F: Focus search box (block browser find)
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        e.stopPropagation();
+        searchBoxRef.current?.focus();
+        searchBoxRef.current?.select();
+        return;
+      }
+
+      // Ctrl/Cmd+G: Find next/previous
+      if ((e.ctrlKey || e.metaKey) && e.key === "g") {
+        e.preventDefault();
+        e.stopPropagation();
+        void handleSearch(e.shiftKey);
+        return;
+      }
+
+      // Skip if modifier keys are held (except for handled shortcuts above)
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // Auto-focus input when typing printable characters or backspace/delete
       if (e.key.length !== 1 && e.key !== "Backspace" && e.key !== "Delete")
         return;
 
@@ -391,12 +350,10 @@ export const FindBand: FC<FindBandProps> = () => {
       }
     };
 
-    document.addEventListener("keydown", handleGlobalKeyDown);
+    // Use capture phase to intercept browser's native find dialog
+    document.addEventListener("keydown", handleGlobalKeyDown, true);
     return () => {
-      document.removeEventListener("keydown", handleGlobalKeyDown);
-      if (debounceTimerRef.current !== null) {
-        window.clearTimeout(debounceTimerRef.current);
-      }
+      document.removeEventListener("keydown", handleGlobalKeyDown, true);
     };
   }, [handleSearch, restoreCursor]);
 
