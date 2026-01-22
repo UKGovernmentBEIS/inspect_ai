@@ -1,0 +1,1340 @@
+# =============================================================================
+# Field Classification Taxonomy for EvalLog
+# =============================================================================
+# This file defines sensitivity and informativeness levels for EvalLog fields
+# to support secure log publication.
+#
+# Field paths use type-qualified dot notation:
+# - EvalLog.field - direct field on EvalLog
+# - EvalSpec.field - field on nested EvalSpec type
+# - EvalSample.messages[] - list elements
+# - *.metadata.* - dynamic dict keys (wildcard matching)
+#
+# Sensitivity levels:
+#   low    - Non-sensitive data (versions, IDs, timestamps, configuration)
+#   medium - Potentially identifying data (file paths, hostnames, project structure)
+#   high   - Sensitive data (credentials, user inputs, model outputs, personal data)
+#
+# Informativeness levels:
+#   low    - Limited analytical value (internal IDs, format versions)
+#   medium - Useful for some analyses (configuration, timing, resource usage)
+#   high   - Critical for understanding results (scores, model outputs, errors)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# EvalLog top-level fields
+# -----------------------------------------------------------------------------
+fields:
+  EvalLog.version:
+    sensitivity: low
+    informativeness: low
+    rationale: "Log format version number, purely technical"
+
+  EvalLog.status:
+    sensitivity: low
+    informativeness: high
+    rationale: "Evaluation completion status, critical for understanding results"
+
+  EvalLog.eval:
+    sensitivity: medium
+    informativeness: high
+    rationale: "Contains EvalSpec with mixed sensitivity fields"
+
+  EvalLog.plan:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Solver plan with config, may contain custom params"
+
+  EvalLog.results:
+    sensitivity: low
+    informativeness: high
+    rationale: "Aggregate scores and metrics, critical for analysis"
+
+  EvalLog.stats:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Timing and usage statistics"
+
+  EvalLog.error:
+    sensitivity: high
+    informativeness: high
+    rationale: "Error details may expose internal paths and state"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  EvalLog.invalidated:
+    sensitivity: low
+    informativeness: high
+    rationale: "Boolean flag indicating sample invalidation"
+
+  EvalLog.samples:
+    sensitivity: high
+    informativeness: high
+    rationale: "Contains full conversation data and user inputs"
+    may_contain_user_data: true
+    may_contain_model_output: true
+
+  EvalLog.reductions:
+    sensitivity: low
+    informativeness: high
+    rationale: "Reduced sample scores, aggregate data"
+
+  # ---------------------------------------------------------------------------
+  # EvalSpec fields
+  # ---------------------------------------------------------------------------
+  EvalSpec.eval_set_id:
+    sensitivity: low
+    informativeness: low
+    rationale: "Internal identifier for eval set"
+
+  EvalSpec.eval_id:
+    sensitivity: low
+    informativeness: low
+    rationale: "Unique evaluation identifier"
+
+  EvalSpec.run_id:
+    sensitivity: low
+    informativeness: low
+    rationale: "Unique run identifier"
+
+  EvalSpec.created:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Timestamp of evaluation creation"
+
+  EvalSpec.task:
+    sensitivity: low
+    informativeness: high
+    rationale: "Task name, needed for analysis"
+
+  EvalSpec.task_id:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Unique task identifier"
+
+  EvalSpec.task_version:
+    sensitivity: low
+    informativeness: high
+    rationale: "Task version for reproducibility"
+
+  EvalSpec.task_file:
+    sensitivity: medium
+    informativeness: low
+    rationale: "File path may expose project structure"
+
+  EvalSpec.task_display_name:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Human-readable task name"
+
+  EvalSpec.task_registry_name:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Registry identifier for task"
+
+  EvalSpec.task_attribs:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Task decorator attributes, may contain custom config"
+
+  EvalSpec.task_args:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Task invocation arguments, may contain custom values"
+
+  EvalSpec.task_args_passed:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Explicitly passed task arguments"
+
+  EvalSpec.solver:
+    sensitivity: low
+    informativeness: high
+    rationale: "Solver name, important for analysis"
+
+  EvalSpec.solver_args:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Solver arguments, may contain custom config"
+
+  EvalSpec.solver_args_passed:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Explicitly passed solver arguments"
+
+  EvalSpec.tags:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "User-defined tags, may contain identifying info"
+    may_contain_user_data: true
+
+  EvalSpec.dataset:
+    sensitivity: medium
+    informativeness: high
+    rationale: "Dataset info including location which may be sensitive"
+
+  EvalSpec.sandbox:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Sandbox environment spec, may include config paths"
+
+  EvalSpec.model:
+    sensitivity: low
+    informativeness: high
+    rationale: "Model name, critical for analysis"
+
+  EvalSpec.model_generate_config:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Generation parameters like temperature, top_p"
+
+  EvalSpec.model_base_url:
+    sensitivity: medium
+    informativeness: low
+    rationale: "API endpoint, usually hostname but could contain tokens"
+
+  EvalSpec.model_args:
+    sensitivity: medium
+    informativeness: low
+    rationale: "Model args filtered by model_args_for_log(), may have custom config"
+
+  EvalSpec.model_roles:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Model role configurations"
+
+  EvalSpec.config:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Evaluation configuration options"
+
+  EvalSpec.revision:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Git revision info, useful for reproducibility"
+
+  EvalSpec.packages:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Package versions for reproducibility"
+
+  EvalSpec.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Arbitrary user-provided metadata"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  EvalSpec.scorers:
+    sensitivity: low
+    informativeness: high
+    rationale: "Scorer configurations, important for understanding results"
+
+  EvalSpec.metrics:
+    sensitivity: low
+    informativeness: high
+    rationale: "Metric configurations"
+
+  # ---------------------------------------------------------------------------
+  # EvalConfig fields
+  # ---------------------------------------------------------------------------
+  EvalConfig.limit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Sample limit configuration"
+
+  EvalConfig.sample_id:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Specific sample IDs to evaluate"
+
+  EvalConfig.sample_shuffle:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Shuffle configuration"
+
+  EvalConfig.epochs:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Number of epochs"
+
+  EvalConfig.epochs_reducer:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Reducer for aggregating scores"
+
+  EvalConfig.approval:
+    sensitivity: medium
+    informativeness: low
+    rationale: "Approval policy config, may contain custom settings"
+
+  EvalConfig.fail_on_error:
+    sensitivity: low
+    informativeness: low
+    rationale: "Error handling configuration"
+
+  EvalConfig.continue_on_fail:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Error handling configuration"
+
+  EvalConfig.retry_on_error:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Retry configuration"
+
+  EvalConfig.message_limit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Message limit per sample"
+
+  EvalConfig.token_limit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Token limit per sample"
+
+  EvalConfig.time_limit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Time limit per sample"
+
+  EvalConfig.working_limit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Working time limit per sample"
+
+  EvalConfig.max_samples:
+    sensitivity: low
+    informativeness: low
+    rationale: "Parallelism configuration"
+
+  EvalConfig.max_tasks:
+    sensitivity: low
+    informativeness: low
+    rationale: "Parallelism configuration"
+
+  EvalConfig.max_subprocesses:
+    sensitivity: low
+    informativeness: low
+    rationale: "Parallelism configuration"
+
+  EvalConfig.max_sandboxes:
+    sensitivity: low
+    informativeness: low
+    rationale: "Parallelism configuration"
+
+  EvalConfig.sandbox_cleanup:
+    sensitivity: low
+    informativeness: low
+    rationale: "Sandbox cleanup configuration"
+
+  EvalConfig.log_samples:
+    sensitivity: low
+    informativeness: low
+    rationale: "Logging configuration"
+
+  EvalConfig.log_realtime:
+    sensitivity: low
+    informativeness: low
+    rationale: "Logging configuration"
+
+  EvalConfig.log_images:
+    sensitivity: low
+    informativeness: low
+    rationale: "Logging configuration"
+
+  EvalConfig.log_buffer:
+    sensitivity: low
+    informativeness: low
+    rationale: "Logging configuration"
+
+  EvalConfig.log_shared:
+    sensitivity: low
+    informativeness: low
+    rationale: "Logging configuration"
+
+  EvalConfig.score_display:
+    sensitivity: low
+    informativeness: low
+    rationale: "Display configuration"
+
+  # ---------------------------------------------------------------------------
+  # EvalSample fields
+  # ---------------------------------------------------------------------------
+  EvalSample.id:
+    sensitivity: low
+    informativeness: high
+    rationale: "Sample identifier, needed for analysis"
+
+  EvalSample.epoch:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Epoch number for the sample"
+
+  EvalSample.input:
+    sensitivity: high
+    informativeness: high
+    rationale: "Task input, may contain sensitive user data"
+    may_contain_user_data: true
+
+  EvalSample.choices:
+    sensitivity: low
+    informativeness: high
+    rationale: "Multiple choice options from dataset"
+
+  EvalSample.target:
+    sensitivity: low
+    informativeness: high
+    rationale: "Expected answer from dataset"
+
+  EvalSample.sandbox:
+    sensitivity: medium
+    informativeness: low
+    rationale: "Sandbox environment spec"
+
+  EvalSample.files:
+    sensitivity: medium
+    informativeness: low
+    rationale: "File paths for sample"
+
+  EvalSample.setup:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Setup script content"
+
+  EvalSample.messages:
+    sensitivity: high
+    informativeness: high
+    rationale: "Full conversation history with model"
+    may_contain_user_data: true
+    may_contain_model_output: true
+
+  EvalSample.output:
+    sensitivity: high
+    informativeness: high
+    rationale: "Model output for the sample"
+    may_contain_model_output: true
+
+  EvalSample.scores:
+    sensitivity: low
+    informativeness: high
+    rationale: "Evaluation scores, critical for analysis"
+
+  EvalSample.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Arbitrary sample metadata"
+    may_contain_user_data: true
+
+  EvalSample.store:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Runtime state, may contain arbitrary data"
+    may_contain_user_data: true
+
+  EvalSample.events:
+    sensitivity: high
+    informativeness: high
+    rationale: "Detailed event trace with all interactions"
+    may_contain_user_data: true
+    may_contain_model_output: true
+
+  EvalSample.model_usage:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Token usage statistics"
+
+  EvalSample.started_at:
+    sensitivity: low
+    informativeness: low
+    rationale: "Sample start timestamp"
+
+  EvalSample.completed_at:
+    sensitivity: low
+    informativeness: low
+    rationale: "Sample completion timestamp"
+
+  EvalSample.total_time:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Total sample runtime"
+
+  EvalSample.working_time:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Active working time"
+
+  EvalSample.uuid:
+    sensitivity: low
+    informativeness: low
+    rationale: "Unique sample identifier"
+
+  EvalSample.invalidation:
+    sensitivity: low
+    informativeness: low
+    rationale: "Invalidation provenance data"
+
+  EvalSample.error:
+    sensitivity: high
+    informativeness: high
+    rationale: "Error details may expose internal state"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  EvalSample.error_retries:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Retry error history"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  EvalSample.attachments:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Attachment content, may include sensitive data"
+    may_contain_user_data: true
+
+  EvalSample.limit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Sample limit that was reached"
+
+  # ---------------------------------------------------------------------------
+  # EvalSampleSummary fields (subset of EvalSample, same classifications)
+  # ---------------------------------------------------------------------------
+  EvalSampleSummary.id:
+    sensitivity: low
+    informativeness: high
+    rationale: "Sample identifier"
+
+  EvalSampleSummary.epoch:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Epoch number"
+
+  EvalSampleSummary.input:
+    sensitivity: high
+    informativeness: high
+    rationale: "Task input (truncated)"
+    may_contain_user_data: true
+
+  EvalSampleSummary.choices:
+    sensitivity: medium
+    informativeness: high
+    rationale: "Multiple choice options"
+    may_contain_user_data: true
+
+  EvalSampleSummary.target:
+    sensitivity: medium
+    informativeness: high
+    rationale: "Expected answer (truncated)"
+    may_contain_user_data: true
+
+  EvalSampleSummary.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Sample metadata (thinned)"
+    may_contain_user_data: true
+
+  EvalSampleSummary.scores:
+    sensitivity: low
+    informativeness: high
+    rationale: "Evaluation scores"
+
+  EvalSampleSummary.model_usage:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Token usage"
+
+  EvalSampleSummary.started_at:
+    sensitivity: low
+    informativeness: low
+    rationale: "Start timestamp"
+
+  EvalSampleSummary.completed_at:
+    sensitivity: low
+    informativeness: low
+    rationale: "Completion timestamp"
+
+  EvalSampleSummary.total_time:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Total runtime"
+
+  EvalSampleSummary.working_time:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Working time"
+
+  EvalSampleSummary.uuid:
+    sensitivity: low
+    informativeness: low
+    rationale: "Unique identifier"
+
+  EvalSampleSummary.error:
+    sensitivity: high
+    informativeness: high
+    rationale: "Error message"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  EvalSampleSummary.limit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Limit type string"
+
+  EvalSampleSummary.retries:
+    sensitivity: low
+    informativeness: low
+    rationale: "Number of retries"
+
+  EvalSampleSummary.completed:
+    sensitivity: low
+    informativeness: high
+    rationale: "Completion status"
+
+  EvalSampleSummary.message_count:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Number of messages"
+
+  # ---------------------------------------------------------------------------
+  # EvalPlan fields
+  # ---------------------------------------------------------------------------
+  EvalPlan.name:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Plan name"
+
+  EvalPlan.steps:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Solver steps with params"
+
+  EvalPlan.finish:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Final step configuration"
+
+  EvalPlan.config:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Generation configuration"
+
+  # ---------------------------------------------------------------------------
+  # EvalPlanStep fields
+  # ---------------------------------------------------------------------------
+  EvalPlanStep.solver:
+    sensitivity: low
+    informativeness: high
+    rationale: "Solver name"
+
+  EvalPlanStep.params:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Solver parameters, may contain custom values"
+
+  EvalPlanStep.params_passed:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Explicitly passed parameters"
+
+  # ---------------------------------------------------------------------------
+  # EvalResults fields
+  # ---------------------------------------------------------------------------
+  EvalResults.total_samples:
+    sensitivity: low
+    informativeness: high
+    rationale: "Total sample count"
+
+  EvalResults.completed_samples:
+    sensitivity: low
+    informativeness: high
+    rationale: "Completed sample count"
+
+  EvalResults.early_stopping:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Early stopping summary"
+
+  EvalResults.scores:
+    sensitivity: low
+    informativeness: high
+    rationale: "Evaluation scores list"
+
+  EvalResults.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Results metadata, arbitrary user data"
+    may_contain_user_data: true
+
+  # ---------------------------------------------------------------------------
+  # EvalScore fields
+  # ---------------------------------------------------------------------------
+  EvalScore.name:
+    sensitivity: low
+    informativeness: high
+    rationale: "Score name"
+
+  EvalScore.scorer:
+    sensitivity: low
+    informativeness: high
+    rationale: "Scorer name"
+
+  EvalScore.reducer:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Reducer name"
+
+  EvalScore.scored_samples:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Number of scored samples"
+
+  EvalScore.unscored_samples:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Number of unscored samples"
+
+  EvalScore.params:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Scorer parameters"
+
+  EvalScore.metrics:
+    sensitivity: low
+    informativeness: high
+    rationale: "Computed metrics"
+
+  EvalScore.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Scorer metadata, may contain user data"
+    may_contain_user_data: true
+
+  # ---------------------------------------------------------------------------
+  # EvalMetric fields
+  # ---------------------------------------------------------------------------
+  EvalMetric.name:
+    sensitivity: low
+    informativeness: high
+    rationale: "Metric name"
+
+  EvalMetric.value:
+    sensitivity: low
+    informativeness: high
+    rationale: "Metric value, critical for analysis"
+
+  EvalMetric.params:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Metric parameters"
+
+  EvalMetric.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Metric metadata"
+    may_contain_user_data: true
+
+  # ---------------------------------------------------------------------------
+  # EvalStats fields
+  # ---------------------------------------------------------------------------
+  EvalStats.started_at:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Evaluation start time"
+
+  EvalStats.completed_at:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Evaluation completion time"
+
+  EvalStats.model_usage:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Aggregate model token usage"
+
+  # ---------------------------------------------------------------------------
+  # EvalDataset fields
+  # ---------------------------------------------------------------------------
+  EvalDataset.name:
+    sensitivity: low
+    informativeness: high
+    rationale: "Dataset name"
+
+  EvalDataset.location:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Dataset path or URL, may expose project structure"
+
+  EvalDataset.samples:
+    sensitivity: low
+    informativeness: high
+    rationale: "Number of samples in dataset"
+
+  EvalDataset.sample_ids:
+    sensitivity: low
+    informativeness: low
+    rationale: "List of sample IDs"
+
+  EvalDataset.shuffled:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Whether dataset was shuffled"
+
+  # ---------------------------------------------------------------------------
+  # EvalRevision fields
+  # ---------------------------------------------------------------------------
+  EvalRevision.type:
+    sensitivity: low
+    informativeness: low
+    rationale: "Revision type"
+
+  EvalRevision.origin:
+    sensitivity: medium
+    informativeness: low
+    rationale: "Git origin, may expose internal URLs"
+
+  EvalRevision.commit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Git commit hash"
+
+  EvalRevision.dirty:
+    sensitivity: low
+    informativeness: low
+    rationale: "Whether working tree was dirty"
+
+  # ---------------------------------------------------------------------------
+  # EvalError fields
+  # ---------------------------------------------------------------------------
+  EvalError.message:
+    sensitivity: high
+    informativeness: high
+    rationale: "Error message may contain sensitive paths or data"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  EvalError.traceback:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Stack trace exposes internal code paths and state"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  EvalError.traceback_ansi:
+    sensitivity: high
+    informativeness: low
+    rationale: "ANSI-formatted traceback"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  # ---------------------------------------------------------------------------
+  # EvalSampleLimit fields
+  # ---------------------------------------------------------------------------
+  EvalSampleLimit.type:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Type of limit encountered"
+
+  EvalSampleLimit.limit:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Limit value"
+
+  # ---------------------------------------------------------------------------
+  # Score fields
+  # ---------------------------------------------------------------------------
+  Score.value:
+    sensitivity: low
+    informativeness: high
+    rationale: "Score value, critical for analysis"
+
+  Score.answer:
+    sensitivity: medium
+    informativeness: high
+    rationale: "Model answer being scored"
+    may_contain_model_output: true
+
+  Score.explanation:
+    sensitivity: medium
+    informativeness: high
+    rationale: "Score explanation, may contain model output references"
+    may_contain_model_output: true
+
+  Score.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Score metadata, arbitrary data"
+    may_contain_user_data: true
+
+  # ---------------------------------------------------------------------------
+  # ChatMessage fields
+  # ---------------------------------------------------------------------------
+  ChatMessage.id:
+    sensitivity: low
+    informativeness: low
+    rationale: "Message identifier"
+
+  ChatMessage.role:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Message role (system/user/assistant/tool)"
+
+  ChatMessage.content:
+    sensitivity: high
+    informativeness: high
+    rationale: "Message content, contains conversation data"
+    may_contain_user_data: true
+    may_contain_model_output: true
+
+  ChatMessage.source:
+    sensitivity: low
+    informativeness: low
+    rationale: "Message source indicator"
+
+  ChatMessage.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Message metadata"
+    may_contain_user_data: true
+
+  ChatMessage.tool_calls:
+    sensitivity: high
+    informativeness: high
+    rationale: "Tool calls with arguments and results"
+    may_contain_model_output: true
+
+  ChatMessage.tool_call_id:
+    sensitivity: low
+    informativeness: low
+    rationale: "Tool call identifier"
+
+  ChatMessage.function:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Function name for tool messages"
+
+  ChatMessage.error:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Tool error information"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  # ---------------------------------------------------------------------------
+  # ModelOutput fields
+  # ---------------------------------------------------------------------------
+  ModelOutput.model:
+    sensitivity: low
+    informativeness: high
+    rationale: "Model name"
+
+  ModelOutput.choices:
+    sensitivity: high
+    informativeness: high
+    rationale: "Model response choices"
+    may_contain_model_output: true
+
+  ModelOutput.usage:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Token usage statistics"
+
+  ModelOutput.error:
+    sensitivity: high
+    informativeness: high
+    rationale: "Model error information"
+    may_contain_credentials: true
+
+  ModelOutput.stop_reason:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Why generation stopped"
+
+  # ---------------------------------------------------------------------------
+  # Event base fields (shared by all events)
+  # ---------------------------------------------------------------------------
+  BaseEvent.uuid:
+    sensitivity: low
+    informativeness: low
+    rationale: "Event identifier"
+
+  BaseEvent.span_id:
+    sensitivity: low
+    informativeness: low
+    rationale: "Span identifier"
+
+  BaseEvent.timestamp:
+    sensitivity: low
+    informativeness: low
+    rationale: "Event timestamp"
+
+  BaseEvent.working_start:
+    sensitivity: low
+    informativeness: low
+    rationale: "Working time when event occurred"
+
+  BaseEvent.metadata:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Event metadata, arbitrary data"
+    may_contain_user_data: true
+
+  BaseEvent.pending:
+    sensitivity: low
+    informativeness: low
+    rationale: "Event pending status"
+
+  # ---------------------------------------------------------------------------
+  # ModelEvent fields
+  # ---------------------------------------------------------------------------
+  ModelEvent.event:
+    sensitivity: low
+    informativeness: low
+    rationale: "Event type identifier"
+
+  ModelEvent.model:
+    sensitivity: low
+    informativeness: high
+    rationale: "Model name"
+
+  ModelEvent.role:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Model role"
+
+  ModelEvent.input:
+    sensitivity: high
+    informativeness: high
+    rationale: "Input messages to model"
+    may_contain_user_data: true
+
+  ModelEvent.tools:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Available tool definitions"
+
+  ModelEvent.tool_choice:
+    sensitivity: low
+    informativeness: low
+    rationale: "Tool choice directive"
+
+  ModelEvent.config:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Generation config for this call"
+
+  ModelEvent.output:
+    sensitivity: high
+    informativeness: high
+    rationale: "Model output"
+    may_contain_model_output: true
+
+  ModelEvent.retries:
+    sensitivity: low
+    informativeness: low
+    rationale: "Number of API retries"
+
+  ModelEvent.error:
+    sensitivity: high
+    informativeness: high
+    rationale: "Error during model call"
+    may_contain_credentials: true
+
+  ModelEvent.cache:
+    sensitivity: low
+    informativeness: low
+    rationale: "Cache read/write indicator"
+
+  ModelEvent.call:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Raw API call data"
+    may_contain_user_data: true
+    may_contain_model_output: true
+
+  ModelEvent.completed:
+    sensitivity: low
+    informativeness: low
+    rationale: "Completion timestamp"
+
+  ModelEvent.working_time:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Working time for call"
+
+  # ---------------------------------------------------------------------------
+  # ToolEvent fields
+  # ---------------------------------------------------------------------------
+  ToolEvent.event:
+    sensitivity: low
+    informativeness: low
+    rationale: "Event type identifier"
+
+  ToolEvent.type:
+    sensitivity: low
+    informativeness: low
+    rationale: "Tool call type"
+
+  ToolEvent.id:
+    sensitivity: low
+    informativeness: low
+    rationale: "Tool call identifier"
+
+  ToolEvent.function:
+    sensitivity: low
+    informativeness: high
+    rationale: "Function name called"
+
+  ToolEvent.arguments:
+    sensitivity: high
+    informativeness: high
+    rationale: "Tool call arguments"
+    may_contain_user_data: true
+    may_contain_model_output: true
+
+  ToolEvent.view:
+    sensitivity: high
+    informativeness: medium
+    rationale: "Custom view of tool input"
+    may_contain_user_data: true
+
+  ToolEvent.result:
+    sensitivity: high
+    informativeness: high
+    rationale: "Tool call result"
+    may_contain_user_data: true
+
+  ToolEvent.truncated:
+    sensitivity: low
+    informativeness: low
+    rationale: "Truncation indicator"
+
+  ToolEvent.error:
+    sensitivity: high
+    informativeness: high
+    rationale: "Tool error information"
+    may_contain_user_data: true
+    may_contain_credentials: true
+
+  ToolEvent.events:
+    sensitivity: high
+    informativeness: high
+    rationale: "Nested events (deprecated)"
+    may_contain_user_data: true
+    may_contain_model_output: true
+
+  ToolEvent.completed:
+    sensitivity: low
+    informativeness: low
+    rationale: "Completion timestamp"
+
+  ToolEvent.working_time:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Working time for tool call"
+
+  ToolEvent.agent:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Agent name if handoff"
+
+  ToolEvent.failed:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Whether tool call failed"
+
+  ToolEvent.message_id:
+    sensitivity: low
+    informativeness: low
+    rationale: "Associated message ID"
+
+  # ---------------------------------------------------------------------------
+  # SandboxEvent fields
+  # ---------------------------------------------------------------------------
+  SandboxEvent.event:
+    sensitivity: low
+    informativeness: low
+    rationale: "Event type identifier"
+
+  SandboxEvent.action:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Sandbox action type"
+
+  SandboxEvent.cmd:
+    sensitivity: high
+    informativeness: high
+    rationale: "Command executed in sandbox"
+    may_contain_user_data: true
+
+  SandboxEvent.options:
+    sensitivity: medium
+    informativeness: low
+    rationale: "Execution options"
+
+  SandboxEvent.file:
+    sensitivity: medium
+    informativeness: medium
+    rationale: "File path for read/write operations"
+
+  SandboxEvent.input:
+    sensitivity: high
+    informativeness: high
+    rationale: "Input to command or file write"
+    may_contain_user_data: true
+
+  SandboxEvent.result:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Exit code for exec"
+
+  SandboxEvent.output:
+    sensitivity: high
+    informativeness: high
+    rationale: "Command or file read output"
+    may_contain_user_data: true
+
+  SandboxEvent.completed:
+    sensitivity: low
+    informativeness: low
+    rationale: "Completion timestamp"
+
+  # ---------------------------------------------------------------------------
+  # ModelUsage fields
+  # ---------------------------------------------------------------------------
+  ModelUsage.input_tokens:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Input token count"
+
+  ModelUsage.output_tokens:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Output token count"
+
+  ModelUsage.total_tokens:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Total token count"
+
+  ModelUsage.input_tokens_cache_read:
+    sensitivity: low
+    informativeness: low
+    rationale: "Cached input tokens"
+
+  ModelUsage.input_tokens_cache_write:
+    sensitivity: low
+    informativeness: low
+    rationale: "Tokens written to cache"
+
+  ModelUsage.reasoning_tokens:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Reasoning token count"
+
+  # ---------------------------------------------------------------------------
+  # GenerateConfig fields
+  # ---------------------------------------------------------------------------
+  GenerateConfig.max_tokens:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Max tokens setting"
+
+  GenerateConfig.temperature:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Temperature setting"
+
+  GenerateConfig.top_p:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Top-p setting"
+
+  GenerateConfig.top_k:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Top-k setting"
+
+  GenerateConfig.stop_seqs:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Stop sequences"
+
+  GenerateConfig.seed:
+    sensitivity: low
+    informativeness: medium
+    rationale: "Random seed for reproducibility"
+
+# =============================================================================
+# Dynamic field patterns (for fields with arbitrary keys)
+# =============================================================================
+# These patterns match fields that can have arbitrary keys like metadata or store
+# =============================================================================
+
+patterns:
+  # All metadata fields are high sensitivity - they can contain arbitrary user data
+  "*.metadata.*":
+    sensitivity: high
+    informativeness: medium
+    rationale: "Arbitrary user-provided metadata values"
+    may_contain_user_data: true
+
+  # Store fields can contain arbitrary runtime state
+  "*.store.*":
+    sensitivity: high
+    informativeness: medium
+    rationale: "Arbitrary runtime state values"
+    may_contain_user_data: true
+
+  # Args fields may contain custom parameters
+  "EvalSpec.task_args.*":
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Custom task argument values"
+
+  "EvalSpec.task_args_passed.*":
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Custom passed task argument values"
+
+  "EvalSpec.solver_args.*":
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Custom solver argument values"
+
+  "EvalSpec.solver_args_passed.*":
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Custom passed solver argument values"
+
+  "EvalSpec.model_args.*":
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Custom model argument values"
+
+  # Params fields may contain custom configuration
+  "*.params.*":
+    sensitivity: medium
+    informativeness: medium
+    rationale: "Custom parameter values"
+
+  # Attachments can contain arbitrary content
+  "*.attachments.*":
+    sensitivity: high
+    informativeness: medium
+    rationale: "Attachment content, may contain sensitive data"
+    may_contain_user_data: true
+    may_contain_model_output: true
+
+# =============================================================================
+# Default classification for unknown fields
+# =============================================================================
+# Used when a field is not found in the taxonomy - conservative defaults
+# =============================================================================
+
+default:
+  sensitivity: high
+  informativeness: low
+  rationale: "Unknown field - defaulting to high sensitivity for safety"

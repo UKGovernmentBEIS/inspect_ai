@@ -36,19 +36,24 @@ from ._taxonomy import (
     DYNAMIC_FIELD_PATTERNS,
     FieldClassification,
     Informativeness,
+    SanitizationTaxonomy,
     Sensitivity,
+    load_sanitization_taxonomy,
 )
 
 __all__ = [
     # Enums
     "Sensitivity",
     "Informativeness",
-    # Classification model
+    # Classification models
     "FieldClassification",
+    "SanitizationTaxonomy",
     # Taxonomy data
     "DEFAULT_TAXONOMY",
     "DYNAMIC_FIELD_PATTERNS",
     "DEFAULT_FIELD_CLASSIFICATION",
+    # Taxonomy loading
+    "load_sanitization_taxonomy",
     # Lookup functions
     "get_field_classification",
     "normalize_field_path",

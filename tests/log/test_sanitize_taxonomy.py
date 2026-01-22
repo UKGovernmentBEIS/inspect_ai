@@ -1,5 +1,8 @@
 """Tests for the log sanitization taxonomy."""
 
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
 import pytest
 from pydantic import BaseModel
 
@@ -17,8 +20,10 @@ from inspect_ai.log._sanitize import (
     get_fields_with_credentials,
     get_fields_with_model_output,
     get_fields_with_user_data,
+    load_sanitization_taxonomy,
     normalize_field_path,
 )
+from inspect_ai.log._sanitize._taxonomy import _create_user_taxonomy
 
 
 class TestSensitivityEnum:
@@ -442,3 +447,293 @@ class TestTaxonomyConsistency:
             assert classification.informativeness == Informativeness.HIGH, (
                 f"Critical field {path} should be high informativeness"
             )
+
+
+class TestLoadSanitizationTaxonomyFromYaml:
+    """Tests for loading taxonomy from YAML files."""
+
+    def test_load_valid_yaml(self) -> None:
+        """Test loading a valid YAML taxonomy file."""
+        yaml_content = """
+fields:
+  TestType.field1:
+    sensitivity: low
+    informativeness: high
+    rationale: "Test field"
+  TestType.field2:
+    sensitivity: high
+    informativeness: medium
+    may_contain_user_data: true
+patterns:
+  "*.test.*":
+    sensitivity: medium
+    informativeness: low
+    rationale: "Test pattern"
+default:
+  sensitivity: high
+  informativeness: low
+  rationale: "Custom default"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = _create_user_taxonomy(temp_path)
+
+            # Check fields
+            assert len(taxonomy.fields) == 2
+            assert "TestType.field1" in taxonomy.fields
+            assert taxonomy.fields["TestType.field1"].sensitivity == Sensitivity.LOW
+            assert (
+                taxonomy.fields["TestType.field1"].informativeness
+                == Informativeness.HIGH
+            )
+            assert taxonomy.fields["TestType.field2"].may_contain_user_data is True
+
+            # Check patterns
+            assert len(taxonomy.patterns) == 1
+            assert "*.test.*" in taxonomy.patterns
+            assert taxonomy.patterns["*.test.*"].sensitivity == Sensitivity.MEDIUM
+
+            # Check default
+            assert taxonomy.default.sensitivity == Sensitivity.HIGH
+            assert taxonomy.default.rationale == "Custom default"
+        finally:
+            temp_path.unlink()
+
+    def test_load_partial_yaml(self) -> None:
+        """Test loading a YAML file with only fields (no patterns or default)."""
+        yaml_content = """
+fields:
+  TestType.field:
+    sensitivity: medium
+    informativeness: medium
+"""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = _create_user_taxonomy(temp_path)
+
+            assert len(taxonomy.fields) == 1
+            assert len(taxonomy.patterns) == 0
+            # Default should be the fallback
+            assert taxonomy.default.sensitivity == Sensitivity.HIGH
+        finally:
+            temp_path.unlink()
+
+    def test_load_empty_yaml(self) -> None:
+        """Test loading an empty YAML file."""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write("")
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = _create_user_taxonomy(temp_path)
+
+            assert len(taxonomy.fields) == 0
+            assert len(taxonomy.patterns) == 0
+            assert taxonomy.default.sensitivity == Sensitivity.HIGH
+        finally:
+            temp_path.unlink()
+
+    def test_load_invalid_sensitivity_raises_error(self) -> None:
+        """Test that invalid sensitivity values raise an error."""
+        yaml_content = """
+fields:
+  TestType.field:
+    sensitivity: invalid
+    informativeness: low
+"""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            with pytest.raises(ValueError):
+                _create_user_taxonomy(temp_path)
+        finally:
+            temp_path.unlink()
+
+
+class TestLoadSanitizationTaxonomy:
+    """Tests for loading taxonomy with user overrides."""
+
+    def test_override_single_field(self) -> None:
+        """Test overriding a single field from the default taxonomy."""
+        yaml_content = """
+fields:
+  EvalLog.version:
+    sensitivity: high
+    informativeness: high
+    rationale: "Overridden for testing"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = load_sanitization_taxonomy(temp_path)
+
+            # Check override was applied
+            assert taxonomy.fields["EvalLog.version"].sensitivity == Sensitivity.HIGH
+            assert (
+                taxonomy.fields["EvalLog.version"].informativeness
+                == Informativeness.HIGH
+            )
+            assert (
+                taxonomy.fields["EvalLog.version"].rationale == "Overridden for testing"
+            )
+
+            # Check original value was different
+            assert DEFAULT_TAXONOMY["EvalLog.version"].sensitivity == Sensitivity.LOW
+
+            # Check exactly one field is different
+            different_fields = [
+                field
+                for field in DEFAULT_TAXONOMY
+                if taxonomy.fields[field] != DEFAULT_TAXONOMY[field]
+            ]
+            assert different_fields == ["EvalLog.version"]
+        finally:
+            temp_path.unlink()
+
+    def test_override_preserves_all_default_fields(self) -> None:
+        """Test that overriding preserves all fields from the default taxonomy."""
+        yaml_content = """
+fields:
+  EvalLog.version:
+    sensitivity: high
+    informativeness: high
+"""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = load_sanitization_taxonomy(temp_path)
+
+            # Should have all default fields
+            assert len(taxonomy.fields) == len(DEFAULT_TAXONOMY)
+
+            # All default fields should be present
+            for field_path in DEFAULT_TAXONOMY:
+                assert field_path in taxonomy.fields
+        finally:
+            temp_path.unlink()
+
+    def test_override_adds_new_field(self) -> None:
+        """Test that overrides can add new fields not in the default taxonomy."""
+        yaml_content = """
+fields:
+  CustomType.custom_field:
+    sensitivity: medium
+    informativeness: high
+    rationale: "Custom field for our use case"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = load_sanitization_taxonomy(temp_path)
+
+            # New field should be added
+            assert "CustomType.custom_field" in taxonomy.fields
+            assert (
+                taxonomy.fields["CustomType.custom_field"].sensitivity
+                == Sensitivity.MEDIUM
+            )
+
+            # Should have one more than default
+            assert len(taxonomy.fields) == len(DEFAULT_TAXONOMY) + 1
+        finally:
+            temp_path.unlink()
+
+    def test_override_patterns(self) -> None:
+        """Test that pattern overrides work correctly."""
+        yaml_content = """
+patterns:
+  "*.metadata.*":
+    sensitivity: low
+    informativeness: high
+    rationale: "We trust our metadata"
+"""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = load_sanitization_taxonomy(temp_path)
+
+            # Pattern should be overridden
+            assert taxonomy.patterns["*.metadata.*"].sensitivity == Sensitivity.LOW
+
+            # Original was high sensitivity
+            assert (
+                DYNAMIC_FIELD_PATTERNS["*.metadata.*"].sensitivity == Sensitivity.HIGH
+            )
+        finally:
+            temp_path.unlink()
+
+    def test_override_uses_default_classification(self) -> None:
+        """Test that the default classification is preserved from the system default."""
+        yaml_content = """
+fields:
+  EvalLog.version:
+    sensitivity: high
+    informativeness: high
+"""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = load_sanitization_taxonomy(temp_path)
+
+            # Default should be the system default, not from the user file
+            assert taxonomy.default == DEFAULT_FIELD_CLASSIFICATION
+        finally:
+            temp_path.unlink()
+
+    def test_empty_override_file(self) -> None:
+        """Test that an empty override file returns the default taxonomy unchanged."""
+        yaml_content = ""
+        with NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = Path(f.name)
+
+        try:
+            taxonomy = load_sanitization_taxonomy(temp_path)
+
+            # Should be identical to defaults
+            assert taxonomy.fields == DEFAULT_TAXONOMY
+            assert taxonomy.patterns == DYNAMIC_FIELD_PATTERNS
+            assert taxonomy.default == DEFAULT_FIELD_CLASSIFICATION
+        finally:
+            temp_path.unlink()
+
+    def test_no_path_returns_default_taxonomy(self) -> None:
+        """Test that calling with no path returns the default taxonomy."""
+        taxonomy = load_sanitization_taxonomy()
+
+        assert taxonomy.fields == DEFAULT_TAXONOMY
+        assert taxonomy.patterns == DYNAMIC_FIELD_PATTERNS
+        assert taxonomy.default == DEFAULT_FIELD_CLASSIFICATION
+
+    def test_none_path_returns_default_taxonomy(self) -> None:
+        """Test that calling with None explicitly returns the default taxonomy."""
+        taxonomy = load_sanitization_taxonomy(None)
+
+        assert taxonomy.fields == DEFAULT_TAXONOMY
+        assert taxonomy.patterns == DYNAMIC_FIELD_PATTERNS
+        assert taxonomy.default == DEFAULT_FIELD_CLASSIFICATION
+
+    def test_nonexistent_path_raises_error(self) -> None:
+        """Test that a nonexistent path raises FileNotFoundError."""
+        nonexistent_path = Path("/nonexistent/path/taxonomy.yml")
+
+        with pytest.raises(FileNotFoundError, match="Taxonomy file not found"):
+            load_sanitization_taxonomy(nonexistent_path)
