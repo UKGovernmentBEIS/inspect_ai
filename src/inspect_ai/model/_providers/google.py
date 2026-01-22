@@ -41,14 +41,12 @@ from google.genai.types import (
     Part,
     SafetySetting,
     SafetySettingDict,
-    Schema,
     ThinkingConfig,
     ThinkingLevel,
     Tool,
     ToolCodeExecution,
     ToolConfig,
     ToolListUnion,
-    Type,
 )
 from pydantic import JsonValue
 from shortuuid import uuid
@@ -104,8 +102,6 @@ from inspect_ai.tool import (
     ToolChoice,
     ToolFunction,
     ToolInfo,
-    ToolParam,
-    ToolParams,
 )
 
 from .util import model_base_url
@@ -321,8 +317,8 @@ class GoogleGenAIAPI(ModelAPI):
             )
             if config.response_schema is not None:
                 parameters.response_mime_type = "application/json"
-                parameters.response_schema = schema_from_param(
-                    config.response_schema.json_schema, nullable=None
+                parameters.response_json_schema = (
+                    config.response_schema.json_schema.model_dump(exclude_none=True)
                 )
 
             response: GenerateContentResponse | None = None
@@ -783,7 +779,9 @@ class GoogleGenAIAPI(ModelAPI):
                     FunctionDeclaration(
                         name=tool.name,
                         description=tool.description,
-                        parameters=schema_from_param(tool.parameters)
+                        parameters_json_schema=tool.parameters.model_dump(
+                            exclude_none=True
+                        )
                         if len(tool.parameters.properties) > 0
                         else None,
                     )
@@ -1144,93 +1142,6 @@ async def extract_system_message_as_parts(
     else:
         # google-genai raises "ValueError: content is required." if the list is empty.
         return None
-
-
-# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
-def schema_from_param(
-    param: ToolParam | ToolParams,
-    nullable: bool | None = False,
-    description: str | None = None,
-) -> Schema:
-    if isinstance(param, ToolParams):
-        param = ToolParam(
-            type=param.type, properties=param.properties, required=param.required
-        )
-
-    # use fallback description if the param doesn't have its own
-    param_description = param.description or description
-
-    if param.type == "number":
-        return Schema(
-            type=Type.NUMBER, description=param_description, nullable=nullable
-        )
-    elif param.type == "integer":
-        return Schema(
-            type=Type.INTEGER, description=param_description, nullable=nullable
-        )
-    elif param.type == "boolean":
-        return Schema(
-            type=Type.BOOLEAN, description=param_description, nullable=nullable
-        )
-    elif param.type == "string":
-        if param.format == "date-time":
-            return Schema(
-                type=Type.STRING,
-                description=param_description,
-                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
-                nullable=nullable,
-            )
-        elif param.format == "date":
-            return Schema(
-                type=Type.STRING,
-                description=param_description,
-                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
-                nullable=nullable,
-            )
-        elif param.format == "time":
-            return Schema(
-                type=Type.STRING,
-                description=param_description,
-                format="^[0-9]{2}:[0-9]{2}:[0-9]{2}$",
-                nullable=nullable,
-            )
-        return Schema(
-            type=Type.STRING, description=param_description, nullable=nullable
-        )
-    elif param.type == "array":
-        return Schema(
-            type=Type.ARRAY,
-            description=param_description,
-            items=schema_from_param(param.items) if param.items else None,
-            nullable=nullable,
-        )
-    elif param.type == "object":
-        return Schema(
-            type=Type.OBJECT,
-            description=param_description,
-            properties={k: schema_from_param(v) for k, v in param.properties.items()}
-            if param.properties is not None
-            else {},
-            required=param.required,
-            nullable=nullable,
-        )
-    # convert unions to optional params if the second type is 'null'
-    elif param.anyOf:
-        if len(param.anyOf) == 2 and param.anyOf[1].type == "null":
-            return schema_from_param(
-                param.anyOf[0], nullable=True, description=param_description
-            )
-        else:
-            return Schema(type=Type.TYPE_UNSPECIFIED, description=param_description)
-    elif param.enum:
-        return Schema(
-            type=Type.STRING,
-            format="enum",
-            enum=param.enum,
-            description=param_description,
-        )
-    else:
-        return Schema(type=Type.TYPE_UNSPECIFIED, description=param_description)
 
 
 def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
