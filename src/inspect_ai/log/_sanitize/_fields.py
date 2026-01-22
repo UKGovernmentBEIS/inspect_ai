@@ -90,7 +90,7 @@ def _matches_pattern(path: str, pattern: str) -> bool:
         True if the path matches the pattern.
     """
     # Convert pattern to regex where * matches any single path component
-    # e.g., "*.metadata.*" -> "^[^.]+\.metadata\.[^.]+$ which matches EvalSample.metadata.key"
+    # e.g., "*.metadata.*" -> ^[^.]+\.metadata\.[^.]+$ which matches "EvalSample.metadata.key"
     regex_pattern = pattern.replace(".", r"\.")
     regex_pattern = regex_pattern.replace("*", "[^.]+")
     regex_pattern = f"^{regex_pattern}$"
