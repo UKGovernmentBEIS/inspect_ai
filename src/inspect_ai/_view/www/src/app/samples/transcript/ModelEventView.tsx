@@ -48,7 +48,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       return choice.message;
     }) ?? [];
   if (outputMessages.length > 0) {
-    outputMessages[outputMessages.length - 1].timestamp = event.timestamp;
+    outputMessages[outputMessages.length - 1].timestamp = event.completed;
   }
   const inputMessages: Message[] = [...event.input];
   if (inputMessages.length > 0) {
