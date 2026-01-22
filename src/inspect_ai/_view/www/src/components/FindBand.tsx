@@ -279,22 +279,27 @@ export const FindBand: FC<FindBandProps> = () => {
 
     document.addEventListener("keydown", handleGlobalKeydown, true); // Use capture phase
 
+    // Capture ref values for cleanup
+    const mutatedPanels = mutatedPanelsRef.current;
+    const scrollTimeout = scrollTimeoutRef.current;
+    const focusTimeout = focusTimeoutRef.current;
+
     return () => {
       document.removeEventListener("keydown", handleGlobalKeydown, true);
-      if (scrollTimeoutRef.current !== null) {
-        window.clearTimeout(scrollTimeoutRef.current);
+      if (scrollTimeout !== null) {
+        window.clearTimeout(scrollTimeout);
       }
-      if (focusTimeoutRef.current !== null) {
-        window.clearTimeout(focusTimeoutRef.current);
+      if (focusTimeout !== null) {
+        window.clearTimeout(focusTimeout);
       }
       // Restore original styles on mutated expandable panels
-      mutatedPanelsRef.current.forEach((originalStyles, panel) => {
+      mutatedPanels.forEach((originalStyles, panel) => {
         panel.style.display = originalStyles.display;
         panel.style.maxHeight = originalStyles.maxHeight;
         panel.style.webkitLineClamp = originalStyles.webkitLineClamp;
         panel.style.webkitBoxOrient = originalStyles.webkitBoxOrient;
       });
-      mutatedPanelsRef.current.clear();
+      mutatedPanels.clear();
     };
   }, [handleSearch]);
 
@@ -405,7 +410,9 @@ export const FindBand: FC<FindBandProps> = () => {
         onBeforeInput={handleBeforeInput}
         onChange={handleInputChange}
       />
-      <span id="inspect-find-no-results" aria-hidden="true">No results</span>
+      <span id="inspect-find-no-results" aria-hidden="true">
+        No results
+      </span>
       <button
         type="button"
         title="Previous match"
