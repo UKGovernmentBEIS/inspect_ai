@@ -3,7 +3,6 @@ import {
   ICellRendererParams,
   ValueFormatterParams,
   ValueGetterParams,
-  ValueParserParams,
 } from "ag-grid-community";
 import { useEffect, useMemo } from "react";
 import { LogDetails } from "../../../client/api/types";
@@ -13,6 +12,7 @@ import { comparators } from "../../shared/gridComparators";
 import { getFieldKey } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
+import { formatDateTime } from "../../../utils/format";
 
 export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
   const optionalColumnsHaveAnyData: Record<string, boolean> = useMemo(() => {
@@ -221,16 +221,20 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
       {
         field: "created",
         headerName: "Created",
-        initialWidth: 200,
-        minWidth: 150,
+        initialWidth: 130,
+        minWidth: 80,
+        maxWidth: 140,
         sortable: true,
         filter: true,
         resizable: true,
         cellDataType: "date",
-        valueParser: (params: ValueParserParams<SampleRow>) =>
-          new Date(params.newValue),
+        filterValueGetter: (params: ValueGetterParams<SampleRow>) => {
+          if (!params.data?.created) return undefined;
+          const d = new Date(params.data.created);
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        },
         valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
-          filename(params.value),
+          formatDateTime(new Date(params.value)),
       },
       {
         field: "error",
