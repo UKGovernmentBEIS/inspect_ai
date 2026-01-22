@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Google: Provide JSON schema directly rather than converting it to Google Schema type.
+- Bash Session: Increase bash session transport timeout and make new session timeouts fatal.
 - Inspect View: Timestamps for USER and ASSISTANT transcript of model events, `yyyy-mm-dd hh:mm:ss` format (keep local time zone)
 
 ## 0.3.163 (21 January 2026)
