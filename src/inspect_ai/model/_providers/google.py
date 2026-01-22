@@ -783,7 +783,12 @@ class GoogleGenAIAPI(ModelAPI):
                     FunctionDeclaration(
                         name=tool.name,
                         description=tool.description,
-                        parameters=schema_from_param(tool.parameters)
+                        # Use parameters_json_schema to preserve full JSON Schema
+                        # including anyOf types, which Gemini 3+ handles correctly
+                        # but the Schema format (via schema_from_param) loses
+                        parameters_json_schema=tool.parameters.model_dump(
+                            exclude_none=True
+                        )
                         if len(tool.parameters.properties) > 0
                         else None,
                     )
