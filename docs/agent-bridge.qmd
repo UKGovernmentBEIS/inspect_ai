@@ -5,7 +5,7 @@ code-annotations: select
 
 ## Overview
 
-While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/), [Pydantic AI](https://ai.pydantic.dev/), and [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Claude Code](https://www.anthropic.com/claude-code) or [Codex CLI](https://github.com/openai/codex)).
+While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/), [Pydantic AI](https://ai.pydantic.dev/), and [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. You can also use CLI based agents that run within sandboxes (e.g. [Claude Code](https://www.anthropic.com/claude-code), [Codex CLI](https://github.com/openai/codex), or [Gemini CLI](https://github.com/google-gemini/gemini-cli)).
 
 Agents are *bridged* into Inspect such that their native model calling functions are routed through the current Inspect model provider. There are two types of agent bridges supported:
 
@@ -27,9 +27,9 @@ We'll cover each of these configurations in turn below. You can also learn from 
 
 ## Agent Bridge
 
-The `agent_bridge()` can bridge agents written against the Python APIs for OpenAI Completions, OpenAI Responses, and Anthropic. To bridge a Python based agent running in the same process as Inspect:
+The `agent_bridge()` can bridge agents written against the Python APIs for OpenAI Completions, OpenAI Responses, Anthropic, and Google. To bridge a Python based agent running in the same process as Inspect:
 
-1.  Write your custom Python agent as normal using the OpenAI or Anthropic connector provided by your agent system, specifying "inspect" as the model name. 
+1.  Write your custom Python agent as normal using the OpenAI, Anthropic, or Google connector provided by your agent system, specifying "inspect" as the model name.
 
 2.  Run your custom Python agent within the `agent_bridge()` context manager which redirects OpenAI calls to the current Inspect model provider.
 
@@ -68,13 +68,13 @@ The [OpenAI Agents SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main
 
 ## Sandbox Bridge
 
-The `sandbox_agent_bridge()` can bridge agents written against the OpenAI Completions, OpenAI Responses, or Anthropic API. To bridge an agent running in a sandbox to Inspect:
+The `sandbox_agent_bridge()` can bridge agents written against the OpenAI Completions, OpenAI Responses, Anthropic API, or Google API. To bridge an agent running in a sandbox to Inspect:
 
-1.  Configure your sandbox (e.g. via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI API on localhost port 3131 (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1` or `ANTHROPIC_BASE_URL=http://localhost:13131`).
+1.  Configure your sandbox (e.g. via its Dockerfile) to contain the agent that you want to run. The agent should be configured to talk to the OpenAI, Anthropic, or Gemini API on localhost port 13131 (e.g. `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131/v1beta`).
 
 2.  Write a standard Inspect agent that uses the `sandbox_agent_bridge()` context manager and the `sandbox().exec()` method to invoke the custom agent.
 
-The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI and Anthropic APIs. This proxy server in turn relays requests to the current Inspect model provider.
+The sandbox bridge works via running a proxy server inside the sandbox container which receives requests for the OpenAI, Anthropic, and Google APIs. This proxy server in turn relays requests to the current Inspect model provider.
 
 For example, here we build an agent that runs a custom agent binary (passing it input on the command line and reading output from stdout):
 
