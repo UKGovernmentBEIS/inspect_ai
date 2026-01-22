@@ -116,7 +116,10 @@ def _parse_classification(data: dict[str, Any]) -> FieldClassification:
 
 
 def _create_user_taxonomy(file_path: Path) -> SanitizationTaxonomy:
-    """Create a sanitization taxonomy with the user's fields. This will then be merged into the default taxonomy to create a new taxonomy incorporating user overrides.
+    """Create a sanitization taxonomy with the user's fields.
+
+    This will then be merged into the default taxonomy to create a new taxonomy
+    incorporating user overrides.
 
     Args:
         file_path: Path to the YAML file containing taxonomy definitions.
@@ -130,18 +133,7 @@ def _create_user_taxonomy(file_path: Path) -> SanitizationTaxonomy:
         KeyError: If required fields are missing.
     """
     with open(file_path) as f:
-        data = yaml.safe_load(f)
-
-    if not data:
-        return SanitizationTaxonomy(
-            fields={},
-            patterns={},
-            default=FieldClassification(
-                sensitivity=Sensitivity.HIGH,
-                informativeness=Informativeness.LOW,
-                rationale="Unknown field - defaulting to high sensitivity for safety",
-            ),
-        )
+        data = yaml.safe_load(f) or {}
 
     # Parse field classifications
     fields: dict[str, FieldClassification] = {}
