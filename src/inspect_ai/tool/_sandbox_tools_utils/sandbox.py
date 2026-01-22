@@ -135,18 +135,23 @@ def _prompt_user_action(message: str, executable_name: str, arch: Architecture) 
     Raises:
         PrerequisiteError: If user declines the action
     """
-    with input_screen():
-        response = Prompt.ask(
-            message,
-            choices=["y", "n"],
-            default="y",
-            case_sensitive=False,
-        )
-        if response != "y":
-            raise PrerequisiteError(
-                f"Container tools executable {executable_name} is required but not present. "
-                f"To build it, run: python src/inspect_ai/tool/sandbox_tools/build_within_container.py --arch {arch}"
+    if sys.stdin.isatty():
+        with input_screen():
+            response = Prompt.ask(
+                message,
+                choices=["y", "n"],
+                default="y",
+                case_sensitive=False,
             )
+    else:
+        # non-interactive terminal
+        response = "n"
+
+    if response != "y":
+        raise PrerequisiteError(
+            f"Container tools executable {executable_name} is required but not present. "
+            f"To build it, run: python src/inspect_ai/tool/sandbox_tools/build_within_container.py --arch {arch}"
+        )
 
 
 @asynccontextmanager
@@ -174,8 +179,8 @@ async def _open_executable_for_arch(
                 # raise PrerequisiteError(msg)
                 warn_once(logger, msg)
 
-        # S3 Download Attempt
-        if install_state == "clean":
+        # S3 Download Attempt. "pypi" might be wrongly detected, e.g., when UV_NO_INSTALLER_METADATA=1
+        if install_state in {"clean", "pypi"}:
             if await _download_from_s3(executable_name):
                 async with _open_executable(executable_name) as f:
                     trace_message(
