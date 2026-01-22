@@ -4,6 +4,7 @@ import { EarlyStoppingSummary, EvalSpec, EvalStats } from "../../../@types/log";
 import { Card, CardBody, CardHeader } from "../../../components/Card";
 import { kLogViewTaskTabId } from "../../../constants";
 import {
+  formatDateTime,
   formatDuration,
   formatNumber,
   toTitleCase,
@@ -121,12 +122,12 @@ export const TaskTab: FC<TaskTabProps> = ({
 
               <MetaDataGrid
                 entries={{
-                  ["Start"]: new Date(
-                    evalStats?.started_at || 0,
-                  ).toLocaleString(),
-                  ["End"]: new Date(
-                    evalStats?.completed_at || 0,
-                  ).toLocaleString(),
+                  ["Start"]: formatDateTime(
+                    new Date(evalStats?.started_at || 0),
+                  ),
+                  ["End"]: formatDateTime(
+                    new Date(evalStats?.completed_at || 0),
+                  ),
                   ["Duration"]: totalDuration,
                 }}
               />

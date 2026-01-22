@@ -62,12 +62,12 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
           )}
         >
           {message.role}
+          {message.role === "tool" ? `: ${message.function}` : ""}
           {message.timestamp && (
             <span className={styles.timestamp} title={message.timestamp}>
               {formatDateTime(new Date(message.timestamp))}
             </span>
           )}
-          {message.role === "tool" ? `: ${message.function}` : ""}
           {supportsLinking() && messageUrl && allowLinking ? (
             <CopyButton
               icon={ApplicationIcons.link}

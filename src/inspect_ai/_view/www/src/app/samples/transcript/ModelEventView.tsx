@@ -43,11 +43,17 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined
-  const outputMessages: Message[] = event.output.choices?.map((choice) => {
-    return { ...choice.message, timestamp: event.completed };
-  });
+  const outputMessages: Message[] =
+    event.output.choices?.map((choice) => {
+      return choice.message;
+    }) ?? [];
+  if (outputMessages.length > 0) {
+    outputMessages[outputMessages.length - 1].timestamp = event.timestamp;
+  }
   const inputMessages: Message[] = [...event.input];
-  inputMessages[inputMessages.length - 1].timestamp = event.timestamp;
+  if (inputMessages.length > 0) {
+    inputMessages[inputMessages.length - 1].timestamp = event.timestamp;
+  }
 
   const entries: Record<string, unknown> = { ...event.config };
   delete entries["max_connections"];
@@ -87,7 +93,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       <div data-name="Summary" className={styles.container}>
         <ChatView
           id={`${eventNode.id}-model-output`}
-          messages={[...userMessages, ...(outputMessages || [])]}
+          messages={[...userMessages, ...outputMessages]}
           numbered={false}
           toolCallStyle={showToolCalls ? "complete" : "omit"}
           resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
@@ -129,7 +135,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
         <EventSection title="Messages">
           <ChatView
             id={`${eventNode.id}-model-input-full`}
-            messages={[...inputMessages, ...(outputMessages || [])]}
+            messages={[...inputMessages, ...outputMessages]}
             resolveToolCallsIntoPreviousMessage={
               context?.hasToolEvents !== false
             }

@@ -11,14 +11,12 @@
 
 .timestamp {
   opacity: 0.4;
-  position: absolute;
-  left: 8em;
 }
 
 .messageGrid {
   display: grid;
-  grid-template-columns: max-content max-content max-content;
-  column-gap: 0.3em;
+  grid-template-columns: minmax(max-content, 8em) max-content max-content;
+  column-gap: 0.5em;
   font-weight: 500;
   margin-bottom: 0.3em;
 }
