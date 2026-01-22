@@ -270,6 +270,18 @@ export const useSampleData = () => {
   ]);
 };
 
+// Returns the invalidation data for the currently selected sample, if any
+export const useSampleInvalidation = () => {
+  const getSelectedSample = useStore(
+    (state) => state.sampleActions.getSelectedSample,
+  );
+  const sampleIdentifier = useStore((state) => state.sample.sample_identifier);
+  return useMemo(() => {
+    const sample = getSelectedSample();
+    return sample?.invalidation || null;
+  }, [getSelectedSample, sampleIdentifier]);
+};
+
 export const useLogSelection = () => {
   const selectedSampleSummary = useSelectedSampleSummary();
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);

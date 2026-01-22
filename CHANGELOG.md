@@ -1,7 +1,11 @@
-## Unreleased
+## 0.3.163 (21 January 2026)
 
+- Anthropic: Only re-order reasoning blocks for Claude 3 (as we use interleaved thinking for Claude 4).
 - Analysis: Read all samples at once in implementation of `samples_df()`.
+- Agent Bridge: Handle OpenAI assistant message params with no 'type' field (Pydantic AI compatibility).
 - Inspect View: Improve sample summary truncation (use markdown truncation instead of line clamping).
+- Inspect View: Fix issue with typing over selection in 'Find'
+- Inspect View: Support find using JSON-like syntax.
 
 ## 0.3.162 (18 January 2026)
 
