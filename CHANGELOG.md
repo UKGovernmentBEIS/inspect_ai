@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Google: Provide JSON schema directly rather than converting it to Google Schema type.
+- Agent Bridge: Serialize `ContentReasoning` as `<think>` with attributes to prevent bridge clients from doing a more lossy `<think>` tag conversion.
 - Inspect View: Timestamps for USER and ASSISTANT transcript of model events, `yyyy-mm-dd hh:mm:ss` format (keep local time zone)
 
 ## 0.3.163 (21 January 2026)

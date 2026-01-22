@@ -24,7 +24,6 @@ from openai.types.responses import (
     ResponseOutputMessage,
     ResponseOutputRefusal,
     ResponseOutputText,
-    ResponseReasoningItem,
     ToolParam,
     WebSearchToolParam,
 )
@@ -123,11 +122,9 @@ from inspect_ai.model._openai_responses import (
     is_web_search_tool_param,
     mcp_call_to_tool_use,
     mcp_list_tools_to_tool_use,
-    read_reasoning_item_param,
     reasoning_from_responses_reasoning,
     responses_extra_body_fields,
     responses_model_usage,
-    responses_reasoning_from_reasoning,
     to_inspect_citation,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
@@ -137,6 +134,10 @@ from inspect_ai.model._openai_responses import (
 from inspect_ai.model._providers._openai_computer_use import (
     tool_call_arguments_to_action,
     tool_call_from_openai_computer_tool_call,
+)
+from inspect_ai.model._reasoning import (
+    parse_content_with_reasoning,
+    reasoning_to_think_tag,
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
@@ -522,11 +523,28 @@ def messages_from_responses_input(
                                     c["text"], CONTENT_INTERNAL_TAG
                                 )
                             )
-                            content.append(
-                                ContentText(
-                                    text=asst_content, internal=content_internal
-                                )
+                            # Check for serialized <think> tags and restore as ContentReasoning
+                            remaining_text, reasoning_capsule = (
+                                parse_content_with_reasoning(asst_content)
                             )
+                            if reasoning_capsule is not None:
+                                content.append(
+                                    ContentReasoning(
+                                        reasoning=reasoning_capsule.reasoning,
+                                        signature=reasoning_capsule.signature,
+                                        redacted=reasoning_capsule.redacted,
+                                        summary=reasoning_capsule.summary,
+                                    )
+                                )
+                                asst_content = remaining_text
+                            if (
+                                asst_content
+                            ):  # Only add text if there's remaining content
+                                content.append(
+                                    ContentText(
+                                        text=asst_content, internal=content_internal
+                                    )
+                                )
                         elif c["type"] == "input_image" and c["image_url"] is not None:
                             content.append(
                                 ContentImage(image=c["image_url"], detail=c["detail"])
@@ -549,20 +567,37 @@ def messages_from_responses_input(
                         )
 
                         if is_response_output_text(output):
-                            content.append(
-                                ContentText(
-                                    text=asst_content,
-                                    internal=content_internal,
-                                    citations=(
-                                        [
-                                            to_inspect_citation(annotation)
-                                            for annotation in output["annotations"]
-                                        ]
-                                        if output.get("annotations", None)
-                                        else None
-                                    ),
-                                )
+                            # Check for serialized <think> tags and restore as ContentReasoning
+                            remaining_text, reasoning_capsule = (
+                                parse_content_with_reasoning(asst_content)
                             )
+                            if reasoning_capsule is not None:
+                                content.append(
+                                    ContentReasoning(
+                                        reasoning=reasoning_capsule.reasoning,
+                                        signature=reasoning_capsule.signature,
+                                        redacted=reasoning_capsule.redacted,
+                                        summary=reasoning_capsule.summary,
+                                    )
+                                )
+                                asst_content = remaining_text
+                            if (
+                                asst_content
+                            ):  # Only add text if there's remaining content
+                                content.append(
+                                    ContentText(
+                                        text=asst_content,
+                                        internal=content_internal,
+                                        citations=(
+                                            [
+                                                to_inspect_citation(annotation)
+                                                for annotation in output["annotations"]
+                                            ]
+                                            if output.get("annotations", None)
+                                            else None
+                                        ),
+                                    )
+                                )
                         elif is_response_output_refusal(output):
                             content.append(
                                 ContentText(
@@ -808,10 +843,23 @@ def responses_output_items_from_assistant_message(
                 )
             )
         elif isinstance(content, ContentReasoning):
-            reasoning = responses_reasoning_from_reasoning(content)
+            # Serialize reasoning as <think> tag with full attributes (signature, redacted, summary)
+            # so it travels through the scaffold as opaque text and can be restored on the way back
+            think_tag = reasoning_to_think_tag(content)
             output.append(
-                ResponseReasoningItem.model_validate(
-                    read_reasoning_item_param(reasoning)
+                ResponseOutputMessage(
+                    type="message",
+                    id=uuid(),
+                    role="assistant",
+                    content=[
+                        ResponseOutputText(
+                            type="output_text",
+                            text=think_tag,
+                            annotations=[],
+                            logprobs=[],
+                        )
+                    ],
+                    status="completed",
                 )
             )
 
