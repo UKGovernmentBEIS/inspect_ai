@@ -236,6 +236,12 @@ export const useLogListColumns = (): {
         sortable: true,
         filter: true,
         resizable: true,
+        cellDataType: "date",
+        filterValueGetter: (params) => {
+          if (!params.data?.completedAt) return undefined;
+          const d = new Date(params.data.completedAt);
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        },
         valueGetter: (params) => {
           const completed = params.data?.completedAt;
           if (!completed) return "";

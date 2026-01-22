@@ -227,7 +227,12 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
         sortable: true,
         filter: true,
         resizable: true,
-        cellDataType: "text", // date filter didn't work
+        cellDataType: "date",
+        filterValueGetter: (params: ValueGetterParams<SampleRow>) => {
+          if (!params.data?.created) return undefined;
+          const d = new Date(params.data.created);
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        },
         valueFormatter: (params: ValueFormatterParams<SampleRow>) =>
           formatDateTime(new Date(params.value)),
       },
