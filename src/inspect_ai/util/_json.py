@@ -103,7 +103,22 @@ def json_schema(t: Type[Any]) -> JSONSchema:
         ):
             return cls_json_schema(t)
         elif isinstance(t, EnumMeta):
-            return JSONSchema(enum=[item.value for item in t])
+            enum_values = [item.value for item in t]
+            # Determine the type from the enum values
+            if enum_values:
+                first_val = enum_values[0]
+                if isinstance(first_val, str):
+                    enum_type: JSONType = "string"
+                elif isinstance(first_val, bool):
+                    enum_type = "boolean"
+                elif isinstance(first_val, int):
+                    enum_type = "integer"
+                elif isinstance(first_val, float):
+                    enum_type = "number"
+                else:
+                    enum_type = "string"
+                return JSONSchema(type=enum_type, enum=enum_values)
+            return JSONSchema(enum=enum_values)
         elif t is type(None):
             return JSONSchema(type="null")
         else:
@@ -133,6 +148,22 @@ def json_schema(t: Type[Any]) -> JSONSchema:
             anyOf=[json_schema(arg) for arg in args] + [JSONSchema(type="null")]
         )
     elif origin is typing.Literal:
+        # Determine the type from the literal values
+        # All values in a Literal should be the same type
+        if args:
+            first_val = args[0]
+            if isinstance(first_val, str):
+                literal_type: JSONType = "string"
+            elif isinstance(first_val, bool):
+                # Note: bool must be checked before int since bool is a subclass of int
+                literal_type = "boolean"
+            elif isinstance(first_val, int):
+                literal_type = "integer"
+            elif isinstance(first_val, float):
+                literal_type = "number"
+            else:
+                literal_type = "string"  # Default to string
+            return JSONSchema(type=literal_type, enum=list(args))
         return JSONSchema(enum=list(args))
 
     return JSONSchema()  # Default case if we can't determine the type
