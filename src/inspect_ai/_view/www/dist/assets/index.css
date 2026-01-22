@@ -15896,53 +15896,62 @@ so disabling selection can break that functionality */
 ._treeIcon_qjlxf_23 {
   margin-top: -3px;
 }
-._message_b8oe1_1 {
+._message_1k527_1 {
   font-weight: 300;
   margin-left: 0;
   margin-right: 0;
   white-space: normal;
 }
 
-._systemRole_b8oe1_8 {
+._systemRole_1k527_8 {
   opacity: 0.7;
 }
 
-._messageGrid_b8oe1_12 {
-  display: grid;
-  grid-template-columns: max-content max-content max-content;
-  column-gap: 0.3em;
-  font-weight: 500;
-  margin-bottom: 0.3em;
+._timestamp_1k527_12 {
+  opacity: 0.5;
+  font-size: var(--inspect-font-size-smaller);
+  font-weight: normal;
 }
 
-._toolMessageGrid_b8oe1_20 {
+._messageGrid_1k527_18 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.5em;
+  font-weight: 500;
+  margin-bottom: 0.3em;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+._toolMessageGrid_1k527_28 {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._messageContents_b8oe1_24 {
+._messageContents_1k527_32 {
   margin-left: 0;
   padding-bottom: 0;
 }
 
-._messageContents_b8oe1_24._indented_b8oe1_29 {
+._messageContents_1k527_32._indented_1k527_37 {
   margin-left: 0rem;
 }
 
-._copyLink_b8oe1_33 {
+._copyLink_1k527_41 {
   opacity: 0;
   padding-left: 0;
   padding-right: 2em;
+  margin-left: 0.2rem;
 }
 
-._copyLink_b8oe1_33:hover {
+._copyLink_1k527_41:hover {
   opacity: 0.75;
 }
 
-._metadataLabel_b8oe1_43 {
+._metadataLabel_1k527_52 {
   padding-top: 1em;
 }
 
-._hover_b8oe1_47 ._copyLink_b8oe1_33 {
+._hover_1k527_56 ._copyLink_1k527_41 {
   opacity: 0.75;
 }
 ._panel_1pa96_1 {
@@ -17887,32 +17896,32 @@ button._segment_mhb7y_9 {
   margin-top: 0.5em;
   padding-top: 0.5em;
 }
-._wrapper_45f60_1 {
+._wrapper_cv5sf_1 {
   display: grid;
-  grid-template-columns: 0 auto auto;
+  grid-template-columns: 0 auto max-content;
   column-gap: 1.5em;
   row-gap: 0.2em;
 }
 
-._col2_45f60_8 {
+._col2_cv5sf_8 {
   grid-column: 2;
 }
 
-._col1_3_45f60_12 {
+._col1_3_cv5sf_12 {
   grid-column: 1/3;
 }
 
-._col3_45f60_16 {
+._col3_cv5sf_16 {
   grid-column: 3;
 }
 
-._separator_45f60_20 {
+._separator_cv5sf_20 {
   grid-column: -1/1;
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
 
-._topMargin_45f60_26 {
+._topMargin_cv5sf_26 {
   margin-top: 1em;
 }
 ._noMargin_1a3fk_1 {

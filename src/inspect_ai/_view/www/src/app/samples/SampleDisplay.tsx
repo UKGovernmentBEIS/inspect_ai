@@ -40,7 +40,7 @@ import {
   useSelectedSampleSummary,
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { formatTime } from "../../utils/format";
+import { formatDateTime, formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
@@ -488,7 +488,7 @@ const metadataViewsForSample = (
   if (sample.invalidation) {
     const formatTimestamp = (timestamp: string) => {
       try {
-        return new Date(timestamp).toLocaleString();
+        return formatDateTime(new Date(timestamp));
       } catch {
         return timestamp;
       }

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Timestamps for USER and ASSISTANT transcript of model events, `yyyy-mm-dd hh:mm:ss` format (keep local time zone)
+
 ## 0.3.163 (21 January 2026)
 
 - Anthropic: Only re-order reasoning blocks for Claude 3 (as we use interleaved thinking for Claude 4).
