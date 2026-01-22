@@ -22,10 +22,12 @@ export const resolveToolInput = (
   const toolName = fn;
 
   const inputDescriptor = extractInputMetadata(toolName);
+
   const { input, description, args } = extractInput(
     toolArgs as Record<string, unknown>,
     inputDescriptor,
   );
+
   const functionCall =
     args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
   return {
@@ -37,7 +39,7 @@ export const resolveToolInput = (
 };
 
 interface ToolInputDescriptor {
-  inputArg?: string;
+  inputArg?: string | string[];
   descriptionArg?: string;
   contentType?: string;
   inputToStr?: (input: unknown) => string | undefined;
@@ -47,8 +49,11 @@ const extractInputMetadata = (
   toolName: string,
 ): ToolInputDescriptor | undefined => {
   if (toolName === "bash") {
+    // The inspect bash tool uses 'cmd', but there
+    // are other bash tool data in the field that use 'command'. Fall back
+    // to checking that if the cmd arg is not found.
     return {
-      inputArg: "cmd",
+      inputArg: ["cmd", "command"],
       contentType: "bash",
     };
   } else if (toolName === "python") {
@@ -127,12 +132,18 @@ const extractInput = (
     const filterKeys = new Set<string>();
     const base: { input?: unknown; description?: string } = {};
 
-    if (inputDescriptor.inputArg && args[inputDescriptor.inputArg]) {
-      filterKeys.add(inputDescriptor.inputArg);
-      base.input = inputDescriptor.inputToStr
-        ? inputDescriptor.inputToStr(args[inputDescriptor.inputArg]) ||
-          args[inputDescriptor.inputArg]
-        : args[inputDescriptor.inputArg];
+    const inputArgs = inputDescriptor.inputArg
+      ? Array.isArray(inputDescriptor.inputArg)
+        ? inputDescriptor.inputArg
+        : [inputDescriptor.inputArg]
+      : [];
+    for (const inputArg of inputArgs) {
+      if (inputDescriptor.inputArg && args[inputArg]) {
+        filterKeys.add(inputArg);
+        base.input = inputDescriptor.inputToStr
+          ? inputDescriptor.inputToStr(args[inputArg]) || args[inputArg]
+          : args[inputArg];
+      }
     }
 
     if (
