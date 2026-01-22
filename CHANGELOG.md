@@ -1,3 +1,7 @@
+## Unreleased
+
+- Google: Provide JSON schema directly rather than convering it to Google Schema type.
+
 ## 0.3.163 (21 January 2026)
 
 - Anthropic: Only re-order reasoning blocks for Claude 3 (as we use interleaved thinking for Claude 4).
