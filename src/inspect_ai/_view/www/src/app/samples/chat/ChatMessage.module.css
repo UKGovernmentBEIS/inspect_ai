@@ -9,6 +9,12 @@
   opacity: 0.7;
 }
 
+.timestamp {
+  opacity: 0.4;
+  position: absolute;
+  left: 8em;
+}
+
 .messageGrid {
   display: grid;
   grid-template-columns: max-content max-content max-content;

@@ -1,11 +1,6 @@
 import clsx from "clsx";
 import { FC, memo, useState } from "react";
-import {
-  ChatMessageAssistant,
-  ChatMessageSystem,
-  ChatMessageTool,
-  ChatMessageUser,
-} from "../../../@types/log";
+import { ChatMessageTool } from "../../../@types/log";
 import { CopyButton } from "../../../components/CopyButton";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { LabeledValue } from "../../../components/LabeledValue";
@@ -19,14 +14,12 @@ import {
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
 import { ChatViewToolCallStyle } from "./types";
+import { Message } from "./messages";
+import { formatDateTime } from "../../../utils/format";
 
 interface ChatMessageProps {
   id: string;
-  message:
-    | ChatMessageAssistant
-    | ChatMessageSystem
-    | ChatMessageUser
-    | ChatMessageTool;
+  message: Message;
   toolMessages: ChatMessageTool[];
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
@@ -69,6 +62,11 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
           )}
         >
           {message.role}
+          {message.timestamp && (
+            <span className={styles.timestamp} title={message.timestamp}>
+              {formatDateTime(new Date(message.timestamp))}
+            </span>
+          )}
           {message.role === "tool" ? `: ${message.function}` : ""}
           {supportsLinking() && messageUrl && allowLinking ? (
             <CopyButton
