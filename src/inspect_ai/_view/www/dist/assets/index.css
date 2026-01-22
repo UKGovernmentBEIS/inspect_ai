@@ -15896,57 +15896,62 @@ so disabling selection can break that functionality */
 ._treeIcon_qjlxf_23 {
   margin-top: -3px;
 }
-._message_3w802_1 {
+._message_1k527_1 {
   font-weight: 300;
   margin-left: 0;
   margin-right: 0;
   white-space: normal;
 }
 
-._systemRole_3w802_8 {
+._systemRole_1k527_8 {
   opacity: 0.7;
 }
 
-._timestamp_3w802_12 {
-  opacity: 0.4;
+._timestamp_1k527_12 {
+  opacity: 0.5;
+  font-size: var(--inspect-font-size-smaller);
+  font-weight: normal;
 }
 
-._messageGrid_3w802_16 {
+._messageGrid_1k527_18 {
   display: grid;
-  grid-template-columns: minmax(max-content, 8em) max-content max-content;
+  grid-template-columns: max-content max-content;
   column-gap: 0.5em;
   font-weight: 500;
   margin-bottom: 0.3em;
+  justify-content: space-between;
+  align-items: flex-start;
 }
 
-._toolMessageGrid_3w802_24 {
+._toolMessageGrid_1k527_28 {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._messageContents_3w802_28 {
+._messageContents_1k527_32 {
   margin-left: 0;
   padding-bottom: 0;
 }
 
-._messageContents_3w802_28._indented_3w802_33 {
+._messageContents_1k527_32._indented_1k527_37 {
   margin-left: 0rem;
 }
 
-._copyLink_3w802_37 {
+._copyLink_1k527_41 {
   opacity: 0;
   padding-left: 0;
   padding-right: 2em;
+  margin-left: 0.2rem;
 }
 
-._copyLink_3w802_37:hover {
+._copyLink_1k527_41:hover {
   opacity: 0.75;
 }
 
-._metadataLabel_3w802_47 {
+._metadataLabel_1k527_52 {
   padding-top: 1em;
 }
 
-._hover_3w802_51 ._copyLink_3w802_37 {
+._hover_1k527_56 ._copyLink_1k527_41 {
   opacity: 0.75;
 }
 ._panel_1pa96_1 {
