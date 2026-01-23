@@ -18,7 +18,6 @@ jsonschema>3.1.1
 mmh3>3.1.0
 nest_asyncio2
 numpy
-orjson
 platformdirs>=2.3.0
 psutil
 pydantic>=2.11.4

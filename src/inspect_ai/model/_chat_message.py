@@ -1,7 +1,7 @@
+import json
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-import orjson
 from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
@@ -72,7 +72,7 @@ class ChatMessageBase(BaseModel):
         if info.context is None:
             return handler(data)
         cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
-        cache_key = orjson.dumps(data, option=orjson.OPT_SORT_KEYS)
+        cache_key = json.dumps(data, sort_keys=True)
         hit = cache.get(cache_key)
         if hit is not None:
             return hit
