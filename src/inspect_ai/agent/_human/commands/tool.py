@@ -337,7 +337,7 @@ def generate_tool_parser(
         schema_json = json.dumps(params.model_dump(exclude_none=True), indent=2)
         escaped_schema = _escape_string(schema_json)
         lines.append(
-            f'{tool_name}_parser.epilog = '
+            f"{tool_name}_parser.epilog = "
             f'"This tool has complex parameters. You must use --raw-json-escape-hatch.\\n\\n'
             f'Parameters:\\n{escaped_schema}"'
         )
@@ -386,7 +386,7 @@ def generate_tool_parser(
                 escaped = _escape_string(info.description)
                 parts.append(f'help="{escaped}"')
 
-            lines.append(f'{tool_name}_parser.add_argument({", ".join(parts)})')
+            lines.append(f"{tool_name}_parser.add_argument({', '.join(parts)})")
 
     parser_code = "\n".join(lines)
     return parser_code, has_complex_params
@@ -403,5 +403,3 @@ def get_param_order_from_tool(tool: Callable[..., Any]) -> list[str]:
     """
     sig = inspect.signature(tool)
     return list(sig.parameters.keys())
-
-

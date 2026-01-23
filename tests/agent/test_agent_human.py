@@ -101,6 +101,7 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
     - Named: task tool addition --x 12 --y 34
     - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12, "y": 34}'
     """
+
     def fmt_err(cp: CompletedProcess):
         return f"Wrong output. {cp.stdout}\n{cp.stderr}"
 
@@ -145,7 +146,8 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
                 text=True,
             )
             # argparse help shows tool names and descriptions
-            assert """usage: task.py tool [-h] {addition} ...
+            assert (
+                """usage: task.py tool [-h] {addition} ...
 
 positional arguments:
   {addition}
@@ -153,7 +155,9 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
-""" in list_result.stdout, fmt_err(list_result)
+"""
+                in list_result.stdout
+            ), fmt_err(list_result)
 
             # Test: task tool addition --help (note this will clash with a tool argument called 'help')
             help_result = subprocess.run(
@@ -161,13 +165,16 @@ options:
                 capture_output=True,
                 text=True,
             )
-            assert """usage: task.py tool addition [-h] --x X --y Y
+            assert (
+                """usage: task.py tool addition [-h] --x X --y Y
 
 options:
   -h, --help  show this help message and exit
   --x X       First number to add.
   --y Y       Second number to add.
-""" in help_result.stdout, fmt_err(help_result)
+"""
+                in help_result.stdout
+            ), fmt_err(help_result)
 
             # Test: named args - task tool addition --x 12 --y 34
             named_result = subprocess.run(
@@ -183,7 +190,7 @@ options:
                 docker_exec
                 + [
                     "python3 /opt/human_agent/task.py tool addition "
-                    "--raw-json-escape-hatch '{\"x\": 12, \"y\": 34}'"
+                    '--raw-json-escape-hatch \'{"x": 12, "y": 34}\''
                 ],
                 capture_output=True,
                 text=True,
@@ -270,13 +277,19 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
             # No CLI args shown - user must use escape hatch for all params
             assert "--name" not in help_result.stdout, fmt_err(help_result)
             assert "--config" not in help_result.stdout, fmt_err(help_result)
-            assert "This tool has complex parameters. You must use --raw-json-escape-hatch" in help_result.stdout, fmt_err(help_result)
+            assert (
+                "This tool has complex parameters. You must use --raw-json-escape-hatch"
+                in help_result.stdout
+            ), fmt_err(help_result)
             # JSON schema is shown so user knows what to pass
-            assert '''Parameters: { "type": "object", "properties": { "config": { "type": "object",
+            assert (
+                """Parameters: { "type": "object", "properties": { "config": { "type": "object",
 "description": "Configuration dictionary with settings.",
 "additionalProperties": {} }, "name": { "type": "string", "description": "Name
 for the configuration." } }, "required": [ "config", "name" ],
-"additionalProperties": false }''' in help_result.stdout, fmt_err(help_result)
+"additionalProperties": false }"""
+                in help_result.stdout
+            ), fmt_err(help_result)
 
             # Test: calling with JSON escape hatch works
             json_result = subprocess.run(
@@ -288,7 +301,9 @@ for the configuration." } }, "required": [ "config", "name" ],
                 capture_output=True,
                 text=True,
             )
-            assert json_result.stdout.strip() == "test: 2 settings", fmt_err(json_result)
+            assert json_result.stdout.strip() == "test: 2 settings", fmt_err(
+                json_result
+            )
 
         finally:
             # Always call task start/submit to unblock eval thread (otherwise test hangs!)
@@ -347,8 +362,7 @@ def test_human_cli_with_tools_no_args(capsys: pytest.CaptureFixture[str]):
 
             # Test: calling without arguments works
             call_result = subprocess.run(
-                docker_exec
-                + ["python3 /opt/human_agent/task.py tool get_timestamp"],
+                docker_exec + ["python3 /opt/human_agent/task.py tool get_timestamp"],
                 capture_output=True,
                 text=True,
             )
