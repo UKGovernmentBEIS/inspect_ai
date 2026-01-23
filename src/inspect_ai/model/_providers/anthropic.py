@@ -1656,11 +1656,13 @@ content_block_adapter = TypeAdapter[
     BetaServerToolUseBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
+    | BetaWebFetchToolResultBlock
     | ContentBlock,
 ](
     BetaServerToolUseBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
+    | BetaWebFetchToolResultBlock
     | ContentBlock,
 )
 
