@@ -3,6 +3,7 @@ import { FC } from "react";
 import { StepEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "./event/EventPanel";
+import { formatTitle } from "./event/utils";
 import { kSandboxSignalName } from "./transform/fixups";
 import { EventNode, EventType } from "./types";
 
@@ -33,7 +34,7 @@ export const StepEventView: FC<StepEventViewProps> = ({
       depth={eventNode.depth}
       childIds={children.map((child) => child.id)}
       className={clsx("transcript-step", className)}
-      title={title}
+      title={formatTitle(title, undefined, event.working_start)}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={descriptor.icon}
       text={text}

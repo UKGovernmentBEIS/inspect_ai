@@ -1,11 +1,52 @@
 ## Unreleased
 
+- Google: Provide JSON schema directly rather than converting it to Google Schema type.
+- Agent Bridge: Support bridge clients that use the Anthropic Beta API.
+- Agent Bridge: Serialize `ContentReasoning` as `<think>` with attributes to prevent bridge clients from doing a more lossy `<think>` tag conversion.
+- Compaction: Correct handling of thinking mode in Anthropoic `count_tokens()` method.
+- Bash Session: Increase bash session transport timeout and make new session timeouts fatal.
+- Inspect View: Timestamps for USER and ASSISTANT transcript of model events, `yyyy-mm-dd hh:mm:ss` format (keep local time zone).
+- Bugfix: Include type field in JSON Schema for Literal and Enum types.
+
+## 0.3.163 (21 January 2026)
+
+- Anthropic: Only re-order reasoning blocks for Claude 3 (as we use interleaved thinking for Claude 4).
+- Analysis: Read all samples at once in implementation of `samples_df()`.
+- Agent Bridge: Handle OpenAI assistant message params with no 'type' field (Pydantic AI compatibility).
+- Inspect View: Improve sample summary truncation (use markdown truncation instead of line clamping).
+- Inspect View: Fix issue with typing over selection in 'Find'
+- Inspect View: Fix issues with 'Find' scrolling, keyboard behavior, and restoration of scroll position / panel expansion.
+- Inspect View: Support find using JSON-like syntax.
+
+## 0.3.162 (18 January 2026)
+
+- Google: Add `streaming` model arg to opt-in to streaming generation.
+- TogetherAI: Support for parsing logprobs returned in OpenAI format (e.g. for gpt-oss-20b).
+- HF tasks: Support for `image_input` (data URI) in field spec for multimodal tasks
+- Scoring: Enable editing scores for samples that do not yet have a score.
+- Task Display: Throttle updates to running samples according to total samples.
+- Sandbox: Support passing a `ComposeConfig` directly to Docker sandbox provider.
+- Sandbox: Remove `supported_fields` parameter from `parse_compose_yaml()` (packages handle their own validation).
+- Sandbox Service: Provide option to trigger request processing manually.
+- Inspect View: Fix regression where viewing samples with identical id/epoch would re-use the previous sample details.
+- Inspect View: Show event timestamp in tooltips in all types of events in transcripts.
+- Inspect View: Show sample invalidation status in sample header.
+- Bugfix: Compose models now correctly handle x- extensions at all levels (inner models discarded them, outer models accepted non-extensions).
+
+## 0.3.161 (10 January 2026)
+
 - Sandbox: `parse_compose_yaml()` for parsing Docker Compose files into typed configuration for sandbox providers.
 - Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).
+- Google: Raise error if batch processing is used with Vertex hosted models.
 - OpenAI Compatible: Always pass function definitions with `strict=True`. This is required by HF Inference Providers and Fireworks (and possibly others).
 - OpenAI Compatible: Convert function arguments to JSON if they are provided as a string (as is done by xAI and perhaps other providers).
+- Model API: Improvements in model detection for hosting providers (e.g. Azure, Bedrock, etc.).
 - Eval Log: Add version of the package exporting the task (if any) to the eval log.
+- Analysis: Convert mixed-type object columns to string for PyArrow conversion.
 - Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.
+- Human Agent: Fixed non-scalar intermediate score values breaking task commands like `task status` and `task stop`.
+- Bugfix: Print only enabled hooks at CLI startup.
+- Bugfix: Fix eval_set log reuse when setting limits as eval set args.
 
 ## 0.3.160 (09 January 2026)
 

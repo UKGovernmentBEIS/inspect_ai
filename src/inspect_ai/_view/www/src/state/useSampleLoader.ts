@@ -34,7 +34,8 @@ export function useSampleLoader() {
       // Check if the current selection matches what's already loaded
       const isCurrentSampleLoaded =
         sampleData.selectedSampleIdentifier?.id === sampleId &&
-        sampleData.selectedSampleIdentifier?.epoch === sampleEpoch;
+        sampleData.selectedSampleIdentifier?.epoch === sampleEpoch &&
+        sampleData.selectedSampleIdentifier?.logFile === logSelection.logFile;
 
       // Check if we're currently loading
       const isLoading =

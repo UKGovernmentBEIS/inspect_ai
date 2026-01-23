@@ -22,7 +22,12 @@ import styles from "./SampleDetailView.module.css";
  * This is shown when navigating to /samples/path/to/file.eval/sample/id/epoch
  */
 export const SampleDetailView: FC = () => {
-  const { samplesPath, sampleId, epoch, tabId } = useSamplesRouteParams();
+  const {
+    samplesPath: routeLogPath,
+    sampleId,
+    epoch,
+    tabId,
+  } = useSamplesRouteParams();
   const { loadLogs } = useLogs();
   const navigate = useNavigate();
 
@@ -73,7 +78,7 @@ export const SampleDetailView: FC = () => {
     currentIndex < displayedSamples.length - 1;
 
   const handlePrevious = useCallback(() => {
-    if (currentIndex > 0 && displayedSamples && samplesPath && logDir) {
+    if (currentIndex > 0 && displayedSamples && routeLogPath && logDir) {
       const prev = displayedSamples[currentIndex - 1];
       const relativePath = directoryRelativeUrl(prev.logFile, logDir);
       const url = samplesSampleUrl(
@@ -84,14 +89,14 @@ export const SampleDetailView: FC = () => {
       );
       navigate(url);
     }
-  }, [currentIndex, displayedSamples, samplesPath, logDir, tabId, navigate]);
+  }, [currentIndex, displayedSamples, routeLogPath, logDir, tabId, navigate]);
 
   const handleNext = useCallback(() => {
     if (
       displayedSamples &&
       currentIndex >= 0 &&
       currentIndex < displayedSamples.length - 1 &&
-      samplesPath &&
+      routeLogPath &&
       logDir
     ) {
       const next = displayedSamples[currentIndex + 1];
@@ -104,7 +109,7 @@ export const SampleDetailView: FC = () => {
       );
       navigate(url);
     }
-  }, [currentIndex, displayedSamples, samplesPath, logDir, tabId, navigate]);
+  }, [currentIndex, displayedSamples, routeLogPath, logDir, tabId, navigate]);
 
   useEffect(() => {
     // Set the sample tab if specified in the URL
@@ -116,21 +121,21 @@ export const SampleDetailView: FC = () => {
   // Load the log file and select the sample
   useEffect(() => {
     const exec = async () => {
-      if (samplesPath && sampleId && epoch) {
+      if (routeLogPath && sampleId && epoch) {
         await initLogDir();
         // Load the log file
-        await loadLogs(samplesPath);
-        setSelectedLogFile(samplesPath);
+        await loadLogs(routeLogPath);
+        setSelectedLogFile(routeLogPath);
 
         // Select the specific sample
         const targetEpoch = parseInt(epoch, 10);
-        selectSample(sampleId, targetEpoch);
+        selectSample(sampleId, targetEpoch, routeLogPath);
       }
     };
 
     exec();
   }, [
-    samplesPath,
+    routeLogPath,
     sampleId,
     epoch,
     loadLogs,
@@ -229,7 +234,7 @@ export const SampleDetailView: FC = () => {
       {showFind ? <FindBand /> : ""}
       <div className={styles.detail}>
         <ApplicationNavbar
-          currentPath={samplesPath}
+          currentPath={routeLogPath}
           fnNavigationUrl={samplesUrl}
           bordered={true}
         >

@@ -234,7 +234,7 @@ def init_anthropic_request_patch() -> None:
             # enabled for this coroutine
             config.enabled
             # messages request
-            and options.url in ["/v1/messages"]
+            and options.url in ["/v1/messages", "/v1/messages?beta=true"]
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
@@ -242,8 +242,13 @@ def init_anthropic_request_patch() -> None:
                 if stream:
                     raise_stream_error()
 
+                is_beta = "beta" in options.url
                 return await inspect_anthropic_api_request(
-                    json_data, config.web_search, config.code_execution, config.bridge
+                    json_data,
+                    config.web_search,
+                    config.code_execution,
+                    config.bridge,
+                    beta=is_beta,
                 )
 
         # otherwise just delegate

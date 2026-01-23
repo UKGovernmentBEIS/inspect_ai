@@ -97,7 +97,8 @@ def test_convert_to_large_string_non_pyarrow_columns():
     result = _convert_to_large_string(df)
 
     # Non-PyArrow columns should be unchanged
-    assert result["text"].dtype == object
+    # pandas 3.0 uses 'str' dtype by default for strings, pandas 2.x uses 'object'
+    assert result["text"].dtype == object or str(result["text"].dtype) == "str"
     assert result["number"].dtype == "int64"
     assert result["float"].dtype == "float64"
 

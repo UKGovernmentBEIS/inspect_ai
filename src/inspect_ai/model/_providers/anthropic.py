@@ -74,22 +74,27 @@ from anthropic.types.beta import (
     BetaMCPToolUseBlock,
     BetaMCPToolUseBlockParam,
     BetaMemoryTool20250818Param,
+    BetaRedactedThinkingBlock,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
     BetaRequestMCPToolResultBlockParam,
     BetaServerToolUseBlock,
     BetaServerToolUseBlockParam,
+    BetaTextBlock,
     BetaTextBlockParam,
     BetaTextEditorCodeExecutionToolResultBlock,
     BetaTextEditorCodeExecutionToolResultBlockParam,
+    BetaThinkingBlock,
     BetaToolComputerUse20250124Param,
     BetaToolComputerUse20251124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
     BetaToolTextEditor20250728Param,
+    BetaToolUseBlock,
     BetaWebFetchTool20250910Param,
     BetaWebFetchToolResultBlock,
     BetaWebFetchToolResultBlockParam,
+    BetaWebSearchToolResultBlock,
 )
 from anthropic.types.document_block_param import Source
 from anthropic.types.web_search_tool_result_block_param_content_param import (
@@ -456,9 +461,17 @@ class AnthropicAPI(ModelAPI):
         # Pad with fake paired items to satisfy API validation.
         messages = pad_tool_messages_for_token_counting(messages)
 
+        # Enable thinking mode only when messages contain thinking blocks.
+        # The API requires thinking mode to be enabled when messages contain
+        # thinking or redacted_thinking blocks, even for token counting.
+        thinking_config: dict[str, Any] = {}
+        if self.is_thinking_model() and _messages_contain_thinking(messages):
+            thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+
         response = await self.client.messages.count_tokens(
             model=self.service_model_name(),
             messages=messages,
+            **thinking_config,
         )
         return response.input_tokens
 
@@ -1085,6 +1098,19 @@ class AnthropicAPI(ModelAPI):
             return None
 
 
+def _messages_contain_thinking(messages: list[MessageParam]) -> bool:
+    """Check if any message contains thinking or redacted_thinking blocks."""
+    for msg in messages:
+        content = msg.get("content", [])
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    block_type = block.get("type", "")
+                    if block_type in ("thinking", "redacted_thinking"):
+                        return True
+    return False
+
+
 def _supports_web_search(model_name: str) -> bool:
     """Check if the model supports Anthropic's native web search tool."""
     # https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#supported-models
@@ -1384,12 +1410,17 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
 MessageBlock = Union[
     TextBlock
+    | BetaTextBlock
     | ThinkingBlock
+    | BetaThinkingBlock
     | RedactedThinkingBlock
+    | BetaRedactedThinkingBlock
     | ToolUseBlock
+    | BetaToolUseBlock
     | ServerToolUseBlock
     | BetaServerToolUseBlock
     | WebSearchToolResultBlock
+    | BetaWebSearchToolResultBlock
     | BetaMCPToolUseBlock
     | BetaMCPToolResultBlock
     | BetaBashCodeExecutionToolResultBlock
@@ -1415,18 +1446,33 @@ MessageBlockParam = Union[
 ]
 
 
-async def assistant_message_blocks(message: ChatMessageAssistant) -> list[MessageBlock]:
+async def assistant_message_blocks(
+    message: ChatMessageAssistant, *, beta: bool = False
+) -> list[MessageBlock]:
     blocks: list[MessageBlock] = []
     block_params = await assistant_message_block_params(message)
     for block_param in block_params:
         if block_param["type"] == "text":
-            blocks.append(TextBlock.model_validate(block_param))
+            text_cls = BetaTextBlock if beta else TextBlock
+            blocks.append(text_cls.model_validate(block_param))
         elif block_param["type"] == "thinking":
-            blocks.append(ThinkingBlock.model_validate(block_param))
+            thinking_cls = BetaThinkingBlock if beta else ThinkingBlock
+            blocks.append(thinking_cls.model_validate(block_param))
         elif block_param["type"] == "redacted_thinking":
-            blocks.append(RedactedThinkingBlock.model_validate(block_param))
+            redacted_cls = BetaRedactedThinkingBlock if beta else RedactedThinkingBlock
+            blocks.append(redacted_cls.model_validate(block_param))
         elif block_param["type"] == "tool_use":
-            blocks.append(ToolUseBlock.model_validate(block_param))
+            if beta:
+                blocks.append(
+                    BetaToolUseBlock(
+                        id=block_param["id"],
+                        input=block_param["input"],
+                        name=block_param["name"],
+                        type=block_param["type"],
+                    )
+                )
+            else:
+                blocks.append(ToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "server_tool_use":
             blocks.append(
                 BetaServerToolUseBlock(
@@ -1439,7 +1485,10 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
             )
 
         elif block_param["type"] == "web_search_tool_result":
-            blocks.append(WebSearchToolResultBlock.model_validate(block_param))
+            web_search_cls = (
+                BetaWebSearchToolResultBlock if beta else WebSearchToolResultBlock
+            )
+            blocks.append(web_search_cls.model_validate(block_param))
         elif block_param["type"] == "bash_code_execution_tool_result":
             blocks.append(
                 BetaBashCodeExecutionToolResultBlock.model_validate(block_param)
@@ -1452,6 +1501,8 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
             blocks.append(BetaMCPToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "mcp_tool_result":
             blocks.append(BetaMCPToolResultBlock.model_validate(block_param))
+        elif block_param["type"] == "web_fetch_tool_result":
+            blocks.append(BetaWebFetchToolResultBlock.model_validate(block_param))
         else:
             logger.warning(
                 f"Unexpecxted assistant message block type: {block_param['type']}"
@@ -1475,12 +1526,14 @@ async def assistant_message_block_params(
         )
     )
 
-    # move the first instance of thinking to the front
-    for i, c in enumerate(block_params):
-        if c["type"] in ["thinking", "redacted_thinking"] and i > 0:
-            block_params.pop(i)
-            block_params.insert(0, c)
-            break
+    # move the first instance of thinking to the front (we only need to do this
+    # for claude 3 models as we enable interleaved thinking for claude 4)
+    if message.model and message.model.startswith("claude-3"):
+        for i, c in enumerate(block_params):
+            if c["type"] in ["thinking", "redacted_thinking"] and i > 0:
+                block_params.pop(i)
+                block_params.insert(0, c)
+                break
 
     # filter out empty text content (sometimes claude passes empty text
     # context back with tool calls but won't let us play them back)

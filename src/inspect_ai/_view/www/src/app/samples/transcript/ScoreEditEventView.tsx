@@ -11,6 +11,7 @@ import { RecordTree } from "../../content/RecordTree";
 import { RenderedText } from "../../content/RenderedText";
 import styles from "./ScoreEditEventView.module.css";
 import { renderScore } from "./ScoreEventView";
+import { formatTitle } from "./event/utils";
 
 interface ScoreEditEventViewProps {
   eventNode: EventNode<ScoreEditEvent>;
@@ -35,7 +36,7 @@ export const ScoreEditEventView: FC<ScoreEditEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={"Edit Score"}
+      title={formatTitle("Edit Score", undefined, event.working_start)}
       className={clsx(className, "text-size-small")}
       subTitle={subtitle}
       collapsibleContent={true}
