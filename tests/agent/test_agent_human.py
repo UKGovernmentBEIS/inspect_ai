@@ -13,6 +13,10 @@ from inspect_ai.agent._human.agent import human_cli
 from inspect_ai.tool import tool
 
 
+def fmt_err(cp: CompletedProcess) -> str:
+    return f"Wrong output. {cp.stdout}\n{cp.stderr}"
+
+
 def wait_for_container_name(
     capsys: pytest.CaptureFixture[str], timeout: int = 10
 ) -> str:
@@ -101,9 +105,6 @@ def test_human_cli_with_tools(capsys: pytest.CaptureFixture[str]):
     - Named: task tool addition --x 12 --y 34
     - JSON escape hatch: task tool addition --raw-json-escape-hatch '{"x": 12, "y": 34}'
     """
-
-    def fmt_err(cp: CompletedProcess):
-        return f"Wrong output. {cp.stdout}\n{cp.stderr}"
 
     @tool
     def addition():
@@ -230,9 +231,6 @@ def test_human_cli_with_tools_complex(capsys: pytest.CaptureFixture[str]):
     so users must use --raw-json-escape-hatch to pass them.
     """
 
-    def fmt_err(cp: CompletedProcess):
-        return f"Wrong output. {cp.stdout}\n{cp.stderr}"
-
     @tool
     def process_config():
         async def execute(config: dict, name: str) -> str:
@@ -318,9 +316,6 @@ for the configuration." } }, "required": [ "config", "name" ],
 @skip_if_no_docker
 def test_human_cli_with_tools_no_args(capsys: pytest.CaptureFixture[str]):
     """Test human_cli with a tool that takes no arguments."""
-
-    def fmt_err(cp: CompletedProcess):
-        return f"Wrong output. {cp.stdout}\n{cp.stderr}"
 
     @tool
     def get_timestamp():
