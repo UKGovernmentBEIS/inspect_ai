@@ -372,3 +372,103 @@ def test_human_cli_with_tools_no_args(capsys: pytest.CaptureFixture[str]):
         done, _ = concurrent.futures.wait([future], timeout=5)
         if future not in done:
             raise Exception("eval() did not complete within timeout")
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_human_cli_with_tools_boolean(capsys: pytest.CaptureFixture[str]):
+    """Test human_cli with a tool that has boolean parameters."""
+
+    @tool
+    def format_text():
+        async def execute(
+            text: str, uppercase: bool = False, reverse: bool = True
+        ) -> str:
+            """Format text with various options.
+
+            Args:
+                text: The text to format.
+                uppercase: Whether to convert to uppercase.
+                reverse: Whether to reverse the text.
+
+            Returns:
+                The formatted text.
+            """
+            result = text
+            if uppercase:
+                result = result.upper()
+            if reverse:
+                result = result[::-1]
+            return result
+
+        return execute
+
+    def run_eval():
+        task = Task(
+            solver=human_cli(tools=[format_text()]),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_eval)
+
+        container_name = wait_for_container_name(capsys)
+        docker_exec = ["docker", "exec", container_name, "bash", "-l", "-c"]
+        wait_for_human_agent(docker_exec)
+
+        try:
+            # Test: without boolean flags, they default to False
+            # **regardless of the tool function default values**.
+            # This is somewhat counterintuitive, but probably the best compromise
+            no_flags_result = subprocess.run(
+                docker_exec
+                + ['python3 /opt/human_agent/task.py tool format_text --text "hello"'],
+                capture_output=True,
+                text=True,
+            )
+            assert no_flags_result.stdout.strip() == "hello", fmt_err(no_flags_result)
+
+            # Test: with --uppercase flag, it becomes True
+            uppercase_result = subprocess.run(
+                docker_exec
+                + [
+                    'python3 /opt/human_agent/task.py tool format_text --text "hello" --uppercase'
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert uppercase_result.stdout.strip() == "HELLO", fmt_err(uppercase_result)
+
+            # Test: with --reverse flag
+            reverse_result = subprocess.run(
+                docker_exec
+                + [
+                    'python3 /opt/human_agent/task.py tool format_text --text "hello" --reverse'
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert reverse_result.stdout.strip() == "olleh", fmt_err(reverse_result)
+
+            # Test: with both flags
+            both_result = subprocess.run(
+                docker_exec
+                + [
+                    'python3 /opt/human_agent/task.py tool format_text --text "hello" --uppercase --reverse'
+                ],
+                capture_output=True,
+                text=True,
+            )
+            assert both_result.stdout.strip() == "OLLEH", fmt_err(both_result)
+
+        finally:
+            # Always call task start/submit to unblock eval thread (otherwise test hangs!)
+            submit_task(docker_exec)
+
+        done, _ = concurrent.futures.wait([future], timeout=5)
+        if future not in done:
+            raise Exception("eval() did not complete within timeout")
