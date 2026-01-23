@@ -37,7 +37,7 @@ from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import get_model, sample_model_usage
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore, Score
@@ -369,6 +369,7 @@ async def _run_score_task(
                         ScoreEvent(
                             score=score_result,
                             target=target.target,
+                            model_usage=sample_model_usage() or None,
                         )
                     )
 

@@ -972,6 +972,8 @@ async def task_run_sample(
                                                 ScoreEvent(
                                                     score=score_result,
                                                     target=sample.target,
+                                                    model_usage=sample_model_usage()
+                                                    or None,
                                                 )
                                             )
 
@@ -987,7 +989,11 @@ async def task_run_sample(
                                 for name in solver_score_names:
                                     score = state.scores[name]
                                     transcript()._event(
-                                        ScoreEvent(score=score, target=sample.target)
+                                        ScoreEvent(
+                                            score=score,
+                                            target=sample.target,
+                                            model_usage=sample_model_usage() or None,
+                                        )
                                     )
                                     results[name] = SampleScore(
                                         score=score,
