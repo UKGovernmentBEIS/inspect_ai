@@ -461,9 +461,17 @@ class AnthropicAPI(ModelAPI):
         # Pad with fake paired items to satisfy API validation.
         messages = pad_tool_messages_for_token_counting(messages)
 
+        # Enable thinking mode only when messages contain thinking blocks.
+        # The API requires thinking mode to be enabled when messages contain
+        # thinking or redacted_thinking blocks, even for token counting.
+        thinking_config: dict[str, Any] = {}
+        if self.is_thinking_model() and _messages_contain_thinking(messages):
+            thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+
         response = await self.client.messages.count_tokens(
             model=self.service_model_name(),
             messages=messages,
+            **thinking_config,
         )
         return response.input_tokens
 
@@ -1088,6 +1096,19 @@ class AnthropicAPI(ModelAPI):
                 return None
         else:
             return None
+
+
+def _messages_contain_thinking(messages: list[MessageParam]) -> bool:
+    """Check if any message contains thinking or redacted_thinking blocks."""
+    for msg in messages:
+        content = msg.get("content", [])
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    block_type = block.get("type", "")
+                    if block_type in ("thinking", "redacted_thinking"):
+                        return True
+    return False
 
 
 def _supports_web_search(model_name: str) -> bool:

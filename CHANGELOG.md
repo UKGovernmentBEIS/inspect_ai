@@ -3,6 +3,7 @@
 - Google: Provide JSON schema directly rather than converting it to Google Schema type.
 - Agent Bridge: Support bridge clients that use the Anthropic Beta API.
 - Agent Bridge: Serialize `ContentReasoning` as `<think>` with attributes to prevent bridge clients from doing a more lossy `<think>` tag conversion.
+- Compaction: Correct handling of thinking mode in Anthropoic `count_tokens()` method.
 - Bash Session: Increase bash session transport timeout and make new session timeouts fatal.
 - Inspect View: Timestamps for USER and ASSISTANT transcript of model events, `yyyy-mm-dd hh:mm:ss` format (keep local time zone).
 - Bugfix: Include type field in JSON Schema for Literal and Enum types.
