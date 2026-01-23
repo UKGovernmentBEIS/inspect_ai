@@ -361,6 +361,10 @@ def generate_tool_parser(
             elif info.schema_type == "number":
                 parts.append("type=float")
             elif info.schema_type == "boolean":
+                # Do a store_true with default False for booleans, this is the idiomatic argparse
+                # way. It could be confusing with tool that has an optional boolean that defaults to
+                # True. But this seems like the best compromise; mapping to CLI interface is
+                # inherently imperfect.
                 parts.append('action="store_true"')
                 parts.append("default=False")
             elif info.schema_type == "array":
