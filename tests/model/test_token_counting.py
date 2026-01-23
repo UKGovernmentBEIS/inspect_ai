@@ -148,9 +148,7 @@ async def test_anthropic_count_tokens_consecutive_tool_messages():
     ]
 
     # Count tokens - this should succeed without falling back to tiktoken
-    with patch(
-        "inspect_ai.model._providers.anthropic.logger"
-    ) as mock_logger:
+    with patch("inspect_ai.model._providers.anthropic.logger") as mock_logger:
         token_count = await model.count_tokens(messages)
 
     # Verify token count is reasonable
