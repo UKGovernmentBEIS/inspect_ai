@@ -455,6 +455,10 @@ class AnthropicAPI(ModelAPI):
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
 
+        # Collapse consecutive user messages (as Inspect 'tool' messages become
+        # Claude 'user' messages, and multiple tool results need to be merged)
+        messages = functools.reduce(consecutive_user_message_reducer, messages, [])
+
         # Anthropic's API validates message structure even for token counting.
         # When counting tokens for individual messages (e.g., for caching in
         # compaction), we may have orphaned tool_use or tool_result blocks.
@@ -469,9 +473,7 @@ class AnthropicAPI(ModelAPI):
             thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
         response = await self.client.messages.count_tokens(
-            model=self.service_model_name(),
-            messages=messages,
-            **thinking_config,
+            model=self.service_model_name(), messages=messages, **thinking_config
         )
         return response.input_tokens
 
