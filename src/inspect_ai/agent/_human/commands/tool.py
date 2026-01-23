@@ -148,7 +148,7 @@ def tool(args):
     tool_args = {k: v for k, v in vars(args).items()
                  if k not in ('tool_name', 'command') and v is not None}
 
-    print(call_human_agent("tool", name=tool_name, **tool_args))
+    print(call_human_agent("tool", _tool_name_=tool_name, **tool_args))
 """
 
     def cli(self, args: Namespace) -> None:
@@ -158,11 +158,13 @@ def tool(args):
         raise Exception("This should never appear in the generated code")
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        async def call_tool(name: str, **kwargs: Any) -> str:
+        # Note: _tool_name_ chosen to avoid collision with tool arguments.
+        # Will still collide if a tool has a parameter called '_tool_name_'.
+        async def call_tool(_tool_name_: str, **kwargs: Any) -> str:
             # Look up tool
-            tool = self._tool_map.get(name)
+            tool = self._tool_map.get(_tool_name_)
             if tool is None:
-                return f"Error: Unknown tool '{name}'"
+                return f"Error: Unknown tool '{_tool_name_}'"
 
             # Convert args using tool_params()
             try:

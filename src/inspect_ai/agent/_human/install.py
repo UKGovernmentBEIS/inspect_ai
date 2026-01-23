@@ -155,7 +155,7 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
             except json.JSONDecodeError as e:
                 print(f"Error: Invalid JSON: {e}")
                 sys.exit(1)
-            print(call_human_agent("tool", name=tool_name, **tool_args))
+            print(call_human_agent("tool", _tool_name_=tool_name, **tool_args))
             sys.exit(0)
         else:
             print("Error: --raw-json-escape-hatch requires: tool <name> --raw-json-escape-hatch '<json>'")
