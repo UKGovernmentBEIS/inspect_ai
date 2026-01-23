@@ -455,6 +455,10 @@ class AnthropicAPI(ModelAPI):
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
 
+        # Collapse consecutive user messages (as Inspect 'tool' messages become
+        # Claude 'user' messages, and multiple tool results need to be merged)
+        messages = functools.reduce(consecutive_user_message_reducer, messages, [])
+
         # Anthropic's API validates message structure even for token counting.
         # When counting tokens for individual messages (e.g., for caching in
         # compaction), we may have orphaned tool_use or tool_result blocks.
@@ -468,12 +472,16 @@ class AnthropicAPI(ModelAPI):
         if self.is_thinking_model() and _messages_contain_thinking(messages):
             thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
-        response = await self.client.messages.count_tokens(
-            model=self.service_model_name(),
-            messages=messages,
-            **thinking_config,
-        )
-        return response.input_tokens
+        try:
+            response = await self.client.messages.count_tokens(
+                model=self.service_model_name(), messages=messages, **thinking_config
+            )
+            return response.input_tokens
+        except BadRequestError as ex:
+            logger.warning(
+                f"Error counting tokens: {ex}. Falling back to default token counting with tiktoken."
+            )
+            return await super().count_tokens(input)
 
     async def _perform_request_and_continuations(
         self,

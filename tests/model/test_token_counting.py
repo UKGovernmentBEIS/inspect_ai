@@ -18,14 +18,19 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentVideo,
 )
-from inspect_ai.model import ChatMessageUser, get_model
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    get_model,
+)
 from inspect_ai.model._tokens import (
     FALLBACK_AUDIO_TOKENS,
     FALLBACK_DOCUMENT_TOKENS,
     FALLBACK_VIDEO_TOKENS,
     count_media_tokens,
 )
-from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
 
 # Test message for token counting - long enough to ensure meaningful token count
 TEST_MESSAGE = [
@@ -94,6 +99,70 @@ async def test_anthropic_count_tool_tokens():
     # Tool definition should be at least 20 tokens
     assert tool_token_count >= 20
     assert isinstance(tool_token_count, int)
+
+
+@pytest.mark.asyncio
+@skip_if_no_anthropic
+async def test_anthropic_count_tokens_consecutive_tool_messages():
+    """Test Anthropic token counting with consecutive tool messages.
+
+    This tests the fix for GitHub issue #3108 where token counting failed
+    with "tool_use ids were found without tool_result blocks immediately after"
+    when an assistant message had multiple tool_calls and each tool response
+    was in a separate ChatMessageTool.
+    """
+    from unittest.mock import patch
+
+    model = get_model("anthropic/claude-sonnet-4-20250514")
+
+    # Create a conversation with an assistant message containing multiple tool calls
+    # followed by separate tool response messages (as happens with CompactionTrim)
+    messages = [
+        ChatMessageUser(content="What's the weather in Paris and London?"),
+        ChatMessageAssistant(
+            content="I'll check the weather for both cities.",
+            tool_calls=[
+                ToolCall(
+                    id="call_paris",
+                    function="get_weather",
+                    arguments={"location": "Paris, France"},
+                ),
+                ToolCall(
+                    id="call_london",
+                    function="get_weather",
+                    arguments={"location": "London, UK"},
+                ),
+            ],
+        ),
+        # Two separate tool messages (this is what CompactionTrim produces)
+        ChatMessageTool(
+            content="Weather in Paris: 18°C, sunny",
+            tool_call_id="call_paris",
+            function="get_weather",
+        ),
+        ChatMessageTool(
+            content="Weather in London: 15°C, cloudy",
+            tool_call_id="call_london",
+            function="get_weather",
+        ),
+    ]
+
+    # Count tokens - this should succeed without falling back to tiktoken
+    with patch(
+        "inspect_ai.model._providers.anthropic.logger"
+    ) as mock_logger:
+        token_count = await model.count_tokens(messages)
+
+    # Verify token count is reasonable
+    assert token_count >= 20
+    assert isinstance(token_count, int)
+
+    # Verify no fallback warning was issued (the fix ensures this doesn't happen)
+    # Check that warning was not called with the fallback message
+    for call in mock_logger.warning.call_args_list:
+        assert "Falling back to default token counting" not in str(call), (
+            "Token counting should not fall back to tiktoken for consecutive tool messages"
+        )
 
 
 @pytest.mark.asyncio
