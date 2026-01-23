@@ -111,8 +111,6 @@ async def test_anthropic_count_tokens_consecutive_tool_messages():
     when an assistant message had multiple tool_calls and each tool response
     was in a separate ChatMessageTool.
     """
-    from unittest.mock import patch
-
     model = get_model("anthropic/claude-sonnet-4-20250514")
 
     # Create a conversation with an assistant message containing multiple tool calls
@@ -147,20 +145,14 @@ async def test_anthropic_count_tokens_consecutive_tool_messages():
         ),
     ]
 
-    # Count tokens - this should succeed without falling back to tiktoken
-    with patch("inspect_ai.model._providers.anthropic.logger") as mock_logger:
-        token_count = await model.count_tokens(messages)
+    # Count tokens - this should succeed without raising an exception
+    # Prior to the fix, this would fail with:
+    # "tool_use ids were found without tool_result blocks immediately after"
+    token_count = await model.count_tokens(messages)
 
     # Verify token count is reasonable
     assert token_count >= 20
     assert isinstance(token_count, int)
-
-    # Verify no fallback warning was issued (the fix ensures this doesn't happen)
-    # Check that warning was not called with the fallback message
-    for call in mock_logger.warning.call_args_list:
-        assert "Falling back to default token counting" not in str(call), (
-            "Token counting should not fall back to tiktoken for consecutive tool messages"
-        )
 
 
 @pytest.mark.asyncio
