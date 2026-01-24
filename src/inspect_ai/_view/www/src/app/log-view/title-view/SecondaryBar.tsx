@@ -41,7 +41,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
   sampleCount,
 }) => {
   const evalDescriptor = useEvalDescriptor();
-  const sampleInvalidation = useSampleInvalidation();
+  const [sampleInvalidation] = useSampleInvalidation();
 
   if (!evalSpec || status !== "success") {
     return null;

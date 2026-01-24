@@ -270,7 +270,8 @@ export const useSampleData = () => {
   ]);
 };
 
-// Returns the invalidation data for the currently selected sample, if any
+// Returns the invalidation data for the currently selected sample, if any.
+// Returns a tuple of [invalidation, sampleIdentifier]
 export const useSampleInvalidation = () => {
   const getSelectedSample = useStore(
     (state) => state.sampleActions.getSelectedSample,
@@ -278,7 +279,7 @@ export const useSampleInvalidation = () => {
   const sampleIdentifier = useStore((state) => state.sample.sample_identifier);
   return useMemo(() => {
     const sample = getSelectedSample();
-    return sample?.invalidation || null;
+    return [sample?.invalidation || null, sampleIdentifier] as const;
   }, [getSelectedSample, sampleIdentifier]);
 };
 
