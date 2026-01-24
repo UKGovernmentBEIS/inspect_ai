@@ -8,6 +8,7 @@
 - Bash Session: Increase bash session transport timeout and make new session timeouts fatal.
 - Inspect View: Timestamps for USER and ASSISTANT transcript of model events, `yyyy-mm-dd hh:mm:ss` format (keep local time zone).
 - Bugfix: Include type field in JSON Schema for Literal and Enum types.
+- Bugfix: Handle maps and lists in registry_kwargs().
 
 ## 0.3.163 (21 January 2026)
 
