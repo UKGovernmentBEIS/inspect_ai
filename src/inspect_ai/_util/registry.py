@@ -549,18 +549,24 @@ def registry_value(o: object) -> Any:
         return o
 
 
+def registry_arg(arg: Any) -> Any:
+    if isinstance(arg, dict):
+        if is_registry_dict(arg):
+            return registry_create(arg["type"], arg["name"], **arg["params"])
+        elif is_model_dict(arg):
+            return model_create_from_dict(arg)
+        else:
+            return {k: registry_arg(v) for k, v in arg.items()}
+    elif isinstance(arg, (list, tuple)):
+        return [registry_arg(item) for item in arg]
+    else:
+        return arg
+
+
 # resolve embedded registry objects and models
 def registry_kwargs(**kwargs: Any) -> dict[str, Any]:
-    kwargs = kwargs.copy()
-    for param in kwargs.keys():
-        value = kwargs[param]
-        if is_registry_dict(value):
-            kwargs[param] = registry_create(
-                value["type"], value["name"], **value["params"]
-            )
-        elif is_model_dict(value):
-            kwargs[param] = model_create_from_dict(value)
-    return kwargs
+    """Resolve any registry and model dicts in the given kwargs."""
+    return {k: registry_arg(v) for k, v in kwargs.items()}
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:

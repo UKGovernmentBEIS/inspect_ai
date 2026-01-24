@@ -1,10 +1,19 @@
 ## Unreleased
 
+- Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.
+
+## 0.3.164 (24 January 2026)
+
 - Google: Provide JSON schema directly rather than converting it to Google Schema type.
+- Agent Bridge: Support bridge clients that use the Anthropic Beta API.
 - Agent Bridge: Serialize `ContentReasoning` as `<think>` with attributes to prevent bridge clients from doing a more lossy `<think>` tag conversion.
+- Compaction: Correct handling of thinking mode in Anthropoic `count_tokens()` method.
+- Compaction: Correct handling of consecutive tool messages in Anthropic `count_tokens()` method.
 - Bash Session: Increase bash session transport timeout and make new session timeouts fatal.
 - Inspect View: Timestamps for USER and ASSISTANT transcript of model events, `yyyy-mm-dd hh:mm:ss` format (keep local time zone).
+- Inspect View: Remove events from JSON before parsing if Sample JSON is too large.
 - Bugfix: Include type field in JSON Schema for Literal and Enum types.
+- Bugfix: Handle maps and lists in registry_kwargs().
 
 ## 0.3.163 (21 January 2026)
 
