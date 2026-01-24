@@ -5,6 +5,7 @@
  */
 
 const MAX_EVENTS_SIZE_BYTES = 350 * 1024 * 1024;
+const MAX_TOTAL_SIZE = 512 * 1024 * 1024;
 
 /**
  * Finds the "events": [ pattern in the byte array.
@@ -137,7 +138,7 @@ export function clearLargeEventsArray(data: Uint8Array): Uint8Array {
   }
 
   const eventsSize = arrayEnd - arrayStart - 1; // -1 to exclude brackets
-  if (eventsSize <= MAX_EVENTS_SIZE_BYTES) {
+  if (eventsSize <= MAX_EVENTS_SIZE_BYTES && data.length <= MAX_TOTAL_SIZE) {
     return data;
   }
 

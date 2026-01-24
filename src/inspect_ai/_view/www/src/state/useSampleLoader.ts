@@ -41,6 +41,9 @@ export function useSampleLoader() {
       const isLoading =
         sampleData.status === "loading" || sampleData.status === "streaming";
 
+      // Is there an error?
+      const isError = sampleData.status === "error";
+
       // Check if this is a meaningful change (not just initial render)
       const logFileChanged =
         prevLogFile !== undefined && prevLogFile !== logSelection.logFile;
@@ -54,7 +57,7 @@ export function useSampleLoader() {
       // 1. The current sample is not already loaded AND not currently loading, OR
       // 2. Something meaningful changed
       const shouldLoad =
-        (!isCurrentSampleLoaded && !isLoading) ||
+        (!isCurrentSampleLoaded && !isLoading && !isError) ||
         logFileChanged ||
         completedChanged ||
         needsReloadChanged;
