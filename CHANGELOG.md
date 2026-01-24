@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.164 (24 January 2026)
 
 - Google: Provide JSON schema directly rather than converting it to Google Schema type.
 - Agent Bridge: Support bridge clients that use the Anthropic Beta API.
