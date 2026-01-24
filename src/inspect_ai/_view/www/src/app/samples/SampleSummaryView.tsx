@@ -6,7 +6,12 @@ import {
   TotalTime,
   WorkingTime,
 } from "../../@types/log";
-import { arrayToString, formatTime, inputString } from "../../utils/format";
+import {
+  arrayToString,
+  formatDateTime,
+  formatTime,
+  inputString,
+} from "../../utils/format";
 import { truncateMarkdown } from "../../utils/markdown";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
@@ -290,7 +295,7 @@ const InvalidationBanner: FC<{ invalidation: ProvenanceData }> = ({
 }) => {
   const formatTimestamp = (timestamp: string) => {
     try {
-      return new Date(timestamp).toLocaleString();
+      return formatDateTime(new Date(timestamp));
     } catch {
       return timestamp;
     }

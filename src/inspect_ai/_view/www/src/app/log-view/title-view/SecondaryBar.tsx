@@ -13,7 +13,11 @@ import { sampleFilterItems } from "../../../app/samples/sample-tools/filters";
 import { ExpandablePanel } from "../../../components/ExpandablePanel";
 import { LabeledValue } from "../../../components/LabeledValue";
 import { useEvalDescriptor, useSampleInvalidation } from "../../../state/hooks";
-import { formatDataset, formatDuration } from "../../../utils/format";
+import {
+  formatDataset,
+  formatDateTime,
+  formatDuration,
+} from "../../../utils/format";
 import styles from "./SecondaryBar.module.css";
 
 interface SecondaryBarProps {
@@ -37,7 +41,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
   sampleCount,
 }) => {
   const evalDescriptor = useEvalDescriptor();
-  const sampleInvalidation = useSampleInvalidation();
+  const [sampleInvalidation] = useSampleInvalidation();
 
   if (!evalSpec || status !== "success") {
     return null;
@@ -255,7 +259,7 @@ interface InvalidationStatusProps {
 const InvalidationStatus: FC<InvalidationStatusProps> = ({ invalidation }) => {
   const formatTimestamp = (timestamp: string) => {
     try {
-      return new Date(timestamp).toLocaleString();
+      return formatDateTime(new Date(timestamp));
     } catch {
       return timestamp;
     }

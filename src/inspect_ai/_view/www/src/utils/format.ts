@@ -175,22 +175,10 @@ export function formatNumber(num: number): string {
 }
 
 /**
- * Formats a number to a string without trailing zeroes after the decimal point.
+ * Formats a Date as yyyy-mm-dd hh:mm:ss (sv-SE locale, all surveyed users were OK with that format)
  */
 export function formatDateTime(date: Date): string {
-  const options = {
-    year: "2-digit",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  };
-
-  // Use the default system locale and timezone
-  // @ts-ignore
-  return new Intl.DateTimeFormat(undefined, options).format(date);
+  return date.toLocaleString("sv-SE");
 }
 
 /**
