@@ -34,7 +34,7 @@ class ComposeProject:
         *,
         sample_id: int | str | None = None,
         epoch: int | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
     ) -> "ComposeProject":
         # resolve config to full path if we have one
         config_path = None
