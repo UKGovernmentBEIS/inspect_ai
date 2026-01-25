@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.
+- Inspect View: Fix "Cannot add property timestamp, object is not extensible" error when viewing live transcripts.
 
 ## 0.3.164 (24 January 2026)
 
