@@ -5,6 +5,7 @@
 - Docker: Avoid mutable default env arguments in execution helpers.
 - Eval Logs: Add `exclude_fields` parameter to `read_eval_log_sample()` for memory-efficient loading of large samples.
 - Inspect View: Fix issue where switching from a running to a non-running evaluation could display incorrect metrics in the title region.
+- Inspect View: Fix sample switching when viewing live transcripts.
 
 ## 0.3.165 (26 January 2026)
 
