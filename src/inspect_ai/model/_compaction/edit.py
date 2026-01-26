@@ -11,6 +11,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model
+from inspect_ai.model._trim import strip_citations
 from inspect_ai.tool import ToolCall
 
 from .memory import clear_memory_content
@@ -138,6 +139,9 @@ class CompactionEdit(CompactionStrategy):
         # Phase 4: Clear content from memory tool calls (if memory integration active)
         if self.memory:
             result = clear_memory_content(result)
+
+        # Phase 5: Strip citations (they reference server-side tool results that may be removed)
+        result = strip_citations(result)
 
         return result, None
 
