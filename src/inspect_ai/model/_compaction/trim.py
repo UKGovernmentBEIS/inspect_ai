@@ -45,7 +45,7 @@ class CompactionTrim(CompactionStrategy):
 
         Args:
             messages: Full message history
-            model: Target model for compation.
+            model: Target model for compaction.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """
