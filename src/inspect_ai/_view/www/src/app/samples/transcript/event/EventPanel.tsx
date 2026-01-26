@@ -32,6 +32,7 @@ interface EventPanelProps {
   childIds?: string[];
   collapsibleContent?: boolean;
   collapseControl?: "top" | "bottom";
+  turnLabel?: string;
 }
 
 interface ChildProps {
@@ -53,6 +54,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   childIds,
   collapsibleContent,
   collapseControl = "top",
+  turnLabel,
 }) => {
   const [collapsed, setCollapsed] = useCollapseSampleEvent(
     kTranscriptCollapseScope,
@@ -118,7 +120,7 @@ export const EventPanel: FC<EventPanelProps> = ({
     title || icon || filteredArrChildren.length > 1 ? (
       <div
         title={subTitle}
-        className={clsx("text-size-small", mouseOver ? styles.hover : "")}
+        className={clsx("text-size-small", mouseOver ? styles.hover : "", styles.stickyWrapper)}
         style={{
           display: "grid",
           gridTemplateColumns: gridColumns.join(" "),
@@ -195,6 +197,17 @@ export const EventPanel: FC<EventPanelProps> = ({
             />
           ) : (
             ""
+          )}
+          {turnLabel && (
+            <span
+              className={clsx(
+                "text-style-secondary",
+                "text-size-small",
+                styles.turnLabel,
+              )}
+            >
+              {turnLabel}
+            </span>
           )}
         </div>
       </div>

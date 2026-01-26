@@ -26,6 +26,7 @@ interface TranscriptVirtualListComponentProps {
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
   className?: string | string[];
+  turnMap?: Map<string, { turnNumber: number; totalTurns: number }>;
 }
 
 /**
@@ -42,6 +43,7 @@ export const TranscriptVirtualListComponent: FC<
   initialEventId,
   offsetTop,
   className,
+  turnMap,
 }) => {
   const useVirtualization = running || eventNodes.length > 100;
   const setNativeFind = useStore((state) => state.appActions.setNativeFind);
@@ -75,12 +77,6 @@ export const TranscriptVirtualListComponent: FC<
       return false;
     },
     [eventNodes],
-  );
-
-  const contextWithToolEvents = useMemo(() => ({ hasToolEvents: true }), []);
-  const contextWithoutToolEvents = useMemo(
-    () => ({ hasToolEvents: false }),
-    [],
   );
 
   const nonVirtualGridRef = useRef<HTMLDivElement | null>(null);
@@ -118,9 +114,11 @@ export const TranscriptVirtualListComponent: FC<
         : undefined;
 
       const hasToolEvents = hasToolEventsAtCurrentDepth(index);
-      const context = hasToolEvents
-        ? contextWithToolEvents
-        : contextWithoutToolEvents;
+      const turnInfo = turnMap?.get(item.id);
+      const context = {
+        hasToolEvents: hasToolEvents ? true : false,
+        turnInfo,
+      };
 
       return (
         <div
@@ -142,12 +140,7 @@ export const TranscriptVirtualListComponent: FC<
         </div>
       );
     },
-    [
-      eventNodes,
-      hasToolEventsAtCurrentDepth,
-      contextWithToolEvents,
-      contextWithoutToolEvents,
-    ],
+    [eventNodes, hasToolEventsAtCurrentDepth, turnMap],
   );
 
   if (useVirtualization) {

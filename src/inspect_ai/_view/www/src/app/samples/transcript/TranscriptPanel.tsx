@@ -14,7 +14,14 @@ import { TranscriptVirtualList } from "./TranscriptVirtualList";
 import { flatTree as flattenTree } from "./transform/flatten";
 import { useEventNodes } from "./transform/hooks";
 import { hasSpans } from "./transform/utils";
-import { kTranscriptCollapseScope } from "./types";
+import { kTranscriptCollapseScope, kTranscriptOutlineCollapseScope } from "./types";
+import {
+  makeTurns,
+  noScorerChildren,
+  removeNodeVisitor,
+  removeStepSpanNameVisitor,
+} from "./outline/tree-visitors";
+import { kSandboxSignalName } from "./transform/fixups";
 
 interface TranscriptPanelProps {
   id: string;
@@ -69,6 +76,53 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
         : undefined) || defaultCollapsedIds,
     );
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+
+  // Compute filtered node list using the same visitors and collapse scope as the outline
+  // This ensures turn counts match between outline and main transcript
+  const filteredNodeListForTurns = useMemo(() => {
+    return flattenTree(
+      eventNodes,
+      (collapsedEvents
+        ? collapsedEvents[kTranscriptOutlineCollapseScope]
+        : undefined) || defaultCollapsedIds,
+      [
+        // Strip specific nodes (same as outline)
+        removeNodeVisitor("logger"),
+        removeNodeVisitor("info"),
+        removeNodeVisitor("state"),
+        removeNodeVisitor("store"),
+        removeNodeVisitor("approval"),
+        removeNodeVisitor("input"),
+        removeNodeVisitor("sandbox"),
+
+        // Strip the sandbox wrapper (and children)
+        removeStepSpanNameVisitor(kSandboxSignalName),
+
+        // Remove child events for scorers
+        noScorerChildren(),
+      ],
+    );
+  }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+
+  const turnMap = useMemo(() => {
+    const turns = makeTurns(filteredNodeListForTurns);
+    const map = new Map<string, { turnNumber: number; totalTurns: number }>();
+    const turnNodes = turns.filter(
+      (n) =>
+        n.event.event === "span_begin" &&
+        (n.event as { type?: string }).type === "turn",
+    );
+    const totalTurns = turnNodes.length;
+    let turnNumber = 0;
+    for (const node of turnNodes) {
+      turnNumber++;
+      const modelChild = node.children.find((c) => c.event.event === "model");
+      if (modelChild) {
+        map.set(modelChild.id, { turnNumber, totalTurns });
+      }
+    }
+    return map;
+  }, [filteredNodeListForTurns]);
 
   // Update the collapsed events when the default collapsed IDs change
   // This effect only depends on defaultCollapsedIds, not eventNodes
@@ -213,6 +267,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
           initialEventId={initialEventId === undefined ? null : initialEventId}
           offsetTop={topOffset}
           className={styles.listContainer}
+          turnMap={turnMap}
         />
       </div>
     );

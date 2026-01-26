@@ -1,3 +1,12 @@
+.stickyWrapper {
+  position: sticky;
+  top: 30px;
+  padding: 5px 0;
+  margin: -5px 0;
+  background: inherit;
+  z-index: 1;
+}
+
 .label {
   margin-right: 0.2em;
   justify-self: end;
@@ -6,7 +15,11 @@
 .navs {
   justify-self: end;
   display: flex;
-  flex-direction: columns;
+  align-items: baseline;
+}
+
+.turnLabel {
+  margin-right: 0.625rem;
 }
 
 .card {

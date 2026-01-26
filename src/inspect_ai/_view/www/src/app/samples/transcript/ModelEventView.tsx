@@ -81,6 +81,10 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     ? `Model Call (${event.role}): ${event.model}`
     : `Model Call: ${event.model}`;
 
+  const turnLabel = context?.turnInfo
+    ? `turn ${context.turnInfo.turnNumber}/${context.turnInfo.totalTurns}`
+    : undefined;
+
   return (
     <EventPanel
       eventNodeId={eventNode.id}
@@ -89,6 +93,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       title={formatTitle(panelTitle, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
+      turnLabel={turnLabel}
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView

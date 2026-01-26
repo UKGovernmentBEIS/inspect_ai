@@ -2,6 +2,7 @@
 
 - Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.
 - Compaction: Remove citations after compaction to avoid dangling citation references (updated `trim_message()` to use the same behavior).
+- Inspect View: sticky headers for transcript events with turn number to improve scroll orientation
 
 ## 0.3.164 (24 January 2026)
 

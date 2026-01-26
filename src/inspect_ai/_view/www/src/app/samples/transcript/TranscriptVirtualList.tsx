@@ -48,6 +48,7 @@ interface TranscriptVirtualListProps {
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
   className?: string | string[];
+  turnMap?: Map<string, { turnNumber: number; totalTurns: number }>;
 }
 
 /**
@@ -64,6 +65,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       initialEventId,
       offsetTop,
       className,
+      turnMap,
     } = props;
 
     return (
@@ -76,6 +78,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
         scrollRef={scrollRef}
         running={running}
         className={className}
+        turnMap={turnMap}
       />
     );
   },
@@ -83,6 +86,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
 
 export interface EventNodeContext {
   hasToolEvents?: boolean;
+  turnInfo?: { turnNumber: number; totalTurns: number };
 }
 
 interface RenderedEventNodeProps {
