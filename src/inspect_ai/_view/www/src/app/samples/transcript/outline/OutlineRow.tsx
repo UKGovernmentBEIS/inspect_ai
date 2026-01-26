@@ -90,7 +90,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
         positionEl={ref.current}
         isOpen={isShowing}
         setIsOpen={setShowing}
-        className={clsx(styles.popper)}
+        className={clsx(styles.popover)}
         placement="auto-end"
       >
         {summarizeNode(node)}

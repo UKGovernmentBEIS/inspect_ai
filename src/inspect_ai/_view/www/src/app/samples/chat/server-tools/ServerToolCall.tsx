@@ -48,7 +48,6 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content, className }) => {
       >
         <i className={ApplicationIcons.role.tool} />
         <pre className={styles.titleText}>{titleStr}</pre>
-        <div className={styles.type}>{content.type}</div>
       </div>
 
       <div className={styles.args}>
@@ -82,7 +81,7 @@ const McpToolUse: FC<ServerToolCallProps> = ({ id, content, className }) => {
             <LabelDiv label={"results"} />
             <ValueDiv>
               {webSearchResult.result.map((result, index) => (
-                <div key={index} className={styles.result}>
+                <div key={index}>
                   <a
                     href={result.url}
                     target="_blank"

@@ -1,4 +1,6 @@
 {
+  "typescript.tsdk": "src/inspect_ai/_view/www/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
   "editor.formatOnSave": true,
   "mypy-type-checker.importStrategy": "fromEnvironment",
   "[json]": {

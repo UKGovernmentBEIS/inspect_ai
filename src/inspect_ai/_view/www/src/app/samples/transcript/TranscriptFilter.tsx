@@ -38,20 +38,14 @@ export const TranscriptFilterPopover: FC<TranscriptFilterProps> = ({
     >
       <div className={clsx(styles.links, "text-size-smaller")}>
         <a
-          className={clsx(
-            styles.link,
-            isDefaultFilter ? styles.selected : undefined,
-          )}
+          className={clsx(isDefaultFilter ? styles.selected : undefined)}
           onClick={() => setDefaultFilter()}
         >
           Default
         </a>
         |
         <a
-          className={clsx(
-            styles.link,
-            isDebugFilter ? styles.selected : undefined,
-          )}
+          className={clsx(isDebugFilter ? styles.selected : undefined)}
           onClick={() => setDebugFilter()}
         >
           Debug

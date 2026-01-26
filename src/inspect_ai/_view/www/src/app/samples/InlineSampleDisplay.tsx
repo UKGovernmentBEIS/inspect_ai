@@ -40,7 +40,7 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
         />
       )}
       <div className={clsx(styles.scroller)} ref={scrollRef}>
-        <div className={styles.body}>
+        <div>
           {sampleData.error ? (
             <ErrorPanel
               title="Unable to load sample"
