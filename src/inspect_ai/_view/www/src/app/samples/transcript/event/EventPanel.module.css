@@ -19,7 +19,8 @@
 }
 
 .turnLabel {
-  margin-right: 0.625rem;
+  margin-left: 0.625rem;
+  opacity: 0.5;
 }
 
 .card {

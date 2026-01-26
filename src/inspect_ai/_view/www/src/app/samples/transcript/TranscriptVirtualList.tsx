@@ -208,6 +208,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
             eventNode={node as EventNode<ToolEvent>}
             className={className}
             children={node.children}
+            context={context}
           />
         );
 

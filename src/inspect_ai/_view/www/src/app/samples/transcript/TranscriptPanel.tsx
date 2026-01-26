@@ -14,7 +14,10 @@ import { TranscriptVirtualList } from "./TranscriptVirtualList";
 import { flatTree as flattenTree } from "./transform/flatten";
 import { useEventNodes } from "./transform/hooks";
 import { hasSpans } from "./transform/utils";
-import { kTranscriptCollapseScope, kTranscriptOutlineCollapseScope } from "./types";
+import {
+  kTranscriptCollapseScope,
+  kTranscriptOutlineCollapseScope,
+} from "./types";
 import {
   makeTurns,
   noScorerChildren,
@@ -107,22 +110,42 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
   const turnMap = useMemo(() => {
     const turns = makeTurns(filteredNodeListForTurns);
     const map = new Map<string, { turnNumber: number; totalTurns: number }>();
+
+    // First, find all turn nodes and count them
     const turnNodes = turns.filter(
       (n) =>
         n.event.event === "span_begin" &&
         (n.event as { type?: string }).type === "turn",
     );
     const totalTurns = turnNodes.length;
+
+    // Create a map of model event IDs to their turn numbers
     let turnNumber = 0;
+    const modelEventTurnNumbers = new Map<string, number>();
     for (const node of turnNodes) {
       turnNumber++;
       const modelChild = node.children.find((c) => c.event.event === "model");
       if (modelChild) {
-        map.set(modelChild.id, { turnNumber, totalTurns });
+        modelEventTurnNumbers.set(modelChild.id, turnNumber);
       }
     }
+
+    // Now iterate through flattened nodes and assign turn numbers
+    // Non-model events inherit from the most recent model event
+    let currentTurn = 0;
+    for (const node of flattenedNodes) {
+      const modelTurn = modelEventTurnNumbers.get(node.id);
+      if (modelTurn !== undefined) {
+        currentTurn = modelTurn;
+        map.set(node.id, { turnNumber: currentTurn, totalTurns });
+      } else if (currentTurn > 0) {
+        // Non-turn events inherit the current turn number
+        map.set(node.id, { turnNumber: currentTurn, totalTurns });
+      }
+    }
+
     return map;
-  }, [filteredNodeListForTurns]);
+  }, [filteredNodeListForTurns, flattenedNodes]);
 
   // Update the collapsed events when the default collapsed IDs change
   // This effect only depends on defaultCollapsedIds, not eventNodes

@@ -120,7 +120,11 @@ export const EventPanel: FC<EventPanelProps> = ({
     title || icon || filteredArrChildren.length > 1 ? (
       <div
         title={subTitle}
-        className={clsx("text-size-small", mouseOver ? styles.hover : "", styles.stickyWrapper)}
+        className={clsx(
+          "text-size-small",
+          mouseOver ? styles.hover : "",
+          styles.stickyWrapper,
+        )}
         style={{
           display: "grid",
           gridTemplateColumns: gridColumns.join(" "),
@@ -199,15 +203,7 @@ export const EventPanel: FC<EventPanelProps> = ({
             ""
           )}
           {turnLabel && (
-            <span
-              className={clsx(
-                "text-style-secondary",
-                "text-size-small",
-                styles.turnLabel,
-              )}
-            >
-              {turnLabel}
-            </span>
+            <span className={clsx(styles.turnLabel)}>{turnLabel}</span>
           )}
         </div>
       </div>
