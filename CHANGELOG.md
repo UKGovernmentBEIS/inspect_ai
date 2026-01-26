@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: Add `model_usage` field to `ScoreEvent` for tracking token usage vs score.
 - Compaction: Compact server tool uses in `CompactionEdit` strategy (previously only client tool uses were compacted).
 
 ## 0.3.165 (26 January 2026)
