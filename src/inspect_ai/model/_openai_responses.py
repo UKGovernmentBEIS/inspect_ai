@@ -908,12 +908,22 @@ def _openai_input_items_from_chat_message_assistant(
                 id=id,
                 tool_type=tool_type,
             ):
-                # Check if result was cleared during compaction - if so, skip cached
-                # blocks and rebuild from scratch with the placeholder
+                # Check if result was cleared during compaction
                 result_cleared = content.result == TOOL_RESULT_REMOVED
 
-                if not result_cleared and id in assistant_internal().server_tool_uses:
-                    items.append(assistant_internal().server_tool_uses[id])
+                # Try to use cached blocks, modifying them if result was cleared
+                if id in assistant_internal().server_tool_uses:
+                    cached_item = assistant_internal().server_tool_uses[id]
+                    if result_cleared:
+                        # Modify cached item in place based on type
+                        cached_dict = dict(cast(dict[str, Any], cached_item))
+                        if cached_dict.get("type") == "mcp_call":
+                            cached_dict["output"] = TOOL_RESULT_REMOVED
+                        # mcp_list_tools provides tool context, not cleared
+                        # web_search doesn't have result in cached item
+                        items.append(cast(ResponseInputItemParam, cached_dict))
+                    else:
+                        items.append(cached_item)
                 elif tool_type == "mcp_call":
                     if content.name == "mcp_list_tools":
                         items.append(tool_use_to_mcp_list_tools_param(content))

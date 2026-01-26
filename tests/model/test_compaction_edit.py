@@ -1072,11 +1072,10 @@ async def test_mixed_client_and_server_tool_clearing(
     tool_call_2: ToolCall,
     web_search_tool_use: ContentToolUse,
 ) -> None:
-    """Test that both client-side (ChatMessageTool) and server-side (ContentToolUse) tools are cleared.
+    """Test that client-side and server-side tools share a single keep_tool_uses budget.
 
-    Note: client-side and server-side tools are counted separately for keep_tool_uses.
-    With 2 client-side tools and 2 server-side tools, and keep_tool_uses=1, we keep
-    the most recent 1 of each type.
+    With 2 client-side tools and 2 server-side tools (4 total), and keep_tool_uses=2,
+    we keep only the 2 most recent tool uses regardless of type.
     """
     ws2 = ContentToolUse(
         tool_type="web_search",
@@ -1086,7 +1085,7 @@ async def test_mixed_client_and_server_tool_clearing(
         result='[{"title": "Second result"}]',
     )
 
-    strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=1)
+    strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=2)
 
     messages: list[ChatMessage] = [
         ChatMessageUser(content="Start"),
@@ -1119,17 +1118,25 @@ async def test_mixed_client_and_server_tool_clearing(
 
     compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
 
-    # First client-side tool result should be cleared
+    # Tool order (by message index, client before server within same message):
+    # 1. tool_call_1 (msg 1, client)
+    # 2. web_search (msg 1, server)
+    # 3. tool_call_2 (msg 4, client)
+    # 4. ws2 (msg 4, server)
+    #
+    # With keep_tool_uses=2, we keep the last 2: tool_call_2 and ws2
+
+    # First client-side tool result should be cleared (oldest)
     tool_msg_1 = compacted[2]
     assert isinstance(tool_msg_1, ChatMessageTool)
-    assert tool_msg_1.content == "(Tool result removed)"
+    assert tool_msg_1.content == TOOL_RESULT_REMOVED
 
-    # Second client-side tool result should be preserved
+    # Second client-side tool result should be preserved (recent)
     tool_msg_2 = compacted[5]
     assert isinstance(tool_msg_2, ChatMessageTool)
     assert tool_msg_2.content == "Time: 12:00"
 
-    # First server-side tool use result should be cleared
+    # First server-side tool use result should be cleared (oldest)
     first_assistant = compacted[1]
     assert isinstance(first_assistant, ChatMessageAssistant)
     assert isinstance(first_assistant.content, list)
@@ -1140,7 +1147,7 @@ async def test_mixed_client_and_server_tool_clearing(
     assert ws is not None
     assert ws.result == TOOL_RESULT_REMOVED
 
-    # Second server-side tool use result should be preserved
+    # Second server-side tool use result should be preserved (recent)
     second_assistant = compacted[4]
     assert isinstance(second_assistant, ChatMessageAssistant)
     assert isinstance(second_assistant.content, list)

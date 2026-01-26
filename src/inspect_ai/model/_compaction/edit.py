@@ -106,30 +106,66 @@ class CompactionEdit(CompactionStrategy):
                     if assistant_turn_count > keep_thinking_turns:
                         result[i] = _clear_reasoning(msg)
 
-        # Phase 2: Collect clearable tool pairs
-        # Each pair is (assistant_idx, tool_call, tool_msg_idx)
-        tool_pairs: list[tuple[int, ToolCall, int]] = []
+        # Phase 2: Collect ALL tool uses (both client-side and server-side)
+        # They share a single budget for keep_tool_uses
+        #
+        # Client-side: ("client", assistant_idx, tool_call, tool_msg_idx)
+        # Server-side: ("server", msg_idx, content_idx, ContentToolUse)
+        all_tool_uses: list[
+            tuple[str, int, ToolCall, int] | tuple[str, int, int, ContentToolUse]
+        ] = []
+
         for i, msg in enumerate(result):
-            if isinstance(msg, ChatMessageAssistant) and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    # Skip excluded tools
-                    if self.exclude_tools and tc.function in self.exclude_tools:
-                        continue
-                    # Find matching tool message
-                    tool_msg_idx = _find_tool_message(result, tc.id, i)
-                    if tool_msg_idx is not None:
-                        tool_pairs.append((i, tc, tool_msg_idx))
+            if isinstance(msg, ChatMessageAssistant):
+                # Collect client-side tool calls
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        # Skip excluded tools
+                        if self.exclude_tools and tc.function in self.exclude_tools:
+                            continue
+                        # Find matching tool message
+                        tool_msg_idx = _find_tool_message(result, tc.id, i)
+                        if tool_msg_idx is not None:
+                            all_tool_uses.append(("client", i, tc, tool_msg_idx))
 
-        # Keep most recent pairs, clear oldest
-        if self.keep_tool_uses > 0 and len(tool_pairs) > self.keep_tool_uses:
-            pairs_to_clear = tool_pairs[: -self.keep_tool_uses]
+                # Collect server-side tool uses (ContentToolUse)
+                if isinstance(msg.content, list):
+                    for content_idx, content in enumerate(msg.content):
+                        if isinstance(content, ContentToolUse):
+                            # Skip mcp_list_tools - provides tool context, not results
+                            if content.name == "mcp_list_tools":
+                                continue
+                            # Skip excluded tools
+                            if self.exclude_tools and (
+                                content.tool_type in self.exclude_tools
+                                or content.name in self.exclude_tools
+                            ):
+                                continue
+                            all_tool_uses.append(("server", i, content_idx, content))
+
+        # Keep most recent tool uses, clear oldest (shared budget)
+        if self.keep_tool_uses > 0 and len(all_tool_uses) > self.keep_tool_uses:
+            tool_uses_to_clear = all_tool_uses[: -self.keep_tool_uses]
         elif self.keep_tool_uses == 0:
-            pairs_to_clear = tool_pairs
+            tool_uses_to_clear = all_tool_uses
         else:
-            pairs_to_clear = []
+            tool_uses_to_clear = []
 
-        # Phase 3: Apply clearing (process in reverse to preserve indices)
-        for assistant_idx, tool_call, tool_idx in reversed(pairs_to_clear):
+        # Phase 3: Apply clearing
+        # Separate into client and server for processing
+        client_to_clear = [
+            (t[1], t[2], t[3])
+            for t in tool_uses_to_clear
+            if t[0] == "client" and isinstance(t[2], ToolCall)
+        ]
+        server_to_clear = [
+            (t[1], t[2], t[3])
+            for t in tool_uses_to_clear
+            if t[0] == "server" and isinstance(t[3], ContentToolUse)
+        ]
+
+        # Clear client-side tools (process in reverse to preserve indices)
+        for assistant_idx, tool_call, tool_idx in reversed(client_to_clear):
             if self.keep_tool_inputs:
                 # Just clear the result content
                 result[tool_idx] = result[tool_idx].model_copy(
@@ -144,10 +180,8 @@ class CompactionEdit(CompactionStrategy):
                     tool_call,
                 )
 
-        # Phase 3.5: Clear server-side tool results (ContentToolUse)
-        result = _clear_server_tool_results(
-            result, self.keep_tool_uses, self.exclude_tools
-        )
+        # Clear server-side tools
+        result = _apply_server_tool_clearing(result, server_to_clear)
 
         # Phase 4: Clear content from memory tool calls (if memory integration active)
         if self.memory:
@@ -208,42 +242,16 @@ def _replace_tool_call_with_text(
     )
 
 
-def _clear_server_tool_results(
+def _apply_server_tool_clearing(
     messages: list[ChatMessage],
-    keep_tool_uses: int,
-    exclude_tools: list[str] | None,
+    tool_uses_to_clear: list[tuple[int, int, ContentToolUse]],
 ) -> list[ChatMessage]:
-    """Clear results from older server-side tool uses (ContentToolUse).
+    """Apply clearing to specified server-side tool uses.
 
-    Server-side tools include web_search, mcp_call, and code_execution.
-    Their results are stored in ContentToolUse.result and should be cleared
-    during compaction to save context space.
+    Args:
+        messages: The message list to modify
+        tool_uses_to_clear: List of (msg_idx, content_idx, ContentToolUse) to clear
     """
-    # Collect all ContentToolUse blocks from assistant messages
-    # Track (message_idx, content_idx, ContentToolUse) tuples
-    tool_uses: list[tuple[int, int, ContentToolUse]] = []
-
-    for msg_idx, msg in enumerate(messages):
-        if isinstance(msg, ChatMessageAssistant) and isinstance(msg.content, list):
-            for content_idx, content in enumerate(msg.content):
-                if isinstance(content, ContentToolUse):
-                    # Skip excluded tools (check tool_type and name against exclude_tools)
-                    if exclude_tools:
-                        if (
-                            content.tool_type in exclude_tools
-                            or content.name in exclude_tools
-                        ):
-                            continue
-                    tool_uses.append((msg_idx, content_idx, content))
-
-    # Determine which to clear (all except most recent keep_tool_uses)
-    if keep_tool_uses > 0 and len(tool_uses) > keep_tool_uses:
-        tool_uses_to_clear = tool_uses[:-keep_tool_uses]
-    elif keep_tool_uses == 0:
-        tool_uses_to_clear = tool_uses
-    else:
-        tool_uses_to_clear = []
-
     if not tool_uses_to_clear:
         return messages
 

@@ -84,6 +84,7 @@ from anthropic.types.beta import (
     BetaTextBlockParam,
     BetaTextEditorCodeExecutionToolResultBlock,
     BetaTextEditorCodeExecutionToolResultBlockParam,
+    BetaTextEditorCodeExecutionViewResultBlockParam,
     BetaThinkingBlock,
     BetaToolComputerUse20250124Param,
     BetaToolComputerUse20251124Param,
@@ -91,6 +92,7 @@ from anthropic.types.beta import (
     BetaToolTextEditor20250429Param,
     BetaToolTextEditor20250728Param,
     BetaToolUseBlock,
+    BetaWebFetchBlockParam,
     BetaWebFetchTool20250910Param,
     BetaWebFetchToolResultBlock,
     BetaWebFetchToolResultBlockParam,
@@ -2032,23 +2034,84 @@ async def message_block_params(
         return [TextBlockParam(type="text", text=content.text)]
 
     elif isinstance(content, ContentToolUse):
-        # Check if result was cleared during compaction - if so, skip cached blocks
-        # and rebuild from scratch with the placeholder
+        # Check if result was cleared during compaction
         result_cleared = content.result == TOOL_RESULT_REMOVED
 
-        if not result_cleared:
-            if content.id in assistant_internal().server_mcp_tool_uses:
-                return list(assistant_internal().server_mcp_tool_uses[content.id])
+        # Try to use cached blocks, modifying them if result was cleared
+        if content.id in assistant_internal().server_mcp_tool_uses:
+            mcp_use, mcp_result = assistant_internal().server_mcp_tool_uses[content.id]
+            if result_cleared:
+                mcp_result["content"] = TOOL_RESULT_REMOVED
+            return [mcp_use, mcp_result]
 
-            elif content.id in assistant_internal().server_web_searches:
-                return list(assistant_internal().server_web_searches[content.id])
+        elif content.id in assistant_internal().server_web_searches:
+            ws_use, ws_result = assistant_internal().server_web_searches[content.id]
+            if result_cleared:
+                ws_result["content"] = {
+                    "type": "web_search_tool_result_error",
+                    "error_code": "unavailable",
+                }
+            return [ws_use, ws_result]
 
-            elif content.id in assistant_internal().server_web_fetches:
-                return list(assistant_internal().server_web_fetches[content.id])
+        elif content.id in assistant_internal().server_web_fetches:
+            wf_use, wf_result = assistant_internal().server_web_fetches[content.id]
+            if result_cleared:
+                # Create valid BetaWebFetchBlockParam with placeholder in document
+                original_content: Any = wf_result.get("content", {})
+                url = ""
+                if isinstance(original_content, dict):
+                    url = str(original_content.get("url", ""))
+                wf_result["content"] = cast(
+                    BetaWebFetchBlockParam,
+                    {
+                        "type": "web_fetch_result",
+                        "url": url,
+                        "content": {
+                            "type": "document",
+                            "source": {
+                                "type": "text",
+                                "media_type": "text/plain",
+                                "data": TOOL_RESULT_REMOVED,
+                            },
+                        },
+                    },
+                )
+            return [wf_use, wf_result]
 
-            elif content.id in assistant_internal().server_code_executions:
-                return list(assistant_internal().server_code_executions[content.id])
+        elif content.id in assistant_internal().server_code_executions:
+            ce_use, ce_result = assistant_internal().server_code_executions[content.id]
+            if result_cleared:
+                # Create valid result block based on type
+                if ce_result.get("type") == "bash_code_execution_tool_result":
+                    bash_result = cast(
+                        BetaBashCodeExecutionToolResultBlockParam, ce_result
+                    )
+                    bash_result["content"] = cast(
+                        BetaBashCodeExecutionResultBlockParam,
+                        {
+                            "type": "bash_code_execution_result",
+                            "return_code": 0,
+                            "stdout": TOOL_RESULT_REMOVED,
+                            "stderr": "",
+                            "content": [],
+                        },
+                    )
+                elif ce_result.get("type") == "text_editor_code_execution_tool_result":
+                    # Use a view result with placeholder for text editor
+                    text_editor_result = cast(
+                        BetaTextEditorCodeExecutionToolResultBlockParam, ce_result
+                    )
+                    text_editor_result["content"] = cast(
+                        BetaTextEditorCodeExecutionViewResultBlockParam,
+                        {
+                            "type": "text_editor_code_execution_view_result",
+                            "content": TOOL_RESULT_REMOVED,
+                            "file_type": "text",
+                        },
+                    )
+            return [ce_use, ce_result]
 
+        # Fall through to reconstruction if not in cache
         if content.tool_type == "web_search":
             # we might be parsing an openai web search result so defend ourselves accordingly
             # note that if this is a native anthropic web_search or web_fetch it will have
