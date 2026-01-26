@@ -107,11 +107,13 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     );
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
+  // Turn numbers come from the outline's view (filteredNodeListForTurns), so numbering
+  // matches the sidebar. Non-turn events inherit the previous turn number to show context.
   const turnMap = useMemo(() => {
     const turns = makeTurns(filteredNodeListForTurns);
     const map = new Map<string, { turnNumber: number; totalTurns: number }>();
 
-    // First, find all turn nodes and count them
+    // Find all turn nodes and count them
     const turnNodes = turns.filter(
       (n) =>
         n.event.event === "span_begin" &&
