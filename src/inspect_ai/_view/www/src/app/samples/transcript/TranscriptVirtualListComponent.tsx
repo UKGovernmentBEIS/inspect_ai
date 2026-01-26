@@ -89,6 +89,24 @@ export const TranscriptVirtualListComponent: FC<
     }
   }, [initialEventId, useVirtualization]);
 
+  // Pre-compute context objects for all event nodes to maintain stable references
+  const contextMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        hasToolEvents: boolean;
+        turnInfo?: { turnNumber: number; totalTurns: number };
+      }
+    >();
+    for (let i = 0; i < eventNodes.length; i++) {
+      const node = eventNodes[i];
+      const hasToolEvents = hasToolEventsAtCurrentDepth(i);
+      const turnInfo = turnMap?.get(node.id);
+      map.set(node.id, { hasToolEvents, turnInfo });
+    }
+    return map;
+  }, [eventNodes, hasToolEventsAtCurrentDepth, turnMap]);
+
   const renderRow = useCallback(
     (index: number, item: EventNode, style?: CSSProperties) => {
       const paddingClass = index === 0 ? styles.first : undefined;
@@ -113,12 +131,7 @@ export const TranscriptVirtualListComponent: FC<
         ? styles.attachedParent
         : undefined;
 
-      const hasToolEvents = hasToolEventsAtCurrentDepth(index);
-      const turnInfo = turnMap?.get(item.id);
-      const context = {
-        hasToolEvents: hasToolEvents ? true : false,
-        turnInfo,
-      };
+      const context = contextMap.get(item.id);
 
       return (
         <div
@@ -140,7 +153,7 @@ export const TranscriptVirtualListComponent: FC<
         </div>
       );
     },
-    [eventNodes, hasToolEventsAtCurrentDepth, turnMap],
+    [eventNodes, contextMap],
   );
 
   if (useVirtualization) {
