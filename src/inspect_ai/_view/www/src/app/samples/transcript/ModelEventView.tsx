@@ -43,14 +43,15 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined
+  // Clone messages to avoid mutating frozen state objects
   const outputMessages: Message[] =
     event.output.choices?.map((choice) => {
-      return choice.message;
+      return { ...choice.message };
     }) ?? [];
   if (outputMessages.length > 0) {
     outputMessages[outputMessages.length - 1].timestamp = event.completed;
   }
-  const inputMessages: Message[] = [...event.input];
+  const inputMessages: Message[] = event.input.map((msg) => ({ ...msg }));
   if (inputMessages.length > 0) {
     inputMessages[inputMessages.length - 1].timestamp = event.timestamp;
   }

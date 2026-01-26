@@ -1,7 +1,8 @@
-## Unreleased
+## 0.3.165 (26 January 2026)
 
 - Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.
 - Compaction: Remove citations after compaction to avoid dangling citation references (updated `trim_message()` to use the same behavior).
+- Inspect View: Fix "Cannot add property timestamp, object is not extensible" error when viewing live transcripts.
 - Inspect View: sticky headers for transcript events with turn number to improve scroll orientation
 
 ## 0.3.164 (24 January 2026)
