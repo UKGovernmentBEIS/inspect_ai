@@ -281,6 +281,12 @@ export const createSampleSlice = (
         try {
           if (completed !== false) {
             log.debug(`LOADING COMPLETED SAMPLE: ${id}-${epoch}`);
+            // Stop any existing polling when loading a completed sample
+            samplePolling.stopPolling();
+            // Clear any running events from the previous sample
+            set((state) => {
+              state.sample.runningEvents = [];
+            });
             const sample = await get().api?.get_log_sample(logFile, id, epoch);
             log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
             if (sample) {
