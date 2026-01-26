@@ -240,6 +240,7 @@ class EvalRecorder(FileRecorder):
         id: str | int | None = None,
         epoch: int = 1,
         uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample:
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
@@ -263,8 +264,19 @@ class EvalRecorder(FileRecorder):
                         epoch = sample.epoch
 
                     with zip.open(_sample_filename(id, epoch), "r") as f:
+                        if exclude_fields:
+                            # Use streaming JSON parser to skip large fields
+                            # This significantly reduces memory usage for large samples
+                            import ijson
+
+                            data: dict[str, Any] = {}
+                            for key, value in ijson.kvitems(f, "", use_float=True):
+                                if key not in exclude_fields:
+                                    data[key] = value
+                        else:
+                            data = json.load(f)
                         return EvalSample.model_validate(
-                            json.load(f), context=get_deserializing_context()
+                            data, context=get_deserializing_context()
                         )
                 except KeyError:
                     raise IndexError(

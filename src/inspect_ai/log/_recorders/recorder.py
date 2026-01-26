@@ -72,6 +72,7 @@ class Recorder(abc.ABC):
         id: str | int | None = None,
         epoch: int = 1,
         uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample: ...
 
     @classmethod
