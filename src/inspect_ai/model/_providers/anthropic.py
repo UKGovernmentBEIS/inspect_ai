@@ -84,7 +84,6 @@ from anthropic.types.beta import (
     BetaTextBlockParam,
     BetaTextEditorCodeExecutionToolResultBlock,
     BetaTextEditorCodeExecutionToolResultBlockParam,
-    BetaTextEditorCodeExecutionViewResultBlockParam,
     BetaThinkingBlock,
     BetaToolComputerUse20250124Param,
     BetaToolComputerUse20251124Param,
@@ -92,7 +91,6 @@ from anthropic.types.beta import (
     BetaToolTextEditor20250429Param,
     BetaToolTextEditor20250728Param,
     BetaToolUseBlock,
-    BetaWebFetchBlockParam,
     BetaWebFetchTool20250910Param,
     BetaWebFetchToolResultBlock,
     BetaWebFetchToolResultBlockParam,
@@ -122,7 +120,10 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
-from inspect_ai.model._compaction.edit import TOOL_RESULT_REMOVED
+from inspect_ai.model._compaction.edit import (
+    TOOL_RESULT_REMOVED,
+    is_result_cleared,
+)
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
@@ -2035,43 +2036,57 @@ async def message_block_params(
 
     elif isinstance(content, ContentToolUse):
         # Check if result was cleared during compaction
-        result_cleared = content.result == TOOL_RESULT_REMOVED
+        result_cleared = is_result_cleared(content)
 
-        # Try to use cached blocks, modifying them if result was cleared
+        # Try to use cached blocks, creating copies if result needs to be cleared
         if content.id in assistant_internal().server_mcp_tool_uses:
             mcp_use, mcp_result = assistant_internal().server_mcp_tool_uses[content.id]
             if result_cleared:
-                mcp_result["content"] = TOOL_RESULT_REMOVED
+                # Create a copy to avoid mutating the cached version
+                mcp_result = cast(
+                    BetaRequestMCPToolResultBlockParam,
+                    {**mcp_result, "content": TOOL_RESULT_REMOVED},
+                )
             return [mcp_use, mcp_result]
 
         elif content.id in assistant_internal().server_web_searches:
             ws_use, ws_result = assistant_internal().server_web_searches[content.id]
             if result_cleared:
-                ws_result["content"] = {
-                    "type": "web_search_tool_result_error",
-                    "error_code": "unavailable",
-                }
+                # Create a copy to avoid mutating the cached version
+                ws_result = cast(
+                    WebSearchToolResultBlockParam,
+                    {
+                        **ws_result,
+                        "content": {
+                            "type": "web_search_tool_result_error",
+                            "error_code": "unavailable",
+                        },
+                    },
+                )
             return [ws_use, ws_result]
 
         elif content.id in assistant_internal().server_web_fetches:
             wf_use, wf_result = assistant_internal().server_web_fetches[content.id]
             if result_cleared:
-                # Create valid BetaWebFetchBlockParam with placeholder in document
+                # Create a copy to avoid mutating the cached version
                 original_content: Any = wf_result.get("content", {})
                 url = ""
                 if isinstance(original_content, dict):
                     url = str(original_content.get("url", ""))
-                wf_result["content"] = cast(
-                    BetaWebFetchBlockParam,
+                wf_result = cast(
+                    BetaWebFetchToolResultBlockParam,
                     {
-                        "type": "web_fetch_result",
-                        "url": url,
+                        **wf_result,
                         "content": {
-                            "type": "document",
-                            "source": {
-                                "type": "text",
-                                "media_type": "text/plain",
-                                "data": TOOL_RESULT_REMOVED,
+                            "type": "web_fetch_result",
+                            "url": url,
+                            "content": {
+                                "type": "document",
+                                "source": {
+                                    "type": "text",
+                                    "media_type": "text/plain",
+                                    "data": TOOL_RESULT_REMOVED,
+                                },
                             },
                         },
                     },
@@ -2081,32 +2096,32 @@ async def message_block_params(
         elif content.id in assistant_internal().server_code_executions:
             ce_use, ce_result = assistant_internal().server_code_executions[content.id]
             if result_cleared:
-                # Create valid result block based on type
+                # Create valid result block based on type (with a copy to avoid mutation)
                 if ce_result.get("type") == "bash_code_execution_tool_result":
-                    bash_result = cast(
-                        BetaBashCodeExecutionToolResultBlockParam, ce_result
-                    )
-                    bash_result["content"] = cast(
-                        BetaBashCodeExecutionResultBlockParam,
+                    ce_result = cast(
+                        BetaBashCodeExecutionToolResultBlockParam,
                         {
-                            "type": "bash_code_execution_result",
-                            "return_code": 0,
-                            "stdout": TOOL_RESULT_REMOVED,
-                            "stderr": "",
-                            "content": [],
+                            **ce_result,
+                            "content": {
+                                "type": "bash_code_execution_result",
+                                "return_code": 0,
+                                "stdout": TOOL_RESULT_REMOVED,
+                                "stderr": "",
+                                "content": [],
+                            },
                         },
                     )
                 elif ce_result.get("type") == "text_editor_code_execution_tool_result":
                     # Use a view result with placeholder for text editor
-                    text_editor_result = cast(
-                        BetaTextEditorCodeExecutionToolResultBlockParam, ce_result
-                    )
-                    text_editor_result["content"] = cast(
-                        BetaTextEditorCodeExecutionViewResultBlockParam,
+                    ce_result = cast(
+                        BetaTextEditorCodeExecutionToolResultBlockParam,
                         {
-                            "type": "text_editor_code_execution_view_result",
-                            "content": TOOL_RESULT_REMOVED,
-                            "file_type": "text",
+                            **ce_result,
+                            "content": {
+                                "type": "text_editor_code_execution_view_result",
+                                "content": TOOL_RESULT_REMOVED,
+                                "file_type": "text",
+                            },
                         },
                     )
             return [ce_use, ce_result]

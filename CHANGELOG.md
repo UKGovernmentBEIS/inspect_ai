@@ -1,3 +1,7 @@
+## Unreleased
+
+- Compaction: Compact server tool uses in `CompactionEdit` strategy (previously only client tool uses were compacted).
+
 ## 0.3.165 (26 January 2026)
 
 - Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.

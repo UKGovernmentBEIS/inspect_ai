@@ -22,9 +22,6 @@ from inspect_ai.tool import ToolCall
 from .memory import clear_memory_content
 from .types import CompactionStrategy
 
-# Placeholder used when tool results are removed during compaction
-TOOL_RESULT_REMOVED = "(Tool result removed)"
-
 
 class CompactionEdit(CompactionStrategy):
     """Message editing compaction.
@@ -86,7 +83,7 @@ class CompactionEdit(CompactionStrategy):
 
         Args:
             messages: Full message history
-            model: Target model for compation.
+            model: Target model for compaction.
 
         Returns: Compacted messages and None (no summary message appended).
         """
@@ -133,7 +130,7 @@ class CompactionEdit(CompactionStrategy):
                     for content_idx, content in enumerate(msg.content):
                         if isinstance(content, ContentToolUse):
                             # Skip mcp_list_tools - provides tool context, not results
-                            if content.name == "mcp_list_tools":
+                            if content.name == MCP_LIST_TOOLS_NAME:
                                 continue
                             # Skip excluded tools
                             if self.exclude_tools and (
@@ -191,6 +188,36 @@ class CompactionEdit(CompactionStrategy):
         result = strip_citations(result)
 
         return result, None
+
+
+# Placeholder used when tool results are removed during compaction
+TOOL_RESULT_REMOVED = "(Tool result removed)"
+"""Placeholder text used when tool results are cleared during compaction.
+
+This constant is used to mark tool results that have been removed to reduce
+context length while preserving the structure of tool calls in message history.
+"""
+
+# MCP tool that provides tool context (should not be cleared during compaction)
+MCP_LIST_TOOLS_NAME = "mcp_list_tools"
+"""Name of the MCP tool that lists available tools.
+
+This tool provides context about available tools and should not be cleared
+during compaction, as it doesn't contain results but rather tool definitions.
+"""
+
+
+def is_result_cleared(content: ContentToolUse) -> bool:
+    """Check if a tool use result has been cleared during compaction.
+
+    Args:
+        content: The ContentToolUse to check.
+
+    Returns:
+        True if the result field equals TOOL_RESULT_REMOVED, indicating
+        the result was cleared to reduce context length.
+    """
+    return content.result == TOOL_RESULT_REMOVED
 
 
 def _clear_reasoning(msg: ChatMessageAssistant) -> ChatMessageAssistant:
