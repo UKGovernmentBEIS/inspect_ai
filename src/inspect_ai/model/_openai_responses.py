@@ -130,6 +130,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
+from inspect_ai.model._compaction.edit import TOOL_RESULT_REMOVED
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
@@ -788,11 +789,20 @@ def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
 
 
 def tool_use_to_mcp_list_tools_param(content: ContentToolUse) -> McpListToolsParam:
+    # Handle cleared results gracefully
+    if content.result == TOOL_RESULT_REMOVED:
+        tools: list[McpListToolsToolParam] = []
+    else:
+        try:
+            tools = mcp_tool_adapter.validate_json(content.result)
+        except ValidationError:
+            tools = []
+
     return McpListToolsParam(
         type="mcp_list_tools",
         id=content.id,
         server_label=content.context or "",
-        tools=mcp_tool_adapter.validate_json(content.result),
+        tools=tools,
         error=content.error,
     )
 
@@ -898,7 +908,11 @@ def _openai_input_items_from_chat_message_assistant(
                 id=id,
                 tool_type=tool_type,
             ):
-                if id in assistant_internal().server_tool_uses:
+                # Check if result was cleared during compaction - if so, skip cached
+                # blocks and rebuild from scratch with the placeholder
+                result_cleared = content.result == TOOL_RESULT_REMOVED
+
+                if not result_cleared and id in assistant_internal().server_tool_uses:
                     items.append(assistant_internal().server_tool_uses[id])
                 elif tool_type == "mcp_call":
                     if content.name == "mcp_list_tools":

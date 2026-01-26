@@ -120,6 +120,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai.model._compaction.edit import TOOL_RESULT_REMOVED
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
@@ -2031,17 +2032,22 @@ async def message_block_params(
         return [TextBlockParam(type="text", text=content.text)]
 
     elif isinstance(content, ContentToolUse):
-        if content.id in assistant_internal().server_mcp_tool_uses:
-            return list(assistant_internal().server_mcp_tool_uses[content.id])
+        # Check if result was cleared during compaction - if so, skip cached blocks
+        # and rebuild from scratch with the placeholder
+        result_cleared = content.result == TOOL_RESULT_REMOVED
 
-        elif content.id in assistant_internal().server_web_searches:
-            return list(assistant_internal().server_web_searches[content.id])
+        if not result_cleared:
+            if content.id in assistant_internal().server_mcp_tool_uses:
+                return list(assistant_internal().server_mcp_tool_uses[content.id])
 
-        elif content.id in assistant_internal().server_web_fetches:
-            return list(assistant_internal().server_web_fetches[content.id])
+            elif content.id in assistant_internal().server_web_searches:
+                return list(assistant_internal().server_web_searches[content.id])
 
-        elif content.id in assistant_internal().server_code_executions:
-            return list(assistant_internal().server_code_executions[content.id])
+            elif content.id in assistant_internal().server_web_fetches:
+                return list(assistant_internal().server_web_fetches[content.id])
+
+            elif content.id in assistant_internal().server_code_executions:
+                return list(assistant_internal().server_code_executions[content.id])
 
         if content.tool_type == "web_search":
             # we might be parsing an openai web search result so defend ourselves accordingly
@@ -2049,14 +2055,23 @@ async def message_block_params(
             # been handledby plucking the blocks from assistant_internal()
             # therefore, this is a web_search from another system which we need to
             # normalize to the anthropic schema
-            try:
-                result_content = web_search_result_block_param_adapter.validate_json(
-                    content.result
+            if result_cleared:
+                result_content: WebSearchToolResultBlockParamContentParam = (
+                    WebSearchToolRequestErrorParam(
+                        type="web_search_tool_result_error", error_code="unavailable"
+                    )
                 )
-            except ValidationError:
-                result_content = WebSearchToolRequestErrorParam(
-                    type="web_search_tool_result_error", error_code="unavailable"
-                )
+            else:
+                try:
+                    result_content = (
+                        web_search_result_block_param_adapter.validate_json(
+                            content.result
+                        )
+                    )
+                except ValidationError:
+                    result_content = WebSearchToolRequestErrorParam(
+                        type="web_search_tool_result_error", error_code="unavailable"
+                    )
 
             return [
                 ServerToolUseBlockParam(
@@ -2073,12 +2088,17 @@ async def message_block_params(
             ]
         elif content.tool_type == "mcp_call":
             # we might be parsing an openai mcp tool result so defend ourselves accordingly
-            try:
-                mcp_result_content = beta_text_block_param_adapter.validate_json(
-                    content.result
-                )
-            except ValidationError:
+            # Handle cleared results gracefully
+            mcp_result_content: str | Iterable[BetaTextBlockParam]
+            if result_cleared:
                 mcp_result_content = content.result
+            else:
+                try:
+                    mcp_result_content = beta_text_block_param_adapter.validate_json(
+                        content.result
+                    )
+                except ValidationError:
+                    mcp_result_content = content.result
 
             return [
                 BetaMCPToolUseBlockParam(

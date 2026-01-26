@@ -3,7 +3,12 @@ from typing import Literal, cast
 from shortuuid import uuid
 from typing_extensions import override
 
-from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentReasoning,
+    ContentText,
+    ContentToolUse,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -16,6 +21,9 @@ from inspect_ai.tool import ToolCall
 
 from .memory import clear_memory_content
 from .types import CompactionStrategy
+
+# Placeholder used when tool results are removed during compaction
+TOOL_RESULT_REMOVED = "(Tool result removed)"
 
 
 class CompactionEdit(CompactionStrategy):
@@ -125,7 +133,7 @@ class CompactionEdit(CompactionStrategy):
             if self.keep_tool_inputs:
                 # Just clear the result content
                 result[tool_idx] = result[tool_idx].model_copy(
-                    update={"id": uuid(), "content": "(Tool result removed)"}
+                    update={"id": uuid(), "content": TOOL_RESULT_REMOVED}
                 )
             else:
                 # Remove tool message entirely
@@ -135,6 +143,11 @@ class CompactionEdit(CompactionStrategy):
                     cast(ChatMessageAssistant, result[assistant_idx]),
                     tool_call,
                 )
+
+        # Phase 3.5: Clear server-side tool results (ContentToolUse)
+        result = _clear_server_tool_results(
+            result, self.keep_tool_uses, self.exclude_tools
+        )
 
         # Phase 4: Clear content from memory tool calls (if memory integration active)
         if self.memory:
@@ -193,3 +206,69 @@ def _replace_tool_call_with_text(
             "content": new_content,
         }
     )
+
+
+def _clear_server_tool_results(
+    messages: list[ChatMessage],
+    keep_tool_uses: int,
+    exclude_tools: list[str] | None,
+) -> list[ChatMessage]:
+    """Clear results from older server-side tool uses (ContentToolUse).
+
+    Server-side tools include web_search, mcp_call, and code_execution.
+    Their results are stored in ContentToolUse.result and should be cleared
+    during compaction to save context space.
+    """
+    # Collect all ContentToolUse blocks from assistant messages
+    # Track (message_idx, content_idx, ContentToolUse) tuples
+    tool_uses: list[tuple[int, int, ContentToolUse]] = []
+
+    for msg_idx, msg in enumerate(messages):
+        if isinstance(msg, ChatMessageAssistant) and isinstance(msg.content, list):
+            for content_idx, content in enumerate(msg.content):
+                if isinstance(content, ContentToolUse):
+                    # Skip excluded tools (check tool_type and name against exclude_tools)
+                    if exclude_tools:
+                        if (
+                            content.tool_type in exclude_tools
+                            or content.name in exclude_tools
+                        ):
+                            continue
+                    tool_uses.append((msg_idx, content_idx, content))
+
+    # Determine which to clear (all except most recent keep_tool_uses)
+    if keep_tool_uses > 0 and len(tool_uses) > keep_tool_uses:
+        tool_uses_to_clear = tool_uses[:-keep_tool_uses]
+    elif keep_tool_uses == 0:
+        tool_uses_to_clear = tool_uses
+    else:
+        tool_uses_to_clear = []
+
+    if not tool_uses_to_clear:
+        return messages
+
+    # Make a shallow copy of messages since we'll be modifying some
+    result = list(messages)
+
+    # Group by message index for efficient updates
+    updates_by_msg: dict[int, list[tuple[int, ContentToolUse]]] = {}
+    for msg_idx, content_idx, tool_use in tool_uses_to_clear:
+        if msg_idx not in updates_by_msg:
+            updates_by_msg[msg_idx] = []
+        updates_by_msg[msg_idx].append((content_idx, tool_use))
+
+    # Apply clearing
+    for msg_idx, content_updates in updates_by_msg.items():
+        msg = cast(ChatMessageAssistant, result[msg_idx])
+        content_list = list(msg.content) if isinstance(msg.content, list) else []
+
+        for content_idx, tool_use in content_updates:
+            # Create new ContentToolUse with cleared result
+            cleared_tool_use = tool_use.model_copy(
+                update={"result": TOOL_RESULT_REMOVED}
+            )
+            content_list[content_idx] = cleared_tool_use
+
+        result[msg_idx] = msg.model_copy(update={"id": uuid(), "content": content_list})
+
+    return result
