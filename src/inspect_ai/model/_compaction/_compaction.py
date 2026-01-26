@@ -4,10 +4,7 @@ import functools
 from logging import getLogger
 from typing import Sequence
 
-from shortuuid import uuid
-
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
@@ -221,7 +218,7 @@ async def _perform_compaction(
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
     MAX_ITERATIONS = 3
-    c_input, c_message = await _compact_and_strip(strategy, messages, model)
+    c_input, c_message = await strategy.compact(messages, model)
     compacted_tokens = await model.count_tokens(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
@@ -232,7 +229,7 @@ async def _perform_compaction(
         prev_tokens = compacted_tokens
 
         # Try compacting again
-        c_input, c_message = await _compact_and_strip(strategy, list(c_input), model)
+        c_input, c_message = await strategy.compact(list(c_input), model)
         compacted_tokens = await model.count_tokens(c_input)
         total_compacted = tool_tokens + compacted_tokens
 
@@ -252,51 +249,6 @@ async def _perform_compaction(
         )
 
     return c_input, c_message
-
-
-async def _compact_and_strip(
-    strategy: CompactionStrategy,
-    messages: list[ChatMessage],
-    model: Model,
-) -> tuple[list[ChatMessage], ChatMessageUser | None]:
-    """Run compaction strategy and strip citations from result.
-
-    Citations reference server-side tool results (e.g., web_search) by index.
-    When compaction removes those results, citations become dangling references
-    that cause API errors. Always strip them after compaction.
-    """
-    c_input, c_message = await strategy.compact(messages, model)
-    c_input = _strip_citations(c_input)
-    return c_input, c_message
-
-
-def _strip_citations(messages: list[ChatMessage]) -> list[ChatMessage]:
-    """Strip citations from all ContentText blocks in messages.
-
-    Citations reference server-side tool results (e.g., web_search) by index.
-    When compaction removes those results, citations become dangling references
-    that cause API errors. Strip them to prevent this.
-    """
-    result: list[ChatMessage] = []
-    for msg in messages:
-        if isinstance(msg.content, list):
-            new_content: list[Content] = []
-            modified = False
-            for content in msg.content:
-                if isinstance(content, ContentText) and content.citations:
-                    new_content.append(content.model_copy(update={"citations": None}))
-                    modified = True
-                else:
-                    new_content.append(content)
-            if modified:
-                result.append(
-                    msg.model_copy(update={"id": uuid(), "content": new_content})
-                )
-            else:
-                result.append(msg)
-        else:
-            result.append(msg)
-    return result
 
 
 def _resolve_threshold(model: Model, threshold: int | float) -> int:

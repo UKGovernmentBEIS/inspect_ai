@@ -13,12 +13,13 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._compaction._compaction import _strip_citations, compaction
+from inspect_ai.model._compaction._compaction import compaction
 from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.model._model import get_model
+from inspect_ai.model._trim import strip_citations
 from inspect_ai.tool import ToolInfo
 
 
@@ -632,7 +633,7 @@ async def test_compaction_error_message_breakdown() -> None:
 # ==============================================================================
 
 
-def test_strip_citations_removes_citations_from_content_text() -> None:
+def teststrip_citations_removes_citations_from_content_text() -> None:
     """Test that citations are removed from ContentText blocks."""
     citation = UrlCitation(
         url="https://example.com",
@@ -646,7 +647,7 @@ def test_strip_citations_removes_citations_from_content_text() -> None:
         ),
     ]
 
-    result = _strip_citations(messages)
+    result = strip_citations(messages)
 
     assert len(result) == 1
     assistant = result[0]
@@ -658,7 +659,7 @@ def test_strip_citations_removes_citations_from_content_text() -> None:
     assert content_text.citations is None
 
 
-def test_strip_citations_preserves_messages_without_citations() -> None:
+def teststrip_citations_preserves_messages_without_citations() -> None:
     """Test that messages without citations are unchanged."""
     messages: list[ChatMessage] = [
         ChatMessageUser(content="Question", id="msg1"),
@@ -668,7 +669,7 @@ def test_strip_citations_preserves_messages_without_citations() -> None:
         ),
     ]
 
-    result = _strip_citations(messages)
+    result = strip_citations(messages)
 
     assert len(result) == 2
     # Messages without citations should be the same objects
@@ -676,14 +677,14 @@ def test_strip_citations_preserves_messages_without_citations() -> None:
     assert result[1] is messages[1]
 
 
-def test_strip_citations_preserves_string_content() -> None:
+def teststrip_citations_preserves_string_content() -> None:
     """Test that string content messages are unchanged."""
     messages: list[ChatMessage] = [
         ChatMessageUser(content="Simple string content", id="msg1"),
         ChatMessageAssistant(content="Simple response", id="msg2"),
     ]
 
-    result = _strip_citations(messages)
+    result = strip_citations(messages)
 
     assert len(result) == 2
     # String content messages should be the same objects
@@ -691,7 +692,7 @@ def test_strip_citations_preserves_string_content() -> None:
     assert result[1] is messages[1]
 
 
-def test_strip_citations_preserves_other_content_types() -> None:
+def teststrip_citations_preserves_other_content_types() -> None:
     """Test that non-text content types are unchanged."""
     citation = UrlCitation(url="https://example.com", cited_text="text")
     messages: list[ChatMessage] = [
@@ -704,7 +705,7 @@ def test_strip_citations_preserves_other_content_types() -> None:
         ),
     ]
 
-    result = _strip_citations(messages)
+    result = strip_citations(messages)
 
     assert len(result) == 1
     user_msg = result[0]
@@ -719,13 +720,13 @@ def test_strip_citations_preserves_other_content_types() -> None:
     assert user_msg.content[1].citations is None
 
 
-def test_strip_citations_handles_empty_list() -> None:
+def teststrip_citations_handles_empty_list() -> None:
     """Test that empty message list returns empty list."""
-    result = _strip_citations([])
+    result = strip_citations([])
     assert result == []
 
 
-def test_strip_citations_handles_multiple_citations() -> None:
+def teststrip_citations_handles_multiple_citations() -> None:
     """Test that multiple citations are all removed."""
     citations = [
         UrlCitation(url="https://example1.com", cited_text="text1"),
@@ -738,7 +739,7 @@ def test_strip_citations_handles_multiple_citations() -> None:
         ),
     ]
 
-    result = _strip_citations(messages)
+    result = strip_citations(messages)
 
     assistant = result[0]
     assert isinstance(assistant, ChatMessageAssistant)

@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.
-- Compaction: Remove citations after compaction to avoid dangling citation references.
+- Compaction: Remove citations after compaction to avoid dangling citation references (udpated `trim_messsage()` to use the same behavior).
 
 ## 0.3.164 (24 January 2026)
 
