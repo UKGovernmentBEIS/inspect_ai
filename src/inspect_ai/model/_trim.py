@@ -83,7 +83,9 @@ async def trim_messages(
         conversation_messages.pop()
 
     # return trimmed messages with citations stripped
-    return strip_citations(partitioned.system + partitioned.input + conversation_messages)
+    return strip_citations(
+        partitioned.system + partitioned.input + conversation_messages
+    )
 
 
 @dataclass

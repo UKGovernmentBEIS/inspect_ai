@@ -734,7 +734,11 @@ def teststrip_citations_handles_multiple_citations() -> None:
     ]
     messages: list[ChatMessage] = [
         ChatMessageAssistant(
-            content=[ContentText(text="Response with multiple citations", citations=citations)],
+            content=[
+                ContentText(
+                    text="Response with multiple citations", citations=citations
+                )
+            ],
             id="msg1",
         ),
     ]
