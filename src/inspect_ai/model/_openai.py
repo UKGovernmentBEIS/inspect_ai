@@ -457,6 +457,7 @@ async def messages_from_openai(
                             reasoning=smuggled_reasoning.reasoning,
                             signature=smuggled_reasoning.signature,
                             redacted=smuggled_reasoning.redacted,
+                            summary=smuggled_reasoning.summary,
                         ),
                         ContentText(text=asst_content, internal=content_internal),
                     ]

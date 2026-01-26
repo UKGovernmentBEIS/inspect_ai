@@ -19,6 +19,7 @@ import { EventNodeContext } from "./TranscriptVirtualList";
 import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import { EventNode } from "./types";
+import { Message } from "../chat/messages";
 
 interface ModelEventViewProps {
   eventNode: EventNode<ModelEvent>;
@@ -42,9 +43,17 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined
-  const outputMessages = event.output.choices?.map((choice) => {
-    return choice.message;
-  });
+  const outputMessages: Message[] =
+    event.output.choices?.map((choice) => {
+      return choice.message;
+    }) ?? [];
+  if (outputMessages.length > 0) {
+    outputMessages[outputMessages.length - 1].timestamp = event.completed;
+  }
+  const inputMessages: Message[] = [...event.input];
+  if (inputMessages.length > 0) {
+    inputMessages[inputMessages.length - 1].timestamp = event.timestamp;
+  }
 
   const entries: Record<string, unknown> = { ...event.config };
   delete entries["max_connections"];
@@ -53,7 +62,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
   // panel and display those user messages (exclude tool_call messages as they
   // are already shown in the tool call above)
   const userMessages = [];
-  for (const msg of event.input.slice().reverse()) {
+  for (const msg of inputMessages.slice().reverse()) {
     if (
       (msg.role === "user" && !msg.tool_call_id) ||
       msg.role === "system" ||
@@ -84,7 +93,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       <div data-name="Summary" className={styles.container}>
         <ChatView
           id={`${eventNode.id}-model-output`}
-          messages={[...userMessages, ...(outputMessages || [])]}
+          messages={[...userMessages, ...outputMessages]}
           numbered={false}
           toolCallStyle={showToolCalls ? "complete" : "omit"}
           resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
@@ -126,7 +135,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
         <EventSection title="Messages">
           <ChatView
             id={`${eventNode.id}-model-input-full`}
-            messages={[...event.input, ...(outputMessages || [])]}
+            messages={[...inputMessages, ...outputMessages]}
             resolveToolCallsIntoPreviousMessage={
               context?.hasToolEvents !== false
             }

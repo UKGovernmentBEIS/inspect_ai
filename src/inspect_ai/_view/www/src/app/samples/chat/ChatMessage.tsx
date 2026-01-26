@@ -1,14 +1,10 @@
 import clsx from "clsx";
 import { FC, memo, useState } from "react";
-import {
-  ChatMessageAssistant,
-  ChatMessageSystem,
-  ChatMessageTool,
-  ChatMessageUser,
-} from "../../../@types/log";
+import { ChatMessageTool } from "../../../@types/log";
 import { CopyButton } from "../../../components/CopyButton";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { LabeledValue } from "../../../components/LabeledValue";
+import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { RecordTree } from "../../content/RecordTree";
 import {
@@ -19,14 +15,11 @@ import {
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
 import { ChatViewToolCallStyle } from "./types";
+import { Message } from "./messages";
 
 interface ChatMessageProps {
   id: string;
-  message:
-    | ChatMessageAssistant
-    | ChatMessageSystem
-    | ChatMessageUser
-    | ChatMessageTool;
+  message: Message;
   toolMessages: ChatMessageTool[];
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
@@ -67,16 +60,23 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
             "text-style-label",
           )}
         >
-          {message.role}
-          {message.role === "tool" ? `: ${message.function}` : ""}
-          {supportsLinking() && messageUrl && allowLinking ? (
-            <CopyButton
-              icon={ApplicationIcons.link}
-              value={toFullUrl(messageUrl)}
-              className={clsx(styles.copyLink)}
-            />
-          ) : (
-            ""
+          <div>
+            {message.role}
+            {message.role === "tool" ? `: ${message.function}` : ""}
+            {supportsLinking() && messageUrl && allowLinking ? (
+              <CopyButton
+                icon={ApplicationIcons.link}
+                value={toFullUrl(messageUrl)}
+                className={clsx(styles.copyLink)}
+              />
+            ) : (
+              ""
+            )}
+          </div>
+          {message.timestamp && (
+            <span className={styles.timestamp} title={message.timestamp}>
+              {formatDateTime(new Date(message.timestamp))}
+            </span>
           )}
         </div>
         <div
