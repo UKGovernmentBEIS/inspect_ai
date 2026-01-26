@@ -645,6 +645,9 @@ export type Pending9 = boolean | null;
 export type Event9 = "score";
 export type Target2 = string | string[] | null;
 export type Intermediate = boolean;
+export type ModelUsage2 = {
+  [k: string]: ModelUsage1;
+} | null;
 export type Uuid10 = string | null;
 export type SpanId10 = string | null;
 export type Timestamp11 = string;
@@ -1244,7 +1247,7 @@ export interface EvalSample {
   metadata: Metadata15;
   store: Store;
   events: Events;
-  model_usage: ModelUsage2;
+  model_usage: ModelUsage3;
   started_at: StartedAt1;
   completed_at: CompletedAt1;
   total_time: TotalTime;
@@ -1805,6 +1808,7 @@ export interface ScoreEvent {
   score: Score;
   target: Target2;
   intermediate: Intermediate;
+  model_usage: ModelUsage2;
 }
 /**
  * Event recorded when a score is edited.
@@ -1941,7 +1945,7 @@ export interface Input5 {
 export interface Result3 {
   [k: string]: unknown;
 }
-export interface ModelUsage2 {
+export interface ModelUsage3 {
   [k: string]: ModelUsage1;
 }
 export interface Attachments {

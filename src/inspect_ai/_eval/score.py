@@ -369,6 +369,7 @@ async def _run_score_task(
                         ScoreEvent(
                             score=score_result,
                             target=target.target,
+                            model_usage=sample.model_usage or None,
                         )
                     )
 
