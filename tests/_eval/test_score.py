@@ -434,3 +434,83 @@ async def test_score(
                     }
                 )
             assert scores_passed_to_scorer == expected_scores_passed_to_scorer
+
+
+@pytest.mark.anyio
+async def test_score_preserves_model_usage_in_score_event():
+    """Test that model_usage from sample is correctly captured in ScoreEvent when re-scoring."""
+    from inspect_ai._eval.score import _run_score_task
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.model._model import ModelUsage
+
+    # Create a sample with model_usage set
+    sample_model_usage = {
+        "openai/gpt-4": ModelUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+        )
+    }
+    sample = EvalSample(
+        id="test-1",
+        epoch=1,
+        input="What is 2+2?",
+        target="4",
+        messages=[ChatMessageUser(role="user", content="What is 2+2?")],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(role="assistant", content="4")
+                )
+            ]
+        ),
+        model_usage=sample_model_usage,
+    )
+
+    # Create minimal log header
+    log_header = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            run_id="test-run",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+    )
+
+    # Simple scorer that returns a score
+    @scorer(metrics=[accuracy()])
+    def simple_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1.0 if state.output.completion == target.text else 0.0)
+
+        return score
+
+    # Run the scoring
+    results, _ = await _run_score_task(
+        log_header=log_header,
+        sample=sample,
+        scorers=[simple_scorer()],
+        action="append",
+    )
+
+    # Check that the ScoreEvent in the sample's events has the correct model_usage
+    score_events = [e for e in sample.events if isinstance(e, ScoreEvent)]
+    assert len(score_events) == 1
+    assert score_events[0].model_usage == sample_model_usage
