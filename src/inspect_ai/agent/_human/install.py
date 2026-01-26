@@ -53,6 +53,9 @@ async def install_human_agent(
 
 
 def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
+    # Late import to avoid circular dependency
+    from .commands.tool import ToolCommand
+
     # filter out hidden commands
     commands = [command for command in commands if "cli" in command.contexts]
 
@@ -72,32 +75,46 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         return f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
     """)
 
-    # command handler source code (extracted from call methods)
-    command_handlers = "\n\n".join(
-        dedent(
-            inspect.getsource(command.cli).replace("cli(self, ", f"{command.name}(", 1)
-        )
-        for command in commands
-    )
+    # command handler source code
+    command_handlers_list: list[str] = []
+    for command in commands:
+        if isinstance(command, ToolCommand):
+            # ToolCommand generates its own CLI handler code
+            command_handlers_list.append(command.get_cli_handler_code())
+        else:
+            # Extract from cli method source
+            command_handlers_list.append(
+                dedent(
+                    inspect.getsource(command.cli).replace(
+                        "cli(self, ", f"{command.name}(", 1
+                    )
+                )
+            )
+    command_handlers = "\n\n".join(command_handlers_list)
 
     # parse commands
     command_parsers: list[str] = []
     for command in commands:
-        command_parsers.append(
-            dedent(f"""
-        {command.name}_parser = subparsers.add_parser("{command.name}", help="{command.description}")
-        """).lstrip()
-        )
-        for arg in command.cli_args:
-            if arg.name.startswith("--"):
-                extras = 'action="store_true", default=False'
-            else:
-                extras = f"""nargs={1 if arg.required else '"?"'}"""
+        if isinstance(command, ToolCommand):
+            # ToolCommand generates its own parser with per-tool subparsers
+            command_parsers.append(command.get_cli_parser_code())
+        else:
+            # Standard parser generation
             command_parsers.append(
                 dedent(f"""
-                {command.name}_parser.add_argument("{arg.name}", {extras}, help="{arg.description}")
-                """).strip()
+            {command.name}_parser = subparsers.add_parser("{command.name}", help="{command.description}")
+            """).lstrip()
             )
+            for arg in command.cli_args:
+                if arg.name.startswith("--"):
+                    extras = 'action="store_true", default=False'
+                else:
+                    extras = f"""nargs={1 if arg.required else '"?"'}"""
+                command_parsers.append(
+                    dedent(f"""
+                    {command.name}_parser.add_argument("{arg.name}", {extras}, help="{arg.description}")
+                    """).strip()
+                )
 
     parse = (
         dedent("""
@@ -117,11 +134,45 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         )
     command_dispatchers.append("else: parser.print_help()")
 
-    dispatch = dedent("""
+    # Check if ToolCommand is present (needs escape hatch pre-parsing)
+    has_tool_command = any(isinstance(cmd, ToolCommand) for cmd in commands)
+
+    # Pre-parse logic for escape hatch (bypasses argparse validation)
+    if has_tool_command:
+        escape_hatch_preparse = dedent("""
+    # Pre-parse for --raw-json-escape-hatch (bypasses argparse validation)
+    import json
+    ESCAPE_HATCH = "--raw-json-escape-hatch"
+    if ESCAPE_HATCH in sys.argv:
+        idx = sys.argv.index(ESCAPE_HATCH)
+        # Extract: task.py tool <tool_name> --raw-json-escape-hatch <json>
+        # sys.argv[0] = script, [1] = "tool", [2] = tool_name, [idx] = flag, [idx+1] = json
+        if len(sys.argv) > 2 and sys.argv[1] == "tool":
+            tool_name = sys.argv[2]
+            json_str = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else "{}"
+            try:
+                tool_args = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON: {e}")
+                sys.exit(1)
+            print(call_human_agent("tool", _tool_name_=tool_name, **tool_args))
+            sys.exit(0)
+        else:
+            print("Error: --raw-json-escape-hatch requires: tool <name> --raw-json-escape-hatch '<json>'")
+            sys.exit(1)
+    """)
+    else:
+        escape_hatch_preparse = ""
+
+    dispatch = (
+        escape_hatch_preparse
+        + dedent("""
     args = parser.parse_args()
     command = args.command
     delattr(args, 'command')
-    """) + "\n".join(command_dispatchers)
+    """)
+        + "\n".join(command_dispatchers)
+    )
 
     return "\n".join([imports, command_handlers, parse, dispatch]) + "\n"
 
