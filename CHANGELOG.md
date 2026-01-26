@@ -1,3 +1,5 @@
+- Inspect View: Fix sample switching when viewing live transcripts.
+
 ## 0.3.165 (26 January 2026)
 
 - Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.
