@@ -268,11 +268,33 @@ class EvalRecorder(FileRecorder):
                             # Use streaming JSON parser to skip large fields
                             # This significantly reduces memory usage for large samples
                             import ijson
+                            from ijson import IncompleteJSONError
+                            from ijson.backends.python import UnexpectedSymbol
 
-                            data: dict[str, Any] = {}
-                            for key, value in ijson.kvitems(f, "", use_float=True):
-                                if key not in exclude_fields:
-                                    data[key] = value
+                            try:
+                                data: dict[str, Any] = {}
+                                for key, value in ijson.kvitems(f, "", use_float=True):
+                                    if key not in exclude_fields:
+                                        data[key] = value
+                            except (
+                                ValueError,
+                                IncompleteJSONError,
+                                UnexpectedSymbol,
+                            ) as ex:
+                                # ijson doesn't support NaN/Inf which are valid in
+                                # Python's JSON. Fall back to standard json.load
+                                # and manually remove excluded fields.
+                                if (
+                                    str(ex).find("Invalid JSON character") != -1
+                                    or str(ex).find("invalid char in json text") != -1
+                                    or str(ex).find("Unexpected symbol") != -1
+                                ):
+                                    f.seek(0)
+                                    data = json.load(f)
+                                    for field in exclude_fields:
+                                        data.pop(field, None)
+                                else:
+                                    raise
                         else:
                             data = json.load(f)
                         return EvalSample.model_validate(
