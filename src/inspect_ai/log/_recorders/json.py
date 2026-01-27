@@ -11,6 +11,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
+from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -151,11 +152,7 @@ class JSONRecorder(FileRecorder):
             # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
             # (which does support NaN and Inf by default)
             except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-                if (
-                    str(ex).find("Invalid JSON character") != -1
-                    or str(ex).find("invalid char in json text") != -1
-                    or str(ex).find("Unexpected symbol") != -1
-                ):
+                if is_ijson_nan_inf_error(ex):
                     pass
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex

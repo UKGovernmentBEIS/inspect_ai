@@ -14,7 +14,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
-from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -286,11 +286,7 @@ class EvalRecorder(FileRecorder):
                                 # ijson doesn't support NaN/Inf which are valid in
                                 # Python's JSON. Fall back to standard json.load
                                 # and manually remove excluded fields.
-                                if (
-                                    str(ex).find("Invalid JSON character") != -1
-                                    or str(ex).find("invalid char in json text") != -1
-                                    or str(ex).find("Unexpected symbol") != -1
-                                ):
+                                if is_ijson_nan_inf_error(ex):
                                     f.seek(0)
                                     data = json.load(f)
                                     for field in exclude_fields:
