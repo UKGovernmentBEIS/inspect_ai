@@ -267,9 +267,9 @@ class EvalRecorder(FileRecorder):
                         if exclude_fields:
                             # Use streaming JSON parser to skip large fields
                             # This significantly reduces memory usage for large samples
-                            import ijson
+                            import ijson  # type: ignore
                             from ijson import IncompleteJSONError
-                            from ijson.backends.python import UnexpectedSymbol
+                            from ijson.backends.python import UnexpectedSymbol  # type: ignore
 
                             try:
                                 data: dict[str, Any] = {}
