@@ -82,7 +82,7 @@ class ComposeProject:
         config: str | None,
         sample_id: int | str | None,
         epoch: int | None,
-        env: dict[str, str],
+        env: dict[str, str] | None,
     ) -> None:
         self.name = name
         self.config = config

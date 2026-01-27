@@ -583,7 +583,7 @@ def resolve_config_environment(
             config_text = f.read()
 
         # only add metadata files if the key is in the file
-        env: dict[str, str] | None = None
+        env: dict[str, str] = {}
         for key, value in metadata.items():
             key = f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"
             if key in config_text:
