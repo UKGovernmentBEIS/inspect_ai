@@ -269,8 +269,8 @@ class EvalRecorder(FileRecorder):
                             # This significantly reduces memory usage for large samples
                             import ijson  # type: ignore
                             from ijson import IncompleteJSONError
-                            from ijson.backends.python import (
-                                UnexpectedSymbol,  # type: ignore
+                            from ijson.backends.python import (  # type: ignore[import-untyped]
+                                UnexpectedSymbol,
                             )
 
                             try:
