@@ -29,14 +29,17 @@ def gemini() -> Agent:
             result = await sandbox().exec(
                 cmd=[
                     "gemini",
-                    "-p",
-                    prompt,
-                    "-m",
+                    "--model",
                     "inspect",
+                    "--yolo",  # Auto-approve all actions (required for non-interactive)
+                    "--output-format",
+                    "text",
+                    prompt,  # Positional argument at end
                 ],
                 env={
                     "GOOGLE_GEMINI_BASE_URL": f"http://localhost:{bridge.port}",
-                    "GEMINI_API_KEY": "inspect",
+                    "GEMINI_API_KEY": "sk-inspect-bridge",
+                    "HOME": "/tmp",  # Gemini CLI needs a home directory
                 },
             )
 
