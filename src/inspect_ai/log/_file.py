@@ -378,6 +378,7 @@ def read_eval_log_sample(
     uuid: str | None = None,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -392,6 +393,9 @@ def read_eval_log_sample(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          the sample. Useful for reducing memory usage when reading large samples
+          with fields like 'store' or 'attachments' that aren't needed.
 
     Returns:
        EvalSample object read from file.
@@ -409,7 +413,7 @@ def read_eval_log_sample(
     # flow, so force the use of asyncio
     return run_coroutine(
         read_eval_log_sample_async(
-            log_file, id, epoch, uuid, resolve_attachments, format
+            log_file, id, epoch, uuid, resolve_attachments, format, exclude_fields
         )
     )
 
@@ -421,6 +425,7 @@ async def read_eval_log_sample_async(
     uuid: str | None = None,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -433,6 +438,9 @@ async def read_eval_log_sample_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          the sample. Useful for reducing memory usage when reading large samples
+          with fields like 'store' or 'attachments' that aren't needed.
 
     Returns:
        EvalSample object read from file.
@@ -459,7 +467,9 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    sample = await recorder_type.read_log_sample(log_file, id, epoch, uuid)
+    sample = await recorder_type.read_log_sample(
+        log_file, id, epoch, uuid, exclude_fields
+    )
 
     if resolve_attachments:
         sample = resolve_sample_attachments(sample, resolve_attachments)
