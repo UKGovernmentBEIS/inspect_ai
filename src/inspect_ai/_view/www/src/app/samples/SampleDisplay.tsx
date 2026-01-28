@@ -121,8 +121,14 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   // Consolidate the events and messages into the proper list
   // whether running or not
-  const sampleEvents = sample?.events || runningSampleData;
+  // When loading a new sample, use empty events to prevent showing stale data
+  const isLoadingSample = sampleData.status === "loading";
+  const sampleEvents = isLoadingSample ? [] : (sample?.events || runningSampleData);
   const sampleMessages = useMemo(() => {
+    // When loading a new sample, return empty messages to prevent showing stale data
+    if (isLoadingSample) {
+      return [];
+    }
     if (sample?.messages) {
       return sample.messages;
     } else if (runningSampleData) {
@@ -130,7 +136,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     } else {
       return [];
     }
-  }, [sample?.messages, runningSampleData]);
+  }, [isLoadingSample, sample?.messages, runningSampleData]);
 
   // Get all URL parameters at component level
   const {
