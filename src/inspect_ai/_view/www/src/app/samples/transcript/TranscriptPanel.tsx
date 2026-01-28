@@ -3,6 +3,7 @@ import { FC, memo, RefObject, useEffect, useMemo, useRef } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
 import { Events } from "../../../@types/log";
 import { NoContentsPanel } from "../../../components/NoContentsPanel";
+import { PulsingDots } from "../../../components/PulsingDots";
 import { StickyScroll } from "../../../components/StickyScroll";
 import { useCollapsedState } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
@@ -244,8 +245,19 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     }
   }, [scrollRef, flattenedNodes]);
 
-  if (sampleStatus === "loading" && flattenedNodes.length === 0) {
-    return undefined;
+  if (sampleStatus === "loading") {
+    return (
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "center",
+          paddingTop: "3em",
+        }}
+      >
+        <PulsingDots text="Loading sample..." size="medium" />
+      </div>
+    );
   }
 
   if (flattenedNodes.length === 0) {
