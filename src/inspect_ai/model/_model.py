@@ -284,6 +284,26 @@ class ModelAPI(abc.ABC):
         """
         return count_media_tokens(media)
 
+    async def count_tokens_batch(self, messages: list[ChatMessage]) -> int:
+        """Count tokens for a batch of messages.
+
+        This method counts tokens for an entire conversation at once. Providers
+        that need conversation context (e.g., for validating tool call/result pairs)
+        should override this method.
+
+        The default implementation sums per-message token counts.
+
+        Args:
+            messages: List of chat messages to count tokens for.
+
+        Returns:
+            Total token count for all messages.
+        """
+        total = 0
+        for message in messages:
+            total += await self.count_tokens([message])
+        return total
+
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
@@ -368,6 +388,32 @@ class ModelAPI(abc.ABC):
     def compact_reasoning_history(self) -> bool:
         """Is reasoning history eligible for compation for this provider?"""
         return True
+
+    async def compact(
+        self,
+        messages: list[ChatMessage],
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        """Compact messages using provider-native compaction.
+
+        Some model providers (e.g., OpenAI Codex models) support native context
+        compaction, which reduces the token count of a conversation while preserving
+        semantic meaning. This is useful for long conversations that approach the
+        context window limit.
+
+        Args:
+            messages: List of chat messages to compact.
+
+        Returns:
+            A tuple of (compacted_messages, usage) where compacted_messages is a
+            list containing a single message with compaction metadata, and usage
+            contains token counts for the compaction operation.
+
+        Raises:
+            NotImplementedError: For providers without native compaction support.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support native compaction."
+        )
 
 
 class Model:
@@ -657,6 +703,43 @@ class Model:
 
             # count tokens
             return await _count_tokens(input)
+
+    async def count_tokens_batch(self, messages: list[ChatMessage]) -> int:
+        """Count tokens for a batch of messages.
+
+        This method counts tokens for an entire conversation at once. Providers
+        that need conversation context (e.g., for validating tool call/result pairs
+        or counting encrypted reasoning blocks) should override count_tokens_batch
+        in their ModelAPI implementation.
+
+        Args:
+            messages: List of chat messages to count tokens for.
+
+        Returns:
+            Total token count for all messages.
+        """
+        model_name = ModelName(self)
+        key = f"ModelCountTokensBatch({self.api.connection_key()})"
+        async with concurrency(
+            f"{model_name}_count_tokens_batch", 10, key, visible=False
+        ):
+
+            @retry(
+                **model_retry_config(
+                    self.api.model_name,
+                    self.config.max_retries,
+                    self.config.timeout,
+                    self.should_retry,
+                    self.before_retry,
+                    log_model_retry,
+                    report_sample_waiting_time,
+                    self.api.retry_wait(),
+                )
+            )
+            async def _count_tokens_batch(messages: list[ChatMessage]) -> int:
+                return await self.api.count_tokens_batch(messages)
+
+            return await _count_tokens_batch(messages)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.

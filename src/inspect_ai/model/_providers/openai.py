@@ -36,7 +36,13 @@ from .._openai import (
     OpenAIAsyncHttpxClient,
     openai_should_retry,
 )
-from .._openai_responses import is_native_tool_configured
+from .._model_output import ModelUsage
+from .._openai_responses import (
+    chat_messages_from_compact_response,
+    is_native_tool_configured,
+    model_usage_from_compact_response,
+    openai_responses_inputs,
+)
 from ._openai_batch import OpenAIBatcher
 from .openai_o1 import generate_o1
 from .util import (
@@ -257,6 +263,89 @@ class OpenAIAPI(ModelAPI):
 
         tokens = enc.encode(text)
         return len(tokens)
+
+    @override
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        """Count tokens using tiktoken.
+
+        For simple strings or message lists, uses tiktoken-based counting.
+        For batch counting with conversation context (e.g., reasoning models),
+        use count_tokens_batch() instead.
+        """
+        if isinstance(input, str):
+            return await self.count_text_tokens(input)
+
+        # For message lists, use standard counting
+        from .._tokens import count_tokens
+
+        return await count_tokens(
+            input, self.count_text_tokens, self.count_media_tokens
+        )
+
+    @override
+    async def count_tokens_batch(self, messages: list[ChatMessage]) -> int:
+        """Count tokens for a batch of messages using native endpoint when available.
+
+        For models with reasoning content, uses OpenAI's input_tokens endpoint
+        which can accurately count encrypted reasoning blocks. Falls back to
+        summing per-message counts for other cases.
+        """
+        # Check if we should use native counting
+        if self.responses_api and self._has_reasoning_content(messages):
+            try:
+                return await self._count_tokens_native(messages)
+            except Exception as ex:
+                logger.info(f"Native token counting failed, falling back: {ex}")
+
+        # Fall back to summing per-message counts
+        total = 0
+        for message in messages:
+            total += await self.count_tokens([message])
+        return total
+
+    def _has_reasoning_content(self, messages: list[ChatMessage]) -> bool:
+        """Check if any messages contain ContentReasoning blocks."""
+        from inspect_ai._util.content import ContentReasoning
+
+        for message in messages:
+            if isinstance(message.content, list):
+                for content in message.content:
+                    if isinstance(content, ContentReasoning):
+                        return True
+        return False
+
+    async def _count_tokens_native(self, messages: list[ChatMessage]) -> int:
+        """Count tokens using OpenAI's input_tokens endpoint.
+
+        This endpoint can accurately count encrypted reasoning blocks
+        that cannot be counted using tiktoken.
+        """
+        # Convert messages to OpenAI input format
+        input_items = await openai_responses_inputs(messages, self)
+
+        logger.info(
+            f"Native token counting: {len(messages)} messages, "
+            f"{len(input_items)} input items"
+        )
+
+        # Call the input_tokens endpoint with reasoning settings
+        response = await self.client.responses.input_tokens.count(
+            model=self.service_model_name(),
+            input=input_items,
+            reasoning=self._get_reasoning_params(),
+        )
+
+        logger.info(f"Native token count result: {response.input_tokens:,} tokens")
+
+        return response.input_tokens
+
+    def _get_reasoning_params(self) -> dict[str, str] | None:
+        """Get reasoning parameters for API calls."""
+        if not self.has_reasoning_options():
+            return None
+
+        # Use default reasoning settings for counting
+        return {"effort": "medium", "summary": "auto"}
 
     def is_azure(self) -> bool:
         return self.service == "azure"
@@ -497,3 +586,65 @@ class OpenAIAPI(ModelAPI):
                         ChatCompletion,
                         endpoint="/v1/chat/completions",
                     )
+
+    # Supported models for native compaction
+    # TODO: Evaluate whether this allowlist is necessary or if we should support
+    # any model that doesn't error on the compact endpoint (feature detection).
+    COMPACTION_SUPPORTED_MODELS = [
+        "gpt-5.1-codex",
+        "gpt-5.2-codex",
+    ]
+
+    def _supports_compaction(self) -> bool:
+        """Check if this model supports native compaction."""
+        model = self.service_model_name().lower()
+        return any(supported in model for supported in self.COMPACTION_SUPPORTED_MODELS)
+
+    @override
+    async def compact(
+        self,
+        messages: list[ChatMessage],
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        """Compact messages using client.responses.compact().
+
+        Args:
+            messages: The messages to compact.
+
+        Returns:
+            A tuple of (compacted messages, usage info).
+
+        Raises:
+            NotImplementedError: If the model doesn't support native compaction.
+        """
+        if not self._supports_compaction():
+            raise NotImplementedError(
+                f"Native compaction only supported for Codex models "
+                f"({self.COMPACTION_SUPPORTED_MODELS}), not {self.service_model_name()}"
+            )
+
+        # Convert messages to OpenAI format
+        input_params = await openai_responses_inputs(messages, self)
+
+        # Call compact endpoint
+        response = await self.client.responses.compact(
+            model=self.service_model_name(),
+            input=input_params,
+        )
+
+        # Extract compaction item and create ChatMessage with ContentData
+        compacted_messages = chat_messages_from_compact_response(
+            response, model=self.service_model_name()
+        )
+        usage = model_usage_from_compact_response(response)
+
+        # Log compaction results
+        logger.info(
+            f"Native compaction: {len(messages)} messages -> {len(compacted_messages)} messages"
+            + (
+                f" (input={usage.input_tokens}, output={usage.output_tokens})"
+                if usage
+                else ""
+            )
+        )
+
+        return compacted_messages, usage

@@ -257,7 +257,7 @@ openai:
       display_name: GPT-5.1
       release_date: 2025-11-12
       knowledge_cutoff_date: 2024-09-30
-      context_length: 400000
+      context_length: 272000
       output_tokens: 128000
       reasoning: True
       versions:
@@ -269,7 +269,7 @@ openai:
       display_name: GPT-5.2
       release_date: 2025-12-11
       knowledge_cutoff_date: 2025-08-31
-      context_length: 400000
+      context_length: 272000
       output_tokens: 128000
       reasoning: True
       versions:
@@ -281,7 +281,7 @@ openai:
       display_name: GPT-5.2 Pro
       release_date: 2025-12-11
       knowledge_cutoff_date: 2025-08-31
-      context_length: 400000
+      context_length: 272000
       output_tokens: 128000
       reasoning: True
       versions:

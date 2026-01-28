@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import functools
 from logging import getLogger
 from typing import Sequence
 
-from inspect_ai._util._async import tg_collect
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
@@ -51,9 +49,6 @@ def compaction(
     # state: IDs of messages we've already processed (added to input)
     processed_message_ids: set[str] = set()
 
-    # state: cache of message_id -> token_count
-    token_count_cache: dict[str, int] = {}
-
     # snapshot the prefix in case it changes
     prefix = prefix.copy()
 
@@ -74,21 +69,6 @@ def compaction(
         if message.id is None:
             raise RuntimeError("Message must have an ID")
         return message.id
-
-    # count tokens with caching
-    async def count_tokens(message: ChatMessage) -> int:
-        # check cache
-        id = message_id(message)
-        count = token_count_cache.get(id, None)
-        if count is not None:
-            return count
-
-        # count tokens and update cache
-        count = await target_model.count_tokens([message])
-        token_count_cache[id] = count
-
-        # return count
-        return count
 
     async def compact_fn(
         messages: list[ChatMessage],
@@ -113,11 +93,7 @@ def compaction(
 
         # check to see whether the tokens exceeds the compaction 'threshold'
         target_messages = compacted_input + unprocessed
-        message_tokens = sum(
-            await tg_collect(
-                [functools.partial(count_tokens, m) for m in target_messages]
-            )
-        )
+        message_tokens = await target_model.count_tokens_batch(target_messages)
         total_tokens = tool_tokens + message_tokens
         if total_tokens > threshold:
             # perform compaction (with iteration if needed)
@@ -140,16 +116,19 @@ def compaction(
                 processed_message_ids.add(message_id(c_message))
 
             # ensure we preserve the prefix (could have been wiped out by a summarization)
-            input_ids = {message_id(m) for m in c_input}
-            prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
-            c_input = prepend_prefix + c_input
+            # Skip this for strategies like native compaction where the API returns
+            # the complete new context window
+            if strategy.preserve_prefix:
+                input_ids = {message_id(m) for m in c_input}
+                prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
+                c_input = prepend_prefix + c_input
 
             # update input
             compacted_input.clear()
             compacted_input.extend(c_input)
 
             # log compaction
-            compacted_tokens = await target_model.count_tokens(compacted_input)
+            compacted_tokens = await target_model.count_tokens_batch(compacted_input)
             transcript().info(
                 {
                     "Compaction": strategy.__class__.__name__,
@@ -219,7 +198,7 @@ async def _perform_compaction(
     """
     MAX_ITERATIONS = 3
     c_input, c_message = await strategy.compact(messages, model)
-    compacted_tokens = await model.count_tokens(c_input)
+    compacted_tokens = await model.count_tokens_batch(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
     for _ in range(MAX_ITERATIONS):
@@ -230,7 +209,7 @@ async def _perform_compaction(
 
         # Try compacting again
         c_input, c_message = await strategy.compact(list(c_input), model)
-        compacted_tokens = await model.count_tokens(c_input)
+        compacted_tokens = await model.count_tokens_batch(c_input)
         total_compacted = tool_tokens + compacted_tokens
 
         # Stop if no progress (can't reduce further)

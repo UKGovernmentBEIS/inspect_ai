@@ -173,3 +173,235 @@ def test_fix_function_tool_parameters_string_to_dict():
 
     dumped = response.model_dump()
     assert dumped["tools"][0]["parameters"] == {"type": "object", "properties": {}}
+
+
+def test_chat_messages_from_compact_response():
+    """Test that chat_messages_from_compact_response correctly converts compaction response."""
+    from openai.types.responses import CompactedResponse, ResponseCompactionItem
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentData
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Create a mock CompactedResponse with a ResponseCompactionItem
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = chat_messages_from_compact_response(response)
+
+    # Verify the result is a list with a single ChatMessageUser
+    assert len(result) == 1
+    assert isinstance(result[0], ChatMessageUser)
+
+    # Verify the content has the compaction metadata
+    content = result[0].content
+    assert isinstance(content, list)
+    assert len(content) == 1
+    assert isinstance(content[0], ContentData)
+
+    metadata = content[0].data
+    assert metadata["compaction_metadata"]["type"] == "openai_compact"
+    assert metadata["compaction_metadata"]["id"] == "comp_123"
+    assert metadata["compaction_metadata"]["encrypted_content"] == "encrypted_data_here"
+
+
+def test_chat_messages_from_compact_response_no_compaction_item():
+    """Test that chat_messages_from_compact_response raises on missing compaction item."""
+    import pytest
+    from openai.types.responses import CompactedResponse
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Create a CompactedResponse without a ResponseCompactionItem
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[],  # No compaction item
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="No ResponseCompactionItem found"):
+        chat_messages_from_compact_response(response)
+
+
+def test_model_usage_from_compact_response():
+    """Test that model_usage_from_compact_response correctly extracts usage."""
+    from openai.types.responses import CompactedResponse, ResponseCompactionItem
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai.model._openai_responses import model_usage_from_compact_response
+
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    usage = model_usage_from_compact_response(response)
+
+    assert usage is not None
+    assert usage.input_tokens == 100
+    assert usage.output_tokens == 50
+    assert usage.total_tokens == 150
+
+
+def test_extract_compaction_from_content_data():
+    """Test that compaction metadata is correctly extracted from ContentData."""
+    from inspect_ai._util.content import ContentData, ContentText
+    from inspect_ai.model._openai_responses import _extract_compaction_from_content_data
+
+    # Test with compaction metadata
+    content_with_compaction = [
+        ContentText(text="Some text"),
+        ContentData(
+            data={
+                "compaction_metadata": {
+                    "type": "openai_compact",
+                    "id": "comp_456",
+                    "encrypted_content": "encrypted_stuff",
+                }
+            }
+        ),
+    ]
+
+    result = _extract_compaction_from_content_data(content_with_compaction)
+    assert result is not None
+    assert result["type"] == "compaction"
+    assert result["id"] == "comp_456"
+    assert result["encrypted_content"] == "encrypted_stuff"
+
+
+def test_extract_compaction_from_content_data_no_compaction():
+    """Test that None is returned when no compaction metadata present."""
+    from inspect_ai._util.content import ContentText
+    from inspect_ai.model._openai_responses import _extract_compaction_from_content_data
+
+    # Test without compaction metadata
+    content_without_compaction = [
+        ContentText(text="Some text"),
+    ]
+
+    result = _extract_compaction_from_content_data(content_without_compaction)
+    assert result is None
+
+    # Test with string content
+    result = _extract_compaction_from_content_data("Just a string")
+    assert result is None
+
+
+def test_chat_messages_from_compact_response_mixed_items():
+    """Test that chat_messages_from_compact_response handles mixed items correctly."""
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+        ResponseOutputText,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    from inspect_ai._util.content import ContentData
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # Create a CompactedResponse with compaction item followed by an output message
+    compaction_item = ResponseCompactionItem(
+        id="comp_123",
+        encrypted_content="encrypted_data_here",
+        type="compaction",
+    )
+
+    output_message = ResponseOutputMessage(
+        id="msg_456",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[ResponseOutputText(type="output_text", text="Recent response", annotations=[])],
+    )
+
+    response = CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[compaction_item, output_message],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = chat_messages_from_compact_response(response, model="codex-mini")
+
+    # Verify we get two messages in order: compaction user message, then assistant message
+    assert len(result) == 2
+
+    # First message should be the compaction metadata
+    assert isinstance(result[0], ChatMessageUser)
+    content = result[0].content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentData)
+    assert content[0].data["compaction_metadata"]["id"] == "comp_123"
+
+    # Second message should be the assistant message with model and source set
+    assert isinstance(result[1], ChatMessageAssistant)
+    assert result[1].text == "Recent response"
+    assert result[1].model == "codex-mini"
+    assert result[1].source == "generate"
