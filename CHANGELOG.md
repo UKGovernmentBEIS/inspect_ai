@@ -2,6 +2,7 @@
 
 - Scoring: Add `model_usage` field to `ScoreEvent` for tracking token usage vs score.
 - Compaction: Compact server tool uses in `CompactionEdit` strategy (previously only client tool uses were compacted).
+- Docker: Avoid mutable default env arguments in execution helpers.
 - Eval Logs: Add `exclude_fields` parameter to `read_eval_log_sample()` for memory-efficient loading of large samples.
 
 ## 0.3.165 (26 January 2026)

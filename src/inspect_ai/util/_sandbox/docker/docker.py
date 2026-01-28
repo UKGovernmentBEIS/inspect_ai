@@ -278,7 +278,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
@@ -300,7 +300,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
-        if len(env.items()) > 0:
+        if env:
             for key, value in env.items():
                 args.append("--env")
                 args.append(f"{key}={value}")
