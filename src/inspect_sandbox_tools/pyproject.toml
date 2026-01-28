@@ -70,7 +70,7 @@ ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_sandbox_tools"
-version = "1.2.0"
+version = "1.2.1"
 description = "Sandbox container tool code for inspect_ai"
 authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
