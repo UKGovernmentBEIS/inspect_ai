@@ -50,7 +50,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             cmd=cmd,
             input=input,
             cwd=cwd,
-            env=env,
+            env=env or {},
             user=user,
             timeout=timeout,
             timeout_retry=timeout_retry,
