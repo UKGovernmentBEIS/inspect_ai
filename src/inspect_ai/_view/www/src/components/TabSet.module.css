@@ -4,7 +4,7 @@
 
 .tabContents {
   flex: 1;
-  overflow-y: hidden;
+  overflow-y: clip;
 }
 
 .tabContents.scrollable {
