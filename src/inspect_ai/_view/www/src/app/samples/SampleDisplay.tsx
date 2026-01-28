@@ -121,8 +121,14 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   // Consolidate the events and messages into the proper list
   // whether running or not
-  const sampleEvents = sample?.events || runningSampleData;
+  // When loading a new sample, use empty events to prevent showing stale data
+  const isLoadingSample = sampleData.status === "loading";
+  const sampleEvents = isLoadingSample ? [] : (sample?.events || runningSampleData);
   const sampleMessages = useMemo(() => {
+    // When loading a new sample, return empty messages to prevent showing stale data
+    if (isLoadingSample) {
+      return [];
+    }
     if (sample?.messages) {
       return sample.messages;
     } else if (runningSampleData) {
@@ -130,7 +136,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     } else {
       return [];
     }
-  }, [sample?.messages, runningSampleData]);
+  }, [isLoadingSample, sample?.messages, runningSampleData]);
 
   // Get all URL parameters at component level
   const {
@@ -218,6 +224,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     setCollapsedMode(isCollapsed(collapsedMode) ? "expanded" : "collapsed");
   }, [collapsedMode, setCollapsedMode]);
 
+  const flatView = useStore((state) => state.sample.flatView);
+  const setFlatView = useStore((state) => state.sampleActions.setFlatView);
+
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
   const tools = [];
@@ -278,6 +287,15 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             : ApplicationIcons.collapse.all
         }
         onClick={toggleCollapsedMode}
+      />,
+    );
+
+    tools.push(
+      <ToolButton
+        key="sample-flat-view"
+        label={flatView ? "Tree" : "Flat"}
+        icon={flatView ? "bi bi-list-nested" : "bi bi-diagram-3"}
+        onClick={() => setFlatView(!flatView)}
       />,
     );
   }
