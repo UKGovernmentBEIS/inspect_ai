@@ -52,7 +52,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] | None = None,
+        env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
