@@ -28,6 +28,7 @@ export interface LogSlice {
 
     // Update pending sample information
     setPendingSampleSummaries: (samples: PendingSamples) => void;
+    clearPendingSampleSummaries: () => void;
 
     // Set filter criteria
     setFilter: (filter: string) => void;
@@ -149,11 +150,16 @@ export const createLogSlice = (
           state.log.selectedLogDetails = undefined;
         });
       },
-      setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) =>
+      setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) => {
         set((state) => {
           state.log.pendingSampleSummaries = pendingSampleSummaries;
-        }),
-
+        });
+      },
+      clearPendingSampleSummaries: () => {
+        set((state) => {
+          state.log.pendingSampleSummaries = undefined;
+        });
+      },
       setFilter: (filter: string) =>
         set((state) => {
           state.log.filter = filter;
@@ -237,6 +243,9 @@ export const createLogSlice = (
               set((state) => {
                 state.log.loadedLog = logFileName;
               });
+
+              state.logActions.clearPendingSampleSummaries();
+              logPolling.startPolling(logFileName);
               return;
             }
           } catch (e) {
@@ -268,6 +277,7 @@ export const createLogSlice = (
           });
 
           // Start polling for pending samples
+          state.logActions.clearPendingSampleSummaries();
           logPolling.startPolling(logFileName);
         } catch (error) {
           log.error("Error loading log:", error);
