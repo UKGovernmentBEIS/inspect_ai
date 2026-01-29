@@ -221,14 +221,20 @@ async def openai_chat_message(
 async def messages_to_openai(
     messages: list[ChatMessage],
     system_role: Literal["user", "system", "developer"] = "system",
+    reasoning_handler: Callable[[ContentReasoning], dict[str, JsonValue] | str]
+    | None = None,
 ) -> list[ChatCompletionMessageParam]:
     """Convert messages to OpenAI Completions API compatible messages.
 
     Args:
        messages: List of messages to convert
        system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
+       reasoning_handler: Optional handler to convert ContentReasoning to API-specific format.
     """
-    return [await openai_chat_message(message, system_role) for message in messages]
+    return [
+        await openai_chat_message(message, system_role, reasoning_handler)
+        for message in messages
+    ]
 
 
 def openai_completion_params(

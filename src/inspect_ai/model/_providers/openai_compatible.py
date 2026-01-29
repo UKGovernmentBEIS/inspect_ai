@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from openai import (
     APIStatusError,
@@ -15,8 +15,10 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
 )
+from pydantic import JsonValue
 from typing_extensions import override
 
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -314,7 +316,9 @@ class OpenAICompatibleAPI(ModelAPI):
     async def messages_to_openai(
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:
-        return await messages_to_openai(input)
+        return await messages_to_openai(
+            input, reasoning_handler=self._reasoning_handler()
+        )
 
     def chat_choices_from_completion(
         self, completion: ChatCompletion, tools: list[ToolInfo]
@@ -335,7 +339,22 @@ class OpenAICompatibleAPI(ModelAPI):
         return openai_handle_bad_request(self.service_model_name(), ex)
 
     def emulate_reasoning_history(self) -> bool:
+        # APIs with custom reasoning handlers handle reasoning natively
+        if self._reasoning_handler() is not None:
+            return False
         return self._emulate_reasoning_history
+
+    def _reasoning_handler(
+        self,
+    ) -> Callable[[ContentReasoning], dict[str, JsonValue] | str] | None:
+        """Returns a reasoning handler for APIs that require reasoning_content echoed back.
+
+        Kimi K2.5 requires reasoning_content to be passed back in multi-turn conversations.
+        """
+        base_url = self.base_url or ""
+        if "moonshot" in base_url.lower() or "kimi" in self.model_name.lower():
+            return lambda r: {"reasoning_content": r.reasoning}
+        return None
 
 
 class OpenAICompatibleHandler(Llama31Handler):
