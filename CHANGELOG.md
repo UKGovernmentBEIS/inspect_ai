@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Early Stopping: Check for early stopping after sample semaphore is acquired rather than before.
+- Revert use of `json.dumps` for message cache keys (incompatible with `BaseModel` types).
 
 ## 0.3.166 (29 January 2026)
 
