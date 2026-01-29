@@ -216,7 +216,7 @@ def parse_task_spec(task_spec: str) -> tuple[str, str | None]:
     return repo_id, taskname
 
 
-def _sanitize_target(record: DatasetRecord, target: str) -> str:
+def _sanitize_target(record: DatasetRecord, target: str, is_choices: bool) -> str:
     # if the target is a literal, return the value after the colon without checking the record.
     if target.startswith("literal:"):
         target = target.split(":")[1]
@@ -224,10 +224,10 @@ def _sanitize_target(record: DatasetRecord, target: str) -> str:
 
     # otherwise, get the target from the record and convert to a letter if it's a number.
     target = record[target]
-    if isinstance(target, int):
+    if isinstance(target, int) and is_choices:
         target = ascii_uppercase[target]
 
-    return target
+    return str(target)
 
 
 def _sanitize_choices(
@@ -262,7 +262,9 @@ def _record_to_sample_hf(record: DatasetRecord, field_spec: HFFieldSpec) -> Samp
 
     sample_kwargs: dict[str, Any] = {"input": input_value}
 
-    if target := _sanitize_target(record, field_spec.target):
+    if target := _sanitize_target(
+        record, field_spec.target, field_spec.choices is not None
+    ):
         sample_kwargs["target"] = target
 
     if choices := _sanitize_choices(record, field_spec.choices):
