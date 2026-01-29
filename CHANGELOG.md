@@ -2,6 +2,11 @@
 
 - Bugfix: raise PrerequisiteError when bundling to a subdirectory of the log dir (instead of deleting the logs from the log dir).
 
+## 0.3.167 (29 January 2026)
+
+- Early Stopping: Check for early stopping after sample semaphore is acquired rather than before.
+- Revert use of `json.dumps` for message cache keys (incompatible with `BaseModel` types).
+
 ## 0.3.166 (29 January 2026)
 
 - Scoring: Add `model_usage` field to `ScoreEvent` for tracking token usage vs score.
