@@ -12,9 +12,16 @@ import {
   TYPE_TOOL,
 } from "./utils";
 
-export const transformTree = (roots: EventNode[]): EventNode[] => {
+export interface TransformOptions {
+  flatView?: boolean;
+}
+
+export const transformTree = (
+  roots: EventNode[],
+  options: TransformOptions = {},
+): EventNode[] => {
   // Gather the transformers that we'll use
-  const treeNodeTransformers: TreeNodeTransformer[] = transformers();
+  const treeNodeTransformers: TreeNodeTransformer[] = transformers(options);
 
   const visitNode = (node: EventNode): EventNode | EventNode[] => {
     // Start with the original node
@@ -70,7 +77,7 @@ export const transformTree = (roots: EventNode[]): EventNode[] => {
   return [...processedRoots, ...flushedNodes];
 };
 
-const transformers = () => {
+const transformers = (options: TransformOptions = {}) => {
   const treeNodeTransformers: TreeNodeTransformer[] = [
     {
       name: "unwrap_tools",
@@ -147,6 +154,17 @@ const transformers = () => {
       },
     },
   ];
+
+  // When flatView is enabled, discard individual solver spans to show events chronologically
+  if (options.flatView) {
+    treeNodeTransformers.push({
+      name: "flatten_solver_spans",
+      matches: (node) =>
+        node.event.event === SPAN_BEGIN && node.event.type === TYPE_SOLVER,
+      process: (node) => discardNode(node),
+    });
+  }
+
   return treeNodeTransformers;
 };
 
