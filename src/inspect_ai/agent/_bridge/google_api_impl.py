@@ -119,26 +119,11 @@ async def inspect_google_api_request_impl(
     # extract generate config
     config = generate_config_from_google(generation_config)
 
-    # track if temperature was explicitly set (for top_p conflict resolution)
-    has_explicit_temperature = "temperature" in generation_config
-
     # try to maintain id stability
     apply_message_ids(bridge, messages)
 
     # give inspect-level config priority over agent default config
     config = resolve_generate_config(model, config)
-
-    # Some models (like Anthropic) don't allow both temperature and top_p.
-    # If temperature was explicitly set in the request, clear top_p to avoid conflicts.
-    if has_explicit_temperature and config.top_p is not None:
-        config = GenerateConfig(
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            top_k=config.top_k,
-            stop_seqs=config.stop_seqs,
-            system_message=config.system_message,
-            # Explicitly omit top_p since temperature takes precedence
-        )
 
     # generate via bridge
     output, c_message = await bridge_generate(
@@ -159,18 +144,12 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
     config = GenerateConfig()
 
     # From generationConfig
-    # Note: Some models (like Anthropic) don't allow both temperature and top_p
-    # If temperature is specified, prefer it over top_p
-    has_temperature = "temperature" in generation_config
-    if has_temperature:
+    if "temperature" in generation_config:
         config.temperature = generation_config["temperature"]
     if "maxOutputTokens" in generation_config:
         config.max_tokens = generation_config["maxOutputTokens"]
-    # Only set top_p if temperature wasn't set (they're often mutually exclusive)
     # Check both camelCase (Gemini) and snake_case variants
-    if (
-        "topP" in generation_config or "top_p" in generation_config
-    ) and not has_temperature:
+    if "topP" in generation_config or "top_p" in generation_config:
         config.top_p = generation_config.get("topP", generation_config.get("top_p"))
     if "topK" in generation_config or "top_k" in generation_config:
         config.top_k = generation_config.get("topK", generation_config.get("top_k"))
