@@ -5,6 +5,7 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai.dataset import Sample
 from inspect_ai.log._bundle import bundle_log_dir
@@ -87,3 +88,13 @@ def test_bundle() -> None:
             if f.endswith(".eval") and f != "logs.eval"
         ]
         assert len(non_manifest_logs) == 2
+
+
+def test_bundle_output_dir_cannot_be_subdir_of_log_dir(tmp_path) -> None:
+    log_dir = tmp_path / "logs"
+    output_dir = log_dir / "output"
+
+    log_dir.mkdir()
+
+    with pytest.raises(PrerequisiteError, match="cannot be a subdirectory"):
+        bundle_log_dir(str(log_dir), str(output_dir))

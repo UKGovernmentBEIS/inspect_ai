@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: raise PrerequisiteError when bundling to a subdirectory of the log dir (instead of deleting the logs from the log dir).
+
 ## 0.3.166 (29 January 2026)
 
 - Scoring: Add `model_usage` field to `ScoreEvent` for tracking token usage vs score.
