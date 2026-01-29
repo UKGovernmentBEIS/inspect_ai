@@ -1867,14 +1867,18 @@ async def model_proxy_server(
 
                     for part in parts:
                         if "text" in part:
-                            # Stream text in chunks
+                            # Stream text in chunks, preserving thought attribute
                             text = part["text"]
+                            is_thought = part.get("thought", False)
                             for chunk in _iter_chunks(text):
+                                part_data: dict[str, Any] = {"text": chunk}
+                                if is_thought:
+                                    part_data["thought"] = True
                                 chunk_response = {
                                     "candidates": [
                                         {
                                             "content": {
-                                                "parts": [{"text": chunk}],
+                                                "parts": [part_data],
                                                 "role": "model",
                                             },
                                             "finishReason": None,
