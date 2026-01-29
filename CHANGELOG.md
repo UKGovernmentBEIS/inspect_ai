@@ -1,3 +1,7 @@
+## Unreleased
+
+- Early Stopping: Check for early stopping after sample semaphore is acquired rather than before.
+
 ## 0.3.166 (29 January 2026)
 
 - Scoring: Add `model_usage` field to `ScoreEvent` for tracking token usage vs score.
