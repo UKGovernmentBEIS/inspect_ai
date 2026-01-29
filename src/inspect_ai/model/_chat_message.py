@@ -17,6 +17,20 @@ from ._reasoning import parse_content_with_reasoning
 logger = getLogger(__name__)
 
 
+class _PydanticJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles Pydantic BaseModel objects.
+
+    This is needed because mode="before" validators (like extract_reasoning) may
+    create Pydantic model objects that are then passed to mode="wrap" validators.
+    When creating cache keys, we need to serialize these objects to JSON.
+    """
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, BaseModel):
+            return o.model_dump(mode="json")
+        return super().default(o)
+
+
 class ChatMessageBase(BaseModel):
     """Base class for chat messages."""
 
@@ -72,7 +86,7 @@ class ChatMessageBase(BaseModel):
         if info.context is None:
             return handler(data)
         cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
-        cache_key = json.dumps(data, sort_keys=True)
+        cache_key = json.dumps(data, sort_keys=True, cls=_PydanticJSONEncoder)
         hit = cache.get(cache_key)
         if hit is not None:
             return hit
