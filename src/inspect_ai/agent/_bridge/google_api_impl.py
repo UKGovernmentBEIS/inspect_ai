@@ -65,6 +65,22 @@ from .util import (
 logger = getLogger(__name__)
 
 
+def _convert_google_enums(obj: Any) -> Any:
+    """Convert Google SDK enum types to their string values.
+
+    Google's genai SDK uses enum classes (e.g., Type.OBJECT, Type.STRING) for type
+    fields, but ToolParams expects string literals ("object", "string"). This function
+    recursively converts enum values to lowercase strings.
+    """
+    if isinstance(obj, dict):
+        return {k: _convert_google_enums(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_google_enums(item) for item in obj]
+    elif hasattr(obj, "value"):  # Enum-like object
+        return str(obj.value).lower()
+    return obj
+
+
 async def inspect_google_api_request_impl(
     json_data: dict[str, Any],
     web_search_providers: WebSearchProviders,
@@ -187,6 +203,8 @@ def tools_from_google_tools(
                 parameters = func_decl.get(
                     "parameters", func_decl.get("parametersJsonSchema", {})
                 )
+                # Convert Google SDK enum types to strings before validation
+                parameters = _convert_google_enums(parameters)
                 tools.append(
                     ToolInfo(
                         name=func_decl.get("name", ""),
@@ -292,7 +310,9 @@ def messages_from_google_contents(
             )
             if has_function_calls:
                 # Prepend a placeholder user message to satisfy API constraints
-                messages.append(ChatMessageUser(content="(continuing from previous context)"))
+                messages.append(
+                    ChatMessageUser(content="(continuing from previous context)")
+                )
                 logger.debug(
                     "Prepending user message before model function call to satisfy Gemini API constraints"
                 )

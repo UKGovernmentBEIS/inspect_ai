@@ -2019,7 +2019,7 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
                                 "parts": [
                                     {"text": "I'll search for that information."},
                                     {
-                                        "function_call": {
+                                        "functionCall": {
                                             "name": "web_search",
                                             "args": {"query": "latest AI news"},
                                         }
@@ -2045,7 +2045,7 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
                                 "parts": [
                                     {"text": "I'll check the weather for you."},
                                     {
-                                        "function_call": {
+                                        "functionCall": {
                                             "name": "get_weather",
                                             "args": {"location": "San Francisco"},
                                         }

@@ -221,7 +221,11 @@ def _normalized_message_hash(message: ChatMessage) -> str:
     # Normalize tool_calls by removing their IDs but keeping function name and arguments
     if msg_dict.get("tool_calls"):
         msg_dict["tool_calls"] = [
-            {"function": tc.get("function"), "arguments": tc.get("arguments"), "type": tc.get("type")}
+            {
+                "function": tc.get("function"),
+                "arguments": tc.get("arguments"),
+                "type": tc.get("type"),
+            }
             for tc in msg_dict["tool_calls"]
         ]
 
@@ -229,7 +233,8 @@ def _normalized_message_hash(message: ChatMessage) -> str:
     # history, so we need to ignore them for matching purposes
     if isinstance(msg_dict.get("content"), list):
         msg_dict["content"] = [
-            part for part in msg_dict["content"]
+            part
+            for part in msg_dict["content"]
             if not (isinstance(part, dict) and part.get("type") == "reasoning")
         ]
 
