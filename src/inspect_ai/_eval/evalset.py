@@ -581,8 +581,9 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 
 
 # list all eval logs
-def list_all_eval_logs(log_dir: str) -> list[Log]:
-    log_files = list_eval_logs(log_dir)
+# recursive=False is used by inspect_flow
+def list_all_eval_logs(log_dir: str, recursive: bool = True) -> list[Log]:
+    log_files = list_eval_logs(log_dir, recursive=recursive)
     log_headers = read_eval_log_headers(log_files)
     task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
     return [
