@@ -10,7 +10,11 @@ import { EventNode, EventType, kCollapsibleEventTypes } from "../types";
 import { fixupEventStream, kSandboxSignalName } from "./fixups";
 import { treeifyEvents } from "./treeify";
 
-export const useEventNodes = (events: Events, running: boolean) => {
+export const useEventNodes = (
+  events: Events,
+  running: boolean,
+  flatView: boolean = false,
+) => {
   // Normalize Events in a flattened filtered list
   const { eventTree, defaultCollapsedIds } = useMemo((): {
     eventTree: EventNode[];
@@ -20,7 +24,7 @@ export const useEventNodes = (events: Events, running: boolean) => {
     const resolvedEvents = fixupEventStream(events, !running);
 
     // Build the event tree
-    const rawEventTree = treeifyEvents(resolvedEvents, 0);
+    const rawEventTree = treeifyEvents(resolvedEvents, 0, { flatView });
 
     // Now filter the tree to remove empty spans
     const filterEmpty = (
@@ -64,7 +68,7 @@ export const useEventNodes = (events: Events, running: boolean) => {
     findCollapsibleEvents(eventTree);
 
     return { eventTree, defaultCollapsedIds };
-  }, [events, running]);
+  }, [events, running, flatView]);
 
   return { eventNodes: eventTree, defaultCollapsedIds };
 };

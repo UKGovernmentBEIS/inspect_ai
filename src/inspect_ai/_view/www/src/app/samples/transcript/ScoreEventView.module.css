@@ -1,3 +1,12 @@
+.scoreHighlight {
+  border-left: 3px solid var(--bs-success);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--bs-success) 8%, transparent) 0%,
+    transparent 100%
+  );
+}
+
 .explanation {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
