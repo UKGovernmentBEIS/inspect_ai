@@ -1,3 +1,169 @@
+## Unreleased
+
+- Bugfix: raise PrerequisiteError when bundling to a subdirectory of the log dir (instead of deleting the logs from the log dir).
+
+## 0.3.167 (29 January 2026)
+
+- Early Stopping: Check for early stopping after sample semaphore is acquired rather than before.
+- Revert use of `json.dumps` for message cache keys (incompatible with `BaseModel` types).
+
+## 0.3.166 (29 January 2026)
+
+- Scoring: Add `model_usage` field to `ScoreEvent` for tracking token usage vs score.
+- Compaction: Compact server tool uses in `CompactionEdit` strategy (previously only client tool uses were compacted).
+- Docker: Avoid mutable default env arguments in execution helpers.
+- Eval Logs: Add `exclude_fields` parameter to `read_eval_log_sample()` for memory-efficient loading of large samples.
+- Inspect View: Fix issue where switching from a running to a non-running evaluation could display incorrect metrics in the title region.
+- Inspect View: Fix sample switching when viewing live transcripts.
+
+## 0.3.165 (26 January 2026)
+
+- Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.
+- Compaction: Remove citations after compaction to avoid dangling citation references (updated `trim_message()` to use the same behavior).
+- Inspect View: Fix "Cannot add property timestamp, object is not extensible" error when viewing live transcripts.
+
+## 0.3.164 (24 January 2026)
+
+- Google: Provide JSON schema directly rather than converting it to Google Schema type.
+- Agent Bridge: Support bridge clients that use the Anthropic Beta API.
+- Agent Bridge: Serialize `ContentReasoning` as `<think>` with attributes to prevent bridge clients from doing a more lossy `<think>` tag conversion.
+- Compaction: Correct handling of thinking mode in Anthropoic `count_tokens()` method.
+- Compaction: Correct handling of consecutive tool messages in Anthropic `count_tokens()` method.
+- Bash Session: Increase bash session transport timeout and make new session timeouts fatal.
+- Inspect View: Timestamps for USER and ASSISTANT transcript of model events, `yyyy-mm-dd hh:mm:ss` format (keep local time zone).
+- Inspect View: Remove events from JSON before parsing if Sample JSON is too large.
+- Bugfix: Include type field in JSON Schema for Literal and Enum types.
+- Bugfix: Handle maps and lists in registry_kwargs().
+
+## 0.3.163 (21 January 2026)
+
+- Anthropic: Only re-order reasoning blocks for Claude 3 (as we use interleaved thinking for Claude 4).
+- Analysis: Read all samples at once in implementation of `samples_df()`.
+- Agent Bridge: Handle OpenAI assistant message params with no 'type' field (Pydantic AI compatibility).
+- Inspect View: Improve sample summary truncation (use markdown truncation instead of line clamping).
+- Inspect View: Fix issue with typing over selection in 'Find'
+- Inspect View: Fix issues with 'Find' scrolling, keyboard behavior, and restoration of scroll position / panel expansion.
+- Inspect View: Support find using JSON-like syntax.
+
+## 0.3.162 (18 January 2026)
+
+- Google: Add `streaming` model arg to opt-in to streaming generation.
+- TogetherAI: Support for parsing logprobs returned in OpenAI format (e.g. for gpt-oss-20b).
+- HF tasks: Support for `image_input` (data URI) in field spec for multimodal tasks
+- Scoring: Enable editing scores for samples that do not yet have a score.
+- Task Display: Throttle updates to running samples according to total samples.
+- Sandbox: Support passing a `ComposeConfig` directly to Docker sandbox provider.
+- Sandbox: Remove `supported_fields` parameter from `parse_compose_yaml()` (packages handle their own validation).
+- Sandbox Service: Provide option to trigger request processing manually.
+- Inspect View: Fix regression where viewing samples with identical id/epoch would re-use the previous sample details.
+- Inspect View: Show event timestamp in tooltips in all types of events in transcripts.
+- Inspect View: Show sample invalidation status in sample header.
+- Bugfix: Compose models now correctly handle x- extensions at all levels (inner models discarded them, outer models accepted non-extensions).
+
+## 0.3.161 (10 January 2026)
+
+- Sandbox: `parse_compose_yaml()` for parsing Docker Compose files into typed configuration for sandbox providers.
+- Google: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).
+- Google: Raise error if batch processing is used with Vertex hosted models.
+- OpenAI Compatible: Always pass function definitions with `strict=True`. This is required by HF Inference Providers and Fireworks (and possibly others).
+- OpenAI Compatible: Convert function arguments to JSON if they are provided as a string (as is done by xAI and perhaps other providers).
+- Model API: Improvements in model detection for hosting providers (e.g. Azure, Bedrock, etc.).
+- Eval Log: Add version of the package exporting the task (if any) to the eval log.
+- Analysis: Convert mixed-type object columns to string for PyArrow conversion.
+- Sandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.
+- Human Agent: Fixed non-scalar intermediate score values breaking task commands like `task status` and `task stop`.
+- Bugfix: Print only enabled hooks at CLI startup.
+- Bugfix: Fix eval_set log reuse when setting limits as eval set args.
+
+## 0.3.160 (09 January 2026)
+
+- Agent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).
+- Anthropic: Correctly replay reasoning when sourced from Inspect cache.
+- Anthropic: Tolerate `{}` as value for `additionalProperties` in tool schema.
+- OpenAI Compatible: Don't ever send `background` parameter as this is OpenAI service-specific.
+- OpenAI Compatible: Added support for disabling reasoning history emulation.
+- Grok: Correctly replay tool calling errors in message history.
+- VLLM and SGLang: Don't require API key environment variable to be set when running in local mode.
+- Google: Support `minimal` and `medium` reasoning effort levels for Gemini 3 Flash.
+- Fireworks: Use streaming when `max_tokens` is greater than 16000.
+- Model API: Add `combined_from` metadata field when combining consecutive user or assistant messages for call to generate.
+- HF Tasks: Require >1.0.0 of huggingface_hub package.
+- Eval Set: Include task version and limits in task identifier hash to prevent incorrect log reuse.
+- Scoring: Match only last line of output in answer(pattern="line").
+- JSON Datasets: Support passing arbitrary `kwargs` to JSON readers (built-in reader and jsonlines reader).
+- Filesystems: Use default_fs_options() for `async_connection()`
+- Inspect View: Don't attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).
+- Inspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.
+- Inspect View: Scale ANSI display in messages view to preserve row/column layout without wrapping.
+- Inspect View: Render custom tool view when viewing messages.
+- Inspect View: Fix cmd+click on tasks/samples to open in new tab.
+- Inspect View: Only stream log bytes when requested chunks are large (>50MB)
+- Inspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).
+- Inspect View: Improved non-native find for virtualized lists (better CTRL-f)
+- Bugfix: Prevent component not found error during Human Agent transition.
+- Bugfix: Use `builtins` module rather than `__builtins__` when parsing tool function types.
+
+## 0.3.159 (03 January 2026)
+
+- [Compaction](https://inspect.aisi.org.uk/compaction.html.md): Compacting message histories for long-running agents that exceed the context window.
+- Model API: `count_tokens()` method for estimating token usage for messages.
+- Model API: `ModelInfo` for retrieving information about models (e.g. organization, context window, reasoning, release date, etc.)
+- Eval Retry: Initialize model usage from usage recorded in retried eval log.
+- Anthropic: Use service model name when detecting tool compatibility.
+- Google: Various mitigations for Gemini returning MALFORMED_FUNCTION_CALL.
+- OpenRouter: Improved integration with `reasoning_details` (map onto standard reasoning fields for viewer).
+- Human CLI Agent: Ability to add custom instructions and .bashrc commands to agent shell.
+- Properly handle working time reporting for overlapping coroutines waiting on semaphores.
+- Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
+- Inspect View: Properly display dict scores in sample list.
+- Inspect View: Improve display of Codex `shell_command` tool calls.
+- Inspect View: Improve the display of very wide metrics results in the results dialog.
+
+## 0.3.158 (24 December 2025)
+
+- [skill()](https://inspect.aisi.org.uk/tools-standard.html#sec-skill) tool to make agent skills available to models.
+- Bugfix: Fix log file cache lookup using incorrect comparison key.
+
+## 0.3.157 (22 December 2025)
+
+- Eval Set: Correct log reuse behavior when epochs and limit change.
+- Solvers: Capture all parameters (including defaults) used to create solvers and agents.
+- Tasks: Improved validation of Hugging Face Hub task definitions.
+- HF Inference Providers: Specify "strict" for function tool definitions.
+- Agent API: Improved capture of agent name with nested @agent decorators.
+- Agent Bridge: Ensure that OpenAI responses params have an "id" field before validation.
+- Sandbox Service: Continue with warning if request polling raises a `RuntimeError`.
+
+## 0.3.156 (20 December 2025)
+
+- Anthropic: Treat reasoning text as a summary (true for all models after Sonnet 3.7).
+- Open AI: Remove custom transport to respect HTTP proxy settings.
+- Bedrock: Handle additional Converse stop reasons (improved context overflow detection).
+- OpenRouter: Handle `reasoning_details` field to forward native reasoning replay to models.
+- Reasoning: Include reasoning `summary` in serialization for agent bridge.
+- Agent API: Correctly handle `@agent` functions with no return type decoration.
+- ReAct Agent: Add `retry_refusals` option to retry on stop_reason == "content_filter".
+- Eval Log: Include sample `choices` in `EvalSampleSummary`.
+- Inspect View: Add "robots" meta tag with "noindex,noai,noimageai".
+- Inspect View: Enhance `inspect view bundle` to publish `hf/` prefixed targets to Hugging Face Spaces.
+- Inspect View: Improve rendering of Open Router reaasoning blocks.
+- Inspect View: Correct the filter type for `Log File` column of the samples list.
+- Bugfix: Only use Anthropic computer_20251124 tool for Claude Opus 4.5 (not all Claude 4.5 models).
+- Bugfix: Only use OpenAI computer_use_preview tool for models with "computer-use-preview" in name.
+- Bugfix: Expand allowable JSONSchema `type` field to enable lists of types.
+
+## 0.3.155 (16 December 2025)
+
+- Eval Set: Defer reading eval samples until they are actually needed (prevents memory overload for large logs being retried).
+- Anthropic: Support for inference on Azure Foundry (`anthropic/azure`).
+- Grok: Don't use streaming responses by default (enable explicitly with `-M streaming=true`).
+- Logging: Optimize snapshots for track_store_changes and state_jsonable.
+- Improve granulaity of working time tracking (report working time immediately on outer retry rather than waiting for generate to succeed).
+- Inspect View: Display timestamp in sample limit events tooltip.
+- Inspect View: Fix issue where stale log files could be displayed in static deployments of the viewer.
+- Inspect View: Fix issue where switching away from Viewer in VSCode could cause an error when returning to the viewer tab.
+- Inspect View: Tasks filter split as into per-column filters. Option to display scorer columns in Choose Columns popover.
+
 ## 0.3.154 (14 December 2025)
 
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md) API for ending tasks early based on previously scored samples.

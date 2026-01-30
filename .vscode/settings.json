@@ -13,6 +13,9 @@
   "[html]": {
     "editor.formatOnSave": false
   },
+  "[yaml]": {
+    "editor.formatOnSave": false
+  },
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
   },
@@ -30,9 +33,17 @@
   "python.analysis.diagnosticSeverityOverrides": {
     "reportMissingImports": "none"
   },
-  "python.testing.pytestArgs": ["tests"],
+  "python.testing.pytestArgs": [
+    "tests",
+    "--runapi"
+  ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
   "quarto.render.renderOnSave": true,
-  "cSpell.words": ["backpressure", "scandef", "scanjob", "scanspec"]
+  "cSpell.words": [
+    "backpressure",
+    "scandef",
+    "scanjob",
+    "scanspec"
+  ]
 }

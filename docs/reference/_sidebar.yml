@@ -87,6 +87,8 @@ website:
           href: reference/inspect_ai.tool.qmd#code_execution
         - text: web_browser
           href: reference/inspect_ai.tool.qmd#web_browser
+        - text: skill
+          href: reference/inspect_ai.tool.qmd#skill
         - text: memory
           href: reference/inspect_ai.tool.qmd#memory
         - text: update_plan
@@ -113,6 +115,16 @@ website:
           href: reference/inspect_ai.tool.qmd#mcpserverconfigstdio
         - text: 'MCPServerConfigHTTP '
           href: 'reference/inspect_ai.tool.qmd#mcpserverconfighttp '
+        - text: skill
+          href: reference/inspect_ai.tool.qmd#skill
+        - text: read_skills
+          href: reference/inspect_ai.tool.qmd#read_skills
+        - text: install_skills
+          href: reference/inspect_ai.tool.qmd#install_skills
+        - text: Skill
+          href: reference/inspect_ai.tool.qmd#skill
+        - text: SkillInfo
+          href: reference/inspect_ai.tool.qmd#skillinfo
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef
@@ -344,6 +356,24 @@ website:
           href: reference/inspect_ai.model.qmd#execute_tools
         - text: ExecuteToolsResult
           href: reference/inspect_ai.model.qmd#executetoolsresult
+        - text: compaction
+          href: reference/inspect_ai.model.qmd#compaction
+        - text: Compact
+          href: reference/inspect_ai.model.qmd#compact
+        - text: CompactionStrategy
+          href: reference/inspect_ai.model.qmd#compactionstrategy
+        - text: CompactionEdit
+          href: reference/inspect_ai.model.qmd#compactionedit
+        - text: CompactionSummary
+          href: reference/inspect_ai.model.qmd#compactionsummary
+        - text: CompactionTrim
+          href: reference/inspect_ai.model.qmd#compactiontrim
+        - text: get_model_info
+          href: reference/inspect_ai.model.qmd#get_model_info
+        - text: set_model_info
+          href: reference/inspect_ai.model.qmd#set_model_info
+        - text: ModelInfo
+          href: reference/inspect_ai.model.qmd#modelinfo
         - text: Logprob
           href: reference/inspect_ai.model.qmd#logprob
         - text: Logprobs
@@ -718,6 +748,20 @@ website:
           href: reference/inspect_ai.util.qmd#earlystoppingsummary
         - text: EarlyStop
           href: reference/inspect_ai.util.qmd#earlystop
+        - text: parse_compose_yaml
+          href: reference/inspect_ai.util.qmd#parse_compose_yaml
+        - text: is_compose_yaml
+          href: reference/inspect_ai.util.qmd#is_compose_yaml
+        - text: is_dockerfile
+          href: reference/inspect_ai.util.qmd#is_dockerfile
+        - text: ComposeConfig
+          href: reference/inspect_ai.util.qmd#composeconfig
+        - text: ComposeService
+          href: reference/inspect_ai.util.qmd#composeservice
+        - text: ComposeBuild
+          href: reference/inspect_ai.util.qmd#composebuild
+        - text: ComposeHealthcheck
+          href: reference/inspect_ai.util.qmd#composehealthcheck
       - section: inspect_ai.hooks
         href: reference/inspect_ai.hooks.qmd
         contents:

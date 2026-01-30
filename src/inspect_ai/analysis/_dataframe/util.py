@@ -165,6 +165,22 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
 
     # arrow backed df w/ our types mapper
     df = pd.DataFrame(records)
+
+    # Handle mixed-type object columns that PyArrow can't convert.
+    # Score columns often have mixed types (e.g., string 'INVALID' and float 0.5)
+    for col in df.columns:
+        if df[col].dtype == "object":
+            non_null = df[col].dropna()
+            if len(non_null) > 0:
+                types = set(type(v).__name__ for v in non_null)
+                # If mixed types (not all str/bytes), convert to string
+                if len(types) > 1 and not types.issubset({"str", "bytes"}):
+                    df[col] = df[col].apply(
+                        lambda x: str(x)
+                        if x is not None and not isinstance(x, str)
+                        else x
+                    )
+
     table = pa.Table.from_pandas(df)
     return table.to_pandas(types_mapper=arrow_types_mapper)
 

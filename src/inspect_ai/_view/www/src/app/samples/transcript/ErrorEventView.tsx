@@ -4,6 +4,7 @@ import { ANSIDisplay } from "../../../components/AnsiDisplay";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";
+import { formatTitle } from "./event/utils";
 import { EventNode } from "./types";
 
 interface ErrorEventViewProps {
@@ -23,7 +24,7 @@ export const ErrorEventView: FC<ErrorEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title="Error"
+      title={formatTitle("Error", undefined, event.working_start)}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.error}

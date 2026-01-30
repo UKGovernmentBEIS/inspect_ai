@@ -1,8 +1,10 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { SampleLimitEvent, Type17 } from "../../../@types/log";
+import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";
+import { formatTitle } from "./event/utils";
 import { EventNode } from "./types";
 
 interface SampleLimitEventViewProps {
@@ -58,7 +60,8 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={title}
+      title={formatTitle(title, undefined, eventNode.event.working_start)}
+      subTitle={formatDateTime(new Date(eventNode.event.timestamp))}
       icon={icon}
       className={className}
     >

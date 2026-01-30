@@ -6,6 +6,7 @@ import os
 from copy import copy
 from io import BytesIO
 from logging import getLogger
+from textwrap import dedent
 from typing import Any, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
@@ -18,6 +19,7 @@ from google.genai.types import (
     Content,
     ContentListUnion,
     ContentListUnionDict,
+    ContentUnion,
     ExecutableCode,
     File,
     FinishReason,
@@ -39,14 +41,12 @@ from google.genai.types import (
     Part,
     SafetySetting,
     SafetySettingDict,
-    Schema,
     ThinkingConfig,
     ThinkingLevel,
     Tool,
     ToolCodeExecution,
     ToolConfig,
     ToolListUnion,
-    Type,
 )
 from pydantic import JsonValue
 from shortuuid import uuid
@@ -87,6 +87,7 @@ from inspect_ai.model import (
     StopReason,
     TopLogprob,
 )
+from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
@@ -101,8 +102,6 @@ from inspect_ai.tool import (
     ToolChoice,
     ToolFunction,
     ToolInfo,
-    ToolParam,
-    ToolParams,
 )
 
 from .util import model_base_url
@@ -159,6 +158,9 @@ class GoogleGenAIAPI(ModelAPI):
 
         # record api version
         self.api_version = api_version
+
+        # record streaming preference
+        self.streaming = bool(model_args.pop("streaming", False))
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
@@ -274,12 +276,7 @@ class GoogleGenAIAPI(ModelAPI):
         self._resolve_batcher(config, http_options)
 
         # create client and manage its lifetime to this call
-        client = Client(
-            vertexai=self.is_vertex(),
-            api_key=self.api_key,
-            http_options=http_options,
-            **self.model_args,
-        )
+        client = self.model_client(http_options)
         async with client.aio:
             # create hooks and allocate request
             http_hooks = HttpxHooks(client._api_client._async_httpx_client)
@@ -295,7 +292,9 @@ class GoogleGenAIAPI(ModelAPI):
                 if not has_native_tools and len(tools) > 0
                 else None
             )
-            system_instruction = await extract_system_message_as_parts(client, input)
+            system_instruction = await extract_system_message_as_parts(
+                client, input, tools
+            )
             parameters = GenerateContentConfig(
                 http_options=HttpOptions(
                     headers={HttpHooks.REQUEST_ID_HEADER: request_id}
@@ -318,8 +317,8 @@ class GoogleGenAIAPI(ModelAPI):
             )
             if config.response_schema is not None:
                 parameters.response_mime_type = "application/json"
-                parameters.response_schema = schema_from_param(
-                    config.response_schema.json_schema, nullable=None
+                parameters.response_json_schema = (
+                    config.response_schema.json_schema.model_dump(exclude_none=True)
                 )
 
             response: GenerateContentResponse | None = None
@@ -337,26 +336,58 @@ class GoogleGenAIAPI(ModelAPI):
                 )
 
             try:
-                response = await (
-                    self._batcher.generate_for_request(
-                        {
-                            "contents": [
-                                content.model_dump(exclude_none=True)
-                                for content in gemini_contents
-                            ],
-                            **parameters.model_dump(exclude_none=True),
-                        }
-                    )
-                    if self._batcher
-                    else client.aio.models.generate_content(
-                        model=self.service_model_name(),
-                        contents=gemini_contents,  # type: ignore[arg-type]
-                        config=parameters,
-                    )
-                )
+                # google sometimes requires retries for malformed function calls
+                # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+                tool_calling_attempts = 0
+                while tool_calling_attempts < 3:
+                    if self._batcher:
+                        response = await self._batcher.generate_for_request(
+                            {
+                                "contents": [
+                                    content.model_dump(exclude_none=True)
+                                    for content in gemini_contents
+                                ],
+                                **parameters.model_dump(exclude_none=True),
+                            }
+                        )
+                    elif self.streaming:
+                        response = await self._stream_generate_content(
+                            client=client,
+                            model=self.service_model_name(),
+                            contents=gemini_contents,  # type: ignore[arg-type]
+                            config=parameters,
+                        )
+                    else:
+                        response = await client.aio.models.generate_content(
+                            model=self.service_model_name(),
+                            contents=gemini_contents,  # type: ignore[arg-type]
+                            config=parameters,
+                        )
+                    # retry for MALFORMED_FUNCTION_CALL
+                    if (
+                        response.candidates
+                        and response.candidates[0].finish_reason
+                        == FinishReason.MALFORMED_FUNCTION_CALL
+                        and not has_native_tools
+                    ):
+                        # tick retries
+                        tool_calling_attempts += 1
+
+                        # apply retry context
+                        retry_contents, retry_tool_config = _malformed_function_retry(
+                            response, tool_choice
+                        )
+                        gemini_contents.extend(retry_contents)
+                        if retry_tool_config is not None:
+                            parameters.tool_config = retry_tool_config
+
+                    # otherwise we are done
+                    else:
+                        break
             except ClientError as ex:
                 return self.handle_client_error(ex), model_call()
 
+            assert response is not None  # mypy confused by retry loop
             model_name = response.model_version or self.service_model_name()
             output = ModelOutput(
                 model=model_name,
@@ -366,15 +397,199 @@ class GoogleGenAIAPI(ModelAPI):
 
             return output, model_call()
 
+    async def _stream_generate_content(
+        self,
+        client: Client,
+        model: str,
+        contents: list[ContentUnion],
+        config: GenerateContentConfig,
+    ) -> GenerateContentResponse:
+        """Stream content generation and accumulate response.
+
+        Accumulates parts from streaming chunks and constructs a response
+        that matches non-streaming structure, allowing existing parsing logic
+        to handle the conversion to Inspect format.
+
+        Raises:
+            RuntimeError: If no chunks received from stream
+        """
+        candidates_parts: dict[int, list[Part]] = {}
+        last_chunk: GenerateContentResponse | None = None
+
+        stream = await client.aio.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=config,
+        )
+
+        async for chunk in stream:
+            last_chunk = chunk
+            if chunk.candidates:
+                for candidate in chunk.candidates:
+                    if candidate.index is None:
+                        continue
+
+                    idx = candidate.index
+                    if idx not in candidates_parts:
+                        candidates_parts[idx] = []
+
+                    if candidate.content and candidate.content.parts:
+                        candidates_parts[idx].extend(candidate.content.parts)
+
+        if last_chunk is None:
+            raise RuntimeError(
+                f"No response chunks received from streaming API for model {model}"
+            )
+
+        final_candidates = []
+        for idx in sorted(candidates_parts.keys()):
+            accumulated_parts = candidates_parts[idx]
+
+            merged_parts: list[Part] = []
+            thinking_texts: list[str] = []
+            output_texts: list[str] = []
+
+            for part in accumulated_parts:
+                if part.thought_signature:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+
+                    if part.text:
+                        combined_text = "".join(output_texts) + part.text
+                        merged_parts.append(
+                            Part(
+                                thought_signature=part.thought_signature,
+                                text=combined_text,
+                            )
+                        )
+                        output_texts = []
+                    elif part.function_call or part.executable_code:
+                        if output_texts:
+                            merged_parts.append(Part(text="".join(output_texts)))
+                            output_texts = []
+
+                        if part.function_call:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    function_call=part.function_call,
+                                )
+                            )
+                        elif part.executable_code:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    executable_code=part.executable_code,
+                                )
+                            )
+                    else:
+                        if output_texts:
+                            merged_parts.append(
+                                Part(
+                                    thought_signature=part.thought_signature,
+                                    text="".join(output_texts),
+                                )
+                            )
+                            output_texts = []
+
+                elif part.thought is True and part.text:
+                    if output_texts:
+                        merged_parts.append(Part(text="".join(output_texts)))
+                        output_texts = []
+                    thinking_texts.append(part.text)
+                elif part.text:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+                    output_texts.append(part.text)
+                else:
+                    if thinking_texts:
+                        merged_parts.append(
+                            Part(thought=True, text="".join(thinking_texts))
+                        )
+                        thinking_texts = []
+                    if output_texts:
+                        merged_parts.append(Part(text="".join(output_texts)))
+                        output_texts = []
+                    merged_parts.append(part)
+
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+            if output_texts:
+                merged_parts.append(Part(text="".join(output_texts)))
+
+            last_candidate_for_idx = None
+            if last_chunk.candidates:
+                for c in last_chunk.candidates:
+                    if c.index == idx:
+                        last_candidate_for_idx = c
+                        break
+
+            if last_candidate_for_idx:
+                final_candidates.append(
+                    Candidate(
+                        content=Content(parts=merged_parts, role="model"),
+                        finish_reason=last_candidate_for_idx.finish_reason,
+                        safety_ratings=last_candidate_for_idx.safety_ratings,
+                        citation_metadata=last_candidate_for_idx.citation_metadata,
+                        token_count=last_candidate_for_idx.token_count,
+                        grounding_metadata=last_candidate_for_idx.grounding_metadata,
+                        avg_logprobs=last_candidate_for_idx.avg_logprobs,
+                        index=idx,
+                    )
+                )
+
+        return GenerateContentResponse(
+            candidates=final_candidates,
+            usage_metadata=last_chunk.usage_metadata,
+            model_version=last_chunk.model_version,
+        )
+
+    @override
+    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+        client = self.model_client()
+        async with client.aio:
+            # normalize to messages
+            if isinstance(input, str):
+                input = [ChatMessageUser(content=input)]
+
+            # turn system into user for purposes of counting
+            count_messages = [
+                ChatMessageUser(content=m.content)
+                if isinstance(m, ChatMessageSystem)
+                else m
+                for m in input
+            ]
+            contents: list[ContentUnion] = [
+                await content(client, m) for m in count_messages
+            ]
+            response = await client.aio.models.count_tokens(
+                model=self.service_model_name(), contents=contents
+            )
+            if response.total_tokens is not None:
+                return response.total_tokens
+            else:
+                logger.warning("Gemini token count returned None")
+                return await super().count_tokens(input)
+
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
     def canonical_name(self) -> str:
-        return self.service_model_name()
+        """Canonical model name for model info database lookup."""
+        return f"google/{self.service_model_name()}"
 
     def is_gemini(self) -> bool:
         return "gemini-" in self.service_model_name()
+
+    def is_gemini_flash(self) -> bool:
+        return "flash" in self.service_model_name()
 
     def is_gemini_1_5(self) -> bool:
         return "gemini-1.5" in self.service_model_name()
@@ -387,6 +602,9 @@ class GoogleGenAIAPI(ModelAPI):
 
     def is_gemini_3(self) -> bool:
         return "gemini-3" in self.service_model_name()
+
+    def is_gemini_3_flash(self) -> bool:
+        return self.is_gemini_3() and self.is_gemini_flash()
 
     def is_gemini_3_plus(self) -> bool:
         return (
@@ -423,6 +641,18 @@ class GoogleGenAIAPI(ModelAPI):
         if isinstance(ex, APIError):
             return ex.code == 401
         return False
+
+    def model_client(self, http_options: HttpOptions | None = None) -> Client:
+        http_options = http_options or HttpOptions(
+            base_url=self.base_url,
+            api_version=self.api_version,
+        )
+        return Client(
+            vertexai=self.is_vertex(),
+            api_key=self.api_key,
+            http_options=http_options,
+            **self.model_args,
+        )
 
     def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
         if (
@@ -469,12 +699,20 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
+                # note: minimal and medium currently only supported by flash model
+                is_flash = self.is_gemini_3_flash()
                 match config.reasoning_effort:
-                    case "minimal" | "low":
-                        thinking_level: ThinkingLevel | None = ThinkingLevel.LOW
-                    case (
-                        "medium" | "high" | "xhigh"
-                    ):  # note: 'medium' thinking level coming soon
+                    case "minimal":
+                        thinking_level = (
+                            ThinkingLevel.MINIMAL if is_flash else ThinkingLevel.LOW
+                        )
+                    case "low":
+                        thinking_level = ThinkingLevel.LOW
+                    case "medium":
+                        thinking_level = (
+                            ThinkingLevel.MEDIUM if is_flash else ThinkingLevel.HIGH
+                        )
+                    case "high" | "xhigh":
                         thinking_level = ThinkingLevel.HIGH
                     case _:
                         thinking_level = None  # can't happen, keep mypy happy
@@ -541,7 +779,9 @@ class GoogleGenAIAPI(ModelAPI):
                     FunctionDeclaration(
                         name=tool.name,
                         description=tool.description,
-                        parameters=schema_from_param(tool.parameters)
+                        parameters_json_schema=tool.parameters.model_dump(
+                            exclude_none=True
+                        )
                         if len(tool.parameters.properties) > 0
                         else None,
                     )
@@ -588,6 +828,12 @@ class GoogleGenAIAPI(ModelAPI):
     ) -> None:
         if self._batcher or not (batch_config := normalized_batch_config(config.batch)):
             return
+
+        # verify we aren't trying to use the batcher with vertex
+        if self.is_vertex():
+            raise NotImplementedError(
+                "Cannot use batch inference with Vertex AI (GCS-based batch jobs not supported)"
+            )
 
         # create a dedicated client instance for the batcher
         client = Client(
@@ -848,8 +1094,7 @@ async def chat_content_to_part(
 
 
 async def extract_system_message_as_parts(
-    client: Client,
-    messages: list[ChatMessage],
+    client: Client, messages: list[ChatMessage], tools: list[ToolInfo]
 ) -> list[File | Part | Image | str] | None:
     system_parts: list[File | Part | Image | str] = []
     for message in messages:
@@ -863,95 +1108,40 @@ async def extract_system_message_as_parts(
                 )
             else:
                 raise ValueError(f"Unsupported system message content: {content}")
-    # google-genai raises "ValueError: content is required." if the list is empty.
-    return system_parts or None
 
+    # if there are tools then inject a message to prevent MALFORMED_FUNCTION_CALL
+    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+    if len(tools) > 0:
+        system_parts.append(
+            Part(
+                text=dedent("""
+                ## Function Calling
+                - Do not generate code. Always generate the function call json
+                When calling functions, output the function name exactly as defined. Do not prepend 'default_api.' or any other namespace to the function name
+                """)
+            )
+        )
 
-# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
-def schema_from_param(
-    param: ToolParam | ToolParams,
-    nullable: bool | None = False,
-    description: str | None = None,
-) -> Schema:
-    if isinstance(param, ToolParams):
-        param = ToolParam(
-            type=param.type, properties=param.properties, required=param.required
-        )
+    # if every part is text then return list[str] rather than list[Part]
+    # works around issue w/ open-telemetry not expecting parts
+    if system_parts:
+        text_parts: list[File | Part | Image | str] = []
+        for p in system_parts:
+            if isinstance(p, str):
+                text_parts.append(p)
+            elif isinstance(p, Part) and p.text is not None:
+                text_parts.append(p.text)
+            else:
+                break
 
-    # use fallback description if the param doesn't have its own
-    param_description = param.description or description
-
-    if param.type == "number":
-        return Schema(
-            type=Type.NUMBER, description=param_description, nullable=nullable
-        )
-    elif param.type == "integer":
-        return Schema(
-            type=Type.INTEGER, description=param_description, nullable=nullable
-        )
-    elif param.type == "boolean":
-        return Schema(
-            type=Type.BOOLEAN, description=param_description, nullable=nullable
-        )
-    elif param.type == "string":
-        if param.format == "date-time":
-            return Schema(
-                type=Type.STRING,
-                description=param_description,
-                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
-                nullable=nullable,
-            )
-        elif param.format == "date":
-            return Schema(
-                type=Type.STRING,
-                description=param_description,
-                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
-                nullable=nullable,
-            )
-        elif param.format == "time":
-            return Schema(
-                type=Type.STRING,
-                description=param_description,
-                format="^[0-9]{2}:[0-9]{2}:[0-9]{2}$",
-                nullable=nullable,
-            )
-        return Schema(
-            type=Type.STRING, description=param_description, nullable=nullable
-        )
-    elif param.type == "array":
-        return Schema(
-            type=Type.ARRAY,
-            description=param_description,
-            items=schema_from_param(param.items) if param.items else None,
-            nullable=nullable,
-        )
-    elif param.type == "object":
-        return Schema(
-            type=Type.OBJECT,
-            description=param_description,
-            properties={k: schema_from_param(v) for k, v in param.properties.items()}
-            if param.properties is not None
-            else {},
-            required=param.required,
-            nullable=nullable,
-        )
-    # convert unions to optional params if the second type is 'null'
-    elif param.anyOf:
-        if len(param.anyOf) == 2 and param.anyOf[1].type == "null":
-            return schema_from_param(
-                param.anyOf[0], nullable=True, description=param_description
-            )
+        if len(text_parts) == len(system_parts):
+            return text_parts
         else:
-            return Schema(type=Type.TYPE_UNSPECIFIED, description=param_description)
-    elif param.enum:
-        return Schema(
-            type=Type.STRING,
-            format="enum",
-            enum=param.enum,
-            description=param_description,
-        )
+            return system_parts
+
     else:
-        return Schema(type=Type.TYPE_UNSPECIFIED, description=param_description)
+        # google-genai raises "ValueError: content is required." if the list is empty.
+        return None
 
 
 def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
@@ -1083,7 +1273,7 @@ def completion_choice_from_candidate(
 
                         content.append(reasoning_block)
                     else:
-                        # attach the though_signature to the previous reasoning block
+                        # attach the thought_signature to the previous reasoning block
                         working_reasoning_block.summary = (
                             working_reasoning_block.reasoning
                         )
@@ -1105,6 +1295,19 @@ def completion_choice_from_candidate(
     stop_reason = finish_reason_to_stop_reason(
         candidate.finish_reason or FinishReason.STOP
     )
+
+    # if finish reason is MALFORMED_FUNCTION_CALL then we should put words the model's
+    # mouth indicating that it had trouble calling a tool
+    # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
+    if candidate.finish_reason == FinishReason.MALFORMED_FUNCTION_CALL:
+        content.append(
+            ContentText(
+                text=dedent(f"""
+                I seem to have had trouble calling a function and replied with {_malformed_function_message(candidate)}.
+                I need to fix this by generating the function call JSON instead.
+                """)
+            )
+        )
 
     # build choice
     choice = ChatCompletionChoice(
@@ -1374,3 +1577,49 @@ async def file_for_content(
         files_db.put(content_sha256, str(upload.name))
         # return the file
         return upload
+
+
+def _malformed_function_retry(
+    response: GenerateContentResponse, tool_choice: ToolChoice
+) -> tuple[list[Content], ToolConfig | None]:
+    content = [
+        Content(
+            role="model",
+            parts=[
+                Part(
+                    text=f"I attempted to call a function but produced: {_malformed_function_message(response)}"
+                )
+            ],
+        ),
+        Content(
+            role="user",
+            parts=[
+                Part(
+                    text="Please try again and generate valid function call JSON, not Python code."
+                )
+            ],
+        ),
+    ]
+
+    # force tool calling if it was 'auto'
+    tool_config = chat_tool_config("any") if tool_choice == "auto" else None
+
+    return content, tool_config
+
+
+def _malformed_function_message(candidate: Candidate | GenerateContentResponse) -> str:
+    DEFAULT_FINISH_MESSAGE = (
+        "a malformed function call (possibly Python code instead of JSON)"
+    )
+
+    # resolve candidate
+    if isinstance(candidate, GenerateContentResponse):
+        if not candidate.candidates:
+            return DEFAULT_FINISH_MESSAGE
+
+        candidate = candidate.candidates[0]
+
+    if candidate.finish_message:
+        return candidate.finish_message
+    else:
+        return DEFAULT_FINISH_MESSAGE

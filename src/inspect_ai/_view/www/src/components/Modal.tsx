@@ -9,6 +9,7 @@ interface ModalProps {
   title?: string;
   children: ReactNode;
   className?: string | string[];
+  overflow?: "auto" | "hidden" | "scroll" | "visible";
 }
 
 export const Modal: FC<ModalProps> = ({
@@ -18,6 +19,7 @@ export const Modal: FC<ModalProps> = ({
   setShowing,
   children,
   className,
+  overflow = "visible",
 }) => {
   return (
     <>
@@ -56,7 +58,20 @@ export const Modal: FC<ModalProps> = ({
                 }}
               ></button>
             </div>
-            <div className="modal-body">{children}</div>
+            <div
+              className={clsx(
+                "modal-body",
+                overflow === "auto"
+                  ? styles.overflowAuto
+                  : overflow === "hidden"
+                    ? styles.overflowHidden
+                    : overflow === "scroll"
+                      ? styles.overflowScroll
+                      : styles.overflowVisible,
+              )}
+            >
+              {children}
+            </div>
             <div className="modal-footer">
               <button
                 type="button"

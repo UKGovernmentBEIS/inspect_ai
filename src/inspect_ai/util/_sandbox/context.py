@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 from contextvars import ContextVar
 from logging import getLogger
@@ -318,8 +319,11 @@ async def setup_sandbox_environment(
     # in case it is not idempotent)
     try:
         await env.exec(["chmod", "+x", setup_file], timeout=30)
+        timeout = int(
+            os.environ.get("INSPECT_SANDBOX_SETUP_TIMEOUT", SANDBOX_SETUP_TIMEOUT)
+        )
         result = await env.exec(
-            ["env", setup_file], timeout=SANDBOX_SETUP_TIMEOUT, timeout_retry=False
+            ["env", setup_file], timeout=timeout, timeout_retry=False
         )
         if not result.success:
             raise RuntimeError(

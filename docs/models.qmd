@@ -244,10 +244,12 @@ inspect eval math.py \
 
 -   [Caching](caching.qmd) explains how to cache model output to reduce the number of API calls made.
 
--   [Batch Mode](models-batch.qmd) covers using batch processing APIs for model inference.
+-   [Compaction](compaction.qmd) covers compacting message histories for long-running agents that exceed the context window.
 
 -   [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
 
 -   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
+
+-   [Batch Mode](models-batch.qmd) covers using batch processing APIs for model inference.
 
 -   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.

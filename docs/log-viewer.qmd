@@ -260,6 +260,28 @@ logs-www
 
 Deploy this folder to a static webserver to publish the log viewer.
 
+### HuggingFace Spaces
+
+You can publish your bundled log viewer directly to [HuggingFace Spaces](https://huggingface.co/spaces) by specifying an output directory that starts with `hf/`. For example, to publish to a space named `my-org/my-eval-logs`:
+
+``` bash
+$ inspect view bundle --log-dir logs --output-dir hf/my-org/my-eval-logs
+```
+
+The space will be created as a static space and your logs will be immediately available at `https://huggingface.co/spaces/my-org/my-eval-logs`. By default, the space will be created as private. To create a public space, you can use the Python API:
+
+``` python
+from inspect_ai.log import bundle_log_dir
+
+bundle_log_dir(
+    log_dir="logs",
+    output_dir="hf/my-org/my-eval-logs",
+    fs_options={"private": False}
+)
+```
+
+Note that publishing to HuggingFace Spaces requires the `huggingface_hub` package and authentication with HuggingFace (via `huggingface-cli login` or the `HF_TOKEN` environment variable).
+
 ### Other Notes {.unlisted}
 
 -   You may provide a default output directory for bundling the viewer in your `.env` file by setting the `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` variable.

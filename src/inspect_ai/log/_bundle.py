@@ -7,8 +7,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
-from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
+from inspect_ai._util.file import absolute_file_path, filesystem
 
 from ._file import log_files_from_ls, write_log_listing
 
@@ -18,6 +18,50 @@ logger = logging.getLogger(__name__)
 
 
 DIST_DIR = os.path.join(Path(__file__).parent, "..", "_view", "www", "dist")
+
+
+def _push_bundle_to_hf(
+    working_dir: str,
+    repo_id: str,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    from inspect_ai._display import display
+
+    try:
+        from huggingface_hub import HfApi
+    except ImportError:
+        raise pip_dependency_error(
+            "HuggingFace Hub upload", ["huggingface_hub"]
+        ) from None
+
+    api = HfApi()
+    repo_id = repo_id.replace("hf/", "")
+
+    api.create_repo(
+        repo_id=repo_id,
+        repo_type="space",
+        space_sdk="static",
+        private=fs_options.get("private", True),  # default to Private
+        exist_ok=True,
+    )
+
+    api.upload_folder(
+        folder_path=working_dir,
+        repo_id=repo_id,
+        repo_type="space",
+    )
+    display().print(f"View at: https://huggingface.co/spaces/{repo_id}")
+
+
+def _check_hf_space_exists(repo_id: str) -> bool:
+    from huggingface_hub import HfApi
+
+    api = HfApi()
+    try:
+        api.repo_info(repo_id=repo_id, repo_type="space")
+        return True
+    except Exception:
+        return False
 
 
 def bundle_log_dir(
@@ -32,6 +76,7 @@ def bundle_log_dir(
         log_dir: (str | None): The log_dir to bundle
         output_dir: (str | None): The directory to place bundled output. If no directory
             is specified, the env variable `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` will be used.
+            If the path starts with 'hf/', it will be uploaded to HuggingFace Hub.
         overwrite: (bool): Optional. Whether to overwrite files in the output directory.
             Defaults to False.
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
@@ -47,11 +92,26 @@ def bundle_log_dir(
     if output_dir == "":
         raise PrerequisiteError("You must provide an 'output_dir'")
 
-    # ensure output_dir doesn't exist
-    if filesystem(output_dir, fs_options).exists(output_dir) and not overwrite:
+    # ensure output_dir is not a subdirectory of log_dir
+    log_fs = filesystem(log_dir, fs_options)
+    log_dir_abs = absolute_file_path(log_dir).rstrip(log_fs.sep) + log_fs.sep
+    output_dir_abs = absolute_file_path(output_dir).rstrip(log_fs.sep) + log_fs.sep
+    if output_dir_abs.startswith(log_dir_abs):
         raise PrerequisiteError(
-            f"The output directory '{output_dir}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
+            f"The output directory '{output_dir}' cannot be a subdirectory of the log directory '{log_dir}'"
         )
+
+    # ensure output_dir doesn't exist
+    if output_dir.startswith("hf/"):
+        if _check_hf_space_exists(output_dir.replace("hf/", "")) and not overwrite:
+            raise PrerequisiteError(
+                f"The HuggingFace space '{output_dir.replace('hf/', '')}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
+            )
+    else:
+        if filesystem(output_dir, fs_options).exists(output_dir) and not overwrite:
+            raise PrerequisiteError(
+                f"The output directory '{output_dir}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
+            )
 
     from inspect_ai._display import display
 
@@ -83,8 +143,11 @@ def bundle_log_dir(
             write_robots_txt(working_dir)
             p.update(25)
 
-            # Now move the contents of the working directory to the output directory
-            move_output(working_dir, output_dir, p.update, fs_options)
+            if output_dir.startswith("hf/"):
+                _push_bundle_to_hf(working_dir, output_dir, fs_options)
+            else:
+                # Now move the contents of the working directory to the output directory
+                move_output(working_dir, output_dir, p.update, fs_options)
             p.complete()
     display().print(f"View bundle '{output_dir}' created")
 

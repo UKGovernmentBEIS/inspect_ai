@@ -1,6 +1,8 @@
 import os
 from typing import Any
 
+from typing_extensions import override
+
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
 from .util import environment_prerequisite_error
@@ -37,3 +39,19 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
             stream=stream is not False,
             **model_args,
         )
+
+    @override
+    def canonical_name(self) -> str:
+        """Canonical model name for model info database lookup.
+
+        HF Inference uses HuggingFace-style names directly (e.g., meta-llama/Llama-3.1-8B).
+        Provider selection suffixes like :fastest, :cheapest, or :provider-name
+        are stripped for database lookup.
+        """
+        name = self.service_model_name()
+
+        # Strip provider selection suffixes (:fastest, :cheapest, :provider-name)
+        if ":" in name:
+            name = name.split(":")[0]
+
+        return name

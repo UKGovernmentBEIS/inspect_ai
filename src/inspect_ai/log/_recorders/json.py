@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any, Literal, get_args
+from typing import IO, Any, Literal, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
@@ -11,6 +11,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
+from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -34,6 +35,11 @@ class JSONRecorder(FileRecorder):
     @classmethod
     def handles_location(cls, location: str) -> bool:
         return location.endswith(".json")
+
+    @override
+    @classmethod
+    def handles_bytes(cls, first_bytes: bytes) -> bool:
+        return first_bytes[:1] == b"{"
 
     @override
     def default_log_buffer(self, sample_count: int) -> int:
@@ -146,11 +152,7 @@ class JSONRecorder(FileRecorder):
             # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
             # (which does support NaN and Inf by default)
             except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-                if (
-                    str(ex).find("Invalid JSON character") != -1
-                    or str(ex).find("invalid char in json text") != -1
-                    or str(ex).find("Unexpected symbol") != -1
-                ):
+                if is_ijson_nan_inf_error(ex):
                     pass
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
@@ -165,28 +167,19 @@ class JSONRecorder(FileRecorder):
                 raw_data = from_json(f.read())
             etag = None
 
-        log = EvalLog.model_validate(raw_data, context=get_deserializing_context())
+        log = _parse_json_log(raw_data, header_only)
         log.location = location
         if etag:
             log.etag = etag
 
-        # fail for unknown version
-        _validate_version(log.version)
-
-        # set the version to the schema version we'll be returning
-        log.version = LOG_SCHEMA_VERSION
-
-        # prune if header_only
-        if header_only:
-            # exclude samples
-            log.samples = None
-
-            # prune sample reductions
-            if log.results is not None:
-                log.results.sample_reductions = None
-                log.reductions = None
-
         return log
+
+    @override
+    @classmethod
+    async def read_log_bytes(
+        cls, log_bytes: IO[bytes], header_only: bool = False
+    ) -> EvalLog:
+        return _parse_json_log(from_json(log_bytes.read()), header_only)
 
     @override
     @classmethod
@@ -230,6 +223,29 @@ class JSONRecorder(FileRecorder):
 def _validate_version(ver: int) -> None:
     if ver > LOG_SCHEMA_VERSION:
         raise ValueError(f"Unable to read version {ver} of log format.")
+
+
+def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
+    """Parse raw JSON data into an EvalLog, validating version and pruning if header_only."""
+    log = EvalLog.model_validate(raw_data, context=get_deserializing_context())
+
+    # fail for unknown version
+    _validate_version(log.version)
+
+    # set the version to the schema version we'll be returning
+    log.version = LOG_SCHEMA_VERSION
+
+    # prune if header_only
+    if header_only:
+        # exclude samples
+        log.samples = None
+
+        # prune sample reductions
+        if log.results is not None:
+            log.results.sample_reductions = None
+            log.reductions = None
+
+    return log
 
 
 async def _s3_read_with_etag(location: str, fs: FileSystem) -> tuple[str, str]:

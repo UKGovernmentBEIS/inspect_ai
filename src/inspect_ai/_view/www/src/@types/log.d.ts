@@ -21,6 +21,9 @@ export type Solver = string | null;
 export type SolverArgs = {
   [k: string]: unknown;
 } | null;
+export type SolverArgsPassed = {
+  [k: string]: unknown;
+} | null;
 export type Tags = string[] | null;
 export type Name = string | null;
 export type Location = string | null;
@@ -66,6 +69,15 @@ export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
 export type Name1 = string;
 export type Type1 =
   | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
+  | (
+      | "string"
+      | "integer"
+      | "number"
+      | "boolean"
+      | "array"
+      | "object"
+      | "null"
+    )[]
   | null;
 export type Format = string | null;
 export type Description = string | null;
@@ -552,7 +564,7 @@ export type Name9 = string;
 export type Description2 = string;
 export type Type18 = "object";
 export type Required1 = string[];
-export type Additionalproperties1 = boolean;
+export type Additionalproperties1 = JSONSchema | boolean | null;
 export type Options3 = {
   [k: string]: unknown;
 } | null;
@@ -633,6 +645,9 @@ export type Pending9 = boolean | null;
 export type Event9 = "score";
 export type Target2 = string | string[] | null;
 export type Intermediate = boolean;
+export type ModelUsage2 = {
+  [k: string]: ModelUsage1;
+} | null;
 export type Uuid10 = string | null;
 export type SpanId10 = string | null;
 export type Timestamp11 = string;
@@ -839,6 +854,7 @@ export interface EvalSpec {
   task_args_passed: TaskArgsPassed;
   solver: Solver;
   solver_args: SolverArgs;
+  solver_args_passed: SolverArgsPassed;
   tags: Tags;
   dataset: EvalDataset;
   sandbox: SandboxEnvironmentSpec | null;
@@ -1077,8 +1093,12 @@ export interface EvalPlan {
 export interface EvalPlanStep {
   solver: Solver1;
   params: Params1;
+  params_passed: ParamsPassed;
 }
 export interface Params1 {
+  [k: string]: unknown;
+}
+export interface ParamsPassed {
   [k: string]: unknown;
 }
 /**
@@ -1227,7 +1247,7 @@ export interface EvalSample {
   metadata: Metadata15;
   store: Store;
   events: Events;
-  model_usage: ModelUsage2;
+  model_usage: ModelUsage3;
   started_at: StartedAt1;
   completed_at: CompletedAt1;
   total_time: TotalTime;
@@ -1788,6 +1808,7 @@ export interface ScoreEvent {
   score: Score;
   target: Target2;
   intermediate: Intermediate;
+  model_usage: ModelUsage2;
 }
 /**
  * Event recorded when a score is edited.
@@ -1924,7 +1945,7 @@ export interface Input5 {
 export interface Result3 {
   [k: string]: unknown;
 }
-export interface ModelUsage2 {
+export interface ModelUsage3 {
   [k: string]: ModelUsage1;
 }
 export interface Attachments {

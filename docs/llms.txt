@@ -17,6 +17,7 @@
 - [Models](https://inspect.aisi.org.uk/models.html.md): Models provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
 - [Providers](ttps://inspect.ai-safety-institute.org.uk/providers.html.md) covers usage details and available options for the various supported providers.
 - [Caching](https://inspect.aisi.org.uk/caching.html.md): Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense.
+- [Compaction](https://inspect.aisi.org.uk/compaction.html.md) Covers compacting message histories for long-running agents that exceed the context window.
 - [Multimodal](https://inspect.aisi.org.uk/multimodal.html.md) This article describes how to use images, audio, and video in evaluations.
 - [Reasoning](https://inspect.aisi.org.uk/reasoning.html.md) documents the additional options and data available for reasoning models.
 - [Batch Mode](https://inspect.aisi.org.uk/models-batch.html.md) covers using batch processing APIs for model inference.

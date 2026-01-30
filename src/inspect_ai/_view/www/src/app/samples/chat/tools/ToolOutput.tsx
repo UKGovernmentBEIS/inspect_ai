@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { ContentImage, ContentText } from "../../../../@types/log";
+import { ANSIDisplay } from "../../../../components/AnsiDisplay";
+import { isAnsiOutput } from "../../../../utils/ansi";
 import { isJson } from "../../../../utils/json";
 import { JsonMessageContent } from "../JsonMessageContent";
 import styles from "./ToolOutput.module.css";
@@ -56,9 +58,21 @@ interface ToolTextOutputProps {
  * Renders the ToolTextOutput component.
  */
 const ToolTextOutput: FC<ToolTextOutputProps> = ({ text }) => {
+  // Try rendering JSON
   if (isJson(text)) {
     const obj = JSON.parse(text);
     return <JsonMessageContent id={`1-json`} json={obj} />;
+  }
+
+  // It could have ANSI codes
+  if (isAnsiOutput(text)) {
+    return (
+      <ANSIDisplay
+        className={styles.ansiOutput}
+        output={text}
+        style={{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" }}
+      />
+    );
   }
 
   return (

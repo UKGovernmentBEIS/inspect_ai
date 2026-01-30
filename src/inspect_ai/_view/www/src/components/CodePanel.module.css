@@ -1,0 +1,15 @@
+.panel {
+  margin: 0rem;
+  overflow-y: scroll;
+  overflow-x: auto;
+}
+
+.code {
+  padding: 0;
+}
+
+.code code {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-break: break-all !important;
+}

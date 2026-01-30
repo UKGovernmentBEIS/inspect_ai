@@ -6,7 +6,9 @@ from textwrap import dedent
 from typing import (
     Awaitable,
     Callable,
+    Literal,
     cast,
+    overload,
 )
 
 import anyio
@@ -37,6 +39,36 @@ POLLING_INTERVAL = 0.1
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
 
 
+@overload
+async def sandbox_service(
+    name: str,
+    methods: list[SandboxServiceMethod] | dict[str, SandboxServiceMethod],
+    until: Callable[[], bool],
+    sandbox: SandboxEnvironment,
+    user: str | None = ...,
+    instance: str | None = ...,
+    polling_interval: float | None = ...,
+    started: anyio.Event | None = ...,
+    requires_python: bool = ...,
+    handle_requests: Literal[True] = ...,
+) -> None: ...
+
+
+@overload
+async def sandbox_service(
+    name: str,
+    methods: list[SandboxServiceMethod] | dict[str, SandboxServiceMethod],
+    until: Callable[[], bool],
+    sandbox: SandboxEnvironment,
+    user: str | None = ...,
+    instance: str | None = ...,
+    polling_interval: float | None = ...,
+    started: anyio.Event | None = ...,
+    requires_python: bool = ...,
+    handle_requests: Literal[False] = ...,
+) -> Callable[[], Awaitable[None]]: ...
+
+
 async def sandbox_service(
     name: str,
     methods: list[SandboxServiceMethod] | dict[str, SandboxServiceMethod],
@@ -47,7 +79,8 @@ async def sandbox_service(
     polling_interval: float | None = None,
     started: anyio.Event | None = None,
     requires_python: bool = True,
-) -> None:
+    handle_requests: bool = True,
+) -> None | Callable[[], Awaitable[None]]:
     """Run a service that is callable from within a sandbox.
 
     The service makes available a set of methods to a sandbox
@@ -85,6 +118,7 @@ async def sandbox_service(
             sandbox specific default (2 seconds if not specified, 0.2 seconds for Docker).
         started: Event to set when service has been started
         requires_python: Does the sandbox service require Python? Note that ALL sandbox services require Python unless they've injected an alternate implementation of the sandbox service client code.
+        handle_requests: If `True` (the default), handle requests immediately -- will run so long as until() returns `True`. If `False`, returns an async function which can be called to handle requests.
     """
     # validate python in sandbox
     if requires_python:
@@ -106,10 +140,21 @@ async def sandbox_service(
         service.add_method(name, method)
     await service.start()
 
+    # function to handle requests catching errors and logging a warning
+    async def safe_handle_requests() -> None:
+        try:
+            await service.handle_requests()
+        except RuntimeError as ex:
+            logger.warning(f"Error waiting for sandbox rpc: {ex}")
+
     # wait for and process methods
-    while not until():
-        await anyio.sleep(polling_interval)
-        await service.handle_requests()
+    if handle_requests:
+        while not until():
+            await anyio.sleep(polling_interval)
+            await safe_handle_requests()
+        return None
+    else:
+        return safe_handle_requests
 
 
 class SandboxService:

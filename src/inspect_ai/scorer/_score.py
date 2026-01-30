@@ -2,6 +2,7 @@ from contextvars import ContextVar
 from copy import copy
 
 from inspect_ai.model._conversation import ModelConversation
+from inspect_ai.model._model import sample_model_usage
 from inspect_ai.solver._task_state import TaskState, sample_state
 
 from ._metric import Score
@@ -59,7 +60,12 @@ async def score(conversation: ModelConversation) -> list[Score]:
         if score is not None:
             scores.append(score)
             transcript()._event(
-                ScoreEvent(score=score, target=target.target, intermediate=True)
+                ScoreEvent(
+                    score=score,
+                    target=target.target,
+                    intermediate=True,
+                    model_usage=sample_model_usage() or None,
+                )
             )
 
     return scores

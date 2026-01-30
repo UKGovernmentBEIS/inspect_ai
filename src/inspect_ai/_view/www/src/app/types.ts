@@ -1,8 +1,3 @@
-import {
-  ColumnFiltersState,
-  ColumnResizeMode,
-  SortingState,
-} from "@tanstack/react-table";
 import { GridState } from "ag-grid-community";
 import { StateSnapshot } from "react-virtuoso";
 import {
@@ -61,7 +56,6 @@ export interface AppState {
     sample_epoch?: string;
   };
   rehydrated?: boolean;
-  pagination: Record<string, { page: number; pageSize: number }>;
   singleFileMode?: boolean;
   displayMode?: "rendered" | "raw";
   logsSampleView: boolean;
@@ -95,22 +89,22 @@ export interface LogsState {
   };
   flow?: string;
   flowDir?: string;
+  showRetriedLogs: boolean;
 }
 
 export interface LogsListing {
-  sorting?: SortingState;
-  filtering?: ColumnFiltersState;
-  globalFilter?: string;
-  columnResizeMode?: ColumnResizeMode;
-  columnSizes?: Record<string, number>;
   filteredCount?: number;
   watchedLogs?: LogHandle[];
   selectedRowIndex?: number | null;
+  gridState?: GridState;
+  previousLogPath?: string;
+  columnVisibility: Record<string, boolean>;
 }
 
 export interface SampleHandle {
   id: string | number;
   epoch: number;
+  logFile: string;
 }
 
 export interface LogState {
@@ -133,17 +127,12 @@ export interface LogState {
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";
 
-export type SampleIdentifier = {
-  id: string | number;
-  epoch: number;
-};
-
 export interface EventFilter {
   filteredTypes: string[];
 }
 
 export interface SampleState {
-  sample_identifier: SampleIdentifier | undefined;
+  sample_identifier: SampleHandle | undefined;
   sampleInState: boolean;
   selectedSampleObject?: EvalSample;
   sampleStatus: SampleStatus;

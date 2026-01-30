@@ -1,3 +1,6 @@
+from inspect_ai._util.deprecation import relocated_module_attribute
+from inspect_ai.model._model_data.model_data import ModelInfo
+
 from ._dataframe.columns import (
     Column,
     ColumnError,
@@ -39,7 +42,6 @@ from ._dataframe.samples.columns import (
 from ._dataframe.samples.table import samples_df
 from ._prepare.frontier import frontier
 from ._prepare.log_viewer import log_viewer
-from ._prepare.model_data.model_data import ModelInfo
 from ._prepare.model_info import model_info
 from ._prepare.operation import Operation
 from ._prepare.prepare import prepare
@@ -87,3 +89,13 @@ __all__ = [
     "ModelInfo",
     "frontier",
 ]
+
+_MODEL_INFO_VERSION_3_158 = "0.3.158"
+_REMOVED_IN = "0.4"
+
+relocated_module_attribute(
+    "ModelInfo",
+    "inspect_ai.model.ModelInfo",
+    _MODEL_INFO_VERSION_3_158,
+    _REMOVED_IN,
+)

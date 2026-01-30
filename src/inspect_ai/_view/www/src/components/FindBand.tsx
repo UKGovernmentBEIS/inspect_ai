@@ -1,7 +1,16 @@
 import clsx from "clsx";
-import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
+import {
+  FC,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
+import { findScrollableParent, scrollRangeToCenter } from "../utils/dom";
+import { debounce } from "../utils/sync";
 import { useExtendedFind } from "./ExtendedFindContext";
 import "./FindBand.css";
 
@@ -25,6 +34,23 @@ export const FindBand: FC<FindBandProps> = () => {
     parentElement: Element;
   } | null>(null);
   const currentSearchTerm = useRef<string>("");
+  const needsCursorRestoreRef = useRef<boolean>(false);
+  const lastNoResultTerm = useRef<string>("");
+  const lastNoResultDirection = useRef<boolean | null>(null);
+  const scrollTimeoutRef = useRef<number | null>(null);
+  const focusTimeoutRef = useRef<number | null>(null);
+  const searchIdRef = useRef(0);
+  const mutatedPanelsRef = useRef<
+    Map<
+      HTMLElement,
+      {
+        display: string;
+        maxHeight: string;
+        webkitLineClamp: string;
+        webkitBoxOrient: string;
+      }
+    >
+  >(new Map());
 
   const getParentExpandablePanel = useCallback(
     (selection: Selection): HTMLElement | undefined => {
@@ -32,7 +58,7 @@ export const FindBand: FC<FindBandProps> = () => {
       while (node) {
         if (
           node instanceof HTMLElement &&
-          node.classList.contains("expandable-panel")
+          node.hasAttribute("data-expandable-panel")
         ) {
           return node;
         }
@@ -45,6 +71,9 @@ export const FindBand: FC<FindBandProps> = () => {
 
   const handleSearch = useCallback(
     async (back = false) => {
+      // Track this search to handle race conditions
+      const thisSearchId = ++searchIdRef.current;
+
       // The search term
       const searchTerm = searchBoxRef.current?.value ?? "";
       if (!searchTerm) {
@@ -57,8 +86,46 @@ export const FindBand: FC<FindBandProps> = () => {
         currentSearchTerm.current = searchTerm;
       }
 
+      const noResultEl = document.getElementById("inspect-find-no-results");
+
+      // Skip search if we already know this term has no results in this direction
+      if (
+        lastNoResultTerm.current &&
+        searchTerm.startsWith(lastNoResultTerm.current) &&
+        lastNoResultDirection.current === back
+      ) {
+        if (noResultEl) {
+          noResultEl.style.opacity = "1";
+          noResultEl.setAttribute("aria-hidden", "false");
+        }
+        return;
+      }
+
+      // Clear no-result cache if search term changed or direction changed
+      if (
+        lastNoResultTerm.current &&
+        (!searchTerm.startsWith(lastNoResultTerm.current) ||
+          lastNoResultDirection.current !== back)
+      ) {
+        lastNoResultTerm.current = "";
+        lastNoResultDirection.current = null;
+      }
+
       // Capture the curently focused element so we can restore focus later
       const focusedElement = document.activeElement as HTMLElement;
+
+      // Save current selection before search (window.find may disturb it)
+      const selection = window.getSelection();
+      let savedRange: Range | null = null;
+      if (selection && selection.rangeCount > 0) {
+        savedRange = selection.getRangeAt(0).cloneRange();
+      }
+
+      // Save scroll position before search (window.find may scroll during search)
+      const savedScrollParent = savedRange
+        ? findScrollableParent(savedRange.startContainer.parentElement)
+        : null;
+      const savedScrollTop = savedScrollParent?.scrollTop ?? 0;
 
       // Find the term in the DOM
       let result = await findExtendedInDOM(
@@ -68,13 +135,33 @@ export const FindBand: FC<FindBandProps> = () => {
         extendedFindTerm,
       );
 
-      const noResultEl = document.getElementById("inspect-find-no-results");
       if (!noResultEl) {
+        return;
+      }
+
+      // If a newer search has started, discard this result to avoid race conditions
+      if (searchIdRef.current !== thisSearchId) {
         return;
       }
 
       // Show "No results" if neither current DOM nor virtual search found anything
       noResultEl.style.opacity = result ? "0" : "1";
+      noResultEl.setAttribute("aria-hidden", result ? "true" : "false");
+
+      lastNoResultTerm.current = result ? "" : searchTerm;
+      lastNoResultDirection.current = result ? null : back;
+
+      // If no result found, restore the previous selection so we stay on current match
+      if (!result && savedRange) {
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(savedRange);
+        }
+        if (savedScrollParent) {
+          savedScrollParent.scrollTop = savedScrollTop;
+        }
+      }
 
       if (result) {
         const selection = window.getSelection();
@@ -92,21 +179,28 @@ export const FindBand: FC<FindBandProps> = () => {
 
           const parentPanel = getParentExpandablePanel(selection);
           if (parentPanel) {
+            // Save original styles if not already tracked
+            if (!mutatedPanelsRef.current.has(parentPanel)) {
+              mutatedPanelsRef.current.set(parentPanel, {
+                display: parentPanel.style.display,
+                maxHeight: parentPanel.style.maxHeight,
+                webkitLineClamp: parentPanel.style.webkitLineClamp,
+                webkitBoxOrient: parentPanel.style.webkitBoxOrient,
+              });
+            }
             parentPanel.style.display = "block";
+            parentPanel.style.maxHeight = "none";
             parentPanel.style.webkitLineClamp = "";
             parentPanel.style.webkitBoxOrient = "";
           }
 
-          const element = range.startContainer.parentElement;
-
-          if (element) {
-            setTimeout(() => {
-              element.scrollIntoView({
-                behavior: "auto",
-                block: "center",
-              });
-            }, 100);
+          // Scroll the selection into view (with a small delay for DOM updates)
+          if (scrollTimeoutRef.current !== null) {
+            window.clearTimeout(scrollTimeoutRef.current);
           }
+          scrollTimeoutRef.current = window.setTimeout(() => {
+            scrollRangeToCenter(range);
+          }, 100);
         }
       }
 
@@ -116,44 +210,43 @@ export const FindBand: FC<FindBandProps> = () => {
   );
 
   useEffect(() => {
-    setTimeout(() => {
+    focusTimeoutRef.current = window.setTimeout(() => {
       searchBoxRef.current?.focus();
       searchBoxRef.current?.select();
     }, 10);
 
-    // Block browser find when FindBand is active
-    const handleGlobalKeydown = (e: globalThis.KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        e.preventDefault();
-        e.stopPropagation();
-        // Focus our search box instead
-        searchBoxRef.current?.focus();
-        searchBoxRef.current?.select();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === "g") {
-        e.preventDefault();
-        e.stopPropagation();
-        const back = e.shiftKey;
-        // Find next / previous
-        handleSearch(back);
-      }
-    };
-
-    document.addEventListener("keydown", handleGlobalKeydown, true); // Use capture phase
+    // Capture ref values for cleanup
+    const mutatedPanels = mutatedPanelsRef.current;
+    const scrollTimeout = scrollTimeoutRef.current;
+    const focusTimeout = focusTimeoutRef.current;
 
     return () => {
-      document.removeEventListener("keydown", handleGlobalKeydown, true);
+      if (scrollTimeout !== null) {
+        window.clearTimeout(scrollTimeout);
+      }
+      if (focusTimeout !== null) {
+        window.clearTimeout(focusTimeout);
+      }
+      // Restore original styles on mutated expandable panels
+      mutatedPanels.forEach((originalStyles, panel) => {
+        panel.style.display = originalStyles.display;
+        panel.style.maxHeight = originalStyles.maxHeight;
+        panel.style.webkitLineClamp = originalStyles.webkitLineClamp;
+        panel.style.webkitBoxOrient = originalStyles.webkitBoxOrient;
+      });
+      mutatedPanels.clear();
     };
-  }, [handleSearch]);
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Escape") {
         storeHideFind();
       } else if (e.key === "Enter") {
-        handleSearch(e.shiftKey);
+        void handleSearch(e.shiftKey);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
         e.preventDefault();
-        handleSearch(!e.shiftKey);
+        void handleSearch(e.shiftKey);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
         searchBoxRef.current?.focus();
         searchBoxRef.current?.select();
@@ -162,13 +255,107 @@ export const FindBand: FC<FindBandProps> = () => {
     [storeHideFind, handleSearch],
   );
 
-  const showSearch = useCallback(() => {
-    handleSearch(true);
+  const findPrevious = useCallback(() => {
+    void handleSearch(true);
   }, [handleSearch]);
 
-  const hideSearch = useCallback(() => {
-    handleSearch(false);
+  const findNext = useCallback(() => {
+    void handleSearch(false);
   }, [handleSearch]);
+
+  const restoreCursor = useCallback(() => {
+    if (!needsCursorRestoreRef.current) return;
+    needsCursorRestoreRef.current = false;
+    const input = searchBoxRef.current;
+    if (input) {
+      const len = input.value.length;
+      input.setSelectionRange(len, len);
+    }
+  }, []);
+
+  // Debounced auto-search as you type
+  const debouncedSearch = useMemo(
+    () =>
+      debounce(async () => {
+        if (!searchBoxRef.current) return;
+        await handleSearch(false);
+        // Mark for cursor restore on next keypress (keeps find highlight visible)
+        needsCursorRestoreRef.current = true;
+      }, 300),
+    [handleSearch],
+  );
+
+  const handleInputChange = useCallback(() => {
+    debouncedSearch();
+  }, [debouncedSearch]);
+
+  const handleBeforeInput = useCallback(() => {
+    // Only restore cursor if no text is selected
+    // This preserves native browser behavior (typing replaces selected text)
+    const input = searchBoxRef.current;
+    if (input) {
+      const hasSelection = input.selectionStart !== input.selectionEnd;
+      if (!hasSelection) {
+        restoreCursor();
+      }
+    }
+  }, [restoreCursor]);
+
+  // Consolidated global keyboard handler
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      // F3: Find next/previous
+      if (e.key === "F3") {
+        e.preventDefault();
+        void handleSearch(e.shiftKey);
+        return;
+      }
+
+      // Ctrl/Cmd+F: Focus search box (block browser find)
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        e.stopPropagation();
+        searchBoxRef.current?.focus();
+        searchBoxRef.current?.select();
+        return;
+      }
+
+      // Ctrl/Cmd+G: Find next/previous
+      if ((e.ctrlKey || e.metaKey) && e.key === "g") {
+        e.preventDefault();
+        e.stopPropagation();
+        void handleSearch(e.shiftKey);
+        return;
+      }
+
+      // Skip if modifier keys are held (except for handled shortcuts above)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // Auto-focus input when typing printable characters or backspace/delete
+      if (e.key.length !== 1 && e.key !== "Backspace" && e.key !== "Delete")
+        return;
+
+      const input = searchBoxRef.current;
+      if (!input) return;
+
+      // Only restore cursor if no text is selected
+      // This preserves native browser behavior (typing replaces selected text)
+      const hasSelection = input.selectionStart !== input.selectionEnd;
+      if (!hasSelection) {
+        restoreCursor();
+      }
+
+      if (document.activeElement !== input) {
+        input.focus();
+      }
+    };
+
+    // Use capture phase to intercept browser's native find dialog
+    document.addEventListener("keydown", handleGlobalKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", handleGlobalKeyDown, true);
+    };
+  }, [handleSearch, restoreCursor]);
 
   return (
     <div data-unsearchable="true" className={clsx("findBand")}>
@@ -177,13 +364,17 @@ export const FindBand: FC<FindBandProps> = () => {
         ref={searchBoxRef}
         placeholder="Find"
         onKeyDown={handleKeyDown}
+        onBeforeInput={handleBeforeInput}
+        onChange={handleInputChange}
       />
-      <span id="inspect-find-no-results">No results</span>
+      <span id="inspect-find-no-results" aria-hidden="true">
+        No results
+      </span>
       <button
         type="button"
         title="Previous match"
         className="btn next"
-        onClick={showSearch}
+        onClick={findPrevious}
       >
         <i className={ApplicationIcons.arrows.up} />
       </button>
@@ -191,7 +382,7 @@ export const FindBand: FC<FindBandProps> = () => {
         type="button"
         title="Next match"
         className="btn prev"
-        onClick={hideSearch}
+        onClick={findNext}
       >
         <i className={ApplicationIcons.arrows.down} />
       </button>
@@ -244,8 +435,8 @@ async function findExtendedInDOM(
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
 
-        // We mark certain elements as unsearchable (e.g. )
-        let isUnsearchable = inUnsearchableElement(range);
+        // We mark certain elements as unsearchable
+        const isUnsearchable = inUnsearchableElement(range);
 
         // Also check if it's the same item as last time
         const isSameAsLast = isLastFoundItem(range, lastFoundItem);
@@ -254,7 +445,12 @@ async function findExtendedInDOM(
         if (!isUnsearchable && !isSameAsLast) {
           break;
         }
-        // Otherwise continue the loop to find the next match
+
+        // If we found the same match as last time, there are no new results
+        if (isSameAsLast) {
+          return false;
+        }
+        // Otherwise continue the loop to find the next match (skip unsearchable)
       }
     } else if (!hasTriedExtendedSearch) {
       // No result in current DOM and haven't tried extended search yet
@@ -266,8 +462,8 @@ async function findExtendedInDOM(
       );
 
       if (foundInVirtual) {
-        // We found it in the virtual list (which will have scrolled the item
-        // into view), so try finding again in the DOM
+        // Found in virtual list (which will have scrolled the item into view),
+        // so try finding again in the DOM
       } else {
         // Extended search failed, no more options
         break;
