@@ -12,7 +12,7 @@ providers is built in to Inspect:
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock) and [Azure AI](providers.qmd#azure-ai) |
 | Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [HF Inference Providers](providers.qmd#hf-inference-providers), [SambaNova](providers.qmd#sambanova) |
-| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens) |
+| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens), [nnterp](providers.qmd#nnterp) |
 
 If the provider you are using is not listed above, you may still be able
 to use it if:
@@ -1007,6 +1007,61 @@ may reject requests—these are by default retried after 5 seconds (you
 can customize this using the `retry_delay` model args,
 e.g. `-M retry_delay=3`).
 
+## nnterp
+
+> [!NOTE]
+>
+> Support for the `nnterp` provider is available only in the development
+> version of Inspect. To install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The [nnterp](https://ndif-team.github.io/nnterp/index.html) provider
+enables you to use `StandardizedTransformer` models with Inspect. To use
+the nnterp provider, install the `nnterp` package:
+
+``` bash
+pip install nnterp
+```
+
+The `nnterp` provider works with Hugging Face models. For example:
+
+``` bash
+inspect eval arc.py --model nnterp/openai-community/gpt2
+```
+
+The `nnterp` provider supports the following custom model args (other
+model args are forwarded to the constructor of the
+`StandardizedTransformer` class):
+
+| Model Arg | Description | Default |
+|----|----|----|
+| `dispatch` | Immediately load model into memory at initialization time | True |
+| `device_map` | Model device map. | “auto” |
+| `dtype` | Torch data type | float16 |
+| `hidden_states` | Provide hidden states in `ModelOutput.metadata` | False |
+
+For example:
+
+``` bash
+inspect eval arc.py \
+    --model nnterp/openai-community/gpt2 \
+    -M device_map=0 \
+    -M hidden_states=true
+```
+
+Or from Python:
+
+``` python
+eval(
+    task=arc(), 
+    model="nnterp/openai-community/gpt2", 
+    model_args={"device_map": 0, "hidden_states": True}
+)
+```
+
 ## TransformerLens
 
 The [TransformerLens](https://github.com/neelnanda-io/TransformerLens)
@@ -1180,16 +1235,6 @@ by passing the `stream` model arg. For example:
 
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
-```
-
-### Reasoning History Emulation
-
-Reasoning history emulation (where reasoning is represented by embedded
-`<think>` tags) is enabled by default. You can disable this behanvior
-via the `emulate_reasoning_history` model arg. For example:
-
-``` bash
-$ inspect eval arc.py --model openai-api/<provider>/<model> -M emulate_reasoning_history=false
 ```
 
 ## OpenRouter

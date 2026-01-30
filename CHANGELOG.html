@@ -149,7 +149,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.167 (29 January 2026)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#january-2026" id="toc-january-2026" class="nav-link" data-scroll-target="#january-2026">0.3.167 (29 January 2026)</a></li>
   <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.166 (29 January 2026)</a></li>
   <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.165 (26 January 2026)</a></li>
   <li><a href="#january-2026-3" id="toc-january-2026-3" class="nav-link" data-scroll-target="#january-2026-3">0.3.164 (24 January 2026)</a></li>
@@ -324,6 +325,15 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li><a href="https://inspect.aisi.org.uk/providers.html#nnterp">nnterp</a> model provider enabling use of <code>StandardizedTransformer</code> models with Inspect.</li>
+<li>OpenAI Compatible: More generic handling for reasoning payloads (playback reasoning in exactly the same body field it was captured from).</li>
+<li>Eval Logs: Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalstatus">EvalStatus</a></span> type alias for evaluation status literals (<code>"started"</code>, <code>"success"</code>, <code>"cancelled"</code>, <code>"error"</code>).</li>
+<li>Bugfix: raise PrerequisiteError when bundling to a subdirectory of the log dir (instead of deleting the logs from the log dir).</li>
+</ul>
+</section>
 <section id="january-2026" class="level2">
 <h2 class="anchored" data-anchor-id="january-2026">0.3.167 (29 January 2026)</h2>
 <ul>
