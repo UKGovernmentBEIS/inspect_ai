@@ -271,10 +271,6 @@ class GrokAPI(ModelAPI):
         """Canonical model name for model info database lookup."""
         return f"grok/{self.model_name}"
 
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
-
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
         details = ex.details() or ""
         if "prompt length" in details:

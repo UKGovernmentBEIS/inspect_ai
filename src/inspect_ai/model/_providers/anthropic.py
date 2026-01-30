@@ -735,10 +735,6 @@ class AnthropicAPI(ModelAPI):
         return True
 
     @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
-
-    @override
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         return "all"
 

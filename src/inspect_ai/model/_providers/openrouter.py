@@ -1,23 +1,29 @@
 import json
 from logging import getLogger
-from typing import Any, TypedDict
+from typing import Annotated, Any, Literal, TypedDict, Union, cast
 
-from openai.types.chat import ChatCompletionMessageParam
-from pydantic import JsonValue
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessageParam,
+)
+from pydantic import BaseModel, Field, JsonValue, TypeAdapter, ValidationError
 from typing_extensions import NotRequired, override
 
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._model_output import ChatCompletionChoice
 from inspect_ai.model._openai import (
+    CompletionsReasoningContent,
     OpenAIResponseError,
+    chat_choices_from_openai,
     openai_chat_message,
 )
 from inspect_ai.model._reasoning import (
-    reasoning_to_openrouter_reasoning_details,
     reasoning_to_think_tag,
 )
+from inspect_ai.tool._tool_info import ToolInfo
 
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
@@ -103,10 +109,6 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         )
 
     @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
-
-    @override
     def should_retry(self, ex: BaseException) -> bool:
         if super().should_retry(ex):
             return True
@@ -146,6 +148,30 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 return "/".join(parts[1:])
         return name
 
+    @override
+    def chat_choices_from_completion(
+        self, completion: ChatCompletion, tools: list[ToolInfo]
+    ) -> list[ChatCompletionChoice]:
+        # extract reasoning details
+        def extract_reasoning_details(
+            content: CompletionsReasoningContent,
+        ) -> ContentReasoning | None:
+            if content.source == "reasoning_details":
+                if isinstance(content.reasoning, list):
+                    return openrouter_reasoning_details_to_reasoning(
+                        cast(list[dict[str, Any]], content.reasoning)
+                    )
+                else:
+                    logger.warning(
+                        f"Unexpected type for openrouter reasoning details: f{type(content.reasoning)}"
+                    )
+                    return None
+            else:
+                return None
+
+        return chat_choices_from_openai(completion, tools, extract_reasoning_details)
+
+    @override
     async def messages_to_openai(
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:
@@ -236,3 +262,102 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 params[EXTRA_BODY]["reasoning"] = reasoning
 
         return params
+
+
+OPENROUTER_REASONING_DETAILS_SIGNATURE = "reasoning-details://"
+
+
+class ReasoningDetailBase(BaseModel):
+    id: str | None = Field(default=None)
+    format: str | None = Field(default=None)
+    index: int | None = Field(default=None)
+
+
+class ReasoningDetailSummary(ReasoningDetailBase):
+    type: Literal["reasoning.summary"]
+    summary: str
+
+
+class ReasoningDetailEncrypted(ReasoningDetailBase):
+    type: Literal["reasoning.encrypted"]
+    data: str
+
+
+class ReasoningDetailText(ReasoningDetailBase):
+    type: Literal["reasoning.text"]
+    text: str
+    signature: str | None = Field(default=None)
+
+
+ReasoningDetail = Annotated[
+    Union[ReasoningDetailSummary, ReasoningDetailEncrypted, ReasoningDetailText],
+    Field(discriminator="type"),
+]
+
+
+# openrouter uses reasoning_details
+# https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#responses-api-shape
+def openrouter_reasoning_details_to_reasoning(
+    reasoning_details: list[dict[str, Any]],
+) -> ContentReasoning:
+    # store the full data structure in the signature for replay
+    details_json = json.dumps(reasoning_details)
+    signature = f"{OPENROUTER_REASONING_DETAILS_SIGNATURE}{details_json}"
+
+    # attempt to parse out the details
+    try:
+        adapter = TypeAdapter(list[ReasoningDetail])
+        details = adapter.validate_python(reasoning_details)
+    except ValidationError as ex:
+        logger.warning(
+            f"Error parsing OpenRouter reasoning details: {ex}\n\n{details_json}"
+        )
+        return ContentReasoning(reasoning=details_json, signature=signature)
+
+    # collect reasoning fields from details
+    reasoning: str | None = None
+    summary: str | None = None
+    redacted: bool = False
+    for detail in details:
+        match detail.type:
+            case "reasoning.summary":
+                summary = detail.summary
+            case "reasoning.text":
+                reasoning = detail.text
+            case "reasoning.encrypted":
+                reasoning = detail.data
+                redacted = True
+
+    # resolve reasoning
+    if reasoning is None:
+        # summary becomes reasoning if there is no reasoning
+        if summary is not None:
+            reasoning = summary
+            summary = None
+        # otherwise this an unepxected state
+        else:
+            logger.warning(
+                f"Error parsing OpenRouter reasoning details: Reasoning content not provided.\n\n{details_json}"
+            )
+            return ContentReasoning(reasoning=details_json, signature=signature)
+
+    # return reasoning
+    return ContentReasoning(
+        reasoning=reasoning, summary=summary, redacted=redacted, signature=signature
+    )
+
+
+def reasoning_to_openrouter_reasoning_details(
+    content: ContentReasoning,
+) -> dict[str, Any] | None:
+    if content.signature and content.signature.startswith(
+        OPENROUTER_REASONING_DETAILS_SIGNATURE
+    ):
+        return {
+            "reasoning_details": json.loads(
+                content.signature.replace(OPENROUTER_REASONING_DETAILS_SIGNATURE, "", 1)
+            )
+        }
+
+    # default to no handling
+    return None

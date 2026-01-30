@@ -1,7 +1,7 @@
 import logging
 import os
 from importlib import metadata as importlib_metadata
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from shortuuid import uuid
 
@@ -29,6 +29,7 @@ from inspect_ai.log import (
     EvalSample,
     EvalSpec,
     EvalStats,
+    EvalStatus,
 )
 from inspect_ai.log._log import (
     EvalLog,
@@ -289,7 +290,7 @@ class TaskLogger:
 
     async def log_finish(
         self,
-        status: Literal["started", "success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None = None,
         reductions: list[EvalSampleReductions] | None = None,

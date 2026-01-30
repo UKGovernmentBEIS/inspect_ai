@@ -12,8 +12,6 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
 
-from ._reasoning import parse_content_with_reasoning
-
 logger = getLogger(__name__)
 
 
@@ -165,6 +163,8 @@ class ChatMessageAssistant(ChatMessageBase):
     @model_validator(mode="before")
     @classmethod
     def extract_reasoning(cls, data: Any) -> Any:
+        from ._reasoning import parse_content_with_reasoning
+
         if isinstance(data, dict):
             # cleave apart <think> blocks
             content = data.get("content", None)
