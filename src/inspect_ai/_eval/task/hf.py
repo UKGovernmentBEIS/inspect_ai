@@ -113,7 +113,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
                 revision=revision,
             )
         )
-    except hf_errors.RemoteEntryNotFoundError:
+    except hf_errors.EntryNotFoundError:
         raise PrerequisiteError(
             f"No 'eval.yaml' file found for Hugging Face Dataset '{repo_id}'"
         )

@@ -278,6 +278,23 @@ def transformer_lens() -> type[ModelAPI]:
     return TransformerLensAPI
 
 
+@modelapi(name="nnterp")
+def nnterp() -> type[ModelAPI]:
+    FEATURE = "NNterp API"
+    PACKAGE = "nnterp"
+
+    # verify we have the package
+    try:
+        import nnterp  # type: ignore # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # in the clear
+    from .nnterp import NNterpAPI
+
+    return NNterpAPI
+
+
 @modelapi(name="none")
 def none() -> type[ModelAPI]:
     from .none import NoModel

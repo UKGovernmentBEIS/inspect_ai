@@ -17,6 +17,7 @@ pip install openai
 export OPENAI_API_KEY=your-openai-api-key
 inspect eval arc.py --model openai/gpt-4o-mini
 ```
+
 The following environment variables are supported by the OpenAI provider
 
 | Variable | Description |
@@ -33,9 +34,9 @@ The `openai` provider supports the following custom model args (other model args
 | Model Arg | Description |
 |--------------------------|----------------------------------------------|
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
-| `responses_store` | Pass `store=True` to the Responses API (defaults to `True`).
+| `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models.  |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
@@ -75,7 +76,7 @@ Note that certain models including `o1-pro` and `computer_use_preview` *require*
 
 By default, Inspect's implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the "reasoning.encrypted_content" include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
-```bash
+``` bash
 inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
 
@@ -155,15 +156,15 @@ Some Anthropic features require that you include a beta identifier in the `betas
 
 If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 5 models:
 
-```bash
+``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
 ```
 
 ### Streaming
 
-The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with >= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
+The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when thinking is enabled or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
-```bash
+``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 ```
 
@@ -206,6 +207,7 @@ export AZUREAI_ANTHROPIC_API_KEY=key
 export AZUREAI_ANTHROPIC_BASE_URL=https://your-url-at.azure.com/models
 inspect eval math.py --model anthropic/azure/Claude-4-0-Sonnet-2411
 ```
+
 ## Google {#google-gemini}
 
 To use the [Google](https://ai.google.dev/) provider, install the `google-genai` package, set your credentials, and specify a model using the `--model` option:
@@ -300,7 +302,7 @@ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 
 The Google provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. Streaming is disabled by default. Pass `true` to enable streaming:
 
-```bash
+``` bash
 inspect eval arc.py --model google/gemini-2.5-pro -M streaming=true
 ```
 
@@ -325,7 +327,7 @@ The following environment variables are supported by the Mistral provider
 
 By default, the Mistral provider uses the [Conversation API](https://docs.mistral.ai/agents/agents#conversations), which includes features not available in the original completions API including native web search and code execution and support for document input. You can switch back to the completions API with the `conversation_api` custom model arg. For example:
 
-```bash
+``` bash
 inspect eval arc.py --model mistral/mistral-large-latest -M conversation_api=false
 ```
 
@@ -367,7 +369,6 @@ export XAI_API_KEY=your-grok-api-key
 inspect eval arc.py --model grok/grok-3-mini
 ```
 
-
 The following environment variables are supported by the Grok provider
 
 | Variable | Description |
@@ -379,20 +380,19 @@ The following environment variables are supported by the Grok provider
 
 The `grok` provider supports a `streaming` model argument to enable response streaming (it is disabled by default):
 
-```bash
+``` bash
 inspect eval arc.py --model grok/grok-3-mini -M streaming=true
 ```
 
 The `grok` provider also supports a `disable_retry` model argument that disables internal GRPC retries. For example:
 
-```bash
+``` bash
 inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
 This might be done if you are attempting to accurately track sample `working_time`---typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
-
 
 ## AWS Bedrock {#aws-bedrock}
 
@@ -752,6 +752,57 @@ SGLang supports tool use and reasoning; however, the usage is often model depend
 
 SGLang automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests---these are by default retried after 5 seconds (you can customize this using the `retry_delay` model args, e.g. `-M retry_delay=3`).
 
+## nnterp {#nnterp}
+
+::: {.callout-note appearance="minimal"}
+Support for the `nnterp` provider is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The [nnterp](https://ndif-team.github.io/nnterp/index.html) provider enables you to use `StandardizedTransformer` models with Inspect. To use the nnterp provider, install the `nnterp` package:
+
+``` bash
+pip install nnterp
+```
+
+The `nnterp` provider works with Hugging Face models. For example:
+
+``` bash
+inspect eval arc.py --model nnterp/openai-community/gpt2
+```
+
+The `nnterp` provider supports the following custom model args (other model args are forwarded to the constructor of the `StandardizedTransformer` class):
+
+| Model Arg | Description | Default |
+|--------------------|--------------------------|--------------------------|
+| `dispatch` | Immediately load model into memory at initialization time | True |
+| `device_map` | Model device map. | "auto" |
+| `dtype` | Torch data type | float16 |
+| `hidden_states` | Provide hidden states in `ModelOutput.metadata` | False |
+
+: {tbl-colwidths="\[30,45,25\]"}
+
+For example:
+
+``` bash
+inspect eval arc.py \
+    --model nnterp/openai-community/gpt2 \
+    -M device_map=0 \
+    -M hidden_states=true
+```
+
+Or from Python:
+
+``` python
+eval(
+    task=arc(), 
+    model="nnterp/openai-community/gpt2", 
+    model_args={"device_map": 0, "hidden_states": True}
+)
+```
 
 ## TransformerLens {#transformer-lens}
 
@@ -945,8 +996,8 @@ HF Inference Providers provides unified access to hundreds of machine learning m
 
 The following environment variables are supported by the HF Inference Providers:
 
-| Variable | Description |
-|----------------------------|--------------------------------------------|
+| Variable   | Description                                                 |
+|------------|-------------------------------------------------------------|
 | `HF_TOKEN` | Hugging Face token with appropriate permissions (required). |
 
 ### Streaming {#streaming-hf-inference}
