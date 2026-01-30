@@ -22,7 +22,7 @@ from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 
-from ._log import EvalLog, EvalMetric, EvalSample
+from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
     recorder_type_for_bytes,
     recorder_type_for_format,
@@ -68,7 +68,7 @@ class LogOverview(BaseModel):
     task_version: int | str
 
     version: int
-    status: Literal["started", "success", "cancelled", "error"]
+    status: EvalStatus
     invalidated: bool = Field(default=False)
     error: EvalError | None = Field(default=None)
 
