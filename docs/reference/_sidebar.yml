@@ -489,6 +489,8 @@ website:
           href: reference/inspect_ai.log.qmd#uninvalidate_samples
         - text: ProvenanceData
           href: reference/inspect_ai.log.qmd#provenancedata
+        - text: EvalStatus
+          href: reference/inspect_ai.log.qmd#evalstatus
         - text: EvalLog
           href: reference/inspect_ai.log.qmd#evallog
         - text: EvalSpec

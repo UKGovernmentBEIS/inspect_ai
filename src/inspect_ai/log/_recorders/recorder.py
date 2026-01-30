@@ -1,5 +1,5 @@
 import abc
-from typing import IO, Literal
+from typing import IO
 
 from inspect_ai._util.error import EvalError
 from inspect_ai.log._log import (
@@ -11,6 +11,7 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
     EvalStats,
+    EvalStatus,
 )
 
 
@@ -45,7 +46,7 @@ class Recorder(abc.ABC):
     async def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["started", "success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,

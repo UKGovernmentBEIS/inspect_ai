@@ -38,6 +38,7 @@ from ._log import (
     EvalScore,
     EvalSpec,
     EvalStats,
+    EvalStatus,
 )
 from ._metric import recompute_metrics
 from ._retry import retryable_eval_logs
@@ -66,6 +67,7 @@ __all__ = [
     "EvalScore",
     "EvalSpec",
     "EvalStats",
+    "EvalStatus",
     "EvalLogInfo",
     "Transcript",
     "transcript",
