@@ -4,7 +4,7 @@ import math
 import os
 import tempfile
 from logging import getLogger
-from typing import IO, Any, BinaryIO, Literal, cast
+from typing import IO, Any, BinaryIO, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import anyio
@@ -26,6 +26,7 @@ from .._log import (
     EvalSampleSummary,
     EvalSpec,
     EvalStats,
+    EvalStatus,
     sort_samples,
 )
 from .file import FileRecorder
@@ -40,7 +41,7 @@ class LogStart(BaseModel):
 
 
 class LogResults(BaseModel):
-    status: Literal["started", "success", "cancelled", "error"]
+    status: EvalStatus
     stats: EvalStats
     results: EvalResults | None = Field(default=None)
     error: EvalError | None = Field(default=None)
@@ -136,7 +137,7 @@ class EvalRecorder(FileRecorder):
     async def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["started", "success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,

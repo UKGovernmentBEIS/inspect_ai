@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Logs: Add `EvalStatus` type alias for evaluation status literals (`"started"`, `"success"`, `"cancelled"`, `"error"`).
 - Bugfix: raise PrerequisiteError when bundling to a subdirectory of the log dir (instead of deleting the logs from the log dir).
 
 ## 0.3.167 (29 January 2026)
