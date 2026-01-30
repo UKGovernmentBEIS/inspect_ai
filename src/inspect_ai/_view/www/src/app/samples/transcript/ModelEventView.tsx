@@ -105,7 +105,12 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
           allowLinking={false}
         />
-        {event.pending ? (
+        {event.error ? (
+          <div className={styles.error}>
+            <i className={ApplicationIcons.error} aria-hidden="true" />
+            <pre>{event.error}</pre>
+          </div>
+        ) : event.pending ? (
           <div className={clsx(styles.progress)}>
             <PulsingDots subtle={false} size="medium" />
           </div>
