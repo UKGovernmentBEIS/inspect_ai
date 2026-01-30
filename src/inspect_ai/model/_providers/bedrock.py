@@ -16,6 +16,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -365,13 +366,6 @@ class BedrockAPI(ModelAPI):
         return f"{provider}/{name}" if provider else name
 
     @override
-    def emulate_reasoning_history(self) -> bool:
-        # claude needs reasoning history emulation because the reasoning signature doesn't
-        # make it all the way through the converse api (so when we try to replay it there is
-        # an error from claude indicating the signature was missing)
-        return self.is_claude()
-
-    @override
     def is_auth_failure(self, ex: Exception) -> bool:
         from botocore.exceptions import ClientError
 
@@ -421,7 +415,9 @@ class BedrockAPI(ModelAPI):
                 )
 
             # Resolve the input messages into converse messages
-            system, messages = await converse_messages(input)
+            system, messages = await converse_messages(
+                input, emulate_reasoning=self.is_claude()
+            )
 
             # additional model request fields
             additionalModelRequestFields: dict[str, Any] = {}
@@ -500,7 +496,7 @@ class BedrockAPI(ModelAPI):
 
 
 async def converse_messages(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], emulate_reasoning: bool = False
 ) -> Tuple[list[ConverseSystemContent] | None, list[ConverseMessage]]:
     # Split up system messages and input messages
     system_messages: list[ChatMessage] = []
@@ -513,7 +509,7 @@ async def converse_messages(
 
     # input messages
     non_system: list[ConverseMessage] = await as_converse_chat_messages(
-        non_system_messages
+        non_system_messages, emulate_reasoning
     )
 
     # system messages
@@ -617,18 +613,18 @@ def as_converse_system_messages(
 
 
 async def as_converse_chat_messages(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], emulate_reasoning: bool = False
 ) -> list[ConverseMessage]:
     result: list[ConverseMessage] = []
     for message in messages:
-        converse_message = await converse_chat_message(message)
+        converse_message = await converse_chat_message(message, emulate_reasoning)
         if converse_message is not None:
             result.extend(converse_message)
     return collapse_consecutive_messages(result)
 
 
 async def converse_chat_message(
-    message: ChatMessage,
+    message: ChatMessage, emulate_reasoning: bool = False
 ) -> list[ConverseMessage] | None:
     if isinstance(message, ChatMessageSystem):
         raise ValueError("System messages should be processed separately for Converse")
@@ -658,7 +654,8 @@ async def converse_chat_message(
             # Simple assistant message
             return [
                 ConverseMessage(
-                    role="assistant", content=await converse_contents(message.content)
+                    role="assistant",
+                    content=await converse_contents(message.content, emulate_reasoning),
                 )
             ]
     elif isinstance(message, ChatMessageTool):
@@ -717,7 +714,7 @@ async def converse_chat_message(
 
 
 async def converse_contents(
-    content: list[Content] | str,
+    content: list[Content] | str, emulate_reasoning: bool = False
 ) -> list[ConverseMessageContent]:
     if isinstance(content, str):
         return [ConverseMessageContent(text=content)]
@@ -737,13 +734,19 @@ async def converse_contents(
             elif c.type == "text":
                 result.append(ConverseMessageContent(text=c.text))
             elif c.type == "reasoning":
-                result.append(
-                    ConverseMessageContent(
-                        reasoningContent=ConverseReasoningContent(
-                            reasoningText=ConverseReasoningText(text=c.reasoning)
+                # claude needs emulation because signatures aren't propagated
+                if emulate_reasoning:
+                    result.append(
+                        ConverseMessageContent(text=reasoning_to_think_tag(c))
+                    )
+                else:
+                    result.append(
+                        ConverseMessageContent(
+                            reasoningContent=ConverseReasoningContent(
+                                reasoningText=ConverseReasoningText(text=c.reasoning)
+                            )
                         )
                     )
-                )
             else:
                 raise RuntimeError(f"Unsupported content type {c.type}")
 
