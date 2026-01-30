@@ -1,9 +1,10 @@
 import gc
 import time
-from typing import Any, override
+from typing import Any
 
-import torch
+import torch  # type: ignore
 from nnterp import StandardizedTransformer  # type: ignore
+from typing_extensions import override
 
 from inspect_ai._util.content import (
     ContentAudio,
