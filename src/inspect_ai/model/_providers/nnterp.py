@@ -92,8 +92,8 @@ class NNterpAPI(ModelAPI):
             return_tensors="pt",
             padding=True,
         )
-        input_ids = tokenized["input_ids"].to(self.model.device)
-        attention_mask = tokenized["attention_mask"].to(self.model.device)
+        input_ids = tokenized["input_ids"]
+        attention_mask = tokenized["attention_mask"]
 
         # prepare generator kwargs
         kwargs: dict[str, Any] = dict(do_sample=True)
