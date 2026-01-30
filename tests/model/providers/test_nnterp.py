@@ -6,6 +6,7 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._chat_message import ChatMessage
 
 
 @pytest.fixture
@@ -74,7 +75,7 @@ async def test_nnterp_multiple_messages() -> None:
         config=GenerateConfig(max_tokens=5, temperature=0.01),
     )
 
-    messages: list[ChatMessageSystem | ChatMessageUser] = [
+    messages: list[ChatMessage] = [
         ChatMessageSystem(content="You are a helpful assistant."),
         ChatMessageUser(content="Hello"),
     ]

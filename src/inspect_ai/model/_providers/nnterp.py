@@ -21,6 +21,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.model._model_output import Logprob, Logprobs, TopLogprob
+from inspect_ai.model._reasoning import emulate_reasoning_history
 from inspect_ai.tool import (
     ToolChoice,
     ToolInfo,
@@ -238,7 +239,7 @@ class NNterpAPI(ModelAPI):
             for message in formatted_messages:
                 chat += f"{message['role']}: {message['content']}\n"
 
-        return chat
+        return str(chat)
 
 
 def message_content_to_list(messages: list[ChatMessage]) -> list[dict[str, str]]:
@@ -247,7 +248,7 @@ def message_content_to_list(messages: list[ChatMessage]) -> list[dict[str, str]]
     Modified from the HuggingFace provider.
     """
     result = []
-    for message in messages:
+    for message in emulate_reasoning_history(messages):
         if isinstance(message.content, list):
             is_multimodal = any(
                 isinstance(
