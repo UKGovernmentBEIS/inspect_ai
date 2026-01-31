@@ -1,7 +1,9 @@
+import hashlib
+import json
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from frozendict import deepfreeze
+from frozendict import deepfreeze, frozendict
 from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
@@ -72,12 +74,20 @@ class ChatMessageBase(BaseModel):
         if info.context is None:
             return handler(data)
         cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
-        frozen = deepfreeze(data)
-        hit = cache.get(frozen)
+        try:
+            cache_key: bytes | frozendict = hashlib.sha256(
+                json.dumps(data, sort_keys=True).encode()
+            ).digest()
+        except Exception:
+            logger.debug(
+                "failed to dump object with json; falling back to deepfreeze which is slower"
+            )
+            cache_key = deepfreeze(data)
+        hit = cache.get(cache_key)
         if hit is not None:
             return hit
         res = handler(data)
-        cache[frozen] = res
+        cache[cache_key] = res
         return res
 
     @property
