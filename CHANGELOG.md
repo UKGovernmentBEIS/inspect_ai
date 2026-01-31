@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).
+- Reasoning: Don't process `<think>` tags in assistant message loading (now all done directly by model providers).
+- Eval Logs: Improve eval log loading performance with JSON cache key for messages.
+
+## 0.3.168 (31 January 2026)
+
 - [nnterp](https://inspect.aisi.org.uk/providers.html#nnterp) model provider enabling use of `StandardizedTransformer` models with Inspect.
 - OpenAI Compatible: More generic handling for reasoning payloads (playback reasoning in exactly the same body field it was captured from).
 - Eval Logs: Add `EvalStatus` type alias for evaluation status literals (`"started"`, `"success"`, `"cancelled"`, `"error"`).
