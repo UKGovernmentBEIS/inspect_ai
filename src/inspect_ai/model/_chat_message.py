@@ -1,13 +1,16 @@
+import hashlib
+import json
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from frozendict import deepfreeze
+from frozendict import deepfreeze, frozendict
 from pydantic import BaseModel, Field, ModelWrapValidatorHandler, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
@@ -70,12 +73,21 @@ class ChatMessageBase(BaseModel):
         if info.context is None:
             return handler(data)
         cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
-        frozen = deepfreeze(data)
-        hit = cache.get(frozen)
+        try:
+            cache_key: bytes | frozendict[str, Any] = hashlib.sha256(
+                json.dumps(data, sort_keys=True).encode()
+            ).digest()
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Failed to dump object with json ({ex}). Falling back to deepfreeze which is slower",
+            )
+            cache_key = deepfreeze(data)
+        hit = cache.get(cache_key)
         if hit is not None:
             return hit
         res = handler(data)
-        cache[frozen] = res
+        cache[cache_key] = res
         return res
 
     @property
