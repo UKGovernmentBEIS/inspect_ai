@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).
+- Eval Logs: Improve eval log loading performance with JSON cache key for messages.
 
 ## 0.3.168 (31 January 2026)
 
