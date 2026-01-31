@@ -1009,15 +1009,6 @@ e.g. `-M retry_delay=3`).
 
 ## nnterp
 
-> [!NOTE]
->
-> Support for the `nnterp` provider is available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The [nnterp](https://ndif-team.github.io/nnterp/index.html) provider
 enables you to use `StandardizedTransformer` models with Inspect. To use
 the nnterp provider, install the `nnterp` package:

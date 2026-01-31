@@ -2272,71 +2272,71 @@
     "text": "nnterp model provider enabling use of StandardizedTransformer models with Inspect.\nOpenAI Compatible: More generic handling for reasoning payloads (playback reasoning in exactly the same body field it was captured from).\nEval Logs: Add EvalStatus type alias for evaluation status literals (\"started\", \"success\", \"cancelled\", \"error\").\nBugfix: raise PrerequisiteError when bundling to a subdirectory of the log dir (instead of deleting the logs from the log dir)."
   },
   {
-    "objectID": "CHANGELOG.html#unreleased",
-    "href": "CHANGELOG.html#unreleased",
+    "objectID": "CHANGELOG.html#january-2026",
+    "href": "CHANGELOG.html#january-2026",
     "title": "Inspect",
     "section": "",
     "text": "nnterp model provider enabling use of StandardizedTransformer models with Inspect.\nOpenAI Compatible: More generic handling for reasoning payloads (playback reasoning in exactly the same body field it was captured from).\nEval Logs: Add EvalStatus type alias for evaluation status literals (\"started\", \"success\", \"cancelled\", \"error\").\nBugfix: raise PrerequisiteError when bundling to a subdirectory of the log dir (instead of deleting the logs from the log dir)."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026",
-    "href": "CHANGELOG.html#january-2026",
+    "objectID": "CHANGELOG.html#january-2026-1",
+    "href": "CHANGELOG.html#january-2026-1",
     "title": "Inspect",
     "section": "0.3.167 (29 January 2026)",
     "text": "0.3.167 (29 January 2026)\n\nEarly Stopping: Check for early stopping after sample semaphore is acquired rather than before.\nRevert use of json.dumps for message cache keys (incompatible with BaseModel types)."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026-1",
-    "href": "CHANGELOG.html#january-2026-1",
+    "objectID": "CHANGELOG.html#january-2026-2",
+    "href": "CHANGELOG.html#january-2026-2",
     "title": "Inspect",
     "section": "0.3.166 (29 January 2026)",
     "text": "0.3.166 (29 January 2026)\n\nScoring: Add model_usage field to ScoreEvent for tracking token usage vs score.\nCompaction: Compact server tool uses in CompactionEdit strategy (previously only client tool uses were compacted).\nDocker: Avoid mutable default env arguments in execution helpers.\nEval Logs: Add exclude_fields parameter to read_eval_log_sample() for memory-efficient loading of large samples.\nInspect View: Fix issue where switching from a running to a non-running evaluation could display incorrect metrics in the title region.\nInspect View: Fix sample switching when viewing live transcripts."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026-2",
-    "href": "CHANGELOG.html#january-2026-2",
+    "objectID": "CHANGELOG.html#january-2026-3",
+    "href": "CHANGELOG.html#january-2026-3",
     "title": "Inspect",
     "section": "0.3.165 (26 January 2026)",
     "text": "0.3.165 (26 January 2026)\n\nEval Logs: Improve load time by using JSON in duplicate message cache rather than frozendict.\nCompaction: Remove citations after compaction to avoid dangling citation references (updated trim_message() to use the same behavior).\nInspect View: Fix “Cannot add property timestamp, object is not extensible” error when viewing live transcripts."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026-3",
-    "href": "CHANGELOG.html#january-2026-3",
+    "objectID": "CHANGELOG.html#january-2026-4",
+    "href": "CHANGELOG.html#january-2026-4",
     "title": "Inspect",
     "section": "0.3.164 (24 January 2026)",
     "text": "0.3.164 (24 January 2026)\n\nGoogle: Provide JSON schema directly rather than converting it to Google Schema type.\nAgent Bridge: Support bridge clients that use the Anthropic Beta API.\nAgent Bridge: Serialize ContentReasoning as &lt;think&gt; with attributes to prevent bridge clients from doing a more lossy &lt;think&gt; tag conversion.\nCompaction: Correct handling of thinking mode in Anthropoic count_tokens() method.\nCompaction: Correct handling of consecutive tool messages in Anthropic count_tokens() method.\nBash Session: Increase bash session transport timeout and make new session timeouts fatal.\nInspect View: Timestamps for USER and ASSISTANT transcript of model events, yyyy-mm-dd hh:mm:ss format (keep local time zone).\nInspect View: Remove events from JSON before parsing if Sample JSON is too large.\nBugfix: Include type field in JSON Schema for Literal and Enum types.\nBugfix: Handle maps and lists in registry_kwargs()."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026-4",
-    "href": "CHANGELOG.html#january-2026-4",
+    "objectID": "CHANGELOG.html#january-2026-5",
+    "href": "CHANGELOG.html#january-2026-5",
     "title": "Inspect",
     "section": "0.3.163 (21 January 2026)",
     "text": "0.3.163 (21 January 2026)\n\nAnthropic: Only re-order reasoning blocks for Claude 3 (as we use interleaved thinking for Claude 4).\nAnalysis: Read all samples at once in implementation of samples_df().\nAgent Bridge: Handle OpenAI assistant message params with no ‘type’ field (Pydantic AI compatibility).\nInspect View: Improve sample summary truncation (use markdown truncation instead of line clamping).\nInspect View: Fix issue with typing over selection in ‘Find’\nInspect View: Fix issues with ‘Find’ scrolling, keyboard behavior, and restoration of scroll position / panel expansion.\nInspect View: Support find using JSON-like syntax."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026-5",
-    "href": "CHANGELOG.html#january-2026-5",
+    "objectID": "CHANGELOG.html#january-2026-6",
+    "href": "CHANGELOG.html#january-2026-6",
     "title": "Inspect",
     "section": "0.3.162 (18 January 2026)",
     "text": "0.3.162 (18 January 2026)\n\nGoogle: Add streaming model arg to opt-in to streaming generation.\nTogetherAI: Support for parsing logprobs returned in OpenAI format (e.g. for gpt-oss-20b).\nHF tasks: Support for image_input (data URI) in field spec for multimodal tasks\nScoring: Enable editing scores for samples that do not yet have a score.\nTask Display: Throttle updates to running samples according to total samples.\nSandbox: Support passing a ComposeConfig directly to Docker sandbox provider.\nSandbox: Remove supported_fields parameter from parse_compose_yaml() (packages handle their own validation).\nSandbox Service: Provide option to trigger request processing manually.\nInspect View: Fix regression where viewing samples with identical id/epoch would re-use the previous sample details.\nInspect View: Show event timestamp in tooltips in all types of events in transcripts.\nInspect View: Show sample invalidation status in sample header.\nBugfix: Compose models now correctly handle x- extensions at all levels (inner models discarded them, outer models accepted non-extensions)."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026-6",
-    "href": "CHANGELOG.html#january-2026-6",
+    "objectID": "CHANGELOG.html#january-2026-7",
+    "href": "CHANGELOG.html#january-2026-7",
     "title": "Inspect",
     "section": "0.3.161 (10 January 2026)",
     "text": "0.3.161 (10 January 2026)\n\nSandbox: parse_compose_yaml() for parsing Docker Compose files into typed configuration for sandbox providers.\nGoogle: Yield system_instructions as list of str (improved compatibility with opentelemetry capture).\nGoogle: Raise error if batch processing is used with Vertex hosted models.\nOpenAI Compatible: Always pass function definitions with strict=True. This is required by HF Inference Providers and Fireworks (and possibly others).\nOpenAI Compatible: Convert function arguments to JSON if they are provided as a string (as is done by xAI and perhaps other providers).\nModel API: Improvements in model detection for hosting providers (e.g. Azure, Bedrock, etc.).\nEval Log: Add version of the package exporting the task (if any) to the eval log.\nAnalysis: Convert mixed-type object columns to string for PyArrow conversion.\nSandboxing: Add INSPECT_SANDBOX_SETUP_TIMEOUT env var to override default 300s setup timeout.\nHuman Agent: Fixed non-scalar intermediate score values breaking task commands like task status and task stop.\nBugfix: Print only enabled hooks at CLI startup.\nBugfix: Fix eval_set log reuse when setting limits as eval set args."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026-7",
-    "href": "CHANGELOG.html#january-2026-7",
+    "objectID": "CHANGELOG.html#january-2026-8",
+    "href": "CHANGELOG.html#january-2026-8",
     "title": "Inspect",
     "section": "0.3.160 (09 January 2026)",
     "text": "0.3.160 (09 January 2026)\n\nAgent Bridge: Consolidate bridged tools implementation into the existing sandbox model proxy service (eliminate Python requirement for using bridged tools).\nAnthropic: Correctly replay reasoning when sourced from Inspect cache.\nAnthropic: Tolerate {} as value for additionalProperties in tool schema.\nOpenAI Compatible: Don’t ever send background parameter as this is OpenAI service-specific.\nOpenAI Compatible: Added support for disabling reasoning history emulation.\nGrok: Correctly replay tool calling errors in message history.\nVLLM and SGLang: Don’t require API key environment variable to be set when running in local mode.\nGoogle: Support minimal and medium reasoning effort levels for Gemini 3 Flash.\nFireworks: Use streaming when max_tokens is greater than 16000.\nModel API: Add combined_from metadata field when combining consecutive user or assistant messages for call to generate.\nHF Tasks: Require &gt;1.0.0 of huggingface_hub package.\nEval Set: Include task version and limits in task identifier hash to prevent incorrect log reuse.\nScoring: Match only last line of output in answer(pattern=“line”).\nJSON Datasets: Support passing arbitrary kwargs to JSON readers (built-in reader and jsonlines reader).\nFilesystems: Use default_fs_options() for async_connection()\nInspect View: Don’t attempt to display events when the events are too large for the browser to deserialize (e.g. 350MB+ of events).\nInspect View: Improve rendering of tool output with ANSI codes. Support viewing raw/unrendered ANSI output.\nInspect View: Scale ANSI display in messages view to preserve row/column layout without wrapping.\nInspect View: Render custom tool view when viewing messages.\nInspect View: Fix cmd+click on tasks/samples to open in new tab.\nInspect View: Only stream log bytes when requested chunks are large (&gt;50MB)\nInspect View: Add Show Retried Logs button when inside an eval set and some logs were retried (both Tasks and Samples are now de-duplicated by default).\nInspect View: Improved non-native find for virtualized lists (better CTRL-f)\nBugfix: Prevent component not found error during Human Agent transition.\nBugfix: Use builtins module rather than __builtins__ when parsing tool function types."
   },
   {
-    "objectID": "CHANGELOG.html#january-2026-8",
-    "href": "CHANGELOG.html#january-2026-8",
+    "objectID": "CHANGELOG.html#january-2026-9",
+    "href": "CHANGELOG.html#january-2026-9",
     "title": "Inspect",
     "section": "0.3.159 (03 January 2026)",
     "text": "0.3.159 (03 January 2026)\n\nCompaction: Compacting message histories for long-running agents that exceed the context window.\nModel API: count_tokens() method for estimating token usage for messages.\nModel API: ModelInfo for retrieving information about models (e.g. organization, context window, reasoning, release date, etc.)\nEval Retry: Initialize model usage from usage recorded in retried eval log.\nAnthropic: Use service model name when detecting tool compatibility.\nGoogle: Various mitigations for Gemini returning MALFORMED_FUNCTION_CALL.\nOpenRouter: Improved integration with reasoning_details (map onto standard reasoning fields for viewer).\nHuman CLI Agent: Ability to add custom instructions and .bashrc commands to agent shell.\nProperly handle working time reporting for overlapping coroutines waiting on semaphores.\nEval Logs: Support reading from IO[bytes] via read_eval_log().\nInspect View: Properly display dict scores in sample list.\nInspect View: Improve display of Codex shell_command tool calls.\nInspect View: Improve the display of very wide metrics results in the results dialog."
@@ -5103,7 +5103,7 @@
     "href": "providers.html#nnterp",
     "title": "Model Providers",
     "section": "nnterp",
-    "text": "nnterp\n\n\n\n\n\n\nSupport for the nnterp provider is available only in the development version of Inspect. To install the development version from GitHub:\npip install git+https://github.com/UKGovernmentBEIS/inspect_ai\n\n\n\nThe nnterp provider enables you to use StandardizedTransformer models with Inspect. To use the nnterp provider, install the nnterp package:\npip install nnterp\nThe nnterp provider works with Hugging Face models. For example:\ninspect eval arc.py --model nnterp/openai-community/gpt2\nThe nnterp provider supports the following custom model args (other model args are forwarded to the constructor of the StandardizedTransformer class):\n\n\n\n\n\n\n\n\nModel Arg\nDescription\nDefault\n\n\n\n\ndispatch\nImmediately load model into memory at initialization time\nTrue\n\n\ndevice_map\nModel device map.\n“auto”\n\n\ndtype\nTorch data type\nfloat16\n\n\nhidden_states\nProvide hidden states in ModelOutput.metadata\nFalse\n\n\n\nFor example:\ninspect eval arc.py \\\n    --model nnterp/openai-community/gpt2 \\\n    -M device_map=0 \\\n    -M hidden_states=true\nOr from Python:\neval(\n    task=arc(), \n    model=\"nnterp/openai-community/gpt2\", \n    model_args={\"device_map\": 0, \"hidden_states\": True}\n)",
+    "text": "nnterp\nThe nnterp provider enables you to use StandardizedTransformer models with Inspect. To use the nnterp provider, install the nnterp package:\npip install nnterp\nThe nnterp provider works with Hugging Face models. For example:\ninspect eval arc.py --model nnterp/openai-community/gpt2\nThe nnterp provider supports the following custom model args (other model args are forwarded to the constructor of the StandardizedTransformer class):\n\n\n\n\n\n\n\n\nModel Arg\nDescription\nDefault\n\n\n\n\ndispatch\nImmediately load model into memory at initialization time\nTrue\n\n\ndevice_map\nModel device map.\n“auto”\n\n\ndtype\nTorch data type\nfloat16\n\n\nhidden_states\nProvide hidden states in ModelOutput.metadata\nFalse\n\n\n\nFor example:\ninspect eval arc.py \\\n    --model nnterp/openai-community/gpt2 \\\n    -M device_map=0 \\\n    -M hidden_states=true\nOr from Python:\neval(\n    task=arc(), \n    model=\"nnterp/openai-community/gpt2\", \n    model_args={\"device_map\": 0, \"hidden_states\": True}\n)",
     "crumbs": [
       "User Guide",
       "Models",
