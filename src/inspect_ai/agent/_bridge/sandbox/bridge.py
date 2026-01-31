@@ -97,6 +97,10 @@ async def sandbox_agent_bridge(
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
 
+    # Track whether the agent completed successfully. If so, cleanup errors
+    # should be logged but not cause the sample to fail.
+    agent_completed = False
+
     try:
         async with anyio.create_task_group() as tg:
             # event to signal startup of model service
@@ -144,10 +148,19 @@ async def sandbox_agent_bridge(
             # main agent
             try:
                 yield bridge
+                agent_completed = True
             finally:
                 tg.cancel_scope.cancel()
     except Exception as ex:
-        raise inner_exception(ex)
+        # If the agent completed successfully but we got an error during cleanup,
+        # log the error but don't fail the sample.
+        if agent_completed:
+            logger.warning(
+                f"Error during sandbox_agent_bridge cleanup (agent completed successfully): {ex}"
+            )
+        else:
+            # Error occurred before or during agent execution
+            raise inner_exception(ex)
 
 
 async def run_model_proxy(
