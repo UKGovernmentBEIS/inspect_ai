@@ -9,7 +9,7 @@ from pydantic_core.core_schema import ValidationInfo
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
-from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
@@ -161,48 +161,6 @@ class ChatMessageAssistant(ChatMessageBase):
 
     model: str | None = Field(default=None)
     """Model used to generate assistant message."""
-
-    # Some OpenAI compatible REST endpoints include reasoning as a field alongside
-    # content, however since this field doesn't exist in the OpenAI interface,
-    # hosting providers (so far we've seen this with Together and Groq) may
-    # include the reasoning in a <think></think> tag before the main response.
-    # We expect this pattern to be repeated elsewhere, so include this hook to
-    # automatically extract the reasoning content when the response is prefaced
-    # with a <think> block. If this ends up being an overeach we can fall back
-    # to each provider manually parsing out <think> using a helper function.
-    # The implementation isn't important here, the critical thing to establish
-    # is that Inspect makes reasoning content available separately.
-    @model_validator(mode="before")
-    @classmethod
-    def extract_reasoning(cls, data: Any) -> Any:
-        from ._reasoning import parse_content_with_reasoning
-
-        if isinstance(data, dict):
-            # cleave apart <think> blocks
-            content = data.get("content", None)
-            if isinstance(content, str):
-                content_text, reasoning = parse_content_with_reasoning(content)
-                if reasoning:
-                    data["content"] = [
-                        ContentReasoning(reasoning=reasoning.reasoning),
-                        ContentText(text=content_text),
-                    ]
-            # migrate messages that has explicit 'reasoning' field
-            # (which was our original representation of reasoning)
-            reasoning = data.get("reasoning", None)
-            if isinstance(reasoning, str):
-                # ensure that content is a list
-                content = data.get("content", None)
-                if content is None:
-                    data["content"] = []
-                elif isinstance(content, str):
-                    data["content"] = [ContentText(text=content)]
-                elif not isinstance(content, list):
-                    data["content"] = []
-                data["content"].insert(0, ContentReasoning(reasoning=reasoning))
-
-                del data["reasoning"]
-        return data
 
 
 class ChatMessageTool(ChatMessageBase):
