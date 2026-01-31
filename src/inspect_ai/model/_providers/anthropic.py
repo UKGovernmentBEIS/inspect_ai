@@ -1687,7 +1687,17 @@ def content_and_tool_calls_from_assistant_content_blocks(
     ] = []
     for block in content_blocks_input:
         if isinstance(block, dict):
-            content_blocks.append(content_block_adapter.validate_python(block))
+            # server_tool_use blocks may come back without a 'caller' field
+            # (e.g., from message history in multi-turn conversations).
+            # BetaServerToolUseBlock requires 'caller', so add a default.
+            if block.get("type") == "server_tool_use" and "caller" not in block:
+                content_blocks.append(
+                    BetaServerToolUseBlock(
+                        **block, caller=BetaDirectCaller(type="direct")
+                    )
+                )
+            else:
+                content_blocks.append(content_block_adapter.validate_python(block))
         else:
             content_blocks.append(block)
 
@@ -1695,7 +1705,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
     content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
 
-    pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
+    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock] = dict()
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] = dict()
     for content_block in content_blocks:
         if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
@@ -1848,9 +1858,11 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
-        elif isinstance(content_block, ServerToolUseBlock):
+        elif isinstance(content_block, (ServerToolUseBlock, BetaServerToolUseBlock)):
             pending_tool_uses[content_block.id] = content_block
-        elif isinstance(content_block, WebSearchToolResultBlock):
+        elif isinstance(
+            content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
+        ):
             pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
