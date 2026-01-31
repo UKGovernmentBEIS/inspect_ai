@@ -4,6 +4,8 @@ from typing import Literal
 
 import pytest
 
+from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -17,6 +19,7 @@ from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.model._model import get_model
+from inspect_ai.model._trim import strip_citations
 from inspect_ai.tool import ToolInfo
 
 
@@ -623,3 +626,178 @@ async def test_compaction_error_message_breakdown() -> None:
     assert "tools:" in error_msg
     assert "prefix:" in error_msg
     assert "messages:" in error_msg
+
+
+# ==============================================================================
+# Citation Stripping Tests
+# ==============================================================================
+
+
+def teststrip_citations_removes_citations_from_content_text() -> None:
+    """Test that citations are removed from ContentText blocks."""
+    citation = UrlCitation(
+        url="https://example.com",
+        cited_text="some text",
+        title="Example",
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageAssistant(
+            content=[ContentText(text="Response with citation", citations=[citation])],
+            id="msg1",
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assert len(result) == 1
+    assistant = result[0]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+    content_text = assistant.content[0]
+    assert isinstance(content_text, ContentText)
+    assert content_text.text == "Response with citation"
+    assert content_text.citations is None
+
+
+def teststrip_citations_preserves_messages_without_citations() -> None:
+    """Test that messages without citations are unchanged."""
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question", id="msg1"),
+        ChatMessageAssistant(
+            content=[ContentText(text="Response without citation")],
+            id="msg2",
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assert len(result) == 2
+    # Messages without citations should be the same objects
+    assert result[0] is messages[0]
+    assert result[1] is messages[1]
+
+
+def teststrip_citations_preserves_string_content() -> None:
+    """Test that string content messages are unchanged."""
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Simple string content", id="msg1"),
+        ChatMessageAssistant(content="Simple response", id="msg2"),
+    ]
+
+    result = strip_citations(messages)
+
+    assert len(result) == 2
+    # String content messages should be the same objects
+    assert result[0] is messages[0]
+    assert result[1] is messages[1]
+
+
+def teststrip_citations_preserves_other_content_types() -> None:
+    """Test that non-text content types are unchanged."""
+    citation = UrlCitation(url="https://example.com", cited_text="text")
+    messages: list[ChatMessage] = [
+        ChatMessageUser(
+            content=[
+                ContentImage(image="data:image/png;base64,abc123"),
+                ContentText(text="Text with citation", citations=[citation]),
+            ],
+            id="msg1",
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assert len(result) == 1
+    user_msg = result[0]
+    assert isinstance(user_msg, ChatMessageUser)
+    assert isinstance(user_msg.content, list)
+    assert len(user_msg.content) == 2
+    # Image should be unchanged
+    assert isinstance(user_msg.content[0], ContentImage)
+    assert user_msg.content[0].image == "data:image/png;base64,abc123"
+    # Text should have citations stripped
+    assert isinstance(user_msg.content[1], ContentText)
+    assert user_msg.content[1].citations is None
+
+
+def teststrip_citations_handles_empty_list() -> None:
+    """Test that empty message list returns empty list."""
+    result = strip_citations([])
+    assert result == []
+
+
+def teststrip_citations_handles_multiple_citations() -> None:
+    """Test that multiple citations are all removed."""
+    citations = [
+        UrlCitation(url="https://example1.com", cited_text="text1"),
+        UrlCitation(url="https://example2.com", cited_text="text2"),
+    ]
+    messages: list[ChatMessage] = [
+        ChatMessageAssistant(
+            content=[
+                ContentText(
+                    text="Response with multiple citations", citations=citations
+                )
+            ],
+            id="msg1",
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assistant = result[0]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+    content_text = assistant.content[0]
+    assert isinstance(content_text, ContentText)
+    assert content_text.citations is None
+
+
+@pytest.mark.asyncio
+async def test_compaction_strips_citations() -> None:
+    """Test that compaction strips citations from messages."""
+    from inspect_ai.tool import ToolCall
+
+    citation = UrlCitation(
+        url="https://example.com",
+        cited_text="search result",
+        title="Example",
+    )
+
+    # Use CompactionEdit with low threshold to ensure compaction triggers
+    # keep_tool_uses=0 allows clearing tool results to reduce tokens
+    strategy = CompactionEdit(threshold=100, keep_tool_uses=0)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = [system_msg("S", "sys1")]
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    # Create tool calls with large content to exceed threshold
+    tool_call = ToolCall(id="t1", function="bash", arguments={"cmd": "A" * 500})
+
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("Question", "msg1"),
+        ChatMessageAssistant(content="Using tool", id="msg2", tool_calls=[tool_call]),
+        ChatMessageTool(
+            content="B" * 500, tool_call_id="t1", function="bash", id="msg3"
+        ),
+        user_msg("Follow up", "msg4"),
+        # Assistant response with citations (simulating web_search result)
+        ChatMessageAssistant(
+            content=[ContentText(text="Here is what I found", citations=[citation])],
+            id="msg5",
+        ),
+    ]
+
+    result, _ = await compact(messages)
+
+    # Find any assistant message with ContentText content
+    for msg in result:
+        if isinstance(msg, ChatMessageAssistant) and isinstance(msg.content, list):
+            for content in msg.content:
+                if isinstance(content, ContentText):
+                    # Citations should have been stripped during compaction
+                    assert content.citations is None, (
+                        f"Expected citations to be None, got {content.citations}"
+                    )

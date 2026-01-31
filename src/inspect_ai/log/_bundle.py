@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import absolute_file_path, filesystem
 
 from ._file import log_files_from_ls, write_log_listing
 
@@ -91,6 +91,15 @@ def bundle_log_dir(
     )
     if output_dir == "":
         raise PrerequisiteError("You must provide an 'output_dir'")
+
+    # ensure output_dir is not a subdirectory of log_dir
+    log_fs = filesystem(log_dir, fs_options)
+    log_dir_abs = absolute_file_path(log_dir).rstrip(log_fs.sep) + log_fs.sep
+    output_dir_abs = absolute_file_path(output_dir).rstrip(log_fs.sep) + log_fs.sep
+    if output_dir_abs.startswith(log_dir_abs):
+        raise PrerequisiteError(
+            f"The output directory '{output_dir}' cannot be a subdirectory of the log directory '{log_dir}'"
+        )
 
     # ensure output_dir doesn't exist
     if output_dir.startswith("hf/"):

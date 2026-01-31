@@ -145,12 +145,14 @@ export const createSampleSlice = (
           : selectedSampleRef.current;
       },
       clearSelectedSample: () => {
-        // Clear both the ref and the state
+        samplePolling.stopPolling();
         selectedSampleRef.current = undefined;
         set((state) => {
           state.sample.sample_identifier = undefined;
           state.sample.selectedSampleObject = undefined;
           state.sample.sampleInState = false;
+          state.sample.runningEvents = [];
+          state.sample.sampleStatus = "ok";
           state.log.selectedSampleHandle = undefined;
         });
       },
@@ -281,6 +283,12 @@ export const createSampleSlice = (
         try {
           if (completed !== false) {
             log.debug(`LOADING COMPLETED SAMPLE: ${id}-${epoch}`);
+            // Stop any existing polling when loading a completed sample
+            samplePolling.stopPolling();
+            // Clear any running events from the previous sample
+            set((state) => {
+              state.sample.runningEvents = [];
+            });
             const sample = await get().api?.get_log_sample(logFile, id, epoch);
             log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
             if (sample) {
@@ -302,6 +310,21 @@ export const createSampleSlice = (
             }
           } else {
             log.debug(`POLLING RUNNING SAMPLE: ${id}-${epoch}`);
+
+            // Clear the previous sample so component uses runningEvents instead
+            // of old sample.events
+            selectedSampleRef.current = undefined;
+            set((state) => {
+              state.sample.selectedSampleObject = undefined;
+              state.sample.sampleInState = false;
+              state.sample.runningEvents = [];
+              // Set the new sample identifier for the sample we're about to poll
+              state.sample.sample_identifier = {
+                id,
+                epoch,
+                logFile,
+              };
+            });
 
             // Poll running sample - create a minimal SampleSummary object
             const sampleSummary: SampleSummary = { id, epoch } as SampleSummary;

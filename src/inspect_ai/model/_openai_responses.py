@@ -130,6 +130,11 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
+from inspect_ai.model._compaction.edit import (
+    MCP_LIST_TOOLS_NAME,
+    TOOL_RESULT_REMOVED,
+    is_result_cleared,
+)
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
@@ -768,7 +773,7 @@ def mcp_list_tools_to_tool_use(output: McpListTools) -> ContentToolUse:
     return ContentToolUse(
         tool_type="mcp_call",
         id=output.id,
-        name="mcp_list_tools",
+        name=MCP_LIST_TOOLS_NAME,
         arguments="",
         result=to_json_str_safe([tool.model_dump() for tool in output.tools]),
         error=output.error,
@@ -788,11 +793,20 @@ def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
 
 
 def tool_use_to_mcp_list_tools_param(content: ContentToolUse) -> McpListToolsParam:
+    # Handle cleared results gracefully
+    if content.result == TOOL_RESULT_REMOVED:
+        tools: list[McpListToolsToolParam] = []
+    else:
+        try:
+            tools = mcp_tool_adapter.validate_json(content.result)
+        except ValidationError:
+            tools = []
+
     return McpListToolsParam(
         type="mcp_list_tools",
         id=content.id,
         server_label=content.context or "",
-        tools=mcp_tool_adapter.validate_json(content.result),
+        tools=tools,
         error=content.error,
     )
 
@@ -898,10 +912,24 @@ def _openai_input_items_from_chat_message_assistant(
                 id=id,
                 tool_type=tool_type,
             ):
+                # Check if result was cleared during compaction
+                result_cleared = is_result_cleared(content)
+
+                # Try to use cached blocks, modifying them if result was cleared
                 if id in assistant_internal().server_tool_uses:
-                    items.append(assistant_internal().server_tool_uses[id])
+                    cached_item = assistant_internal().server_tool_uses[id]
+                    if result_cleared:
+                        # Modify cached item in place based on type
+                        cached_dict = dict(cast(dict[str, Any], cached_item))
+                        if cached_dict.get("type") == "mcp_call":
+                            cached_dict["output"] = TOOL_RESULT_REMOVED
+                        # mcp_list_tools provides tool context, not cleared
+                        # web_search doesn't have result in cached item
+                        items.append(cast(ResponseInputItemParam, cached_dict))
+                    else:
+                        items.append(cached_item)
                 elif tool_type == "mcp_call":
-                    if content.name == "mcp_list_tools":
+                    if content.name == MCP_LIST_TOOLS_NAME:
                         items.append(tool_use_to_mcp_list_tools_param(content))
                     else:
                         items.append(tool_use_to_mcp_call_param(content))

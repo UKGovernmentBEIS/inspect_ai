@@ -1,9 +1,9 @@
 import { FC } from "react";
-import { ModelUsage, ModelUsage2 } from "../../@types/log";
+import { ModelUsage, ModelUsage2, ModelUsage3 } from "../../@types/log";
 import { TokenHeader, TokenRow, TokenTable } from "./TokenTable";
 
 interface ModelTokenTableProps {
-  model_usage: ModelUsage | ModelUsage2;
+  model_usage: ModelUsage | ModelUsage2 | ModelUsage3;
   className?: string | string[];
 }
 
@@ -11,6 +11,9 @@ export const ModelTokenTable: FC<ModelTokenTableProps> = ({
   model_usage,
   className,
 }) => {
+  if (!model_usage) {
+    return null;
+  }
   return (
     <TokenTable className={className}>
       <TokenHeader />

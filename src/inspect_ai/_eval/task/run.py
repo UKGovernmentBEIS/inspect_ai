@@ -670,12 +670,6 @@ async def task_run_sample(
             await sample_complete(state.sample_id, state.epoch, sample_scores)
             return sample_scores
 
-    # check for early stopping
-    if early_stopping is not None and logger is not None:
-        early_stop = await early_stopping.schedule_sample(state.sample_id, state.epoch)
-        if early_stop is not None:
-            return early_stop
-
     # copy variables that we may pass back to ourselves on a retry
     initial_state = deepcopy(state)
 
@@ -748,6 +742,14 @@ async def task_run_sample(
             transcript=sample_transcript,
         ) as active,
     ):
+        # check for early stopping
+        if early_stopping is not None and logger is not None:
+            early_stop = await early_stopping.schedule_sample(
+                state.sample_id, state.epoch
+            )
+            if early_stop is not None:
+                return early_stop
+
         start_time: float | None = None
         error: EvalError | None = None
         raise_error: BaseException | None = None
@@ -972,6 +974,8 @@ async def task_run_sample(
                                                 ScoreEvent(
                                                     score=score_result,
                                                     target=sample.target,
+                                                    model_usage=sample_model_usage()
+                                                    or None,
                                                 )
                                             )
 
@@ -987,7 +991,11 @@ async def task_run_sample(
                                 for name in solver_score_names:
                                     score = state.scores[name]
                                     transcript()._event(
-                                        ScoreEvent(score=score, target=sample.target)
+                                        ScoreEvent(
+                                            score=score,
+                                            target=sample.target,
+                                            model_usage=sample_model_usage() or None,
+                                        )
                                     )
                                     results[name] = SampleScore(
                                         score=score,

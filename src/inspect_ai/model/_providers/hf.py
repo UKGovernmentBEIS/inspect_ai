@@ -36,6 +36,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.trace import trace_action
+from inspect_ai.model._reasoning import emulate_reasoning_history
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
@@ -264,7 +265,7 @@ class HuggingFaceAPI(ModelAPI):
     def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # convert to hf format
         tools_list = []
-        hf_messages = copy.deepcopy(messages)
+        hf_messages = copy.deepcopy(emulate_reasoning_history(messages))
         if len(tools) > 0:
             tools_list = [
                 json.loads(tool.model_dump_json(exclude_none=True, indent=2))
