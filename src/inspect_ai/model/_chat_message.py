@@ -10,6 +10,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING, MESSAGE_CACHE
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
@@ -73,12 +74,13 @@ class ChatMessageBase(BaseModel):
             return handler(data)
         cache: dict[Any, ChatMessageBase] = info.context.get(MESSAGE_CACHE)
         try:
-            cache_key: bytes | frozendict = hashlib.sha256(
+            cache_key: bytes | frozendict[str, Any] = hashlib.sha256(
                 json.dumps(data, sort_keys=True).encode()
             ).digest()
-        except Exception:
-            logger.debug(
-                "failed to dump object with json; falling back to deepfreeze which is slower"
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Failed to dump object with json ({ex}). Falling back to deepfreeze which is slower",
             )
             cache_key = deepfreeze(data)
         hit = cache.get(cache_key)
