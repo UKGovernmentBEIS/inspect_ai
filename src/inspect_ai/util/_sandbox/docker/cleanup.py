@@ -1,4 +1,7 @@
+import json
+import subprocess
 from contextvars import ContextVar
+from logging import getLogger
 from pathlib import Path
 from typing import Awaitable, Callable, Set
 
@@ -10,14 +13,56 @@ from rich.table import Table
 from inspect_ai._util._async import coro_print_exceptions
 
 from .compose import compose_down, compose_ls, compose_ps
-from .config import is_auto_compose_file, safe_cleanup_auto_compose
-from .util import ComposeProject
+from .config import auto_compose_dir, is_auto_compose_file, safe_cleanup_auto_compose
+from .util import ComposeProject, is_inspect_project
+
+logger = getLogger(__name__)
 
 
 def project_cleanup_startup() -> None:
     _running_projects.set([])
     _auto_compose_files.set(set())
     _cleanup_completed.set(False)
+
+    # Clean up orphaned auto-compose files from crashed processes
+    _cleanup_orphaned_auto_compose_files()
+
+
+def _cleanup_orphaned_auto_compose_files() -> None:
+    """Remove auto-compose files that no longer have running Docker projects.
+
+    This handles cleanup for files left behind by crashed processes.
+    """
+    compose_dir = auto_compose_dir()
+    if not compose_dir.exists():
+        return
+
+    try:
+        # Get running inspect projects via docker compose ls
+        result = subprocess.run(
+            ["docker", "compose", "ls", "--all", "--format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return
+
+        projects_data = json.loads(result.stdout or "[]")
+        running_names = {
+            p["Name"] for p in projects_data if is_inspect_project(p["Name"])
+        }
+
+        # Remove files for projects no longer running
+        for file in compose_dir.iterdir():
+            if file.suffix == ".yaml" and file.stem not in running_names:
+                try:
+                    file.unlink()
+                except Exception as ex:
+                    logger.debug(f"Failed to remove orphaned compose file {file}: {ex}")
+
+    except Exception as ex:
+        logger.debug(f"Error cleaning up orphaned auto-compose files: {ex}")
 
 
 def project_startup(project: ComposeProject) -> None:
