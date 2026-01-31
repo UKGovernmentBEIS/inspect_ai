@@ -117,13 +117,27 @@ async def generate_responses(
         if len(tools) > 0
         else NOT_GIVEN
     )
+    # Convert messages to OpenAI input format
+    input_params = await openai_responses_inputs(input, model_info)
+
+    # Check if we have compaction items in input
+    has_compaction = any(
+        isinstance(item, dict) and item.get("type") == "compaction"
+        for item in input_params
+    )
+
+    # Build extra headers - add beta header if compaction present
+    extra_headers = {HttpxHooks.REQUEST_ID_HEADER: request_id}
+    if has_compaction:
+        extra_headers["OpenAI-Beta"] = "standalone_compact=2025-12-02"
+
     request = dict(
-        input=await openai_responses_inputs(input, model_info),
+        input=input_params,
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
         else NOT_GIVEN,
-        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        extra_headers=extra_headers,
         **completion_params_responses(
             model_name,
             model_info=model_info,
