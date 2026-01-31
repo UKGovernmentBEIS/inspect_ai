@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).
+
 ## 0.3.168 (31 January 2026)
 
 - [nnterp](https://inspect.aisi.org.uk/providers.html#nnterp) model provider enabling use of `StandardizedTransformer` models with Inspect.
