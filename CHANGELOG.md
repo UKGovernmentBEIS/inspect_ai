@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.168 (31 January 2026)
 
 - [nnterp](https://inspect.aisi.org.uk/providers.html#nnterp) model provider enabling use of `StandardizedTransformer` models with Inspect.
 - OpenAI Compatible: More generic handling for reasoning payloads (playback reasoning in exactly the same body field it was captured from).
