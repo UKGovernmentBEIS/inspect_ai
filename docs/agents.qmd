@@ -37,12 +37,12 @@ The agents module includes a flexible, general-purpose [react agent](react-agent
 
 ### Example
 
-The following is a simple `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research.
+The following is a simple `web_surfer()` agent that uses the `web_search()` tool to do open-ended web research.
 
 ``` python
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.model import ChatMessageSystem, get_model
-from inspect_ai.tool import web_browser
+from inspect_ai.tool import web_search
 
 @agent
 def web_surfer() -> Agent:
@@ -57,9 +57,9 @@ def web_surfer() -> Agent:
             )
         )
 
-        # run a tool loop w/ the web_browser 
+        # run a tool loop w/ the web_search tool 
         messages, output = await get_model().generate_loop(
-            state.messages, tools=web_browser()
+            state.messages, tools=[web_search()]
         )
 
         # update and return state
@@ -70,20 +70,20 @@ def web_surfer() -> Agent:
     return execute
 ```
 
-The agent calls the `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model may make several calls to the [web_browser()](https://inspect.aisi.org.uk/reference/inspect_ai.tool.html#web_browser) tool to fulfil the request.
+The agent calls the `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model may make several calls to the [web_search()](https://inspect.aisi.org.uk/tools-standard#sec-web-search) tool to fulfil the request.
 
 While this example illustrates the basic mechanic of agents, you generally wouldn't write a custom agent that does only this (a system prompt with a tool use loop) as the `react()` agent provides a more sophisticated and flexible version of this pattern. Here is the equivalent `react()` agent:
 
 ``` python
 from inspect_ai.agent import react
-from inspect_ai.tool import web_browser
+from inspect_ai.tool import web_search
 
 web_surfer = react(
     name="web_surfer",
     description="Web research assistant",
     prompt="You are an expert at using a " + 
            "web browser to answer questions.",
-    tools=web_browser()   
+    tools=[web_search()]
 )
 ```
 

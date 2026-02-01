@@ -5,11 +5,24 @@ from pydantic import ValidationError
 
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._web_search._web_search import (
+    EXTERNAL_PROVIDERS,
     WebSearchProviders,
     _create_external_provider,
+    _has_external_provider,
     _normalize_config,
+    _NormalizedProviders,
     web_search,
 )
+
+# All internal providers enabled with default options
+ALL_INTERNAL_PROVIDERS: _NormalizedProviders = {
+    "openai": {},
+    "anthropic": {},
+    "grok": {},
+    "gemini": {},
+    "mistral": {},
+    "perplexity": {},
+}
 
 
 class TestNormalizeConfig:
@@ -18,45 +31,115 @@ class TestNormalizeConfig:
     @pytest.mark.parametrize(
         "providers,expected_result",
         [
-            # Single str
+            # External providers only - returns only what's specified
             ("google", {"google": {}}),
             ("tavily", {"tavily": {}}),
-            ("openai", {"openai": {}}),
-            # Single str[]
+            ("exa", {"exa": {}}),
             (["google"], {"google": {}}),
             (["tavily"], {"tavily": {}}),
-            (["openai"], {"openai": {}}),
-            # Multiple str[]
             (["google", "tavily"], {"google": {}, "tavily": {}}),
-            # Single dict
+            # External provider with options
             ({"tavily": True}, {"tavily": {}}),
             ({"tavily": {"max_results": 5}}, {"tavily": {"max_results": 5}}),
             ({"tavily": None}, {"tavily": {}}),
-            ({"tavily": {"max_results": 5}}, {"tavily": {"max_results": 5}}),
-            # Single dict[]
             ([{"tavily": None}], {"tavily": {}}),
             ([{"tavily": {"max_results": 5}}], {"tavily": {"max_results": 5}}),
-            # Multi dict[]
+            # Multiple external providers
             (
                 [{"tavily": {"max_results": 5}}, {"google": {}}],
                 {"tavily": {"max_results": 5}, "google": {}},
             ),
-            # Mixed string and dict[]
             (
                 ["google", {"tavily": {"max_results": 5}}],
                 {"google": {}, "tavily": {"max_results": 5}},
             ),
-            # Complex combination
+            # Mixed external and internal - only specified providers returned
             (
                 ["google", {"tavily": None}, {"openai": {"model": "gpt-4o"}}],
                 {"google": {}, "tavily": {}, "openai": {"model": "gpt-4o"}},
             ),
+            (
+                ["openai", "tavily"],
+                {"openai": {}, "tavily": {}},
+            ),
         ],
     )
-    def test_normalize_config_providers(self, providers, expected_result) -> None:
-        """Test _normalize_config with various provider configurations."""
+    def test_normalize_config_with_external_providers(
+        self, providers, expected_result
+    ) -> None:
+        """Test _normalize_config when external providers are specified.
+
+        When at least one external provider is specified, internal providers
+        are disabled by default and only specified providers are returned.
+        """
         result = _normalize_config(providers)
         assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "providers,expected_result",
+        [
+            # Internal provider only - all internal providers enabled by default
+            ("openai", ALL_INTERNAL_PROVIDERS),
+            ("anthropic", ALL_INTERNAL_PROVIDERS),
+            (["openai"], ALL_INTERNAL_PROVIDERS),
+            (["openai", "anthropic"], ALL_INTERNAL_PROVIDERS),
+            # Internal provider with options - merges with defaults
+            (
+                {"openai": {"model": "gpt-4o"}},
+                {**ALL_INTERNAL_PROVIDERS, "openai": {"model": "gpt-4o"}},
+            ),
+            (
+                [{"openai": {"model": "gpt-4o"}}, "anthropic"],
+                {**ALL_INTERNAL_PROVIDERS, "openai": {"model": "gpt-4o"}},
+            ),
+        ],
+    )
+    def test_normalize_config_with_internal_only(
+        self, providers, expected_result
+    ) -> None:
+        """Test _normalize_config when only internal providers are specified.
+
+        When no external provider is specified, all internal providers are
+        enabled by default. Specifying an internal provider allows setting
+        options for it while keeping all others enabled.
+        """
+        result = _normalize_config(providers)
+        assert result == expected_result
+
+    def test_normalize_config_no_providers(self) -> None:
+        """Test _normalize_config with no providers specified.
+
+        When no providers are specified, all internal providers are enabled.
+        """
+        result = _normalize_config(None)
+        assert result == ALL_INTERNAL_PROVIDERS
+
+    def test_normalize_config_disable_with_false(self) -> None:
+        """Test using False to disable specific internal providers."""
+        # Disable one internal provider
+        result = _normalize_config({"openai": False})
+        expected = {k: v for k, v in ALL_INTERNAL_PROVIDERS.items() if k != "openai"}
+        assert result == expected
+
+        # Disable multiple internal providers
+        result = _normalize_config([{"openai": False}, {"anthropic": False}])
+        expected = {
+            k: v
+            for k, v in ALL_INTERNAL_PROVIDERS.items()
+            if k not in ("openai", "anthropic")
+        }
+        assert result == expected
+
+    def test_normalize_config_false_with_external_provider(self) -> None:
+        """Test using False with external providers."""
+        # External provider with False for another - False has no effect since
+        # internal providers are already disabled by default
+        result = _normalize_config(["tavily", {"openai": False}])
+        assert result == {"tavily": {}}
+
+        # Explicitly enable one internal, disable another (with external)
+        result = _normalize_config(["tavily", "openai", {"anthropic": False}])
+        assert result == {"tavily": {}, "openai": {}}
 
     @pytest.mark.parametrize(
         "deprecated_provider,deprecated_args,expected_result",
@@ -145,6 +228,50 @@ class TestNormalizeConfig:
         assert result == {"google": {"num_results": 5}}
 
 
+class TestHasExternalProvider:
+    """Tests for the _has_external_provider helper function."""
+
+    def test_external_providers_constant(self) -> None:
+        """Verify the EXTERNAL_PROVIDERS constant contains expected values."""
+        assert set(EXTERNAL_PROVIDERS) == {"tavily", "google", "exa"}
+
+    @pytest.mark.parametrize(
+        "providers,expected",
+        [
+            # Empty list - no external providers
+            ([], False),
+            # Internal providers only
+            (["openai"], False),
+            (["anthropic"], False),
+            (["openai", "anthropic", "gemini"], False),
+            # External providers
+            (["tavily"], True),
+            (["google"], True),
+            (["exa"], True),
+            # Mixed
+            (["openai", "tavily"], True),
+            (["anthropic", "google", "gemini"], True),
+            # Dict format - external
+            ([{"tavily": {}}], True),
+            ([{"google": {"num_results": 5}}], True),
+            # Dict format - internal
+            ([{"openai": {}}], False),
+            ([{"anthropic": {"model": "claude"}}], False),
+            # Dict format - False should not count as external
+            ([{"tavily": False}], False),
+            ([{"google": False}], False),
+            # Mixed dict and string
+            (["openai", {"tavily": {}}], True),
+            ([{"openai": {}}, "google"], True),
+            # External set to False with internal - still no external
+            ([{"tavily": False}, "openai"], False),
+        ],
+    )
+    def test_has_external_provider(self, providers, expected) -> None:
+        """Test _has_external_provider with various inputs."""
+        assert _has_external_provider(providers) == expected
+
+
 class TestCreateExternalProvider:
     @patch(
         "os.environ.get",
@@ -218,26 +345,39 @@ class TestCreateExternalProvider:
 
 
 class TestOldSignatureVariants:
-    """Tests for the old signature variants of web_search function."""
+    """Tests for the old signature variants of web_search function.
 
-    # web_search(model=web_search_model, num_results=1)
+    These tests verify backwards compatibility for the deprecated web_search
+    signature that used `provider`, `num_results`, etc. parameters.
+
+    When deprecated parameters are used without an explicit provider, the code
+    falls back to Google CSE only if the Google environment variables are set.
+    """
+
+    @patch(
+        "inspect_ai.tool._tools._web_search._web_search.maybe_get_google_api_keys",
+        return_value=("fake-key", "fake-cse-id"),
+    )
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
-    def test_bug_report_cse(self, mock_warning):
+    def test_bug_report_cse(self, mock_warning, mock_google_keys):
+        """Test deprecated params without provider falls back to Google when env vars set."""
         assert ToolDef(web_search(model="NA", num_results=1)).options == {
             "google": {"model": "NA", "num_results": 1}
         }
 
-    @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
-    def test_no_parameters(self, mock_warning):
-        assert ToolDef(web_search()).options == {"google": {}}
+    def test_no_parameters(self):
+        """Test web_search() with no parameters returns all internal providers."""
+        assert ToolDef(web_search()).options == ALL_INTERNAL_PROVIDERS
 
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_only_provider_parameter(self, mock_warning):
+        """Test deprecated provider parameter works."""
         assert ToolDef(web_search(provider="google")).options == {"google": {}}
         assert ToolDef(web_search(provider="tavily")).options == {"tavily": {}}
 
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_provider_with_num_results(self, mock_warning):
+        """Test deprecated provider + num_results parameters."""
         assert ToolDef(web_search(provider="google", num_results=10)).options == {
             "google": {"num_results": 10}
         }
@@ -245,14 +385,35 @@ class TestOldSignatureVariants:
             "tavily": {"max_results": 10}
         }
 
+    @patch(
+        "inspect_ai.tool._tools._web_search._web_search.maybe_get_google_api_keys",
+        return_value=("fake-key", "fake-cse-id"),
+    )
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
-    def test_num_results_only(self, mock_warning):
+    def test_num_results_only(self, mock_warning, mock_google_keys):
+        """Test deprecated num_results without provider falls back to Google when env vars set."""
         assert ToolDef(web_search(num_results=10)).options == {
             "google": {"num_results": 10}
         }
 
+    def test_deprecated_params_without_google_env_vars(self):
+        """Test deprecated params without provider and without Google env vars.
+
+        When deprecated parameters like num_results are used without a provider,
+        and Google CSE environment variables are not set, the deprecated params
+        are ignored and all internal providers are returned.
+        """
+        # Ensure Google env vars are not set for this test
+        with patch(
+            "inspect_ai.tool._tools._web_search._web_search.maybe_get_google_api_keys",
+            return_value=None,
+        ):
+            # num_results is ignored, returns all internal providers
+            assert ToolDef(web_search(num_results=10)).options == ALL_INTERNAL_PROVIDERS
+
     @patch("inspect_ai.tool._tools._web_search._web_search.deprecation_warning")
     def test_provider_with_multiple_parameters(self, mock_warning):
+        """Test deprecated provider with multiple deprecated parameters."""
         assert ToolDef(
             web_search(
                 provider="google",
@@ -275,5 +436,6 @@ class TestOldSignatureVariants:
         ).options == {"tavily": {"max_results": 10, "max_connections": 15}}
 
     def test_conflict_between_old_and_new_signatures(self):
+        """Test that using both provider and providers raises an error."""
         with pytest.raises(ValueError, match=r"`provider` is deprecated"):
             web_search(["google"], provider="tavily")
