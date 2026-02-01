@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
+
 ## 0.3.169 (01 February 2026)
 
 - Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).
