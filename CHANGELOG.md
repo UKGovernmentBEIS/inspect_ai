@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).
+- OpenAI: Workaround for openai Python SDK inability to round trip 'find_in_page' web search actions.
 - Reasoning: Don't process `<think>` tags in assistant message loading (now all done directly by model providers).
 - Web Search: Use internal search providers by default when no external provider is defined (previously they required explicit enabling).
 - Web Search: Fallback to Google CSE provider only when Google CSE environment variables are defined (the CSE service has been deprecated by Google).

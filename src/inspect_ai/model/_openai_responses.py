@@ -58,7 +58,6 @@ from openai.types.responses.response_custom_tool_call_output_param import (
 )
 from openai.types.responses.response_function_web_search_param import (
     Action,
-    ActionSearch,
 )
 from openai.types.responses.response_input_image_content_param import (
     ResponseInputImageContentParam,
@@ -630,8 +629,12 @@ def _chat_message_assistant_from_openai_response(
                 tool_calls.append(tool_call_from_openai_computer_tool_call(output))
 
             case ResponseFunctionWebSearch():
+                # Use warnings=False to suppress Pydantic serialization warnings for
+                # unknown action types like 'find_in_page' that the SDK doesn't support.
+                # See: https://github.com/pydantic/pydantic-ai/issues/3653
                 assistant_internal().server_tool_uses[output.id] = cast(
-                    ResponseFunctionWebSearchParam, output.model_dump(exclude_none=True)
+                    ResponseFunctionWebSearchParam,
+                    output.model_dump(exclude_none=True, warnings=False),
                 )
                 message_content.append(web_search_to_tool_use(output))
             case ResponseCodeInterpreterToolCall():
@@ -823,21 +826,29 @@ def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
     )
 
 
-action_adapter = TypeAdapter[Action](Action)
+def parse_web_search_action(arguments: str) -> dict[str, Any]:
+    """Parse web search action from JSON arguments.
+
+    Parses action as raw dict and filters None values to avoid Pydantic validation
+    issues with unknown action types like 'find_in_page' that the SDK doesn't
+    support yet. See: https://github.com/pydantic/pydantic-ai/issues/3653
+
+    Returns a dict that can be cast to the appropriate Action type by the caller.
+    """
+    try:
+        action_dict = json.loads(arguments)
+        return {k: v for k, v in action_dict.items() if v is not None}
+    except (json.JSONDecodeError, TypeError):
+        return {"type": "search", "query": arguments}
 
 
 def tool_use_to_web_search_param(
     content: ContentToolUse,
 ) -> ResponseFunctionWebSearchParam:
-    try:
-        action = action_adapter.validate_json(content.arguments)
-    except ValidationError:
-        action = ActionSearch(type="search", query=content.arguments)
-
     return ResponseFunctionWebSearchParam(
         type="web_search_call",
         id=content.id,
-        action=action,
+        action=cast(Action, parse_web_search_action(content.arguments)),
         status="failed" if content.error else "completed",
     )
 
