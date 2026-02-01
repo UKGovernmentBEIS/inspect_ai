@@ -71,7 +71,11 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
             input_messages = list(target.input)  # type: ignore[union-attr]
             apply_ids_to_messages(input_messages)
             output = target.output  # type: ignore[union-attr]
-            if isinstance(output, ModelOutput) and output.choices:
+            if (
+                isinstance(output, ModelOutput)
+                and output.choices
+                and len(output.choices) > 0
+            ):
                 output.message.id = get_id(output.message, input_messages)
         else:
             apply_ids_to_messages(target)  # type: ignore[arg-type]
