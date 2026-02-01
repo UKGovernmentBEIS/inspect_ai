@@ -15,9 +15,15 @@ The `web_search()` tool provides models the ability to enhance their context win
 
 -   External providers: `"tavily"`, `"exa"`, and `"google"`. These are external services that work with any model and require separate accounts and API keys. Note that "google" is different from "gemini" - "google" refers to Google's Programmable Search Engine service, while "gemini" refers to Google's built-in search capability for Gemini models.
 
- By default, all internal providers are enabled if there are no external providers defined. If an external provider is defined then you need to explicitly enable internal providers that you want to use.
+By default, all internal providers are enabled if there are no external providers defined. If an external provider is defined then you need to explicitly enable internal providers that you want to use.
 
 Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
+
+### Configuration
+
+::: callout-important
+Most providers bill separately for web search, so you should consult their documentation for details before enabling this feature.
+:::
 
 You can configure the `web_search()` tool in various ways:
 
