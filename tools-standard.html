@@ -524,6 +524,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#sec-web-search" id="toc-sec-web-search" class="nav-link" data-scroll-target="#sec-web-search">Web Search</a>
   <ul class="collapse">
+  <li><a href="#configuration" id="toc-configuration" class="nav-link" data-scroll-target="#configuration">Configuration</a></li>
   <li><a href="#openai-options" id="toc-openai-options" class="nav-link" data-scroll-target="#openai-options">OpenAI Options</a></li>
   <li><a href="#anthropic-options" id="toc-anthropic-options" class="nav-link" data-scroll-target="#anthropic-options">Anthropic Options</a></li>
   <li><a href="#gemini-options" id="toc-gemini-options" class="nav-link" data-scroll-target="#gemini-options">Gemini Options</a></li>
@@ -536,18 +537,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-bash-and-python" id="toc-sec-bash-and-python" class="nav-link" data-scroll-target="#sec-bash-and-python">Bash and Python</a></li>
   <li><a href="#sec-bash-session" id="toc-sec-bash-session" class="nav-link" data-scroll-target="#sec-bash-session">Bash Session</a>
   <ul class="collapse">
-  <li><a href="#configuration" id="toc-configuration" class="nav-link" data-scroll-target="#configuration">Configuration</a></li>
+  <li><a href="#configuration-1" id="toc-configuration-1" class="nav-link" data-scroll-target="#configuration-1">Configuration</a></li>
   <li><a href="#task-setup" id="toc-task-setup" class="nav-link" data-scroll-target="#task-setup">Task Setup</a></li>
   </ul></li>
   <li><a href="#sec-text-editor" id="toc-sec-text-editor" class="nav-link" data-scroll-target="#sec-text-editor">Text Editor</a>
   <ul class="collapse">
-  <li><a href="#configuration-1" id="toc-configuration-1" class="nav-link" data-scroll-target="#configuration-1">Configuration</a></li>
+  <li><a href="#configuration-2" id="toc-configuration-2" class="nav-link" data-scroll-target="#configuration-2">Configuration</a></li>
   <li><a href="#task-setup-1" id="toc-task-setup-1" class="nav-link" data-scroll-target="#task-setup-1">Task Setup</a></li>
   <li><a href="#tool-binding" id="toc-tool-binding" class="nav-link" data-scroll-target="#tool-binding">Tool Binding</a></li>
   </ul></li>
   <li><a href="#sec-computer" id="toc-sec-computer" class="nav-link" data-scroll-target="#sec-computer">Computer</a>
   <ul class="collapse">
-  <li><a href="#configuration-2" id="toc-configuration-2" class="nav-link" data-scroll-target="#configuration-2">Configuration</a></li>
+  <li><a href="#configuration-3" id="toc-configuration-3" class="nav-link" data-scroll-target="#configuration-3">Configuration</a></li>
   <li><a href="#task-setup-2" id="toc-task-setup-2" class="nav-link" data-scroll-target="#task-setup-2">Task Setup</a></li>
   <li><a href="#vnc-client" id="toc-vnc-client" class="nav-link" data-scroll-target="#vnc-client">VNC Client</a></li>
   <li><a href="#approval" id="toc-approval" class="nav-link" data-scroll-target="#approval">Approval</a></li>
@@ -560,7 +561,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#sec-web-browser" id="toc-sec-web-browser" class="nav-link" data-scroll-target="#sec-web-browser">Web Browser</a>
   <ul class="collapse">
-  <li><a href="#configuration-3" id="toc-configuration-3" class="nav-link" data-scroll-target="#configuration-3">Configuration</a></li>
+  <li><a href="#configuration-4" id="toc-configuration-4" class="nav-link" data-scroll-target="#configuration-4">Configuration</a></li>
   <li><a href="#task-setup-3" id="toc-task-setup-3" class="nav-link" data-scroll-target="#task-setup-3">Task Setup</a></li>
   <li><a href="#browsing" id="toc-browsing" class="nav-link" data-scroll-target="#browsing">Browsing</a></li>
   <li><a href="#disabling-interactions" id="toc-disabling-interactions" class="nav-link" data-scroll-target="#disabling-interactions">Disabling Interactions</a></li>
@@ -634,28 +635,48 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>Internal providers: <code>"openai"</code>, <code>"anthropic"</code>, <code>"gemini"</code>, <code>"grok"</code>, <code>"mistral"</code>, and <code>"perplexity"</code> - these use the model’s built-in search capability and do not require separate API keys. These work only for their respective model provider (e.g.&nbsp;the “openai” search provider works only for <code>openai/*</code> models).</p></li>
 <li><p>External providers: <code>"tavily"</code>, <code>"exa"</code>, and <code>"google"</code>. These are external services that work with any model and require separate accounts and API keys. Note that “google” is different from “gemini” - “google” refers to Google’s Programmable Search Engine service, while “gemini” refers to Google’s built-in search capability for Gemini models.</p></li>
 </ul>
+<p>By default, all internal providers are enabled if there are no external providers defined. If an external provider is defined then you need to explicitly enable internal providers that you want to use.</p>
 <p>Internal providers will be prioritized if running on the corresponding model (e.g., “openai” provider will be used when running on <code>openai</code> models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.</p>
+<section id="configuration" class="level3">
+<h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Important
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Most providers bill separately for web search, so you should consult their documentation for details before enabling this feature.</p>
+</div>
+</div>
 <p>You can configure the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool in various ways:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> web_search</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># single provider</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>web_search(<span class="st">"tavily"</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># use all internal providers</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>web_search()</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># internal provider and fallback</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"tavily"</span>])</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># single external provider</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>web_search(<span class="st">"tavily"</span>)</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple internal providers and fallback</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"anthropic"</span>, <span class="st">"gemini"</span>, <span class="st">"mistral"</span>, <span class="st">"tavily"</span>])</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># internal provider and fallback</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"tavily"</span>])</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># provider with specific options</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>web_search({<span class="st">"tavily"</span>: {<span class="st">"max_results"</span>: <span class="dv">5</span>}})</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple internal providers and fallback</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>web_search([<span class="st">"openai"</span>, <span class="st">"anthropic"</span>, <span class="st">"gemini"</span>, <span class="st">"mistral"</span>, <span class="st">"tavily"</span>])</span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple providers with options</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>web_search({</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai"</span>: <span class="va">True</span>, </span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google"</span>: {<span class="st">"num_results"</span>: <span class="dv">5</span>}, </span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tavily"</span>: {<span class="st">"max_results"</span>: <span class="dv">5</span>}</span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># provider with specific options</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>web_search({<span class="st">"tavily"</span>: {<span class="st">"max_results"</span>: <span class="dv">5</span>}})</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple providers with options</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>web_search({</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai"</span>: <span class="va">True</span>, </span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google"</span>: {<span class="st">"num_results"</span>: <span class="dv">5</span>}, </span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tavily"</span>: {<span class="st">"max_results"</span>: <span class="dv">5</span>}</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
 <section id="openai-options" class="level3">
 <h3 class="anchored" data-anchor-id="openai-options">OpenAI Options</h3>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use OpenAI’s built-in search capability when running on a limited number of OpenAI models (currently “gpt-4o”, “gpt-4o-mini”, and “gpt-4.1”). This provider does not require any API keys beyond what’s needed for the model itself.</p>
@@ -853,8 +874,8 @@ Warning
 <h2 class="anchored" data-anchor-id="sec-bash-session">Bash Session</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> tool provides a bash shell that retains its state across calls from the model (as distinct from the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span> tool which executes each command in a fresh session). The prompt, working directory, and environment variables are all retained across calls. The tool also supports a <code>restart</code> action that enables the model to reset its state and work in a fresh session.</p>
 <p>Note that a separate bash process is created within the sandbox for each instance of the bash session tool. See the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> reference docs for details on customizing this behavior.</p>
-<section id="configuration" class="level3">
-<h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
+<section id="configuration-1" class="level3">
+<h3 class="anchored" data-anchor-id="configuration-1">Configuration</h3>
 <p>Bash sessions require the use of a <a href="./sandboxing.html">Sandbox Environment</a> for the execution of untrusted code.</p>
 </section>
 <section id="task-setup" class="level3">
@@ -883,8 +904,8 @@ Warning
 <section id="sec-text-editor" class="level2">
 <h2 class="anchored" data-anchor-id="sec-text-editor">Text Editor</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> tool enables viewing, creating and editing text files. The tool supports editing files within a protected <a href="./sandboxing.html">Sandbox Environment</a> so tasks that use the text editor should have a sandbox defined and configured as described below.</p>
-<section id="configuration-1" class="level3">
-<h3 class="anchored" data-anchor-id="configuration-1">Configuration</h3>
+<section id="configuration-2" class="level3">
+<h3 class="anchored" data-anchor-id="configuration-2">Configuration</h3>
 <p>The text editor tools requires the use of a <a href="./sandboxing.html">Sandbox Environment</a>.</p>
 </section>
 <section id="task-setup-1" class="level3">
@@ -921,8 +942,8 @@ Warning
 <h2 class="anchored" data-anchor-id="sec-computer">Computer</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#computer">computer()</a></span> tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures.</p>
 <p>The computer tool works with any model that supports image input. It also binds directly to the internal computer tool definitions for Anthropic and OpenAI models tuned for computer use (currently <code>anthropic/claude-3-7-sonnet-latest</code> and <code>openai/computer-use-preview</code>).</p>
-<section id="configuration-2" class="level3">
-<h3 class="anchored" data-anchor-id="configuration-2">Configuration</h3>
+<section id="configuration-3" class="level3">
+<h3 class="anchored" data-anchor-id="configuration-3">Configuration</h3>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#computer">computer()</a></span> tool runs within a Docker container. To use it with a task you need to reference the <code>aisiuk/inspect-computer-tool</code> image in your Docker compose file. For example:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
@@ -1142,12 +1163,26 @@ Important
 <section id="sec-web-browser" class="level2">
 <h2 class="anchored" data-anchor-id="sec-web-browser">Web Browser</h2>
 <p>The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.</p>
-<section id="configuration-3" class="level3">
-<h3 class="anchored" data-anchor-id="configuration-3">Configuration</h3>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Warning
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> tool uses a headless browser for interacting with the web. However, as of 2026, many websites have incorporated defenses against headless browsers. Therefore if you want to do generalized web information retrieval you should strongly prefer the <a href="#sec-web-search">web_search()</a> tool.</p>
+<p>If however you are using the web browser to interact with a local web application or specific sites you know don’t block it then this warning isn’t applicable.</p>
+</div>
+</div>
+<section id="configuration-4" class="level3">
+<h3 class="anchored" data-anchor-id="configuration-4">Configuration</h3>
 <p>Under the hood, the web browser is an instance of <a href="https://www.chromium.org/chromium-projects/">Chromium</a> orchestrated by <a href="https://playwright.dev/">Playwright</a>, and runs in a <a href="./sandboxing.html">Sandbox Environment</a>. In addition, you’ll need some dependencies installed in the sandbox container. Please see <strong>Sandbox Dependencies</strong> below for additional instructions.</p>
 <p>Note that Playwright (used for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> tool) does not support some versions of Linux (e.g.&nbsp;Kali Linux).</p>
 <div class="callout callout-style-simple callout-note callout-titled">
-<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-5-contents" aria-controls="callout-5" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
@@ -1156,7 +1191,7 @@ Important
 </div>
 <div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
 </div>
-<div id="callout-3" class="callout-3-contents callout-collapse collapse">
+<div id="callout-5" class="callout-5-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <p>You should add the following to your sandbox <code>Dockerfile</code> in order to use the web browser tool:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">apt-get</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt-get</span> install <span class="at">-y</span> pipx <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>

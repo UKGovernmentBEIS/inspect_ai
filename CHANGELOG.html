@@ -149,7 +149,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#january-2026" id="toc-january-2026" class="nav-link active" data-scroll-target="#january-2026">0.3.168 (31 January 2026)</a></li>
+  <li><a href="#february-2026" id="toc-february-2026" class="nav-link active" data-scroll-target="#february-2026">0.3.169 (01 February 2026)</a></li>
+  <li><a href="#january-2026" id="toc-january-2026" class="nav-link" data-scroll-target="#january-2026">0.3.168 (31 January 2026)</a></li>
   <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.167 (29 January 2026)</a></li>
   <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.166 (29 January 2026)</a></li>
   <li><a href="#january-2026-3" id="toc-january-2026-3" class="nav-link" data-scroll-target="#january-2026-3">0.3.165 (26 January 2026)</a></li>
@@ -325,6 +326,19 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="february-2026" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026">0.3.169 (01 February 2026)</h2>
+<ul>
+<li>Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g.&nbsp;PydanticAI).</li>
+<li>OpenAI: Workaround for openai Python SDK inability to round trip ‘find_in_page’ web search actions.</li>
+<li>Reasoning: Don’t process <code>&lt;think&gt;</code> tags in assistant message loading (now all done directly by model providers).</li>
+<li>Web Search: Use internal search providers by default when no external provider is defined (previously they required explicit enabling).</li>
+<li>Web Search: Fallback to Google CSE provider only when Google CSE environment variables are defined (the CSE service has been deprecated by Google).</li>
+<li>Eval Logs: Improve eval log loading performance with JSON cache key for messages.</li>
+<li>Agent Bridge: Make sandbox_agent_bridge cleanup errors non-fatal when agent completes</li>
+<li>Compaction: Add source=“compaction” to InfoEvent created by compaction.</li>
+</ul>
+</section>
 <section id="january-2026" class="level2">
 <h2 class="anchored" data-anchor-id="january-2026">0.3.168 (31 January 2026)</h2>
 <ul>

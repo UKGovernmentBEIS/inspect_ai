@@ -58,18 +58,32 @@ provider. Providers are split into two categories:
   “gemini” refers to Google’s built-in search capability for Gemini
   models.
 
+By default, all internal providers are enabled if there are no external
+providers defined. If an external provider is defined then you need to
+explicitly enable internal providers that you want to use.
+
 Internal providers will be prioritized if running on the corresponding
 model (e.g., “openai” provider will be used when running on `openai`
 models). If an internal provider is specified but the evaluation is run
 with a different model, a fallback external provider must also be
 specified.
 
+### Configuration
+
+> [!IMPORTANT]
+>
+> Most providers bill separately for web search, so you should consult
+> their documentation for details before enabling this feature.
+
 You can configure the `web_search()` tool in various ways:
 
 ``` python
 from inspect_ai.tool import web_search
 
-# single provider
+# use all internal providers
+web_search()
+
+# single external provider
 web_search("tavily")
 
 # internal provider and fallback
@@ -683,6 +697,18 @@ When falling back to the `python()` provider you should ensure that your
 The web browser tools provides models with the ability to browse the web
 using a headless Chromium browser. Navigation, history, and
 mouse/keyboard interactions are all supported.
+
+> [!WARNING]
+>
+> The `web_browser()` tool uses a headless browser for interacting with
+> the web. However, as of 2026, many websites have incorporated defenses
+> against headless browsers. Therefore if you want to do generalized web
+> information retrieval you should strongly prefer the
+> [web_search()](#sec-web-search) tool.
+>
+> If however you are using the web browser to interact with a local web
+> application or specific sites you know don’t block it then this
+> warning isn’t applicable.
 
 ### Configuration
 

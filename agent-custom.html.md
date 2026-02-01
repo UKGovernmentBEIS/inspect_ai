@@ -27,12 +27,12 @@ state includes two fields:
 ### Example
 
 Here’s a simple example that implements a `web_surfer()` agent that uses
-the `web_browser()` tool to do open-ended web research:
+the `web_search()` tool to do open-ended web research:
 
 ``` python
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.model import ChatMessageSystem, get_model
-from inspect_ai.tool import web_browser
+from inspect_ai.tool import web_search
 
 @agent
 def web_surfer() -> Agent:
@@ -47,9 +47,9 @@ def web_surfer() -> Agent:
             )
         )
 
-        # run a tool loop w/ the web_browser then update & return state
+        # run a tool loop w/ the web_search then update & return state
         messages, state.output = await get_model().generate_loop(
-            state.messages, tools=web_browser()
+            state.messages, tools=[web_search()]
         )
         state.messages.extend(messages)
         return state
@@ -60,7 +60,7 @@ def web_surfer() -> Agent:
 The agent calls the `generate_loop()` function which runs the model in a
 loop until it stops calling tools. In this case the model may make
 several calls to the
-[web_browser()](https://inspect.aisi.org.uk/reference/inspect_ai.tool.html#web_browser)
+[web_search()](https://inspect.aisi.org.uk/tools-standard#sec-web-search)
 tool to fulfil the request.
 
 > [!NOTE]
@@ -282,7 +282,7 @@ activity = store_as(Activity)
 If you want an agent to have a store-per-instance by default, add an
 `instance` parameter to your `@agent` function and pass it a unique
 value. Then, forward the `instance` on to `store_as()` as well as any
-tools you call that are also stateful (e.g. `web_browser()`). For
+tools you call that are also stateful (e.g. `bash_session()`). For
 example:
 
 ``` python
@@ -291,24 +291,25 @@ from shortuuid import uuid
 
 from inspect_ai.agent import Agent, agent
 from inspect_ai.model import ChatMessage
+from inspect_ai.tool import bash_session
 from inspect_ai.util import StoreModel, store_as
 
-class WebSurferState(StoreModel):
+class BashExplorerState(StoreModel):
     messages: list[ChatMessage] = Field(default_factory=list)
 
 @agent
-def web_surfer(instance: str | None = None) -> Agent:
+def bash_explorer(instance: str | None = None) -> Agent:
     
     async def execute(state: AgentState) -> AgentState:
 
         # get state for this instance
-        surfer_state = store_as(WebSurferState, instance=instance)
+        explorer_state = store_as(BashExplorerState, instance=instance)
 
         ...
 
-        # pass the instance on to web_browser 
+        # pass the instance on to bash_session 
         messages, state.output = await get_model().generate_loop(
-            state.messages, tools=web_browser(instance=instance)
+            state.messages, tools=[bash_session(instance=instance)]
         )
 ```
 
@@ -317,11 +318,11 @@ Then, pass a unique id as the `instance`:
 ``` python
 from shortuuid import uuid
 
-react(..., tools=[web_surfer(instance=uuid())])
+react(..., tools=[bash_explorer(instance=uuid())])
 ```
 
-This enables you to have multiple instances of the `web_surfer()` agent,
-each with their own state and web browser.
+This enables you to have multiple instances of the `bash_explorer()`
+agent, each with their own state and terminal session.
 
 ### Named Instances
 
