@@ -75,16 +75,18 @@ The agent calls the `generate_loop()` function which runs the model in a loop un
 While this example illustrates the basic mechanic of agents, you generally wouldn't write a custom agent that does only this (a system prompt with a tool use loop) as the `react()` agent provides a more sophisticated and flexible version of this pattern. Here is the equivalent `react()` agent:
 
 ``` python
-from inspect_ai.agent import react
+from inspect_ai.agent import Agent, agent, react
 from inspect_ai.tool import web_search
 
-web_surfer = react(
-    name="web_surfer",
-    description="Web research assistant",
-    prompt="You are an expert at using a " + 
-           "web browser to answer questions.",
-    tools=[web_search()]
-)
+@agent
+def web_surfer() -> Agent:
+    return react(
+        name="web_surfer",
+        description="Web research assistant",
+        prompt="You are an expert at using a " + 
+            "web browser to answer questions.",
+        tools=[web_search()]
+    )
 ```
 
 See the [ReAct Agent](react-agent.qmd) article for more details on using and customizing ReAct agents.
