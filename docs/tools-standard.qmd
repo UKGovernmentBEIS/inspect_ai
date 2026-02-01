@@ -490,7 +490,7 @@ When falling back to the `python()` provider you should ensure that your `Task` 
 The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
 ::: {.callout-warning}
-The `web_browser()` tool uses a headless browser for interacting with the web. However, as of 2026, many websites have incorporated defenses against headless browsers. Therefore if you want to do generalized web information retreival you should strongly prefer the [web_search()](#sec-web-search) tool.
+The `web_browser()` tool uses a headless browser for interacting with the web. However, as of 2026, many websites have incorporated defenses against headless browsers. Therefore if you want to do generalized web information retrieval you should strongly prefer the [web_search()](#sec-web-search) tool.
 
 If however you are using the web browser to interact with a local web application or specific sites you know don't block it then this warning isn't applicable.
 :::
