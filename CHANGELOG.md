@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.169 (01 February 2026)
 
 - Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).
 - OpenAI: Workaround for openai Python SDK inability to round trip 'find_in_page' web search actions.
