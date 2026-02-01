@@ -5,7 +5,7 @@ import os
 import tempfile
 from logging import getLogger
 from typing import IO, Any, BinaryIO, cast
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZipFile
 
 import anyio
 from pydantic import BaseModel, Field
@@ -16,6 +16,7 @@ from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
 from .._log import (
     EvalLog,
@@ -566,8 +567,7 @@ class ZipLogFile:
         self._zip = ZipFile(
             self._temp_file,
             mode="a",
-            compression=ZIP_DEFLATED,
-            compresslevel=5,
+            **zipfile_compress_kwargs,
         )
 
     # raw unsynchronized version of write

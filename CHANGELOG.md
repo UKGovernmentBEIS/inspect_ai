@@ -3,6 +3,7 @@
 - Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).
 - Reasoning: Don't process `<think>` tags in assistant message loading (now all done directly by model providers).
 - Eval Logs: Improve eval log loading performance with JSON cache key for messages.
+- Eval Logs: Support Zstd compression of eval logs for improved performance via `INSPECT_USE_ZSTD` environment variable.
 - Agent Bridge: Make sandbox_agent_bridge cleanup errors non-fatal when agent completes
 - Compaction: Add source="compaction" to InfoEvent created by compaction.
 
