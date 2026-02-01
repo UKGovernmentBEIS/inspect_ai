@@ -826,6 +826,29 @@ def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
     )
 
 
+def _is_valid_openai_web_search_action(action: dict[str, Any]) -> bool:
+    """Check if a dict represents a valid OpenAI web search action.
+
+    Validates both the type field and the required fields for each action type.
+    This ensures we don't accidentally pass through malformed actions or actions
+    from other providers that happen to have a 'type' field.
+    """
+    action_type = action.get("type")
+
+    if action_type == "search":
+        # ActionSearch requires 'query' (deprecated) or 'queries'
+        return "query" in action or "queries" in action
+    elif action_type == "open_page":
+        # ActionOpenPage requires 'url'
+        return "url" in action
+    elif action_type in ("find", "find_in_page"):
+        # ActionFind requires 'pattern' and 'url'
+        # 'find_in_page' is a new type not yet in SDK, assumed same structure
+        return "pattern" in action or "url" in action
+
+    return False
+
+
 def parse_web_search_action(arguments: str) -> dict[str, Any]:
     """Parse web search action from JSON arguments.
 
@@ -833,11 +856,24 @@ def parse_web_search_action(arguments: str) -> dict[str, Any]:
     issues with unknown action types like 'find_in_page' that the SDK doesn't
     support yet. See: https://github.com/pydantic/pydantic-ai/issues/3653
 
+    If the parsed dict doesn't represent a valid OpenAI action, creates a conforming
+    search action. This handles web search results from other providers (e.g., Anthropic)
+    that have different formats.
+
     Returns a dict that can be cast to the appropriate Action type by the caller.
     """
     try:
         action_dict = json.loads(arguments)
-        return {k: v for k, v in action_dict.items() if v is not None}
+        filtered = {k: v for k, v in action_dict.items() if v is not None}
+
+        # Check if this is a valid OpenAI action (correct type + required fields)
+        if _is_valid_openai_web_search_action(filtered):
+            return filtered
+
+        # Not an OpenAI-formatted action - create a conforming search action
+        # This handles web search from other providers (e.g., Anthropic)
+        query = filtered.get("query", arguments)
+        return {"type": "search", "query": query}
     except (json.JSONDecodeError, TypeError):
         return {"type": "search", "query": arguments}
 
