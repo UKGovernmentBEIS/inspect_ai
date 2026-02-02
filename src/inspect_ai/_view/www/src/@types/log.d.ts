@@ -627,6 +627,9 @@ export type Uuid8 = string | null;
 export type SpanId8 = string | null;
 export type Timestamp9 = string;
 export type WorkingStart8 = number;
+export type Metadata25 = {
+  [k: string]: unknown;
+} | null;
 export type Pending8 = boolean | null;
 export type Event8 = "compaction";
 export type TokensBefore = number | null;
@@ -1801,9 +1804,6 @@ export interface CompactionEvent {
   tokens_before: TokensBefore;
   tokens_after: TokensAfter;
   source: Source4;
-}
-export interface Metadata25 {
-  [k: string]: JsonValue;
 }
 /**
  * Input screen interaction.
