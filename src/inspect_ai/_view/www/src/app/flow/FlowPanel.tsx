@@ -2,7 +2,8 @@ import { FC, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 
 import clsx from "clsx";
-import { useLogs, usePrismHighlight } from "../../state/hooks";
+import { usePrismHighlight } from "../../components/prism";
+import { useLogs } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { dirname } from "../../utils/path";
 import { ApplicationNavbar } from "../navbar/ApplicationNavbar";

@@ -14837,7 +14837,7 @@ body {
   padding-top: 10em;
 }
 
-code:not(.sourceCode):not(.source-code) {
+code:not(.sourceCode):not(.source-code):not([class^="language-"]) {
   color: var(--bs-code-color);
 }
 
