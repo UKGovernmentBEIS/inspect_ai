@@ -50,7 +50,7 @@ export const MetaDataGrid: FC<MetadataGridProps> = ({
         >
           {entry?.name}
         </div>
-        <div className={clsx(styles.value, `${baseId}-value`, fontStyle)}>
+        <div className={clsx(`${baseId}-value`, fontStyle)}>
           {entry && (
             <RenderedContent
               id={id}
@@ -59,7 +59,6 @@ export const MetaDataGrid: FC<MetadataGridProps> = ({
                 return (
                   <MetaDataGrid
                     id={id}
-                    className={clsx(styles.nested)}
                     entries={obj}
                     size={size}
                     plain={plain}

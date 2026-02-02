@@ -119,7 +119,7 @@ export const ColumnSelectorPopover = <T,>({
       placement="bottom-start"
       showArrow={false}
       hoverDelay={-1}
-      className={styles.popover}
+      className={undefined}
     >
       <div className={clsx(styles.scrollableContainer, "text-size-small")}>
         <div className={clsx(styles.section)}>

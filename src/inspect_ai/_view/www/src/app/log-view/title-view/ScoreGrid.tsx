@@ -53,7 +53,7 @@ export const ScoreGrid: FC<ScoreGridProps> = ({
 
     const headerRow = (
       <thead>
-        <tr className={clsx(styles.headerRow)}>
+        <tr>
           <td></td>
           {cells}
         </tr>

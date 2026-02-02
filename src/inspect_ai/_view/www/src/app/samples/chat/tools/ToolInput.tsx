@@ -75,14 +75,7 @@ const RenderTool: FC<RenderToolProps> = ({
 
   return (
     <div ref={parentRef}>
-      <pre
-        className={clsx(
-          "tool-output",
-          styles.outputPre,
-          styles.bottomMargin,
-          className,
-        )}
-      >
+      <pre className={clsx("tool-output", styles.outputPre, className)}>
         <code
           className={clsx(
             "source-code",

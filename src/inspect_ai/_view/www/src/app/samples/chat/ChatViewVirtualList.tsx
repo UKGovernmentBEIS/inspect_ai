@@ -20,7 +20,6 @@ import { ChatViewToolCallStyle } from "./types";
 import { ContextProp, ItemProps, VirtuosoHandle } from "react-virtuoso";
 import { useStore } from "../../../state/store";
 import { ChatView } from "./ChatView";
-import styles from "./ChatViewVirtualList.module.css";
 import { messageSearchText } from "./messageSearchText";
 
 interface ChatViewVirtualListProps {
@@ -223,7 +222,7 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
       }: ItemProps<any> & ContextProp<any>) => {
         return (
           <div
-            className={clsx(styles.item)}
+            className={clsx()}
             data-index={props["data-index"]}
             data-item-group-index={props["data-item-group-index"]}
             data-item-index={props["data-item-index"]}

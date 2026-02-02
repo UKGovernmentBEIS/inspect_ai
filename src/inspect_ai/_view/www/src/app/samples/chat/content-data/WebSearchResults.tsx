@@ -15,7 +15,6 @@ export const WebSearchResults: FC<{ results: WebSearchContentData[] }> = ({
     <>
       <div
         className={clsx(
-          styles.label,
           "text-style-label",
           "text-style-secondary",
           "text-size-smaller",
@@ -24,7 +23,7 @@ export const WebSearchResults: FC<{ results: WebSearchContentData[] }> = ({
         Results
       </div>
 
-      <ol className={clsx(styles.results, "text-size-smaller")}>
+      <ol className={clsx("text-size-smaller")}>
         {results.map((result, index) => (
           <li
             key={index}

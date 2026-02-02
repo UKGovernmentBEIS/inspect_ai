@@ -7,14 +7,6 @@
   padding: 0.5em;
 }
 
-.expandableTogglable {
-  margin-bottom: 1em;
-}
-
-.expandableContents {
-  font-size: var(--inspect-font-size-base);
-}
-
 .expandableCollapsed {
   overflow: hidden;
 }

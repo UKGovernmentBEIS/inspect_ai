@@ -11,7 +11,7 @@ interface SolversDetailViewProps {
 
 export const SolversDetailView: FC<SolversDetailViewProps> = ({ steps }) => {
   const separator = (
-    <div className={clsx(styles.items, "text-size-small", styles.separator)}>
+    <div className={clsx(styles.item, "text-size-small", styles.separator)}>
       <i className={ApplicationIcons.arrows.right} />
     </div>
   );
@@ -21,7 +21,7 @@ export const SolversDetailView: FC<SolversDetailViewProps> = ({ steps }) => {
       <Fragment key={`solver-step-${index}`}>
         <DetailStep
           name={step.solver}
-          className={clsx(styles.items, "text-size-small")}
+          className={clsx(styles.item, "text-size-small")}
         />
         {index < steps.length - 1 ? separator : ""}
       </Fragment>
