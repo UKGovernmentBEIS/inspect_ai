@@ -30,6 +30,10 @@ from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
+from inspect_ai.util._sandbox.compose import (
+    is_docker_compatible_config,
+    is_docker_compatible_sandbox_type,
+)
 from inspect_ai.util._sandbox.environment import (
     resolve_sandbox_environment,
 )
@@ -223,6 +227,19 @@ def resolve_task_sandbox(
                         resolved_sandbox.type, config_file
                     )
                     break
+
+            # if we found an override without a config then we may still
+            # want to forward the task config if it's docker config ->
+            # docker compatible sandbox
+            if (
+                resolved_sandbox.config is None
+                and task.sandbox is not None
+                and is_docker_compatible_config(task.sandbox.config)
+                and is_docker_compatible_sandbox_type(resolved_sandbox.type)
+            ):
+                resolved_sandbox = SandboxEnvironmentSpec(
+                    resolved_sandbox.type, task.sandbox.config
+                )
 
         # resolve relative paths
         if isinstance(resolved_sandbox.config, str):

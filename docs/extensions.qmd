@@ -118,10 +118,10 @@ eval(math, model = "custom/my-model")
 
 [Sandbox Environments](sandboxing.qmd) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
 
-| Environment Type | Description                                                                                                                                                      |
+| Environment Type | Description |
 |----------------------------|--------------------------------------------|
-| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker`         | Run `sandbox()` methods within a Docker container                                                                                                                |
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container |
 
 To create a custom sandbox environment, derive a class from `SandboxEnvironment`, implement the required static and instance methods, and add the `@sandboxenv` decorator to it.
 
@@ -132,6 +132,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     def config_files(cls) -> list[str]:
+        ...
+
+    @classmethod
+    def is_docker_compatible(cls) -> bool:
         ...
 
     @classmethod
@@ -194,17 +198,18 @@ The layer of indirection (creating a function that returns a SandboxEnvironment 
 
 The class methods take care of various stages of initialisation, setup, and teardown:
 
-| Method                  | Lifecycle                                                                                                                                | Purpose                                                                               |
-|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| `task_init()`           | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run.                                    | Expensive initialisation operations (e.g. pulling or building images)                 |
-| `sample_init()`         | Called at the beginning of each `Sample`.                                                                                                | Create `SandboxEnvironment` instances for the sample.                                 |
-| `sample_cleanup()`      | Called at the end of each `Sample`                                                                                                       | Cleanup `SandboxEnvironment` instances for the sample.                                |
-| `task_cleanup()`        | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run.                                     | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `cli_cleanup()`         | Called via `inspect sandbox cleanup`                                                                                                     | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`.         |
-| `config_files()`        | Called once to determine the names of 'default' config files for this provider (e.g. 'compose.yaml').                                    |                                                                                       |
-| `config_deserialize()`  | Called when a custom sandbox config type is read from a log file.                                                                        | Only required if a sandbox supports custom config types.     
-| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behaviour). |      
-| `default_polling_interval()` | Called when sandbox services are created to determine the default polling interval (in seconds) for request checking. Defaults to 2 seconds. |                              |
+| Method | Lifecycle | Purpose |
+|------------------|---------------------------------|---------------------|
+| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
+| `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
+| `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
+| `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
+| `config_files()` | Called once to determine the names of 'default' config files for this provider (e.g. 'compose.yaml'). |  |
+| `is_docker_compatible()` | Called once to determine whether a provider is Docker compatible. | Can the provider take Dockerfile and compose.yaml as config? |
+| `config_deserialize()` | Called when a custom sandbox config type is read from a log file. | Only required if a sandbox supports custom config types. |
+| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behaviour). |  |
+| `default_polling_interval()` | Called when sandbox services are created to determine the default polling interval (in seconds) for request checking. Defaults to 2 seconds. |  |
 
 In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
 
@@ -233,6 +238,57 @@ The `SandboxEnvironment` instance methods provide access to process execution an
 {{< include _sandboxenv-interface.md >}}
 
 The best way to learn about writing sandbox environments is to look at the source code for the built in environments, [LocalSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py) and [DockerSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py).
+
+### Docker Compatibility
+
+::: {.callout-note appearance="minimal"}
+The docker compatibility feature described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Many Inspect tasks are defined using the "docker" sandbox provider along with a `Dockerfile` or `compose.yaml` configuration. Many other sandbox providers are capable of using some combination of `Dockerfile` and compose configuration, so can register themselves as docker compatible by implementing the `is_docker_compatible()` class method. For example:
+
+``` python
+class PodmanSandboxEnvironment(SandboxEnvironment):
+    @classmethod
+    def is_docker_compatible(cls) -> bool:
+        return True
+```
+
+Note if a provider's `config_files()` method returns `compose.yaml` in its list, then `is_docker_compatible()` will default to `True`.
+
+If a provider is docker compatible, then the `config` argument passed to it's method may be one of the following (in addition to whatever native configuration the provider supports):
+
+1.  A path to a `Dockerfile`
+2.  A path to a `compose.yaml` file.
+3.  An instance of the `ComposeConfig` class.
+
+These input for `config` might be handled as follows:
+
+``` python
+from inspect_ai.util import (
+    ComposeConfig, 
+    is_compose_yaml, 
+    is_dockerfile, 
+    parse_compose_yaml
+)
+
+if is_dockerfile(config):
+   # handle dockerfile
+   
+elif is_compose_yaml(config, str):
+   # parse and handle compose config
+   compose_config = parse_compose_yaml(config)
+
+elif isinstance(config, ComposeConfig):
+   # handle compose config
+
+else: 
+   # handle other config types (if any)   
+```
 
 ### Environment Registration
 
@@ -333,7 +389,7 @@ If you are publishing an approver within a Python package, you should register a
 
 For example, let's say your package is named `evaltools` and has this structure:
 
-```
+```         
 evaltools/
   approvers.py
   _registry.py
@@ -507,14 +563,13 @@ def wandb_hooks():
     return WBHooks
 ```
 
-
 ### Registration
 
 Packages that provide hooks should register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads the extension at startup.
 
 For example, let's say your package is named `evaltools` and has this structure:
 
-```
+```         
 evaltools/
   wandb.py
   _registry.py
@@ -558,7 +613,7 @@ Once you've done this, your hook will be enabled for Inspect users that have thi
 
 You might not always want every installed hook enabled---for example, a Weights and Biases hook might only want to be enabled if a specific environment variable is defined. You can control this by implementing an `enabled()` method on your hook. For example:
 
-```python
+``` python
 @hooks(name="w&b_hooks", description="Weights & Biases integration")
 class WBHooks(Hooks):
     def enabled():
@@ -568,9 +623,9 @@ class WBHooks(Hooks):
 
 ### Requiring Hooks
 
-Another thing you might want to do is _ensure_ that all users in a given environment are running with a particular set of hooks enabled. To do this, define the `INSPECT_REQUIRED_HOOKS` environment variable, listing all of the hooks that are required:
+Another thing you might want to do is *ensure* that all users in a given environment are running with a particular set of hooks enabled. To do this, define the `INSPECT_REQUIRED_HOOKS` environment variable, listing all of the hooks that are required:
 
-```bash
+``` bash
 INSPECT_REQUIRED_HOOKS=w&b_hooks
 ```
 
@@ -582,9 +637,9 @@ There is a hook event to optionally override the value of model API key environm
 
 This could be used to:
 
-* Refresh API keys or tokens during long-running evaluations
-* Inject API keys at runtime (e.g. fetched from a secrets manager), to avoid having to store these in your environment or .env file
-* Use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys
+-   Refresh API keys or tokens during long-running evaluations
+-   Inject API keys at runtime (e.g. fetched from a secrets manager), to avoid having to store these in your environment or .env file
+-   Use some custom model API authentication mechanism in conjunction with a custom reverse proxy for the model API to avoid Inspect ever having access to real API keys
 
 ``` python
 from inspect_ai.hooks import hooks, Hooks, ApiKeyOverride
