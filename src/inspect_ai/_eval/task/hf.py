@@ -47,6 +47,7 @@ class HFScorer(BaseModel):
         "model_graded_qa",
         "model_graded_fact",
         "choice",
+        "math",
     ]
     args: dict[str, Any] = Field(default_factory=dict)
 
