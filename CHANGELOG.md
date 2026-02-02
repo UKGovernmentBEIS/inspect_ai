@@ -3,7 +3,8 @@
 - Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
 - Docker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).
 - Inspect View: Support zstd compression of eval log file contents.
-- Inspect View: sticky headers for transcript events with turn number to improve scroll orientation.
+- Inspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.
+- Inspect View: Sticky headers for transcript events with turn number to improve scroll orientation.
 
 ## 0.3.169 (01 February 2026)
 
