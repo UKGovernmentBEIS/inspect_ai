@@ -7,7 +7,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 if sys.version_info < (3, 14):
-    import zipfile_zstd  # type: ignore[import-not-found]  # noqa: F401
+    import zipfile_zstd  # type: ignore[import-not-found, import-untyped]  # noqa: F401
 
 zipfile_compress_kwargs: dict[str, Any]
 if os.getenv("INSPECT_USE_ZSTD"):
