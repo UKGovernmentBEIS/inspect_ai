@@ -23,6 +23,10 @@ from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
 from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._sandbox.compose import (
+    is_docker_compatible_config,
+    is_docker_compatible_sandbox_type,
+)
 from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
     init_sandbox_environments_sample,
@@ -212,23 +216,35 @@ async def resolve_sandbox(
     sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
 ) -> SandboxEnvironmentSpec | None:
+    # resolved sandbox
+    resolved_sandbox: SandboxEnvironmentSpec | None = None
+
     # resolve sandbox (task type overrides sample type, but sample config
-    # file overrides task config file if they have the same type)
+    # file overrides task config file if they have the same type or if
+    # the sample has a docker compatible config)
     task_sandbox = sandbox
     if task_sandbox is not None:
         if (
             sample.sandbox
-            and sample.sandbox.type == task_sandbox.type
             and sample.sandbox.config is not None
+            and (
+                # share the same type
+                (sample.sandbox.type == task_sandbox.type)
+                # have a docker compatible config => docker compatible sandbox type
+                or (
+                    is_docker_compatible_config(sample.sandbox.config)
+                    and is_docker_compatible_sandbox_type(task_sandbox.type)
+                )
+            )
         ):
             sandbox_config: SandboxEnvironmentConfigType | None = sample.sandbox.config
         else:
             sandbox_config = task_sandbox.config
-        return SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)
+        resolved_sandbox = SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)
     elif sample.sandbox is not None:
-        return sample.sandbox
-    else:
-        return None
+        resolved_sandbox = sample.sandbox
+
+    return resolved_sandbox
 
 
 async def _retrying_httpx_get(

@@ -2,6 +2,7 @@
 
 - Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
 - Model API: Added `CompactionEvent` for model compactions.
+- Sandboxes: Enable sandbox providers to declare Docker compatibility, which will result in Docker config files being passed to them.
 - Docker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).
 - Inspect View: Support zstd compression of eval log file contents.
 - Inspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.
