@@ -17748,41 +17748,47 @@ button._segment_mhb7y_9 {
 ._navs_1vm6p_1 {
   margin-right: 0;
 }
-._stickyWrapper_1wbzj_1 {
+._stickyWrapper_1rhkd_1 {
   position: sticky;
-  top: 30px; /* rootMargin of an IntersectionObserver is hardcoded for this value, update in sync */
-  padding: 5px 10px 5px 38px;
-  margin: -5px -10px -5px -38px;
+  /* top needs to be in sync with a hardcoded rootMargin of IntersectionObserver, negative margins are combined from multiple parents */
+  top: 30px;
+  padding: 5px 10px 5px 0;
+  margin: -5px -10px -5px 0;
   background-color: transparent;
   z-index: 1;
+  border-bottom: solid 1px transparent;
   transition:
     padding 0.1s,
-    background-color 0.1s;
+    margin 0.1s,
+    background-color 0.1s,
+    border-color 0.1s;
 }
 
-._stickyWrapper_1wbzj_1[data-useStickyObserver-stuck] {
+._stickyWrapper_1rhkd_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
-  padding: 5px 10px 5px 10px;
+  padding-left: 10px;
+  margin-left: -38px;
+  border-bottom-color: var(--bs-light-border-subtle);
 }
 
-._label_1wbzj_18 {
+._label_1rhkd_24 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._navs_1wbzj_23 {
+._navs_1rhkd_29 {
   justify-self: end;
   display: flex;
   align-items: baseline;
 }
 
-._turnLabel_1wbzj_29 {
+._turnLabel_1rhkd_35 {
   margin-left: 0.625rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_1wbzj_35 {
+._card_1rhkd_41 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -17790,20 +17796,20 @@ button._segment_mhb7y_9 {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_1wbzj_43 {
+._cardContent_1rhkd_49 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_1wbzj_43._hidden_1wbzj_48 {
+._cardContent_1rhkd_49._hidden_1rhkd_54 {
   display: none;
 }
 
-._hidden_1wbzj_48 {
+._hidden_1rhkd_54 {
   display: none;
 }
 
-._copyLink_1wbzj_56 {
+._copyLink_1rhkd_62 {
   font-size: 1.2em;
   height: 1em;
   opacity: 0;
@@ -17811,16 +17817,16 @@ button._segment_mhb7y_9 {
   padding-right: 2em;
 }
 
-._hover_1wbzj_64 ._copyLink_1wbzj_56 {
+._hover_1rhkd_70 ._copyLink_1rhkd_62 {
   opacity: 0.75;
 }
 
-._root_1wbzj_68 {
+._root_1rhkd_74 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_1wbzj_73 {
+._bottomDongle_1rhkd_79 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -17837,7 +17843,7 @@ button._segment_mhb7y_9 {
   cursor: pointer;
 }
 
-._dongleIcon_1wbzj_90 {
+._dongleIcon_1rhkd_96 {
   padding-right: 0.3em;
 }
 ._panel_vz394_1 {

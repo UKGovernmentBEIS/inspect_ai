@@ -2,18 +2,23 @@
   position: sticky;
   /* top needs to be in sync with a hardcoded rootMargin of IntersectionObserver, negative margins are combined from multiple parents */
   top: 30px;
-  padding: 5px 10px 5px 38px;
-  margin: -5px -10px -5px -38px;
+  padding: 5px 10px 5px 0;
+  margin: -5px -10px -5px 0;
   background-color: transparent;
   z-index: 1;
+  border-bottom: solid 1px transparent;
   transition:
     padding 0.1s,
-    background-color 0.1s;
+    margin 0.1s,
+    background-color 0.1s,
+    border-color 0.1s;
 }
 
 .stickyWrapper:global([data-useStickyObserver-stuck]) {
   background-color: var(--bs-light);
-  padding: 5px 10px 5px 10px;
+  padding-left: 10px;
+  margin-left: -38px;
+  border-bottom-color: var(--bs-light-border-subtle);
 }
 
 .label {
