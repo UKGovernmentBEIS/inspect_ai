@@ -80,16 +80,16 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     );
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
-  // Compute filtered node list using the same visitors and collapse scope as the outline
+  // Compute filtered node list for the outline (shared between outline and turn computation)
   // This ensures turn counts match between outline and main transcript
-  const filteredNodeListForTurns = useMemo(() => {
+  const outlineFilteredNodes = useMemo(() => {
     return flattenTree(
       eventNodes,
       (collapsedEvents
         ? collapsedEvents[kTranscriptOutlineCollapseScope]
         : undefined) || defaultCollapsedIds,
       [
-        // Strip specific nodes (same as outline)
+        // Strip specific nodes
         removeNodeVisitor("logger"),
         removeNodeVisitor("info"),
         removeNodeVisitor("state"),
@@ -107,10 +107,10 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     );
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
-  // Turn numbers come from the outline's view (filteredNodeListForTurns), so numbering
+  // Turn numbers come from the outline's view (outlineFilteredNodes), so numbering
   // matches the sidebar. Non-turn events inherit the previous turn number to show context.
   const turnMap = useMemo(() => {
-    const turns = makeTurns(filteredNodeListForTurns);
+    const turns = makeTurns(outlineFilteredNodes);
     const map = new Map<string, { turnNumber: number; totalTurns: number }>();
 
     // Find all turn nodes and count them
@@ -147,7 +147,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     }
 
     return map;
-  }, [filteredNodeListForTurns, flattenedNodes]);
+  }, [outlineFilteredNodes, flattenedNodes]);
 
   // Update the collapsed events when the default collapsed IDs change
   // This effect only depends on defaultCollapsedIds, not eventNodes
@@ -271,6 +271,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
           <TranscriptOutline
             className={clsx(styles.outline)}
             eventNodes={eventNodes}
+            filteredNodes={outlineFilteredNodes}
             running={running}
             defaultCollapsedIds={defaultCollapsedIds}
             scrollRef={scrollRef}
