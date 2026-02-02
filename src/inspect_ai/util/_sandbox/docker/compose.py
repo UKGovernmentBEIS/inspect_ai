@@ -20,7 +20,7 @@ from .prereqs import (
     validate_docker_compose,
 )
 from .service import ComposeService, services_healthcheck_time
-from .util import ComposeProject, is_inspect_project
+from .util import TRACE_DOCKER, ComposeProject, is_inspect_project
 
 logger = getLogger(__name__)
 
@@ -39,7 +39,9 @@ async def compose_up(
     healthcheck_time = services_healthcheck_time(services)
     if healthcheck_time > 0:
         timeout: int = healthcheck_time
-        trace_message(logger, "Docker", "Docker services heathcheck timeout: {timeout}")
+        trace_message(
+            logger, TRACE_DOCKER, "Docker services heathcheck timeout: {timeout}"
+        )
     else:
         timeout = COMPOSE_WAIT
 

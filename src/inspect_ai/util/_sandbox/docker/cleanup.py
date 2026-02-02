@@ -11,10 +11,11 @@ from rich.panel import Panel
 from rich.table import Table
 
 from inspect_ai._util._async import coro_print_exceptions
+from inspect_ai._util.trace import trace_message
 
 from .compose import compose_down, compose_ls, compose_ps
 from .config import auto_compose_dir, is_auto_compose_file, safe_cleanup_auto_compose
-from .util import ComposeProject, is_inspect_project
+from .util import TRACE_DOCKER, ComposeProject, is_inspect_project
 
 logger = getLogger(__name__)
 
@@ -59,10 +60,16 @@ def _cleanup_orphaned_auto_compose_files() -> None:
                 try:
                     file.unlink()
                 except Exception as ex:
-                    logger.debug(f"Failed to remove orphaned compose file {file}: {ex}")
+                    trace_message(
+                        logger,
+                        TRACE_DOCKER,
+                        f"Failed to remove orphaned compose file {file}: {ex}",
+                    )
 
     except Exception as ex:
-        logger.debug(f"Error cleaning up orphaned auto-compose files: {ex}")
+        trace_message(
+            logger, TRACE_DOCKER, f"Error cleaning up orphaned auto-compose files: {ex}"
+        )
 
 
 def project_startup(project: ComposeProject) -> None:

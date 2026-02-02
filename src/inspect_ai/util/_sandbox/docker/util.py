@@ -17,6 +17,8 @@ from .config import (
 
 logger = getLogger(__name__)
 
+TRACE_DOCKER = "Docker"
+
 
 @dataclass
 class ComposeProject:
