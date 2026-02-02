@@ -229,7 +229,7 @@ def test_stable_ids_consistent_across_multiple_events():
     assert output1.message.id == input2[1].id
 
 
-def test_stable_ids_empty_messages():
+def test_stable_ids_empty_messages() -> None:
     """Applying IDs to empty list should not raise."""
     apply_ids = stable_message_ids()
     messages: list[ChatMessageUser] = []
