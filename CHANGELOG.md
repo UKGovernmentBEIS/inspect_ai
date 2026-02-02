@@ -2,6 +2,7 @@
 
 - Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
 - Inspect View: Support zstd compression of eval log file contents.
+- Bugfix: Submit to `human_cli()` with no answer now correctly completes task.
 
 ## 0.3.169 (01 February 2026)
 
