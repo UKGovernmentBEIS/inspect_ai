@@ -9,6 +9,7 @@ enabling portability across different sandbox types (Docker, Modal, K8s, etc.).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,9 @@ AUTO_COMPOSE_YAML = ".compose.yaml"
 # Central directory for auto-compose files
 AUTO_COMPOSE_SUBDIR = "docker-compose"
 
+# Pattern for auto-compose filenames (e.g., "foo-compose.yaml", ".compose.yaml")
+COMPOSE_PATTERN = re.compile(r"[-.]compose\.yaml$")
+
 
 def is_compose_yaml(file: str) -> bool:
     """Check if a path is a Docker Compose file.
@@ -49,8 +53,8 @@ def is_compose_yaml(file: str) -> bool:
     if path.name in COMPOSE_FILES:
         return True
 
-    # Legacy auto-compose file (.compose.yaml in working directory)
-    if path.name == AUTO_COMPOSE_YAML:
+    # compose-alike files (e.g., ".compose.yaml", "foo-compose.yaml")
+    if COMPOSE_PATTERN.search(path.name):
         return True
 
     # New auto-compose files (in central directory)
