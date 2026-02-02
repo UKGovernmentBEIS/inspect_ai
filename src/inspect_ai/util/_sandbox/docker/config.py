@@ -6,11 +6,9 @@ import yaml
 
 from inspect_ai._util.appdirs import inspect_data_dir
 
-from ..compose import AUTO_COMPOSE_YAML, COMPOSE_FILES, DOCKERFILE
+from ..compose import AUTO_COMPOSE_SUBDIR, AUTO_COMPOSE_YAML, COMPOSE_FILES, DOCKERFILE
 
 logger = getLogger(__name__)
-
-AUTO_COMPOSE_SUBDIR = "docker-compose"
 
 
 def auto_compose_dir() -> Path:

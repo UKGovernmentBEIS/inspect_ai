@@ -27,6 +27,9 @@ DOCKERFILE = "Dockerfile"
 # Legacy auto-compose filename (written to working directory)
 AUTO_COMPOSE_YAML = ".compose.yaml"
 
+# Central directory for auto-compose files
+AUTO_COMPOSE_SUBDIR = "docker-compose"
+
 
 def is_compose_yaml(file: str) -> bool:
     """Check if a path is a Docker Compose file.
@@ -54,7 +57,7 @@ def is_compose_yaml(file: str) -> bool:
     # Use lazy import to avoid circular dependency with docker/config.py
     from inspect_ai._util.appdirs import inspect_data_dir
 
-    auto_compose_dir = inspect_data_dir("docker-compose")
+    auto_compose_dir = inspect_data_dir(AUTO_COMPOSE_SUBDIR)
     if path.parent == auto_compose_dir and path.suffix == ".yaml":
         return True
 

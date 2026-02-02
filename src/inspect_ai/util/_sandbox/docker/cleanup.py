@@ -33,8 +33,6 @@ def _cleanup_orphaned_auto_compose_files(running_project_names: set[str]) -> Non
     This handles cleanup for files left behind by crashed processes.
     """
     compose_dir = auto_compose_dir()
-    if not compose_dir.exists():
-        return
 
     # Remove files for projects no longer running
     for file in compose_dir.iterdir():

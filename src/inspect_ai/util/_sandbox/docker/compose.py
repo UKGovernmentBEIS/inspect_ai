@@ -40,7 +40,7 @@ async def compose_up(
     if healthcheck_time > 0:
         timeout: int = healthcheck_time
         trace_message(
-            logger, TRACE_DOCKER, "Docker services heathcheck timeout: {timeout}"
+            logger, TRACE_DOCKER, f"Docker services healthcheck timeout: {timeout}"
         )
     else:
         timeout = COMPOSE_WAIT
