@@ -21,6 +21,7 @@
 .turnLabel {
   margin-left: 0.625rem;
   opacity: 0.5;
+  font-size: var(--inspect-font-size-smallest);
 }
 
 .card {
