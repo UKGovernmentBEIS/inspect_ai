@@ -4,6 +4,7 @@
 
 .tabContents {
   flex: 1;
+  /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
 }
 
