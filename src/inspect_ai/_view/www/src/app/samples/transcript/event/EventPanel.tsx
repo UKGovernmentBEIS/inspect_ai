@@ -18,6 +18,7 @@ import {
   useSampleEventUrl,
 } from "../../../routing/url";
 import { kTranscriptCollapseScope } from "../types";
+import { useStickyObserver } from "../hooks";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -88,6 +89,8 @@ export const EventPanel: FC<EventPanelProps> = ({
     },
   );
 
+  const stickyRef = useStickyObserver<HTMLDivElement>();
+
   const gridColumns = [];
 
   // chevron
@@ -123,8 +126,9 @@ export const EventPanel: FC<EventPanelProps> = ({
         className={clsx(
           "text-size-small",
           mouseOver ? styles.hover : "",
-          styles.stickyWrapper,
+          turnLabel ? styles.stickyWrapper : "",
         )}
+        ref={turnLabel ? stickyRef : null}
         style={{
           display: "grid",
           gridTemplateColumns: gridColumns.join(" "),

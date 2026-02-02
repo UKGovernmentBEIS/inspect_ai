@@ -1,10 +1,19 @@
 .stickyWrapper {
   position: sticky;
+  /* top needs to be in sync with a hardcoded rootMargin of IntersectionObserver, negative margins are combined from multiple parents */
   top: 30px;
-  padding: 5px 0;
-  margin: -5px 0;
-  background: inherit;
+  padding: 5px 10px 5px 38px;
+  margin: -5px -10px -5px -38px;
+  background-color: transparent;
   z-index: 1;
+  transition:
+    padding 0.1s,
+    background-color 0.1s;
+}
+
+.stickyWrapper:global([data-useStickyObserver-stuck]) {
+  background-color: var(--bs-light);
+  padding: 5px 10px 5px 10px;
 }
 
 .label {

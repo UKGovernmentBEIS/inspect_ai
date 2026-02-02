@@ -17748,33 +17748,41 @@ button._segment_mhb7y_9 {
 ._navs_1vm6p_1 {
   margin-right: 0;
 }
-._stickyWrapper_aczbp_1 {
+._stickyWrapper_1wbzj_1 {
   position: sticky;
-  top: 30px;
-  padding: 5px 0;
-  margin: -5px 0;
-  background: inherit;
+  top: 30px; /* rootMargin of an IntersectionObserver is hardcoded for this value, update in sync */
+  padding: 5px 10px 5px 38px;
+  margin: -5px -10px -5px -38px;
+  background-color: transparent;
   z-index: 1;
+  transition:
+    padding 0.1s,
+    background-color 0.1s;
 }
 
-._label_aczbp_10 {
+._stickyWrapper_1wbzj_1[data-useStickyObserver-stuck] {
+  background-color: var(--bs-light);
+  padding: 5px 10px 5px 10px;
+}
+
+._label_1wbzj_18 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._navs_aczbp_15 {
+._navs_1wbzj_23 {
   justify-self: end;
   display: flex;
   align-items: baseline;
 }
 
-._turnLabel_aczbp_21 {
+._turnLabel_1wbzj_29 {
   margin-left: 0.625rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_aczbp_27 {
+._card_1wbzj_35 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -17782,20 +17790,20 @@ button._segment_mhb7y_9 {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_aczbp_35 {
+._cardContent_1wbzj_43 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_aczbp_35._hidden_aczbp_40 {
+._cardContent_1wbzj_43._hidden_1wbzj_48 {
   display: none;
 }
 
-._hidden_aczbp_40 {
+._hidden_1wbzj_48 {
   display: none;
 }
 
-._copyLink_aczbp_48 {
+._copyLink_1wbzj_56 {
   font-size: 1.2em;
   height: 1em;
   opacity: 0;
@@ -17803,16 +17811,16 @@ button._segment_mhb7y_9 {
   padding-right: 2em;
 }
 
-._hover_aczbp_56 ._copyLink_aczbp_48 {
+._hover_1wbzj_64 ._copyLink_1wbzj_56 {
   opacity: 0.75;
 }
 
-._root_aczbp_60 {
+._root_1wbzj_68 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_aczbp_65 {
+._bottomDongle_1wbzj_73 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -17829,7 +17837,7 @@ button._segment_mhb7y_9 {
   cursor: pointer;
 }
 
-._dongleIcon_aczbp_82 {
+._dongleIcon_1wbzj_90 {
   padding-right: 0.3em;
 }
 ._panel_vz394_1 {
