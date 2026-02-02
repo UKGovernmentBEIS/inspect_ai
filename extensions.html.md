@@ -187,6 +187,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         ...
 
     @classmethod
+    def is_docker_compatible(cls) -> bool:
+        ...
+
+    @classmethod
     def default_concurrency(cls) -> int | None:
         ...
 
@@ -260,6 +264,7 @@ and teardown:
 | `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
 | `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
 | `config_files()` | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |  |
+| `is_docker_compatible()` | Called once to determine whether a provider is Docker compatible. | Can the provider take Dockerfile and compose.yaml as config? |
 | `config_deserialize()` | Called when a custom sandbox config type is read from a log file. | Only required if a sandbox supports custom config types. |
 | `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behaviour). |  |
 | `default_polling_interval()` | Called when sandbox services are created to determine the default polling interval (in seconds) for request checking. Defaults to 2 seconds. |  |
@@ -420,6 +425,66 @@ the source code for the built in environments,
 [LocalSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py)
 and
 [DockerSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py).
+
+### Docker Compatibility
+
+> [!NOTE]
+>
+> The docker compatibility feature described below is available only in
+> the development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Many Inspect tasks are defined using the “docker” sandbox provider along
+with a `Dockerfile` or `compose.yaml` configuration. Many other sandbox
+providers are capable of using some combination of `Dockerfile` and
+compose configuration, so can register themselves as docker compatible
+by implementing the `is_docker_compatible()` class method. For example:
+
+``` python
+class PodmanSandboxEnvironment(SandboxEnvironment):
+    @classmethod
+    def is_docker_compatible(cls) -> bool:
+        return True
+```
+
+Note if a provider’s `config_files()` method returns `compose.yaml` in
+its list, then `is_docker_compatible()` will default to `True`.
+
+If a provider is docker compatible, then the `config` argument passed to
+it’s method may be one of the following (in addition to whatever native
+configuration the provider supports):
+
+1.  A path to a `Dockerfile`
+2.  A path to a `compose.yaml` file.
+3.  An instance of the `ComposeConfig` class.
+
+These input for `config` might be handled as follows:
+
+``` python
+from inspect_ai.util import (
+    ComposeConfig, 
+    is_compose_yaml, 
+    is_dockerfile, 
+    parse_compose_yaml
+)
+
+if is_dockerfile(config):
+   # handle dockerfile
+   
+elif is_compose_yaml(config, str):
+   # parse and handle compose config
+   compose_config = parse_compose_yaml(config)
+
+elif isinstance(config, ComposeConfig):
+   # handle compose config
+
+else: 
+   # handle other config types (if any)   
+```
 
 ### Environment Registration
 
