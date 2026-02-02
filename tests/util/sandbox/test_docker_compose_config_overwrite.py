@@ -13,8 +13,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
 
-import pytest
-
 from inspect_ai.util import ComposeConfig, ComposeService
 from inspect_ai.util._sandbox.docker.util import ComposeProject
 
@@ -67,6 +65,8 @@ async def test_compose_config_sequential_no_overwrite() -> None:
         project_b = await ComposeProject.create(name="project-b", config=config_b)
 
         # Each project should have its own unique file
+        assert project_a.config is not None
+        assert project_b.config is not None
         assert project_a.config != project_b.config
 
         # Re-read project A's config file - should be unchanged
@@ -108,11 +108,14 @@ async def test_compose_config_concurrent_no_overwrite() -> None:
 
         # Each project should have its own unique file
         config_paths = [p.config for p in projects]
-        assert len(set(config_paths)) == 3, "Each project should have its own config file"
+        assert len(set(config_paths)) == 3, (
+            "Each project should have its own config file"
+        )
 
         # Each file should contain its respective image
         images = ["alpine:3.18", "python:3.12", "ubuntu:22.04"]
         for project, expected_image in zip(projects, images):
+            assert project.config is not None
             with open(project.config, "r") as f:
                 content = f.read()
             assert expected_image in content, (
@@ -135,6 +138,8 @@ async def test_compose_config_unique_files() -> None:
         project_b = await ComposeProject.create(name="project-b", config=config_b)
 
         # Each project should have unique file
+        assert project_a.config is not None
+        assert project_b.config is not None
         assert project_a.config != project_b.config, (
             "Each ComposeConfig should have its own unique auto-compose file"
         )
@@ -181,6 +186,8 @@ async def test_dockerfile_sequential_no_overwrite() -> None:
         )
 
         # Each project should have its own unique file
+        assert project_a.config is not None
+        assert project_b.config is not None
         assert project_a.config != project_b.config
 
         # Re-read project A's config file - should be unchanged
@@ -220,6 +227,8 @@ async def test_dockerfile_unique_files() -> None:
         )
 
         # Each project should have unique file
+        assert project_a.config is not None
+        assert project_b.config is not None
         assert project_a.config != project_b.config, (
             "Each Dockerfile should have its own unique auto-compose file"
         )
