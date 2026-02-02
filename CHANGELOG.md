@@ -3,6 +3,7 @@
 - Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
 - Docker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).
 - Inspect View: Support zstd compression of eval log file contents.
+- Inspect View: sticky headers for transcript events with turn number to improve scroll orientation.
 
 ## 0.3.169 (01 February 2026)
 
@@ -41,7 +42,6 @@
 - Eval Logs: Improve load time by using JSON in duplicate message cache rather than `frozendict`.
 - Compaction: Remove citations after compaction to avoid dangling citation references (updated `trim_message()` to use the same behavior).
 - Inspect View: Fix "Cannot add property timestamp, object is not extensible" error when viewing live transcripts.
-- Inspect View: sticky headers for transcript events with turn number to improve scroll orientation
 
 ## 0.3.164 (24 January 2026)
 
