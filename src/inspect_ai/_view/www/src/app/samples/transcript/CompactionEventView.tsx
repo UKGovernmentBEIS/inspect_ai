@@ -22,15 +22,15 @@ export const CompactionEventView: FC<CompactionEventViewProps> = ({
   className,
 }) => {
   const event = eventNode.event;
-  let data: Record<string,unknown> = {};
+  let data: Record<string, unknown> = {};
   if (event.tokens_before) {
-    data["tokens_before"] = event.tokens_before
+    data["tokens_before"] = event.tokens_before;
   }
   if (event.tokens_after) {
-    data["tokens_after"] = event.tokens_after
+    data["tokens_after"] = event.tokens_after;
   }
-  data = { ...data, ...(event.metadata || {}) }
-  
+  data = { ...data, ...(event.metadata || {}) };
+
   return (
     <EventPanel
       eventNodeId={eventNode.id}
@@ -44,9 +44,7 @@ export const CompactionEventView: FC<CompactionEventViewProps> = ({
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.info}
     >
-      {[<MetaDataGrid entries={data} className={styles.panel}/>]}
+      {[<MetaDataGrid entries={data} className={styles.panel} />]}
     </EventPanel>
   );
 };
-
-

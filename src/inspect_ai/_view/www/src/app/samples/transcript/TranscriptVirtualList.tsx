@@ -123,7 +123,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
           />
         );
 
-       case "compaction":
+      case "compaction":
         return (
           <CompactionEventView
             eventNode={node as EventNode<CompactionEvent>}
