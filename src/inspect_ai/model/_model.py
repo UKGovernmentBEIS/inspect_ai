@@ -61,7 +61,6 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
-from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -352,10 +351,6 @@ class ModelAPI(abc.ABC):
     def disable_computer_screenshot_truncation(self) -> bool:
         """Some models do not support truncation of computer screenshots."""
         return False
-
-    def emulate_reasoning_history(self) -> bool:
-        """Chat message assistant messages with reasoning should playback reasoning with emulation (.e.g. <think> tags)"""
-        return True
 
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         """Force a specific reasoning history behavior for this provider."""
@@ -1438,25 +1433,6 @@ def resolve_reasoning_history(
 
         # reverse them back
         resolved_messages.reverse()
-
-    # api can't represent reasoning natively so emulate it
-    if model_api.emulate_reasoning_history():
-        emulated_messages: list[ChatMessage] = []
-        for message in resolved_messages:
-            if isinstance(message, ChatMessageAssistant) and isinstance(
-                message.content, list
-            ):
-                content: list[Content] = []
-                for c in message.content:
-                    if isinstance(c, ContentReasoning):
-                        content.append(ContentText(text=reasoning_to_think_tag(c)))
-                    else:
-                        content.append(c)
-                message = message.model_copy(update={"content": content})
-
-            emulated_messages.append(message)
-
-        resolved_messages = emulated_messages
 
     # return messages
     return resolved_messages

@@ -264,10 +264,6 @@ class MistralAPI(ModelAPI):
                 ),
             ), model_call()
 
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
-
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)

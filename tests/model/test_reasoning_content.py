@@ -9,7 +9,7 @@ from test_helpers.utils import (
 )
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import ContentReasoning
+from inspect_ai._util.content import ContentBase, ContentReasoning
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model._generate_config import GenerateConfig
@@ -35,7 +35,7 @@ async def test_reasoning_content_groq():
 @pytest.mark.asyncio
 @skip_if_no_openai
 async def test_reasoning_content_openai():
-    await check_reasoning_content("openai/o4-mini")
+    await check_reasoning_content("openai/gpt-5-mini")
 
 
 @pytest.mark.asyncio
@@ -111,6 +111,14 @@ def check_reasoning_history(
 
     # count thinking in payload sent to server
     thinking_blocks = sum(
-        1 for message in last_model_event.input if "<think>" in message.text
+        1
+        for message in last_model_event.input
+        if any(
+            [
+                c.type == "reasoning"
+                for c in message.content
+                if isinstance(c, ContentBase)
+            ]
+        )
     )
     assert thinking_blocks == expected_thinking_blocks

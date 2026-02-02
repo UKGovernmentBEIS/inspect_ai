@@ -96,6 +96,7 @@ from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
     get_candidate_citations,
 )
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import (
     ToolCall,
@@ -283,7 +284,9 @@ class GoogleGenAIAPI(ModelAPI):
             request_id = http_hooks.start_request()
 
             # Create google-genai types.
-            gemini_contents = await as_chat_messages(client, input)
+            gemini_contents = await as_chat_messages(
+                client, input, emulate_reasoning=not self.is_gemini_thinking()
+            )
             has_native_tools, gemini_tools = (
                 self.chat_tools(tools) if len(tools) > 0 else (False, None)
             )
@@ -566,7 +569,10 @@ class GoogleGenAIAPI(ModelAPI):
                 for m in input
             ]
             contents: list[ContentUnion] = [
-                await content(client, m) for m in count_messages
+                await content(
+                    client, m, emulate_reasoning=not self.is_gemini_thinking()
+                )
+                for m in count_messages
             ]
             response = await client.aio.models.count_tokens(
                 model=self.service_model_name(), contents=contents
@@ -614,15 +620,13 @@ class GoogleGenAIAPI(ModelAPI):
             and not self.is_gemini_2_5()
         )
 
+    def is_gemini_thinking(self) -> bool:
+        return not self.is_gemini_1_5() and not self.is_gemini_2_0()
+
     def is_gemini_thinking_only(self) -> bool:
         return (
             self.is_gemini_2_5() or self.is_gemini_3()
         ) and "-pro" in self.service_model_name()
-
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        # older gemini models don't know about reasoning
-        return self.is_gemini_1_5() or self.is_gemini_2_0()
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
@@ -912,7 +916,7 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
 
 
 async def as_chat_messages(
-    client: Client, messages: list[ChatMessage]
+    client: Client, messages: list[ChatMessage], emulate_reasoning: bool = False
 ) -> list[Content]:
     # There is no "system" role in the `google-genai` package. Instead, system messages
     # are included in the `GenerateContentConfig` as a `system_instruction`. Strip any
@@ -920,7 +924,10 @@ async def as_chat_messages(
     supported_messages = [message for message in messages if message.role != "system"]
 
     # build google chat messages
-    chat_messages = [await content(client, message) for message in supported_messages]
+    chat_messages = [
+        await content(client, message, emulate_reasoning)
+        for message in supported_messages
+    ]
 
     # combine consecutive tool messages
     chat_messages = functools.reduce(
@@ -956,6 +963,7 @@ def is_tool_message(message: Content) -> bool:
 async def content(
     client: Client,
     message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
+    emulate_reasoning: bool = False,
 ) -> Content:
     working_reasoning_block = None
     if isinstance(message, ChatMessageUser):
@@ -977,13 +985,18 @@ async def content(
         else:
             for i, content in enumerate(message.content):
                 if isinstance(content, ContentReasoning):
-                    # if this is encrypted reasoning, save it for applying the thought_signature
-                    # to the next part (don't emit a separate thought part during replay)
-                    if content.redacted:
-                        working_reasoning_block = content
+                    if emulate_reasoning:
+                        content_parts.append(Part(text=reasoning_to_think_tag(content)))
                     else:
-                        # unencrypted reasoning (for older models or debugging)
-                        content_parts.append(Part(text=content.reasoning, thought=True))
+                        # if this is encrypted reasoning, save it for applying the thought_signature
+                        # to the next part (don't emit a separate thought part during replay)
+                        if content.redacted:
+                            working_reasoning_block = content
+                        else:
+                            # unencrypted reasoning (for older models or debugging)
+                            content_parts.append(
+                                Part(text=content.reasoning, thought=True)
+                            )
 
                 else:
                     # server side tool use

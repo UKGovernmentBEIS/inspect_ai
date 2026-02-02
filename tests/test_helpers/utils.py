@@ -133,6 +133,10 @@ def skip_if_no_transformer_lens(func):
     return skip_if_no_package("transformer_lens")(func)
 
 
+def skip_if_no_nnterp(func):
+    return skip_if_no_package("nnterp")(func)
+
+
 def skip_if_no_openai(func):
     return pytest.mark.api(
         pytest.mark.skipif(

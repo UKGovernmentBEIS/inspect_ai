@@ -155,7 +155,8 @@ def compaction(
                     "Compaction": strategy.__class__.__name__,
                     "Tokens": f"{total_tokens:,} ⟶ {compacted_tokens:,}",
                     "Messages": f"{len(target_messages):,} ⟶ {len(compacted_input):,}",
-                }
+                },
+                source="compaction",
             )
 
             # clear memory warning state

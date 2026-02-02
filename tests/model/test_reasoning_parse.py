@@ -233,3 +233,136 @@ def test_reasoning_round_trip_no_summary():
     assert parsed.signature == original.signature
     assert parsed.redacted == original.redacted
     assert parsed.summary is None
+
+
+# Tests for internal field (values are base64-encoded JSON)
+def test_reasoning_parse_with_internal_simple():
+    # base64("123") = "MTIz"
+    content, reasoning = parse_content_with_reasoning(
+        '<think internal="MTIz">Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Reasoning"
+    assert reasoning.internal == 123
+    assert content == "Content"
+
+
+def test_reasoning_parse_with_internal_string():
+    # base64('"hello"') = "ImhlbGxvIg=="
+    content, reasoning = parse_content_with_reasoning(
+        '<think internal="ImhlbGxvIg==">Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.internal == "hello"
+
+
+def test_reasoning_parse_with_internal_object():
+    # base64('{"key": "value", "num": 42}') = "eyJrZXkiOiAidmFsdWUiLCAibnVtIjogNDJ9"
+    content, reasoning = parse_content_with_reasoning(
+        '<think internal="eyJrZXkiOiAidmFsdWUiLCAibnVtIjogNDJ9">Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.internal == {"key": "value", "num": 42}
+
+
+def test_reasoning_parse_with_internal_array():
+    # base64('[1, 2, "three"]') = "WzEsIDIsICJ0aHJlZSJd"
+    content, reasoning = parse_content_with_reasoning(
+        '<think internal="WzEsIDIsICJ0aHJlZSJd">Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.internal == [1, 2, "three"]
+
+
+def test_reasoning_parse_with_internal_null():
+    # base64("null") = "bnVsbA=="
+    content, reasoning = parse_content_with_reasoning(
+        '<think internal="bnVsbA==">Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.internal is None
+
+
+def test_reasoning_parse_with_internal_boolean():
+    # base64("true") = "dHJ1ZQ=="
+    content, reasoning = parse_content_with_reasoning(
+        '<think internal="dHJ1ZQ==">Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.internal is True
+
+
+def test_reasoning_parse_with_all_attributes_and_internal():
+    # base64('{"data": 123}') = "eyJkYXRhIjogMTIzfQ=="
+    content, reasoning = parse_content_with_reasoning(
+        '<think signature="sig" redacted="true" internal="eyJkYXRhIjogMTIzfQ=="><summary>Sum</summary>Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.signature == "sig"
+    assert reasoning.redacted is True
+    assert reasoning.summary == "Sum"
+    assert reasoning.internal == {"data": 123}
+    assert reasoning.reasoning == "Reasoning"
+    assert content == "Content"
+
+
+def test_reasoning_round_trip_with_internal_object():
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test reasoning",
+        signature="sig123",
+        redacted=False,
+        internal={"key": "value", "nested": {"a": 1}},
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.reasoning == original.reasoning
+    assert parsed.signature == original.signature
+    assert parsed.redacted == original.redacted
+    assert parsed.internal == original.internal
+
+
+def test_reasoning_round_trip_with_internal_array():
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test reasoning",
+        internal=[1, "two", {"three": 3}],
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.internal == original.internal
+
+
+def test_reasoning_round_trip_with_internal_string_with_quotes():
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test",
+        internal='string with "quotes" and & ampersand',
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.internal == original.internal
+
+
+def test_reasoning_parse_with_invalid_internal_json():
+    content, reasoning = parse_content_with_reasoning(
+        '<think internal="not valid json">Reasoning</think>Content'
+    )
+    assert reasoning is not None
+    assert reasoning.internal is None  # Invalid JSON should result in None
+    assert reasoning.reasoning == "Reasoning"

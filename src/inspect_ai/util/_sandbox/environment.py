@@ -94,7 +94,7 @@ class SandboxEnvironment(abc.ABC):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
