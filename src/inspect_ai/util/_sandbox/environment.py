@@ -341,6 +341,11 @@ class SandboxEnvironment(abc.ABC):
         return []
 
     @classmethod
+    def is_docker_compatible(cls) -> bool:
+        """Is the provider docker compatible (accepts Dockerfile and compose.yaml)"""
+        return any(["compose.yaml" in f for f in cls.config_files()])
+
+    @classmethod
     def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
         """Deserialize a sandbox-specific configuration model from a dict.
 
