@@ -58,7 +58,6 @@ from openai.types.responses.response_custom_tool_call_output_param import (
 )
 from openai.types.responses.response_function_web_search_param import (
     Action,
-    ActionSearch,
 )
 from openai.types.responses.response_input_image_content_param import (
     ResponseInputImageContentParam,
@@ -129,6 +128,11 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
+)
+from inspect_ai.model._compaction.edit import (
+    MCP_LIST_TOOLS_NAME,
+    TOOL_RESULT_REMOVED,
+    is_result_cleared,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import (
@@ -625,8 +629,12 @@ def _chat_message_assistant_from_openai_response(
                 tool_calls.append(tool_call_from_openai_computer_tool_call(output))
 
             case ResponseFunctionWebSearch():
+                # Use warnings=False to suppress Pydantic serialization warnings for
+                # unknown action types like 'find_in_page' that the SDK doesn't support.
+                # See: https://github.com/pydantic/pydantic-ai/issues/3653
                 assistant_internal().server_tool_uses[output.id] = cast(
-                    ResponseFunctionWebSearchParam, output.model_dump(exclude_none=True)
+                    ResponseFunctionWebSearchParam,
+                    output.model_dump(exclude_none=True, warnings=False),
                 )
                 message_content.append(web_search_to_tool_use(output))
             case ResponseCodeInterpreterToolCall():
@@ -768,7 +776,7 @@ def mcp_list_tools_to_tool_use(output: McpListTools) -> ContentToolUse:
     return ContentToolUse(
         tool_type="mcp_call",
         id=output.id,
-        name="mcp_list_tools",
+        name=MCP_LIST_TOOLS_NAME,
         arguments="",
         result=to_json_str_safe([tool.model_dump() for tool in output.tools]),
         error=output.error,
@@ -788,11 +796,20 @@ def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
 
 
 def tool_use_to_mcp_list_tools_param(content: ContentToolUse) -> McpListToolsParam:
+    # Handle cleared results gracefully
+    if content.result == TOOL_RESULT_REMOVED:
+        tools: list[McpListToolsToolParam] = []
+    else:
+        try:
+            tools = mcp_tool_adapter.validate_json(content.result)
+        except ValidationError:
+            tools = []
+
     return McpListToolsParam(
         type="mcp_list_tools",
         id=content.id,
         server_label=content.context or "",
-        tools=mcp_tool_adapter.validate_json(content.result),
+        tools=tools,
         error=content.error,
     )
 
@@ -809,21 +826,65 @@ def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
     )
 
 
-action_adapter = TypeAdapter[Action](Action)
+def _is_valid_openai_web_search_action(action: dict[str, Any]) -> bool:
+    """Check if a dict represents a valid OpenAI web search action.
+
+    Validates both the type field and the required fields for each action type.
+    This ensures we don't accidentally pass through malformed actions or actions
+    from other providers that happen to have a 'type' field.
+    """
+    action_type = action.get("type")
+
+    if action_type == "search":
+        # ActionSearch requires 'query' (deprecated) or 'queries'
+        return "query" in action or "queries" in action
+    elif action_type == "open_page":
+        # ActionOpenPage requires 'url'
+        return "url" in action
+    elif action_type in ("find", "find_in_page"):
+        # ActionFind requires 'pattern' and 'url'
+        # 'find_in_page' is a new type not yet in SDK, assumed same structure
+        return "pattern" in action or "url" in action
+
+    return False
+
+
+def parse_web_search_action(arguments: str) -> dict[str, Any]:
+    """Parse web search action from JSON arguments.
+
+    Parses action as raw dict and filters None values to avoid Pydantic validation
+    issues with unknown action types like 'find_in_page' that the SDK doesn't
+    support yet. See: https://github.com/pydantic/pydantic-ai/issues/3653
+
+    If the parsed dict doesn't represent a valid OpenAI action, creates a conforming
+    search action. This handles web search results from other providers (e.g., Anthropic)
+    that have different formats.
+
+    Returns a dict that can be cast to the appropriate Action type by the caller.
+    """
+    try:
+        action_dict = json.loads(arguments)
+        filtered = {k: v for k, v in action_dict.items() if v is not None}
+
+        # Check if this is a valid OpenAI action (correct type + required fields)
+        if _is_valid_openai_web_search_action(filtered):
+            return filtered
+
+        # Not an OpenAI-formatted action - create a conforming search action
+        # This handles web search from other providers (e.g., Anthropic)
+        query = filtered.get("query", arguments)
+        return {"type": "search", "query": query}
+    except (json.JSONDecodeError, TypeError):
+        return {"type": "search", "query": arguments}
 
 
 def tool_use_to_web_search_param(
     content: ContentToolUse,
 ) -> ResponseFunctionWebSearchParam:
-    try:
-        action = action_adapter.validate_json(content.arguments)
-    except ValidationError:
-        action = ActionSearch(type="search", query=content.arguments)
-
     return ResponseFunctionWebSearchParam(
         type="web_search_call",
         id=content.id,
-        action=action,
+        action=cast(Action, parse_web_search_action(content.arguments)),
         status="failed" if content.error else "completed",
     )
 
@@ -898,10 +959,24 @@ def _openai_input_items_from_chat_message_assistant(
                 id=id,
                 tool_type=tool_type,
             ):
+                # Check if result was cleared during compaction
+                result_cleared = is_result_cleared(content)
+
+                # Try to use cached blocks, modifying them if result was cleared
                 if id in assistant_internal().server_tool_uses:
-                    items.append(assistant_internal().server_tool_uses[id])
+                    cached_item = assistant_internal().server_tool_uses[id]
+                    if result_cleared:
+                        # Modify cached item in place based on type
+                        cached_dict = dict(cast(dict[str, Any], cached_item))
+                        if cached_dict.get("type") == "mcp_call":
+                            cached_dict["output"] = TOOL_RESULT_REMOVED
+                        # mcp_list_tools provides tool context, not cleared
+                        # web_search doesn't have result in cached item
+                        items.append(cast(ResponseInputItemParam, cached_dict))
+                    else:
+                        items.append(cached_item)
                 elif tool_type == "mcp_call":
-                    if content.name == "mcp_list_tools":
+                    if content.name == MCP_LIST_TOOLS_NAME:
                         items.append(tool_use_to_mcp_list_tools_param(content))
                     else:
                         items.append(tool_use_to_mcp_call_param(content))

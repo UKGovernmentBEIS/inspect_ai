@@ -120,6 +120,10 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai.model._compaction.edit import (
+    TOOL_RESULT_REMOVED,
+    is_result_cleared,
+)
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
@@ -729,10 +733,6 @@ class AnthropicAPI(ModelAPI):
     @override
     def tool_result_images(self) -> bool:
         return True
-
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
 
     @override
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
@@ -1687,7 +1687,17 @@ def content_and_tool_calls_from_assistant_content_blocks(
     ] = []
     for block in content_blocks_input:
         if isinstance(block, dict):
-            content_blocks.append(content_block_adapter.validate_python(block))
+            # server_tool_use blocks may come back without a 'caller' field
+            # (e.g., from message history in multi-turn conversations).
+            # BetaServerToolUseBlock requires 'caller', so add a default.
+            if block.get("type") == "server_tool_use" and "caller" not in block:
+                content_blocks.append(
+                    BetaServerToolUseBlock(
+                        **block, caller=BetaDirectCaller(type="direct")
+                    )
+                )
+            else:
+                content_blocks.append(content_block_adapter.validate_python(block))
         else:
             content_blocks.append(block)
 
@@ -1695,7 +1705,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
     content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
 
-    pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
+    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock] = dict()
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] = dict()
     for content_block in content_blocks:
         if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
@@ -1848,9 +1858,11 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
-        elif isinstance(content_block, ServerToolUseBlock):
+        elif isinstance(content_block, (ServerToolUseBlock, BetaServerToolUseBlock)):
             pending_tool_uses[content_block.id] = content_block
-        elif isinstance(content_block, WebSearchToolResultBlock):
+        elif isinstance(
+            content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
+        ):
             pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
@@ -2031,32 +2043,121 @@ async def message_block_params(
         return [TextBlockParam(type="text", text=content.text)]
 
     elif isinstance(content, ContentToolUse):
+        # Check if result was cleared during compaction
+        result_cleared = is_result_cleared(content)
+
+        # Try to use cached blocks, creating copies if result needs to be cleared
         if content.id in assistant_internal().server_mcp_tool_uses:
-            return list(assistant_internal().server_mcp_tool_uses[content.id])
+            mcp_use, mcp_result = assistant_internal().server_mcp_tool_uses[content.id]
+            if result_cleared:
+                # Create a copy to avoid mutating the cached version
+                mcp_result = cast(
+                    BetaRequestMCPToolResultBlockParam,
+                    {**mcp_result, "content": TOOL_RESULT_REMOVED},
+                )
+            return [mcp_use, mcp_result]
 
         elif content.id in assistant_internal().server_web_searches:
-            return list(assistant_internal().server_web_searches[content.id])
+            ws_use, ws_result = assistant_internal().server_web_searches[content.id]
+            if result_cleared:
+                # Create a copy to avoid mutating the cached version
+                ws_result = cast(
+                    WebSearchToolResultBlockParam,
+                    {
+                        **ws_result,
+                        "content": {
+                            "type": "web_search_tool_result_error",
+                            "error_code": "unavailable",
+                        },
+                    },
+                )
+            return [ws_use, ws_result]
 
         elif content.id in assistant_internal().server_web_fetches:
-            return list(assistant_internal().server_web_fetches[content.id])
+            wf_use, wf_result = assistant_internal().server_web_fetches[content.id]
+            if result_cleared:
+                # Create a copy to avoid mutating the cached version
+                original_content: Any = wf_result.get("content", {})
+                url = ""
+                if isinstance(original_content, dict):
+                    url = str(original_content.get("url", ""))
+                wf_result = cast(
+                    BetaWebFetchToolResultBlockParam,
+                    {
+                        **wf_result,
+                        "content": {
+                            "type": "web_fetch_result",
+                            "url": url,
+                            "content": {
+                                "type": "document",
+                                "source": {
+                                    "type": "text",
+                                    "media_type": "text/plain",
+                                    "data": TOOL_RESULT_REMOVED,
+                                },
+                            },
+                        },
+                    },
+                )
+            return [wf_use, wf_result]
 
         elif content.id in assistant_internal().server_code_executions:
-            return list(assistant_internal().server_code_executions[content.id])
+            ce_use, ce_result = assistant_internal().server_code_executions[content.id]
+            if result_cleared:
+                # Create valid result block based on type (with a copy to avoid mutation)
+                if ce_result.get("type") == "bash_code_execution_tool_result":
+                    ce_result = cast(
+                        BetaBashCodeExecutionToolResultBlockParam,
+                        {
+                            **ce_result,
+                            "content": {
+                                "type": "bash_code_execution_result",
+                                "return_code": 0,
+                                "stdout": TOOL_RESULT_REMOVED,
+                                "stderr": "",
+                                "content": [],
+                            },
+                        },
+                    )
+                elif ce_result.get("type") == "text_editor_code_execution_tool_result":
+                    # Use a view result with placeholder for text editor
+                    ce_result = cast(
+                        BetaTextEditorCodeExecutionToolResultBlockParam,
+                        {
+                            **ce_result,
+                            "content": {
+                                "type": "text_editor_code_execution_view_result",
+                                "content": TOOL_RESULT_REMOVED,
+                                "file_type": "text",
+                            },
+                        },
+                    )
+            return [ce_use, ce_result]
 
+        # Fall through to reconstruction if not in cache
         if content.tool_type == "web_search":
             # we might be parsing an openai web search result so defend ourselves accordingly
             # note that if this is a native anthropic web_search or web_fetch it will have
             # been handledby plucking the blocks from assistant_internal()
             # therefore, this is a web_search from another system which we need to
             # normalize to the anthropic schema
-            try:
-                result_content = web_search_result_block_param_adapter.validate_json(
-                    content.result
+            if result_cleared:
+                result_content: WebSearchToolResultBlockParamContentParam = (
+                    WebSearchToolRequestErrorParam(
+                        type="web_search_tool_result_error", error_code="unavailable"
+                    )
                 )
-            except ValidationError:
-                result_content = WebSearchToolRequestErrorParam(
-                    type="web_search_tool_result_error", error_code="unavailable"
-                )
+            else:
+                try:
+                    result_content = (
+                        web_search_result_block_param_adapter.validate_json(
+                            content.result
+                        )
+                    )
+                except ValidationError:
+                    result_content = WebSearchToolRequestErrorParam(
+                        type="web_search_tool_result_error", error_code="unavailable"
+                    )
 
             return [
                 ServerToolUseBlockParam(
@@ -2073,12 +2174,17 @@ async def message_block_params(
             ]
         elif content.tool_type == "mcp_call":
             # we might be parsing an openai mcp tool result so defend ourselves accordingly
-            try:
-                mcp_result_content = beta_text_block_param_adapter.validate_json(
-                    content.result
-                )
-            except ValidationError:
+            # Handle cleared results gracefully
+            mcp_result_content: str | Iterable[BetaTextBlockParam]
+            if result_cleared:
                 mcp_result_content = content.result
+            else:
+                try:
+                    mcp_result_content = beta_text_block_param_adapter.validate_json(
+                        content.result
+                    )
+                except ValidationError:
+                    mcp_result_content = content.result
 
             return [
                 BetaMCPToolUseBlockParam(

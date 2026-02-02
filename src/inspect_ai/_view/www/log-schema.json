@@ -6152,6 +6152,21 @@
           "default": false,
           "title": "Intermediate",
           "type": "boolean"
+        },
+        "model_usage": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ModelUsage"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Usage"
         }
       },
       "required": [
@@ -6164,7 +6179,8 @@
         "event",
         "score",
         "target",
-        "intermediate"
+        "intermediate",
+        "model_usage"
       ],
       "title": "ScoreEvent",
       "type": "object",

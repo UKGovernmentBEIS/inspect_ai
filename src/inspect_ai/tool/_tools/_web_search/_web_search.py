@@ -13,7 +13,7 @@ from inspect_ai.tool._tool_def import ToolDef
 
 from ..._tool import Tool, ToolResult, tool
 from ._exa import ExaOptions, exa_search_provider
-from ._google import GoogleOptions, google_search_provider
+from ._google import GoogleOptions, google_search_provider, maybe_get_google_api_keys
 from ._tavily import TavilyOptions, tavily_search_provider
 from ._web_search_provider import SearchProvider
 
@@ -48,34 +48,38 @@ class WebSearchProviders(TypedDict, total=False):
 
     -   External providers: `"tavily"`, `"exa"`, and `"google"`. These are external services that work with any model and require separate accounts and API keys. Note that "google" is different from "gemini" - "google" refers to Google's Programmable Search Engine service, while "gemini" refers to Google's built-in search capability for Gemini models.
 
+    By default, all internal providers are enabled if there are no external providers defined.
+    If an external provider is defined then you need to explicitly enable internal providers
+    that you want to use.
+
     Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on `openai` models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
     """
 
-    openai: dict[str, Any] | Literal[True]
+    openai: dict[str, Any] | bool
     """Use OpenAI internal provider. For available options see <https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses>."""
 
-    anthropic: dict[str, Any] | Literal[True]
+    anthropic: dict[str, Any] | bool
     """Use Anthropic internal provider. For available options see <https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool>."""
 
-    grok: dict[str, Any] | Literal[True]
+    grok: dict[str, Any] | bool
     """Use Grok internal provider. For available options see <https://docs.x.ai/docs/guides/tools/search-tools#web-search-parameters>."""
 
-    gemini: dict[str, Any] | Literal[True]
+    gemini: dict[str, Any] | bool
     """Use Gemini internal provider. For available options see <https://ai.google.dev/gemini-api/docs/google-search>."""
 
-    mistral: dict[str, Any] | Literal[True]
+    mistral: dict[str, Any] | bool
     """Use Mistral internal provider. For available options see <https://docs.mistral.ai/agents/tools/built-in/websearch>."""
 
-    perplexity: dict[str, Any] | Literal[True]
+    perplexity: dict[str, Any] | bool
     """Use Perplexity internal provider. For available options see <https://docs.perplexity.ai/api-reference/chat-completions-post>"""
 
-    tavily: dict[str, Any] | Literal[True]
+    tavily: dict[str, Any] | bool
     """Use Tavili external provider. For available options see <Use Exa external provider. For available options see <https://inspect.aisi.org.uk/tools-standard.html#tavili-options>."""
 
-    google: dict[str, Any] | Literal[True]
+    google: dict[str, Any] | bool
     """Use Google external provider. For available options see <https://inspect.aisi.org.uk/tools-standard.html#google-options>."""
 
-    exa: dict[str, Any] | Literal[True]
+    exa: dict[str, Any] | bool
     """Use Exa external provider. For available options see <https://inspect.aisi.org.uk/tools-standard.html#exa-options>."""
 
 
@@ -120,6 +124,10 @@ def web_search(
     - External providers: "tavily", "google", and "exa". These are external services
       that work with any model and require separate accounts and API keys.
 
+    By default, all internal providers are enabled if there are no external providers defined.
+    If an external provider is defined then you need to explicitly enable internal providers
+    that you want to use.
+
     Internal providers will be prioritized if running on the corresponding model
     (e.g., "openai" provider will be used when running on `openai` models). If an
     internal provider is specified but the evaluation is run with a different
@@ -133,11 +141,14 @@ def web_search(
         "google", and "exa". The `providers` parameter supports several formats
         based on either a `str` specifying a provider or a `dict` whose keys are
         the provider names and whose values are the provider-specific options. A
-        single value or a list of these can be passed. This arg is optional just
-        for backwards compatibility.
-        New code should always provide this argument.
+        single value or a list of these can be passed.
 
-        Single provider:
+        Use built-in search for all providers:
+        ```
+        web_search()
+        ```
+
+        Single external provider:
         ```
         web_search("tavily")
         web_search({"tavily": {"max_results": 5}})  # Tavily-specific options
@@ -145,7 +156,7 @@ def web_search(
 
         Multiple providers:
         ```
-        # "openai" used for OpenAI models, "tavily" as fallback
+        # "openai" used for OpenAI models, "tavily" for other models
         web_search(["openai", "tavily"])
 
         # The True value means to use the provider with default options
@@ -154,7 +165,7 @@ def web_search(
 
         Mixed format:
         ```
-        web_search(["openai", {"tavily": {"max_results": 5}}])
+        web_search(["openai", "anthropic", {"tavily": {"max_results": 5}}])
         ```
 
         When specified in the `dict` format, the `None` value for a provider means
@@ -237,7 +248,7 @@ def _normalize_config(
     # Cases to handle:
     # 1. Both deprecated_provider and providers are set
     #     ValueError
-    # 2. Neither deprecated_provider nor providers is set
+    # 2. Neither is set and google env vars are defined
     #     act as if they passed provider="google"
     # 3. Only providers is set
     #     if any of the other deprecated parameters is set, then ValueError
@@ -245,13 +256,17 @@ def _normalize_config(
     # 4. Only deprecated_provider is set
     #     convert to new config format - including processing old other params
 
+    # can't use both provider and providers
     deprecated_provider = deprecated.get("provider", None)
-    # Case 1.
     if deprecated_provider and providers:
         raise ValueError("`provider` is deprecated. Please only specify `providers`.")
 
-    # Case 2.
-    if providers is None and deprecated_provider is None:
+    # no providers but google env vars are set
+    if (
+        providers is None
+        and deprecated_provider is None
+        and maybe_get_google_api_keys() is not None
+    ):
         deprecated_provider = "google"
 
     num_results = deprecated.get("num_results", None)
@@ -269,9 +284,24 @@ def _normalize_config(
             model=model,
         )
 
-    assert providers, "providers should not be None here"
-    normalized: _NormalizedProviders = {}
-    for entry in providers if isinstance(providers, list) else [providers]:
+    # normalize providers to list
+    providers = providers or []
+    providers = providers if isinstance(providers, list) else [providers]
+
+    # determine default -- if there is at least one external provider then
+    # internal providers are disabled by default, otherwise they are enabled
+    if _has_external_provider(providers):
+        normalized: _NormalizedProviders = {}
+    else:
+        normalized = {
+            "openai": {},
+            "anthropic": {},
+            "grok": {},
+            "gemini": {},
+            "mistral": {},
+            "perplexity": {},
+        }
+    for entry in providers:
         if isinstance(entry, str):
             if entry not in valid_providers:
                 raise ValueError(f"Invalid provider: '{entry}'")
@@ -281,16 +311,33 @@ def _normalize_config(
                 if key not in valid_providers:
                     raise ValueError(f"Invalid provider: '{key}'")
 
-                if (
-                    not isinstance(value, dict)
-                    and value is not True
-                    and value is not None
-                ):
+                if not isinstance(value, dict | bool) and value is not None:
                     raise ValueError(
-                        f"Invalid value for provider '{key}': {value}. Expected a dict, None, or True."
+                        f"Invalid value for provider '{key}': {value}. Expected a dict, bool, or None"
                     )
-                normalized[key] = value if isinstance(value, dict) else {}  # type: ignore
+                if value is False:
+                    normalized.pop(key, None)  # type: ignore[misc]
+                else:
+                    normalized[key] = value if isinstance(value, dict) else {}  # type: ignore
     return normalized
+
+
+EXTERNAL_PROVIDERS = ["tavily", "google", "exa"]
+
+
+def _has_external_provider(
+    providers: list[WebSearchProvider | WebSearchProviders],
+) -> bool:
+    for provider in providers:
+        if isinstance(provider, str):
+            if provider in EXTERNAL_PROVIDERS:
+                return True
+        elif isinstance(provider, dict):
+            for key in provider.keys():
+                if key in EXTERNAL_PROVIDERS and provider[key] is not False:  # type: ignore[literal-required]
+                    return True
+
+    return False
 
 
 def _get_config_via_back_compat(

@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -10,7 +10,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._compaction.edit import CompactionEdit
+from inspect_ai.model._compaction.edit import TOOL_RESULT_REMOVED, CompactionEdit
 from inspect_ai.model._model import get_model
 from inspect_ai.tool import ToolCall
 
@@ -832,3 +832,424 @@ async def test_sequential_compaction_cycles(
     last_tool = compacted3[10]
     assert isinstance(last_tool, ChatMessageTool)
     assert last_tool.content == "Tool result 2"
+
+
+# ==============================================================================
+# Server-Side Tool (ContentToolUse) Clearing Tests
+# ==============================================================================
+
+
+@pytest.fixture
+def web_search_tool_use() -> ContentToolUse:
+    """A web_search ContentToolUse for testing."""
+    return ContentToolUse(
+        tool_type="web_search",
+        id="ws1",
+        name="web_search",
+        arguments='{"query": "test query"}',
+        result='[{"title": "Result 1", "url": "http://example.com"}]',
+    )
+
+
+@pytest.fixture
+def mcp_tool_use() -> ContentToolUse:
+    """An mcp_call ContentToolUse for testing."""
+    return ContentToolUse(
+        tool_type="mcp_call",
+        id="mcp1",
+        name="get_data",
+        context="my_server",
+        arguments='{"param": "value"}',
+        result='{"data": "some data"}',
+    )
+
+
+@pytest.fixture
+def code_execution_tool_use() -> ContentToolUse:
+    """A code_execution ContentToolUse for testing."""
+    return ContentToolUse(
+        tool_type="code_execution",
+        id="ce1",
+        name="code_interpreter",
+        arguments="print('hello')",
+        result="hello",
+    )
+
+
+@pytest.mark.asyncio
+async def test_clear_server_tool_use_results(
+    web_search_tool_use: ContentToolUse,
+    mcp_tool_use: ContentToolUse,
+) -> None:
+    """Test that older server-side tool use results are cleared."""
+    strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=1)
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Search for something"),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="Let me search"),
+                web_search_tool_use,
+            ]
+        ),
+        ChatMessageUser(content="Get some data"),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="Getting data"),
+                mcp_tool_use,
+            ]
+        ),
+    ]
+
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+
+    # Same number of messages
+    assert len(compacted) == 4
+
+    # First assistant: web_search result should be cleared
+    first_assistant = compacted[1]
+    assert isinstance(first_assistant, ChatMessageAssistant)
+    assert isinstance(first_assistant.content, list)
+    web_search = next(
+        (c for c in first_assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert web_search is not None
+    assert web_search.result == TOOL_RESULT_REMOVED
+
+    # Second assistant: mcp_call result should be preserved (most recent)
+    second_assistant = compacted[3]
+    assert isinstance(second_assistant, ChatMessageAssistant)
+    assert isinstance(second_assistant.content, list)
+    mcp_call = next(
+        (c for c in second_assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert mcp_call is not None
+    assert mcp_call.result == '{"data": "some data"}'
+
+
+@pytest.mark.asyncio
+async def test_clear_all_server_tool_uses_when_keep_zero() -> None:
+    """Test clearing all server tool uses when keep_tool_uses=0."""
+    strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=0)
+
+    web_search = ContentToolUse(
+        tool_type="web_search",
+        id="ws1",
+        name="web_search",
+        arguments='{"query": "test"}',
+        result='[{"title": "Result"}]',
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Search"),
+        ChatMessageAssistant(content=[ContentText(text="Searching"), web_search]),
+    ]
+
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+
+    assistant = compacted[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+    tool_use = next(
+        (c for c in assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert tool_use is not None
+    assert tool_use.result == TOOL_RESULT_REMOVED
+
+
+@pytest.mark.asyncio
+async def test_server_tool_use_exclusions(
+    web_search_tool_use: ContentToolUse,
+    mcp_tool_use: ContentToolUse,
+) -> None:
+    """Test that excluded server-side tools are never cleared."""
+    strategy = CompactionEdit(
+        keep_thinking_turns="all",
+        keep_tool_uses=0,
+        exclude_tools=["web_search"],
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="First"),
+        ChatMessageAssistant(
+            content=[ContentText(text="Using web_search"), web_search_tool_use]
+        ),
+        ChatMessageUser(content="Second"),
+        ChatMessageAssistant(
+            content=[ContentText(text="Using mcp_call"), mcp_tool_use]
+        ),
+    ]
+
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+
+    # web_search should be preserved (excluded)
+    first_assistant = compacted[1]
+    assert isinstance(first_assistant, ChatMessageAssistant)
+    assert isinstance(first_assistant.content, list)
+    ws = next(
+        (c for c in first_assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert ws is not None
+    assert ws.result == '[{"title": "Result 1", "url": "http://example.com"}]'
+
+    # mcp_call should be cleared (not excluded)
+    second_assistant = compacted[3]
+    assert isinstance(second_assistant, ChatMessageAssistant)
+    assert isinstance(second_assistant.content, list)
+    mcp = next(
+        (c for c in second_assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert mcp is not None
+    assert mcp.result == TOOL_RESULT_REMOVED
+
+
+@pytest.mark.asyncio
+async def test_server_tool_exclusion_by_name() -> None:
+    """Test that tools can be excluded by name (for mcp_call)."""
+    strategy = CompactionEdit(
+        keep_thinking_turns="all",
+        keep_tool_uses=0,
+        exclude_tools=["get_data"],  # Exclude by specific tool name
+    )
+
+    mcp1 = ContentToolUse(
+        tool_type="mcp_call",
+        id="mcp1",
+        name="get_data",
+        context="server1",
+        arguments="{}",
+        result="data1",
+    )
+    mcp2 = ContentToolUse(
+        tool_type="mcp_call",
+        id="mcp2",
+        name="other_tool",
+        context="server1",
+        arguments="{}",
+        result="data2",
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="First"),
+        ChatMessageAssistant(content=[ContentText(text="Using get_data"), mcp1]),
+        ChatMessageUser(content="Second"),
+        ChatMessageAssistant(content=[ContentText(text="Using other_tool"), mcp2]),
+    ]
+
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+
+    # get_data should be preserved (excluded by name)
+    first_assistant = compacted[1]
+    assert isinstance(first_assistant, ChatMessageAssistant)
+    assert isinstance(first_assistant.content, list)
+    tool1 = next(
+        (c for c in first_assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert tool1 is not None
+    assert tool1.result == "data1"
+
+    # other_tool should be cleared (not excluded)
+    second_assistant = compacted[3]
+    assert isinstance(second_assistant, ChatMessageAssistant)
+    assert isinstance(second_assistant.content, list)
+    tool2 = next(
+        (c for c in second_assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert tool2 is not None
+    assert tool2.result == TOOL_RESULT_REMOVED
+
+
+@pytest.mark.asyncio
+async def test_mixed_client_and_server_tool_clearing(
+    tool_call_1: ToolCall,
+    tool_call_2: ToolCall,
+    web_search_tool_use: ContentToolUse,
+) -> None:
+    """Test that client-side and server-side tools share a single keep_tool_uses budget.
+
+    With 2 client-side tools and 2 server-side tools (4 total), and keep_tool_uses=2,
+    we keep only the 2 most recent tool uses regardless of type.
+    """
+    ws2 = ContentToolUse(
+        tool_type="web_search",
+        id="ws2",
+        name="web_search",
+        arguments='{"query": "second query"}',
+        result='[{"title": "Second result"}]',
+    )
+
+    strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=2)
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Start"),
+        # First turn: client-side tool call + server-side tool use
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="Using tools"),
+                web_search_tool_use,
+            ],
+            tool_calls=[tool_call_1],
+        ),
+        ChatMessageTool(
+            content="Weather: Sunny", tool_call_id="tool1", function="get_weather"
+        ),
+        ChatMessageUser(content="More"),
+        # Second turn: another client-side + server-side
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="More tools"),
+                ws2,
+            ],
+            tool_calls=[tool_call_2],
+        ),
+        ChatMessageTool(
+            content="Time: 12:00", tool_call_id="tool2", function="get_time"
+        ),
+        ChatMessageUser(content="Follow up"),
+        ChatMessageAssistant(content="Final answer"),
+    ]
+
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+
+    # Tool order (by message index, client before server within same message):
+    # 1. tool_call_1 (msg 1, client)
+    # 2. web_search (msg 1, server)
+    # 3. tool_call_2 (msg 4, client)
+    # 4. ws2 (msg 4, server)
+    #
+    # With keep_tool_uses=2, we keep the last 2: tool_call_2 and ws2
+
+    # First client-side tool result should be cleared (oldest)
+    tool_msg_1 = compacted[2]
+    assert isinstance(tool_msg_1, ChatMessageTool)
+    assert tool_msg_1.content == TOOL_RESULT_REMOVED
+
+    # Second client-side tool result should be preserved (recent)
+    tool_msg_2 = compacted[5]
+    assert isinstance(tool_msg_2, ChatMessageTool)
+    assert tool_msg_2.content == "Time: 12:00"
+
+    # First server-side tool use result should be cleared (oldest)
+    first_assistant = compacted[1]
+    assert isinstance(first_assistant, ChatMessageAssistant)
+    assert isinstance(first_assistant.content, list)
+    ws = next(
+        (c for c in first_assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert ws is not None
+    assert ws.result == TOOL_RESULT_REMOVED
+
+    # Second server-side tool use result should be preserved (recent)
+    second_assistant = compacted[4]
+    assert isinstance(second_assistant, ChatMessageAssistant)
+    assert isinstance(second_assistant.content, list)
+    ws_second = next(
+        (c for c in second_assistant.content if isinstance(c, ContentToolUse)),
+        None,
+    )
+    assert ws_second is not None
+    assert ws_second.result == '[{"title": "Second result"}]'
+
+
+@pytest.mark.asyncio
+async def test_multiple_server_tools_in_same_message() -> None:
+    """Test clearing multiple server-side tools within the same assistant message."""
+    strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=1)
+
+    ws1 = ContentToolUse(
+        tool_type="web_search",
+        id="ws1",
+        name="web_search",
+        arguments='{"query": "query1"}',
+        result="result1",
+    )
+    ws2 = ContentToolUse(
+        tool_type="web_search",
+        id="ws2",
+        name="web_search",
+        arguments='{"query": "query2"}',
+        result="result2",
+    )
+    ws3 = ContentToolUse(
+        tool_type="web_search",
+        id="ws3",
+        name="web_search",
+        arguments='{"query": "query3"}',
+        result="result3",
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Search multiple things"),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="Searching"),
+                ws1,
+                ws2,
+                ws3,
+            ]
+        ),
+    ]
+
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+
+    assistant = compacted[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+
+    tool_uses = [c for c in assistant.content if isinstance(c, ContentToolUse)]
+    assert len(tool_uses) == 3
+
+    # With keep_tool_uses=1, only the last one should be preserved
+    assert tool_uses[0].result == TOOL_RESULT_REMOVED
+    assert tool_uses[1].result == TOOL_RESULT_REMOVED
+    assert tool_uses[2].result == "result3"
+
+
+@pytest.mark.asyncio
+async def test_server_tool_clearing_preserves_other_content() -> None:
+    """Test that clearing server tool results preserves other content in the message."""
+    strategy = CompactionEdit(keep_thinking_turns="all", keep_tool_uses=0)
+
+    ws = ContentToolUse(
+        tool_type="web_search",
+        id="ws1",
+        name="web_search",
+        arguments='{"query": "test"}',
+        result="search results",
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Search"),
+        ChatMessageAssistant(
+            content=[
+                ContentText(text="Before search"),
+                ws,
+                ContentText(text="After search"),
+            ]
+        ),
+    ]
+
+    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+
+    assistant = compacted[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+    assert len(assistant.content) == 3
+
+    # Text content should be preserved
+    assert isinstance(assistant.content[0], ContentText)
+    assert assistant.content[0].text == "Before search"
+    assert isinstance(assistant.content[2], ContentText)
+    assert assistant.content[2].text == "After search"
+
+    # Tool use result should be cleared
+    assert isinstance(assistant.content[1], ContentToolUse)
+    assert assistant.content[1].result == TOOL_RESULT_REMOVED
