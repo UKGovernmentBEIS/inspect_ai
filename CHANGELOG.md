@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
-- Sandboxes: Enables sandbox providers to declare Docker compatibility, which will result in Docker config files being passed to them.
+- Sandboxes: Enable sandbox providers to declare Docker compatibility, which will result in Docker config files being passed to them.
 - Docker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).
 - Inspect View: Support zstd compression of eval log file contents.
 
