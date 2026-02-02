@@ -339,6 +339,7 @@ export const LiveVirtualList = <T,>({
       rangeChanged={(range) => {
         setVisibleRange(range);
       }}
+      skipAnimationFrameInResizeObserver={true}
       restoreStateFrom={getRestoreState()}
       totalListHeightChanged={heightChanged}
       components={{
