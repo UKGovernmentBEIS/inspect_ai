@@ -1,5 +1,21 @@
 ## Unreleased
 
+- Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
+- Inspect View: Support zstd compression of eval log file contents.
+
+## 0.3.169 (01 February 2026)
+
+- Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).
+- OpenAI: Workaround for openai Python SDK inability to round trip 'find_in_page' web search actions.
+- Reasoning: Don't process `<think>` tags in assistant message loading (now all done directly by model providers).
+- Web Search: Use internal search providers by default when no external provider is defined (previously they required explicit enabling).
+- Web Search: Fallback to Google CSE provider only when Google CSE environment variables are defined (the CSE service has been deprecated by Google).
+- Eval Logs: Improve eval log loading performance with JSON cache key for messages.
+- Agent Bridge: Make sandbox_agent_bridge cleanup errors non-fatal when agent completes
+- Compaction: Add source="compaction" to InfoEvent created by compaction.
+
+## 0.3.168 (31 January 2026)
+
 - [nnterp](https://inspect.aisi.org.uk/providers.html#nnterp) model provider enabling use of `StandardizedTransformer` models with Inspect.
 - OpenAI Compatible: More generic handling for reasoning payloads (playback reasoning in exactly the same body field it was captured from).
 - Eval Logs: Add `EvalStatus` type alias for evaluation status literals (`"started"`, `"success"`, `"cancelled"`, `"error"`).
