@@ -4,6 +4,7 @@
 - Model API: Added `CompactionEvent` for model compactions.
 - Docker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).
 - Inspect View: Support zstd compression of eval log file contents.
+- Inspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.
 
 ## 0.3.169 (01 February 2026)
 
