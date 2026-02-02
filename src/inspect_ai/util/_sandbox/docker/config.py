@@ -6,7 +6,7 @@ import yaml
 
 from inspect_ai._util.appdirs import inspect_data_dir
 
-from ..compose import COMPOSE_FILES, DOCKERFILE
+from ..compose import AUTO_COMPOSE_YAML, COMPOSE_FILES, DOCKERFILE
 
 logger = getLogger(__name__)
 
@@ -77,11 +77,8 @@ def is_auto_compose_file(file: str) -> bool:
     """
     path = Path(file)
     # New pattern: file is in the auto-compose directory
-    try:
-        if path.parent == auto_compose_dir():
-            return True
-    except Exception:
-        pass
+    if path.parent == auto_compose_dir():
+        return True
     # Legacy pattern: filename is .compose.yaml
     return path.name == AUTO_COMPOSE_YAML
 
@@ -111,8 +108,6 @@ def safe_cleanup_auto_compose(file: str | None) -> None:
         except Exception as ex:
             logger.warning(f"Error cleaning up compose file: {ex}")
 
-
-AUTO_COMPOSE_YAML = ".compose.yaml"
 
 COMPOSE_COMMENT = """# inspect auto-generated docker compose file
 # (will be removed when task is complete)"""

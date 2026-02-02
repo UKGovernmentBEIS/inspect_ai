@@ -1,5 +1,3 @@
-import json
-import subprocess
 from contextvars import ContextVar
 from logging import getLogger
 from pathlib import Path
@@ -25,12 +23,12 @@ def project_cleanup_startup() -> None:
     _auto_compose_files.set(set())
     _cleanup_completed.set(False)
 
-    # Clean up orphaned auto-compose files from crashed processes
-    _cleanup_orphaned_auto_compose_files()
 
-
-def _cleanup_orphaned_auto_compose_files() -> None:
+def _cleanup_orphaned_auto_compose_files(running_project_names: set[str]) -> None:
     """Remove auto-compose files that no longer have running Docker projects.
+
+    Args:
+        running_project_names: Set of currently running inspect project names.
 
     This handles cleanup for files left behind by crashed processes.
     """
@@ -38,38 +36,17 @@ def _cleanup_orphaned_auto_compose_files() -> None:
     if not compose_dir.exists():
         return
 
-    try:
-        # Get running inspect projects via docker compose ls
-        result = subprocess.run(
-            ["docker", "compose", "ls", "--all", "--format", "json"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode != 0:
-            return
-
-        projects_data = json.loads(result.stdout or "[]")
-        running_names = {
-            p["Name"] for p in projects_data if is_inspect_project(p["Name"])
-        }
-
-        # Remove files for projects no longer running
-        for file in compose_dir.iterdir():
-            if file.suffix == ".yaml" and file.stem not in running_names:
-                try:
-                    file.unlink()
-                except Exception as ex:
-                    trace_message(
-                        logger,
-                        TRACE_DOCKER,
-                        f"Failed to remove orphaned compose file {file}: {ex}",
-                    )
-
-    except Exception as ex:
-        trace_message(
-            logger, TRACE_DOCKER, f"Error cleaning up orphaned auto-compose files: {ex}"
-        )
+    # Remove files for projects no longer running
+    for file in compose_dir.iterdir():
+        if file.suffix == ".yaml" and file.stem not in running_project_names:
+            try:
+                file.unlink()
+            except Exception as ex:
+                trace_message(
+                    logger,
+                    TRACE_DOCKER,
+                    f"Failed to remove orphaned compose file {file}: {ex}",
+                )
 
 
 def project_startup(project: ComposeProject) -> None:
@@ -167,6 +144,9 @@ async def cli_cleanup(project_name: str | None) -> None:
     # enumerate all inspect projects
     projects = await compose_ls()
 
+    # get set of running project names for orphan cleanup
+    running_names = {p.Name for p in projects if is_inspect_project(p.Name)}
+
     # filter by project name
     if project_name:
         projects = list(filter(lambda p: p.Name == project_name, projects))
@@ -190,6 +170,9 @@ async def cli_cleanup(project_name: str | None) -> None:
         # remove auto compose files
         for compose_project in compose_projects:
             safe_cleanup_auto_compose(compose_project.config)
+
+    # clean up orphaned auto-compose files from crashed processes
+    _cleanup_orphaned_auto_compose_files(running_names)
 
 
 def running_projects() -> list[ComposeProject]:

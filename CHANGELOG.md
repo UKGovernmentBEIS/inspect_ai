@@ -1,7 +1,9 @@
 ## Unreleased
 
 - Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
+- Docker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).
 - Inspect View: Support zstd compression of eval log file contents.
+
 
 ## 0.3.169 (01 February 2026)
 
