@@ -7,6 +7,7 @@
 - Inspect View: Improve reliability of code syntax highlighting in messages and events.
 - Inspect View: Support zstd compression of eval log file contents.
 - Inspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.
+- Bugfix: Correct handling for `--reasoning-history` CLI argument (don't parse as boolean).
 
 ## 0.3.169 (01 February 2026)
 
