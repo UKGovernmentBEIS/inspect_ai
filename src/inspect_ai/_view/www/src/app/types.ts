@@ -2,6 +2,7 @@ import { GridState } from "ag-grid-community";
 import { StateSnapshot } from "react-virtuoso";
 import {
   ApprovalEvent,
+  CompactionEvent,
   ContentImage,
   ContentText,
   EvalSample,
@@ -154,6 +155,7 @@ export interface SampleState {
 export type Event =
   | SampleInitEvent
   | SampleLimitEvent
+  | CompactionEvent
   | SandboxEvent
   | StateEvent
   | StoreEvent

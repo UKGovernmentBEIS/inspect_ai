@@ -60,6 +60,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         return COMPOSE_FILES + [DOCKERFILE]
 
     @classmethod
+    def is_docker_compatible(cls) -> bool:
+        return True
+
+    @classmethod
     def default_concurrency(cls) -> int | None:
         count = os.cpu_count() or 1
         return 2 * count

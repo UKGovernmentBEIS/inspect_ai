@@ -6,6 +6,7 @@ title: "inspect_ai.event"
 
 ### ModelEvent
 ### ToolEvent
+### CompactionEvent
 ### ApprovalEvent
 ### SandboxEvent
 ### InfoEvent

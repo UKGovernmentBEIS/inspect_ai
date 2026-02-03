@@ -1,4 +1,5 @@
 import {
+  CompactionEvent,
   Content,
   ContentReasoning,
   ContentText,
@@ -110,6 +111,16 @@ export const eventSearchText = (node: EventNode): string[] => {
           texts.push(JSON.stringify(infoEvent.data));
         }
       }
+      break;
+    }
+
+    case "compaction": {
+      const compactionEvent = event as CompactionEvent;
+      // Source shown in title
+      if (compactionEvent.source) {
+        texts.push(compactionEvent.source);
+      }
+      texts.push(JSON.stringify(compactionEvent));
       break;
     }
 

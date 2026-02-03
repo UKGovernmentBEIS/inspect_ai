@@ -13,13 +13,13 @@ import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
 import { PulsingDots } from "../../../components/PulsingDots";
-import { usePrismHighlight } from "../../../state/hooks";
+import { usePrismHighlight } from "../../../components/prism";
+import { Message } from "../chat/messages";
 import styles from "./ModelEventView.module.css";
 import { EventNodeContext } from "./TranscriptVirtualList";
 import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import { EventNode } from "./types";
-import { Message } from "../chat/messages";
 
 interface ModelEventViewProps {
   eventNode: EventNode<ModelEvent>;
