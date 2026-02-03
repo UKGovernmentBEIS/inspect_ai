@@ -241,14 +241,6 @@ The best way to learn about writing sandbox environments is to look at the sourc
 
 ### Docker Compatibility
 
-::: {.callout-note appearance="minimal"}
-The docker compatibility feature described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Many Inspect tasks are defined using the "docker" sandbox provider along with a `Dockerfile` or `compose.yaml` configuration. Many other sandbox providers are capable of using some combination of `Dockerfile` and compose configuration, so can register themselves as docker compatible by implementing the `is_docker_compatible()` class method. For example:
 
 ``` python
