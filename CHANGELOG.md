@@ -1,5 +1,10 @@
 ## Unreleased
 
+- `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
+- Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
+
+## 0.3.170 (03 February 2026)
+
 - Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
 - Model API: Added `CompactionEvent` for model compactions.
 - Sandboxes: Enable sandbox providers to declare Docker compatibility, which will result in Docker config files being passed to them.
@@ -8,7 +13,6 @@
 - Inspect View: Support zstd compression of eval log file contents.
 - Inspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.
 - Inspect View: Render `<think>` tags when included in user messages.
-- Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
 - Bugfix: Correct handling for `--reasoning-history` CLI argument (don't parse as boolean).
 - Bugfix: Submit to `human_cli()` with no answer now correctly completes task.
 
