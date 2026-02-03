@@ -1,6 +1,7 @@
 ## Unreleased
 
 - `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
+- Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
 
 ## 0.3.170 (03 February 2026)
 

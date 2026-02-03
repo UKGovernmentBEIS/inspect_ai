@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Event,
   Event1,
@@ -152,3 +152,55 @@ export const useTranscriptFilter = () => {
     arrangedEventTypes,
   };
 };
+// Singleton observer - shared across all sticky headers
+// workaround for https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@container#stuck
+// use as :global([data-useStickyObserver-stuck]) in CSS modules
+let sharedObserver: IntersectionObserver | null = null;
+let observedElements = new Set<Element>();
+
+function getSharedObserver(callback: IntersectionObserverCallback) {
+  if (!sharedObserver) {
+    sharedObserver = new IntersectionObserver(callback, {
+      // hardcoded for .stickyWrapper top:30px plus its scroll container (Modal body 35px)
+      rootMargin: "-65px 0px 0px 0px",
+      threshold: [1],
+    });
+  }
+  return sharedObserver;
+}
+
+// The callback that handles ALL observed elements
+function handleIntersections(entries: IntersectionObserverEntry[]) {
+  entries.forEach((entry) => {
+    entry.target.toggleAttribute(
+      "data-useStickyObserver-stuck",
+      entry.intersectionRatio < 1,
+    );
+  });
+}
+
+export function useStickyObserver<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = getSharedObserver(handleIntersections);
+    observer.observe(el);
+    observedElements.add(el);
+
+    return () => {
+      observer.unobserve(el);
+      observedElements.delete(el);
+
+      // Clean up observer if no elements left
+      if (observedElements.size === 0 && sharedObserver) {
+        sharedObserver.disconnect();
+        sharedObserver = null;
+      }
+    };
+  }, []);
+
+  return ref;
+}
