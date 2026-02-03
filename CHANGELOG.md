@@ -9,6 +9,7 @@
 - Inspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.
 - Inspect View: Render `<think>` tags when included in user messages.
 - Bugfix: Correct handling for `--reasoning-history` CLI argument (don't parse as boolean).
+- Bugfix: Submit to `human_cli()` with no answer now correctly completes task.
 
 ## 0.3.169 (01 February 2026)
 
