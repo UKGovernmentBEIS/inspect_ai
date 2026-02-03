@@ -145,8 +145,8 @@ const messageRenderers: Record<string, MessageRenderer> = {
         // For user messages, allow 'think' tags to remain as these
         // are likely to be user created messages (vs. internal containers)
         // holding encoded model reasoning.
-        const isUserMessage = context.role === "user";
-        const internalTags = isUserMessage
+        const isAssistantMessage = context.role === "assistant";
+        const internalTags = !isAssistantMessage
           ? ["internal", "content-internal"]
           : ["internal", "content-internal", "think"];
         internalTags.forEach((tag) => {
