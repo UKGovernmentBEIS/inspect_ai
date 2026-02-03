@@ -54,7 +54,7 @@ from ._sandbox import (
     sandboxenv,
 )
 from ._span import span
-from ._store import Store, store
+from ._store import Store, store, store_from_events, store_from_events_as
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
     ExecResult,
@@ -106,6 +106,8 @@ __all__ = [
     "sandbox_service",
     "Store",
     "store",
+    "store_from_events",
+    "store_from_events_as",
     "StoreModel",
     "store_as",
     "span",

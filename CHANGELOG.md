@@ -1,3 +1,7 @@
+## Unreleased
+
+- `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
+
 ## 0.3.170 (03 February 2026)
 
 - Added `stable_message_ids()` function for yielding stable ids based on model content (but always unique within a given conversation).
