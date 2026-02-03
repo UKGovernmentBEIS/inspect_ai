@@ -619,6 +619,8 @@ website:
           href: reference/inspect_ai.event.qmd#modelevent
         - text: ToolEvent
           href: reference/inspect_ai.event.qmd#toolevent
+        - text: CompactionEvent
+          href: reference/inspect_ai.event.qmd#compactionevent
         - text: ApprovalEvent
           href: reference/inspect_ai.event.qmd#approvalevent
         - text: SandboxEvent
