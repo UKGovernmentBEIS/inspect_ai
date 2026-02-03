@@ -9,11 +9,15 @@ enabling portability across different sandbox types (Docker, Modal, K8s, etc.).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TypeGuard, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 COMPOSE_FILES = [
     "compose.yaml",
@@ -30,8 +34,11 @@ AUTO_COMPOSE_YAML = ".compose.yaml"
 # Central directory for auto-compose files
 AUTO_COMPOSE_SUBDIR = "docker-compose"
 
+# Pattern for auto-compose filenames (e.g., "foo-compose.yaml", ".compose.yaml")
+COMPOSE_PATTERN = re.compile(r"[-.]compose\.yaml$")
 
-def is_compose_yaml(file: str) -> bool:
+
+def is_compose_yaml(file: Any) -> TypeGuard[str]:
     """Check if a path is a Docker Compose file.
 
     Args:
@@ -43,28 +50,29 @@ def is_compose_yaml(file: str) -> bool:
         compose file (.compose.yaml or in the auto-compose directory),
         or False otherwise.
     """
-    path = Path(file)
+    if isinstance(file, str):
+        path = Path(file)
 
-    # Standard compose files
-    if path.name in COMPOSE_FILES:
-        return True
+        # Standard compose files
+        if path.name in COMPOSE_FILES:
+            return True
 
-    # Legacy auto-compose file (.compose.yaml in working directory)
-    if path.name == AUTO_COMPOSE_YAML:
-        return True
+        # compose-alike files (e.g., ".compose.yaml", "foo-compose.yaml")
+        if COMPOSE_PATTERN.search(path.name):
+            return True
 
-    # New auto-compose files (in central directory)
-    # Use lazy import to avoid circular dependency with docker/config.py
-    from inspect_ai._util.appdirs import inspect_data_dir
+        # New auto-compose files (in central directory)
+        # Use lazy import to avoid circular dependency with docker/config.py
+        from inspect_ai._util.appdirs import inspect_data_dir
 
-    auto_compose_dir = inspect_data_dir(AUTO_COMPOSE_SUBDIR)
-    if path.parent == auto_compose_dir and path.suffix == ".yaml":
-        return True
+        auto_compose_dir = inspect_data_dir(AUTO_COMPOSE_SUBDIR)
+        if path.parent == auto_compose_dir and path.suffix == ".yaml":
+            return True
 
     return False
 
 
-def is_dockerfile(file: str) -> bool:
+def is_dockerfile(file: Any) -> TypeGuard[str]:
     """Check if a path is a Dockerfile.
 
     Args:
@@ -74,8 +82,11 @@ def is_dockerfile(file: str) -> bool:
         True if the path is a Dockerfile (Dockerfile, name.Dockerfile,
         or Dockerfile.name), False otherwise.
     """
-    path = Path(file)
-    return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
+    if isinstance(file, str):
+        path = Path(file)
+        return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
+    else:
+        return False
 
 
 class ComposeModel(BaseModel):
@@ -332,3 +343,25 @@ def parse_compose_yaml(
         )
 
     return config
+
+
+def is_docker_compatible_config(config: BaseModel | str | None) -> bool:
+    if isinstance(config, str):
+        return is_dockerfile(config) or is_compose_yaml(config)
+    elif isinstance(config, ComposeConfig):
+        return True
+    else:
+        return False
+
+
+def is_docker_compatible_sandbox_type(
+    sandbox_type: type[SandboxEnvironment] | str,
+) -> bool:
+    if isinstance(sandbox_type, str):
+        sandbox_type = registry_find_sandboxenv(sandbox_type)
+
+    is_docker_compatible_fn = cast(
+        Callable[..., bool], getattr(sandbox_type, "is_docker_compatible")
+    )
+
+    return is_docker_compatible_fn()
