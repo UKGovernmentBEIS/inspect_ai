@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import markdownit from "markdown-it";
+import MarkdownIt from "markdown-it";
 import markdownitMathjax3 from "markdown-it-mathjax3";
 import {
   CSSProperties,
@@ -14,14 +14,16 @@ import "./MarkdownDiv.css";
 interface MarkdownDivProps {
   markdown: string;
   omitMedia?: boolean;
+  omitMath?: boolean;
   style?: CSSProperties;
   className?: string | string[];
 }
 
 const MarkdownDivComponent = forwardRef<HTMLDivElement, MarkdownDivProps>(
-  ({ markdown, omitMedia, style, className }, ref) => {
+  ({ markdown, omitMedia, omitMath, style, className }, ref) => {
     // Check cache for rendered content
-    const cacheKey = `${markdown}:${omitMedia ? "1" : "0"}`;
+    const optionsKey = getOptionsKey(omitMedia, omitMath);
+    const cacheKey = `${markdown}:${optionsKey}`;
     const cachedHtml = renderCache.get(cacheKey);
 
     // Initialize with content (cached or unrendered markdown)
@@ -65,8 +67,8 @@ const MarkdownDivComponent = forwardRef<HTMLDivElement, MarkdownDivProps>(
 
         let html = preparedForMarkdown;
         try {
-          // Use pre-initialized markdown-it instance
-          const md = omitMedia ? mdInstanceNoMedia : mdInstance;
+          // Get appropriate markdown-it instance based on options
+          const md = getMarkdownInstance(omitMedia, omitMath);
           html = md.render(preparedForMarkdown);
         } catch (ex) {
           console.log("Unable to markdown render content");
@@ -110,7 +112,7 @@ const MarkdownDivComponent = forwardRef<HTMLDivElement, MarkdownDivProps>(
         // Cancel rendering if component unmounts
         cancel();
       };
-    }, [markdown, omitMedia, cachedHtml, renderedHtml, cacheKey]);
+    }, [markdown, omitMedia, omitMath, cachedHtml, renderedHtml, cacheKey]);
 
     return (
       <div
@@ -130,13 +132,31 @@ export const MarkdownDiv = memo(MarkdownDivComponent);
 const renderCache = new Map<string, string>();
 const MAX_CACHE_SIZE = 500;
 
-// Pre-initialize markdown-it instances to avoid recreation overhead
-const mdInstance = markdownit({ breaks: true, html: true }).use(
-  markdownitMathjax3,
-);
-const mdInstanceNoMedia = markdownit({ breaks: true, html: true })
-  .use(markdownitMathjax3)
-  .disable(["image"]);
+// Module-level cache for lazy-initialized markdown-it instances
+const mdInstanceCache: Record<string, MarkdownIt> = {};
+
+const getOptionsKey = (omitMedia?: boolean, omitMath?: boolean): string =>
+  `${omitMedia ? "1" : "0"}:${omitMath ? "1" : "0"}`;
+
+const getMarkdownInstance = (
+  omitMedia?: boolean,
+  omitMath?: boolean,
+): MarkdownIt => {
+  const key = getOptionsKey(omitMedia, omitMath);
+
+  if (!mdInstanceCache[key]) {
+    const md = new MarkdownIt({ breaks: true, html: true });
+    if (!omitMath) {
+      md.use(markdownitMathjax3);
+    }
+    if (omitMedia) {
+      md.disable(["image"]);
+    }
+    mdInstanceCache[key] = md;
+  }
+
+  return mdInstanceCache[key];
+};
 
 // Markdown rendering queue to make markdown rendering async while limiting concurrency
 interface QueueTask {
