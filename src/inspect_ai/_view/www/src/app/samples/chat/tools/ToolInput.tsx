@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { FC, Ref, useRef } from "react";
 
 import { ToolCallContent } from "../../../../@types/log";
-import { usePrismHighlight } from "../../../../state/hooks";
+import { usePrismHighlight } from "../../../../components/prism";
 import { RenderedText } from "../../../content/RenderedText";
 import styles from "./ToolInput.module.css";
 import { kToolTodoContentType } from "./tool";
