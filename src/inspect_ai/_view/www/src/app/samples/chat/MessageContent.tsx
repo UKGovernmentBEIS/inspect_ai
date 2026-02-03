@@ -130,7 +130,7 @@ interface MessageRenderer {
 
 const messageRenderers: Record<string, MessageRenderer> = {
   text: {
-    render: (key, content, isLast, _context) => {
+    render: (key, content, isLast, context) => {
       // The context provides a way to share context between different
       // rendering. In this case, we'll use it to keep track of citations
       const c = content as ContentText;
@@ -142,7 +142,13 @@ const messageRenderers: Record<string, MessageRenderer> = {
 
       const purgeInternalContainers = (text: string): string => {
         // Remove any <internal>...</internal> tags and their contents
-        const internalTags = ["internal", "content-internal", "think"];
+        // For user messages, allow 'think' tags to remain as these
+        // are likely to be user created messages (vs. internal containers)
+        // holding encoded model reasoning.
+        const isUserMessage = context.role === "user";
+        const internalTags = isUserMessage
+          ? ["internal", "content-internal"]
+          : ["internal", "content-internal", "think"];
         internalTags.forEach((tag) => {
           const regex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, "gm");
           text = text.replace(regex, "");
