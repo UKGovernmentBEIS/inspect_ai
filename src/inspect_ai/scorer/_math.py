@@ -11,6 +11,8 @@ except ImportError:
     sympify = None  # type: ignore
     SympifyError = Exception  # type: ignore
 
+from inspect_ai._util.version import verify_required_version
+
 from ._metric import CORRECT, INCORRECT, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
@@ -74,8 +76,12 @@ def math(
     """
     try:
         import math_verify
+
+        verify_required_version("Math Verify", "math_verify", "0.9.0")
     except ImportError:
-        raise pip_dependency_error("Math Scorer", ["math-verify[antlr4_13_2]>=0.9.0"])
+        raise pip_dependency_error(
+            "math() scorer", ["math-verify[antlr4_13_2]>=0.9.0"]
+        ) from None
 
     config = _parse_config(math_verify, extraction_targets)
 
