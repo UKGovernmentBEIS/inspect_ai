@@ -23,7 +23,7 @@ async with get_model("openai/gpt-4o") as model:
 In this case, the model client will be closed at the end of the context
 manager and will not be available in the get_model() cache.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L1126)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L1126)
 
 ``` python
 def get_model(
@@ -82,7 +82,7 @@ async with get_model("openai/gpt-4o") as model:
     response = await model.generate("Say hello")
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L368)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L368)
 
 ``` python
 class Model
@@ -107,7 +107,7 @@ Model role.
 \_\_init\_\_  
 Create a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L387)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L387)
 
 ``` python
 def __init__(
@@ -130,7 +130,7 @@ Optional model args
 canonical_name  
 Canonical model name for model info database lookup.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L445)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L445)
 
 ``` python
 def canonical_name(self) -> str
@@ -139,7 +139,7 @@ def canonical_name(self) -> str
 generate  
 Generate output from the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L460)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L460)
 
 ``` python
 async def generate(
@@ -177,7 +177,7 @@ The loop terminates when the model stops calling tools. The final
 `ModelOutput` as well the message list for the conversation are returned
 as a tuple.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L579)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L579)
 
 ``` python
 async def generate_loop(
@@ -205,7 +205,7 @@ Caching behavior for generate responses (defaults to no caching).
 count_tokens  
 Estimate token count for input.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L628)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L628)
 
 ``` python
 async def count_tokens(self, input: str | list[ChatMessage]) -> int
@@ -217,7 +217,7 @@ Input to count tokens for.
 count_tool_tokens  
 Count tokens for tool definitions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L656)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L656)
 
 ``` python
 async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int
@@ -230,7 +230,7 @@ List of tool definitions.
 
 Model generation options.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_generate_config.py#L158)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_generate_config.py#L158)
 
 ``` python
 class GenerateConfig(BaseModel)
@@ -378,7 +378,7 @@ batching configuration.
 merge  
 Merge another model configuration into this one.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_generate_config.py#L276)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_generate_config.py#L276)
 
 ``` python
 def merge(
@@ -393,7 +393,7 @@ Configuration to merge.
 
 Type for kwargs that selectively override GenerateConfig.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_generate_config.py#L56)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_generate_config.py#L56)
 
 ``` python
 class GenerateConfigArgs(TypedDict, total=False)
@@ -545,7 +545,7 @@ A filter may substitute for the default model generation by returning a
 `GenerateInput`, or return `None` to allow default processing to
 continue.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L124)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L124)
 
 ``` python
 GenerateFilter: TypeAlias = Callable[
@@ -558,7 +558,7 @@ GenerateFilter: TypeAlias = Callable[
 
 Batch processing configuration.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_generate_config.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_generate_config.py#L30)
 
 ``` python
 class BatchConfig(BaseModel)
@@ -600,7 +600,7 @@ Maximum number of consecutive check failures before failing a batch
 
 Schema for model response when using Structured Output.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_generate_config.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_generate_config.py#L13)
 
 ``` python
 class ResponseSchema(BaseModel)
@@ -628,7 +628,7 @@ the schema field. OpenAI and Mistral only.
 
 Output from model generation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L131)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L131)
 
 ``` python
 class ModelOutput(BaseModel)
@@ -668,7 +668,7 @@ First message choice.
 from_message  
 Create ModelOutput from a ChatMessageAssistant.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L177)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L177)
 
 ``` python
 @staticmethod
@@ -687,7 +687,7 @@ Stop reason for generation
 from_content  
 Create ModelOutput from a `str` or `list[Content]`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L213)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L213)
 
 ``` python
 @staticmethod
@@ -714,7 +714,7 @@ Error message.
 for_tool_call  
 Returns a ModelOutput for requesting a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L241)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L241)
 
 ``` python
 @staticmethod
@@ -751,7 +751,7 @@ tool {tool_name}”.
 
 Model config.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_config.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_config.py#L10)
 
 ``` python
 class ModelConfig(BaseModel)
@@ -775,7 +775,7 @@ Model specific arguments.
 
 Model call (raw request/response data).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_call.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_call.py#L16)
 
 ``` python
 class ModelCall(BaseModel)
@@ -801,7 +801,7 @@ Create a ModelCall from arbitrary request and response objects (they
 might be dataclasses, Pydandic objects, dicts, etc.). Converts all
 values to JSON serialiable (exluding those that can’t be)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_call.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_call.py#L28)
 
 ``` python
 @staticmethod
@@ -829,7 +829,7 @@ Time taken for underlying ModelCall
 
 Model conversation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_conversation.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_conversation.py#L7)
 
 ``` python
 class ModelConversation(Protocol)
@@ -847,7 +847,7 @@ Model output.
 
 Token usage for completion.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L12)
 
 ``` python
 class ModelUsage(BaseModel)
@@ -877,7 +877,7 @@ Number of tokens used for reasoning.
 
 Reason that the model stopped or failed to generate.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L59)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L59)
 
 ``` python
 StopReason = Literal[
@@ -894,7 +894,7 @@ StopReason = Literal[
 
 Choice generated for completion.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L106)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L106)
 
 ``` python
 class ChatCompletionChoice(BaseModel)
@@ -917,7 +917,7 @@ Logprobs.
 
 Message in a chat conversation
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_chat_message.py#L206)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_chat_message.py#L206)
 
 ``` python
 ChatMessage = Union[
@@ -929,7 +929,7 @@ ChatMessage = Union[
 
 Base class for chat messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_chat_message.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_chat_message.py#L21)
 
 ``` python
 class ChatMessageBase(BaseModel)
@@ -965,7 +965,7 @@ together (separated by newline)
 metadata_as  
 Metadata as a Pydantic model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_chat_message.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_chat_message.py#L36)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -978,7 +978,7 @@ BaseModel derived class.
 
 System chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_chat_message.py#L136)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_chat_message.py#L136)
 
 ``` python
 class ChatMessageSystem(ChatMessageBase)
@@ -993,7 +993,7 @@ Conversation role.
 
 User chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_chat_message.py#L143)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_chat_message.py#L143)
 
 ``` python
 class ChatMessageUser(ChatMessageBase)
@@ -1011,7 +1011,7 @@ ID(s) of tool call(s) this message has the content payload for.
 
 Assistant chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_chat_message.py#L153)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_chat_message.py#L153)
 
 ``` python
 class ChatMessageAssistant(ChatMessageBase)
@@ -1032,7 +1032,7 @@ Model used to generate assistant message.
 
 Tool chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_chat_message.py#L166)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_chat_message.py#L166)
 
 ``` python
 class ChatMessageTool(ChatMessageBase)
@@ -1063,7 +1063,7 @@ Ensuring that all assistant tool calls have corresponding tool
 messages. - Ensuring that the sequence of messages doesn’t end with an
 assistant message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_trim.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_trim.py#L10)
 
 ``` python
 async def trim_messages(
@@ -1081,7 +1081,7 @@ Ratio of converation messages to preserve (defaults to 0.7)
 
 Get the last “user” message within a message history.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_prompt.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_prompt.py#L4)
 
 ``` python
 def user_prompt(messages: list[ChatMessage]) -> ChatMessageUser
@@ -1099,7 +1099,7 @@ enabling cross-event message identity tracking. This is useful when an
 agent makes multiple LLM calls where subsequent calls include previous
 messages in the conversation history.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_message_ids.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_message_ids.py#L19)
 
 ``` python
 def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
@@ -1111,7 +1111,7 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
 
 Content sent to or received from a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L191)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L191)
 
 ``` python
 Content = Union[
@@ -1130,7 +1130,7 @@ Content = Union[
 
 Text content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L16)
 
 ``` python
 class ContentText(ContentBase)
@@ -1158,7 +1158,7 @@ See the specification for [thinking
 blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks)
 for Claude models.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L32)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L32)
 
 ``` python
 class ContentReasoning(ContentBase)
@@ -1190,7 +1190,7 @@ Pure text rendering of reasoning (used for replay/interop).
 
 Image content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L88)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L88)
 
 ``` python
 class ContentImage(ContentBase)
@@ -1214,7 +1214,7 @@ guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image
 
 Audio content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L104)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L104)
 
 ``` python
 class ContentAudio(ContentBase)
@@ -1235,7 +1235,7 @@ Format of audio data (‘mp3’ or ‘wav’)
 
 Video content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L117)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L117)
 
 ``` python
 class ContentVideo(ContentBase)
@@ -1256,7 +1256,7 @@ Format of video data (‘mp4’, ‘mpeg’, or ‘mov’)
 
 Document content (e.g. a PDF).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L130)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L130)
 
 ``` python
 class ContentDocument(ContentBase)
@@ -1282,7 +1282,7 @@ specified).
 
 Model internal.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L181)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L181)
 
 ``` python
 class ContentData(ContentBase)
@@ -1300,7 +1300,7 @@ Model provider specific payload - required for internal content.
 
 Server side tool use.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/content.py#L60)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/content.py#L60)
 
 ``` python
 class ContentToolUse(ContentBase)
@@ -1338,7 +1338,7 @@ The error from the tool call (if any).
 
 A citation sent to or received from a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/citation.py#L79)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/citation.py#L79)
 
 ``` python
 Citation: TypeAlias = Annotated[
@@ -1355,7 +1355,7 @@ Citation: TypeAlias = Annotated[
 
 Base class for citations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/citation.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/citation.py#L6)
 
 ``` python
 class CitationBase(BaseModel)
@@ -1380,7 +1380,7 @@ back to model types.
 
 A citation that refers to a URL.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/citation.py#L69)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/citation.py#L69)
 
 ``` python
 class UrlCitation(CitationBase)
@@ -1398,7 +1398,7 @@ URL of the cited resource.
 
 A citation that refers to a page range in a document.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/citation.py#L59)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/citation.py#L59)
 
 ``` python
 class DocumentCitation(CitationBase)
@@ -1416,7 +1416,7 @@ Range of the document that is cited.
 
 A generic content citation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/_util/citation.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/_util/citation.py#L39)
 
 ``` python
 class ContentCitation(CitationBase)
@@ -1433,7 +1433,7 @@ Type.
 
 Perform tool calls in the last assistant message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_call_tools.py#L99)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_call_tools.py#L99)
 
 ``` python
 async def execute_tools(
@@ -1462,7 +1462,7 @@ In conventional tool calling scenarios there will be only a list of
 `handoff()` tools (used in multi-agent systems) then other messages may
 be appended and an `output` may be available as well.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_call_tools.py#L83)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_call_tools.py#L83)
 
 ``` python
 class ExecuteToolsResult(NamedTuple)
@@ -1486,10 +1486,10 @@ Call the `Compact` handler with the full conversation history before
 sending input to the model. Send the returned `input` and append the
 supplemental message returned (if any) to the full history.
 
-See the [Compaction](ttps://inspect.aisi.org.uk/compaction.html) for
+See the [Compaction](https://inspect.aisi.org.uk/compaction.html) for
 additional details on using compaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/_compaction.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/_compaction.py#L20)
 
 ``` python
 def compaction(
@@ -1516,7 +1516,7 @@ Target model for compacted input (defaults to active model).
 
 Compact messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/types.py#L38)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/types.py#L38)
 
 ``` python
 class Compact(Protocol):
@@ -1532,7 +1532,7 @@ Full message history
 
 Compaction strategy.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/types.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/types.py#L8)
 
 ``` python
 class CompactionStrategy(abc.ABC)
@@ -1543,7 +1543,7 @@ class CompactionStrategy(abc.ABC)
 \_\_init\_\_  
 Compaction strategy.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/types.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/types.py#L11)
 
 ``` python
 def __init__(self, threshold: int | float = 0.9, memory: bool = True)
@@ -1559,7 +1559,7 @@ when the memory tool is available.
 compact  
 Compact messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/types.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/types.py#L22)
 
 ``` python
 @abc.abstractmethod
@@ -1582,7 +1582,7 @@ Compact messages by editing the history to remove tool call results and
 thinking blocks. Tool results receive placeholder to indicate they were
 removed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/edit.py#L26)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/edit.py#L26)
 
 ``` python
 class CompactionEdit(CompactionStrategy)
@@ -1593,7 +1593,7 @@ class CompactionEdit(CompactionStrategy)
 \_\_init\_\_  
 Message editing compaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/edit.py#L34)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/edit.py#L34)
 
 ``` python
 def __init__(
@@ -1642,7 +1642,7 @@ Compact messages by editing the history.
 Removes tool call results and thinking blocks from older turns. Tool
 results receive placeholder to indicate they were removed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/edit.py#L75)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/edit.py#L75)
 
 ``` python
 @override
@@ -1663,7 +1663,7 @@ Conversation summary compaction.
 
 Compact messages by summarizing the conversation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/summary.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/summary.py#L14)
 
 ``` python
 class CompactionSummary(CompactionStrategy)
@@ -1674,7 +1674,7 @@ class CompactionSummary(CompactionStrategy)
 \_\_init\_\_  
 Conversation summary compaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/summary.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/summary.py#L20)
 
 ``` python
 def __init__(
@@ -1703,7 +1703,7 @@ Prompt to use for summarization.
 compact  
 Compact messages by summarizing the conversation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/summary.py#L41)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/summary.py#L41)
 
 ``` python
 @override
@@ -1729,7 +1729,7 @@ from the sample. - Preserve a proportion of the remaining messages
 corresponding tool messages. - Ensure that the sequence of messages
 doesn’t end with an assistant message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/trim.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/trim.py#L11)
 
 ``` python
 class CompactionTrim(CompactionStrategy)
@@ -1740,7 +1740,7 @@ class CompactionTrim(CompactionStrategy)
 \_\_init\_\_  
 Message trimming compaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/trim.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/trim.py#L22)
 
 ``` python
 def __init__(
@@ -1766,7 +1766,7 @@ compact
 Compact messages by trimming the history to preserve a percentage of
 messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_compaction/trim.py#L40)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_compaction/trim.py#L40)
 
 ``` python
 @override
@@ -1794,7 +1794,7 @@ This function first tries direct database lookup, which does not require
 provider SDKs to be installed. It only falls back to full provider
 instantiation if direct lookup fails.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_info.py#L240)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_info.py#L240)
 
 ``` python
 def get_model_info(model: str | Model) -> ModelInfo | None
@@ -1822,7 +1822,7 @@ Set custom model information for models not in the database.
 Use this to register model information for custom or private models that
 are not included in the built-in database.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_info.py#L311)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_info.py#L311)
 
 ``` python
 def set_model_info(model: str, info: ModelInfo) -> None
@@ -1853,7 +1853,7 @@ set_model_info(
 
 Model information and metadata
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_data/model_data.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_data/model_data.py#L74)
 
 ``` python
 class ModelInfo(BaseModel)
@@ -1892,7 +1892,7 @@ Is this a reasoning model.
 
 Log probability for a token.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L83)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L83)
 
 ``` python
 class Logprob(BaseModel)
@@ -1918,7 +1918,7 @@ probabilities.
 
 Log probability information for a completion choice.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L99)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L99)
 
 ``` python
 class Logprobs(BaseModel)
@@ -1935,7 +1935,7 @@ probabilities for each generated token.
 List of the most likely tokens and their log probability, at this token
 position.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model_output.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model_output.py#L70)
 
 ``` python
 class TopLogprob(BaseModel)
@@ -1958,7 +1958,7 @@ The top-kth token represented as a byte array (a list of integers).
 
 Caching options for model generation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_cache.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_cache.py#L58)
 
 ``` python
 class CachePolicy(BaseModel)
@@ -1993,7 +1993,7 @@ Calculate the size of various cached directories and files
 If neither `subdirs` nor `files` are provided, the entire cache
 directory will be calculated.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_cache.py#L328)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_cache.py#L328)
 
 ``` python
 def cache_size(
@@ -2013,7 +2013,7 @@ these up by their parent directory
 
 Clear the cache directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_cache.py#L243)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_cache.py#L243)
 
 ``` python
 def cache_clear(model: str = "") -> bool
@@ -2027,7 +2027,7 @@ Model to clear cache for.
 Returns a list of all the cached files that have passed their expiry
 time.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_cache.py#L357)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_cache.py#L357)
 
 ``` python
 def cache_list_expired(filter_by: list[str] = []) -> list[Path]
@@ -2041,7 +2041,7 @@ will search the entire cache.
 
 Delete all expired cache entries.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_cache.py#L397)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_cache.py#L397)
 
 ``` python
 def cache_prune(files: list[Path] = []) -> None
@@ -2054,7 +2054,7 @@ List of files to prune. If empty, this will search the entire cache.
 
 Path to cache directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_cache.py#L263)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_cache.py#L263)
 
 ``` python
 def cache_path(model: str = "") -> Path
@@ -2069,7 +2069,7 @@ Path to cache directory for specific model.
 
 Convert OpenAI Completions API messages into Inspect messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_openai_convert.py#L32)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_openai_convert.py#L32)
 
 ``` python
 async def messages_from_openai(
@@ -2088,7 +2088,7 @@ Optional model name to tag assistant messages with.
 
 Convert OpenAI Responses API messages into Inspect messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_openai_convert.py#L49)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_openai_convert.py#L49)
 
 ``` python
 async def messages_from_openai_responses(
@@ -2107,7 +2107,7 @@ Optional model name to tag assistant messages with.
 
 Convert OpenAI Responses API messages into Inspect messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_anthropic_convert.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_anthropic_convert.py#L12)
 
 ``` python
 async def messages_from_anthropic(
@@ -2125,7 +2125,7 @@ System message accompanying messages (optional).
 
 Convert Google GenAI Content list into Inspect messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_google_convert.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_google_convert.py#L35)
 
 ``` python
 async def messages_from_google(
@@ -2148,7 +2148,7 @@ Optional model name to tag assistant messages with.
 
 Convert OpenAI ChatCompletion into Inspect `ModelOutput`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_openai_convert.py#L81)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_openai_convert.py#L81)
 
 ``` python
 async def model_output_from_openai(
@@ -2163,7 +2163,7 @@ OpenAI `ChatCompletion` object or dict that can converted into one.
 
 Convert OpenAI `Response` into Inspect `ModelOutput`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_openai_convert.py#L108)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_openai_convert.py#L108)
 
 ``` python
 async def model_output_from_openai_responses(
@@ -2178,7 +2178,7 @@ OpenAI `Response` object or dict that can converted into one.
 
 Convert Anthropic Message response into Inspect `ModelOutput`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_anthropic_convert.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_anthropic_convert.py#L33)
 
 ``` python
 async def model_output_from_anthropic(
@@ -2193,7 +2193,7 @@ Anthropic `Message` object or dict that can converted into one.
 
 Convert Google GenerateContentResponse into Inspect ModelOutput.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_google_convert.py#L72)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_google_convert.py#L72)
 
 ``` python
 async def model_output_from_google(
@@ -2212,7 +2212,7 @@ Optional model name override.
 
 Convert messages to OpenAI Completions API compatible messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_openai_convert.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_openai_convert.py#L15)
 
 ``` python
 async def messages_to_openai(
@@ -2234,7 +2234,7 @@ rather than “system”).
 
 Decorator for registering model APIs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_registry.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_registry.py#L30)
 
 ``` python
 def modelapi(name: str) -> Callable[..., type[ModelAPI]]
@@ -2255,7 +2255,7 @@ initialisation code (for example, here is what many of the built-in
 providers do with the `model_args` passed to them:
 <https://inspect.aisi.org.uk/models.html#model-args>)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L135)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L135)
 
 ``` python
 class ModelAPI(abc.ABC)
@@ -2266,7 +2266,7 @@ class ModelAPI(abc.ABC)
 \_\_init\_\_  
 Create a model API provider.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L147)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L147)
 
 ``` python
 def __init__(
@@ -2300,7 +2300,7 @@ Reinitialize the model API client.
 
 This can be used to reinitialize the API keys.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L195)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L195)
 
 ``` python
 def initialize(self) -> None
@@ -2309,7 +2309,7 @@ def initialize(self) -> None
 aclose  
 Async close method for closing any client allocated for the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L202)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L202)
 
 ``` python
 async def aclose(self) -> None
@@ -2318,7 +2318,7 @@ async def aclose(self) -> None
 close  
 Sync close method for closing any client allocated for the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L206)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L206)
 
 ``` python
 def close(self) -> None
@@ -2327,7 +2327,7 @@ def close(self) -> None
 canonical_name  
 Canonical model name for querying results.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L217)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L217)
 
 ``` python
 def canonical_name(self) -> str
@@ -2336,7 +2336,7 @@ def canonical_name(self) -> str
 generate  
 Generate output from the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L221)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L221)
 
 ``` python
 @abc.abstractmethod
@@ -2371,7 +2371,7 @@ size-based estimates for media. Model providers can override
 results, or override this method entirely to use their native token
 counting APIs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L244)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L244)
 
 ``` python
 async def count_tokens(self, input: str | list[ChatMessage]) -> int
@@ -2385,7 +2385,7 @@ Estimate tokens from text using tiktoken (o200k_base with 10% buffer).
 
 Override this method to use model-specific tokenizers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L262)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L262)
 
 ``` python
 async def count_text_tokens(self, text: str) -> int
@@ -2401,7 +2401,7 @@ For data URIs, estimates are based on decoded size. For URLs/file paths,
 uses conservative fixed fallbacks. Override this method for
 provider-specific media token calculations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L272)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L272)
 
 ``` python
 async def count_media_tokens(
@@ -2415,7 +2415,7 @@ Media content to count tokens for.
 max_tokens  
 Default max_tokens.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L286)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L286)
 
 ``` python
 def max_tokens(self) -> int | None
@@ -2424,7 +2424,7 @@ def max_tokens(self) -> int | None
 max_tokens_for_config  
 Default max_tokens for a given config.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L290)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L290)
 
 ``` python
 def max_tokens_for_config(self, config: GenerateConfig) -> int | None
@@ -2436,7 +2436,7 @@ Generation config.
 max_connections  
 Default max_connections.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L301)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L301)
 
 ``` python
 def max_connections(self) -> int
@@ -2445,7 +2445,7 @@ def max_connections(self) -> int
 connection_key  
 Scope for enforcement of max_connections.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L305)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L305)
 
 ``` python
 def connection_key(self) -> str
@@ -2454,7 +2454,7 @@ def connection_key(self) -> str
 should_retry  
 Should this exception be retried?
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L309)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L309)
 
 ``` python
 def should_retry(self, ex: Exception) -> bool
@@ -2466,7 +2466,7 @@ Exception to check for retry
 is_auth_failure  
 Check if this exception indicates an authentication failure.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L320)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L320)
 
 ``` python
 def is_auth_failure(self, ex: Exception) -> bool
@@ -2478,7 +2478,7 @@ Exception to check for authentication failure
 collapse_user_messages  
 Collapse consecutive user messages into a single message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L331)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L331)
 
 ``` python
 def collapse_user_messages(self) -> bool
@@ -2487,7 +2487,7 @@ def collapse_user_messages(self) -> bool
 collapse_assistant_messages  
 Collapse consecutive assistant messages into a single message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L335)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L335)
 
 ``` python
 def collapse_assistant_messages(self) -> bool
@@ -2496,7 +2496,7 @@ def collapse_assistant_messages(self) -> bool
 tools_required  
 Any tool use in a message stream means that tools must be passed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L339)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L339)
 
 ``` python
 def tools_required(self) -> bool
@@ -2505,7 +2505,7 @@ def tools_required(self) -> bool
 supports_remote_mcp  
 Does this provider support remote execution of MCP tools?.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L343)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L343)
 
 ``` python
 def supports_remote_mcp(self) -> bool
@@ -2514,7 +2514,7 @@ def supports_remote_mcp(self) -> bool
 tool_result_images  
 Tool results can contain images
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L347)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L347)
 
 ``` python
 def tool_result_images(self) -> bool
@@ -2523,7 +2523,7 @@ def tool_result_images(self) -> bool
 disable_computer_screenshot_truncation  
 Some models do not support truncation of computer screenshots.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L351)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L351)
 
 ``` python
 def disable_computer_screenshot_truncation(self) -> bool
@@ -2532,7 +2532,7 @@ def disable_computer_screenshot_truncation(self) -> bool
 force_reasoning_history  
 Force a specific reasoning history behavior for this provider.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L355)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L355)
 
 ``` python
 def force_reasoning_history(self) -> Literal["none", "all", "last"] | None
@@ -2541,7 +2541,7 @@ def force_reasoning_history(self) -> Literal["none", "all", "last"] | None
 auto_reasoning_history  
 Behavior to use for reasoning_history=‘auto’
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L359)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L359)
 
 ``` python
 def auto_reasoning_history(self) -> Literal["none", "all", "last"]
@@ -2550,7 +2550,7 @@ def auto_reasoning_history(self) -> Literal["none", "all", "last"]
 compact_reasoning_history  
 Is reasoning history eligible for compation for this provider?
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/91a21ba1e82436741bf8ab0d5c038b914e684778/src/inspect_ai/model/_model.py#L363)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/7edbf64eab88761146d2ad5433a65bac710fe070/src/inspect_ai/model/_model.py#L363)
 
 ``` python
 def compact_reasoning_history(self) -> bool

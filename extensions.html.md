@@ -428,16 +428,6 @@ and
 
 ### Docker Compatibility
 
-> [!NOTE]
->
-> The docker compatibility feature described below is available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Many Inspect tasks are defined using the “docker” sandbox provider along
 with a `Dockerfile` or `compose.yaml` configuration. Many other sandbox
 providers are capable of using some combination of `Dockerfile` and

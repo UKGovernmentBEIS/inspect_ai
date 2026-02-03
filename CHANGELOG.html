@@ -149,8 +149,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#february-2026" id="toc-february-2026" class="nav-link" data-scroll-target="#february-2026">0.3.169 (01 February 2026)</a></li>
+  <li><a href="#february-2026" id="toc-february-2026" class="nav-link active" data-scroll-target="#february-2026">0.3.170 (03 February 2026)</a></li>
+  <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.169 (01 February 2026)</a></li>
   <li><a href="#january-2026" id="toc-january-2026" class="nav-link" data-scroll-target="#january-2026">0.3.168 (31 January 2026)</a></li>
   <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.167 (29 January 2026)</a></li>
   <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.166 (29 January 2026)</a></li>
@@ -327,18 +327,23 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="february-2026" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026">0.3.170 (03 February 2026)</h2>
 <ul>
 <li>Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stable_message_ids">stable_message_ids()</a></span> function for yielding stable ids based on model content (but always unique within a given conversation).</li>
+<li>Model API: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#compactionevent">CompactionEvent</a></span> for model compactions.</li>
 <li>Sandboxes: Enable sandbox providers to declare Docker compatibility, which will result in Docker config files being passed to them.</li>
 <li>Docker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).</li>
+<li>Inspect View: Improve reliability of code syntax highlighting in messages and events.</li>
 <li>Inspect View: Support zstd compression of eval log file contents.</li>
 <li>Inspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.</li>
+<li>Inspect View: Render <code>&lt;think&gt;</code> tags when included in user messages.</li>
+<li>Bugfix: Correct handling for <code>--reasoning-history</code> CLI argument (don’t parse as boolean).</li>
+<li>Bugfix: Submit to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#human_cli">human_cli()</a></span> with no answer now correctly completes task.</li>
 </ul>
 </section>
-<section id="february-2026" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026">0.3.169 (01 February 2026)</h2>
+<section id="february-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-1">0.3.169 (01 February 2026)</h2>
 <ul>
 <li>Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g.&nbsp;PydanticAI).</li>
 <li>OpenAI: Workaround for openai Python SDK inability to round trip ‘find_in_page’ web search actions.</li>
