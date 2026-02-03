@@ -1,6 +1,7 @@
 import { FC, memo, RefObject } from "react";
 import {
   ApprovalEvent,
+  CompactionEvent,
   ErrorEvent,
   InfoEvent,
   InputEvent,
@@ -38,6 +39,7 @@ import { VirtuosoHandle } from "react-virtuoso";
 import { ScoreEditEventView } from "./ScoreEditEventView";
 import { SpanEventView } from "./SpanEventView";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
+import { CompactionEventView } from "./CompactionEventView";
 
 interface TranscriptVirtualListProps {
   id: string;
@@ -117,6 +119,14 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
         return (
           <InfoEventView
             eventNode={node as EventNode<InfoEvent>}
+            className={className}
+          />
+        );
+
+      case "compaction":
+        return (
+          <CompactionEventView
+            eventNode={node as EventNode<CompactionEvent>}
             className={className}
           />
         );
