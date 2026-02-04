@@ -857,7 +857,10 @@ class Model:
                             and timeout_cm.cancel_called
                         ):
                             raise AttemptTimeoutError(config.attempt_timeout)
-
+                except Exception as ex:
+                    # Mark event as failed for uncaught provider exceptions
+                    complete(ex, None)
+                    raise
                 finally:
                     time_elapsed = time.monotonic() - time_start
 

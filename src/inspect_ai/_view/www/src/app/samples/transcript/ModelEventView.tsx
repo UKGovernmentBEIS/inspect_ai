@@ -12,6 +12,7 @@ import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
+import { ANSIDisplay } from "../../../components/AnsiDisplay";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { usePrismHighlight } from "../../../components/prism";
 import { Message } from "../chat/messages";
@@ -105,7 +106,17 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
           allowLinking={false}
         />
-        {event.pending ? (
+        {event.error ? (
+          <div className={styles.error}>
+            <i className={ApplicationIcons.error} aria-hidden="true" />
+            <ANSIDisplay
+              output={event.error}
+              style={{
+                fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
+              }}
+            />
+          </div>
+        ) : event.pending ? (
           <div className={clsx(styles.progress)}>
             <PulsingDots subtle={false} size="medium" />
           </div>
