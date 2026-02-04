@@ -859,7 +859,6 @@ class Model:
                             raise AttemptTimeoutError(config.attempt_timeout)
                 except Exception as ex:
                     # Mark event as failed for uncaught provider exceptions
-                    # so the viewer shows the error instead of stuck pending
                     complete(ex, None)
                     raise
                 finally:
