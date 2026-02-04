@@ -257,11 +257,25 @@ openai:
       display_name: GPT-5.1
       release_date: 2025-11-12
       knowledge_cutoff_date: 2024-09-30
-      context_length: 272000
+      context_length: 400000
       output_tokens: 128000
       reasoning: True
+      subtract_output_from_context: True
       versions:
         gpt-5.1-2025-11-13:
+          snapshot: "2025-11-13"
+        latest:
+          snapshot: latest
+    gpt-5.1-codex:
+      display_name: GPT-5.1 Codex
+      release_date: 2025-11-12
+      knowledge_cutoff_date: 2024-09-30
+      context_length: 400000
+      output_tokens: 128000
+      reasoning: True
+      subtract_output_from_context: True
+      versions:
+        gpt-5.1-codex-2025-11-13:
           snapshot: "2025-11-13"
         latest:
           snapshot: latest
@@ -269,11 +283,25 @@ openai:
       display_name: GPT-5.2
       release_date: 2025-12-11
       knowledge_cutoff_date: 2025-08-31
-      context_length: 272000
+      context_length: 400000
       output_tokens: 128000
       reasoning: True
+      subtract_output_from_context: True
       versions:
         gpt-5.2-2025-12-11:
+          snapshot: "2025-12-11"
+        latest:
+          snapshot: latest
+    gpt-5.2-codex:
+      display_name: GPT-5.2 Codex
+      release_date: 2025-12-11
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 400000
+      output_tokens: 128000
+      reasoning: True
+      subtract_output_from_context: True
+      versions:
+        gpt-5.2-codex-2025-12-11:
           snapshot: "2025-12-11"
         latest:
           snapshot: latest
@@ -281,9 +309,10 @@ openai:
       display_name: GPT-5.2 Pro
       release_date: 2025-12-11
       knowledge_cutoff_date: 2025-08-31
-      context_length: 272000
+      context_length: 400000
       output_tokens: 128000
       reasoning: True
+      subtract_output_from_context: True
       versions:
         gpt-5.2-pro-2025-12-11:
           snapshot: "2025-12-11"

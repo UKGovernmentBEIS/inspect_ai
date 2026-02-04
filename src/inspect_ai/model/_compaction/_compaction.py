@@ -93,7 +93,7 @@ def compaction(
 
         # check to see whether the tokens exceeds the compaction 'threshold'
         target_messages = compacted_input + unprocessed
-        message_tokens = await target_model.count_tokens_batch(target_messages)
+        message_tokens = await target_model.count_tokens(target_messages)
         total_tokens = tool_tokens + message_tokens
         if total_tokens > threshold:
             # perform compaction (with iteration if needed)
@@ -128,7 +128,7 @@ def compaction(
             compacted_input.extend(c_input)
 
             # log compaction
-            compacted_tokens = await target_model.count_tokens_batch(compacted_input)
+            compacted_tokens = await target_model.count_tokens(compacted_input)
             transcript().info(
                 {
                     "Compaction": strategy.__class__.__name__,
@@ -198,7 +198,7 @@ async def _perform_compaction(
     """
     MAX_ITERATIONS = 3
     c_input, c_message = await strategy.compact(messages, model)
-    compacted_tokens = await model.count_tokens_batch(c_input)
+    compacted_tokens = await model.count_tokens(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
     for _ in range(MAX_ITERATIONS):
@@ -209,7 +209,7 @@ async def _perform_compaction(
 
         # Try compacting again
         c_input, c_message = await strategy.compact(list(c_input), model)
-        compacted_tokens = await model.count_tokens_batch(c_input)
+        compacted_tokens = await model.count_tokens(c_input)
         total_compacted = tool_tokens + compacted_tokens
 
         # Stop if no progress (can't reduce further)
@@ -247,6 +247,19 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
         info = get_model_info(model)
         if info and info.context_length:
             context_window = info.context_length
+
+            # For models where advertised context includes reserved output tokens,
+            # subtract output_tokens to get effective input capacity
+            if (
+                info.subtract_output_from_context
+                and info.output_tokens
+                and info.output_tokens < context_window
+            ):
+                context_window = context_window - info.output_tokens
+                logger.debug(
+                    f"Using effective context window {context_window:,} "
+                    f"(advertised {info.context_length:,} - output {info.output_tokens:,})"
+                )
         else:
             logger.warning(
                 f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"

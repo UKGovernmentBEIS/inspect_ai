@@ -31,17 +31,17 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
-from .._model_output import ModelOutput
+from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
     openai_should_retry,
 )
-from .._model_output import ModelUsage
 from .._openai_responses import (
     chat_messages_from_compact_response,
     is_native_tool_configured,
     model_usage_from_compact_response,
     openai_responses_inputs,
+    pad_tool_messages_for_token_counting,
 )
 from ._openai_batch import OpenAIBatcher
 from .openai_o1 import generate_o1
@@ -199,6 +199,9 @@ class OpenAIAPI(ModelAPI):
         self._reasoning_summaries: bool | None = None
         self._reasoning_summaries_lock = anyio.Lock()
 
+        # cache for compaction support detection (None = unknown, True/False = known)
+        self._compaction_supported: bool | None = None
+
         # store remaining model_args after extraction
         self.model_args = model_args
         self.initialize()
@@ -266,76 +269,52 @@ class OpenAIAPI(ModelAPI):
 
     @override
     async def count_tokens(self, input: str | list[ChatMessage]) -> int:
-        """Count tokens using tiktoken.
+        """Count tokens using native API for messages, tiktoken for text.
 
-        For simple strings or message lists, uses tiktoken-based counting.
-        For batch counting with conversation context (e.g., reasoning models),
-        use count_tokens_batch() instead.
+        For messages, uses OpenAI's input_tokens endpoint which can accurately
+        count encrypted reasoning blocks. Raises an exception if native
+        counting fails.
         """
         if isinstance(input, str):
             return await self.count_text_tokens(input)
 
-        # For message lists, use standard counting
+        # Use native counting for responses API (required for accurate counting)
+        if self.responses_api:
+            return await self._count_tokens_native(input)
+
+        # For non-responses API, use tiktoken-based counting
         from .._tokens import count_tokens
 
         return await count_tokens(
             input, self.count_text_tokens, self.count_media_tokens
         )
 
-    @override
-    async def count_tokens_batch(self, messages: list[ChatMessage]) -> int:
-        """Count tokens for a batch of messages using native endpoint when available.
-
-        For models with reasoning content, uses OpenAI's input_tokens endpoint
-        which can accurately count encrypted reasoning blocks. Falls back to
-        summing per-message counts for other cases.
-        """
-        # Check if we should use native counting
-        if self.responses_api and self._has_reasoning_content(messages):
-            try:
-                return await self._count_tokens_native(messages)
-            except Exception as ex:
-                logger.info(f"Native token counting failed, falling back: {ex}")
-
-        # Fall back to summing per-message counts
-        total = 0
-        for message in messages:
-            total += await self.count_tokens([message])
-        return total
-
-    def _has_reasoning_content(self, messages: list[ChatMessage]) -> bool:
-        """Check if any messages contain ContentReasoning blocks."""
-        from inspect_ai._util.content import ContentReasoning
-
-        for message in messages:
-            if isinstance(message.content, list):
-                for content in message.content:
-                    if isinstance(content, ContentReasoning):
-                        return True
-        return False
-
     async def _count_tokens_native(self, messages: list[ChatMessage]) -> int:
         """Count tokens using OpenAI's input_tokens endpoint.
 
         This endpoint can accurately count encrypted reasoning blocks
-        that cannot be counted using tiktoken.
+        that cannot be counted using tiktoken. Uses padding to handle
+        orphaned tool calls/outputs for per-message counting.
         """
         # Convert messages to OpenAI input format
         input_items = await openai_responses_inputs(messages, self)
 
-        logger.info(
+        # Apply padding to handle orphaned tool calls for per-message counting
+        padded_items = pad_tool_messages_for_token_counting(input_items)
+
+        logger.debug(
             f"Native token counting: {len(messages)} messages, "
-            f"{len(input_items)} input items"
+            f"{len(input_items)} input items, {len(padded_items)} padded items"
         )
 
         # Call the input_tokens endpoint with reasoning settings
         response = await self.client.responses.input_tokens.count(
             model=self.service_model_name(),
-            input=input_items,
+            input=padded_items,
             reasoning=self._get_reasoning_params(),
         )
 
-        logger.info(f"Native token count result: {response.input_tokens:,} tokens")
+        logger.debug(f"Native token count result: {response.input_tokens:,} tokens")
 
         return response.input_tokens
 
@@ -596,7 +575,16 @@ class OpenAIAPI(ModelAPI):
     ]
 
     def _supports_compaction(self) -> bool:
-        """Check if this model supports native compaction."""
+        """Check if this model supports native compaction.
+
+        Uses cached result if available (set after successful compact() call).
+        Otherwise checks against the allowlist of known supported models.
+        """
+        # Return cached result if known
+        if self._compaction_supported is not None:
+            return self._compaction_supported
+
+        # Check allowlist
         model = self.service_model_name().lower()
         return any(supported in model for supported in self.COMPACTION_SUPPORTED_MODELS)
 
@@ -604,11 +592,13 @@ class OpenAIAPI(ModelAPI):
     async def compact(
         self,
         messages: list[ChatMessage],
+        config: GenerateConfig | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using client.responses.compact().
 
         Args:
             messages: The messages to compact.
+            config: Optional generation config for reasoning parameters.
 
         Returns:
             A tuple of (compacted messages, usage info).
@@ -625,11 +615,22 @@ class OpenAIAPI(ModelAPI):
         # Convert messages to OpenAI format
         input_params = await openai_responses_inputs(messages, self)
 
+        # Build compact kwargs with optional reasoning settings
+        compact_kwargs: dict[str, Any] = {
+            "model": self.service_model_name(),
+            "input": input_params,
+        }
+
+        # Add reasoning parameters if model supports them
+        reasoning_params = self._get_reasoning_params_for_config(config)
+        if reasoning_params:
+            compact_kwargs["reasoning"] = reasoning_params
+
         # Call compact endpoint
-        response = await self.client.responses.compact(
-            model=self.service_model_name(),
-            input=input_params,
-        )
+        response = await self.client.responses.compact(**compact_kwargs)
+
+        # Mark compaction as supported after successful call
+        self._compaction_supported = True
 
         # Extract compaction item and create ChatMessage with ContentData
         compacted_messages = chat_messages_from_compact_response(
@@ -648,3 +649,19 @@ class OpenAIAPI(ModelAPI):
         )
 
         return compacted_messages, usage
+
+    def _get_reasoning_params_for_config(
+        self, config: GenerateConfig | None
+    ) -> dict[str, str] | None:
+        """Get reasoning parameters from config for compact/count_tokens calls."""
+        if not self.has_reasoning_options():
+            return None
+
+        # Use config settings if provided, otherwise use defaults
+        if config is not None:
+            effort = config.reasoning_effort or "medium"
+            summary = "auto" if config.reasoning_summary != "none" else "none"
+            return {"effort": effort, "summary": summary}
+
+        # Default reasoning settings
+        return {"effort": "medium", "summary": "auto"}

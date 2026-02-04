@@ -284,26 +284,6 @@ class ModelAPI(abc.ABC):
         """
         return count_media_tokens(media)
 
-    async def count_tokens_batch(self, messages: list[ChatMessage]) -> int:
-        """Count tokens for a batch of messages.
-
-        This method counts tokens for an entire conversation at once. Providers
-        that need conversation context (e.g., for validating tool call/result pairs)
-        should override this method.
-
-        The default implementation sums per-message token counts.
-
-        Args:
-            messages: List of chat messages to count tokens for.
-
-        Returns:
-            Total token count for all messages.
-        """
-        total = 0
-        for message in messages:
-            total += await self.count_tokens([message])
-        return total
-
     def max_tokens(self) -> int | None:
         """Default max_tokens."""
         return None
@@ -392,6 +372,7 @@ class ModelAPI(abc.ABC):
     async def compact(
         self,
         messages: list[ChatMessage],
+        config: GenerateConfig | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
 
@@ -402,6 +383,8 @@ class ModelAPI(abc.ABC):
 
         Args:
             messages: List of chat messages to compact.
+            config: Optional generation config for provider-specific settings
+                (e.g., reasoning parameters for OpenAI models).
 
         Returns:
             A tuple of (compacted_messages, usage) where compacted_messages is a
@@ -703,43 +686,6 @@ class Model:
 
             # count tokens
             return await _count_tokens(input)
-
-    async def count_tokens_batch(self, messages: list[ChatMessage]) -> int:
-        """Count tokens for a batch of messages.
-
-        This method counts tokens for an entire conversation at once. Providers
-        that need conversation context (e.g., for validating tool call/result pairs
-        or counting encrypted reasoning blocks) should override count_tokens_batch
-        in their ModelAPI implementation.
-
-        Args:
-            messages: List of chat messages to count tokens for.
-
-        Returns:
-            Total token count for all messages.
-        """
-        model_name = ModelName(self)
-        key = f"ModelCountTokensBatch({self.api.connection_key()})"
-        async with concurrency(
-            f"{model_name}_count_tokens_batch", 10, key, visible=False
-        ):
-
-            @retry(
-                **model_retry_config(
-                    self.api.model_name,
-                    self.config.max_retries,
-                    self.config.timeout,
-                    self.should_retry,
-                    self.before_retry,
-                    log_model_retry,
-                    report_sample_waiting_time,
-                    self.api.retry_wait(),
-                )
-            )
-            async def _count_tokens_batch(messages: list[ChatMessage]) -> int:
-                return await self.api.count_tokens_batch(messages)
-
-            return await _count_tokens_batch(messages)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.

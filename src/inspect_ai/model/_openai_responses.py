@@ -1589,3 +1589,76 @@ def model_usage_from_compact_response(
             total_tokens=response.usage.total_tokens,
         )
     return None
+
+
+def pad_tool_messages_for_token_counting(
+    messages: list[ResponseInputItemParam],
+) -> list[ResponseInputItemParam]:
+    """Pad tool messages to satisfy OpenAI's API validation for token counting.
+
+    OpenAI's input_tokens API validates message structure and requires:
+    - Every function_call block must have a corresponding function_call_output
+    - Every function_call_output block must have a corresponding function_call
+
+    When counting tokens for individual messages (e.g., for caching in compaction),
+    we may have orphaned function_call or function_call_output blocks. This function
+    pads with minimal fake paired items to satisfy API validation.
+
+    This slightly overcounts tokens but that's acceptable for compaction triggering.
+
+    Args:
+        messages: List of OpenAI ResponseInputItemParam messages.
+
+    Returns:
+        List of messages with padding added for orphaned tool calls/outputs.
+    """
+    if not messages:
+        return messages
+
+    result: list[ResponseInputItemParam] = []
+
+    for i, msg in enumerate(messages):
+        # Forward scan: Check for function_call_output without preceding function_call
+        if is_function_call_output(msg):
+            call_id = msg.get("call_id", "")
+            # Check if previous message has corresponding function_call
+            has_matching_call = False
+            if result:
+                prev_msg = result[-1]
+                if is_response_function_tool_call(prev_msg):
+                    if prev_msg.get("call_id") == call_id:
+                        has_matching_call = True
+
+            # Add fake function_call for orphaned output
+            if not has_matching_call:
+                fake_call: ResponseFunctionToolCallParam = {
+                    "type": "function_call",
+                    "call_id": call_id,
+                    "name": "placeholder",
+                    "arguments": "{}",
+                }
+                result.append(fake_call)
+
+        result.append(msg)
+
+        # Reverse scan: Check for function_call without following function_call_output
+        if is_response_function_tool_call(msg):
+            call_id = msg.get("call_id", "")
+            # Check if next message has corresponding function_call_output
+            has_matching_output = False
+            if i + 1 < len(messages):
+                next_msg = messages[i + 1]
+                if is_function_call_output(next_msg):
+                    if next_msg.get("call_id") == call_id:
+                        has_matching_output = True
+
+            # Add fake function_call_output for orphaned call
+            if not has_matching_output:
+                fake_output: FunctionCallOutput = {
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": "",
+                }
+                result.append(fake_output)
+
+    return result
