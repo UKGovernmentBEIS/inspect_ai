@@ -609,16 +609,6 @@ class OpenAIAPI(ModelAPI):
         )
         usage = model_usage_from_compact_response(response)
 
-        # Log compaction results
-        logger.info(
-            f"Native compaction: {len(messages)} messages -> {len(compacted_messages)} messages"
-            + (
-                f" (input={usage.input_tokens}, output={usage.output_tokens})"
-                if usage
-                else ""
-            )
-        )
-
         return compacted_messages, usage
 
     def _get_reasoning_params_for_config(
