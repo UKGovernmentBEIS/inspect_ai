@@ -212,7 +212,8 @@ class OpenAICompatibleAPI(ModelAPI):
                 tool_choice=openai_chat_tool_choice(tool_choice)
                 if have_tools
                 else NOT_GIVEN,
-                extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+                extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | (config.extra_headers or {}),
                 **completion_params,
             )
 

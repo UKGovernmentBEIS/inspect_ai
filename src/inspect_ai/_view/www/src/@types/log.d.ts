@@ -90,6 +90,9 @@ export type Anyof = JSONSchema[] | null;
 export type Required = string[] | null;
 export type Description1 = string | null;
 export type Strict = boolean | null;
+export type ExtraHeaders = {
+  [k: string]: string;
+} | null;
 export type ExtraBody = {
   [k: string]: unknown;
 } | null;
@@ -945,6 +948,7 @@ export interface GenerateConfig {
   reasoning_summary: ReasoningSummary;
   reasoning_history: ReasoningHistory;
   response_schema: ResponseSchema | null;
+  extra_headers: ExtraHeaders;
   extra_body: ExtraBody;
   cache: Cache;
   batch: Batch;
@@ -1147,6 +1151,7 @@ export interface GenerateConfig1 {
   reasoning_summary: ReasoningSummary;
   reasoning_history: ReasoningHistory;
   response_schema: ResponseSchema | null;
+  extra_headers: ExtraHeaders;
   extra_body: ExtraBody;
   cache: Cache;
   batch: Batch;
