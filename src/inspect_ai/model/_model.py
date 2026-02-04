@@ -1058,9 +1058,9 @@ class Model:
             else:
                 display_conversation_assistant_error(result)
                 event.error = exception_message(result)
-
-                # capture traceback if available
-                traceback_text, traceback_ansi = format_model_traceback(result)
+                traceback_text, traceback_ansi = format_traceback(
+                    type(result), result, result.__traceback__
+                )
                 event.traceback = traceback_text
                 event.traceback_ansi = traceback_ansi
 
@@ -1073,22 +1073,6 @@ class Model:
             complete(output, call)
 
         return complete, event
-
-
-def format_model_traceback(ex: BaseException) -> tuple[str | None, str | None]:
-    """Format exception traceback as plain text and ANSI-colored.
-
-    Args:
-        ex: The exception to format.
-
-    Returns:
-        Tuple of (plain_text_traceback, ansi_colored_traceback), or (None, None)
-        if no traceback is available.
-    """
-    if ex.__traceback__ is None:
-        return None, None
-
-    return format_traceback(type(ex), ex, ex.__traceback__)
 
 
 class AttemptTimeoutError(RuntimeError):

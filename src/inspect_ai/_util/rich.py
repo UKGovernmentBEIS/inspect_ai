@@ -94,24 +94,13 @@ def truncate_traceback(
 
 
 def format_traceback(
-    exc_type: Type[Any],
+    exc_type: Type[BaseException],
     exc_value: BaseException,
     exc_traceback: TracebackType | None,
 ) -> tuple[str, str]:
-    """Format exception traceback as plain text and ANSI-colored.
-
-    Args:
-        exc_type: Exception type.
-        exc_value: Exception instance.
-        exc_traceback: Traceback object.
-
-    Returns:
-        Tuple of (plain_text_traceback, ansi_colored_traceback).
-    """
-    # Plain text version
+    """Format exception traceback as plain text and ANSI-colored."""
     traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
 
-    # ANSI version
     if not truncated:
         with open(os.devnull, "w") as f:
             console = Console(record=True, file=f, legacy_windows=True)
