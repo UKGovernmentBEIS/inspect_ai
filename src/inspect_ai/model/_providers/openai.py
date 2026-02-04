@@ -200,9 +200,6 @@ class OpenAIAPI(ModelAPI):
         self._reasoning_summaries: bool | None = None
         self._reasoning_summaries_lock = anyio.Lock()
 
-        # cache for compaction support detection (None = unknown, True/False = known)
-        self._compaction_supported: bool | None = None
-
         # store remaining model_args after extraction
         self.model_args = model_args
         self.initialize()
@@ -322,8 +319,6 @@ class OpenAIAPI(ModelAPI):
             input=padded_items,
             reasoning=self._get_reasoning_params_for_config(config),
         )
-
-        logger.debug(f"Native token count result: {response.input_tokens:,} tokens")
 
         return response.input_tokens
 
@@ -576,16 +571,7 @@ class OpenAIAPI(ModelAPI):
     ]
 
     def _supports_compaction(self) -> bool:
-        """Check if this model supports native compaction.
-
-        Uses cached result if available (set after successful compact() call).
-        Otherwise checks against the allowlist of known supported models.
-        """
-        # Return cached result if known
-        if self._compaction_supported is not None:
-            return self._compaction_supported
-
-        # Check allowlist
+        """Check if this model supports native compaction."""
         model = self.service_model_name().lower()
         return any(supported in model for supported in self.COMPACTION_SUPPORTED_MODELS)
 
@@ -621,9 +607,6 @@ class OpenAIAPI(ModelAPI):
             model=self.service_model_name(),
             input=input_params,
         )
-
-        # Mark compaction as supported after successful call
-        self._compaction_supported = True
 
         # Extract compaction item and create ChatMessage with ContentData
         compacted_messages = chat_messages_from_compact_response(

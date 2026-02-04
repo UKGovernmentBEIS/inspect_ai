@@ -280,10 +280,6 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
                 and info.output_tokens < context_window
             ):
                 context_window = context_window - info.output_tokens
-                logger.debug(
-                    f"Using effective context window {context_window:,} "
-                    f"(advertised {info.context_length:,} - output {info.output_tokens:,})"
-                )
         else:
             logger.warning(
                 f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"

@@ -69,9 +69,9 @@ class CompactionNative(CompactionStrategy):
         Raises:
             NotImplementedError: If the model's provider doesn't support native compaction.
         """
-        # Delegate to the model API's native compaction
-        # Pass config for reasoning parameters (logging is handled by the provider)
-        compacted_messages, _ = await model.api.compact(messages, self._config)
+        # Delegate to the Model wrapper's compact method
+        # This provides retry logic, concurrency management, and usage tracking
+        compacted_messages, _ = await model.compact(messages, self._config)
 
         # Return compacted messages with no supplemental message
         # (native compaction doesn't produce summaries or side-effect messages)

@@ -725,6 +725,58 @@ class Model:
             )
         return await self.count_tokens([ChatMessageUser(content=tool_json)])
 
+    async def compact(
+        self,
+        messages: list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        """Compact messages using provider-native compaction.
+
+        Delegates to the model provider's native compaction API when available.
+        Automatically tracks token usage and enforces token limits.
+
+        Args:
+            messages: List of chat messages to compact.
+            config: Optional generation config for provider-specific settings.
+
+        Returns:
+            A tuple of (compacted_messages, usage) where compacted_messages is
+            a list of compacted messages and usage contains token counts.
+
+        Raises:
+            NotImplementedError: For providers without native compaction support.
+        """
+        model_name = ModelName(self)
+        key = f"ModelCompact({self.api.connection_key()})"
+
+        async with concurrency(f"{model_name}_compact", 10, key, visible=False):
+
+            @retry(
+                **model_retry_config(
+                    self.api.model_name,
+                    self.config.max_retries,
+                    self.config.timeout,
+                    self.should_retry,
+                    self.before_retry,
+                    log_model_retry,
+                    report_sample_waiting_time,
+                    self.api.retry_wait(),
+                )
+            )
+            async def _compact(
+                messages: list[ChatMessage], config: GenerateConfig | None
+            ) -> tuple[list[ChatMessage], ModelUsage | None]:
+                return await self.api.compact(messages, config)
+
+            # Call compact with retry handling
+            compacted_messages, usage = await _compact(messages, config)
+
+            # Record and check usage
+            if usage:
+                record_and_check_model_usage(f"{self}", usage)
+
+            return compacted_messages, usage
+
     async def _generate(
         self,
         input: list[ChatMessage],
