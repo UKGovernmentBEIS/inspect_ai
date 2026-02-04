@@ -45,11 +45,7 @@ class CompactionNative(CompactionStrategy):
             config: Optional generation config for provider-specific settings
                 (e.g., reasoning parameters for OpenAI models).
         """
-        # preserve_prefix_user_messages=False because the compact endpoint already
-        # includes user messages in its response
-        super().__init__(
-            threshold=threshold, memory=memory, preserve_prefix_user_messages=False
-        )
+        super().__init__(threshold=threshold, memory=memory)
         self._config = config
 
     @override
