@@ -17396,7 +17396,7 @@ button._segment_mhb7y_9 {
 ._transcriptContainer_6o9gh_58 {
   padding-bottom: 1em;
 }
-._flatBody_1uw6w_1 {
+._flatBody_1cs2j_1 {
   color: var(--bs-danger);
   display: grid;
   grid-template-columns: max-content max-content;
@@ -17404,13 +17404,14 @@ button._segment_mhb7y_9 {
   margin-top: 0.4rem;
 }
 
-._iconSmall_1uw6w_9 {
-  font-size: var(--inspect-font-size-small);
-  line-height: var(--inspect-font-size-small);
-  height: var(--inspect-font-size-small);
+._iconSmall_1cs2j_9 {
+  font-size: var(--inspect-font-size-smallest);
+  line-height: var(--inspect-font-size-smaller);
+  height: var(--inspect-font-size-smaller);
+  margin-top: 1px;
 }
 
-._lineBase_1uw6w_15 {
+._lineBase_1cs2j_16 {
   font-size: var(--inspect-font-size-base);
   line-height: var(--inspect-font-size-base);
   height: var(--inspect-font-size-base);
@@ -17874,57 +17875,60 @@ button._segment_mhb7y_9 {
   font-weight: 600;
   padding-bottom: 0.3em;
 }
-._container_1u6fr_1 {
+._container_1pdlq_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_1u6fr_6 {
+._all_1pdlq_6 {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   column-gap: 1em;
 }
 
-._tableSelection_1u6fr_12 {
+._tableSelection_1pdlq_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._tools_1u6fr_18 {
+._tools_1pdlq_18 {
   grid-column: -1/1;
 }
 
-._codePre_1u6fr_22 {
+._codePre_1pdlq_22 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_1u6fr_22 {
+._code_1pdlq_22 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_1u6fr_34 {
+._progress_1pdlq_34 {
   margin-left: 0.5em;
 }
 
-._error_1u6fr_38 {
+._error_1pdlq_38 {
   display: flex;
   align-items: flex-start;
   gap: 0.5em;
-  margin: 0.5em 0;
-  color: var(--bs-danger-text-emphasis);
+  margin: 0;
+  padding: 0.4rem;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
 }
 
-._error_1u6fr_38 > i {
-  font-size: clamp(0.3rem, 1.1vw, 0.8rem);
+._error_1pdlq_38 > i {
+  color: var(--bs-danger);
+  font-size: var(--inspect-font-size-smallest);
   line-height: normal;
 }
 
-._toolConfig_1u6fr_51 {
+._toolConfig_1pdlq_54 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 1em;
@@ -17932,7 +17936,7 @@ button._segment_mhb7y_9 {
   padding-top: 0.5em;
 }
 
-._toolChoice_1u6fr_59 {
+._toolChoice_1pdlq_62 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content auto;
