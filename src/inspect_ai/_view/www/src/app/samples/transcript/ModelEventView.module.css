@@ -39,19 +39,12 @@
   display: flex;
   align-items: flex-start;
   gap: 0.5em;
-  padding: 0.75em;
-  margin-top: 0.5em;
-  background-color: var(--bs-danger-bg-subtle);
-  border: 1px solid var(--bs-danger-border-subtle);
-  border-radius: var(--bs-border-radius);
+  margin: 0.5em 0;
   color: var(--bs-danger-text-emphasis);
 }
 
-.error pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-size: 0.875em;
+.error > i {
+  margin-top: 0.2em;
 }
 
 .toolConfig {
