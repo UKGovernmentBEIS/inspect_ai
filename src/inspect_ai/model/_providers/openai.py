@@ -308,11 +308,6 @@ class OpenAIAPI(ModelAPI):
         # Apply padding to handle orphaned tool calls for per-message counting
         padded_items = pad_tool_messages_for_token_counting(input_items)
 
-        logger.debug(
-            f"Native token counting: {len(messages)} messages, "
-            f"{len(input_items)} input items, {len(padded_items)} padded items"
-        )
-
         # Call the input_tokens endpoint with reasoning settings
         response = await self.client.responses.input_tokens.count(
             model=self.service_model_name(),
