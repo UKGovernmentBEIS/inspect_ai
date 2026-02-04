@@ -109,21 +109,21 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
         />
         {event.error ? (
           <div className={styles.errorSection}>
-            <div className={styles.error}>
-              <i className={ApplicationIcons.error} aria-hidden="true" />
-              <ANSIDisplay
-                output={event.error}
-                style={{
-                  fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
-                }}
-              />
-            </div>
+            {!event.traceback_ansi && (
+              <div className={styles.error}>
+                <i className={ApplicationIcons.error} aria-hidden="true" />
+                <ANSIDisplay
+                  output={event.error}
+                  style={{
+                    fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
+                  }}
+                />
+              </div>
+            )}
             {event.traceback_ansi && (
               <ExpandablePanel
                 id={`model-error-traceback-${eventNode.id}`}
                 collapse={true}
-                lines={0}
-                togglePosition="block-left"
                 className={styles.traceback}
               >
                 <ANSIDisplay output={event.traceback_ansi} />
