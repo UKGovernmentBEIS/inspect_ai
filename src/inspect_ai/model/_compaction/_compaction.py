@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import functools
 from logging import getLogger
 from typing import Sequence
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
@@ -49,6 +51,9 @@ def compaction(
     # state: IDs of messages we've already processed (added to input)
     processed_message_ids: set[str] = set()
 
+    # state: cache of message_id -> token_count
+    token_count_cache: dict[str, int] = {}
+
     # snapshot the prefix in case it changes
     prefix = prefix.copy()
 
@@ -69,6 +74,21 @@ def compaction(
         if message.id is None:
             raise RuntimeError("Message must have an ID")
         return message.id
+
+    # count tokens with caching
+    async def count_tokens(message: ChatMessage) -> int:
+        # check cache
+        id = message_id(message)
+        count = token_count_cache.get(id, None)
+        if count is not None:
+            return count
+
+        # count tokens and update cache
+        count = await target_model.count_tokens([message])
+        token_count_cache[id] = count
+
+        # return count
+        return count
 
     async def compact_fn(
         messages: list[ChatMessage],
@@ -93,7 +113,11 @@ def compaction(
 
         # check to see whether the tokens exceeds the compaction 'threshold'
         target_messages = compacted_input + unprocessed
-        message_tokens = await target_model.count_tokens(target_messages)
+        message_tokens = sum(
+            await tg_collect(
+                [functools.partial(count_tokens, m) for m in target_messages]
+            )
+        )
         total_tokens = tool_tokens + message_tokens
         if total_tokens > threshold:
             # perform compaction (with iteration if needed)
