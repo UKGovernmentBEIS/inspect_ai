@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from inspect_ai._util.dateutil import UtcDate
 
@@ -15,8 +15,8 @@ class BaseModelDefinition(BaseModel):
     knowledge_cutoff_date: Optional[UtcDate] = None
     context_length: Optional[int] = None
     output_tokens: Optional[int] = None
+    input_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
-    subtract_output_from_context: Optional[bool] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
 
@@ -68,9 +68,8 @@ def create_model_info(
         release_date=data_source.release_date or model_def.release_date,
         context_length=data_source.context_length or model_def.context_length,
         output_tokens=data_source.output_tokens or model_def.output_tokens,
+        _input_tokens=data_source.input_tokens or model_def.input_tokens,
         reasoning=data_source.reasoning or model_def.reasoning,
-        subtract_output_from_context=data_source.subtract_output_from_context
-        or model_def.subtract_output_from_context,
     )
 
 
@@ -101,14 +100,26 @@ class ModelInfo(BaseModel):
     reasoning: bool | None = Field(default=None)
     """Is this a reasoning model."""
 
-    subtract_output_from_context: bool | None = Field(default=None)
-    """Whether to subtract output_tokens from context_length for effective input capacity.
+    _input_tokens: int | None = PrivateAttr(default=None)
+    """Private attribute for explicit input_tokens override from YAML."""
 
-    Some models (e.g., GPT-5.x) advertise a total context window that includes
-    reserved output tokens. For these models, the effective input capacity is
-    context_length - output_tokens. When this flag is True, compaction threshold
-    calculations should use the reduced effective context.
-    """
+    def __init__(self, _input_tokens: int | None = None, **data: object) -> None:
+        super().__init__(**data)
+        self._input_tokens = _input_tokens
+
+    @property
+    def input_tokens(self) -> int | None:
+        """Effective input capacity in tokens.
+
+        Returns the explicit input_tokens value if set in model data,
+        otherwise falls back to context_length.
+
+        This provides a single property callers can use without needing
+        to know about context_length vs input capacity differences.
+        """
+        if self._input_tokens is not None:
+            return self._input_tokens
+        return self.context_length
 
 
 def read_model_info() -> dict[str, ModelInfo]:

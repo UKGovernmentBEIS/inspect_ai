@@ -267,19 +267,10 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
     if isinstance(threshold, int) or threshold > 1.0:
         return int(threshold)
     else:
-        # Look up the model's context window
+        # Look up the model's input token capacity
         info = get_model_info(model)
-        if info and info.context_length:
-            context_window = info.context_length
-
-            # For models where advertised context includes reserved output tokens,
-            # subtract output_tokens to get effective input capacity
-            if (
-                info.subtract_output_from_context
-                and info.output_tokens
-                and info.output_tokens < context_window
-            ):
-                context_window = context_window - info.output_tokens
+        if info and info.input_tokens:
+            context_window = info.input_tokens
         else:
             logger.warning(
                 f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"
