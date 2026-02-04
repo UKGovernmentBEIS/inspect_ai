@@ -39,12 +39,15 @@
   display: flex;
   align-items: flex-start;
   gap: 0.5em;
-  margin: 0.5em 0;
-  color: var(--bs-danger-text-emphasis);
+  margin: 0;
+  padding: 0.4rem;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
 }
 
 .error > i {
-  font-size: clamp(0.3rem, 1.1vw, 0.8rem);
+  color: var(--bs-danger);
+  font-size: var(--inspect-font-size-smallest);
   line-height: normal;
 }
 
