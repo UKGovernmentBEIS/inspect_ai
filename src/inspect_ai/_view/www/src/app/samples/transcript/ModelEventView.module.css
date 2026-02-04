@@ -44,7 +44,8 @@
 }
 
 .error > i {
-  margin-top: 0.2em;
+  font-size: clamp(0.3rem, 1.1vw, 0.8rem);
+  line-height: normal;
 }
 
 .toolConfig {
