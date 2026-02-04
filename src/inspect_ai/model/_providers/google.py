@@ -301,6 +301,7 @@ class GoogleGenAIAPI(ModelAPI):
             parameters = GenerateContentConfig(
                 http_options=HttpOptions(
                     headers={HttpHooks.REQUEST_ID_HEADER: request_id}
+                    | (config.extra_headers or {})
                 ),
                 temperature=config.temperature,
                 top_p=config.top_p,

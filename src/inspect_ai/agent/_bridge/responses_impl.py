@@ -169,6 +169,7 @@ logger = getLogger(__name__)
 
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     web_search: WebSearchProviders,
     code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
@@ -206,6 +207,7 @@ async def inspect_responses_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_responses(json_data)
+    config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None

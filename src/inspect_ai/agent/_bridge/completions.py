@@ -39,6 +39,7 @@ logger = getLogger(__name__)
 
 async def inspect_completions_api_request(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     bridge: AgentBridge,
 ) -> "ChatCompletion":
     validate_openai_client("agent bridge")
@@ -63,6 +64,7 @@ async def inspect_completions_api_request(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_completions(json_data)
+    config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None

@@ -83,6 +83,7 @@ logger = getLogger(__name__)
 
 async def inspect_anthropic_api_request_impl(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     web_search: WebSearchProviders,
     code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
@@ -115,6 +116,7 @@ async def inspect_anthropic_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_anthropic(json_data)
+    config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None

@@ -2389,6 +2389,7 @@
             "reasoning_summary": null,
             "reasoning_history": null,
             "response_schema": null,
+            "extra_headers": null,
             "extra_body": null,
             "cache": null,
             "batch": null
@@ -4033,6 +4034,21 @@
           ],
           "default": null
         },
+        "extra_headers": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extra Headers"
+        },
         "extra_body": {
           "anyOf": [
             {
@@ -4112,6 +4128,7 @@
         "reasoning_summary",
         "reasoning_history",
         "response_schema",
+        "extra_headers",
         "extra_body",
         "cache",
         "batch"
