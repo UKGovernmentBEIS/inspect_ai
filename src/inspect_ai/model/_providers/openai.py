@@ -610,18 +610,13 @@ class OpenAIAPI(ModelAPI):
         if not self.has_reasoning_options():
             return None
 
-        # Use config settings if provided, otherwise use defaults
-        if config is not None:
-            reasoning: Reasoning = {}
-            if config.reasoning_effort is not None:
-                reasoning["effort"] = config.reasoning_effort
-            # Only include summary if explicitly set and not disabled
-            if (
-                config.reasoning_summary is not None
-                and config.reasoning_summary != "none"
-            ):
-                reasoning["summary"] = config.reasoning_summary
-            return reasoning if reasoning else None
+        if config is None:
+            return None
 
-        # Default reasoning settings
-        return {"effort": "medium", "summary": "auto"}
+        reasoning: Reasoning = {}
+        if config.reasoning_effort is not None:
+            reasoning["effort"] = config.reasoning_effort
+        if config.reasoning_summary is not None and config.reasoning_summary != "none":
+            reasoning["summary"] = config.reasoning_summary
+
+        return reasoning if reasoning else None

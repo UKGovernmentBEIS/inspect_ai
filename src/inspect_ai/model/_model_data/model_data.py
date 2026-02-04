@@ -86,7 +86,7 @@ class ModelInfo(BaseModel):
     """Model name (e.g. Gemini 2.5 Flash)."""
 
     snapshot: str | None = Field(default=None)
-    """A snapshot (version) string, if available (e.g. "latest" or "20240229").."""
+    """A snapshot (version) string, if available (e.g. "latest" or "20240229")."""
 
     release_date: UtcDate | None = Field(default=None)
     """The mode's release date."""

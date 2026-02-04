@@ -16,11 +16,19 @@ from inspect_ai.model._openai_responses import (
     pad_tool_messages_for_token_counting,
 )
 
-# Skip all tests if no API key is available
-pytestmark = pytest.mark.skipif(
+# Skip integration tests if no API key is available
+requires_openai_api_key = pytest.mark.skipif(
     not os.environ.get("OPENAI_API_KEY"),
     reason="OPENAI_API_KEY not set",
 )
+
+
+@pytest.fixture
+def openai_model():
+    """Get an OpenAI model for testing."""
+    from inspect_ai.model import get_model
+
+    return get_model("openai/gpt-5.2-codex")
 
 
 class TestPadToolMessagesForTokenCounting:
@@ -197,17 +205,11 @@ class TestPadToolMessagesForTokenCounting:
         assert result[5]["call_id"] == "orphan_call"
 
 
+@requires_openai_api_key
 @pytest.mark.slow
 @pytest.mark.calls_llm
 class TestPerMessageTokenCounting:
     """Integration tests for per-message token counting with OpenAI."""
-
-    @pytest.fixture
-    def openai_model(self):
-        """Get an OpenAI model for testing."""
-        from inspect_ai.model import get_model
-
-        return get_model("openai/gpt-5.2-codex")
 
     @pytest.mark.asyncio
     async def test_user_message_counts_correctly(self, openai_model):
@@ -271,17 +273,11 @@ class TestPerMessageTokenCounting:
         assert count < 50
 
 
+@requires_openai_api_key
 @pytest.mark.slow
 @pytest.mark.calls_llm
 class TestBatchCountingSumsPerMessage:
     """Tests verifying count_tokens(list) produces similar results to summing individual counts."""
-
-    @pytest.fixture
-    def openai_model(self):
-        """Get an OpenAI model for testing."""
-        from inspect_ai.model import get_model
-
-        return get_model("openai/gpt-5.2-codex")
 
     @pytest.mark.asyncio
     async def test_batch_count_approximately_matches_sum(self, openai_model):
@@ -352,17 +348,11 @@ class TestBatchCountingSumsPerMessage:
         assert batch_count < 1000
 
 
+@requires_openai_api_key
 @pytest.mark.slow
 @pytest.mark.calls_llm
 class TestNativeTokenCountingFallback:
     """Tests for native token counting with fallback behavior."""
-
-    @pytest.fixture
-    def openai_model(self):
-        """Get an OpenAI model for testing."""
-        from inspect_ai.model import get_model
-
-        return get_model("openai/gpt-5.2-codex")
 
     @pytest.mark.asyncio
     async def test_native_counting_returns_reasonable_values(self, openai_model):

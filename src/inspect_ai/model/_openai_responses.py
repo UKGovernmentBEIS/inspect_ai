@@ -1540,8 +1540,6 @@ def chat_messages_from_compact_response(
 
             found_compaction = True
             # Add the compaction item as a ChatMessageUser with ContentData
-            # TODO: Consider whether source="generate" is appropriate here, or if
-            # we need a new source type like "compaction" for traceability.
             messages.append(
                 ChatMessageUser(
                     content=[
@@ -1621,13 +1619,11 @@ def pad_tool_messages_for_token_counting(
         # Forward scan: Check for function_call_output without preceding function_call
         if is_function_call_output(msg):
             call_id = msg.get("call_id", "")
-            # Check if previous message has corresponding function_call
-            has_matching_call = False
-            if result:
-                prev_msg = result[-1]
-                if is_response_function_tool_call(prev_msg):
-                    if prev_msg.get("call_id") == call_id:
-                        has_matching_call = True
+            has_matching_call = (
+                result
+                and is_response_function_tool_call(result[-1])
+                and result[-1].get("call_id") == call_id
+            )
 
             # Add fake function_call for orphaned output
             if not has_matching_call:
@@ -1644,13 +1640,12 @@ def pad_tool_messages_for_token_counting(
         # Reverse scan: Check for function_call without following function_call_output
         if is_response_function_tool_call(msg):
             call_id = msg.get("call_id", "")
-            # Check if next message has corresponding function_call_output
-            has_matching_output = False
-            if i + 1 < len(messages):
-                next_msg = messages[i + 1]
-                if is_function_call_output(next_msg):
-                    if next_msg.get("call_id") == call_id:
-                        has_matching_output = True
+            next_msg = messages[i + 1] if i + 1 < len(messages) else None
+            has_matching_output = (
+                next_msg is not None
+                and is_function_call_output(next_msg)
+                and next_msg.get("call_id") == call_id
+            )
 
             # Add fake function_call_output for orphaned call
             if not has_matching_output:

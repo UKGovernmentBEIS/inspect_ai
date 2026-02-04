@@ -142,11 +142,17 @@ def compaction(
             # Preserve prefix messages not already in output
             input_ids = {message_id(m) for m in c_input}
             has_system = any(m.role == "system" for m in c_input)
-
             prefix_to_add = [m for m in prefix if message_id(m) not in input_ids]
 
-            system_msgs = [m for m in prefix_to_add if m.role == "system"] if not has_system else []
-            user_msgs = [m for m in prefix_to_add if m.role == "user"] if strategy.preserve_prefix_user_messages else []
+            if has_system:
+                system_msgs = []
+            else:
+                system_msgs = [m for m in prefix_to_add if m.role == "system"]
+
+            if strategy.preserve_prefix_user_messages:
+                user_msgs = [m for m in prefix_to_add if m.role == "user"]
+            else:
+                user_msgs = []
 
             c_input = system_msgs + user_msgs + c_input
 
