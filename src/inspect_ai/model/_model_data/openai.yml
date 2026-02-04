@@ -274,6 +274,7 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      native_compaction_supported: true
       versions:
         gpt-5.1-codex-2025-11-13:
           snapshot: "2025-11-13"
@@ -300,6 +301,7 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      native_compaction_supported: true
       versions:
         gpt-5.2-codex-2025-12-11:
           snapshot: "2025-12-11"

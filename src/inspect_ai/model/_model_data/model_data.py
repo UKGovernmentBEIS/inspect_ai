@@ -17,6 +17,7 @@ class BaseModelDefinition(BaseModel):
     output_tokens: Optional[int] = None
     input_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
+    native_compaction_supported: Optional[bool] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
 
@@ -70,6 +71,8 @@ def create_model_info(
         output_tokens=data_source.output_tokens or model_def.output_tokens,
         _input_tokens=data_source.input_tokens or model_def.input_tokens,
         reasoning=data_source.reasoning or model_def.reasoning,
+        native_compaction_supported=data_source.native_compaction_supported
+        or model_def.native_compaction_supported,
     )
 
 
@@ -99,6 +102,9 @@ class ModelInfo(BaseModel):
 
     reasoning: bool | None = Field(default=None)
     """Is this a reasoning model."""
+
+    native_compaction_supported: bool | None = Field(default=None)
+    """Whether the model supports native compaction."""
 
     _input_tokens: int | None = PrivateAttr(default=None)
     """Private attribute for explicit input_tokens override from YAML."""

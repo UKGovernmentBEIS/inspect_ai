@@ -32,6 +32,7 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
+from .._model_info import get_model_info
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
@@ -557,18 +558,10 @@ class OpenAIAPI(ModelAPI):
                         endpoint="/v1/chat/completions",
                     )
 
-    # Supported models for native compaction
-    # TODO: Evaluate whether this allowlist is necessary or if we should support
-    # any model that doesn't error on the compact endpoint (feature detection).
-    COMPACTION_SUPPORTED_MODELS = [
-        "gpt-5.1-codex",
-        "gpt-5.2-codex",
-    ]
-
     def _supports_compaction(self) -> bool:
         """Check if this model supports native compaction."""
-        model = self.service_model_name().lower()
-        return any(supported in model for supported in self.COMPACTION_SUPPORTED_MODELS)
+        info = get_model_info(self.canonical_name())
+        return info is not None and info.native_compaction_supported is True
 
     @override
     async def compact(
@@ -590,8 +583,7 @@ class OpenAIAPI(ModelAPI):
         """
         if not self._supports_compaction():
             raise NotImplementedError(
-                f"Native compaction only supported for Codex models "
-                f"({self.COMPACTION_SUPPORTED_MODELS}), not {self.service_model_name()}"
+                f"Native compaction not supported for {self.service_model_name()}"
             )
 
         # Convert messages to OpenAI format
