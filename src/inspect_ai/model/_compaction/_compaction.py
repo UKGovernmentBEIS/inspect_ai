@@ -139,13 +139,30 @@ def compaction(
             if c_message is not None:
                 processed_message_ids.add(message_id(c_message))
 
-            # Preserve system message if requested and not already in output
-            if strategy.preserve_system_message:
-                has_system = any(getattr(m, "role", None) == "system" for m in c_input)
-                if not has_system:
-                    system_msgs = [m for m in prefix if m.role == "system"]
-                    if system_msgs:
-                        c_input = system_msgs + c_input
+            # Always preserve system messages from prefix if not already in output
+            has_system = any(getattr(m, "role", None) == "system" for m in c_input)
+            if not has_system:
+                system_msgs = [m for m in prefix if m.role == "system"]
+                if system_msgs:
+                    c_input = system_msgs + c_input
+
+            # Preserve user messages from prefix if requested and not already in output
+            if strategy.preserve_prefix_user_messages:
+                c_input_ids = {message_id(m) for m in c_input}
+                user_msgs = [
+                    m
+                    for m in prefix
+                    if m.role == "user" and message_id(m) not in c_input_ids
+                ]
+                if user_msgs:
+                    # Insert user messages after system messages
+                    insert_idx = 0
+                    for i, m in enumerate(c_input):
+                        if getattr(m, "role", None) == "system":
+                            insert_idx = i + 1
+                        else:
+                            break
+                    c_input = c_input[:insert_idx] + user_msgs + c_input[insert_idx:]
 
             # update input
             compacted_input.clear()

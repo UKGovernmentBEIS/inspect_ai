@@ -12,7 +12,7 @@ class CompactionStrategy(abc.ABC):
         self,
         threshold: int | float = 0.9,
         memory: bool = True,
-        preserve_system_message: bool = True,
+        preserve_prefix_user_messages: bool = True,
     ):
         """Compaction strategy.
 
@@ -20,13 +20,15 @@ class CompactionStrategy(abc.ABC):
             threshold: Token count or percent of context window to trigger compaction.
             memory: Warn the model to save critical content to memory prior
                 to compaction when the memory tool is available.
-            preserve_system_message: Whether to preserve the system message after
-                compaction. Set to True (default) to ensure the system prompt
-                survives compaction even if not returned by the compaction strategy.
+            preserve_prefix_user_messages: Whether to preserve user messages from the
+                prefix after compaction. Set to True (default) for strategies that don't
+                include prefix user messages in their output (summary, edit, trim).
+                Set to False for native compaction where the compact endpoint already
+                includes user messages in its response.
         """
         self.threshold = threshold
         self.memory = memory
-        self.preserve_system_message = preserve_system_message
+        self.preserve_prefix_user_messages = preserve_prefix_user_messages
 
     @abc.abstractmethod
     async def compact(

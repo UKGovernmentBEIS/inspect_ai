@@ -45,10 +45,10 @@ class CompactionNative(CompactionStrategy):
             config: Optional generation config for provider-specific settings
                 (e.g., reasoning parameters for OpenAI models).
         """
-        # preserve_system_message=True to ensure system prompt survives compaction
-        # (compact endpoint doesn't return system messages)
+        # preserve_prefix_user_messages=False because the compact endpoint already
+        # includes user messages in its response
         super().__init__(
-            threshold=threshold, memory=memory, preserve_system_message=True
+            threshold=threshold, memory=memory, preserve_prefix_user_messages=False
         )
         self._config = config
 
