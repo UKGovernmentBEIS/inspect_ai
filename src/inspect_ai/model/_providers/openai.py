@@ -616,19 +616,11 @@ class OpenAIAPI(ModelAPI):
         # Convert messages to OpenAI format
         input_params = await openai_responses_inputs(messages, self)
 
-        # Build compact kwargs with optional reasoning settings
-        compact_kwargs: dict[str, Any] = {
-            "model": self.service_model_name(),
-            "input": input_params,
-        }
-
-        # Add reasoning parameters if model supports them
-        reasoning_params = self._get_reasoning_params_for_config(config)
-        if reasoning_params:
-            compact_kwargs["reasoning"] = reasoning_params
-
-        # Call compact endpoint
-        response = await self.client.responses.compact(**compact_kwargs)
+        # Call compact endpoint (note: compact() doesn't accept reasoning params)
+        response = await self.client.responses.compact(
+            model=self.service_model_name(),
+            input=input_params,
+        )
 
         # Mark compaction as supported after successful call
         self._compaction_supported = True

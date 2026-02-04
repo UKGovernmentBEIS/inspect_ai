@@ -139,13 +139,13 @@ def compaction(
             if c_message is not None:
                 processed_message_ids.add(message_id(c_message))
 
-            # ensure we preserve the prefix (could have been wiped out by a summarization)
-            # Skip this for strategies like native compaction where the API returns
-            # the complete new context window
-            if strategy.preserve_prefix:
-                input_ids = {message_id(m) for m in c_input}
-                prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
-                c_input = prepend_prefix + c_input
+            # Preserve system message if requested and not already in output
+            if strategy.preserve_system_message:
+                has_system = any(getattr(m, "role", None) == "system" for m in c_input)
+                if not has_system:
+                    system_msgs = [m for m in prefix if m.role == "system"]
+                    if system_msgs:
+                        c_input = system_msgs + c_input
 
             # update input
             compacted_input.clear()
