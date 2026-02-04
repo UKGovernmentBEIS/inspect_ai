@@ -1671,6 +1671,8 @@ export interface ModelEvent {
   output: ModelOutput;
   retries: Retries;
   error: Error2;
+  traceback: string | null;
+  traceback_ansi: string | null;
   cache: Cache1;
   call: ModelCall | null;
   completed: Completed1;

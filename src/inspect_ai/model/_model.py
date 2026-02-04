@@ -49,6 +49,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
+from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -59,6 +60,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import report_http_retry
+from inspect_ai._util.rich import rich_traceback, truncate_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.model._retry import model_retry_config
@@ -1055,7 +1057,12 @@ class Model:
                 event.output = result
             else:
                 display_conversation_assistant_error(result)
-                event.error = repr(result)
+                event.error = exception_message(result)
+
+                # capture traceback if available
+                traceback_text, traceback_ansi = format_model_traceback(result)
+                event.traceback = traceback_text
+                event.traceback_ansi = traceback_ansi
 
             event.call = updated_call
             event.pending = None
@@ -1066,6 +1073,41 @@ class Model:
             complete(output, call)
 
         return complete, event
+
+
+def format_model_traceback(ex: BaseException) -> tuple[str | None, str | None]:
+    """Format exception traceback as plain text and ANSI-colored.
+
+    Args:
+        ex: The exception to format.
+
+    Returns:
+        Tuple of (plain_text_traceback, ansi_colored_traceback), or (None, None)
+        if no traceback is available.
+    """
+    import os
+
+    from rich.console import Console
+
+    exc_type = type(ex)
+    exc_traceback = ex.__traceback__
+
+    if exc_traceback is None:
+        return None, None
+
+    # Plain text version
+    traceback_text, truncated = truncate_traceback(exc_type, ex, exc_traceback)
+
+    # ANSI version
+    if not truncated:
+        with open(os.devnull, "w") as f:
+            console = Console(record=True, file=f, legacy_windows=True)
+            console.print(rich_traceback(exc_type, ex, exc_traceback))
+            traceback_ansi = console.export_text(styles=True)
+    else:
+        traceback_ansi = traceback_text
+
+    return traceback_text, traceback_ansi
 
 
 class AttemptTimeoutError(RuntimeError):

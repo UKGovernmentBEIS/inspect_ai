@@ -13,6 +13,7 @@ import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
 import { ANSIDisplay } from "../../../components/AnsiDisplay";
+import { ExpandablePanel } from "../../../components/ExpandablePanel";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { usePrismHighlight } from "../../../components/prism";
 import { Message } from "../chat/messages";
@@ -107,14 +108,27 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           allowLinking={false}
         />
         {event.error ? (
-          <div className={styles.error}>
-            <i className={ApplicationIcons.error} aria-hidden="true" />
-            <ANSIDisplay
-              output={event.error}
-              style={{
-                fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
-              }}
-            />
+          <div className={styles.errorSection}>
+            <div className={styles.error}>
+              <i className={ApplicationIcons.error} aria-hidden="true" />
+              <ANSIDisplay
+                output={event.error}
+                style={{
+                  fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
+                }}
+              />
+            </div>
+            {event.traceback_ansi && (
+              <ExpandablePanel
+                id={`model-error-traceback-${eventNode.id}`}
+                collapse={true}
+                lines={0}
+                togglePosition="block-left"
+                className={styles.traceback}
+              >
+                <ANSIDisplay output={event.traceback_ansi} />
+              </ExpandablePanel>
+            )}
           </div>
         ) : event.pending ? (
           <div className={clsx(styles.progress)}>

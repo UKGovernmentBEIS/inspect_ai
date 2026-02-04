@@ -67,3 +67,17 @@
   margin-top: 0.5em;
   padding-top: 0.5em;
 }
+
+.errorSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.traceback {
+  margin-left: 1.5em;
+  font-size: 0.85em;
+  background: var(--bs-light);
+  border-radius: var(--bs-border-radius);
+  padding: 0.5em;
+}
