@@ -223,6 +223,7 @@ openai:
       knowledge_cutoff_date: 2024-09-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5-2025-08-07:
@@ -235,6 +236,7 @@ openai:
       knowledge_cutoff_date: 2024-05-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5-mini-2025-08-07:
@@ -247,6 +249,7 @@ openai:
       knowledge_cutoff_date: 2024-05-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5-nano-2025-08-07:
