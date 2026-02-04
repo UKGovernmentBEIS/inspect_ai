@@ -63,8 +63,8 @@ from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
 )
-from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._generate_config import BatchConfig, GenerateConfig, normalized_batch_config
+from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
@@ -72,8 +72,12 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
+from .._retry import model_retry_config
+from ._mistral_batch import MistralBatcher
 from .mistral_conversation import (
+    completion_choices_from_conversation_response,
     mistral_conversation_generate,
+    mistral_conversation_request,
 )
 from .util import (
     environment_prerequisite_error,
@@ -154,9 +158,62 @@ class MistralAPI(ModelAPI):
             model_args["server_url"] = self.base_url
 
         self.model_args = model_args
+        self._batcher: MistralBatcher | None = None
 
     def is_azure(self) -> bool:
         return self.service == "azure"
+
+    async def _generate_batch(
+        self,
+        client: Mistral,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+        batch_config: BatchConfig,
+    ) -> ModelOutput:
+        # initialize batcher if needed
+        if not self._batcher:
+            self._batcher = MistralBatcher(
+                client,
+                batch_config,
+                model_retry_config(
+                    self.model_name,
+                    config.max_retries,
+                    config.timeout,
+                    self.should_retry,
+                    lambda ex: None,
+                    log_model_retry,
+                ),
+                self.service_model_name(),
+            )
+
+        # build request
+        request = await mistral_conversation_request(
+            self.service_model_name(), input, tools, tool_choice, config
+        )
+
+        # get response via batcher
+        conv_response = await self._batcher.generate_for_request(request)
+
+        # convert to ModelOutput
+        choices = completion_choices_from_conversation_response(
+            self.service_model_name(), conv_response, tools
+        )
+        return ModelOutput(
+            model=self.service_model_name(),
+            choices=choices,
+            usage=ModelUsage(
+                input_tokens=conv_response.usage.prompt_tokens or 0,
+                output_tokens=(
+                    conv_response.usage.completion_tokens
+                    if conv_response.usage.completion_tokens is not None
+                    else (conv_response.usage.total_tokens or 0)
+                    - (conv_response.usage.prompt_tokens or 0)
+                ),
+                total_tokens=conv_response.usage.total_tokens or 0,
+            ),
+        )
 
     async def generate(
         self,
@@ -165,6 +222,16 @@ class MistralAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # check for batch mode
+        batch_config = normalized_batch_config(config.batch)
+        if batch_config:
+            if self.is_azure():
+                raise ValueError("Batch mode is not supported for Azure Mistral.")
+            if not self.conversation_api:
+                raise ValueError(
+                    "Batch mode requires conversation_api=True (the default)."
+                )
+
         # create client
         with Mistral(api_key=self.api_key, **self.model_args) as client:
             # create time tracker
@@ -172,6 +239,12 @@ class MistralAPI(ModelAPI):
 
             # use the conversation api if requested
             if self.conversation_api:
+                # handle batch mode for conversations API
+                if batch_config:
+                    return await self._generate_batch(
+                        client, input, tools, tool_choice, config, batch_config
+                    )
+
                 return await mistral_conversation_generate(
                     client=client,
                     http_hooks=http_hooks,
@@ -273,7 +346,7 @@ class MistralAPI(ModelAPI):
         return f"mistral/{self.service_model_name()}"
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, SDKError):
             return is_retryable_http_status(ex.status_code)
         elif httpx_should_retry(ex):

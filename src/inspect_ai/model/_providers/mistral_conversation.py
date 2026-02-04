@@ -64,6 +64,28 @@ from .._model_output import (
 from .util.hooks import HttpxHooks
 
 
+async def mistral_conversation_request(
+    model: str,
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: ToolChoice,
+    config: GenerateConfig,
+) -> dict[str, Any]:
+    """Build a Mistral conversations API request dict (for direct calls or batching)."""
+    instructions, inputs = await mistral_conversation_inputs(input, config)
+    completion_args = mistral_conversation_completion_args(
+        config, tool_choice if len(tools) > 0 else None
+    )
+    return dict(
+        model=model,
+        instructions=instructions or UNSET,
+        inputs=inputs,
+        tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
+        completion_args=completion_args,
+        store=False,
+    )
+
+
 async def mistral_conversation_generate(
     client: Mistral,
     http_hooks: HttpxHooks,
@@ -76,19 +98,10 @@ async def mistral_conversation_generate(
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # build request
     request_id = http_hooks.start_request()
-    instructions, inputs = await mistral_conversation_inputs(input, config)
-    completion_args = mistral_conversation_completion_args(
-        config, tool_choice if len(tools) > 0 else None
+    request = await mistral_conversation_request(
+        model, input, tools, tool_choice, config
     )
-    request: dict[str, Any] = dict(
-        model=model,
-        instructions=instructions or UNSET,
-        inputs=inputs,
-        tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
-        completion_args=completion_args,
-        store=False,
-        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
-    )
+    request["http_headers"] = {HttpxHooks.REQUEST_ID_HEADER: request_id}
 
     # prepare response for inclusion in model call
     response: dict[str, Any] = {}
