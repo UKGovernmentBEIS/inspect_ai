@@ -117,18 +117,13 @@ async def generate_responses(
         if len(tools) > 0
         else NOT_GIVEN
     )
-    # Convert messages to OpenAI input format
-    input_params = await openai_responses_inputs(input, model_info)
-
-    extra_headers = {HttpxHooks.REQUEST_ID_HEADER: request_id}
-
     request = dict(
-        input=input_params,
+        input=await openai_responses_inputs(input, model_info),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
         else NOT_GIVEN,
-        extra_headers=extra_headers,
+        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(
             model_name,
             model_info=model_info,
