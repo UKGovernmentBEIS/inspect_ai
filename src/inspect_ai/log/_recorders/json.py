@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import IO, Any, Literal, get_args
+from typing import IO, Any, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
@@ -11,6 +11,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
+from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -21,6 +22,7 @@ from .._log import (
     EvalSampleReductions,
     EvalSpec,
     EvalStats,
+    EvalStatus,
     sort_samples,
 )
 from .eval import _s3_bucket_and_key, _write_s3_conditional
@@ -101,7 +103,7 @@ class JSONRecorder(FileRecorder):
     async def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["started", "success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
@@ -151,11 +153,7 @@ class JSONRecorder(FileRecorder):
             # invalid character (or Unexpected symbol) then we move on and and parse w/ pydantic
             # (which does support NaN and Inf by default)
             except (ValueError, IncompleteJSONError, UnexpectedSymbol) as ex:
-                if (
-                    str(ex).find("Invalid JSON character") != -1
-                    or str(ex).find("invalid char in json text") != -1
-                    or str(ex).find("Unexpected symbol") != -1
-                ):
+                if is_ijson_nan_inf_error(ex):
                     pass
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
@@ -306,7 +304,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
 
         # Parse the log file, stopping before parsing samples
         invalidated = False
-        status: Literal["started", "success", "cancelled", "error"] | None = None
+        status: EvalStatus | None = None
         eval: EvalSpec | None = None
         plan: EvalPlan | None = None
         results: EvalResults | None = None
@@ -314,9 +312,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         error: EvalError | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
-                assert v in get_args(
-                    Literal["started", "success", "cancelled", "error"]
-                )
+                assert v in get_args(EvalStatus)
                 status = v
             elif k == "invalidated":
                 invalidated = v

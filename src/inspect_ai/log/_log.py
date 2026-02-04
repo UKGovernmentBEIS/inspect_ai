@@ -36,6 +36,9 @@ from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
 
+EvalStatus = Literal["started", "success", "cancelled", "error"]
+"""Status of an evaluation run."""
+
 SCORER_PLACEHOLDER = "88F74D2C"
 
 
@@ -928,9 +931,7 @@ class EvalLog(BaseModel):
     version: int = Field(default=2)
     """Eval log file format version."""
 
-    status: Literal["started", "success", "cancelled", "error"] = Field(
-        default="started"
-    )
+    status: EvalStatus = Field(default="started")
     """Status of evaluation (did it succeed or fail)."""
 
     eval: EvalSpec

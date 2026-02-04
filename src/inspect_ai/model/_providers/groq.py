@@ -32,6 +32,7 @@ from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
+from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._call_tools import parse_tool_call
@@ -318,9 +319,21 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
         return ChatCompletionUserMessageParam(role="user", content=content)
 
     elif isinstance(message, ChatMessageAssistant):
+        # emulate reasoning
+        if isinstance(message.content, list):
+            content = "\n".join(
+                [
+                    c.text if isinstance(c, ContentText) else reasoning_to_think_tag(c)
+                    for c in message.content
+                    if isinstance(c, ContentText | ContentReasoning)
+                ]
+            )
+        else:
+            content = message.content
+
         return ChatCompletionAssistantMessageParam(
             role="assistant",
-            content=message.text,
+            content=content,
             tool_calls=[
                 ChatCompletionMessageToolCallParam(
                     id=call.id,

@@ -29,6 +29,7 @@ export const InfoEventView: FC<InfoEventViewProps> = ({
       <RenderedText
         markdown={event.data}
         className={clsx(styles.panel, "text-size-base")}
+        omitMath={true}
       />,
     );
   } else {

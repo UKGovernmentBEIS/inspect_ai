@@ -1,4 +1,5 @@
 from ._approval import ApprovalEvent
+from ._compaction import CompactionEvent
 from ._error import ErrorEvent
 from ._event import Event
 from ._info import InfoEvent
@@ -26,6 +27,7 @@ __all__ = [
     "InputEvent",
     "LoggerEvent",
     "ModelEvent",
+    "CompactionEvent",
     "SampleInitEvent",
     "SampleLimitEvent",
     "SandboxEvent",

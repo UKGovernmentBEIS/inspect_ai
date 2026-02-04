@@ -163,7 +163,10 @@ async def generate_responses(
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)
-        response = model_response.model_dump()
+        # Use warnings=False to suppress Pydantic serialization warnings for unknown
+        # action types like 'find_in_page' that the SDK doesn't support yet.
+        # See: https://github.com/pydantic/pydantic-ai/issues/3653
+        response = model_response.model_dump(warnings=False)
 
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)

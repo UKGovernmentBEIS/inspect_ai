@@ -25,6 +25,7 @@ title: "inspect_ai.log"
 
 ## Eval Log API
 
+### EvalStatus
 ### EvalLog
 ### EvalSpec
 ### EvalDataset

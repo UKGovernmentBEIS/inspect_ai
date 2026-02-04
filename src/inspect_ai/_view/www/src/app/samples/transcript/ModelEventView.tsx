@@ -13,13 +13,13 @@ import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
 import { PulsingDots } from "../../../components/PulsingDots";
-import { usePrismHighlight } from "../../../state/hooks";
+import { usePrismHighlight } from "../../../components/prism";
+import { Message } from "../chat/messages";
 import styles from "./ModelEventView.module.css";
 import { EventNodeContext } from "./TranscriptVirtualList";
 import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import { EventNode } from "./types";
-import { Message } from "../chat/messages";
 
 interface ModelEventViewProps {
   eventNode: EventNode<ModelEvent>;
@@ -43,14 +43,15 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined
+  // Clone messages to avoid mutating frozen state objects
   const outputMessages: Message[] =
     event.output.choices?.map((choice) => {
-      return choice.message;
+      return { ...choice.message };
     }) ?? [];
   if (outputMessages.length > 0) {
     outputMessages[outputMessages.length - 1].timestamp = event.completed;
   }
-  const inputMessages: Message[] = [...event.input];
+  const inputMessages: Message[] = event.input.map((msg) => ({ ...msg }));
   if (inputMessages.length > 0) {
     inputMessages[inputMessages.length - 1].timestamp = event.timestamp;
   }
@@ -81,6 +82,10 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     ? `Model Call (${event.role}): ${event.model}`
     : `Model Call: ${event.model}`;
 
+  const turnLabel = context?.turnInfo
+    ? `turn ${context.turnInfo.turnNumber}/${context.turnInfo.totalTurns}`
+    : undefined;
+
   return (
     <EventPanel
       eventNodeId={eventNode.id}
@@ -89,6 +94,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       title={formatTitle(panelTitle, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
+      turnLabel={turnLabel}
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView

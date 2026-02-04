@@ -27,7 +27,7 @@ def compaction(
 
     Call the `Compact` handler with the full conversation history before sending input to the model. Send the returned `input` and append the supplemental message returned (if any) to the full history.
 
-    See the [Compaction](ttps://inspect.aisi.org.uk/compaction.html) for additional details on using compaction.
+    See the [Compaction](https://inspect.aisi.org.uk/compaction.html) for additional details on using compaction.
 
     Args:
         strategy: Compaction strategy (e.g. editing, trimming, summary, etc.)
@@ -93,6 +93,8 @@ def compaction(
     async def compact_fn(
         messages: list[ChatMessage],
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        from inspect_ai.event._compaction import CompactionEvent
+
         # state variables we modify
         nonlocal tool_tokens, tools_info, prefix_tokens, memory_warning_issued
 
@@ -150,12 +152,17 @@ def compaction(
 
             # log compaction
             compacted_tokens = await target_model.count_tokens(compacted_input)
-            transcript().info(
-                {
-                    "Compaction": strategy.__class__.__name__,
-                    "Tokens": f"{total_tokens:,} ⟶ {compacted_tokens:,}",
-                    "Messages": f"{len(target_messages):,} ⟶ {len(compacted_input):,}",
-                }
+            transcript()._event(
+                CompactionEvent(
+                    source="inspect",
+                    tokens_before=total_tokens,
+                    tokens_after=compacted_tokens,
+                    metadata={
+                        "strategy": strategy.__class__.__name__,
+                        "messages_before": len(target_messages),
+                        "messages_after": len(compacted_input),
+                    },
+                )
             )
 
             # clear memory warning state

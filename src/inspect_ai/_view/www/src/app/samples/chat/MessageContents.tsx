@@ -26,13 +26,18 @@ interface MessageContentsProps {
 }
 
 export interface MessagesContext {
+  citeOffset: number;
   citations: Citation[];
+  role: "system" | "user" | "assistant" | "tool" | "unknown";
 }
 
-export const defaultContext = () => {
+export const defaultContext = (
+  role: "system" | "user" | "assistant" | "tool" | "unknown",
+) => {
   return {
     citeOffset: 0,
     citations: [],
+    role,
   };
 };
 
@@ -42,7 +47,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
   toolMessages,
   toolCallStyle,
 }) => {
-  const context: MessagesContext = defaultContext();
+  const context: MessagesContext = defaultContext(message.role);
   if (
     message.role === "assistant" &&
     message.tool_calls &&

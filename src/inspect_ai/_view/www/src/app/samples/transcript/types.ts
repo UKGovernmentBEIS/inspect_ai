@@ -18,6 +18,7 @@ import {
   StoreEvent,
   SubtaskEvent,
   ToolEvent,
+  CompactionEvent,
 } from "../../../@types/log";
 
 import { STEP, SPAN_BEGIN, TYPE_TOOL, TYPE_SUBTASK } from "./transform/utils";
@@ -46,6 +47,7 @@ export type EventType =
   | StoreEvent
   | ModelEvent
   | LoggerEvent
+  | CompactionEvent
   | InfoEvent
   | StepEvent
   | SubtaskEvent

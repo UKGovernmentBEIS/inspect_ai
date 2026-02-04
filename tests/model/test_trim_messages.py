@@ -1,5 +1,7 @@
 import pytest
 
+from inspect_ai._util.citation import UrlCitation
+from inspect_ai._util.content import ContentText
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -8,7 +10,11 @@ from inspect_ai.model import (
     ChatMessageUser,
     trim_messages,
 )
-from inspect_ai.model._trim import PartitionedMessages, partition_messages
+from inspect_ai.model._trim import (
+    PartitionedMessages,
+    partition_messages,
+    strip_citations,
+)
 from inspect_ai.tool import ToolCall
 
 
@@ -538,3 +544,68 @@ async def test_orphan_tool_calls_from_trimming() -> None:
             tool_ids_in_result = {m.tool_call_id for m in trimmed if m.role == "tool"}
             for tc in msg.tool_calls:
                 assert tc.id in tool_ids_in_result, f"Orphan tool_call {tc.id} found"
+
+
+# Tests for citation stripping
+
+
+@pytest.mark.asyncio
+async def test_trim_messages_strips_citations() -> None:
+    """Test that trim_messages strips citations from ContentText blocks."""
+    citation = UrlCitation(
+        url="https://example.com",
+        cited_text="some text",
+        title="Example",
+    )
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question", source="input"),
+        ChatMessageAssistant(
+            content=[ContentText(text="Response with citation", citations=[citation])],
+        ),
+        # Add a user message so assistant isn't trimmed (trailing assistant is removed)
+        ChatMessageUser(content="Follow up"),
+    ]
+
+    trimmed = await trim_messages(messages, preserve=1.0)
+
+    # Find the assistant message
+    assistant_msgs = [m for m in trimmed if m.role == "assistant"]
+    assert len(assistant_msgs) == 1
+    assistant = assistant_msgs[0]
+    assert isinstance(assistant.content, list)
+    content_text = assistant.content[0]
+    assert isinstance(content_text, ContentText)
+    assert content_text.citations is None
+
+
+def test_strip_citations_removes_citations() -> None:
+    """Test that strip_citations removes citations from ContentText blocks."""
+    citation = UrlCitation(url="https://example.com", cited_text="text")
+    messages: list[ChatMessage] = [
+        ChatMessageAssistant(
+            content=[ContentText(text="Response", citations=[citation])],
+        ),
+    ]
+
+    result = strip_citations(messages)
+
+    assistant = result[0]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert isinstance(assistant.content, list)
+    content_text = assistant.content[0]
+    assert isinstance(content_text, ContentText)
+    assert content_text.citations is None
+
+
+def test_strip_citations_preserves_messages_without_citations() -> None:
+    """Test that messages without citations are unchanged."""
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Question"),
+        ChatMessageAssistant(content="Response"),
+    ]
+
+    result = strip_citations(messages)
+
+    # Messages without citations should be the same objects
+    assert result[0] is messages[0]
+    assert result[1] is messages[1]
