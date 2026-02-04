@@ -60,7 +60,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import report_http_retry
-from inspect_ai._util.rich import rich_traceback, truncate_traceback
+from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.model._retry import model_retry_config
@@ -1085,29 +1085,10 @@ def format_model_traceback(ex: BaseException) -> tuple[str | None, str | None]:
         Tuple of (plain_text_traceback, ansi_colored_traceback), or (None, None)
         if no traceback is available.
     """
-    import os
-
-    from rich.console import Console
-
-    exc_type = type(ex)
-    exc_traceback = ex.__traceback__
-
-    if exc_traceback is None:
+    if ex.__traceback__ is None:
         return None, None
 
-    # Plain text version
-    traceback_text, truncated = truncate_traceback(exc_type, ex, exc_traceback)
-
-    # ANSI version
-    if not truncated:
-        with open(os.devnull, "w") as f:
-            console = Console(record=True, file=f, legacy_windows=True)
-            console.print(rich_traceback(exc_type, ex, exc_traceback))
-            traceback_ansi = console.export_text(styles=True)
-    else:
-        traceback_ansi = traceback_text
-
-    return traceback_text, traceback_ansi
+    return format_traceback(type(ex), ex, ex.__traceback__)
 
 
 class AttemptTimeoutError(RuntimeError):
