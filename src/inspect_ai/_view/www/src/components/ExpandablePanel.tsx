@@ -43,12 +43,9 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
 
         // Calculate line height if we haven't yet
         if (baseFontSizeRef.current === 0) {
-          const style = getComputedStyle(element);
-          const lineHeight = parseFloat(style.lineHeight);
-          // lineHeight could be NaN if set to "normal", fall back to fontSize * 1.2
-          baseFontSizeRef.current = isNaN(lineHeight)
-            ? parseFloat(style.fontSize) * 1.2
-            : lineHeight;
+          const computedStyle = window.getComputedStyle(element);
+          const rootFontSize = parseFloat(computedStyle.fontSize);
+          baseFontSizeRef.current = rootFontSize;
         }
         const maxCollapsedHeight = baseFontSizeRef.current * lines;
         const contentHeight = element.scrollHeight;
@@ -62,7 +59,7 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
     const baseStyles = {
       overflow: "hidden",
       ...(collapsed && {
-        maxHeight: `${lines}lh`,
+        maxHeight: `${lines}rem`,
       }),
     };
 
