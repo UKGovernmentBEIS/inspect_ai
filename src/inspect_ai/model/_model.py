@@ -242,7 +242,11 @@ class ModelAPI(abc.ABC):
         """
         ...
 
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         """Estimate token count for input.
 
         This default implementation uses character-based heuristics for text
@@ -252,6 +256,8 @@ class ModelAPI(abc.ABC):
 
         Args:
             input: Input to count tokens for.
+            config: Optional generation config for provider-specific counting
+                (e.g., reasoning parameters that affect token allocation).
         """
         if isinstance(input, str):
             return await self.count_text_tokens(input)
@@ -659,11 +665,17 @@ class Model:
             else:
                 return messages[len(input) :], output
 
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         """Estimate token count for input.
 
         Args:
            input: Input to count tokens for.
+           config: Optional generation config for provider-specific counting
+               (e.g., reasoning parameters that affect token allocation).
         """
         model_name = ModelName(self)
         key = f"ModelCountTokens({self.api.connection_key()})"
@@ -681,11 +693,13 @@ class Model:
                     self.api.retry_wait(),
                 )
             )
-            async def _count_tokens(input: str | list[ChatMessage]) -> int:
-                return await self.api.count_tokens(input)
+            async def _count_tokens(
+                input: str | list[ChatMessage], config: GenerateConfig | None
+            ) -> int:
+                return await self.api.count_tokens(input, config)
 
             # count tokens
-            return await _count_tokens(input)
+            return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.

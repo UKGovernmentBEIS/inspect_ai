@@ -14,6 +14,7 @@ from openai import (
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 from openai.types.responses import Response
+from openai.types.shared_params.reasoning import Reasoning
 from typing_extensions import override
 
 from inspect_ai._util.logger import warn_once
@@ -268,7 +269,11 @@ class OpenAIAPI(ModelAPI):
         return len(tokens)
 
     @override
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         """Count tokens using native API for messages, tiktoken for text.
 
         For messages, uses OpenAI's input_tokens endpoint which can accurately
@@ -280,7 +285,7 @@ class OpenAIAPI(ModelAPI):
 
         # Use native counting for responses API (required for accurate counting)
         if self.responses_api:
-            return await self._count_tokens_native(input)
+            return await self._count_tokens_native(input, config)
 
         # For non-responses API, use tiktoken-based counting
         from .._tokens import count_tokens
@@ -289,7 +294,11 @@ class OpenAIAPI(ModelAPI):
             input, self.count_text_tokens, self.count_media_tokens
         )
 
-    async def _count_tokens_native(self, messages: list[ChatMessage]) -> int:
+    async def _count_tokens_native(
+        self,
+        messages: list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         """Count tokens using OpenAI's input_tokens endpoint.
 
         This endpoint can accurately count encrypted reasoning blocks
@@ -311,20 +320,12 @@ class OpenAIAPI(ModelAPI):
         response = await self.client.responses.input_tokens.count(
             model=self.service_model_name(),
             input=padded_items,
-            reasoning=self._get_reasoning_params(),
+            reasoning=self._get_reasoning_params_for_config(config),
         )
 
         logger.debug(f"Native token count result: {response.input_tokens:,} tokens")
 
         return response.input_tokens
-
-    def _get_reasoning_params(self) -> dict[str, str] | None:
-        """Get reasoning parameters for API calls."""
-        if not self.has_reasoning_options():
-            return None
-
-        # Use default reasoning settings for counting
-        return {"effort": "medium", "summary": "auto"}
 
     def is_azure(self) -> bool:
         return self.service == "azure"
@@ -652,16 +653,18 @@ class OpenAIAPI(ModelAPI):
 
     def _get_reasoning_params_for_config(
         self, config: GenerateConfig | None
-    ) -> dict[str, str] | None:
+    ) -> Reasoning | None:
         """Get reasoning parameters from config for compact/count_tokens calls."""
         if not self.has_reasoning_options():
             return None
 
         # Use config settings if provided, otherwise use defaults
         if config is not None:
-            effort = config.reasoning_effort or "medium"
-            summary = "auto" if config.reasoning_summary != "none" else "none"
-            return {"effort": effort, "summary": summary}
+            reasoning: Reasoning = {"effort": config.reasoning_effort or "medium"}
+            # Only include summary if not explicitly disabled
+            if config.reasoning_summary != "none":
+                reasoning["summary"] = config.reasoning_summary or "auto"
+            return reasoning
 
         # Default reasoning settings
         return {"effort": "medium", "summary": "auto"}

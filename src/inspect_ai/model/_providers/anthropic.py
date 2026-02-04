@@ -446,7 +446,11 @@ class AnthropicAPI(ModelAPI):
                 raise ex
 
     @override
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         """Estimate token count for an input."""
         # turn system into user for purposes of counting
         if isinstance(input, str):

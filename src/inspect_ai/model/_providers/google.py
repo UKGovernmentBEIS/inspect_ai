@@ -551,7 +551,11 @@ class GoogleGenAIAPI(ModelAPI):
         )
 
     @override
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         client = self.model_client()
         async with client.aio:
             # normalize to messages
@@ -575,7 +579,7 @@ class GoogleGenAIAPI(ModelAPI):
                 return response.total_tokens
             else:
                 logger.warning("Gemini token count returned None")
-                return await super().count_tokens(input)
+                return await super().count_tokens(input, config)
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
