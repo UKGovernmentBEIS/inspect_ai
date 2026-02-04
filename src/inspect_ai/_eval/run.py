@@ -72,6 +72,7 @@ async def eval_run(
     debug_errors: bool = False,
     run_samples: bool = True,
     score: bool = True,
+    push_hub_results: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     # are sandboxes in play?
@@ -246,6 +247,7 @@ async def eval_run(
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
+                        push_hub_results=push_hub_results,
                         kwargs=kwargs,
                     )
                 )
