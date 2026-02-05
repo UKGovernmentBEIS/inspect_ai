@@ -333,17 +333,6 @@ class AnthropicAPI(ModelAPI):
 
         model_call: ModelCall | None = None
 
-        def get_model_call() -> ModelCall:
-            nonlocal model_call
-            if model_call is None:
-                # Fallback if request building failed
-                model_call = ModelCall.create(
-                    request={},
-                    response=None,
-                    filter=model_call_filter,
-                )
-            return model_call
-
         # generate
         try:
             (
@@ -444,22 +433,28 @@ class AnthropicAPI(ModelAPI):
             return output, model_call
 
         except BadRequestError as ex:
-            mc = get_model_call()
-            mc.response = {"error": str(ex)}
-            mc.time = self._http_hooks.end_request(request_id)
-            return self.handle_bad_request(ex), mc
+            if model_call is None:
+                model_call = ModelCall.create(
+                    request={}, response=None, filter=model_call_filter
+                )
+            model_call.response = {"error": str(ex)}
+            model_call.time = self._http_hooks.end_request(request_id)
+            return self.handle_bad_request(ex), model_call
 
         except APIStatusError as ex:
-            mc = get_model_call()
-            mc.response = {"error": str(ex)}
-            mc.time = self._http_hooks.end_request(request_id)
+            if model_call is None:
+                model_call = ModelCall.create(
+                    request={}, response=None, filter=model_call_filter
+                )
+            model_call.response = {"error": str(ex)}
+            model_call.time = self._http_hooks.end_request(request_id)
             if ex.status_code == 413:
                 return ModelOutput.from_content(
                     model=self.service_model_name(),
                     content=ex.message,
                     stop_reason="model_length",
                     error=ex.message,
-                ), mc
+                ), model_call
             else:
                 raise ex
 
