@@ -683,6 +683,9 @@ class AnthropicAPI(ModelAPI):
     def is_claude_4_5(self) -> bool:
         return re.search(r"claude-[a-zA-Z]+-4-5", self.service_model_name()) is not None
 
+    def is_claude_4_6(self) -> bool:
+        return re.search(r"claude-[a-zA-Z]+-4-6", self.service_model_name()) is not None
+
     @override
     def connection_key(self) -> str:
         return str(self.api_key)
@@ -979,7 +982,9 @@ class AnthropicAPI(ModelAPI):
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
             # computer_20251124 is only supported by Claude Opus 4.5
-            if self.is_claude_4_5() and self.is_claude_4_opus():
+            if (
+                self.is_claude_4_5() or self.is_claude_4_6()
+            ) and self.is_claude_4_opus():
                 return BetaToolComputerUse20251124Param(
                     type="computer_20251124",
                     name="computer",
@@ -1033,7 +1038,7 @@ class AnthropicAPI(ModelAPI):
                 BetaToolTextEditor20250728Param(
                     type="text_editor_20250728", name="str_replace_based_edit_tool"
                 )
-                if self.is_claude_4_5()
+                if (self.is_claude_4_5() or self.is_claude_4_6())
                 else BetaToolTextEditor20250429Param(
                     type="text_editor_20250429", name="str_replace_based_edit_tool"
                 )
