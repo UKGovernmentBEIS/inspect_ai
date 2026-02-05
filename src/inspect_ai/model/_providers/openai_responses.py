@@ -164,8 +164,8 @@ async def generate_responses(
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)
-        # Use warnings=False to suppress Pydantic serialization warnings for unknown
-        # action types like 'find_in_page' that the SDK doesn't support yet.
+        # Use warnings=False to suppress Pydantic serialization warnings for
+        # action types the SDK may not yet support.
         # See: https://github.com/pydantic/pydantic-ai/issues/3653
         response = model_response.model_dump(warnings=False)
 
