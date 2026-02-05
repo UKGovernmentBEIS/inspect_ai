@@ -1,5 +1,5 @@
+import type { AgGridReact } from "ag-grid-react";
 import { FC, Fragment, useEffect, useMemo, useRef } from "react";
-import { VirtuosoHandle } from "react-virtuoso";
 import { Status } from "../../../@types/log";
 import { InlineSampleDisplay } from "../../../app/samples/InlineSampleDisplay.tsx";
 import { SampleDialog } from "../../../app/samples/SampleDialog.tsx";
@@ -13,15 +13,12 @@ import { ToolButton } from "../../../components/ToolButton.tsx";
 import { kLogViewSamplesTabId } from "../../../constants.ts";
 import {
   useFilteredSamples,
-  useGroupBy,
-  useGroupByOrder,
   useSampleDescriptor,
   useSelectedScores,
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
 import { ApplicationIcons } from "../../appearance/icons.ts";
-import { sampleIdsEqual } from "../../shared/sample.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
@@ -107,33 +104,17 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const totalSampleCount = useTotalSampleCount();
 
   const samplesDescriptor = useSampleDescriptor();
-  const groupBy = useGroupBy();
-  const groupByOrder = useGroupByOrder();
   const selectedScores = useSelectedScores();
   const selectSample = useStore((state) => state.logActions.selectSample);
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
-  const sampleListHandle = useRef<VirtuosoHandle | null>(null);
+  const sampleListHandle = useRef<AgGridReact<ListItem> | null>(null);
 
   const sampleProcessor = useMemo(() => {
     if (!samplesDescriptor) return undefined;
 
-    return getSampleProcessor(
-      sampleSummaries || [],
-      selectedLogDetails?.eval?.config?.epochs || 1,
-      groupBy,
-      groupByOrder,
-      samplesDescriptor,
-      selectedScores,
-    );
-  }, [
-    samplesDescriptor,
-    sampleSummaries,
-    selectedLogDetails?.eval?.config?.epochs,
-    groupBy,
-    groupByOrder,
-    selectedScores,
-  ]);
+    return getSampleProcessor(samplesDescriptor, selectedScores);
+  }, [samplesDescriptor, selectedScores]);
 
   const items = useMemo(() => {
     const resolvedSamples = sampleSummaries?.flatMap((sample, index) => {
@@ -150,29 +131,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
 
     return resolvedSamples || [];
   }, [sampleSummaries, sampleProcessor]);
-
-  const selectedItemIndex = useMemo(() => {
-    return items.findIndex((item) => {
-      if (item.type !== "sample") {
-        return false;
-      }
-      return (
-        sampleIdsEqual(item.sampleId, selectedSampleHandle?.id) &&
-        item.sampleEpoch === selectedSampleHandle?.epoch
-      );
-    });
-  }, [selectedSampleHandle, items]);
-
-  // Keep the selected item scrolled into view
-  useEffect(() => {
-    setTimeout(() => {
-      if (sampleListHandle.current && selectedItemIndex >= 0) {
-        sampleListHandle.current.scrollIntoView({
-          index: selectedItemIndex,
-        });
-      }
-    }, 0);
-  }, [selectedItemIndex]);
 
   const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
 
