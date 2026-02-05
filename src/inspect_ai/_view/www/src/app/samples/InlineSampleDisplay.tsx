@@ -21,12 +21,12 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   showActivity,
   className,
 }) => {
-  // Sample hooks
-  const sampleData = useSampleData();
-
   // Use shared hooks for loading and polling
   useSampleLoader();
   useSamplePolling();
+
+  // Sample hooks
+  const sampleData = useSampleData();
 
   // Scroll ref
   const scrollRef = useRef<HTMLDivElement>(null);

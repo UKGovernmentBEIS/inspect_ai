@@ -99,7 +99,6 @@ export function createSamplePolling(
       }
 
       // Fetch sample data
-      state.sampleActions.setSampleStatus("streaming");
       const eventId = pollingState.eventId;
       const attachmentId = pollingState.attachmentId;
       const sampleDataResponse = await api.get_log_sample_data(
@@ -175,6 +174,7 @@ export function createSamplePolling(
         if (abortController.signal.aborted) {
           return false;
         }
+        state.sampleActions.setSampleStatus("streaming");
 
         if (sampleDataResponse.sampleData) {
           // Process attachments

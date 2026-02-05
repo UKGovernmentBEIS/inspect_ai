@@ -274,11 +274,31 @@ export const createSampleSlice = (
         epoch: number,
         completed?: boolean,
       ) => {
+        const state = get();
+
+        // Skip if already loading this exact sample
+        const currentId = state.sample.sample_identifier;
+        const isSameSample =
+          currentId?.id === id &&
+          currentId?.epoch === epoch &&
+          currentId?.logFile === logFile;
+        const isLoading =
+          state.sample.sampleStatus === "loading" ||
+          state.sample.sampleStatus === "streaming";
+
+        if (isSameSample && isLoading) {
+          return;
+        }
+
         const sampleActions = get().sampleActions;
+
+        // Set the identifier first
+        set((state) => {
+          state.sample.sample_identifier = { id, epoch, logFile };
+        });
 
         sampleActions.setSampleError(undefined);
         sampleActions.setSampleStatus("loading");
-        const state = get();
 
         try {
           if (completed !== false) {
@@ -325,10 +345,6 @@ export const createSampleSlice = (
                 logFile,
               };
             });
-
-            // Poll running sample - create a minimal SampleSummary object
-            const sampleSummary: SampleSummary = { id, epoch } as SampleSummary;
-            samplePolling.startPolling(logFile, sampleSummary);
           }
         } catch (e) {
           sampleActions.setSampleError(e as Error);

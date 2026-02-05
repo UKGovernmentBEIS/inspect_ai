@@ -2,7 +2,6 @@ import { FC, useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExtendedFindProvider } from "../../components/ExtendedFindContext";
 import { FindBand } from "../../components/FindBand";
-import { useLogs, useSelectedSampleSummary } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
@@ -15,6 +14,7 @@ import {
 import { InlineSampleDisplay } from "../samples/InlineSampleDisplay";
 
 import clsx from "clsx";
+import { useLogLoader } from "../../state/useLogLoader";
 import styles from "./SampleDetailView.module.css";
 
 /**
@@ -22,29 +22,23 @@ import styles from "./SampleDetailView.module.css";
  * This is shown when navigating to /samples/path/to/file.eval/sample/id/epoch
  */
 export const SampleDetailView: FC = () => {
+  useLogLoader();
+
   const {
     samplesPath: routeLogPath,
     sampleId,
     epoch,
     tabId,
   } = useSamplesRouteParams();
-  const { loadLogs } = useLogs();
   const navigate = useNavigate();
 
-  const selectSample = useStore((state) => state.logActions.selectSample);
-  const setSelectedLogFile = useStore(
-    (state) => state.logsActions.setSelectedLogFile,
-  );
-  const selectedSampleSummary = useSelectedSampleSummary();
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-  const initLogDir = useStore((state) => state.logsActions.initLogDir);
   const logDir = useStore((state) => state.logs.logDir);
   const displayedSamples = useStore(
     (state) => state.logs.samplesListState.displayedSamples,
   );
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
-  const loadSample = useStore((state) => state.sampleActions.loadSample);
   const clearSelectedLogDetails = useStore(
     (state) => state.logActions.clearSelectedLogDetails,
   );
@@ -52,11 +46,6 @@ export const SampleDetailView: FC = () => {
   const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
   const showFind = useStore((state) => state.app.showFind);
   const setSampleTab = useStore((state) => state.appActions.setSampleTab);
-
-  // Extract sample properties
-  const summaryId = selectedSampleSummary?.id;
-  const summaryEpoch = selectedSampleSummary?.epoch;
-  const summaryCompleted = selectedSampleSummary?.completed;
 
   // Find current sample in displayed samples list
   const currentIndex = useMemo(() => {
@@ -76,6 +65,10 @@ export const SampleDetailView: FC = () => {
     displayedSamples &&
     currentIndex >= 0 &&
     currentIndex < displayedSamples.length - 1;
+
+  const setShowFind = useStore((state) => state.appActions.setShowFind);
+  const hideFind = useStore((state) => state.appActions.hideFind);
+  const nativeFind = useStore((state) => state.app.nativeFind);
 
   const handlePrevious = useCallback(() => {
     if (currentIndex > 0 && displayedSamples && routeLogPath && logDir) {
@@ -117,36 +110,6 @@ export const SampleDetailView: FC = () => {
       setSampleTab(tabId);
     }
   }, [tabId, setSampleTab]);
-
-  // Load the log file and select the sample
-  useEffect(() => {
-    const exec = async () => {
-      if (routeLogPath && sampleId && epoch) {
-        await initLogDir();
-        // Load the log file
-        await loadLogs(routeLogPath);
-        setSelectedLogFile(routeLogPath);
-
-        // Select the specific sample
-        const targetEpoch = parseInt(epoch, 10);
-        selectSample(sampleId, targetEpoch, routeLogPath);
-      }
-    };
-
-    exec();
-  }, [
-    routeLogPath,
-    sampleId,
-    epoch,
-    loadLogs,
-    setSelectedLogFile,
-    selectSample,
-    initLogDir,
-  ]);
-
-  const setShowFind = useStore((state) => state.appActions.setShowFind);
-  const hideFind = useStore((state) => state.appActions.hideFind);
-  const nativeFind = useStore((state) => state.app.nativeFind);
 
   // Global keydown handler for keyboard shortcuts
   useEffect(() => {
@@ -204,24 +167,6 @@ export const SampleDetailView: FC = () => {
   ]);
 
   useEffect(() => {
-    const exec = async () => {
-      if (
-        selectedLogFile &&
-        summaryId !== undefined &&
-        summaryEpoch !== undefined
-      ) {
-        await loadSample(
-          selectedLogFile,
-          summaryId,
-          summaryEpoch,
-          summaryCompleted,
-        );
-      }
-    };
-    void exec();
-  }, [loadSample, selectedLogFile, summaryId, summaryEpoch, summaryCompleted]);
-
-  useEffect(() => {
     return () => {
       clearSelectedLogDetails();
       clearLog();
@@ -258,10 +203,8 @@ export const SampleDetailView: FC = () => {
             </div>
           </div>
         </ApplicationNavbar>
-        <InlineSampleDisplay
-          showActivity={sampleStatus === "loading"}
-          className={styles.panel}
-        />
+
+        <InlineSampleDisplay showActivity={false} className={styles.panel} />
       </div>
     </ExtendedFindProvider>
   );
