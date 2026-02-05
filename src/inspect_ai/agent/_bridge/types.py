@@ -4,7 +4,6 @@ from typing import Sequence, Set
 
 from shortuuid import uuid
 
-from inspect_ai._util.content import ContentReasoning
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._chat_message import ChatMessage
@@ -101,43 +100,6 @@ class AgentBridge:
 
     _message_ids: dict[str, list[str]]
 
-    def _preserve_reasoning_summaries(
-        self, new_messages: list[ChatMessage]
-    ) -> list[ChatMessage]:
-        """Preserve reasoning summaries from existing state messages.
-
-        When messages travel through the CLI, reasoning summaries are lost because
-        the CLI only stores the encrypted signature. This method restores summaries
-        from the previous state messages where available.
-        """
-        if not self.state.messages:
-            return new_messages
-
-        # Build lookup of existing messages with summaries by ID
-        existing_summaries: dict[str, list[str]] = {}  # msg_id -> list of summaries
-        for msg in self.state.messages:
-            if msg.id and isinstance(msg.content, list):
-                summaries = []
-                for c in msg.content:
-                    if isinstance(c, ContentReasoning) and c.summary:
-                        summaries.append(c.summary)
-                if summaries:
-                    existing_summaries[msg.id] = summaries
-
-        # Apply summaries to new messages
-        for msg in new_messages:
-            if msg.id and msg.id in existing_summaries:
-                summaries = existing_summaries[msg.id]
-                if isinstance(msg.content, list):
-                    summary_idx = 0
-                    for c in msg.content:
-                        if isinstance(c, ContentReasoning) and not c.summary:
-                            if summary_idx < len(summaries):
-                                c.summary = summaries[summary_idx]
-                                summary_idx += 1
-
-        return new_messages
-
     def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
         # automatically track agent state based on observing generations made through
         # the bridge. we need to distinguish between the "main" thread of generation
@@ -164,8 +126,6 @@ class AgentBridge:
             self._last_message_count = 0
 
         if len(messages) > self._last_message_count:
-            # Preserve reasoning summaries from existing state messages
-            messages = self._preserve_reasoning_summaries(messages)
             self.state.messages = messages
             self.state.output = output
 
