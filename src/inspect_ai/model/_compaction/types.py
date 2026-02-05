@@ -8,7 +8,11 @@ from inspect_ai.model._model import Model
 class CompactionStrategy(abc.ABC):
     """Compaction strategy."""
 
-    def __init__(self, threshold: int | float = 0.9, memory: bool = True):
+    def __init__(
+        self,
+        threshold: int | float = 0.9,
+        memory: bool = True,
+    ):
         """Compaction strategy.
 
         Args:

@@ -125,8 +125,8 @@ class GenerateConfigArgs(TypedDict, total=False):
     verbosity: Literal["low", "medium", "high"] | None
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
-    effort: Literal["low", "medium", "high"] | None
-    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
+    effort: Literal["low", "medium", "high", "max"] | None
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
 
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
@@ -230,8 +230,8 @@ class GenerateConfig(BaseModel):
     verbosity: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
-    effort: Literal["low", "medium", "high"] | None = Field(default=None)
-    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
+    effort: Literal["low", "medium", "high", "max"] | None = Field(default=None)
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6)."""
 
     reasoning_effort: (
         Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
