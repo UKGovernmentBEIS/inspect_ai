@@ -62,12 +62,14 @@ export const SampleDetailView: FC = () => {
     if (!displayedSamples || !selectedLogFile || !sampleId || !epoch) {
       return -1;
     }
-    return displayedSamples.findIndex(
-      (s) =>
-        s.sampleId === sampleId &&
+    const index = displayedSamples.findIndex((s) => {
+      const isMatch =
+        String(s.sampleId) === sampleId &&
         s.epoch === parseInt(epoch, 10) &&
-        s.logFile === selectedLogFile,
-    );
+        s.logFile === selectedLogFile;
+      return isMatch;
+    });
+    return index;
   }, [displayedSamples, selectedLogFile, sampleId, epoch]);
 
   const hasPrevious = currentIndex > 0;
