@@ -123,7 +123,8 @@ async def generate_responses(
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
         else NOT_GIVEN,
-        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+        | (config.extra_headers or {}),
         **completion_params_responses(
             model_name,
             model_info=model_info,
@@ -163,7 +164,10 @@ async def generate_responses(
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)
-        response = model_response.model_dump()
+        # Use warnings=False to suppress Pydantic serialization warnings for unknown
+        # action types like 'find_in_page' that the SDK doesn't support yet.
+        # See: https://github.com/pydantic/pydantic-ai/issues/3653
+        response = model_response.model_dump(warnings=False)
 
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)

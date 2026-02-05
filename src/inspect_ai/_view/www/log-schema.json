@@ -849,6 +849,126 @@
       "type": "object",
       "additionalProperties": false
     },
+    "CompactionEvent": {
+      "description": "Compaction of conversation history.",
+      "properties": {
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
+        "event": {
+          "const": "compaction",
+          "default": "compaction",
+          "title": "Event",
+          "type": "string"
+        },
+        "tokens_before": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Before"
+        },
+        "tokens_after": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens After"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        }
+      },
+      "title": "CompactionEvent",
+      "type": "object",
+      "required": [
+        "uuid",
+        "span_id",
+        "timestamp",
+        "working_start",
+        "metadata",
+        "pending",
+        "event",
+        "tokens_before",
+        "tokens_after",
+        "source"
+      ],
+      "additionalProperties": false
+    },
     "ContentAudio": {
       "description": "Audio content.",
       "properties": {
@@ -2269,6 +2389,7 @@
             "reasoning_summary": null,
             "reasoning_history": null,
             "response_schema": null,
+            "extra_headers": null,
             "extra_body": null,
             "cache": null,
             "batch": null
@@ -2594,6 +2715,9 @@
               },
               {
                 "$ref": "#/$defs/ApprovalEvent"
+              },
+              {
+                "$ref": "#/$defs/CompactionEvent"
               },
               {
                 "$ref": "#/$defs/InputEvent"
@@ -3910,6 +4034,21 @@
           ],
           "default": null
         },
+        "extra_headers": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extra Headers"
+        },
         "extra_body": {
           "anyOf": [
             {
@@ -3989,6 +4128,7 @@
         "reasoning_summary",
         "reasoning_history",
         "response_schema",
+        "extra_headers",
         "extra_body",
         "cache",
         "batch"

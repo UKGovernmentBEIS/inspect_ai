@@ -856,8 +856,6 @@ def test_google_streaming_large_output():
 @skip_if_no_google
 def test_google_streaming_captures_reasoning_summaries():
     """Test that streaming DOES capture reasoning summaries from Gemini 3 thinking."""
-    from inspect_ai.model._chat_message import ContentReasoning
-
     result = eval(
         Task(
             dataset=[

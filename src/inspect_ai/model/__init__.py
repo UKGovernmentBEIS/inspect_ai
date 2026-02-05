@@ -55,6 +55,7 @@ from ._generate_config import (
     ResponseSchema,
 )
 from ._google_convert import messages_from_google, model_output_from_google
+from ._message_ids import stable_message_ids
 from ._model import (
     GenerateFilter,
     GenerateInput,
@@ -122,6 +123,7 @@ __all__ = [
     "model_output_from_anthropic",
     "model_output_from_google",
     "messages_to_openai",
+    "stable_message_ids",
     "ModelCall",
     "ModelOutput",
     "ModelConversation",

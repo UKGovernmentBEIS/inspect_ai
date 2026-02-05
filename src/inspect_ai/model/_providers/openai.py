@@ -383,10 +383,6 @@ class OpenAIAPI(ModelAPI):
         await self.client.close()
 
     @override
-    def emulate_reasoning_history(self) -> bool:
-        return not self.responses_api
-
-    @override
     def supports_remote_mcp(self) -> bool:
         return True
 

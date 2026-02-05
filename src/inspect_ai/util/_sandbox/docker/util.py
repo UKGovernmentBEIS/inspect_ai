@@ -17,6 +17,8 @@ from .config import (
 
 logger = getLogger(__name__)
 
+TRACE_DOCKER = "Docker"
+
 
 @dataclass
 class ComposeProject:
@@ -34,8 +36,10 @@ class ComposeProject:
         *,
         sample_id: int | str | None = None,
         epoch: int | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
     ) -> "ComposeProject":
+        import os
+
         # resolve config to full path if we have one
         config_path = None
         if isinstance(config, str):
@@ -47,7 +51,8 @@ class ComposeProject:
                 default_flow_style=False,
                 sort_keys=False,
             )
-            config = auto_compose_file(config_yaml)
+            # Use project name for unique file, resolve paths against CWD
+            config = auto_compose_file(config_yaml, name, base_dir=os.getcwd())
         elif config is not None:
             raise ValueError(
                 f"Unsupported config type: {type(config)}. Expected str or ComposeConfig."
@@ -57,7 +62,8 @@ class ComposeProject:
         if config_path and is_dockerfile(config_path.name):
             config = auto_compose_file(
                 COMPOSE_DOCKERFILE_YAML.format(dockerfile=config_path.name),
-                config_path.parent.as_posix(),
+                name,
+                base_dir=config_path.parent.resolve().as_posix(),
             )
 
         # if its another config file, just take its path
@@ -66,12 +72,12 @@ class ComposeProject:
 
         # no config passed, look for 'auto-config' (compose.yaml, Dockerfile, etc.)
         elif config is None:
-            config = resolve_compose_file()
+            config = resolve_compose_file(project_name=name)
 
         # this could be a cleanup where docker has tracked a .compose.yaml file
         # as part of its ConfigFiles and passed it back to us -- we in the
         # meantime have cleaned it up so we re-create it here as required
-        ensure_auto_compose_file(config)
+        ensure_auto_compose_file(config, name)
 
         # return project
         return ComposeProject(name, config, sample_id=sample_id, epoch=epoch, env=env)
@@ -82,7 +88,7 @@ class ComposeProject:
         config: str | None,
         sample_id: int | str | None,
         epoch: int | None,
-        env: dict[str, str],
+        env: dict[str, str] | None,
     ) -> None:
         self.name = name
         self.config = config

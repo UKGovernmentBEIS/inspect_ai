@@ -43,8 +43,7 @@ from openai.types.responses.response_custom_tool_call_output_param import (
     OutputOutputContentList,
 )
 from openai.types.responses.response_function_web_search import (
-    Action,
-    ActionSearch,
+    Action as WebSearchAction,
 )
 from openai.types.responses.response_input_item_param import McpCall as McpCallParam
 from openai.types.responses.response_input_item_param import (
@@ -59,7 +58,7 @@ from openai.types.responses.response_output_item import (
     McpListToolsTool,
 )
 from openai.types.responses.tool_param import CodeInterpreter
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter
 from shortuuid import uuid
 
 from inspect_ai._util.content import (
@@ -122,6 +121,7 @@ from inspect_ai.model._openai_responses import (
     is_web_search_tool_param,
     mcp_call_to_tool_use,
     mcp_list_tools_to_tool_use,
+    parse_web_search_action,
     reasoning_from_responses_reasoning,
     responses_extra_body_fields,
     responses_model_usage,
@@ -169,6 +169,7 @@ logger = getLogger(__name__)
 
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     web_search: WebSearchProviders,
     code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
@@ -206,6 +207,7 @@ async def inspect_responses_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_responses(json_data)
+    config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None
@@ -798,8 +800,6 @@ def filter_duplicate_assistant_content(
 
 output_item_adapter = TypeAdapter(list[ResponseOutputItem])
 
-action_adapter = TypeAdapter[Action](Action)
-
 mcp_tool_adapter = TypeAdapter(list[McpListToolsTool])
 
 
@@ -865,20 +865,14 @@ def responses_output_items_from_assistant_message(
 
         elif isinstance(content, ContentToolUse):
             if content.tool_type == "web_search":
-                # if this originated from responses then the action will validate as
-                # a native OpenAI action -- otherwise just provide a plausible stand-in
-                # (the native model provider e.g. anthropic will have saved its call
-                # keyed by id so that it can replay with the correct fidelity)
-                try:
-                    action = action_adapter.validate_json(content.arguments)
-                except ValidationError:
-                    action = ActionSearch(type="search", query=content.arguments)
-
                 output.append(
                     ResponseFunctionWebSearch(
                         type="web_search_call",
                         id=content.id,
-                        action=action,
+                        action=cast(
+                            WebSearchAction,
+                            parse_web_search_action(content.arguments),
+                        ),
                         status="failed" if content.error else "completed",
                     )
                 )

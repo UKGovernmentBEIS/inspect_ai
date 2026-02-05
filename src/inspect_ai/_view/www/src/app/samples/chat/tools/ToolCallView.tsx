@@ -114,7 +114,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   });
 
   const contents = mode !== "compact" ? input : input || functionCall;
-  const context = defaultContext();
+  const context = defaultContext("tool");
   return (
     <div className={clsx(styles.toolCallView)}>
       <div>

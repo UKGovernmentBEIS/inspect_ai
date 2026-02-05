@@ -1,5 +1,6 @@
 from typing import Any, Callable, NamedTuple, Sequence, Type
 
+from pydantic import JsonValue
 from pydantic_core import to_json
 from rich.console import Group, RenderableType
 from rich.markdown import Markdown
@@ -19,6 +20,7 @@ from inspect_ai._util.transcript import (
     transcript_separator,
 )
 from inspect_ai.event._approval import ApprovalEvent
+from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._event import (
     Event,
@@ -324,6 +326,21 @@ def render_info_event(event: InfoEvent) -> EventDisplay:
     return EventDisplay("info", content)
 
 
+def render_compaction_event(event: CompactionEvent) -> EventDisplay:
+    compaction: dict[str, JsonValue] = {}
+    if event.source is not None:
+        compaction["source"] = event.source
+    if event.tokens_before is not None:
+        compaction["tokens_before"] = event.tokens_before
+    if event.tokens_after is not None:
+        compaction["tokens_after"] = event.tokens_after
+    if event.metadata:
+        compaction["metadata"] = event.metadata
+
+    content = render_as_json(compaction)
+    return EventDisplay("compaction", content)
+
+
 def render_logger_event(event: LoggerEvent) -> EventDisplay:
     content = event.message.level.upper()
     if event.message.name:
@@ -401,6 +418,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (InputEvent, render_input_event),
     (ApprovalEvent, render_approval_event),
     (InfoEvent, render_info_event),
+    (CompactionEvent, render_compaction_event),
     (LoggerEvent, render_logger_event),
     (ErrorEvent, render_error_event),
 ]
