@@ -594,13 +594,19 @@ class AnthropicAPI(ModelAPI):
             # max is claude 4.6 only
             if effort == "max" and not self.is_claude_4_6():
                 effort = "high"
-            extra_body["output_config"] = {"effort": config.effort}
+            extra_body["output_config"] = {"effort": effort}
 
         # some thinking-only stuff
         if self.is_using_thinking(config):
-            params["thinking"] = dict(
-                type="enabled", budget_tokens=config.reasoning_tokens
-            )
+            reasoning_effort = self.effort_from_reasoning_effort(config)
+            if reasoning_effort is not None:
+                params["thinking"] = dict(type="adaptive")
+                extra_body.setdefault("output_config", {})
+                extra_body["output_config"]["effort"] = reasoning_effort
+            else:
+                params["thinking"] = dict(
+                    type="enabled", budget_tokens=config.reasoning_tokens
+                )
             headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
@@ -646,19 +652,34 @@ class AnthropicAPI(ModelAPI):
     @override
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
         max_tokens = cast(int, self.max_tokens())
-        if self.is_thinking_model() and config.reasoning_tokens is not None:
-            max_tokens = max_tokens + config.reasoning_tokens
-            # after bumping for reasoning, make sure we don't exceed model max tokens
-            if self.is_claude_4_opus():
-                max_tokens = min(max_tokens, 32000)
-            elif self.is_claude_3_7():
-                max_tokens = min(max_tokens, 128000)
-            else:
-                max_tokens = min(max_tokens, 64000)
+        if self.is_thinking_model():
+            reasoning_effort = self.effort_from_reasoning_effort(config)
+            if reasoning_effort is not None:
+                effort_tokens = {
+                    "low": 4096,
+                    "medium": 10000,
+                    "high": 16000,
+                    "max": 24000,
+                }
+                max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
+            elif config.reasoning_tokens is not None:
+                max_tokens = max_tokens + config.reasoning_tokens
+
+        # apply caps after bumping for reasoning
+        if self.is_claude_4_opus():
+            max_tokens = min(max_tokens, 32000)
+        elif self.is_claude_3_7():
+            max_tokens = min(max_tokens, 128000)
+        else:
+            max_tokens = min(max_tokens, 64000)
+
         return max_tokens
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
-        return self.is_thinking_model() and config.reasoning_tokens is not None
+        return self.is_thinking_model() and (
+            (config.reasoning_tokens is not None)
+            or (self.effort_from_reasoning_effort(config) is not None)
+        )
 
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
@@ -1114,6 +1135,27 @@ class AnthropicAPI(ModelAPI):
                 )
             else:
                 return None
+        else:
+            return None
+
+    def effort_from_reasoning_effort(
+        self, config: GenerateConfig
+    ) -> Literal["max", "high", "medium", "low"] | None:
+        # claude 4.6 supports reasoning effort via type: "adaptive"
+        if (
+            config.reasoning_effort is not None
+            and config.reasoning_effort != "none"
+            and self.is_claude_4_6()
+        ):
+            match config.reasoning_effort:
+                case "low" | "minimal":
+                    return "low"
+                case "medium":
+                    return "medium"
+                case "high":
+                    return "high"
+                case "xhigh":
+                    return "max"
         else:
             return None
 
