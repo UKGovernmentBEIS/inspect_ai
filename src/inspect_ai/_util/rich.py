@@ -7,7 +7,7 @@ from typing import Any, Tuple, Type
 
 import click
 import tenacity
-from rich.console import RenderableType
+from rich.console import Console, RenderableType
 from rich.style import Style
 from rich.text import Text
 from rich.traceback import Traceback
@@ -91,3 +91,22 @@ def truncate_traceback(
     truncated_error = truncate_middle(error_msg, error_msg_size)
 
     return truncated_header + truncated_frames + truncated_error, True
+
+
+def format_traceback(
+    exc_type: Type[BaseException],
+    exc_value: BaseException,
+    exc_traceback: TracebackType | None,
+) -> tuple[str, str]:
+    """Format exception traceback as plain text and ANSI-colored."""
+    traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
+
+    if not truncated:
+        with open(os.devnull, "w") as f:
+            console = Console(record=True, file=f, legacy_windows=True)
+            console.print(rich_traceback(exc_type, exc_value, exc_traceback))
+            traceback_ansi = console.export_text(styles=True)
+    else:
+        traceback_ansi = traceback_text
+
+    return traceback_text, traceback_ansi

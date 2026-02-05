@@ -1,4 +1,3 @@
-import os
 from logging import getLogger
 from types import TracebackType
 from typing import Any, Literal, Type, TypedDict
@@ -10,7 +9,6 @@ from pydantic import (
     PrivateAttr,
     model_validator,
 )
-from rich.console import Console
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
@@ -20,7 +18,7 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
-from inspect_ai._util.rich import rich_traceback, truncate_traceback
+from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
@@ -886,18 +884,10 @@ def eval_error(
     exc_value: BaseException,
     exc_traceback: TracebackType | None,
 ) -> EvalError:
-    # get text traceback
-    traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
+    traceback_text, traceback_ansi = format_traceback(
+        exc_type, exc_value, exc_traceback
+    )
 
-    if not truncated:
-        with open(os.devnull, "w") as f:
-            console = Console(record=True, file=f, legacy_windows=True)
-            console.print(rich_traceback(exc_type, exc_value, exc_traceback))
-            traceback_ansi = console.export_text(styles=True)
-    else:
-        traceback_ansi = traceback_text
-
-    # return error
     return EvalError(
         message=exception_message(exception),
         traceback=traceback_text,

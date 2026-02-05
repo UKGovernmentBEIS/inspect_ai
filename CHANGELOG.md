@@ -4,6 +4,7 @@
 - Added `extra_headers` to `GenerateConfig` for sending extra HTTP headers along with provider requests.
 - Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
 - Inspect View: Show errors in model call events in the transcript.
+- Inspect View: Show tracebacks in model call events in the transcript.
 - Bugfix: `handoff()` now respects `react()` name parameter when creating the transfer_to_X tool name.
 
 ## 0.3.170 (03 February 2026)

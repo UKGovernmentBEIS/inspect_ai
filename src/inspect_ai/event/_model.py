@@ -47,6 +47,12 @@ class ModelEvent(BaseEvent):
     error: str | None = Field(default=None)
     """Error which occurred during model call."""
 
+    traceback: str | None = Field(default=None)
+    """Error traceback (plain text)."""
+
+    traceback_ansi: str | None = Field(default=None)
+    """Error traceback with ANSI color codes for display."""
+
     cache: Literal["read", "write"] | None = Field(default=None)
     """Was this a cache read or write."""
 

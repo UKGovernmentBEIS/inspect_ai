@@ -176,6 +176,15 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       ) : (
         ""
       )}
+
+      {event.traceback_ansi && (
+        <div data-name="Error" className={styles.container}>
+          <ANSIDisplay
+            output={event.traceback_ansi}
+            className={styles.traceback}
+          />
+        </div>
+      )}
     </EventPanel>
   );
 };

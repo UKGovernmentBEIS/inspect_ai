@@ -1838,7 +1838,7 @@ requires-dist = [
     { name = "textual", specifier = ">=2.1.0" },
     { name = "textual-dev", marker = "extra == 'dev'", specifier = ">=0.86.2" },
     { name = "tiktoken", specifier = ">=0.12.0" },
-    { name = "together", marker = "extra == 'dev'" },
+    { name = "together", marker = "extra == 'dev'", specifier = "<2.0.0" },
     { name = "trio", marker = "extra == 'dev'" },
     { name = "twine", marker = "extra == 'dist'" },
     { name = "types-aioboto3", marker = "extra == 'dev'" },
