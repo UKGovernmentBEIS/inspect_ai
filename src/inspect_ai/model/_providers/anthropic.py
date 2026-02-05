@@ -485,6 +485,34 @@ class AnthropicAPI(ModelAPI):
         )
         return response.input_tokens
 
+    @override
+    async def compact(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        """Compact messages using provider-native compaction.
+
+        Args:
+            input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+            tools: Tools available for the model to call.
+            config: Model configuration.
+            instructions: Additional instructions to give the model about compaction
+
+        Returns:
+            A tuple of (compacted_messages, usage) where compacted_messages is a
+            list containing a single message with compaction metadata, and usage
+            contains token counts for the compaction operation.
+
+        Raises:
+            NotImplementedError: For providers without native compaction support.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support native compaction."
+        )
+
     async def _perform_request_and_continuations(
         self,
         request: dict[str, Any],

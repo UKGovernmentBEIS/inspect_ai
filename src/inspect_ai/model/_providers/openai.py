@@ -10,6 +10,7 @@ from openai import (
     AsyncOpenAI,
     NotGiven,
     RateLimitError,
+    omit,
 )
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
@@ -559,6 +560,7 @@ class OpenAIAPI(ModelAPI):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
+        instructions: str | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using client.responses.compact().
 
@@ -584,6 +586,7 @@ class OpenAIAPI(ModelAPI):
         response = await self.client.responses.compact(
             model=self.service_model_name(),
             input=input_params,
+            instructions=instructions if instructions is not None else omit,
         )
 
         # Extract compaction item and create ChatMessage with ContentData

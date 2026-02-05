@@ -172,7 +172,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-Native compaction delegates context management to the model provider's own compaction API rather than implementing it client-side. The provider compresses the conversation into an opaque, provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API.
+Native compaction delegates context management to the model provider's own compaction API rather than implementing it client-side. The provider compresses the conversation into a provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API and Anthropic Claude 4.6. 
 
 For example, here we add native compaction to a `react()` agent:
 
@@ -187,7 +187,7 @@ react(
 )
 ```
 
-Since native compaction is not available for all providers, you can specify a `fallback` strategy that will be used when the provider doesn't support it:
+Since native compaction is not available for all providers and models, you can specify a `fallback` strategy that will be used when the provider doesn't support native compaction:
 
 ``` python
 from inspect_ai.agent import react
@@ -208,9 +208,9 @@ Here are all options available for `CompactionNative`:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
-| `memory` | False | Warn the model to save content to memory before compaction (when the memory tool is available). Defaults to `False` since native compaction preserves context server-side. |
+| `instructions` | None | Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets, variable names, and technical decisions.") |
 | `fallback` | None | Fallback compaction strategy to use if the provider does not support native compaction. |
-| `config` | None | Optional generation config for provider-specific settings (e.g., reasoning parameters for OpenAI). |
+| `memory` | False | Warn the model to save content to memory before compaction (when the memory tool is available). Defaults to `False` since native compaction preserves context server-side. |
 
 : {tbl-colwidths=\[15,12,73\]}
 

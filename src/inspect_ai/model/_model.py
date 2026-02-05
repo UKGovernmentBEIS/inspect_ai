@@ -377,6 +377,7 @@ class ModelAPI(abc.ABC):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
+        instructions: str | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
 
@@ -389,6 +390,8 @@ class ModelAPI(abc.ABC):
             input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
             tools: Tools available for the model to call.
             config: Model configuration.
+            instructions: Additional instructions to give the model about compaction
+               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
         Returns:
             A tuple of (compacted_messages, usage) where compacted_messages is a
@@ -710,7 +713,7 @@ class Model:
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
-        config: GenerateConfig | None = None,
+        instructions: str | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
 
@@ -721,6 +724,8 @@ class Model:
           input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
           tools: Tools available for the model to call.
           config: Model configuration.
+          instructions: Additional instructions to give the model about compaction
+               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
         Returns:
           A tuple of (compacted_messages, usage) where compacted_messages is
@@ -729,7 +734,7 @@ class Model:
         Raises:
             NotImplementedError: For providers without native compaction support.
         """
-        config = self._resolve_config(config)
+        config = self._resolve_config(None)
         model_name = ModelName(self)
         key = f"ModelCompact({self.api.connection_key()})"
 
@@ -750,7 +755,7 @@ class Model:
             async def _compact(
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
-                return await self.api.compact(messages, tools, config)
+                return await self.api.compact(messages, tools, config, instructions)
 
             # Call compact with retry handling
             compacted_messages, usage = await _compact(input)

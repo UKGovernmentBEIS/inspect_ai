@@ -7,7 +7,6 @@ compaction endpoints (e.g., OpenAI Codex's responses.compact API).
 from typing_extensions import override
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -44,7 +43,6 @@ class CompactionNative(CompactionStrategy):
         instructions: str | None = None,
         fallback: CompactionStrategy | None = None,
         memory: bool = False,
-        config: GenerateConfig | None = None,
     ) -> None:
         """Initialize native compaction strategy.
 
@@ -57,12 +55,9 @@ class CompactionNative(CompactionStrategy):
             memory: Whether to warn the model to save critical content to memory
                 prior to compaction. Default is False since native compaction
                 preserves context server-side.
-            config: Optional generation config for provider-specific settings
-                (e.g., reasoning parameters for OpenAI models).
         """
         super().__init__(threshold=threshold, memory=memory)
         self._instructions = instructions
-        self._config = config
         self._fallback = fallback
         self._use_fallback = False
 
@@ -95,7 +90,7 @@ class CompactionNative(CompactionStrategy):
                 # Delegate to the Model wrapper's compact method
                 # This provides retry logic, concurrency management, and usage tracking
                 compacted_messages, _ = await model.compact(
-                    messages, tools, self._config
+                    messages, tools, self._instructions
                 )
 
                 # Return compacted messages with no supplemental message
