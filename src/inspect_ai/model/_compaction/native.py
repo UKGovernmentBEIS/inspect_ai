@@ -9,6 +9,7 @@ from typing_extensions import override
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model
+from inspect_ai.tool._tool_info import ToolInfo
 
 from .types import CompactionStrategy
 
@@ -40,6 +41,7 @@ class CompactionNative(CompactionStrategy):
     def __init__(
         self,
         threshold: int | float = 0.9,
+        instructions: str | None = None,
         fallback: CompactionStrategy | None = None,
         memory: bool = False,
         config: GenerateConfig | None = None,
@@ -48,6 +50,8 @@ class CompactionNative(CompactionStrategy):
 
         Args:
             threshold: Token count or percent of context window to trigger compaction.
+            instructions: Additional instructions to give the model about compaction
+               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
             fallback: Fallback strategy if native compaction is not available
                 for this provider.
             memory: Whether to warn the model to save critical content to memory
@@ -57,19 +61,21 @@ class CompactionNative(CompactionStrategy):
                 (e.g., reasoning parameters for OpenAI models).
         """
         super().__init__(threshold=threshold, memory=memory)
+        self._instructions = instructions
         self._config = config
         self._fallback = fallback
         self._use_fallback = False
 
     @override
     async def compact(
-        self, messages: list[ChatMessage], model: Model
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages using the provider's native compaction API.
 
         Args:
+            model: Target model for compaction.
             messages: Full message history to compact.
-            model: Target model for compaction (must support native compaction).
+            tools: Available tools.
 
         Returns:
             Tuple of (compacted messages, supplemental message or None). The second
@@ -81,14 +87,16 @@ class CompactionNative(CompactionStrategy):
         """
         # use fallback straight away if we've had to in the past
         if self._use_fallback and self._fallback is not None:
-            return await self._fallback.compact(messages, model)
+            return await self._fallback.compact(model, messages, tools)
 
         # otherwise normal processing
         else:
             try:
                 # Delegate to the Model wrapper's compact method
                 # This provides retry logic, concurrency management, and usage tracking
-                compacted_messages, _ = await model.compact(messages, self._config)
+                compacted_messages, _ = await model.compact(
+                    messages, tools, self._config
+                )
 
                 # Return compacted messages with no supplemental message
                 # (native compaction doesn't produce summaries or side-effect messages)
@@ -96,7 +104,7 @@ class CompactionNative(CompactionStrategy):
             except NotImplementedError:
                 # if we have a fallback then use it and update state to use it going forward
                 if self._fallback is not None:
-                    result = await self._fallback.compact(messages, model)
+                    result = await self._fallback.compact(model, messages, tools)
                     self._use_fallback = True
                     return result
                 else:

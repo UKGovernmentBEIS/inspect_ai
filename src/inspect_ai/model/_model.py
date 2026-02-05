@@ -374,8 +374,9 @@ class ModelAPI(abc.ABC):
 
     async def compact(
         self,
-        messages: list[ChatMessage],
-        config: GenerateConfig | None = None,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
 
@@ -385,9 +386,9 @@ class ModelAPI(abc.ABC):
         context window limit.
 
         Args:
-            messages: List of chat messages to compact.
-            config: Optional generation config for provider-specific settings
-                (e.g., reasoning parameters for OpenAI models).
+            input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+            tools: Tools available for the model to call.
+            config: Model configuration.
 
         Returns:
             A tuple of (compacted_messages, usage) where compacted_messages is a
@@ -707,7 +708,8 @@ class Model:
 
     async def compact(
         self,
-        messages: list[ChatMessage],
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
         config: GenerateConfig | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
@@ -716,12 +718,13 @@ class Model:
         Automatically tracks token usage and enforces token limits.
 
         Args:
-            messages: List of chat messages to compact.
-            config: Optional generation config for provider-specific settings.
+          input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+          tools: Tools available for the model to call.
+          config: Model configuration.
 
         Returns:
-            A tuple of (compacted_messages, usage) where compacted_messages is
-            a list of compacted messages and usage contains token counts.
+          A tuple of (compacted_messages, usage) where compacted_messages is
+          a list of compacted messages and usage contains token counts.
 
         Raises:
             NotImplementedError: For providers without native compaction support.
@@ -745,12 +748,12 @@ class Model:
                 )
             )
             async def _compact(
-                messages: list[ChatMessage], config: GenerateConfig | None
+                messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
-                return await self.api.compact(messages, config)
+                return await self.api.compact(messages, tools, config)
 
             # Call compact with retry handling
-            compacted_messages, usage = await _compact(messages, config)
+            compacted_messages, usage = await _compact(input)
 
             # Record and check usage
             if usage:

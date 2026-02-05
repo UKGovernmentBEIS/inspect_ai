@@ -33,7 +33,7 @@ async def test_native_no_fallback_raises() -> None:
     messages = _sample_messages()
 
     with pytest.raises(NotImplementedError):
-        await strategy.compact(messages, model)
+        await strategy.compact(model, messages, [])
 
 
 @pytest.mark.asyncio
@@ -44,7 +44,7 @@ async def test_native_with_fallback_uses_fallback() -> None:
     model = get_model("mockllm/model")
     messages = _sample_messages()
 
-    result, summary = await strategy.compact(messages, model)
+    result, summary = await strategy.compact(model, messages, [])
 
     # Should succeed (no exception) and return compacted messages
     assert len(result) > 0
@@ -61,11 +61,11 @@ async def test_native_fallback_is_sticky() -> None:
 
     # First call triggers fallback via NotImplementedError catch
     assert strategy._use_fallback is False
-    await strategy.compact(messages, model)
+    await strategy.compact(model, messages, [])
     assert strategy._use_fallback is True
 
     # Second call goes through the sticky fallback path (no try/except)
-    result, summary = await strategy.compact(messages, model)
+    result, summary = await strategy.compact(model, messages, [])
     assert len(result) > 0
     assert strategy._use_fallback is True
 
@@ -79,10 +79,10 @@ async def test_native_fallback_returns_fallback_result() -> None:
     messages = _sample_messages()
 
     # Get result from CompactionNative with fallback
-    native_result, native_summary = await strategy.compact(messages, model)
+    native_result, native_summary = await strategy.compact(model, messages, [])
 
     # Get result directly from CompactionEdit for comparison
-    edit_result, edit_summary = await fallback.compact(messages, model)
+    edit_result, edit_summary = await fallback.compact(model, messages, [])
 
     # Results should match since the fallback delegates to CompactionEdit
     assert len(native_result) == len(edit_result)
@@ -97,7 +97,7 @@ async def test_native_compaction_with_supported_model() -> None:
     model = get_model("openai/gpt-5.1-codex")
     messages = _sample_messages()
 
-    result, summary = await strategy.compact(messages, model)
+    result, summary = await strategy.compact(model, messages, [])
 
     # Native compaction should return compacted messages
     assert len(result) > 0
@@ -117,7 +117,7 @@ async def test_native_compaction_dynamically_supported() -> None:
     model = get_model("openai/gpt-5")
     messages = _sample_messages()
 
-    result, summary = await strategy.compact(messages, model)
+    result, summary = await strategy.compact(model, messages, [])
 
     # Native compaction should work dynamically via the API
     assert len(result) > 0
