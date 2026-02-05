@@ -17750,7 +17750,7 @@ button._segment_mhb7y_9 {
 ._navs_1vm6p_1 {
   margin-right: 0;
 }
-._stickyWrapper_1rhkd_1 {
+._stickyWrapper_16okh_1 {
   position: sticky;
   /* top needs to be in sync with a hardcoded rootMargin of IntersectionObserver, negative margins are combined from multiple parents */
   top: 30px;
@@ -17759,38 +17759,36 @@ button._segment_mhb7y_9 {
   background-color: transparent;
   z-index: 1;
   border-bottom: solid 1px transparent;
-  transition:
-    padding 0.1s,
-    margin 0.1s,
-    background-color 0.1s,
-    border-color 0.1s;
+  border-left: solid 1px transparent;
 }
 
-._stickyWrapper_1rhkd_1[data-useStickyObserver-stuck] {
+._stickyWrapper_16okh_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
   padding-left: 10px;
-  margin-left: -38px;
+  margin-left: -22px;
+  margin-right: -10px;
   border-bottom-color: var(--bs-light-border-subtle);
+  border-left-color: var(--bs-light-border-subtle);
 }
 
-._label_1rhkd_24 {
+._label_16okh_22 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._navs_1rhkd_29 {
+._navs_16okh_27 {
   justify-self: end;
   display: flex;
   align-items: baseline;
 }
 
-._turnLabel_1rhkd_35 {
+._turnLabel_16okh_33 {
   margin-left: 0.625rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_1rhkd_41 {
+._card_16okh_39 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -17798,20 +17796,20 @@ button._segment_mhb7y_9 {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_1rhkd_49 {
+._cardContent_16okh_47 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_1rhkd_49._hidden_1rhkd_54 {
+._cardContent_16okh_47._hidden_16okh_52 {
   display: none;
 }
 
-._hidden_1rhkd_54 {
+._hidden_16okh_52 {
   display: none;
 }
 
-._copyLink_1rhkd_62 {
+._copyLink_16okh_60 {
   font-size: 1.2em;
   height: 1em;
   opacity: 0;
@@ -17819,16 +17817,16 @@ button._segment_mhb7y_9 {
   padding-right: 2em;
 }
 
-._hover_1rhkd_70 ._copyLink_1rhkd_62 {
+._hover_16okh_68 ._copyLink_16okh_60 {
   opacity: 0.75;
 }
 
-._root_1rhkd_74 {
+._root_16okh_72 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_1rhkd_79 {
+._bottomDongle_16okh_77 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -17845,7 +17843,7 @@ button._segment_mhb7y_9 {
   cursor: pointer;
 }
 
-._dongleIcon_1rhkd_96 {
+._dongleIcon_16okh_94 {
   padding-right: 0.3em;
 }
 ._panel_vz394_1 {
