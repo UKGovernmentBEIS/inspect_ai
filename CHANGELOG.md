@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI).
 - `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
 - OpenAI: Updated to 2.17.0 of `openai` package to get correct types for web search `ActionFind`.
 - Added `extra_headers` to `GenerateConfig` for sending extra HTTP headers along with provider requests.

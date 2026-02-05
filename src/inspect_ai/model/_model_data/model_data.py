@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from inspect_ai._util.dateutil import UtcDate
 
@@ -15,6 +15,7 @@ class BaseModelDefinition(BaseModel):
     knowledge_cutoff_date: Optional[UtcDate] = None
     context_length: Optional[int] = None
     output_tokens: Optional[int] = None
+    input_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
@@ -67,6 +68,7 @@ def create_model_info(
         release_date=data_source.release_date or model_def.release_date,
         context_length=data_source.context_length or model_def.context_length,
         output_tokens=data_source.output_tokens or model_def.output_tokens,
+        _input_tokens=data_source.input_tokens or model_def.input_tokens,
         reasoning=data_source.reasoning or model_def.reasoning,
     )
 
@@ -81,7 +83,7 @@ class ModelInfo(BaseModel):
     """Model name (e.g. Gemini 2.5 Flash)."""
 
     snapshot: str | None = Field(default=None)
-    """A snapshot (version) string, if available (e.g. “latest” or “20240229”).."""
+    """A snapshot (version) string, if available (e.g. "latest" or "20240229")."""
 
     release_date: UtcDate | None = Field(default=None)
     """The mode's release date."""
@@ -97,6 +99,27 @@ class ModelInfo(BaseModel):
 
     reasoning: bool | None = Field(default=None)
     """Is this a reasoning model."""
+
+    _input_tokens: int | None = PrivateAttr(default=None)
+    """Private attribute for explicit input_tokens override from YAML."""
+
+    def __init__(self, _input_tokens: int | None = None, **data: object) -> None:
+        super().__init__(**data)
+        self._input_tokens = _input_tokens
+
+    @property
+    def input_tokens(self) -> int | None:
+        """Effective input capacity in tokens.
+
+        Returns the explicit input_tokens value if set in model data,
+        otherwise falls back to context_length.
+
+        This provides a single property callers can use without needing
+        to know about context_length vs input capacity differences.
+        """
+        if self._input_tokens is not None:
+            return self._input_tokens
+        return self.context_length
 
 
 def read_model_info() -> dict[str, ModelInfo]:
