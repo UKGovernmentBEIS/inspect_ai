@@ -437,7 +437,6 @@ class AnthropicAPI(ModelAPI):
                 model_call = ModelCall.create(
                     request={}, response=None, filter=model_call_filter
                 )
-            model_call.response = {"error": str(ex)}
             model_call.time = self._http_hooks.end_request(request_id)
             return self.handle_bad_request(ex), model_call
 
@@ -446,7 +445,6 @@ class AnthropicAPI(ModelAPI):
                 model_call = ModelCall.create(
                     request={}, response=None, filter=model_call_filter
                 )
-            model_call.response = {"error": str(ex)}
             model_call.time = self._http_hooks.end_request(request_id)
             if ex.status_code == 413:
                 return ModelOutput.from_content(

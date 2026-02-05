@@ -245,7 +245,6 @@ class AzureAIAPI(ModelAPI):
             ), model_call
 
         except AzureError as ex:
-            model_call.response = {"error": str(ex)}
             model_call.time = time.monotonic() - start_time
             return self.handle_azure_error(ex), model_call
         finally:

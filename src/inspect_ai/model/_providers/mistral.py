@@ -236,7 +236,6 @@ class MistralAPI(ModelAPI):
                 model_call.response = jsonable_python(completion.model_dump())
                 model_call.time = http_hooks.end_request(request_id)
             except SDKError as ex:
-                model_call.response = {"error": str(ex)}
                 model_call.time = http_hooks.end_request(request_id)
                 if ex.status_code == 400:
                     return self.handle_bad_request(ex), model_call

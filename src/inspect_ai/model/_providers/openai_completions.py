@@ -120,7 +120,6 @@ async def generate_completions(
         choices = chat_choices_from_openai(completion, tools)
         return model_output_from_openai(completion, choices), model_call
     except (BadRequestError, UnprocessableEntityError) as e:
-        model_call.response = {"error": str(e)}
         model_call.time = http_hooks.end_request(request_id)
         return openai_handle_bad_request(openai_api.service_model_name(), e), model_call
 

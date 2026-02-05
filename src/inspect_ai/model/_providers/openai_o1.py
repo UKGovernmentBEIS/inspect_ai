@@ -63,7 +63,6 @@ async def generate_o1(
         completion: ChatCompletion = await client.chat.completions.create(**request)
         model_call.response = jsonable_python(completion.model_dump())
     except BadRequestError as ex:
-        model_call.response = {"error": str(ex)}
         return handle_bad_request(model, ex), model_call
 
     # return model output

@@ -179,7 +179,6 @@ async def generate_responses(
             usage=model_usage_from_response(model_response),
         ), model_call
     except BadRequestError as e:
-        model_call.response = {"error": str(e)}
         model_call.time = http_hooks.end_request(request_id)
         if handle_bad_request:
             return handle_bad_request(e), model_call

@@ -188,7 +188,6 @@ class GroqAPI(ModelAPI):
             # return
             return output, model_call
         except APIStatusError as ex:
-            model_call.response = {"error": str(ex)}
             model_call.time = self._http_hooks.end_request(request_id)
             return self.handle_bad_request(ex), model_call
 
