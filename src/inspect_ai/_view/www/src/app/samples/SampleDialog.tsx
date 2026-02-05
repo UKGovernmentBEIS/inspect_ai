@@ -5,8 +5,8 @@ import { FC, Ref, useCallback, useMemo, useRef } from "react";
 import { ErrorPanel } from "../../components/ErrorPanel";
 import { useSampleData } from "../../state/hooks";
 import { useStatefulScrollPosition } from "../../state/scrolling";
-import { useSampleLoader } from "../../state/useSampleLoader";
-import { useSamplePolling } from "../../state/useSamplePolling";
+import { useLoadSample } from "../../state/useLoadSample";
+import { usePollSample } from "../../state/usePollSample";
 import { SampleDisplay } from "./SampleDisplay";
 
 import { useSampleNavigation } from "../routing/sampleNavigation";
@@ -30,12 +30,12 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   const scrollRef: Ref<HTMLDivElement> = useRef(null);
   useStatefulScrollPosition(scrollRef, "sample-dialog");
 
+  // Use shared hooks for loading and polling
+  useLoadSample();
+  usePollSample();
+
   // Sample hooks
   const sampleData = useSampleData();
-
-  // Use shared hooks for loading and polling
-  useSampleLoader();
-  useSamplePolling();
 
   // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();

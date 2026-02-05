@@ -11,7 +11,7 @@ const log = createLogger("useSampleLoader");
  * Hook that handles loading samples based on the current log selection.
  * Contains the full sample loading logic that was previously in sampleSlice.loadSample.
  */
-export function useSampleLoader() {
+export function useLoadSample() {
   const sampleData = useSampleData();
   const logSelection = useLogSelection();
 

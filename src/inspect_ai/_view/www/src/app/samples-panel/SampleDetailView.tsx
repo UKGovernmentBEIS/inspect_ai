@@ -14,9 +14,9 @@ import {
 
 import clsx from "clsx";
 import { useSampleData } from "../../state/hooks";
+import { useLoadSample } from "../../state/useLoadSample";
 import { useLogLoader } from "../../state/useLogLoader";
-import { useSampleLoader } from "../../state/useSampleLoader";
-import { useSamplePolling } from "../../state/useSamplePolling";
+import { usePollSample } from "../../state/usePollSample";
 import { InlineSampleComponent } from "../samples/InlineSampleDisplay";
 import styles from "./SampleDetailView.module.css";
 
@@ -26,8 +26,8 @@ import styles from "./SampleDetailView.module.css";
  */
 export const SampleDetailView: FC = () => {
   useLogLoader();
-  useSampleLoader();
-  useSamplePolling();
+  useLoadSample();
+  usePollSample();
 
   const {
     samplesPath: routeLogPath,

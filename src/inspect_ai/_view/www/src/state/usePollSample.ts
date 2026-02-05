@@ -12,7 +12,7 @@ const log = createLogger("useSamplePolling");
  * When a sample is in a running state (completed === false), this hook starts polling for updates.
  * Contains the polling start logic that was previously in sampleSlice.pollSample.
  */
-export function useSamplePolling() {
+export function usePollSample() {
   const logSelection = useLogSelection();
   const loadedLog = useStore((state) => state.log.loadedLog);
 
