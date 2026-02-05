@@ -1,7 +1,7 @@
 import functools
 import json
 import os
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from mistralai import (
     AudioChunk,
@@ -54,6 +54,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -164,6 +165,7 @@ class MistralAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
         with Mistral(api_key=self.api_key, **self.model_args) as client:
@@ -181,6 +183,7 @@ class MistralAPI(ModelAPI):
                     tool_choice=tool_choice,
                     config=config,
                     handle_bad_request=self.handle_bad_request,
+                    record_call=record_call,
                 )
 
             # build request
@@ -215,30 +218,31 @@ class MistralAPI(ModelAPI):
                     ),
                 )
 
-            # prepare response for inclusion in model call
-            response: dict[str, Any] = {}
+            # prepare request for inclusion in model call
+            req = request.copy()
+            req.update(messages=[message.model_dump() for message in req["messages"]])
+            if req.get("tools", None) is not None:
+                req["tools"] = [tool.model_dump() for tool in req["tools"]]
 
-            def model_call() -> ModelCall:
-                req = request.copy()
-                req.update(
-                    messages=[message.model_dump() for message in req["messages"]]
-                )
-                if req.get("tools", None) is not None:
-                    req["tools"] = [tool.model_dump() for tool in req["tools"]]
+            model_call = ModelCall.create(
+                request=req,
+                response=None,
+            )
 
-                return ModelCall.create(
-                    request=req,
-                    response=response,
-                    time=http_hooks.end_request(request_id),
-                )
+            if record_call:
+                record_call(model_call)
 
             # send request
             try:
                 completion = await client.chat.complete_async(**request)
-                response = completion.model_dump()
+
+                model_call.response = jsonable_python(completion.model_dump())
+                model_call.time = http_hooks.end_request(request_id)
             except SDKError as ex:
+                model_call.response = {"error": str(ex)}
+                model_call.time = http_hooks.end_request(request_id)
                 if ex.status_code == 400:
-                    return self.handle_bad_request(ex), model_call()
+                    return self.handle_bad_request(ex), model_call
                 else:
                     raise ex
 
@@ -262,7 +266,7 @@ class MistralAPI(ModelAPI):
                     ),
                     total_tokens=completion.usage.total_tokens,
                 ),
-            ), model_call()
+            ), model_call
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""

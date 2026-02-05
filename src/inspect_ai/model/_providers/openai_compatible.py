@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from openai import (
     APIStatusError,
@@ -17,6 +17,7 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -147,6 +148,7 @@ class OpenAICompatibleAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
@@ -168,6 +170,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 model_info=ModelInfo(),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
+                record_call=record_call,
             )
 
         else:
@@ -185,18 +188,6 @@ class OpenAICompatibleAPI(ModelAPI):
 
             # allocate request_id (so we can see it from ModelCall)
             request_id = self._http_hooks.start_request()
-
-            # setup request and response for ModelCall
-            request: dict[str, Any] = {}
-            response: dict[str, Any] = {}
-
-            def model_call() -> ModelCall:
-                return ModelCall.create(
-                    request=request,
-                    response=response,
-                    filter=openai_media_filter,
-                    time=self._http_hooks.end_request(request_id),
-                )
 
             # get completion params (slice off service from model name)
             completion_params = self.completion_params(
@@ -217,11 +208,21 @@ class OpenAICompatibleAPI(ModelAPI):
                 **completion_params,
             )
 
+            model_call = ModelCall.create(
+                request=request,
+                response=None,
+                filter=openai_media_filter,
+            )
+
+            if record_call:
+                record_call(model_call)
+
             try:
                 # generate completion and save response for model call
                 completion = await self._generate_completion(request, config)
-                response = completion.model_dump()
-                self.on_response(response)
+                model_call.response = jsonable_python(completion.model_dump())
+                model_call.time = self._http_hooks.end_request(request_id)
+                self.on_response(model_call.response)
 
                 # get choices
                 choices = self.chat_choices_from_completion(completion, tools)
@@ -234,14 +235,16 @@ class OpenAICompatibleAPI(ModelAPI):
                     ]
 
                 # return output
-                return model_output_from_openai(completion, choices), model_call()
+                return model_output_from_openai(completion, choices), model_call
 
             except (
                 BadRequestError,
                 UnprocessableEntityError,
                 PermissionDeniedError,
             ) as ex:
-                return self.handle_bad_request(ex), model_call()
+                model_call.response = {"error": str(ex)}
+                model_call.time = self._http_hooks.end_request(request_id)
+                return self.handle_bad_request(ex), model_call
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig

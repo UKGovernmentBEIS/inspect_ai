@@ -35,6 +35,14 @@
   margin-left: 0.5em;
 }
 
+.pending {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em;
+  color: var(--bs-secondary);
+}
+
 .error {
   display: flex;
   align-items: flex-start;

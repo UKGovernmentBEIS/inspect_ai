@@ -123,7 +123,7 @@ async def test_perplexity_citation_mapping(monkeypatch) -> None:
     )
     call = ModelCall.create({}, {})
 
-    async def fake_generate(self, input, tools, tool_choice, config):
+    async def fake_generate(self, input, tools, tool_choice, config, record_call=None):
         return output, call
 
     provider = PerplexityAPI(
@@ -156,7 +156,7 @@ async def test_perplexity_citation_mapping(monkeypatch) -> None:
 async def test_perplexity_web_search_options(monkeypatch) -> None:
     captured = {}
 
-    async def fake_generate(self, input, tools, tool_choice, config):
+    async def fake_generate(self, input, tools, tool_choice, config, record_call=None):
         captured["tools"] = tools
         captured["config"] = config
         return (

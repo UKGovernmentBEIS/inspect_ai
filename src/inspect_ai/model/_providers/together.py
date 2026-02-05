@@ -1,6 +1,6 @@
 import os
 from json import dumps
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 import httpx
 from openai import APIStatusError
@@ -17,6 +17,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
+from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -228,6 +229,7 @@ class TogetherRESTAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput:
         # chat url
         chat_url = f"{self.base_url}/chat/completions"

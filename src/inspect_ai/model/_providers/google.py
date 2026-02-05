@@ -7,7 +7,7 @@ from copy import copy
 from io import BytesIO
 from logging import getLogger
 from textwrap import dedent
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
@@ -17,8 +17,6 @@ from google.genai.types import (
     Candidate,
     CodeExecutionResult,
     Content,
-    ContentListUnion,
-    ContentListUnionDict,
     ContentUnion,
     ExecutableCode,
     File,
@@ -69,6 +67,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
@@ -262,6 +261,7 @@ class GoogleGenAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # http options
         http_options = HttpOptions(
@@ -325,19 +325,33 @@ class GoogleGenAIAPI(ModelAPI):
                     config.response_schema.json_schema.model_dump(exclude_none=True)
                 )
 
-            response: GenerateContentResponse | None = None
-
-            def model_call() -> ModelCall:
-                return build_model_call(
-                    contents=gemini_contents,  # type: ignore[arg-type]
+            model_call = ModelCall.create(
+                request=dict(
+                    contents=gemini_contents,
+                    # the excluded fields are passed to the Python API as part of
+                    # GenerateContentConfig however they are passed separately in
+                    # the actual http request body, so reflect that here
+                    generation_config=parameters.model_copy(
+                        update={
+                            "safety_settings": None,
+                            "tools": None,
+                            "tool_config": None,
+                            "system_instruction": None,
+                        }
+                    ),
                     safety_settings=self.safety_settings,
-                    generation_config=parameters,
                     tools=gemini_tools,
                     tool_config=gemini_tool_config,
                     system_instruction=system_instruction,
-                    response=response,
-                    time=http_hooks.end_request(request_id),
-                )
+                ),
+                response=None,
+                filter=model_call_filter,
+            )
+
+            if record_call:
+                record_call(model_call)
+
+            response: GenerateContentResponse | None = None
 
             try:
                 # google sometimes requires retries for malformed function calls
@@ -389,9 +403,15 @@ class GoogleGenAIAPI(ModelAPI):
                     else:
                         break
             except ClientError as ex:
-                return self.handle_client_error(ex), model_call()
+                model_call.response = {"error": str(ex)}
+                model_call.time = http_hooks.end_request(request_id)
+                return self.handle_client_error(ex), model_call
 
             assert response is not None  # mypy confused by retry loop
+
+            model_call.response = jsonable_python(response.model_dump())
+            model_call.time = http_hooks.end_request(request_id)
+
             model_name = response.model_version or self.service_model_name()
             output = ModelOutput(
                 model=model_name,
@@ -399,7 +419,7 @@ class GoogleGenAIAPI(ModelAPI):
                 usage=usage_metadata_to_model_usage(response.usage_metadata),
             )
 
-            return output, model_call()
+            return output, model_call
 
     async def _stream_generate_content(
         self,
@@ -872,41 +892,6 @@ def safety_settings_to_list(
             SafetySetting(category=setting["category"], threshold=setting["threshold"])
         )
     return settings
-
-
-def build_model_call(
-    contents: ContentListUnion | ContentListUnionDict,
-    generation_config: GenerateContentConfig,
-    safety_settings: list[SafetySettingDict],
-    tools: ToolListUnion | None,
-    tool_config: ToolConfig | None,
-    system_instruction: list[File | Part | Image | str] | None,
-    response: GenerateContentResponse | None,
-    time: float | None,
-) -> ModelCall:
-    return ModelCall.create(
-        request=dict(
-            contents=contents,
-            # the excluded fields are passed to the Python API as part of
-            # GenerateContentConfig however they are passed separately in
-            # the actual http request body, so reflect that here
-            generation_config=generation_config.model_copy(
-                update={
-                    "safety_settings": None,
-                    "tools": None,
-                    "tool_config": None,
-                    "system_instruction": None,
-                }
-            ),
-            safety_settings=safety_settings,
-            tools=tools if tools is not None else None,
-            tool_config=tool_config if tool_config is not None else None,
-            system_instruction=system_instruction,
-        ),
-        response=response if response is not None else {},
-        filter=model_call_filter,
-        time=time,
-    )
 
 
 def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:

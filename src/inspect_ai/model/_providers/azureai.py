@@ -1,8 +1,9 @@
 import functools
 import json
 import os
+import time
 from copy import copy
-from typing import Any
+from typing import Any, Callable
 
 from azure.ai.inference.aio import ChatCompletionsClient
 from azure.ai.inference.models import (
@@ -40,6 +41,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -163,7 +165,10 @@ class AzureAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        start_time = time.monotonic()
+
         # emulate tools (auto for llama, opt-in for others)
         if self.emulate_tools is None and self.is_llama():
             self.emulate_tools = True
@@ -207,22 +212,28 @@ class AzureAIAPI(ModelAPI):
             model_extras=self.model_args,
         )
 
-        def model_call(response: ChatCompletions | None = None) -> ModelCall:
-            return ModelCall.create(
-                request=request
-                | dict(
-                    messages=[message.as_dict() for message in request["messages"]],
-                    tools=[tool.as_dict() for tool in request["tools"]]
-                    if request.get("tools", None) is not None
-                    else None,
-                ),
-                response=response.as_dict() if response else {},
-                filter=openai_media_filter,
-            )
+        model_call = ModelCall.create(
+            request=request
+            | dict(
+                messages=[message.as_dict() for message in request["messages"]],
+                tools=[tool.as_dict() for tool in request["tools"]]
+                if request.get("tools", None) is not None
+                else None,
+            ),
+            response=None,
+            filter=openai_media_filter,
+        )
+
+        if record_call:
+            record_call(model_call)
 
         # make call
         try:
             response: ChatCompletions = await client.complete(**request)
+
+            model_call.response = jsonable_python(response.as_dict())
+            model_call.time = time.monotonic() - start_time
+
             return ModelOutput(
                 model=response.model,
                 choices=chat_completion_choices(
@@ -233,10 +244,12 @@ class AzureAIAPI(ModelAPI):
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
                 ),
-            ), model_call(response)
+            ), model_call
 
         except AzureError as ex:
-            return self.handle_azure_error(ex), model_call()
+            model_call.response = {"error": str(ex)}
+            model_call.time = time.monotonic() - start_time
+            return self.handle_azure_error(ex), model_call
         finally:
             await client.close()
 

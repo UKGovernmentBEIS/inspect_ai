@@ -1,6 +1,6 @@
 import gc
 import time
-from typing import Any
+from typing import Any, Callable
 
 import torch  # type: ignore
 from nnterp import StandardizedTransformer  # type: ignore
@@ -21,6 +21,7 @@ from inspect_ai.model import (
     ModelOutput,
     ModelUsage,
 )
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import Logprob, Logprobs, TopLogprob
 from inspect_ai.model._reasoning import emulate_reasoning_history
 from inspect_ai.tool import (
@@ -82,6 +83,7 @@ class NNterpAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput:
         start_time = time.monotonic()
 

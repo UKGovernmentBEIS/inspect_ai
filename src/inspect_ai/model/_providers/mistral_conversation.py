@@ -42,6 +42,7 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
@@ -73,6 +74,7 @@ async def mistral_conversation_generate(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     handle_bad_request: Callable[[SDKError], ModelOutput | Exception],
+    record_call: Callable[[ModelCall], None] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # build request
     request_id = http_hooks.start_request()
@@ -91,23 +93,25 @@ async def mistral_conversation_generate(
         | (config.extra_headers or {}),
     )
 
-    # prepare response for inclusion in model call
-    response: dict[str, Any] = {}
+    model_call = ModelCall.create(
+        request=request,
+        response=None,
+    )
 
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            time=http_hooks.end_request(request_id),
-        )
+    if record_call:
+        record_call(model_call)
 
     # send request
     try:
         conv_response = await client.beta.conversations.start_async(**request)
-        response = conv_response.model_dump()
+
+        model_call.response = jsonable_python(conv_response.model_dump())
+        model_call.time = http_hooks.end_request(request_id)
     except SDKError as ex:
+        model_call.response = {"error": str(ex)}
+        model_call.time = http_hooks.end_request(request_id)
         if ex.status_code == 400:
-            return handle_bad_request(ex), model_call()
+            return handle_bad_request(ex), model_call
         else:
             raise ex
 
@@ -126,7 +130,7 @@ async def mistral_conversation_generate(
             ),
             total_tokens=conv_response.usage.total_tokens or 0,
         ),
-    ), model_call()
+    ), model_call
 
 
 def mistral_conversation_completion_args(

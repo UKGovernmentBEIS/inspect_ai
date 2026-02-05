@@ -5,6 +5,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 
 
@@ -71,6 +72,7 @@ class MockLLM(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput:
         # If we have a custom function, call it with the generate arguments each time
         if callable(self.outputs):

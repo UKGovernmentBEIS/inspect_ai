@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
+    Callable,
     Iterable,
     Literal,
     Sequence,
@@ -116,7 +117,7 @@ from inspect_ai._util.error import exception_message
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data, file_as_data_uri
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import jsonable_python, to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
@@ -327,21 +328,23 @@ class AnthropicAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
 
-        # setup request and response for ModelCall
-        request: dict[str, Any] = {}
-        response: dict[str, Any] = {}
+        model_call: ModelCall | None = None
 
-        def model_call() -> ModelCall:
-            return ModelCall.create(
-                request=request,
-                response=response,
-                filter=model_call_filter,
-                time=self._http_hooks.end_request(request_id),
-            )
+        def get_model_call() -> ModelCall:
+            nonlocal model_call
+            if model_call is None:
+                # Fallback if request building failed
+                model_call = ModelCall.create(
+                    request={},
+                    response=None,
+                    filter=model_call_filter,
+                )
+            return model_call
 
         # generate
         try:
@@ -353,7 +356,7 @@ class AnthropicAPI(ModelAPI):
             ) = await self.resolve_chat_input(input, tools, config)
 
             # prepare request params (assembled this way so we can log the raw model call)
-            request = dict(messages=messages)
+            request: dict[str, Any] = dict(messages=messages)
 
             # system messages and tools
             if system_param is not None:
@@ -418,6 +421,15 @@ class AnthropicAPI(ModelAPI):
                     request["extra_body"] = dict()
                 request["extra_body"]["mcp_servers"] = mcp_servers_param
 
+            model_call = ModelCall.create(
+                request=request,
+                response=None,
+                filter=model_call_filter,
+            )
+
+            if record_call:
+                record_call(model_call)
+
             # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (
                 self.auto_streaming(config)
@@ -429,19 +441,28 @@ class AnthropicAPI(ModelAPI):
                 request, streaming, tools, config
             )
 
-            return output, model_call()
+            model_call.response = jsonable_python(response)
+            model_call.time = self._http_hooks.end_request(request_id)
+
+            return output, model_call
 
         except BadRequestError as ex:
-            return self.handle_bad_request(ex), model_call()
+            mc = get_model_call()
+            mc.response = {"error": str(ex)}
+            mc.time = self._http_hooks.end_request(request_id)
+            return self.handle_bad_request(ex), mc
 
         except APIStatusError as ex:
+            mc = get_model_call()
+            mc.response = {"error": str(ex)}
+            mc.time = self._http_hooks.end_request(request_id)
             if ex.status_code == 413:
                 return ModelOutput.from_content(
                     model=self.service_model_name(),
                     content=ex.message,
                     stop_reason="model_length",
                     error=ex.message,
-                ), model_call()
+                ), mc
             else:
                 raise ex
 

@@ -25,6 +25,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -86,6 +87,7 @@ async def generate_responses(
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
+    record_call: Callable[[ModelCall], None] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -97,19 +99,6 @@ async def generate_responses(
 
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
-
-    # setup request and response for ModelCall
-    request: dict[str, Any] = {}
-    response: dict[str, Any] = {}
-
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            # TODO: is this the right filter?
-            filter=openai_media_filter,
-            time=http_hooks.end_request(request_id),
-        )
 
     # prepare request (we do this so we can log the ModelCall)
     tool_params = (
@@ -141,6 +130,15 @@ async def generate_responses(
     if isinstance(background, bool):
         request["background"] = background
 
+    model_call = ModelCall.create(
+        request=request,
+        response=None,
+        filter=openai_media_filter,
+    )
+
+    if record_call:
+        record_call(model_call)
+
     try:
         # generate response
         model_response: Response = await (
@@ -167,7 +165,8 @@ async def generate_responses(
         # Use warnings=False to suppress Pydantic serialization warnings for unknown
         # action types like 'find_in_page' that the SDK doesn't support yet.
         # See: https://github.com/pydantic/pydantic-ai/issues/3653
-        response = model_response.model_dump(warnings=False)
+        model_call.response = jsonable_python(model_response.model_dump(warnings=False))
+        model_call.time = http_hooks.end_request(request_id)
 
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)
@@ -177,12 +176,14 @@ async def generate_responses(
             model=model_response.model,
             choices=choices,
             usage=model_usage_from_response(model_response),
-        ), model_call()
+        ), model_call
     except BadRequestError as e:
+        model_call.response = {"error": str(e)}
+        model_call.time = http_hooks.end_request(request_id)
         if handle_bad_request:
-            return handle_bad_request(e), model_call()
+            return handle_bad_request(e), model_call
         else:
-            return openai_handle_bad_request(model_name, e), model_call()
+            return openai_handle_bad_request(model_name, e), model_call
 
 
 def model_usage_from_response(model_response: Response) -> ModelUsage | None:

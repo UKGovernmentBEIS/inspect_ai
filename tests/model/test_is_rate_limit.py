@@ -1,4 +1,5 @@
 import logging
+from typing import Callable
 
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai.model._chat_message import ChatMessage
@@ -22,6 +23,7 @@ def test_is_rate_limit_deprecation(caplog):
             tools: list[ToolInfo],
             tool_choice: ToolChoice,
             config: GenerateConfig,
+            record_call: Callable[[ModelCall], None] | None = None,
         ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
             return ModelOutput.from_content("model", "foo")
 

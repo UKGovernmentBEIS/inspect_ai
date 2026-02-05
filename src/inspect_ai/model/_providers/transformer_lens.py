@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable
 
 from transformer_lens import HookedTransformer  # type: ignore
 
@@ -16,6 +16,7 @@ from inspect_ai.model import (
     ModelAPI,
     ModelOutput,
 )
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._reasoning import emulate_reasoning_history
 from inspect_ai.tool import (
     ToolChoice,
@@ -55,6 +56,7 @@ class TransformerLensAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput:
         # convert input to a list of strings
         input_str = message_content_to_string(input)

@@ -1,7 +1,7 @@
 import json
 import os
 from copy import copy
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 import httpx
 from groq import (
@@ -31,6 +31,7 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -109,21 +110,10 @@ class GroqAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
-
-        # setup request and response for ModelCall
-        request: dict[str, Any] = {}
-        response: dict[str, Any] = {}
-
-        def model_call() -> ModelCall:
-            return ModelCall.create(
-                request=request,
-                response=response,
-                filter=model_call_filter,
-                time=self._http_hooks.end_request(request_id),
-            )
 
         messages = await as_groq_chat_messages(input)
 
@@ -144,12 +134,22 @@ class GroqAPI(ModelAPI):
             **params,
         )
 
+        model_call = ModelCall.create(
+            request=request,
+            response=None,
+            filter=model_call_filter,
+        )
+
+        if record_call:
+            record_call(model_call)
+
         try:
             completion: ChatCompletion = await self.client.chat.completions.create(
                 **request,
             )
 
-            response = completion.model_dump()
+            model_call.response = jsonable_python(completion.model_dump())
+            model_call.time = self._http_hooks.end_request(request_id)
 
             # extract metadata
             metadata: dict[str, Any] = {
@@ -188,9 +188,11 @@ class GroqAPI(ModelAPI):
             )
 
             # return
-            return output, model_call()
+            return output, model_call
         except APIStatusError as ex:
-            return self.handle_bad_request(ex), model_call()
+            model_call.response = {"error": str(ex)}
+            model_call.time = self._http_hooks.end_request(request_id)
+            return self.handle_bad_request(ex), model_call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}

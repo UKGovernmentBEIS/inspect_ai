@@ -2,7 +2,7 @@ import atexit
 import os
 from logging import getLogger
 from subprocess import Popen
-from typing import Any
+from typing import Any, Callable
 
 from openai import APIStatusError
 from tenacity.wait import WaitBaseT, wait_fixed
@@ -224,6 +224,7 @@ class SGLangAPI(OpenAICompatibleAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # check if last message is an assistant message, in this case we want to
         # continue the final message instead of generating a new one
@@ -243,7 +244,7 @@ class SGLangAPI(OpenAICompatibleAPI):
                 config.extra_body["add_generation_prompt"] = False
                 config.extra_body["continue_final_message"] = True
 
-        return await super().generate(input, tools, tool_choice, config)
+        return await super().generate(input, tools, tool_choice, config, record_call)
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:

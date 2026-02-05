@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from pydantic import BaseModel, Field, JsonValue
 
@@ -19,8 +19,8 @@ class ModelCall(BaseModel):
     request: dict[str, JsonValue]
     """Raw data posted to model."""
 
-    response: dict[str, JsonValue]
-    """Raw response data from model."""
+    response: dict[str, JsonValue] | None = Field(default=None)
+    """Raw response data from model (None if call is still pending)."""
 
     time: float | None = Field(default=None)
     """Time taken for underlying model call."""
@@ -28,7 +28,7 @@ class ModelCall(BaseModel):
     @staticmethod
     def create(
         request: Any,
-        response: Any,
+        response: Any | None,
         filter: ModelCallFilter | None = None,
         time: float | None = None,
     ) -> "ModelCall":
@@ -40,16 +40,25 @@ class ModelCall(BaseModel):
 
         Args:
            request (Any): Request object (dict, dataclass, BaseModel, etc.)
-           response (Any): Response object (dict, dataclass, BaseModel, etc.)
+           response (Any | None): Response object (dict, dataclass, BaseModel, etc.),
+               or None if the call is still pending.
            filter (ModelCallFilter): Function for filtering model call data.
            time: Time taken for underlying ModelCall
         """
-        request_dict = jsonable_python(request)
+        request_dict: dict[str, JsonValue] = jsonable_python(request)
         if filter:
-            request_dict = _walk_json_value(None, request_dict, filter)
-        response_dict = jsonable_python(response)
-        if filter:
-            response_dict = _walk_json_value(None, response_dict, filter)
+            request_dict = cast(
+                dict[str, JsonValue], _walk_json_value(None, request_dict, filter)
+            )
+
+        response_dict: dict[str, JsonValue] | None = None
+        if response is not None:
+            response_dict = jsonable_python(response)
+            if filter:
+                response_dict = cast(
+                    dict[str, JsonValue], _walk_json_value(None, response_dict, filter)
+                )
+
         return ModelCall(request=request_dict, response=response_dict, time=time)
 
 

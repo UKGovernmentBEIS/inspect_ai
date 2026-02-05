@@ -2,7 +2,7 @@ import json
 import re
 import textwrap
 from logging import getLogger
-from typing import Any
+from typing import Any, Callable
 
 from openai import AsyncOpenAI, BadRequestError
 from openai.types.chat import (
@@ -14,6 +14,7 @@ from openai.types.chat import (
 from shortuuid import uuid
 from typing_extensions import override
 
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -37,6 +38,7 @@ async def generate_o1(
     model: str,
     input: list[ChatMessage],
     tools: list[ToolInfo],
+    record_call: Callable[[ModelCall], None] | None = None,
     **params: Any,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # create chatapi handler
@@ -48,19 +50,21 @@ async def generate_o1(
         messages=chat_messages(input, tools, handler),
         **params,
     )
-    response: dict[str, Any] = {}
 
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-        )
+    model_call = ModelCall.create(
+        request=request,
+        response=None,
+    )
+
+    if record_call:
+        record_call(model_call)
 
     try:
         completion: ChatCompletion = await client.chat.completions.create(**request)
-        response = completion.model_dump()
+        model_call.response = jsonable_python(completion.model_dump())
     except BadRequestError as ex:
-        return handle_bad_request(model, ex), model_call()
+        model_call.response = {"error": str(ex)}
+        return handle_bad_request(model, ex), model_call
 
     # return model output
     return ModelOutput(
@@ -83,7 +87,7 @@ async def generate_o1(
         )
         if completion.usage
         else None,
-    ), model_call()
+    ), model_call
 
 
 def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput | Exception:

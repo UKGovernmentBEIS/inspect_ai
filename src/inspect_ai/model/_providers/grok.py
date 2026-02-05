@@ -2,7 +2,7 @@ import json
 import os
 import time
 from copy import copy
-from typing import Any, Literal, cast
+from typing import Any, Callable, Literal, cast
 
 import grpc
 from google.protobuf.json_format import MessageToDict
@@ -39,6 +39,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -164,43 +165,38 @@ class GrokAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         async with self.model_client() as client:
-            # set start time
             start_time = time.monotonic()
 
-            # setup request and response for ModelCall
-            request: dict[str, Any] = {}
-            response: dict[str, Any] = {}
+            grok_messages = await _grok_messages(input)
+            grok_tools = [self._grok_tool(tool) for tool in tools]
+            grok_tool_choice = (
+                self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
+            )
+            grok_params = self._grok_params(config)
 
-            def model_call() -> ModelCall:
-                return ModelCall.create(
-                    request=request,
-                    response=response,
-                    filter=_grok_media_filter,
-                    time=time.monotonic() - start_time,
-                )
+            request = dict(
+                model=self.model_name,
+                messages=[MessageToDict(m) for m in grok_messages],
+                tools=[MessageToDict(t) for t in grok_tools],
+                tool_choice=MessageToDict(grok_tool_choice)
+                if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
+                else grok_tool_choice,
+                **grok_params,
+            )
+
+            model_call = ModelCall.create(
+                request=request,
+                response=None,
+                filter=_grok_media_filter,
+            )
+
+            if record_call:
+                record_call(model_call)
 
             try:
-                # prepare input for chat call
-                grok_messages = await _grok_messages(input)
-                grok_tools = [self._grok_tool(tool) for tool in tools]
-                grok_tool_choice = (
-                    self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
-                )
-                grok_params = self._grok_params(config)
-
-                # update request (convert proto to dict)
-                request = dict(
-                    model=self.model_name,
-                    messages=[MessageToDict(m) for m in grok_messages],
-                    tools=[MessageToDict(t) for t in grok_tools],
-                    tool_choice=MessageToDict(grok_tool_choice)
-                    if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
-                    else grok_tool_choice,
-                    **grok_params,
-                )
-
                 # chat call
                 chat = client.chat.create(
                     model=self.model_name,
@@ -223,22 +219,26 @@ class GrokAPI(ModelAPI):
                     else:
                         chat_response = await chat.sample()
 
-                # update response
-                response = MessageToDict(chat_response._proto)
+                model_call.response = jsonable_python(
+                    MessageToDict(chat_response._proto)
+                )
+                model_call.time = time.monotonic() - start_time
 
                 # return
                 return self._model_output_from_response(
                     chat_response, tools
-                ), model_call()
+                ), model_call
             except grpc.RpcError as ex:
+                model_call.response = {"error": str(ex)}
+                model_call.time = time.monotonic() - start_time
                 if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
                     handled = self._handle_grpc_permission_denied(ex)
                     if handled:
-                        return handled, model_call()
+                        return handled, model_call
                     else:
                         raise ex
                 elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
-                    return self._handle_grpc_bad_request(ex), model_call()
+                    return self._handle_grpc_bad_request(ex), model_call
                 else:
                     raise ex
 

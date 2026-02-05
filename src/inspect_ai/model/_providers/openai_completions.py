@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from openai import (
     AsyncAzureOpenAI,
@@ -11,6 +11,7 @@ from openai import (
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -50,21 +51,10 @@ async def generate_completions(
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[ChatCompletion] | None,
+    record_call: Callable[[ModelCall], None] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
-
-    # setup request and response for ModelCall
-    request: dict[str, Any] = {}
-    response: dict[str, Any] = {}
-
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            filter=openai_media_filter,
-            time=http_hooks.end_request(request_id),
-        )
 
     # unlike text models, vision models require a max_tokens (and set it to a very low
     # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
@@ -104,6 +94,15 @@ async def generate_completions(
     if isinstance(safety_identifier, str):
         request["safety_identifier"] = safety_identifier
 
+    model_call = ModelCall.create(
+        request=request,
+        response=None,
+        filter=openai_media_filter,
+    )
+
+    if record_call:
+        record_call(model_call)
+
     try:
         completion = await (
             batcher.generate_for_request(request)
@@ -114,16 +113,16 @@ async def generate_completions(
         # threw up its hands because of the `**request`.
         assert isinstance(completion, ChatCompletion)
 
-        # save response for model_call
-        response = completion.model_dump()
+        model_call.response = jsonable_python(completion.model_dump())
+        model_call.time = http_hooks.end_request(request_id)
 
         # return output and call
         choices = chat_choices_from_openai(completion, tools)
-        return model_output_from_openai(completion, choices), model_call()
+        return model_output_from_openai(completion, choices), model_call
     except (BadRequestError, UnprocessableEntityError) as e:
-        return openai_handle_bad_request(
-            openai_api.service_model_name(), e
-        ), model_call()
+        model_call.response = {"error": str(e)}
+        model_call.time = http_hooks.end_request(request_id)
+        return openai_handle_bad_request(openai_api.service_model_name(), e), model_call
 
 
 def completion_params_completions(

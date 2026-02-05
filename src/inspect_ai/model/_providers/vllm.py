@@ -3,7 +3,7 @@ import functools
 import logging
 import os
 from subprocess import Popen
-from typing import Any
+from typing import Any, Callable
 
 from openai import APIStatusError
 from tenacity.wait import WaitBaseT, wait_fixed
@@ -259,6 +259,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # check if last message is an assistant message, in this case we want to
         # continue the final message instead of generating a new one
@@ -280,7 +281,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         # if model is mistral, we need to fold user messages into tool messages, as mistral does not support a user message immediately after a tool message
         if self.is_mistral:
             input = functools.reduce(mistral_message_reducer, input, [])
-        return await super().generate(input, tools, tool_choice, config)
+        return await super().generate(input, tools, tool_choice, config, record_call)
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:

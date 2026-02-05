@@ -1,6 +1,7 @@
 import base64
+import time
 from logging import getLogger
-from typing import Any, Literal, Tuple, Union, cast
+from typing import Any, Callable, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
@@ -15,6 +16,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -390,9 +392,12 @@ class BedrockAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         from botocore.config import Config
         from botocore.exceptions import ClientError
+
+        start_time = time.monotonic()
 
         # The bedrock client
         request_id = self._http_hooks.start_request()
@@ -442,14 +447,15 @@ class BedrockAPI(ModelAPI):
                 toolConfig=tool_config,
             )
 
-            def model_call(response: dict[str, Any] = {}) -> ModelCall:
-                return ModelCall.create(
-                    request=replace_bytes_with_placeholder(
-                        request.model_dump(exclude_none=True)
-                    ),
-                    response=response,
-                    time=self._http_hooks.end_request(request_id),
-                )
+            model_call = ModelCall.create(
+                request=replace_bytes_with_placeholder(
+                    request.model_dump(exclude_none=True)
+                ),
+                response=None,
+            )
+
+            if record_call:
+                record_call(model_call)
 
             try:
                 # Process the reponse
@@ -458,18 +464,29 @@ class BedrockAPI(ModelAPI):
                 )
                 converse_response = ConverseResponse(**response)
 
+                model_call.response = jsonable_python(response)
+                model_call.time = self._http_hooks.end_request(request_id)
+
             except ClientError as ex:
+                model_call.response = {"error": str(ex)}
+                model_call.time = time.monotonic() - start_time
                 # Look for an explicit validation exception
                 if ex.response["Error"]["Code"] == "ValidationException":
-                    response = ex.response["Error"]["Message"].lower()
-                    if "too many input tokens" in response or "is too long" in response:
-                        return ModelOutput.from_content(
-                            model=self.model_name,
-                            content=response,
-                            stop_reason="model_length",
+                    error_response = ex.response["Error"]["Message"].lower()
+                    if (
+                        "too many input tokens" in error_response
+                        or "is too long" in error_response
+                    ):
+                        return (
+                            ModelOutput.from_content(
+                                model=self.model_name,
+                                content=error_response,
+                                stop_reason="model_length",
+                            ),
+                            model_call,
                         )
                     else:
-                        return ex, model_call()
+                        return ex, model_call
                 else:
                     raise ex
 
@@ -477,7 +494,7 @@ class BedrockAPI(ModelAPI):
         output = model_output_from_response(self.model_name, converse_response, tools)
 
         # return
-        return output, model_call(response)
+        return output, model_call
 
     def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
         if self.is_gpt_oss():
