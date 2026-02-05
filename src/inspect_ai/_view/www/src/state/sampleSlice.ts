@@ -258,11 +258,8 @@ export const createSampleSlice = (
       ) => {
         // Poll running sample
         const state = get();
-        const sampleExists = state.sample.sampleInState
-          ? !!state.sample.selectedSampleObject
-          : !!selectedSampleRef.current;
 
-        if (state.log.loadedLog && sampleExists) {
+        if (state.log.loadedLog) {
           // Create a minimal SampleSummary object for polling
           const sampleSummary: SampleSummary = { id, epoch } as SampleSummary;
           samplePolling.startPolling(logFile, sampleSummary);

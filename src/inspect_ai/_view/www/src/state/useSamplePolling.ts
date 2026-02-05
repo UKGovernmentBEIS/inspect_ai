@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLogSelection, useSampleData } from "./hooks";
+import { useLogSelection } from "./hooks";
 import { useStore } from "./store";
 
 /**
@@ -7,7 +7,6 @@ import { useStore } from "./store";
  * When a sample is in a running state, this hook polls for updates.
  */
 export function useSamplePolling() {
-  const sampleData = useSampleData();
   const pollSample = useStore((state) => state.sampleActions.pollSample);
   const logSelection = useLogSelection();
 
@@ -17,18 +16,12 @@ export function useSamplePolling() {
 
   useEffect(() => {
     if (
-      sampleData.running &&
       logSelection.logFile &&
       sampleId !== undefined &&
       sampleEpoch !== undefined
     ) {
+      console.log("useSamplePolling: Starting poll for sample");
       pollSample(logSelection.logFile, sampleId, sampleEpoch);
     }
-  }, [
-    logSelection.logFile,
-    sampleId,
-    sampleEpoch,
-    pollSample,
-    sampleData.running,
-  ]);
+  }, [logSelection.logFile, sampleId, sampleEpoch, pollSample]);
 }
