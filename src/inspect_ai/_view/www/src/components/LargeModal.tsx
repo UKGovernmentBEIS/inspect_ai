@@ -131,7 +131,7 @@ export const LargeModal: FC<LargeModalProps> = ({
             </button>
           </div>
           <ActivityBar animating={showProgress} />
-          <div className={clsx("modal-body", classNames?.body)} ref={scrollRef}>
+          <div className={clsx("modal-body", styles.scrollBody, classNames?.body)} ref={scrollRef}>
             {children}
           </div>
           {modalFooter}
