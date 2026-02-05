@@ -5,14 +5,8 @@ import {
   createSamplesDescriptor,
 } from "../app/samples/descriptor/samplesDescriptor";
 import { filterSamples } from "../app/samples/sample-tools/filters";
-import {
-  byEpoch,
-  bySample,
-  sortSamples,
-} from "../app/samples/sample-tools/SortFilter";
 import { sampleIdsEqual } from "../app/shared/sample";
 import { LogHandle, SampleSummary } from "../client/api/types";
-import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
 import { prettyDirUri } from "../utils/uri";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
@@ -131,8 +125,7 @@ export const useSampleDescriptor = () => {
   }, [evalDescriptor, sampleSummaries, selectedScores]);
 };
 
-// Provides the list of filtered samples
-// (applying sorting, grouping, and filtering)
+// Provides the list of filtered and sorted samples
 export const useFilteredSamples = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
@@ -142,13 +135,8 @@ export const useFilteredSamples = () => {
     (state) => state.logActions.clearFilterError,
   );
 
-  const epoch = useStore((state) => state.log.epoch);
-  const sort = useStore((state) => state.log.sort);
-  const samplesDescriptor = useSampleDescriptor();
-  const selectedScores = useSelectedScores();
-
   return useMemo(() => {
-    // Apply filters
+    // Apply text filter
     const { result, error, allErrors } =
       evalDescriptor && filter
         ? filterSamples(evalDescriptor, sampleSummaries, filter)
@@ -160,63 +148,31 @@ export const useFilteredSamples = () => {
       clearFilterError();
     }
 
-    const prefiltered =
+    const filtered =
       error === undefined || !allErrors ? result : sampleSummaries;
 
-    // Filter epochs
-    const filtered =
-      epoch && epoch !== "all"
-        ? prefiltered.filter((sample) => epoch === String(sample.epoch))
-        : prefiltered;
+    // Sort samples by sample ID (asc) then epoch (asc)
+    const sorted = [...filtered].sort((a, b) => {
+      // Compare by ID first
+      let idCompare: number;
+      if (typeof a.id === "number" && typeof b.id === "number") {
+        idCompare = a.id - b.id;
+      } else {
+        idCompare = String(a.id).localeCompare(String(b.id));
+      }
+      if (idCompare !== 0) return idCompare;
+      // Then by epoch
+      return a.epoch - b.epoch;
+    });
 
-    // Sort samples
-    const sorted = samplesDescriptor
-      ? sortSamples(sort, filtered, samplesDescriptor, selectedScores)
-      : filtered;
-
-    return [...sorted];
+    return sorted;
   }, [
     evalDescriptor,
     sampleSummaries,
     filter,
     setFilterError,
     clearFilterError,
-    epoch,
-    sort,
-    samplesDescriptor,
-    selectedScores,
   ]);
-};
-
-// Computes the group by to use given a particular sort
-export const useGroupBy = () => {
-  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
-  const sort = useStore((state) => state.log.sort);
-  const epoch = useStore((state) => state.log.epoch);
-  return useMemo(() => {
-    const epochs = selectedLogDetails?.eval?.config?.epochs || 1;
-    if (epochs > 1) {
-      if (byEpoch(sort) || epoch !== "all") {
-        return "epoch";
-      } else if (bySample(sort)) {
-        return "sample";
-      }
-    }
-
-    return "none";
-  }, [selectedLogDetails, sort, epoch]);
-};
-
-// Computes the ordering for groups based upon the sort
-export const useGroupByOrder = () => {
-  const sort = useStore((state) => state.log.sort);
-  return useMemo(() => {
-    return sort === kSampleAscVal ||
-      sort === kEpochAscVal ||
-      sort === kScoreAscVal
-      ? "asc"
-      : "desc";
-  }, [sort]);
 };
 
 // Provides the currently selected sample summary

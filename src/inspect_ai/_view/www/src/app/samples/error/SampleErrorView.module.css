@@ -1,9 +1,11 @@
 .body {
   color: var(--bs-danger);
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   align-content: baseline;
   justify-items: center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .iconSmall {
@@ -14,5 +16,7 @@
 
 .message {
   text-align: center;
-  width: 300px;
+  max-width: 300px;
+  width: 100%;
+  min-width: 0;
 }

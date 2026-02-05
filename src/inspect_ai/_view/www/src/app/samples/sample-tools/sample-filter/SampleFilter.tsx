@@ -31,6 +31,7 @@ interface SampleFilterProps {}
 const FILTER_TOOLTIP = `
 Filter samples by:
   • Scores
+  • Epoch: e.g. "epoch == 1" or "epoch <= 2"
   • Samples with errors: has_error
   • Input, target and error regex search: input_contains, target_contains, error_contains
   • Samples that have been retried: has_retries

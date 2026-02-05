@@ -1,6 +1,14 @@
 {
   "editor.formatOnSave": true,
   "mypy-type-checker.importStrategy": "fromEnvironment",
+  "prettier.configPath": "src/inspect_ai/_view/www/.prettierrc.js",
+  "prettier.prettierPath": "src/inspect_ai/_view/www/node_modules/prettier",
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "[json]": {
     "editor.wordWrap": "on"
   },
