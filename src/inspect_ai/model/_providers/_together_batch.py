@@ -31,10 +31,10 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
     ):
         FEATURE = "Together Batch API"
         PACKAGE = "together"
-        MIN_VERSION = "1.5.13"
+        MIN_VERSION = "2.0.0"
 
         try:
-            from together import Together  # type: ignore
+            from together import Together
 
             verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
         except ImportError:
@@ -112,17 +112,25 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
         file_id: str,
         extra_headers: dict[str, str],
     ) -> str:
-        from together import AsyncTogether  # type: ignore
+        from together import AsyncTogether
 
         # We make a new client every call so that we can pass variable
         # extra_headers in the request.
         client = AsyncTogether(
             api_key=self._openai_client.api_key,
             base_url=str(self._openai_client.base_url),
-            supplied_headers=extra_headers,
+            default_headers=extra_headers,
         )
 
-        return str((await client.batches.create_batch(file_id, self.endpoint)).id)
+        response = await client.batches.create(
+            endpoint=self.endpoint, input_file_id=file_id
+        )
+        if response.job is not None:
+            return str(response.job.id)
+        else:
+            raise RuntimeError(
+                f"Unable to create batch: {response.warning or 'unknown error'}"
+            )
 
 
 def _iso_to_unix(input: OpenAIBatch, field: str) -> int | None:
