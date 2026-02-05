@@ -2,6 +2,7 @@
 
 - `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
 - Added `extra_headers` to `GenerateConfig` for sending extra HTTP headers along with provider requests.
+- Together Batch API: Update to version 2.0.0 of `together` package.
 - Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
 - Inspect View: Show errors in model call events in the transcript.
 - Inspect View: Show tracebacks in model call events in the transcript.
