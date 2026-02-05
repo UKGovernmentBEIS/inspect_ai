@@ -141,7 +141,7 @@ def compaction(
             if c_message is not None:
                 processed_message_ids.add(message_id(c_message))
 
-            # ensure we preserve the prefix (could have been wiped out by a summarization)
+            # Preserve prefix messages not already in output
             input_ids = {message_id(m) for m in c_input}
             prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
             c_input = prepend_prefix + c_input
@@ -271,10 +271,10 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
     if isinstance(threshold, int) or threshold > 1.0:
         return int(threshold)
     else:
-        # Look up the model's context window
+        # Look up the model's input token capacity
         info = get_model_info(model)
-        if info and info.context_length:
-            context_window = info.context_length
+        if info and info.input_tokens:
+            context_window = info.input_tokens
         else:
             logger.warning(
                 f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"
