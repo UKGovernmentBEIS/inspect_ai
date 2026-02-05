@@ -277,7 +277,6 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
-      native_compaction_supported: true
     gpt-5.2:
       display_name: GPT-5.2
       release_date: 2025-12-11
@@ -299,7 +298,6 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
-      native_compaction_supported: true
     gpt-5.2-pro:
       display_name: GPT-5.2 Pro
       release_date: 2025-12-11

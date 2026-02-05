@@ -108,3 +108,23 @@ async def test_native_compaction_with_supported_model() -> None:
 
     # The fallback should not have been triggered
     assert strategy._use_fallback is False
+
+
+@skip_if_no_openai
+@pytest.mark.asyncio
+async def test_native_compaction_dynamically_supported() -> None:
+    strategy = CompactionNative()
+    model = get_model("openai/gpt-4o")
+    messages = _sample_messages()
+
+    result, summary = await strategy.compact(messages, model)
+
+    # Native compaction should work dynamically via the API
+    assert len(result) > 0
+    assert isinstance(result, list)
+
+    # Native compaction returns None for the supplemental message
+    assert summary is None
+
+    # The fallback should not have been triggered
+    assert strategy._use_fallback is False

@@ -32,7 +32,6 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall
-from .._model_info import get_model_info
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
@@ -554,11 +553,6 @@ class OpenAIAPI(ModelAPI):
                         endpoint="/v1/chat/completions",
                     )
 
-    def _supports_compaction(self) -> bool:
-        """Check if this model supports native compaction."""
-        info = get_model_info(self.canonical_name())
-        return info is not None and info.native_compaction_supported is True
-
     @override
     async def compact(
         self,
@@ -575,11 +569,11 @@ class OpenAIAPI(ModelAPI):
             A tuple of (compacted messages, usage info).
 
         Raises:
-            NotImplementedError: If the model doesn't support native compaction.
+            NotImplementedError: If the model is not using the Responses API.
         """
-        if not self._supports_compaction():
+        if not self.responses_api:
             raise NotImplementedError(
-                f"Native compaction not supported for {self.service_model_name()}"
+                f"Native compaction requires the Responses API for {self.service_model_name()}"
             )
 
         # Convert messages to OpenAI format
