@@ -3,6 +3,8 @@
 - Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI).
 - `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
 - OpenAI: Updated to 2.17.0 of `openai` package to get correct types for web search `ActionFind`.
+- Anthropic: Built-in tool (e.g. web search, code execution) compatibility for Claude 4.6.
+- Anthropic: Support `--reasoning-effort` (via adaptive thinking) and  `--effort=max` option for Claude 4.6.
 - Added `extra_headers` to `GenerateConfig` for sending extra HTTP headers along with provider requests.
 - Together Batch API: Update to version 2.0.0 of `together` package.
 - Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.

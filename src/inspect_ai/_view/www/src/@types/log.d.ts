@@ -57,7 +57,7 @@ export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type Verbosity = ("low" | "medium" | "high") | null;
-export type Effort = ("low" | "medium" | "high") | null;
+export type Effort = ("low" | "medium" | "high" | "max") | null;
 export type ReasoningEffort =
   | ("none" | "minimal" | "low" | "medium" | "high" | "xhigh")
   | null;
