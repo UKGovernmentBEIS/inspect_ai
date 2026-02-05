@@ -590,6 +590,10 @@ class AnthropicAPI(ModelAPI):
         # effort
         if config.effort is not None:
             betas.append("effort-2025-11-24")
+            effort = config.effort
+            # max is claude 4.6 only
+            if effort == "max" and not self.is_claude_4_6():
+                effort = "high"
             extra_body["output_config"] = {"effort": config.effort}
 
         # some thinking-only stuff
