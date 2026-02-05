@@ -64,6 +64,7 @@ title: "inspect_ai.model"
 ### CompactionEdit
 ### CompactionSummary
 ### CompactionTrim
+### CompactionNative
 
 ## Model Info
 
