@@ -46,6 +46,21 @@ from inspect_ai.model._model_call import as_error_response
             {"body": 123},
             id="integer_wrapped",
         ),
+        pytest.param(
+            '{"error": {"nested": {"deep": "value"}}}',
+            {"error": {"nested": {"deep": "value"}}},
+            id="nested_json_dict_parsed",
+        ),
+        pytest.param(
+            True,
+            {"body": True},
+            id="boolean_wrapped",
+        ),
+        pytest.param(
+            3.14,
+            {"body": 3.14},
+            id="float_wrapped",
+        ),
     ],
 )
 def test_as_error_response(body: object, expected: dict) -> None:
