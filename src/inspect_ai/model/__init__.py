@@ -41,6 +41,7 @@ from ._chat_message import (
 from ._compaction import (
     Compact,
     CompactionEdit,
+    CompactionNative,
     CompactionStrategy,
     CompactionSummary,
     CompactionTrim,
@@ -132,6 +133,7 @@ __all__ = [
     "CompactionEdit",
     "CompactionSummary",
     "CompactionTrim",
+    "CompactionNative",
     "Logprobs",
     "Logprob",
     "TopLogprob",
