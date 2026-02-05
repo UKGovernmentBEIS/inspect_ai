@@ -576,6 +576,8 @@ export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name10 = string;
 export type Retries = number | null;
 export type Error2 = string | null;
+export type Traceback1 = string | null;
+export type TracebackAnsi1 = string | null;
 export type Cache1 = ("read" | "write") | null;
 export type Time1 = number | null;
 export type Completed1 = string | null;
@@ -1671,6 +1673,8 @@ export interface ModelEvent {
   output: ModelOutput;
   retries: Retries;
   error: Error2;
+  traceback: Traceback1;
+  traceback_ansi: TracebackAnsi1;
   cache: Cache1;
   call: ModelCall | null;
   completed: Completed1;

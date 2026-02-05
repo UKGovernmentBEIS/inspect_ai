@@ -49,6 +49,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
+from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -59,6 +60,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import report_http_retry
+from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.model._retry import model_retry_config
@@ -1055,7 +1057,12 @@ class Model:
                 event.output = result
             else:
                 display_conversation_assistant_error(result)
-                event.error = repr(result)
+                event.error = exception_message(result)
+                traceback_text, traceback_ansi = format_traceback(
+                    type(result), result, result.__traceback__
+                )
+                event.traceback = traceback_text
+                event.traceback_ansi = traceback_ansi
 
             event.call = updated_call
             event.pending = None
