@@ -184,7 +184,7 @@ dev = [
   "pytest-watcher",
   "pytest-xdist",
   "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
-  "together",
+  "together<2.0.0",        # version-capped since 2.0.0 have breaking changes
   "textual-dev>=0.86.2",
   "trio",
   "pandas-stubs",
