@@ -24,7 +24,7 @@ The following reasoning options are available from the CLI and within `GenerateC
 
 | Option | Description | Default | Models |
 |------------------|-------------------|------------------|------------------|
-| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`minimal`, `low`, `medium`, or `high`) | `medium` | OpenAI o-series, Grok 3 |
+| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`minimal`, `low`, `medium`, `high`, or `xhigh`) | `medium` | Anthropic Claude 4.6, OpenAI GPT-5 and o-series, Gemini 3+, Grok 3 |
 | `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7+ and Gemini 2.5+ |
 | `reasoning_summary` | Provide summary of reasoning steps (`none`, `concise`, `detailed`, `auto`). Use "auto" to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
 | `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
@@ -37,9 +37,8 @@ As you can see from above, models have different means of specifying the tokens 
  eval(
     task,
     model=["openai/o3-mini","anthropic/claude-3-7-sonnet-20250219"],
-    reasoning_effort="medium",  # openai and grok specific
-    reasoning_tokens=4096       # anthropic and gemini specific
-    reasoning_summary="auto",   # openai and gemini specific
+    reasoning_effort="medium",  # openai, gemini 3+, claude 4.6+, and grok 3
+    reasoning_tokens=4096       # anthropic 3.7/4.x and gemini 2.5
  )
 ```
 
@@ -73,11 +72,32 @@ Before using summarizers with the latest OpenAI reasoning models, you may need t
 
 ## Anthropic Claude
 
-Anthropic's Claude 3.7 Sonnet and Claude 4/4.5 Sonnet/Opus models include optional support for [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking). These are hybrid models that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the `reasoning_tokens` option, for example:
+Anthropic's Claude 3.7 Sonnet and Claude 4+ Sonnet/Opus models include optional support for [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking). These are hybrid models that support both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying `--reasoning-effort` or `--reasoning-tokens`.
+
+All Anthropic reasoning models support `--reasoning-tokens`:
 
 ``` bash
 inspect eval math.py \
   --model anthropic/claude-3-7-sonnet-latest \
+  --reasoning-tokens 4096
+```
+
+That said, with Claude 4.6 `--reasoning-tokens` has been deprecated in favor of [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the [effort](https://platform.claude.com/docs/en/build-with-claude/effort) parameter. 
+
+For Claude 4.6 models you can use the standard `--reasoning-effort` option to turn on adaptive thinking with effort:
+
+``` bash
+inspect eval math.py \
+  --model anthropic/claude-opus-4-6 \
+  --reasoning-effort high
+```
+
+If you are running an eval against multiple Claude models some of which support `--reasoning-effort` and some of which don't, you should specify both `--reasoning-effort` and `--reasoning-tokens` (each model will get the option that applies to it):
+
+``` bash
+inspect eval math.py \
+  --model anthropic/claude-opus-4-0,anthropic/claude-opus-4-6 \
+  --reasoning-effort medium \
   --reasoning-tokens 4096
 ```
 

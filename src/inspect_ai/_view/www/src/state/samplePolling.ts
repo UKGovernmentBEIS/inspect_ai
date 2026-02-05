@@ -1,3 +1,5 @@
+import { StoreApi, UseBoundStore } from "zustand";
+
 import { Event } from "../app/types";
 import {
   AttachmentData,
@@ -9,7 +11,7 @@ import {
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
-import { resolveSample } from "./sampleUtils"; // Import the shared utility
+import { resolveSample } from "./sampleUtils";
 import { StoreState } from "./store";
 
 const log = createLogger("samplePolling");
@@ -33,8 +35,7 @@ interface PollingState {
 }
 
 export function createSamplePolling(
-  get: () => StoreState,
-  set: (fn: (state: StoreState) => void) => void,
+  store: UseBoundStore<StoreApi<StoreState>>,
 ) {
   // The polling function that will be returned
   let currentPolling: ReturnType<typeof createPolling> | null = null;
@@ -70,9 +71,7 @@ export function createSamplePolling(
       currentPolling.stop();
 
       // Clear any current running events
-      set((state) => {
-        state.sample.runningEvents = [];
-      });
+      store.getState().sampleActions.setRunningEvents([]);
     }
 
     // Always reset the polling state when starting new polling
@@ -82,7 +81,8 @@ export function createSamplePolling(
     // Create the polling callback
     log.debug(`Polling sample: ${summary.id}-${summary.epoch}`);
     const pollCallback = async () => {
-      const state = get();
+      const state = store.getState();
+      const { sampleActions } = state;
 
       // Get the api
       const api = state.api;
@@ -99,7 +99,6 @@ export function createSamplePolling(
       }
 
       // Fetch sample data
-      state.sampleActions.setSampleStatus("streaming");
       const eventId = pollingState.eventId;
       const attachmentId = pollingState.attachmentId;
       const sampleDataResponse = await api.get_log_sample_data(
@@ -140,30 +139,26 @@ export function createSamplePolling(
               const migratedSample = resolveSample(sample);
 
               // Update the store with the completed sample
-              set((state) => {
-                state.sampleActions.setSelectedSample(migratedSample, logFile);
-                state.sampleActions.setSampleStatus("ok");
-                state.sample.runningEvents = [];
-              });
+              sampleActions.setSelectedSample(migratedSample, logFile);
+              sampleActions.setSampleStatus("ok");
+              sampleActions.setRunningEvents([]);
             } else {
-              set((state) => {
-                state.sampleActions.setSampleStatus("error");
-                state.sample.sampleError = new Error(
-                  "Unable to load sample - an unknown error occurred",
-                );
-                state.sample.runningEvents = [];
-              });
+              sampleActions.setSampleStatus("error");
+              sampleActions.setSampleError(
+                new Error("Unable to load sample - an unknown error occurred"),
+              );
+              sampleActions.setRunningEvents([]);
             }
           } catch (e) {
-            set((state) => {
-              state.sample.sampleError = e as Error;
-              state.sampleActions.setSampleStatus("error");
-              state.sample.runningEvents = [];
-            });
+            sampleActions.setSampleError(e as Error);
+            sampleActions.setSampleStatus("error");
+            sampleActions.setRunningEvents([]);
           }
         } else {
-          state.sampleActions.setSampleStatus("ok");
-          state.sample.runningEvents = [];
+          if (state.sample.sampleStatus === "streaming") {
+            sampleActions.setSampleStatus("ok");
+          }
+          sampleActions.setRunningEvents([]);
         }
         return false;
       }
@@ -175,6 +170,7 @@ export function createSamplePolling(
         if (abortController.signal.aborted) {
           return false;
         }
+        sampleActions.setSampleStatus("streaming");
 
         if (sampleDataResponse.sampleData) {
           // Process attachments
@@ -210,9 +206,7 @@ export function createSamplePolling(
 
           // Update the running events (ensure identity of runningEvents fails equality)
           if (processedEvents) {
-            set((state) => {
-              state.sample.runningEvents = [...pollingState.events];
-            });
+            sampleActions.setRunningEvents([...pollingState.events]);
           }
         }
       }

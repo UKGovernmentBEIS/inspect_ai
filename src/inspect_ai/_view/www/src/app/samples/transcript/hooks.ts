@@ -172,9 +172,14 @@ function getSharedObserver(callback: IntersectionObserverCallback) {
 // The callback that handles ALL observed elements
 function handleIntersections(entries: IntersectionObserverEntry[]) {
   entries.forEach((entry) => {
+    // Only mark as stuck if the element is at/near the top of the scroll container
+    // (not when it's below the viewport)
+    const isAtTop =
+      entry.boundingClientRect.top <= (entry.rootBounds?.top ?? 0);
+
     entry.target.toggleAttribute(
       "data-useStickyObserver-stuck",
-      entry.intersectionRatio < 1,
+      entry.intersectionRatio < 1 && isAtTop,
     );
   });
 }
