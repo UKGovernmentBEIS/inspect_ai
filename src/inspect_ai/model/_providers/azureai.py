@@ -1,7 +1,6 @@
 import functools
 import json
 import os
-import time
 from copy import copy
 from typing import Any
 
@@ -166,8 +165,6 @@ class AzureAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        start_time = time.monotonic()
-
         # emulate tools (auto for llama, opt-in for others)
         if self.emulate_tools is None and self.is_llama():
             self.emulate_tools = True
@@ -230,7 +227,6 @@ class AzureAIAPI(ModelAPI):
             response: ChatCompletions = await client.complete(**request)
 
             model_call.response = jsonable_python(response.as_dict())
-            model_call.time = time.monotonic() - start_time
 
             return ModelOutput(
                 model=response.model,
@@ -245,7 +241,6 @@ class AzureAIAPI(ModelAPI):
             ), model_call
 
         except AzureError as ex:
-            model_call.time = time.monotonic() - start_time
             return self.handle_azure_error(ex), model_call
         finally:
             await client.close()
