@@ -40,6 +40,10 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
+from inspect_ai.model._reasoning import (
+    parse_content_with_reasoning,
+    reasoning_to_think_tag,
+)
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -486,28 +490,6 @@ def _extract_user_parts(
         return None, tool_messages
 
 
-# Marker prefix for embedded thought signature in text parts
-# Used to preserve signature through CLI's history reconstruction
-THOUGHT_SIG_MARKER = "__THOUGHT_SIG__:"
-
-# Storage for thought signatures - maps hash of function calls to signature
-# This allows us to restore signatures when CLI's history reconstruction drops them
-_thought_signature_store: dict[str, str] = {}
-
-
-def _compute_function_calls_hash(parts: list[dict[str, Any]]) -> str:
-    """Compute a hash of function calls in parts for signature lookup."""
-    fc_data = []
-    for part in parts:
-        if isinstance(part, dict):
-            fc = part.get("functionCall", part.get("function_call"))
-            if fc:
-                name = fc.get("name", "")
-                args = fc.get("args", {})
-                fc_data.append(f"{name}:{json.dumps(args, sort_keys=True)}")
-    return hashlib.md5("|".join(fc_data).encode()).hexdigest()
-
-
 def _extract_model_parts(
     parts: list[dict[str, Any]],
 ) -> tuple[list[Content] | None, list[ToolCall]]:
@@ -520,31 +502,21 @@ def _extract_model_parts(
     in ContentReasoning blocks (following the pattern from main Google provider).
     Per Gemini API docs, only the first function call in a message has a signature.
 
-    Additionally looks for stored signatures in _thought_signature_store when
-    the CLI's history reconstruction has dropped the signature.
+    Additionally looks for embedded <think> tags in text parts to restore
+    reasoning content (including summaries) that was preserved through the CLI.
     """
     content_parts: list[Content] = []
     tool_calls: list[ToolCall] = []
     first_fc_signature_captured = False
-    embedded_signature: str | None = None
 
-    # First pass: look for embedded signature in text parts
+    # First pass: look for embedded <think> tags in text parts
+    embedded_capsule = None
     for part in parts:
         if isinstance(part, dict) and "text" in part:
-            text = part["text"]
-            if text.startswith(THOUGHT_SIG_MARKER):
-                embedded_signature = text[len(THOUGHT_SIG_MARKER) :]
+            _, capsule = parse_content_with_reasoning(part["text"])
+            if capsule is not None:
+                embedded_capsule = capsule
                 break
-
-    # Check for stored signature if we have function calls
-    stored_signature: str | None = None
-    has_function_calls = any(
-        isinstance(p, dict) and ("functionCall" in p or "function_call" in p)
-        for p in parts
-    )
-    if has_function_calls:
-        fc_hash = _compute_function_calls_hash(parts)
-        stored_signature = _thought_signature_store.get(fc_hash)
 
     for part_idx, part in enumerate(parts):
         if not isinstance(part, dict):
@@ -554,8 +526,9 @@ def _extract_model_parts(
 
         if "text" in part:
             text = part["text"]
-            # Skip our embedded signature marker - it's for internal use only
-            if text.startswith(THOUGHT_SIG_MARKER):
+            # Skip text parts that are embedded <think> tags (internal use only)
+            _, capsule = parse_content_with_reasoning(text)
+            if capsule is not None:
                 continue
             # Also skip "(no content)" placeholder that CLI adds
             if text == "(no content)":
@@ -573,14 +546,10 @@ def _extract_model_parts(
             # This follows the pattern from the main Google provider.
             thought_sig = part.get("thoughtSignature", part.get("thought_signature"))
 
-            # If no direct signature on part, check embedded or stored signatures
+            # If no direct signature on part, check embedded <think> tag
             if not thought_sig and not first_fc_signature_captured:
-                if embedded_signature:
-                    thought_sig = embedded_signature
-                    embedded_signature = None
-                elif stored_signature:
-                    thought_sig = stored_signature
-                    stored_signature = None  # Use only once
+                if embedded_capsule:
+                    thought_sig = embedded_capsule.reasoning
 
             if thought_sig and not first_fc_signature_captured:
                 # JSON API returns signature as base64 string already
@@ -589,12 +558,24 @@ def _extract_model_parts(
                 else:
                     # If bytes (unlikely in JSON), base64 encode it
                     sig_str = base64.b64encode(thought_sig).decode()
-                content_parts.append(
-                    ContentReasoning(
-                        reasoning=sig_str,
-                        redacted=True,
+
+                # Use full capsule if available (preserves summary)
+                if embedded_capsule and embedded_capsule.reasoning == sig_str:
+                    content_parts.append(
+                        ContentReasoning(
+                            reasoning=embedded_capsule.reasoning,
+                            signature=embedded_capsule.signature,
+                            redacted=embedded_capsule.redacted,
+                            summary=embedded_capsule.summary,
+                        )
                     )
-                )
+                else:
+                    content_parts.append(
+                        ContentReasoning(
+                            reasoning=sig_str,
+                            redacted=True,
+                        )
+                    )
                 first_fc_signature_captured = True
 
             # Ensure args is a dict
@@ -674,31 +655,22 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
             # Attach signature to first function call only (per Gemini API docs)
             if idx == 0 and working_reasoning_block is not None:
                 fc_part["thoughtSignature"] = working_reasoning_block.reasoning
-                working_reasoning_block = None
 
             parts.append(fc_part)
 
-    # If we have a thought signature, also:
-    # 1. Embed it in a text part (in case CLI preserves text)
-    # 2. Store it in our signature store keyed by function call hash
-    for part in parts:
-        if "thoughtSignature" in part:
-            signature = part["thoughtSignature"]
-
-            # Store signature mapped to hash of function calls
-            # This allows us to restore it when CLI drops the signature
-            fc_hash = _compute_function_calls_hash(parts)
-            _thought_signature_store[fc_hash] = signature
-
-            # Also insert the signature text BEFORE function calls as fallback
-            insert_pos = 0
-            for i, p in enumerate(parts):
-                if "functionCall" in p:
-                    insert_pos = i
-                    break
-            sig_text_part = {"text": f"{THOUGHT_SIG_MARKER}{signature}"}
-            parts.insert(insert_pos, sig_text_part)
-            break
+    # If we have a reasoning block, embed it as a <think> tag text part.
+    # This preserves the full reasoning content (including summary) through
+    # the CLI's history reconstruction, which strips API-level thoughtSignature
+    # but preserves text parts. Uses the same serialization as the Responses path.
+    if working_reasoning_block is not None:
+        think_tag = reasoning_to_think_tag(working_reasoning_block)
+        # Insert before function calls
+        insert_pos = 0
+        for i, p in enumerate(parts):
+            if "functionCall" in p:
+                insert_pos = i
+                break
+        parts.insert(insert_pos, {"text": think_tag})
 
     # Ensure at least empty text part if no content
     if not parts:
@@ -718,13 +690,13 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
         "modelVersion": model_name,
     }
 
-    # Add convenience text field if there's text content (excluding our marker)
+    # Add convenience text field if there's text content (excluding embedded <think> tags)
     text_content = "".join(
         p.get("text", "")
         for p in parts
         if isinstance(p, dict)
         and "text" in p
-        and not p["text"].startswith(THOUGHT_SIG_MARKER)
+        and not p["text"].strip().startswith("<think")
     )
     if text_content:
         response["text"] = text_content
