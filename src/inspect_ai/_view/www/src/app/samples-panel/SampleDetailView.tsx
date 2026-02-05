@@ -14,8 +14,8 @@ import {
 
 import clsx from "clsx";
 import { useSampleData } from "../../state/hooks";
+import { useLoadLog } from "../../state/useLoadLog";
 import { useLoadSample } from "../../state/useLoadSample";
-import { useLogLoader } from "../../state/useLogLoader";
 import { usePollSample } from "../../state/usePollSample";
 import { InlineSampleComponent } from "../samples/InlineSampleDisplay";
 import styles from "./SampleDetailView.module.css";
@@ -25,7 +25,7 @@ import styles from "./SampleDetailView.module.css";
  * This is shown when navigating to /samples/path/to/file.eval/sample/id/epoch
  */
 export const SampleDetailView: FC = () => {
-  useLogLoader();
+  useLoadLog();
   useLoadSample();
   usePollSample();
 

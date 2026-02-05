@@ -1,7 +1,10 @@
 import { EvalSample } from "../@types/log";
 import { Event, SampleState, SampleStatus } from "../app/types";
 import { kSampleMessagesTabId } from "../constants";
-import { cleanupSamplePolling, getSamplePolling } from "./samplePollingInstance";
+import {
+  cleanupSamplePolling,
+  getSamplePolling,
+} from "./samplePollingInstance";
 import { StoreState } from "./store";
 import { isLargeSample } from "./store_filter";
 

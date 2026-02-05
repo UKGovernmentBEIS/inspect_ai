@@ -4,7 +4,7 @@ import { useLogs } from "./hooks";
 import { useStore } from "./store";
 
 // Load the log file and select the sample
-export const useLogLoader = () => {
+export const useLoadLog = () => {
   const {
     samplesPath: routeLogPath,
     sampleId,
