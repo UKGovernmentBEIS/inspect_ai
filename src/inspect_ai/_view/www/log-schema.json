@@ -4998,6 +4998,30 @@
           "default": null,
           "title": "Error"
         },
+        "traceback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Traceback"
+        },
+        "traceback_ansi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Traceback Ansi"
+        },
         "cache": {
           "anyOf": [
             {
@@ -5068,6 +5092,8 @@
         "output",
         "retries",
         "error",
+        "traceback",
+        "traceback_ansi",
         "cache",
         "call",
         "completed",
