@@ -9,6 +9,7 @@ import clsx from "clsx";
 import { FC, useMemo } from "react";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { ChatView } from "../chat/ChatView";
+import { EventNodeContext } from "./TranscriptVirtualList";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 import { EventNode, EventType } from "./types";
@@ -17,6 +18,7 @@ interface ToolEventViewProps {
   eventNode: EventNode<ToolEvent>;
   children: EventNode<EventType>[];
   className?: string | string[];
+  context?: EventNodeContext;
 }
 
 /**
@@ -26,8 +28,13 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
   eventNode,
   children,
   className,
+  context,
 }) => {
   const event = eventNode.event;
+
+  const turnLabel = context?.turnInfo
+    ? `turn ${context.turnInfo.turnNumber}/${context.turnInfo.totalTurns}`
+    : undefined;
 
   // Extract tool input
   const { input, description, functionCall, contentType } = useMemo(
@@ -63,6 +70,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
       icon={ApplicationIcons.solvers.use_tools}
       childIds={children.map((child) => child.id)}
       collapseControl="bottom"
+      turnLabel={turnLabel}
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView

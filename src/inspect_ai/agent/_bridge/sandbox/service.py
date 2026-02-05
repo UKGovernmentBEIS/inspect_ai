@@ -55,7 +55,7 @@ def generate_completions(
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         _resolve_model(bridge.model, json_data)
-        completion = await inspect_completions_api_request(json_data, bridge)
+        completion = await inspect_completions_api_request(json_data, None, bridge)
         return completion.model_dump(mode="json", warnings=False)
 
     return generate
@@ -69,7 +69,7 @@ def generate_responses(
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         _resolve_model(bridge.model, json_data)
         completion = await inspect_responses_api_request(
-            json_data, web_search, code_execution, bridge
+            json_data, None, web_search, code_execution, bridge
         )
         return completion.model_dump(mode="json", warnings=False)
 
@@ -84,7 +84,7 @@ def generate_anthropic(
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         _resolve_model(bridge.model, json_data)
         completion = await inspect_anthropic_api_request(
-            json_data, web_search, code_execution, bridge
+            json_data, None, web_search, code_execution, bridge
         )
         return completion.model_dump(mode="json", warnings=False)
 

@@ -276,7 +276,10 @@ const contentRenderers: (
       render: (_id, entry, _options) => {
         return {
           rendered: (
-            <MessageContent contents={entry.value} context={defaultContext()} />
+            <MessageContent
+              contents={entry.value}
+              context={defaultContext("unknown")}
+            />
           ),
         };
       },

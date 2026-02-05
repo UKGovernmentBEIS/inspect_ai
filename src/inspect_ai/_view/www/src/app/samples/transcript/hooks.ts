@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Event,
   Event1,
@@ -6,7 +6,8 @@ import {
   Event11,
   Event12,
   Event13,
-  Event17,
+  Event14,
+  Event18,
   Event2,
   Event3,
   Event4,
@@ -34,7 +35,8 @@ export type AllEventTypes =
   | Event11
   | Event12
   | Event13
-  | Event17;
+  | Event14
+  | Event18;
 
 const eventTypes: Record<AllEventTypes, string> = {
   sample_init: "Sample Init",
@@ -50,6 +52,7 @@ const eventTypes: Record<AllEventTypes, string> = {
   score_edit: "Score Edit",
   error: "Error",
   logger: "Logger",
+  compaction: "Compaction",
   info: "Info",
   subtask: "Subtask",
 } as const;
@@ -149,3 +152,55 @@ export const useTranscriptFilter = () => {
     arrangedEventTypes,
   };
 };
+// Singleton observer - shared across all sticky headers
+// workaround for https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@container#stuck
+// use as :global([data-useStickyObserver-stuck]) in CSS modules
+let sharedObserver: IntersectionObserver | null = null;
+let observedElements = new Set<Element>();
+
+function getSharedObserver(callback: IntersectionObserverCallback) {
+  if (!sharedObserver) {
+    sharedObserver = new IntersectionObserver(callback, {
+      // hardcoded for .stickyWrapper top:30px plus its scroll container (Modal body 35px)
+      rootMargin: "-65px 0px 0px 0px",
+      threshold: [1],
+    });
+  }
+  return sharedObserver;
+}
+
+// The callback that handles ALL observed elements
+function handleIntersections(entries: IntersectionObserverEntry[]) {
+  entries.forEach((entry) => {
+    entry.target.toggleAttribute(
+      "data-useStickyObserver-stuck",
+      entry.intersectionRatio < 1,
+    );
+  });
+}
+
+export function useStickyObserver<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = getSharedObserver(handleIntersections);
+    observer.observe(el);
+    observedElements.add(el);
+
+    return () => {
+      observer.unobserve(el);
+      observedElements.delete(el);
+
+      // Clean up observer if no elements left
+      if (observedElements.size === 0 && sharedObserver) {
+        sharedObserver.disconnect();
+        sharedObserver = null;
+      }
+    };
+  }, []);
+
+  return ref;
+}

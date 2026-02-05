@@ -5,12 +5,14 @@ from functools import reduce
 from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
+    CompactedResponse,
     ComputerToolParam,
     CustomToolParam,
     EasyInputMessageParam,
     FunctionToolParam,
     ResponseCodeInterpreterToolCall,
     ResponseCodeInterpreterToolCallParam,
+    ResponseCompactionItem,
     ResponseComputerToolCall,
     ResponseComputerToolCallParam,
     ResponseCustomToolCall,
@@ -50,6 +52,9 @@ from openai.types.responses.response_code_interpreter_tool_call import (
 from openai.types.responses.response_code_interpreter_tool_call_param import (
     OutputLogs as OutputLogsParam,
 )
+from openai.types.responses.response_compaction_item_param_param import (
+    ResponseCompactionItemParamParam,
+)
 from openai.types.responses.response_create_params import (
     ToolChoice as ResponsesToolChoiceParam,
 )
@@ -58,7 +63,6 @@ from openai.types.responses.response_custom_tool_call_output_param import (
 )
 from openai.types.responses.response_function_web_search_param import (
     Action,
-    ActionSearch,
 )
 from openai.types.responses.response_input_image_content_param import (
     ResponseInputImageContentParam,
@@ -114,6 +118,7 @@ from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
+    ContentData,
     ContentDocument,
     ContentImage,
     ContentReasoning,
@@ -129,6 +134,7 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
+    ChatMessageUser,
 )
 from inspect_ai.model._compaction.edit import (
     MCP_LIST_TOOLS_NAME,
@@ -176,6 +182,36 @@ class ResponsesModelInfo(Protocol):
     def is_codex(self) -> bool: ...
 
 
+def _extract_compaction_from_content_data(
+    content: str | list[Content],
+) -> ResponseCompactionItemParamParam | None:
+    """Extract compaction metadata from ContentData if present.
+
+    Args:
+        content: Message content (string or list of Content objects)
+
+    Returns:
+        ResponseCompactionItemParamParam if compaction metadata found, else None
+    """
+    if not isinstance(content, list):
+        return None
+
+    for item in content:
+        if isinstance(item, ContentData) and isinstance(item.data, dict):
+            metadata = item.data.get("compaction_metadata")
+            if (
+                metadata
+                and isinstance(metadata, dict)
+                and metadata.get("type") == "openai_compact"
+            ):
+                return ResponseCompactionItemParamParam(
+                    type="compaction",
+                    id=str(metadata.get("id")) if metadata.get("id") else None,
+                    encrypted_content=str(metadata["encrypted_content"]),
+                )
+    return None
+
+
 async def openai_responses_inputs(
     messages: list[ChatMessage], model_info: ResponsesModelInfo | None = None
 ) -> list[ResponseInputItemParam]:
@@ -193,6 +229,13 @@ async def _openai_input_item_from_chat_message(
         content = await _openai_responses_content_list_param(message.content)
         return [Message(type="message", role="developer", content=content)]
     elif message.role == "user":
+        # Check if this is a compaction marker message
+        compaction_param = _extract_compaction_from_content_data(message.content)
+        if compaction_param:
+            # This is a compaction marker - return compaction item
+            return [compaction_param]
+
+        # Regular user message handling
         return [
             Message(
                 type="message",
@@ -515,34 +558,33 @@ def responses_model_usage(usage: ModelUsage | None) -> ResponseUsage | None:
         return None
 
 
-def _chat_message_assistant_from_openai_response(
-    model: str, response: OpenAIResponse, tools: list[ToolInfo]
-) -> tuple[ChatMessageAssistant, StopReason, Logprobs | None]:
+def _process_response_output_items(
+    outputs: Iterable[Any],
+    tools: list[ToolInfo],
+) -> tuple[list[Content], list[ToolCall], Logprobs | None, bool]:
+    """Process response output items into content, tool calls, and logprobs.
+
+    This helper extracts the core logic for processing OpenAI response output items,
+    making it reusable for both regular Response and CompactedResponse.
+
+    Args:
+        outputs: Iterable of response output items (ResponseOutputMessage,
+            ResponseReasoningItem, ResponseFunctionToolCall, etc.)
+        tools: List of available tools for parsing tool calls.
+
+    Returns:
+        A tuple of (message_content, tool_calls, logprobs, has_tool_calls) where:
+        - message_content: List of Content items extracted from output
+        - tool_calls: List of ToolCall items extracted from output
+        - logprobs: Logprobs if available, None otherwise
+        - has_tool_calls: True if any tool calls were found
     """
-    Transform OpenAI `Response` into an Inspect `ChatMessageAssistant` and `StopReason`.
-
-    It maps each `ResponseOutputItem` in `output` to a `Content` in the
-    `content` field of the `ChatMessageAssistant`.
-
-    It also keeps track of the OpenAI id's for each of the items in `.output`.
-    The way we're doing it assumes that there won't be multiple items of the
-    same type in the output. This seems ok, but who knows.
-    """
-    # determine the StopReason
-    stop_reason: StopReason
-    match response.incomplete_details:
-        case IncompleteDetails(reason="max_output_tokens"):
-            stop_reason = "max_tokens"
-        case IncompleteDetails(reason="content_filter"):
-            stop_reason = "content_filter"
-        case _:
-            stop_reason = "stop"
-
-    # collect output and tool calls
     logprobs: Logprobs | None = None
     message_content: list[Content] = []
     tool_calls: list[ToolCall] = []
-    for output in response.output:
+    has_tool_calls = False
+
+    for output in outputs:
         match output:
             case ResponseOutputMessage(content=content, id=id):
                 # find logprobs in content if available
@@ -584,7 +626,7 @@ def _chat_message_assistant_from_openai_response(
                 message_content.append(reasoning_from_responses_reasoning(output))
 
             case ResponseFunctionToolCall():
-                stop_reason = "tool_calls"
+                has_tool_calls = True
                 if output.id is not None:
                     assistant_internal().tool_calls[output.call_id] = cast(
                         ResponseFunctionToolCallParam, output.model_dump()
@@ -599,7 +641,7 @@ def _chat_message_assistant_from_openai_response(
                     )
                 )
             case ResponseCustomToolCall():
-                stop_reason = "tool_calls"
+                has_tool_calls = True
                 if output.id is not None:
                     assistant_internal().tool_calls[output.call_id] = cast(
                         ResponseCustomToolCallParam, output.model_dump()
@@ -613,7 +655,7 @@ def _chat_message_assistant_from_openai_response(
                 tool_calls.append(tool_call)
 
             case ResponseComputerToolCall():
-                stop_reason = "tool_calls"
+                has_tool_calls = True
                 if output.id is not None:
                     assistant_internal().tool_calls[output.call_id] = cast(
                         ResponseComputerToolCallParam, output.model_dump()
@@ -630,8 +672,12 @@ def _chat_message_assistant_from_openai_response(
                 tool_calls.append(tool_call_from_openai_computer_tool_call(output))
 
             case ResponseFunctionWebSearch():
+                # Use warnings=False to suppress Pydantic serialization warnings for
+                # action types the SDK may not yet support.
+                # See: https://github.com/pydantic/pydantic-ai/issues/3653
                 assistant_internal().server_tool_uses[output.id] = cast(
-                    ResponseFunctionWebSearchParam, output.model_dump(exclude_none=True)
+                    ResponseFunctionWebSearchParam,
+                    output.model_dump(exclude_none=True, warnings=False),
                 )
                 message_content.append(web_search_to_tool_use(output))
             case ResponseCodeInterpreterToolCall():
@@ -646,8 +692,45 @@ def _chat_message_assistant_from_openai_response(
                     McpCallParam, output.model_dump()
                 )
                 message_content.append(mcp_call_to_tool_use(output))
+            case ResponseCompactionItem():
+                # Skip compaction items - handled separately by caller
+                pass
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
+
+    return message_content, tool_calls, logprobs, has_tool_calls
+
+
+def _chat_message_assistant_from_openai_response(
+    model: str, response: OpenAIResponse, tools: list[ToolInfo]
+) -> tuple[ChatMessageAssistant, StopReason, Logprobs | None]:
+    """
+    Transform OpenAI `Response` into an Inspect `ChatMessageAssistant` and `StopReason`.
+
+    It maps each `ResponseOutputItem` in `output` to a `Content` in the
+    `content` field of the `ChatMessageAssistant`.
+
+    It also keeps track of the OpenAI id's for each of the items in `.output`.
+    The way we're doing it assumes that there won't be multiple items of the
+    same type in the output. This seems ok, but who knows.
+    """
+    # determine the StopReason
+    stop_reason: StopReason
+    match response.incomplete_details:
+        case IncompleteDetails(reason="max_output_tokens"):
+            stop_reason = "max_tokens"
+        case IncompleteDetails(reason="content_filter"):
+            stop_reason = "content_filter"
+        case _:
+            stop_reason = "stop"
+
+    # process output items
+    message_content, tool_calls, logprobs, has_tool_calls = (
+        _process_response_output_items(response.output, tools)
+    )
+
+    if has_tool_calls:
+        stop_reason = "tool_calls"
 
     return (
         ChatMessageAssistant(
@@ -823,21 +906,64 @@ def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
     )
 
 
-action_adapter = TypeAdapter[Action](Action)
+def _is_valid_openai_web_search_action(action: dict[str, Any]) -> bool:
+    """Check if a dict represents a valid OpenAI web search action.
+
+    Validates both the type field and the required fields for each action type.
+    This ensures we don't accidentally pass through malformed actions or actions
+    from other providers that happen to have a 'type' field.
+    """
+    action_type = action.get("type")
+
+    if action_type == "search":
+        # ActionSearch requires 'query' (deprecated) or 'queries'
+        return "query" in action or "queries" in action
+    elif action_type == "open_page":
+        # ActionOpenPage requires 'url'
+        return "url" in action
+    elif action_type in ("find", "find_in_page"):
+        # ActionFind / ActionFindInPage require 'pattern' and 'url'
+        return "pattern" in action or "url" in action
+
+    return False
+
+
+def parse_web_search_action(arguments: str) -> dict[str, Any]:
+    """Parse web search action from JSON arguments.
+
+    Parses action as raw dict and filters None values to avoid Pydantic validation
+    issues with action types the SDK may not yet support.
+    See: https://github.com/pydantic/pydantic-ai/issues/3653
+
+    If the parsed dict doesn't represent a valid OpenAI action, creates a conforming
+    search action. This handles web search results from other providers (e.g., Anthropic)
+    that have different formats.
+
+    Returns a dict that can be cast to the appropriate Action type by the caller.
+    """
+    try:
+        action_dict = json.loads(arguments)
+        filtered = {k: v for k, v in action_dict.items() if v is not None}
+
+        # Check if this is a valid OpenAI action (correct type + required fields)
+        if _is_valid_openai_web_search_action(filtered):
+            return filtered
+
+        # Not an OpenAI-formatted action - create a conforming search action
+        # This handles web search from other providers (e.g., Anthropic)
+        query = filtered.get("query", arguments)
+        return {"type": "search", "query": query}
+    except (json.JSONDecodeError, TypeError):
+        return {"type": "search", "query": arguments}
 
 
 def tool_use_to_web_search_param(
     content: ContentToolUse,
 ) -> ResponseFunctionWebSearchParam:
-    try:
-        action = action_adapter.validate_json(content.arguments)
-    except ValidationError:
-        action = ActionSearch(type="search", query=content.arguments)
-
     return ResponseFunctionWebSearchParam(
         type="web_search_call",
         id=content.id,
-        action=action,
+        action=cast(Action, parse_web_search_action(content.arguments)),
         status="failed" if content.error else "completed",
     )
 
@@ -1401,3 +1527,183 @@ def _outputs_to_result(outputs: list[OutputLogs | OutputImage] | None) -> str:
         )
     else:
         return ""
+
+
+def chat_messages_from_compact_response(
+    response: CompactedResponse,
+    model: str | None = None,
+) -> list[ChatMessage]:
+    """Convert CompactedResponse to a list of ChatMessages.
+
+    The compact endpoint returns the complete new context window, which may include:
+    - ResponseCompactionItem: encrypted compressed representation of earlier messages
+    - Other items (ResponseOutputMessage, ResponseReasoningItem, tool calls, etc.):
+      recent items that weren't compacted
+
+    The order of items is preserved. Items are processed in order:
+    - ResponseCompactionItem becomes a ChatMessageUser with compaction metadata
+    - Consecutive non-compaction items are grouped into ChatMessageAssistant messages
+
+    The compaction metadata is stored in a ContentData object within a ChatMessageUser.
+    When replayed, _extract_compaction_from_content_data() will extract this metadata
+    and convert it back to a ResponseCompactionItemParamParam.
+
+    Args:
+        response: The CompactedResponse from client.responses.compact()
+        model: Optional model name to set on ChatMessageAssistant messages.
+
+    Returns:
+        A list of ChatMessages representing the new context window, preserving
+        the order of items from the response.
+
+    Raises:
+        ValueError: If no ResponseCompactionItem is found in the response output.
+    """
+    messages: list[ChatMessage] = []
+    found_compaction = False
+    pending_items: list[Any] = []
+
+    def flush_pending_items() -> None:
+        """Process accumulated non-compaction items into a ChatMessageAssistant."""
+        nonlocal pending_items
+        if pending_items:
+            # Pass empty tools list - tool calls in compaction responses don't need parsing
+            message_content, tool_calls, _, _ = _process_response_output_items(
+                pending_items, []
+            )
+            if message_content or tool_calls:
+                messages.append(
+                    ChatMessageAssistant(
+                        content=message_content,
+                        tool_calls=tool_calls if tool_calls else None,
+                        model=model,
+                        source="generate",
+                    )
+                )
+            pending_items = []
+
+    # Process items in order
+    for item in response.output:
+        if isinstance(item, ResponseCompactionItem):
+            # Flush any pending non-compaction items first
+            flush_pending_items()
+
+            found_compaction = True
+            # Add the compaction item as a ChatMessageUser with ContentData
+            messages.append(
+                ChatMessageUser(
+                    content=[
+                        ContentData(
+                            data={
+                                "compaction_metadata": {
+                                    "type": "openai_compact",
+                                    "id": item.id,
+                                    "encrypted_content": item.encrypted_content,
+                                }
+                            }
+                        )
+                    ],
+                    source="generate",
+                )
+            )
+        else:
+            # Accumulate non-compaction items
+            pending_items.append(item)
+
+    # Flush any remaining pending items
+    flush_pending_items()
+
+    if not found_compaction:
+        raise ValueError("No ResponseCompactionItem found in CompactedResponse output")
+
+    return messages
+
+
+def model_usage_from_compact_response(
+    response: CompactedResponse,
+) -> ModelUsage | None:
+    """Extract ModelUsage from CompactedResponse.
+
+    Args:
+        response: The CompactedResponse from client.responses.compact()
+
+    Returns:
+        ModelUsage if usage information is available, None otherwise.
+    """
+    if response.usage:
+        return ModelUsage(
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            total_tokens=response.usage.total_tokens,
+        )
+    return None
+
+
+def pad_tool_messages_for_token_counting(
+    messages: list[ResponseInputItemParam],
+) -> list[ResponseInputItemParam]:
+    """Pad tool messages to satisfy OpenAI's API validation for token counting.
+
+    OpenAI's input_tokens API validates message structure and requires:
+    - Every function_call block must have a corresponding function_call_output
+    - Every function_call_output block must have a corresponding function_call
+
+    When counting tokens for individual messages (e.g., for caching in compaction),
+    we may have orphaned function_call or function_call_output blocks. This function
+    pads with minimal fake paired items to satisfy API validation.
+
+    This slightly overcounts tokens but that's acceptable for compaction triggering.
+
+    Args:
+        messages: List of OpenAI ResponseInputItemParam messages.
+
+    Returns:
+        List of messages with padding added for orphaned tool calls/outputs.
+    """
+    if not messages:
+        return messages
+
+    result: list[ResponseInputItemParam] = []
+
+    for i, msg in enumerate(messages):
+        # Forward scan: Check for function_call_output without preceding function_call
+        if is_function_call_output(msg):
+            call_id = msg.get("call_id", "")
+            has_matching_call = (
+                result
+                and is_response_function_tool_call(result[-1])
+                and result[-1].get("call_id") == call_id
+            )
+
+            # Add fake function_call for orphaned output
+            if not has_matching_call:
+                fake_call: ResponseFunctionToolCallParam = {
+                    "type": "function_call",
+                    "call_id": call_id,
+                    "name": "placeholder",
+                    "arguments": "{}",
+                }
+                result.append(fake_call)
+
+        result.append(msg)
+
+        # Reverse scan: Check for function_call without following function_call_output
+        if is_response_function_tool_call(msg):
+            call_id = msg.get("call_id", "")
+            next_msg = messages[i + 1] if i + 1 < len(messages) else None
+            has_matching_output = (
+                next_msg is not None
+                and is_function_call_output(next_msg)
+                and next_msg.get("call_id") == call_id
+            )
+
+            # Add fake function_call_output for orphaned call
+            if not has_matching_output:
+                fake_output: FunctionCallOutput = {
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": "",
+                }
+                result.append(fake_output)
+
+    return result

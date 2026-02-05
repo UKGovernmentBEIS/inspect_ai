@@ -139,7 +139,8 @@ class GroqAPI(ModelAPI):
         request = dict(
             messages=messages,
             model=self.model_name,
-            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+            | (config.extra_headers or {}),
             **params,
         )
 

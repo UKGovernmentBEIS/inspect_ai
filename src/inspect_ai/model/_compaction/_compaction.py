@@ -27,7 +27,7 @@ def compaction(
 
     Call the `Compact` handler with the full conversation history before sending input to the model. Send the returned `input` and append the supplemental message returned (if any) to the full history.
 
-    See the [Compaction](ttps://inspect.aisi.org.uk/compaction.html) for additional details on using compaction.
+    See the [Compaction](https://inspect.aisi.org.uk/compaction.html) for additional details on using compaction.
 
     Args:
         strategy: Compaction strategy (e.g. editing, trimming, summary, etc.)
@@ -93,6 +93,8 @@ def compaction(
     async def compact_fn(
         messages: list[ChatMessage],
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        from inspect_ai.event._compaction import CompactionEvent
+
         # state variables we modify
         nonlocal tool_tokens, tools_info, prefix_tokens, memory_warning_issued
 
@@ -139,7 +141,7 @@ def compaction(
             if c_message is not None:
                 processed_message_ids.add(message_id(c_message))
 
-            # ensure we preserve the prefix (could have been wiped out by a summarization)
+            # Preserve prefix messages not already in output
             input_ids = {message_id(m) for m in c_input}
             prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
             c_input = prepend_prefix + c_input
@@ -150,13 +152,17 @@ def compaction(
 
             # log compaction
             compacted_tokens = await target_model.count_tokens(compacted_input)
-            transcript().info(
-                {
-                    "Compaction": strategy.__class__.__name__,
-                    "Tokens": f"{total_tokens:,} ⟶ {compacted_tokens:,}",
-                    "Messages": f"{len(target_messages):,} ⟶ {len(compacted_input):,}",
-                },
-                source="compaction",
+            transcript()._event(
+                CompactionEvent(
+                    source="inspect",
+                    tokens_before=total_tokens,
+                    tokens_after=compacted_tokens,
+                    metadata={
+                        "strategy": strategy.__class__.__name__,
+                        "messages_before": len(target_messages),
+                        "messages_after": len(compacted_input),
+                    },
+                )
             )
 
             # clear memory warning state
@@ -265,10 +271,10 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
     if isinstance(threshold, int) or threshold > 1.0:
         return int(threshold)
     else:
-        # Look up the model's context window
+        # Look up the model's input token capacity
         info = get_model_info(model)
-        if info and info.context_length:
-            context_window = info.context_length
+        if info and info.input_tokens:
+            context_window = info.input_tokens
         else:
             logger.warning(
                 f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"

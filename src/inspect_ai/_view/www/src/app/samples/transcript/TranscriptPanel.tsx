@@ -14,7 +14,17 @@ import { TranscriptVirtualList } from "./TranscriptVirtualList";
 import { flatTree as flattenTree } from "./transform/flatten";
 import { useEventNodes } from "./transform/hooks";
 import { hasSpans } from "./transform/utils";
-import { kTranscriptCollapseScope } from "./types";
+import {
+  kTranscriptCollapseScope,
+  kTranscriptOutlineCollapseScope,
+} from "./types";
+import {
+  makeTurns,
+  noScorerChildren,
+  removeNodeVisitor,
+  removeStepSpanNameVisitor,
+} from "./outline/tree-visitors";
+import { kSandboxSignalName } from "./transform/fixups";
 
 interface TranscriptPanelProps {
   id: string;
@@ -69,6 +79,75 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
         : undefined) || defaultCollapsedIds,
     );
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+
+  // Compute filtered node list for the outline (shared between outline and turn computation)
+  // This ensures turn counts match between outline and main transcript
+  const outlineFilteredNodes = useMemo(() => {
+    return flattenTree(
+      eventNodes,
+      (collapsedEvents
+        ? collapsedEvents[kTranscriptOutlineCollapseScope]
+        : undefined) || defaultCollapsedIds,
+      [
+        // Strip specific nodes
+        removeNodeVisitor("logger"),
+        removeNodeVisitor("info"),
+        removeNodeVisitor("state"),
+        removeNodeVisitor("store"),
+        removeNodeVisitor("approval"),
+        removeNodeVisitor("input"),
+        removeNodeVisitor("sandbox"),
+
+        // Strip the sandbox wrapper (and children)
+        removeStepSpanNameVisitor(kSandboxSignalName),
+
+        // Remove child events for scorers
+        noScorerChildren(),
+      ],
+    );
+  }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+
+  // Turn numbers come from the outline's view (outlineFilteredNodes), so numbering
+  // matches the sidebar. Non-turn events inherit the previous turn number to show context.
+  const turnMap = useMemo(() => {
+    const turns = makeTurns(outlineFilteredNodes);
+    const map = new Map<string, { turnNumber: number; totalTurns: number }>();
+
+    // Find all turn nodes and count them
+    const turnNodes = turns.filter(
+      (n) =>
+        n.event.event === "span_begin" &&
+        (n.event as { type?: string }).type === "turn",
+    );
+    const totalTurns = turnNodes.length;
+
+    // Create a map of model event IDs to their turn numbers
+    let turnNumber = 0;
+    const modelEventTurnNumbers = new Map<string, number>();
+    for (const node of turnNodes) {
+      turnNumber++;
+      const modelChild = node.children.find((c) => c.event.event === "model");
+      if (modelChild) {
+        modelEventTurnNumbers.set(modelChild.id, turnNumber);
+      }
+    }
+
+    // Now iterate through flattened nodes and assign turn numbers
+    // Non-model events inherit from the most recent model event
+    let currentTurn = 0;
+    for (const node of flattenedNodes) {
+      const modelTurn = modelEventTurnNumbers.get(node.id);
+      if (modelTurn !== undefined) {
+        currentTurn = modelTurn;
+        map.set(node.id, { turnNumber: currentTurn, totalTurns });
+      } else if (currentTurn > 0) {
+        // Non-turn events inherit the current turn number
+        map.set(node.id, { turnNumber: currentTurn, totalTurns });
+      }
+    }
+
+    return map;
+  }, [outlineFilteredNodes, flattenedNodes]);
 
   // Update the collapsed events when the default collapsed IDs change
   // This effect only depends on defaultCollapsedIds, not eventNodes
@@ -192,6 +271,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
           <TranscriptOutline
             className={clsx(styles.outline)}
             eventNodes={eventNodes}
+            filteredNodes={outlineFilteredNodes}
             running={running}
             defaultCollapsedIds={defaultCollapsedIds}
             scrollRef={scrollRef}
@@ -213,6 +293,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
           initialEventId={initialEventId === undefined ? null : initialEventId}
           offsetTop={topOffset}
           className={styles.listContainer}
+          turnMap={turnMap}
         />
       </div>
     );

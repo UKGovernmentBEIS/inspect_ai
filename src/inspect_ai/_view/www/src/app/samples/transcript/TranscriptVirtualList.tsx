@@ -1,6 +1,7 @@
 import { FC, memo, RefObject } from "react";
 import {
   ApprovalEvent,
+  CompactionEvent,
   ErrorEvent,
   InfoEvent,
   InputEvent,
@@ -38,6 +39,7 @@ import { VirtuosoHandle } from "react-virtuoso";
 import { ScoreEditEventView } from "./ScoreEditEventView";
 import { SpanEventView } from "./SpanEventView";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
+import { CompactionEventView } from "./CompactionEventView";
 
 interface TranscriptVirtualListProps {
   id: string;
@@ -48,6 +50,7 @@ interface TranscriptVirtualListProps {
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
   className?: string | string[];
+  turnMap?: Map<string, { turnNumber: number; totalTurns: number }>;
 }
 
 /**
@@ -64,6 +67,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       initialEventId,
       offsetTop,
       className,
+      turnMap,
     } = props;
 
     return (
@@ -76,6 +80,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
         scrollRef={scrollRef}
         running={running}
         className={className}
+        turnMap={turnMap}
       />
     );
   },
@@ -83,6 +88,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
 
 export interface EventNodeContext {
   hasToolEvents?: boolean;
+  turnInfo?: { turnNumber: number; totalTurns: number };
 }
 
 interface RenderedEventNodeProps {
@@ -117,6 +123,14 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
         return (
           <InfoEventView
             eventNode={node as EventNode<InfoEvent>}
+            className={className}
+          />
+        );
+
+      case "compaction":
+        return (
+          <CompactionEventView
+            eventNode={node as EventNode<CompactionEvent>}
             className={className}
           />
         );
@@ -204,6 +218,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
             eventNode={node as EventNode<ToolEvent>}
             className={className}
             children={node.children}
+            context={context}
           />
         );
 

@@ -372,6 +372,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             scrollRef={scrollRef}
             toolCallStyle="complete"
             running={running}
+            className={styles.fullWidth}
           />
         </TabPanel>
         <TabPanel

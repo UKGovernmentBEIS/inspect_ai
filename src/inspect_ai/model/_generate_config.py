@@ -145,6 +145,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
+    extra_headers: dict[str, str] | None
+    """Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok."""
+
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
@@ -250,6 +253,9 @@ class GenerateConfig(BaseModel):
 
     response_schema: ResponseSchema | None = Field(default=None)
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, vLLM, and SGLang only."""
+
+    extra_headers: dict[str, str] | None = Field(default=None)
+    """Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok."""
 
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""

@@ -3,6 +3,7 @@ from typing import TypeAlias, Union
 from inspect_ai.event._score_edit import ScoreEditEvent
 
 from ._approval import ApprovalEvent
+from ._compaction import CompactionEvent
 from ._error import ErrorEvent
 from ._info import InfoEvent
 from ._input import InputEvent
@@ -28,6 +29,7 @@ Event: TypeAlias = Union[
     ModelEvent,
     ToolEvent,
     ApprovalEvent,
+    CompactionEvent,
     InputEvent,
     ScoreEvent,
     ScoreEditEvent,

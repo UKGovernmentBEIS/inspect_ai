@@ -1,4 +1,4 @@
-import { AsyncInflateOptions, decompress } from "fflate";
+import { decompressData } from "./decompression";
 
 export interface ZipFileEntry {
   versionNeeded: number;
@@ -171,18 +171,12 @@ export const openRemoteZipFile = async (
 
       // Parse and decompress the entry
       const zipFileEntry = await parseZipFileEntry(file, fileData);
-      if (zipFileEntry.compressionMethod === 0) {
-        // No compression
-        return zipFileEntry.data;
-      } else if (zipFileEntry.compressionMethod === 8) {
-        // Deflate compression
-        const results = await decompressAsync(zipFileEntry.data, {
-          size: zipFileEntry.uncompressedSize,
-        });
-        return results;
-      } else {
-        throw new Error(`Unsupported compression method for file ${file}`);
-      }
+      return decompressData(
+        zipFileEntry.data,
+        zipFileEntry.compressionMethod,
+        zipFileEntry.uncompressedSize,
+        file,
+      );
     },
   };
 };
@@ -235,24 +229,6 @@ export const fetchRange = async (
   });
   const arrayBuffer = await response.arrayBuffer();
   return new Uint8Array(arrayBuffer);
-};
-
-/**
- * Asynchronously decompresses the provided data using the specified options.
- */
-const decompressAsync = async (
-  data: Uint8Array,
-  opts: AsyncInflateOptions,
-): Promise<Uint8Array> => {
-  return new Promise((resolve, reject) => {
-    decompress(data, opts, (err, result) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
 };
 
 /**

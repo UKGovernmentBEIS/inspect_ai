@@ -446,7 +446,11 @@ class AnthropicAPI(ModelAPI):
                 raise ex
 
     @override
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         """Estimate token count for an input."""
         # turn system into user for purposes of counting
         if isinstance(input, str):
@@ -554,9 +558,14 @@ class AnthropicAPI(ModelAPI):
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = config.extra_headers or {}
         extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
+
+        # pull betas out of headers
+        anthropic_beta_header = headers.pop("anthropic_beta", None)
+        if anthropic_beta_header:
+            betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
 
         # temperature not compatible with extended thinking
         THINKING_WARNING = "anthropic models do not support the '{parameter}' parameter when using extended thinking."
