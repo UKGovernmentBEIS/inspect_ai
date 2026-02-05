@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useSamplesRouteParams } from "../app/routing/url";
-import { useWhyDidYouUpdate } from "../utils/react";
 import { useLogs } from "./hooks";
 import { useStore } from "./store";
 
@@ -20,15 +19,6 @@ export const useLogLoader = () => {
   const setSelectedLogFile = useStore(
     (state) => state.logsActions.setSelectedLogFile,
   );
-
-  useWhyDidYouUpdate("useLogLoader", {
-    routeLogPath,
-    sampleId,
-    epoch,
-    logs,
-    selectedLogFile,
-    logDir,
-  });
 
   useEffect(() => {
     const exec = async () => {

@@ -11,10 +11,13 @@ import {
   samplesUrl,
   useSamplesRouteParams,
 } from "../routing/url";
-import { InlineSampleDisplay } from "../samples/InlineSampleDisplay";
 
 import clsx from "clsx";
+import { useSampleData } from "../../state/hooks";
 import { useLogLoader } from "../../state/useLogLoader";
+import { useSampleLoader } from "../../state/useSampleLoader";
+import { useSamplePolling } from "../../state/useSamplePolling";
+import { InlineSampleComponent } from "../samples/InlineSampleDisplay";
 import styles from "./SampleDetailView.module.css";
 
 /**
@@ -23,6 +26,8 @@ import styles from "./SampleDetailView.module.css";
  */
 export const SampleDetailView: FC = () => {
   useLogLoader();
+  useSampleLoader();
+  useSamplePolling();
 
   const {
     samplesPath: routeLogPath,
@@ -38,6 +43,11 @@ export const SampleDetailView: FC = () => {
     (state) => state.logs.samplesListState.displayedSamples,
   );
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
+
+  const sampleData = useSampleData();
+  const sample = useMemo(() => {
+    return sampleData.getSelectedSample();
+  }, [sampleData]);
 
   const clearSelectedLogDetails = useStore(
     (state) => state.logActions.clearSelectedLogDetails,
@@ -204,7 +214,12 @@ export const SampleDetailView: FC = () => {
           </div>
         </ApplicationNavbar>
 
-        <InlineSampleDisplay showActivity={false} className={styles.panel} />
+        {sampleStatus !== "loading" && sample && (
+          <InlineSampleComponent
+            showActivity={false}
+            className={styles.panel}
+          />
+        )}
       </div>
     </ExtendedFindProvider>
   );

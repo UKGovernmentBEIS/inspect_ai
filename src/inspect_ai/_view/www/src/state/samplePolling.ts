@@ -161,7 +161,9 @@ export function createSamplePolling(
             });
           }
         } else {
-          state.sampleActions.setSampleStatus("ok");
+          if (state.sample.sampleStatus === "streaming") {
+            state.sampleActions.setSampleStatus("ok");
+          }
           state.sample.runningEvents = [];
         }
         return false;

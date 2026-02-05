@@ -67,7 +67,7 @@ export function useSampleLoader() {
         needsReloadChanged;
 
       if (shouldLoad) {
-        loadSample(
+        void loadSample(
           logSelection.logFile,
           sampleId,
           sampleEpoch,
