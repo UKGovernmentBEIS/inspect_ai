@@ -13,6 +13,7 @@ available:
 | `CompactionEdit` | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
 | `CompactionSummary` | Compact by having a model create a summary of the message history. |
 | `CompactionTrim` | Compact by trimming the message history to preserve a percentage of the input. |
+| `CompactionNative` | Use provider-specific native compaction API (currently only available for OpenAI). |
 
 Which strategy should you use? Here are some general guidelines:
 
@@ -26,6 +27,10 @@ Which strategy should you use? Here are some general guidelines:
 
 - `CompactionTrim` is the simplest option, useful when you just need to
   reduce history depth without concern for preserving specific content.
+
+- `CompactionNative` is appropriate when you want maximum token
+  efficiency and are convinced that provider compaction preserves
+  important context (note this is currently only available for OpenAI).
 
 Compaction can also make use of the [memory()](#memory-tool) tool to
 offload important context to files prior to compaction.
@@ -187,6 +192,65 @@ Here are all options available for `CompactionTrim`:
 | `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
 | `memory` | True | Warn the model to save content to memory before compaction (when the memory tool is available). |
 | `preserve` | 0.8 | Ratio of conversation messages to keep (0.0 to 1.0). For example, 0.8 preserves 80% of messages. |
+
+## Native Compaction
+
+> [!NOTE]
+>
+> The native compaction strategy described below is available only in
+> the development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Native compaction delegates context management to the model provider’s
+own compaction API rather than implementing it client-side. The provider
+compresses the conversation into an opaque, provider-specific
+representation that preserves semantic meaning while achieving
+aggressive token savings. Native compaction is currently available for
+OpenAI models that use the Responses API.
+
+For example, here we add native compaction to a `react()` agent:
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionNative
+from inspect_ai.tool import bash, text_editor
+
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionNative(threshold=0.9)
+)
+```
+
+Since native compaction is not available for all providers, you can
+specify a `fallback` strategy that will be used when the provider
+doesn’t support it:
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionEdit, CompactionNative
+from inspect_ai.tool import bash, text_editor
+
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionNative(
+        threshold=0.9,
+        fallback=CompactionSummary()
+    )
+)
+```
+
+Here are all options available for `CompactionNative`:
+
+| Parameter | Default | Description |
+|----|----|----|
+| `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
+| `memory` | False | Warn the model to save content to memory before compaction (when the memory tool is available). Defaults to `False` since native compaction preserves context server-side. |
+| `fallback` | None | Fallback compaction strategy to use if the provider does not support native compaction. |
+| `config` | None | Optional generation config for provider-specific settings (e.g., reasoning parameters for OpenAI). |
 
 ## Memory Tool
 

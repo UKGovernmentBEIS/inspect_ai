@@ -523,6 +523,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#edit-compaction" id="toc-edit-compaction" class="nav-link" data-scroll-target="#edit-compaction">Edit Compaction</a></li>
   <li><a href="#summary-compaction" id="toc-summary-compaction" class="nav-link" data-scroll-target="#summary-compaction">Summary Compaction</a></li>
   <li><a href="#trim-compaction" id="toc-trim-compaction" class="nav-link" data-scroll-target="#trim-compaction">Trim Compaction</a></li>
+  <li><a href="#native-compaction" id="toc-native-compaction" class="nav-link" data-scroll-target="#native-compaction">Native Compaction</a></li>
   <li><a href="#memory-tool" id="toc-memory-tool" class="nav-link" data-scroll-target="#memory-tool">Memory Tool</a></li>
   <li><a href="#token-counting" id="toc-token-counting" class="nav-link" data-scroll-target="#token-counting">Token Counting</a></li>
   </ul>
@@ -555,8 +556,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Compaction enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Several compaction strategies are available:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 30%">
-<col style="width: 70%">
+<col style="width: 35%">
+<col style="width: 65%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -577,6 +578,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactiontrim">CompactionTrim</a></span></td>
 <td>Compact by trimming the message history to preserve a percentage of the input.</td>
 </tr>
+<tr class="even">
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span></td>
+<td>Use provider-specific native compaction API (currently only available for OpenAI).</td>
+</tr>
 </tbody>
 </table>
 <p>Which strategy should you use? Here are some general guidelines:</p>
@@ -584,6 +589,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionedit">CompactionEdit</a></span> is a good default choice—it’s efficient (no additional model calls) and preserves the conversation structure while removing older content.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionsummary">CompactionSummary</a></span> is good when maintaining semantic understanding of the full history is more important than preserving exact details; note this requires an additional model call for each compaction.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactiontrim">CompactionTrim</a></span> is the simplest option, useful when you just need to reduce history depth without concern for preserving specific content.</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> is appropriate when you want maximum token efficiency and are convinced that provider compaction preserves important context (note this is currently only available for OpenAI).</p></li>
 </ul>
 <p>Compaction can also make use of the <a href="#memory-tool">memory()</a> tool to offload important context to files prior to compaction.</p>
 <section id="compaction-threshold" class="level4">
@@ -780,24 +786,97 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 </section>
+<section id="native-compaction" class="level2">
+<h2 class="anchored" data-anchor-id="native-compaction">Native Compaction</h2>
+<div class="callout callout-style-simple callout-note no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The native compaction strategy described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p>Native compaction delegates context management to the model provider’s own compaction API rather than implementing it client-side. The provider compresses the conversation into an opaque, provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API.</p>
+<p>For example, here we add native compaction to a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionNative</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>react(</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    compaction<span class="op">=</span>CompactionNative(threshold<span class="op">=</span><span class="fl">0.9</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Since native compaction is not available for all providers, you can specify a <code>fallback</code> strategy that will be used when the provider doesn’t support it:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionEdit, CompactionNative</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>react(</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    compaction<span class="op">=</span>CompactionNative(</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        threshold<span class="op">=</span><span class="fl">0.9</span>,</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        fallback<span class="op">=</span>CompactionSummary()</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Here are all options available for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 15%">
+<col style="width: 12%">
+<col style="width: 73%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>threshold</code></td>
+<td>0.9</td>
+<td>Token count or percent of context window to trigger compaction.</td>
+</tr>
+<tr class="even">
+<td><code>memory</code></td>
+<td>False</td>
+<td>Warn the model to save content to memory before compaction (when the memory tool is available). Defaults to <code>False</code> since native compaction preserves context server-side.</td>
+</tr>
+<tr class="odd">
+<td><code>fallback</code></td>
+<td>None</td>
+<td>Fallback compaction strategy to use if the provider does not support native compaction.</td>
+</tr>
+<tr class="even">
+<td><code>config</code></td>
+<td>None</td>
+<td>Optional generation config for provider-specific settings (e.g., reasoning parameters for OpenAI).</td>
+</tr>
+</tbody>
+</table>
+</section>
 <section id="memory-tool" class="level2">
 <h2 class="anchored" data-anchor-id="memory-tool">Memory Tool</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool provides a persistent file-based storage system that agents can use to save important information before compaction occurs. When memory integration is enabled (the default), compaction strategies will warn the model to save critical context to memory before compaction is triggered.</p>
 <p>To use memory with compaction, add the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool to your agent:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionEdit</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor, memory</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>react(</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor(), memory()],</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    compaction<span class="op">=</span>CompactionEdit(keep_tool_uses<span class="op">=</span><span class="dv">3</span>)</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionEdit</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor, memory</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>react(</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor(), memory()],</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    compaction<span class="op">=</span>CompactionEdit(keep_tool_uses<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>When the context approaches the compaction threshold, the model receives a warning message prompting it to save important information—such as key decisions, discoveries, file paths, and next steps to memory files in the <code>/memories</code> directory. After compaction, the content saved to memory is cleared from the message history (since it’s now persisted in files), while metadata about what was saved is preserved.</p>
 <p>To disable memory integration, set <code>memory=False</code> on any compaction strategy:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionEdit</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># disable memory warnings and cleanup</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>CompactionEdit(memory<span class="op">=</span><span class="va">False</span>, keep_tool_uses<span class="op">=</span><span class="dv">3</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> CompactionEdit</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># disable memory warnings and cleanup</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>CompactionEdit(memory<span class="op">=</span><span class="va">False</span>, keep_tool_uses<span class="op">=</span><span class="dv">3</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="token-counting" class="level2">
 <h2 class="anchored" data-anchor-id="token-counting">Token Counting</h2>

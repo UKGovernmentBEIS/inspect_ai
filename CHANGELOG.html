@@ -149,7 +149,8 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#february-2026" id="toc-february-2026" class="nav-link active" data-scroll-target="#february-2026">0.3.170 (03 February 2026)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#february-2026" id="toc-february-2026" class="nav-link" data-scroll-target="#february-2026">0.3.170 (03 February 2026)</a></li>
   <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.169 (01 February 2026)</a></li>
   <li><a href="#january-2026" id="toc-january-2026" class="nav-link" data-scroll-target="#january-2026">0.3.168 (31 January 2026)</a></li>
   <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.167 (29 January 2026)</a></li>
@@ -327,6 +328,20 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>Compaction: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> strategy which uses provider-native compaction (currently only available for OpenAI).</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_from_events">store_from_events()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_from_events_as">store_from_events_as()</a></span> functions for reconstructing the store from a list of events.</li>
+<li>OpenAI: Updated to 2.17.0 of <code>openai</code> package to get correct types for web search <code>ActionFind</code>.</li>
+<li>Added <code>extra_headers</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> for sending extra HTTP headers along with provider requests.</li>
+<li>Together Batch API: Update to version 2.0.0 of <code>together</code> package.</li>
+<li>Inspect View: Add sticky headers for transcript events and show turn number to improve “where am I” UX.</li>
+<li>Inspect View: Show errors in model call events in the transcript.</li>
+<li>Inspect View: Show tracebacks in model call events in the transcript.</li>
+<li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> now respects <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> name parameter when creating the transfer_to_X tool name.</li>
+</ul>
+</section>
 <section id="february-2026" class="level2">
 <h2 class="anchored" data-anchor-id="february-2026">0.3.170 (03 February 2026)</h2>
 <ul>
