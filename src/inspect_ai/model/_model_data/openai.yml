@@ -223,6 +223,7 @@ openai:
       knowledge_cutoff_date: 2024-09-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5-2025-08-07:
@@ -235,6 +236,7 @@ openai:
       knowledge_cutoff_date: 2024-05-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5-mini-2025-08-07:
@@ -247,6 +249,7 @@ openai:
       knowledge_cutoff_date: 2024-05-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5-nano-2025-08-07:
@@ -259,30 +262,51 @@ openai:
       knowledge_cutoff_date: 2024-09-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5.1-2025-11-13:
           snapshot: "2025-11-13"
         latest:
           snapshot: latest
+    gpt-5.1-codex:
+      display_name: GPT-5.1 Codex
+      release_date: 2025-11-12
+      knowledge_cutoff_date: 2024-09-30
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      native_compaction_supported: true
     gpt-5.2:
       display_name: GPT-5.2
       release_date: 2025-12-11
       knowledge_cutoff_date: 2025-08-31
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5.2-2025-12-11:
           snapshot: "2025-12-11"
         latest:
           snapshot: latest
+    gpt-5.2-codex:
+      display_name: GPT-5.2 Codex
+      release_date: 2025-12-18
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      native_compaction_supported: true
     gpt-5.2-pro:
       display_name: GPT-5.2 Pro
       release_date: 2025-12-11
       knowledge_cutoff_date: 2025-08-31
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
       versions:
         gpt-5.2-pro-2025-12-11:
