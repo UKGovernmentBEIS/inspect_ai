@@ -11,7 +11,7 @@ Compaction enables you to automatically manage conversation context as it grows,
 | `CompactionEdit` | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
 | `CompactionSummary` | Compact by having a model create a summary of the message history. |
 | `CompactionTrim` | Compact by trimming the message history to preserve a percentage of the input. |
-| `CompactionNative` | Use provider-specific native compation API (currently only available for OpenAI). |
+| `CompactionNative` | Use provider-specific native compaction API (currently only available for OpenAI). |
 
 : {tbl-colwidths=\[35,65\]}
 
