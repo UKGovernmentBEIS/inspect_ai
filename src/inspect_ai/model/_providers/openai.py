@@ -1,7 +1,7 @@
 import os
 import re
 from logging import getLogger
-from typing import Any, Callable
+from typing import Any
 
 import anyio
 from openai import (
@@ -348,7 +348,6 @@ class OpenAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # short-circuit to call o1- models that are text only
         if self.is_o1_early():
@@ -356,7 +355,6 @@ class OpenAIAPI(ModelAPI):
                 client=self.client,
                 input=input,
                 tools=tools,
-                record_call=record_call,
                 **completion_params_completions(self, config, False),
             )
 
@@ -387,7 +385,6 @@ class OpenAIAPI(ModelAPI):
                 responses_store=self.responses_store,
                 model_info=self,
                 batcher=self._responses_batcher,
-                record_call=record_call,
             )
             if use_responses
             else generate_completions(
@@ -403,7 +400,6 @@ class OpenAIAPI(ModelAPI):
                 safety_identifier=self.safety_identifier,
                 openai_api=self,
                 batcher=self._completions_batcher,
-                record_call=record_call,
             )
         )
 

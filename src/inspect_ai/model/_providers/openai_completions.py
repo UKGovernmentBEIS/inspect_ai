@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from openai import (
     AsyncAzureOpenAI,
@@ -51,7 +51,6 @@ async def generate_completions(
     safety_identifier: str | NotGiven,
     openai_api: "OpenAIAPI",
     batcher: OpenAIBatcher[ChatCompletion] | None,
-    record_call: Callable[[ModelCall], None] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
@@ -100,8 +99,9 @@ async def generate_completions(
         filter=openai_media_filter,
     )
 
-    if record_call:
-        record_call(model_call)
+    from inspect_ai.log._samples import set_active_model_event_call
+
+    set_active_model_event_call(model_call)
 
     try:
         completion = await (

@@ -1,5 +1,8 @@
 import json
-from typing import Any, Callable, Literal, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Sequence
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from mistralai import (
     CodeInterpreterTool,
@@ -73,8 +76,7 @@ async def mistral_conversation_generate(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
-    handle_bad_request: Callable[[SDKError], ModelOutput | Exception],
-    record_call: Callable[[ModelCall], None] | None = None,
+    handle_bad_request: "Callable[[SDKError], ModelOutput | Exception]",
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # build request
     request_id = http_hooks.start_request()
@@ -98,8 +100,9 @@ async def mistral_conversation_generate(
         response=None,
     )
 
-    if record_call:
-        record_call(model_call)
+    from inspect_ai.log._samples import set_active_model_event_call
+
+    set_active_model_event_call(model_call)
 
     # send request
     try:

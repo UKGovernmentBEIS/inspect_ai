@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
-    Callable,
     Iterable,
     Literal,
     Sequence,
@@ -328,7 +327,6 @@ class AnthropicAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
@@ -427,8 +425,7 @@ class AnthropicAPI(ModelAPI):
                 filter=model_call_filter,
             )
 
-            if record_call:
-                record_call(model_call)
+            self.record_model_call(model_call)
 
             # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (

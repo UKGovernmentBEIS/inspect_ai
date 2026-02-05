@@ -1,7 +1,10 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import AsyncGenerator, Iterator, Literal
+from typing import TYPE_CHECKING, AsyncGenerator, Iterator, Literal
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model_call import ModelCall
 
 from anyio.abc import TaskGroup
 from shortuuid import uuid
@@ -194,6 +197,16 @@ def track_active_model_event(event: ModelEvent) -> Iterator[None]:
 
 def has_active_model_event() -> bool:
     return _active_model_event.get() is not None
+
+
+def set_active_model_event_call(call: "ModelCall") -> None:
+    """Set the model call on the active model event and notify transcript."""
+    from inspect_ai.log._transcript import transcript
+
+    event = _active_model_event.get()
+    if event is not None:
+        event.call = call
+        transcript()._event_updated(event)
 
 
 def report_active_sample_retry() -> None:

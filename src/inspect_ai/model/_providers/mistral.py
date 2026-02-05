@@ -1,7 +1,7 @@
 import functools
 import json
 import os
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 from mistralai import (
     AudioChunk,
@@ -165,7 +165,6 @@ class MistralAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
         with Mistral(api_key=self.api_key, **self.model_args) as client:
@@ -183,7 +182,6 @@ class MistralAPI(ModelAPI):
                     tool_choice=tool_choice,
                     config=config,
                     handle_bad_request=self.handle_bad_request,
-                    record_call=record_call,
                 )
 
             # build request
@@ -229,8 +227,7 @@ class MistralAPI(ModelAPI):
                 response=None,
             )
 
-            if record_call:
-                record_call(model_call)
+            self.record_model_call(model_call)
 
             # send request
             try:

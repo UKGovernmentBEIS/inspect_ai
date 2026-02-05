@@ -1,4 +1,4 @@
-from typing import Callable, Generator
+from collections.abc import Generator
 
 import pytest
 
@@ -13,7 +13,6 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._registry import modelapi
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -53,7 +52,6 @@ class Mock401API(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput:
         """Fail with 401-like exception first N times, then succeed."""
         self.call_count += 1

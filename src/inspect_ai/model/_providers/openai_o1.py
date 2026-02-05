@@ -2,7 +2,7 @@ import json
 import re
 import textwrap
 from logging import getLogger
-from typing import Any, Callable
+from typing import Any
 
 from openai import AsyncOpenAI, BadRequestError
 from openai.types.chat import (
@@ -38,7 +38,6 @@ async def generate_o1(
     model: str,
     input: list[ChatMessage],
     tools: list[ToolInfo],
-    record_call: Callable[[ModelCall], None] | None = None,
     **params: Any,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # create chatapi handler
@@ -56,8 +55,9 @@ async def generate_o1(
         response=None,
     )
 
-    if record_call:
-        record_call(model_call)
+    from inspect_ai.log._samples import set_active_model_event_call
+
+    set_active_model_event_call(model_call)
 
     try:
         completion: ChatCompletion = await client.chat.completions.create(**request)

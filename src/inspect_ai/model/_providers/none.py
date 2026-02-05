@@ -1,12 +1,9 @@
-from typing import Callable
-
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
 from .._model_output import ModelOutput
 
 
@@ -28,7 +25,6 @@ class NoModel(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput:
         raise PrerequisiteError(
             "No model specified (and no model environment varible defined)"

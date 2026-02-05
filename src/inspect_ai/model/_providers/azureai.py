@@ -3,7 +3,7 @@ import json
 import os
 import time
 from copy import copy
-from typing import Any, Callable
+from typing import Any
 
 from azure.ai.inference.aio import ChatCompletionsClient
 from azure.ai.inference.models import (
@@ -165,7 +165,6 @@ class AzureAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         start_time = time.monotonic()
 
@@ -224,8 +223,7 @@ class AzureAIAPI(ModelAPI):
             filter=openai_media_filter,
         )
 
-        if record_call:
-            record_call(model_call)
+        self.record_model_call(model_call)
 
         # make call
         try:

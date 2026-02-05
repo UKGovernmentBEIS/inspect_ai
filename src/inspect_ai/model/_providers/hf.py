@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from queue import Empty, Queue
 from threading import Thread
-from typing import Any, Callable, Literal, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
 import anyio
 import numpy as np
@@ -42,7 +42,6 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -146,7 +145,6 @@ class HuggingFaceAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput:
         # create handler
         handler: ChatAPIHandler | None = (

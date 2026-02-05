@@ -2,7 +2,7 @@ import json
 import os
 import time
 from copy import copy
-from typing import Any, Callable, Literal, cast
+from typing import Any, Literal, cast
 
 import grpc
 from google.protobuf.json_format import MessageToDict
@@ -165,7 +165,6 @@ class GrokAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         async with self.model_client() as client:
             start_time = time.monotonic()
@@ -193,8 +192,7 @@ class GrokAPI(ModelAPI):
                 filter=_grok_media_filter,
             )
 
-            if record_call:
-                record_call(model_call)
+            self.record_model_call(model_call)
 
             try:
                 # chat call

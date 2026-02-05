@@ -1,7 +1,7 @@
 import json
 import os
 from copy import copy
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 from groq import (
@@ -110,7 +110,6 @@ class GroqAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
@@ -140,8 +139,7 @@ class GroqAPI(ModelAPI):
             filter=model_call_filter,
         )
 
-        if record_call:
-            record_call(model_call)
+        self.record_model_call(model_call)
 
         try:
             completion: ChatCompletion = await self.client.chat.completions.create(

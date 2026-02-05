@@ -7,7 +7,7 @@ from copy import copy
 from io import BytesIO
 from logging import getLogger
 from textwrap import dedent
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
@@ -261,7 +261,6 @@ class GoogleGenAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # http options
         http_options = HttpOptions(
@@ -348,8 +347,7 @@ class GoogleGenAIAPI(ModelAPI):
                 filter=model_call_filter,
             )
 
-            if record_call:
-                record_call(model_call)
+            self.record_model_call(model_call)
 
             response: GenerateContentResponse | None = None
 

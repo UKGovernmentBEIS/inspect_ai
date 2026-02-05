@@ -1,12 +1,9 @@
-from typing import Callable
-
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
     ModelAPI,
     ModelOutput,
 )
-from inspect_ai.model._model_call import ModelCall
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 
@@ -26,7 +23,6 @@ class CustomModelAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput:
         return ModelOutput.from_content(
             self.model_name, f"Hello from {self.model_name}"

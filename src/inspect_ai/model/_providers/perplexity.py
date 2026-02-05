@@ -1,4 +1,4 @@
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 from openai.types.chat import ChatCompletion
 
@@ -48,7 +48,6 @@ class PerplexityAPI(OpenAICompatibleAPI):
         tools: list["ToolInfo"],
         tool_choice: "ToolChoice",
         config: GenerateConfig,
-        record_call: Callable[["ModelCall"], None] | None = None,
     ) -> tuple[ModelOutput | Exception, "ModelCall"]:
         search_options: dict[str, Any] | None = None
         for tool in tools:
@@ -76,7 +75,7 @@ class PerplexityAPI(OpenAICompatibleAPI):
             extra_body = {**(config.extra_body or {}), **search_options}
             config = config.merge(GenerateConfig(extra_body=extra_body))
 
-        result = await super().generate(input, [], tool_choice, config, record_call)
+        result = await super().generate(input, [], tool_choice, config)
         output, call = cast(tuple[ModelOutput, "ModelCall"], result)
 
         if self._response:

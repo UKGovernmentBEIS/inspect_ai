@@ -1,7 +1,7 @@
 import base64
 import time
 from logging import getLogger
-from typing import Any, Callable, Literal, Tuple, Union, cast
+from typing import Any, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
@@ -392,7 +392,6 @@ class BedrockAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         from botocore.config import Config
         from botocore.exceptions import ClientError
@@ -454,8 +453,7 @@ class BedrockAPI(ModelAPI):
                 response=None,
             )
 
-            if record_call:
-                record_call(model_call)
+            self.record_model_call(model_call)
 
             try:
                 # Process the reponse

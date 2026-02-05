@@ -227,7 +227,6 @@ class ModelAPI(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         """Generate output from the model.
 
@@ -236,9 +235,6 @@ class ModelAPI(abc.ABC):
           tools: Tools available for the model to call.
           tool_choice: Directives to the model as to which tools to prefer.
           config: Model configuration.
-          record_call: Optional callback to record the model call early (before the
-              response is received). This allows the viewer to display the raw API
-              request while the call is still pending.
 
         Returns:
            ModelOutput or tuple[ModelOutput,ModelCall], the latter being
@@ -369,6 +365,16 @@ class ModelAPI(abc.ABC):
     def compact_reasoning_history(self) -> bool:
         """Is reasoning history eligible for compation for this provider?"""
         return True
+
+    def record_model_call(self, call: ModelCall) -> None:
+        """Record a model call on the active model event.
+
+        Call this after creating a ModelCall with the request to allow
+        the viewer to display the request while the call is pending.
+        """
+        from inspect_ai.log._samples import set_active_model_event_call
+
+        set_active_model_event_call(call)
 
 
 class Model:
@@ -809,7 +815,7 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    _, _, event = self._record_model_interaction(
+                    _, event = self._record_model_interaction(
                         input=input,
                         tools=tools_info,
                         tool_choice=tool_choice,
@@ -831,7 +837,7 @@ class Model:
 
             # record the interaction before the call to generate
             # (we'll update it with the results once we have them)
-            complete, record_call, event = self._record_model_interaction(
+            complete, event = self._record_model_interaction(
                 input=input,
                 tools=tools_info,
                 tool_choice=tool_choice,
@@ -857,7 +863,6 @@ class Model:
                                 tools=tools_info,
                                 tool_choice=tool_choice,
                                 config=config,
-                                record_call=record_call,
                             )
                         if (
                             isinstance(timeout_cm, anyio.CancelScope)
@@ -1033,7 +1038,6 @@ class Model:
         call: ModelCall | None = None,
     ) -> tuple[
         Callable[[ModelOutput | Exception, ModelCall | None], None],
-        Callable[[ModelCall], None],
         BaseModel,
     ]:
         from inspect_ai.event._model import ModelEvent
@@ -1054,10 +1058,6 @@ class Model:
             pending=output is None,
         )
         transcript()._event(event)
-
-        def record_call(model_call: ModelCall) -> None:
-            event.call = model_call
-            transcript()._event_updated(event)
 
         # callable that can be used to update the interaction w/ output
         def complete(
@@ -1086,7 +1086,7 @@ class Model:
         if output:
             complete(output, call)
 
-        return complete, record_call, event
+        return complete, event
 
 
 class AttemptTimeoutError(RuntimeError):

@@ -1,6 +1,7 @@
 import json
+from collections.abc import Callable
 from logging import getLogger
-from typing import Any, Callable
+from typing import Any
 
 import anyio
 from openai import (
@@ -87,7 +88,6 @@ async def generate_responses(
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
     | None = None,
-    record_call: Callable[[ModelCall], None] | None = None,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
@@ -136,8 +136,9 @@ async def generate_responses(
         filter=openai_media_filter,
     )
 
-    if record_call:
-        record_call(model_call)
+    from inspect_ai.log._samples import set_active_model_event_call
+
+    set_active_model_event_call(model_call)
 
     try:
         # generate response

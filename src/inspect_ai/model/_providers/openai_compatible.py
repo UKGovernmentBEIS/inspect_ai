@@ -1,6 +1,6 @@
 import os
 from logging import getLogger
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 from openai import (
     APIStatusError,
@@ -148,7 +148,6 @@ class OpenAICompatibleAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        record_call: Callable[[ModelCall], None] | None = None,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
 
@@ -170,7 +169,6 @@ class OpenAICompatibleAPI(ModelAPI):
                 model_info=ModelInfo(),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
-                record_call=record_call,
             )
 
         else:
@@ -214,8 +212,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 filter=openai_media_filter,
             )
 
-            if record_call:
-                record_call(model_call)
+            self.record_model_call(model_call)
 
             try:
                 # generate completion and save response for model call
