@@ -15,6 +15,7 @@ import { VirtuosoHandle } from "react-virtuoso";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import { useStore } from "../../../state/store";
 import styles from "./TranscriptVirtualListComponent.module.css";
+import { eventSearchText } from "./eventSearchText";
 
 interface TranscriptVirtualListComponentProps {
   id: string;
@@ -25,6 +26,7 @@ interface TranscriptVirtualListComponentProps {
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
   className?: string | string[];
+  turnMap?: Map<string, { turnNumber: number; totalTurns: number }>;
 }
 
 /**
@@ -41,6 +43,7 @@ export const TranscriptVirtualListComponent: FC<
   initialEventId,
   offsetTop,
   className,
+  turnMap,
 }) => {
   const useVirtualization = running || eventNodes.length > 100;
   const setNativeFind = useStore((state) => state.appActions.setNativeFind);
@@ -76,12 +79,6 @@ export const TranscriptVirtualListComponent: FC<
     [eventNodes],
   );
 
-  const contextWithToolEvents = useMemo(() => ({ hasToolEvents: true }), []);
-  const contextWithoutToolEvents = useMemo(
-    () => ({ hasToolEvents: false }),
-    [],
-  );
-
   const nonVirtualGridRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!useVirtualization && initialEventId) {
@@ -91,6 +88,24 @@ export const TranscriptVirtualListComponent: FC<
       row?.scrollIntoView({ block: "start" });
     }
   }, [initialEventId, useVirtualization]);
+
+  // Pre-compute context objects for all event nodes to maintain stable references
+  const contextMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        hasToolEvents: boolean;
+        turnInfo?: { turnNumber: number; totalTurns: number };
+      }
+    >();
+    for (let i = 0; i < eventNodes.length; i++) {
+      const node = eventNodes[i];
+      const hasToolEvents = hasToolEventsAtCurrentDepth(i);
+      const turnInfo = turnMap?.get(node.id);
+      map.set(node.id, { hasToolEvents, turnInfo });
+    }
+    return map;
+  }, [eventNodes, hasToolEventsAtCurrentDepth, turnMap]);
 
   const renderRow = useCallback(
     (index: number, item: EventNode, style?: CSSProperties) => {
@@ -116,10 +131,7 @@ export const TranscriptVirtualListComponent: FC<
         ? styles.attachedParent
         : undefined;
 
-      const hasToolEvents = hasToolEventsAtCurrentDepth(index);
-      const context = hasToolEvents
-        ? contextWithToolEvents
-        : contextWithoutToolEvents;
+      const context = contextMap.get(item.id);
 
       return (
         <div
@@ -141,12 +153,7 @@ export const TranscriptVirtualListComponent: FC<
         </div>
       );
     },
-    [
-      eventNodes,
-      hasToolEventsAtCurrentDepth,
-      contextWithToolEvents,
-      contextWithoutToolEvents,
-    ],
+    [eventNodes, contextMap],
   );
 
   if (useVirtualization) {
@@ -161,6 +168,7 @@ export const TranscriptVirtualListComponent: FC<
         offsetTop={offsetTop}
         renderRow={renderRow}
         live={running}
+        itemSearchText={eventSearchText}
       />
     );
   } else {

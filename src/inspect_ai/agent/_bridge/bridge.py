@@ -39,6 +39,47 @@ from .util import (
     resolve_web_search_providers,
 )
 
+# Headers blocked from bridge clients (exact match, case-insensitive)
+_BLOCKED_BRIDGE_HEADERS = frozenset(
+    [
+        # Inspect internal tracking
+        "x-irid",
+        # Authentication
+        "authorization",
+        "x-api-key",
+        # Protocol headers
+        "content-type",
+        "content-length",
+        "transfer-encoding",
+        "host",
+        "connection",
+        # SDK internal headers
+        "anthropic-version",
+        # User-Agent would be misleading since Inspect transforms the request
+        "user-agent",
+    ]
+)
+
+# Header prefixes blocked from bridge clients
+_BLOCKED_BRIDGE_HEADER_PREFIXES = ("x-stainless-",)
+
+
+def filter_bridge_headers(headers: dict[str, str] | None) -> dict[str, str] | None:
+    """Filter headers from bridge clients, removing sensitive/internal headers.
+
+    Note: `anthropic-beta` is intentionally NOT blocked - it's used for
+    legitimate feature flags (e.g., `code-execution-2025-08-25`).
+    """
+    if headers is None:
+        return None
+    filtered = {
+        k: v
+        for k, v in headers.items()
+        if k.lower() not in _BLOCKED_BRIDGE_HEADERS
+        and not k.lower().startswith(_BLOCKED_BRIDGE_HEADER_PREFIXES)
+    }
+    return filtered if filtered else None
+
 
 @contextlib.asynccontextmanager
 async def agent_bridge(
@@ -147,7 +188,18 @@ def init_openai_request_patch() -> None:
 
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
     from openai._models import FinalRequestOptions
-    from openai._types import ResponseT
+    from openai._types import Omit, ResponseT
+
+    # extract headers
+    def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
+        if isinstance(options.headers, dict) and len(options.headers) > 0:
+            headers: dict[str, str] = {}
+            for name, value in options.headers.items():
+                if not isinstance(value, Omit):
+                    headers[name] = value
+            return headers
+
+        return None
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -178,13 +230,16 @@ def init_openai_request_patch() -> None:
                 if stream:
                     raise_stream_error()
 
+                headers = filter_bridge_headers(request_headers(options))
+
                 if options.url == "/chat/completions":
                     return await inspect_completions_api_request(
-                        json_data, config.bridge
+                        json_data, headers, config.bridge
                     )
                 else:
                     return await inspect_responses_api_request(
                         json_data,
+                        headers,
                         config.web_search,
                         config.code_execution,
                         config.bridge,
@@ -211,7 +266,18 @@ def init_anthropic_request_patch() -> None:
 
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
     from anthropic._models import FinalRequestOptions
-    from anthropic._types import ResponseT
+    from anthropic._types import Omit, ResponseT
+
+    # extract headers
+    def request_headers(options: FinalRequestOptions) -> dict[str, str] | None:
+        if isinstance(options.headers, dict) and len(options.headers) > 0:
+            headers: dict[str, str] = {}
+            for name, value in options.headers.items():
+                if not isinstance(value, Omit):
+                    headers[name] = value
+            return headers
+
+        return None
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -234,7 +300,7 @@ def init_anthropic_request_patch() -> None:
             # enabled for this coroutine
             config.enabled
             # messages request
-            and options.url in ["/v1/messages"]
+            and options.url in ["/v1/messages", "/v1/messages?beta=true"]
         ):
             # must also be an explicit request for an inspect model
             json_data = cast(dict[str, Any], options.json_data)
@@ -242,8 +308,14 @@ def init_anthropic_request_patch() -> None:
                 if stream:
                     raise_stream_error()
 
+                is_beta = "beta" in options.url
                 return await inspect_anthropic_api_request(
-                    json_data, config.web_search, config.code_execution, config.bridge
+                    json_data,
+                    filter_bridge_headers(request_headers(options)),
+                    config.web_search,
+                    config.code_execution,
+                    config.bridge,
+                    beta=is_beta,
                 )
 
         # otherwise just delegate

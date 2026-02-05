@@ -4,7 +4,7 @@ import math
 import os
 import tempfile
 from logging import getLogger
-from typing import IO, Any, BinaryIO, Literal, cast
+from typing import IO, Any, BinaryIO, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import anyio
@@ -14,7 +14,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
-from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -26,6 +26,7 @@ from .._log import (
     EvalSampleSummary,
     EvalSpec,
     EvalStats,
+    EvalStatus,
     sort_samples,
 )
 from .file import FileRecorder
@@ -40,7 +41,7 @@ class LogStart(BaseModel):
 
 
 class LogResults(BaseModel):
-    status: Literal["started", "success", "cancelled", "error"]
+    status: EvalStatus
     stats: EvalStats
     results: EvalResults | None = Field(default=None)
     error: EvalError | None = Field(default=None)
@@ -136,7 +137,7 @@ class EvalRecorder(FileRecorder):
     async def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["started", "success", "cancelled", "error"],
+        status: EvalStatus,
         stats: EvalStats,
         results: EvalResults | None,
         reductions: list[EvalSampleReductions] | None,
@@ -240,6 +241,7 @@ class EvalRecorder(FileRecorder):
         id: str | int | None = None,
         epoch: int = 1,
         uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
     ) -> EvalSample:
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
@@ -263,8 +265,39 @@ class EvalRecorder(FileRecorder):
                         epoch = sample.epoch
 
                     with zip.open(_sample_filename(id, epoch), "r") as f:
+                        if exclude_fields:
+                            # Use streaming JSON parser to skip large fields
+                            # This significantly reduces memory usage for large samples
+                            import ijson  # type: ignore
+                            from ijson import IncompleteJSONError
+                            from ijson.backends.python import (  # type: ignore[import-untyped]
+                                UnexpectedSymbol,
+                            )
+
+                            try:
+                                data: dict[str, Any] = {}
+                                for key, value in ijson.kvitems(f, "", use_float=True):
+                                    if key not in exclude_fields:
+                                        data[key] = value
+                            except (
+                                ValueError,
+                                IncompleteJSONError,
+                                UnexpectedSymbol,
+                            ) as ex:
+                                # ijson doesn't support NaN/Inf which are valid in
+                                # Python's JSON. Fall back to standard json.load
+                                # and manually remove excluded fields.
+                                if is_ijson_nan_inf_error(ex):
+                                    f.seek(0)
+                                    data = json.load(f)
+                                    for field in exclude_fields:
+                                        data.pop(field, None)
+                                else:
+                                    raise
+                        else:
+                            data = json.load(f)
                         return EvalSample.model_validate(
-                            json.load(f), context=get_deserializing_context()
+                            data, context=get_deserializing_context()
                         )
                 except KeyError:
                     raise IndexError(

@@ -40,7 +40,7 @@ import {
   useSelectedSampleSummary,
 } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { formatTime } from "../../utils/format";
+import { formatDateTime, formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { RecordTree } from "../content/RecordTree";
@@ -372,6 +372,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             scrollRef={scrollRef}
             toolCallStyle="complete"
             running={running}
+            className={styles.fullWidth}
           />
         </TabPanel>
         <TabPanel
@@ -483,6 +484,50 @@ const metadataViewsForSample = (
     return [];
   }
   const sampleMetadatas = [];
+
+  // Show invalidation details prominently if sample is invalidated
+  if (sample.invalidation) {
+    const formatTimestamp = (timestamp: string) => {
+      try {
+        return formatDateTime(new Date(timestamp));
+      } catch {
+        return timestamp;
+      }
+    };
+
+    const invalidationRecord: Record<string, unknown> = {};
+    if (sample.invalidation.author) {
+      invalidationRecord["Author"] = sample.invalidation.author;
+    }
+    if (sample.invalidation.timestamp) {
+      invalidationRecord["Timestamp"] = formatTimestamp(
+        sample.invalidation.timestamp,
+      );
+    }
+    if (sample.invalidation.reason) {
+      invalidationRecord["Reason"] = sample.invalidation.reason;
+    }
+    if (
+      sample.invalidation.metadata &&
+      Object.keys(sample.invalidation.metadata).length > 0
+    ) {
+      invalidationRecord["Metadata"] = sample.invalidation.metadata;
+    }
+
+    sampleMetadatas.push(
+      <Card key={`sample-invalidation-${id}`}>
+        <CardHeader label="Invalidation" />
+        <CardBody padded={false}>
+          <RecordTree
+            id={`task-sample-invalidation-${id}`}
+            record={invalidationRecord}
+            className={clsx("tab-pane", styles.noTop)}
+            scrollRef={scrollRef}
+          />
+        </CardBody>
+      </Card>,
+    );
+  }
 
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(

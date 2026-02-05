@@ -3,9 +3,10 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 
+import yaml
 from shortuuid import uuid
 
-from ..compose import is_dockerfile
+from ..compose import ComposeConfig, is_dockerfile
 from ..environment import SandboxEnvironmentConfigType
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
@@ -15,6 +16,8 @@ from .config import (
 )
 
 logger = getLogger(__name__)
+
+TRACE_DOCKER = "Docker"
 
 
 @dataclass
@@ -33,20 +36,34 @@ class ComposeProject:
         *,
         sample_id: int | str | None = None,
         epoch: int | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
     ) -> "ComposeProject":
+        import os
+
         # resolve config to full path if we have one
         config_path = None
         if isinstance(config, str):
             config_path = Path(config).resolve()
+        elif isinstance(config, ComposeConfig):
+            # serialize ComposeConfig to YAML and write to auto-compose file
+            config_yaml = yaml.dump(
+                config.model_dump(mode="json", by_alias=True, exclude_none=True),
+                default_flow_style=False,
+                sort_keys=False,
+            )
+            # Use project name for unique file, resolve paths against CWD
+            config = auto_compose_file(config_yaml, name, base_dir=os.getcwd())
         elif config is not None:
-            raise ValueError(f"Unsupported config type: {type(config)}. Expected str.")
+            raise ValueError(
+                f"Unsupported config type: {type(config)}. Expected str or ComposeConfig."
+            )
 
         # if its a Dockerfile, then config is the auto-generated .compose.yaml
         if config_path and is_dockerfile(config_path.name):
             config = auto_compose_file(
                 COMPOSE_DOCKERFILE_YAML.format(dockerfile=config_path.name),
-                config_path.parent.as_posix(),
+                name,
+                base_dir=config_path.parent.resolve().as_posix(),
             )
 
         # if its another config file, just take its path
@@ -54,13 +71,13 @@ class ComposeProject:
             config = config_path.as_posix()
 
         # no config passed, look for 'auto-config' (compose.yaml, Dockerfile, etc.)
-        else:
-            config = resolve_compose_file()
+        elif config is None:
+            config = resolve_compose_file(project_name=name)
 
         # this could be a cleanup where docker has tracked a .compose.yaml file
         # as part of its ConfigFiles and passed it back to us -- we in the
         # meantime have cleaned it up so we re-create it here as required
-        ensure_auto_compose_file(config)
+        ensure_auto_compose_file(config, name)
 
         # return project
         return ComposeProject(name, config, sample_id=sample_id, epoch=epoch, env=env)
@@ -71,7 +88,7 @@ class ComposeProject:
         config: str | None,
         sample_id: int | str | None,
         epoch: int | None,
-        env: dict[str, str],
+        env: dict[str, str] | None,
     ) -> None:
         self.name = name
         self.config = config

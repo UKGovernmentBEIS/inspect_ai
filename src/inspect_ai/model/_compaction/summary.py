@@ -46,7 +46,7 @@ class CompactionSummary(CompactionStrategy):
 
         Args:
             messages: Full message history
-            model: Target model for compation.
+            model: Target model for compaction.
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
         """
@@ -74,7 +74,7 @@ class CompactionSummary(CompactionStrategy):
             + [ChatMessageUser(content=prompt)]
         )
 
-        # use model explicitly passed to us or fall back to compation model
+        # use model explicitly passed to us or fall back to compaction model
         model = self.model or model
 
         # perform summary

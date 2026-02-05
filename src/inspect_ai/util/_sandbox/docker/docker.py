@@ -13,7 +13,7 @@ from typing_extensions import override
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
-from ..compose import COMPOSE_FILES, DOCKERFILE
+from ..compose import COMPOSE_FILES, DOCKERFILE, ComposeConfig
 from ..environment import (
     HostMapping,
     PortMapping,
@@ -58,6 +58,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     def config_files(cls) -> list[str]:
         return COMPOSE_FILES + [DOCKERFILE]
+
+    @classmethod
+    def is_docker_compatible(cls) -> bool:
+        return True
 
     @classmethod
     def default_concurrency(cls) -> int | None:
@@ -278,7 +282,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
@@ -300,7 +304,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # Forward environment commands to docker compose exec so they
         # will be available to the bash command
-        if len(env.items()) > 0:
+        if env:
             for key, value in env.items():
                 args.append("--env")
                 args.append(f"{key}={value}")
@@ -591,5 +595,9 @@ def resolve_config_environment(
 
         # return resolved
         return ConfigEnvironment(config_file, config_text, env)
+    elif isinstance(config, ComposeConfig):
+        # ComposeConfig objects don't support metadata interpolation
+        # (they are already fully resolved)
+        return None
     else:
         return None

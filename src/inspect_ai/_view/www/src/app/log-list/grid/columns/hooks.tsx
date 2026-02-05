@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { useEffect, useMemo } from "react";
 import { useStore } from "../../../../state/store";
 import { parseLogFileName } from "../../../../utils/evallog";
-import { formatPrettyDecimal } from "../../../../utils/format";
+import { formatDateTime, formatPrettyDecimal } from "../../../../utils/format";
 import { basename } from "../../../../utils/path";
 import { ApplicationIcons } from "../../../appearance/icons";
 import {
@@ -230,34 +230,29 @@ export const useLogListColumns = (): {
       {
         field: "completedAt",
         headerName: "Completed",
-        initialWidth: 200,
-        minWidth: 120,
-        maxWidth: 300,
+        initialWidth: 130,
+        minWidth: 80,
+        maxWidth: 140,
         sortable: true,
         filter: true,
         resizable: true,
+        cellDataType: "date",
+        filterValueGetter: (params) => {
+          if (!params.data?.completedAt) return undefined;
+          const d = new Date(params.data.completedAt);
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        },
         valueGetter: (params) => {
           const completed = params.data?.completedAt;
           if (!completed) return "";
-          const time = new Date(completed);
-          return `${time.toDateString()} ${time.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}`;
+          return formatDateTime(new Date(completed));
         },
         cellRenderer: (params: ICellRendererParams<LogListRow>) => {
-          const item = params.data;
-          if (!item || !item.completedAt) {
+          const completed = params.data?.completedAt;
+          if (!completed) {
             return <EmptyCell />;
           }
-          const time = new Date(item.completedAt);
-          const timeStr = `${time.toDateString()} ${time.toLocaleTimeString(
-            [],
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-            },
-          )}`;
+          const timeStr = formatDateTime(new Date(completed));
           return <div className={styles.dateCell}>{timeStr}</div>;
         },
         comparator: createFolderFirstComparator<LogListRow>(comparators.date),

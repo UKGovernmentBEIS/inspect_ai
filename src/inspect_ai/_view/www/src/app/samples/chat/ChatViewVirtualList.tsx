@@ -21,6 +21,7 @@ import { ContextProp, ItemProps, VirtuosoHandle } from "react-virtuoso";
 import { useStore } from "../../../state/store";
 import { ChatView } from "./ChatView";
 import styles from "./ChatViewVirtualList.module.css";
+import { messageSearchText } from "./messageSearchText";
 
 interface ChatViewVirtualListProps {
   id: string;
@@ -247,6 +248,7 @@ export const ChatViewVirtualListComponent: FC<ChatViewVirtualListComponentProps>
           live={running}
           showProgress={running}
           components={{ Item }}
+          itemSearchText={messageSearchText}
         />
       );
     },

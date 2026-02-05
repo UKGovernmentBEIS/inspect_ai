@@ -1,4 +1,4 @@
-import { sampleIdsEqual } from "../app/shared/sample";
+import { sampleHandlesEqual } from "../app/shared/sample";
 import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { LogDetails, PendingSamples } from "../client/api/types";
 import { toLogPreview } from "../client/utils/type-utils";
@@ -13,7 +13,11 @@ const log = createLogger("logSlice");
 export interface LogSlice {
   log: LogState;
   logActions: {
-    selectSample: (sampleId: string | number, epoch: number) => void;
+    selectSample: (
+      sampleId: string | number,
+      epoch: number,
+      logFile: string,
+    ) => void;
     clearSelectedSample: () => void;
 
     // Set the selected log summary
@@ -24,6 +28,7 @@ export interface LogSlice {
 
     // Update pending sample information
     setPendingSampleSummaries: (samples: PendingSamples) => void;
+    clearPendingSampleSummaries: () => void;
 
     // Set filter criteria
     setFilter: (filter: string) => void;
@@ -99,18 +104,25 @@ export const createLogSlice = (
 
     // Actions
     logActions: {
-      selectSample: (sampleId: string | number, epoch: number) => {
+      selectSample: (
+        sampleId: string | number,
+        epoch: number,
+        logFile: string,
+      ) => {
         // Ignore if already selected
         const currentSample = get().log.selectedSampleHandle;
         if (
-          sampleIdsEqual(currentSample?.id, sampleId) &&
-          currentSample?.epoch === epoch
+          sampleHandlesEqual(currentSample, {
+            id: sampleId,
+            epoch,
+            logFile,
+          })
         ) {
           return;
         }
 
         set((state) => {
-          state.log.selectedSampleHandle = { id: sampleId, epoch };
+          state.log.selectedSampleHandle = { id: sampleId, epoch, logFile };
         });
       },
       clearSelectedSample: () => {
@@ -138,11 +150,16 @@ export const createLogSlice = (
           state.log.selectedLogDetails = undefined;
         });
       },
-      setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) =>
+      setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) => {
         set((state) => {
           state.log.pendingSampleSummaries = pendingSampleSummaries;
-        }),
-
+        });
+      },
+      clearPendingSampleSummaries: () => {
+        set((state) => {
+          state.log.pendingSampleSummaries = undefined;
+        });
+      },
       setFilter: (filter: string) =>
         set((state) => {
           state.log.filter = filter;
@@ -226,6 +243,9 @@ export const createLogSlice = (
               set((state) => {
                 state.log.loadedLog = logFileName;
               });
+
+              state.logActions.clearPendingSampleSummaries();
+              logPolling.startPolling(logFileName);
               return;
             }
           } catch (e) {
@@ -257,6 +277,7 @@ export const createLogSlice = (
           });
 
           // Start polling for pending samples
+          state.logActions.clearPendingSampleSummaries();
           logPolling.startPolling(logFileName);
         } catch (error) {
           log.error("Error loading log:", error);

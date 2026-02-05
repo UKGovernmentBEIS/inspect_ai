@@ -21,6 +21,7 @@ export function useSampleLoader() {
     sampleCompleted !== undefined ? sampleCompleted : true;
   const prevCompleted = usePrevious(currentSampleCompleted);
   const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
+  const prevSampleId = usePrevious(sampleId);
   const prevSampleNeedsReload = usePrevious<number>(
     sampleData.sampleNeedsReload,
   );
@@ -34,15 +35,21 @@ export function useSampleLoader() {
       // Check if the current selection matches what's already loaded
       const isCurrentSampleLoaded =
         sampleData.selectedSampleIdentifier?.id === sampleId &&
-        sampleData.selectedSampleIdentifier?.epoch === sampleEpoch;
+        sampleData.selectedSampleIdentifier?.epoch === sampleEpoch &&
+        sampleData.selectedSampleIdentifier?.logFile === logSelection.logFile;
 
       // Check if we're currently loading
       const isLoading =
         sampleData.status === "loading" || sampleData.status === "streaming";
 
+      // Is there an error?
+      const isError = sampleData.status === "error";
+
       // Check if this is a meaningful change (not just initial render)
       const logFileChanged =
         prevLogFile !== undefined && prevLogFile !== logSelection.logFile;
+      const sampleIdChanged =
+        prevSampleId !== undefined && prevSampleId !== sampleId;
       const completedChanged =
         prevCompleted !== undefined && currentSampleCompleted !== prevCompleted;
       const needsReloadChanged =
@@ -51,10 +58,11 @@ export function useSampleLoader() {
 
       // Only load if:
       // 1. The current sample is not already loaded AND not currently loading, OR
-      // 2. Something meaningful changed
+      // 2. Something meaningful changed (log file, sample ID, completed status, or reload flag)
       const shouldLoad =
-        (!isCurrentSampleLoaded && !isLoading) ||
+        (!isCurrentSampleLoaded && !isLoading && !isError) ||
         logFileChanged ||
+        sampleIdChanged ||
         completedChanged ||
         needsReloadChanged;
 
@@ -77,6 +85,7 @@ export function useSampleLoader() {
     sampleData.status,
     sampleData.sampleNeedsReload,
     prevLogFile,
+    prevSampleId,
     prevCompleted,
     prevSampleNeedsReload,
     loadSample,

@@ -398,8 +398,9 @@ def test_api_eval_set(test_client: TestClient):
             )
         ],
         all_logs=[],
-        config=GenerateConfig(),
-        eval_set_solver=None,
+        eval_set_args=inspect_ai._eval.evalset.EvalSetArgsInTaskIdentifier(
+            config=GenerateConfig()
+        ),
     )
 
     response = test_client.request("GET", f"/eval-set?dir={eval_set_id}")

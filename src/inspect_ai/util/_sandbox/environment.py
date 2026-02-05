@@ -94,7 +94,7 @@ class SandboxEnvironment(abc.ABC):
         cmd: list[str],
         input: str | bytes | None = None,
         cwd: str | None = None,
-        env: dict[str, str] = {},
+        env: dict[str, str] | None = None,
         user: str | None = None,
         timeout: int | None = None,
         timeout_retry: bool = True,
@@ -339,6 +339,11 @@ class SandboxEnvironment(abc.ABC):
     def config_files(cls) -> list[str]:
         """Standard config files for this provider (used for automatic discovery)"""
         return []
+
+    @classmethod
+    def is_docker_compatible(cls) -> bool:
+        """Is the provider docker compatible (accepts Dockerfile and compose.yaml)"""
+        return any(["compose.yaml" in f for f in cls.config_files()])
 
     @classmethod
     def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:

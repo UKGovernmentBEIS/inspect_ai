@@ -11,7 +11,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Generator,
+    Iterable,
     Literal,
     Sequence,
     cast,
@@ -23,8 +23,8 @@ from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
 from inspect_ai.event._event import Event
 from inspect_ai.log._file import (
+    read_eval_log,
     read_eval_log_sample_summaries,
-    read_eval_log_samples,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.model._chat_message import ChatMessage
@@ -312,15 +312,10 @@ def _read_samples_df_serial(
                 and eval_log.samples is not None
                 and len(eval_log.samples) > 0
             ):
-                samples: Generator[EvalSample | EvalSampleSummary, None, None] = (
-                    sample for sample in eval_log.samples
-                )
+                samples: Iterable[EvalSample | EvalSampleSummary] = eval_log.samples
             elif require_full_samples:
-                samples = read_eval_log_samples(
-                    eval_log.location,
-                    all_samples_required=False,
-                    resolve_attachments=True,
-                )
+                full_log = read_eval_log(eval_log.location, resolve_attachments=True)
+                samples = full_log.samples or []
             else:
                 samples = (
                     summary

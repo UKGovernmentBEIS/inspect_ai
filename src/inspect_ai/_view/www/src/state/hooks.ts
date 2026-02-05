@@ -1,5 +1,4 @@
-import { highlightElement } from "prismjs";
-import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { EvalSample, EvalSpec, Events, Status } from "../@types/log";
 import {
   createEvalDescriptor,
@@ -270,6 +269,19 @@ export const useSampleData = () => {
   ]);
 };
 
+// Returns the invalidation data for the currently selected sample, if any.
+// Returns a tuple of [invalidation, sampleIdentifier]
+export const useSampleInvalidation = () => {
+  const getSelectedSample = useStore(
+    (state) => state.sampleActions.getSelectedSample,
+  );
+  const sampleIdentifier = useStore((state) => state.sample.sample_identifier);
+  return useMemo(() => {
+    const sample = getSelectedSample();
+    return [sample?.invalidation || null, sampleIdentifier] as const;
+  }, [getSelectedSample, sampleIdentifier]);
+};
+
 export const useLogSelection = () => {
   const selectedSampleSummary = useSelectedSampleSummary();
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
@@ -465,32 +477,6 @@ export const usePrevious = <T>(value: T) => {
   }, [value]);
 
   return ref.current;
-};
-
-// Syntax highlighting strings larger than this is too slow
-const kPrismRenderMaxSize = 250000;
-
-export const usePrismHighlight = (
-  containerRef: RefObject<HTMLDivElement | null>,
-  contentLength: number,
-) => {
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      if (
-        contentLength > 0 &&
-        containerRef.current !== null &&
-        contentLength <= kPrismRenderMaxSize
-      ) {
-        const codeBlocks = containerRef.current?.querySelectorAll("pre code");
-        codeBlocks?.forEach((block) => {
-          if (block.className.includes("language-")) {
-            block.classList.add("sourceCode");
-            highlightElement(block as HTMLElement);
-          }
-        });
-      }
-    });
-  }, [contentLength, containerRef]);
 };
 
 export const useSetSelectedLogIndex = () => {

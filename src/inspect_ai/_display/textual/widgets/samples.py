@@ -78,8 +78,8 @@ class SamplesView(Widget):
             pass
 
     def set_samples(self, samples: list[ActiveSample]) -> None:
-        # throttle to no more than 1 second per 100 samples
-        throttle = round(max(len(samples) / 100, 1))
+        # throttle more aggressively with larger numbers of samples
+        throttle = 1 + len(samples) / 500
         current = time.perf_counter()
         if (current - self.last_updated) > throttle:
             self.query_one(SamplesList).set_samples(samples)

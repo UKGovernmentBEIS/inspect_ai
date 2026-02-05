@@ -21,6 +21,7 @@ from anthropic.types import (
 )
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
+    BetaMessage,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
 )
@@ -82,10 +83,13 @@ logger = getLogger(__name__)
 
 async def inspect_anthropic_api_request_impl(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     web_search: WebSearchProviders,
     code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
-) -> Message:
+    *,
+    beta: bool = False,
+) -> Message | BetaMessage:
     # resolve model
     bridge_model_name = str(json_data["model"])
     model = resolve_inspect_model(bridge_model_name)
@@ -112,6 +116,7 @@ async def inspect_anthropic_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_anthropic(json_data)
+    config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None
@@ -134,10 +139,11 @@ async def inspect_anthropic_api_request_impl(
     # update state if we have more messages than the last generation
     bridge._track_state(messages, output)
 
-    # return message
-    message = Message.model_construct(
+    # return message (use beta message type if request came from beta endpoint)
+    message_class = BetaMessage if beta else Message
+    message = message_class.model_construct(
         id=output.message.id or uuid(),
-        content=await assistant_message_blocks(output.message),  # type: ignore[arg-type]
+        content=await assistant_message_blocks(output.message, beta=beta),
         model=output.model,
         role="assistant",
         stop_reason=anthropic_stop_reason(output.stop_reason),

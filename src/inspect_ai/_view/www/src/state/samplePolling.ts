@@ -73,10 +73,10 @@ export function createSamplePolling(
       set((state) => {
         state.sample.runningEvents = [];
       });
-
-      // Reset the current polling state
-      resetPollingState(pollingState);
     }
+
+    // Always reset the polling state when starting new polling
+    resetPollingState(pollingState);
     abortController = new AbortController();
 
     // Create the polling callback
@@ -141,7 +141,7 @@ export function createSamplePolling(
 
               // Update the store with the completed sample
               set((state) => {
-                state.sampleActions.setSelectedSample(migratedSample);
+                state.sampleActions.setSelectedSample(migratedSample, logFile);
                 state.sampleActions.setSampleStatus("ok");
                 state.sample.runningEvents = [];
               });

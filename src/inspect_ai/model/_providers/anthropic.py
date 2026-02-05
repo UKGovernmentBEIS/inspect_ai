@@ -74,22 +74,27 @@ from anthropic.types.beta import (
     BetaMCPToolUseBlock,
     BetaMCPToolUseBlockParam,
     BetaMemoryTool20250818Param,
+    BetaRedactedThinkingBlock,
     BetaRequestMCPServerToolConfigurationParam,
     BetaRequestMCPServerURLDefinitionParam,
     BetaRequestMCPToolResultBlockParam,
     BetaServerToolUseBlock,
     BetaServerToolUseBlockParam,
+    BetaTextBlock,
     BetaTextBlockParam,
     BetaTextEditorCodeExecutionToolResultBlock,
     BetaTextEditorCodeExecutionToolResultBlockParam,
+    BetaThinkingBlock,
     BetaToolComputerUse20250124Param,
     BetaToolComputerUse20251124Param,
     BetaToolTextEditor20241022Param,
     BetaToolTextEditor20250429Param,
     BetaToolTextEditor20250728Param,
+    BetaToolUseBlock,
     BetaWebFetchTool20250910Param,
     BetaWebFetchToolResultBlock,
     BetaWebFetchToolResultBlockParam,
+    BetaWebSearchToolResultBlock,
 )
 from anthropic.types.document_block_param import Source
 from anthropic.types.web_search_tool_result_block_param_content_param import (
@@ -115,6 +120,10 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai.model._compaction.edit import (
+    TOOL_RESULT_REMOVED,
+    is_result_cleared,
+)
 from inspect_ai.model._internal import (
     CONTENT_INTERNAL_TAG,
     content_internal_tag,
@@ -450,15 +459,25 @@ class AnthropicAPI(ModelAPI):
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
 
+        # Collapse consecutive user messages (as Inspect 'tool' messages become
+        # Claude 'user' messages, and multiple tool results need to be merged)
+        messages = functools.reduce(consecutive_user_message_reducer, messages, [])
+
         # Anthropic's API validates message structure even for token counting.
         # When counting tokens for individual messages (e.g., for caching in
         # compaction), we may have orphaned tool_use or tool_result blocks.
         # Pad with fake paired items to satisfy API validation.
         messages = pad_tool_messages_for_token_counting(messages)
 
+        # Enable thinking mode only when messages contain thinking blocks.
+        # The API requires thinking mode to be enabled when messages contain
+        # thinking or redacted_thinking blocks, even for token counting.
+        thinking_config: dict[str, Any] = {}
+        if self.is_thinking_model() and _messages_contain_thinking(messages):
+            thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
+
         response = await self.client.messages.count_tokens(
-            model=self.service_model_name(),
-            messages=messages,
+            model=self.service_model_name(), messages=messages, **thinking_config
         )
         return response.input_tokens
 
@@ -535,9 +554,14 @@ class AnthropicAPI(ModelAPI):
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
         max_tokens = cast(int, config.max_tokens)
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = config.extra_headers or {}
         extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
+
+        # pull betas out of headers
+        anthropic_beta_header = headers.pop("anthropic_beta", None)
+        if anthropic_beta_header:
+            betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
 
         # temperature not compatible with extended thinking
         THINKING_WARNING = "anthropic models do not support the '{parameter}' parameter when using extended thinking."
@@ -714,10 +738,6 @@ class AnthropicAPI(ModelAPI):
     @override
     def tool_result_images(self) -> bool:
         return True
-
-    @override
-    def emulate_reasoning_history(self) -> bool:
-        return False
 
     @override
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
@@ -1085,6 +1105,19 @@ class AnthropicAPI(ModelAPI):
             return None
 
 
+def _messages_contain_thinking(messages: list[MessageParam]) -> bool:
+    """Check if any message contains thinking or redacted_thinking blocks."""
+    for msg in messages:
+        content = msg.get("content", [])
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    block_type = block.get("type", "")
+                    if block_type in ("thinking", "redacted_thinking"):
+                        return True
+    return False
+
+
 def _supports_web_search(model_name: str) -> bool:
     """Check if the model supports Anthropic's native web search tool."""
     # https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#supported-models
@@ -1384,12 +1417,17 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
 MessageBlock = Union[
     TextBlock
+    | BetaTextBlock
     | ThinkingBlock
+    | BetaThinkingBlock
     | RedactedThinkingBlock
+    | BetaRedactedThinkingBlock
     | ToolUseBlock
+    | BetaToolUseBlock
     | ServerToolUseBlock
     | BetaServerToolUseBlock
     | WebSearchToolResultBlock
+    | BetaWebSearchToolResultBlock
     | BetaMCPToolUseBlock
     | BetaMCPToolResultBlock
     | BetaBashCodeExecutionToolResultBlock
@@ -1415,18 +1453,33 @@ MessageBlockParam = Union[
 ]
 
 
-async def assistant_message_blocks(message: ChatMessageAssistant) -> list[MessageBlock]:
+async def assistant_message_blocks(
+    message: ChatMessageAssistant, *, beta: bool = False
+) -> list[MessageBlock]:
     blocks: list[MessageBlock] = []
     block_params = await assistant_message_block_params(message)
     for block_param in block_params:
         if block_param["type"] == "text":
-            blocks.append(TextBlock.model_validate(block_param))
+            text_cls = BetaTextBlock if beta else TextBlock
+            blocks.append(text_cls.model_validate(block_param))
         elif block_param["type"] == "thinking":
-            blocks.append(ThinkingBlock.model_validate(block_param))
+            thinking_cls = BetaThinkingBlock if beta else ThinkingBlock
+            blocks.append(thinking_cls.model_validate(block_param))
         elif block_param["type"] == "redacted_thinking":
-            blocks.append(RedactedThinkingBlock.model_validate(block_param))
+            redacted_cls = BetaRedactedThinkingBlock if beta else RedactedThinkingBlock
+            blocks.append(redacted_cls.model_validate(block_param))
         elif block_param["type"] == "tool_use":
-            blocks.append(ToolUseBlock.model_validate(block_param))
+            if beta:
+                blocks.append(
+                    BetaToolUseBlock(
+                        id=block_param["id"],
+                        input=block_param["input"],
+                        name=block_param["name"],
+                        type=block_param["type"],
+                    )
+                )
+            else:
+                blocks.append(ToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "server_tool_use":
             blocks.append(
                 BetaServerToolUseBlock(
@@ -1439,7 +1492,10 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
             )
 
         elif block_param["type"] == "web_search_tool_result":
-            blocks.append(WebSearchToolResultBlock.model_validate(block_param))
+            web_search_cls = (
+                BetaWebSearchToolResultBlock if beta else WebSearchToolResultBlock
+            )
+            blocks.append(web_search_cls.model_validate(block_param))
         elif block_param["type"] == "bash_code_execution_tool_result":
             blocks.append(
                 BetaBashCodeExecutionToolResultBlock.model_validate(block_param)
@@ -1452,6 +1508,8 @@ async def assistant_message_blocks(message: ChatMessageAssistant) -> list[Messag
             blocks.append(BetaMCPToolUseBlock.model_validate(block_param))
         elif block_param["type"] == "mcp_tool_result":
             blocks.append(BetaMCPToolResultBlock.model_validate(block_param))
+        elif block_param["type"] == "web_fetch_tool_result":
+            blocks.append(BetaWebFetchToolResultBlock.model_validate(block_param))
         else:
             logger.warning(
                 f"Unexpecxted assistant message block type: {block_param['type']}"
@@ -1475,12 +1533,14 @@ async def assistant_message_block_params(
         )
     )
 
-    # move the first instance of thinking to the front
-    for i, c in enumerate(block_params):
-        if c["type"] in ["thinking", "redacted_thinking"] and i > 0:
-            block_params.pop(i)
-            block_params.insert(0, c)
-            break
+    # move the first instance of thinking to the front (we only need to do this
+    # for claude 3 models as we enable interleaved thinking for claude 4)
+    if message.model and message.model.startswith("claude-3"):
+        for i, c in enumerate(block_params):
+            if c["type"] in ["thinking", "redacted_thinking"] and i > 0:
+                block_params.pop(i)
+                block_params.insert(0, c)
+                break
 
     # filter out empty text content (sometimes claude passes empty text
     # context back with tool calls but won't let us play them back)
@@ -1601,11 +1661,13 @@ content_block_adapter = TypeAdapter[
     BetaServerToolUseBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
+    | BetaWebFetchToolResultBlock
     | ContentBlock,
 ](
     BetaServerToolUseBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
+    | BetaWebFetchToolResultBlock
     | ContentBlock,
 )
 
@@ -1630,7 +1692,17 @@ def content_and_tool_calls_from_assistant_content_blocks(
     ] = []
     for block in content_blocks_input:
         if isinstance(block, dict):
-            content_blocks.append(content_block_adapter.validate_python(block))
+            # server_tool_use blocks may come back without a 'caller' field
+            # (e.g., from message history in multi-turn conversations).
+            # BetaServerToolUseBlock requires 'caller', so add a default.
+            if block.get("type") == "server_tool_use" and "caller" not in block:
+                content_blocks.append(
+                    BetaServerToolUseBlock(
+                        **block, caller=BetaDirectCaller(type="direct")
+                    )
+                )
+            else:
+                content_blocks.append(content_block_adapter.validate_python(block))
         else:
             content_blocks.append(block)
 
@@ -1638,7 +1710,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
     content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
 
-    pending_tool_uses: dict[str, ServerToolUseBlock] = dict()
+    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock] = dict()
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] = dict()
     for content_block in content_blocks:
         if content_block.type == "mcp_tool_use":  # type: ignore[comparison-overlap]
@@ -1791,9 +1863,11 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
-        elif isinstance(content_block, ServerToolUseBlock):
+        elif isinstance(content_block, (ServerToolUseBlock, BetaServerToolUseBlock)):
             pending_tool_uses[content_block.id] = content_block
-        elif isinstance(content_block, WebSearchToolResultBlock):
+        elif isinstance(
+            content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
+        ):
             pending_tool_use = pending_tool_uses.get(content_block.tool_use_id, None)
             if pending_tool_use is None:
                 raise RuntimeError(
@@ -1974,32 +2048,121 @@ async def message_block_params(
         return [TextBlockParam(type="text", text=content.text)]
 
     elif isinstance(content, ContentToolUse):
+        # Check if result was cleared during compaction
+        result_cleared = is_result_cleared(content)
+
+        # Try to use cached blocks, creating copies if result needs to be cleared
         if content.id in assistant_internal().server_mcp_tool_uses:
-            return list(assistant_internal().server_mcp_tool_uses[content.id])
+            mcp_use, mcp_result = assistant_internal().server_mcp_tool_uses[content.id]
+            if result_cleared:
+                # Create a copy to avoid mutating the cached version
+                mcp_result = cast(
+                    BetaRequestMCPToolResultBlockParam,
+                    {**mcp_result, "content": TOOL_RESULT_REMOVED},
+                )
+            return [mcp_use, mcp_result]
 
         elif content.id in assistant_internal().server_web_searches:
-            return list(assistant_internal().server_web_searches[content.id])
+            ws_use, ws_result = assistant_internal().server_web_searches[content.id]
+            if result_cleared:
+                # Create a copy to avoid mutating the cached version
+                ws_result = cast(
+                    WebSearchToolResultBlockParam,
+                    {
+                        **ws_result,
+                        "content": {
+                            "type": "web_search_tool_result_error",
+                            "error_code": "unavailable",
+                        },
+                    },
+                )
+            return [ws_use, ws_result]
 
         elif content.id in assistant_internal().server_web_fetches:
-            return list(assistant_internal().server_web_fetches[content.id])
+            wf_use, wf_result = assistant_internal().server_web_fetches[content.id]
+            if result_cleared:
+                # Create a copy to avoid mutating the cached version
+                original_content: Any = wf_result.get("content", {})
+                url = ""
+                if isinstance(original_content, dict):
+                    url = str(original_content.get("url", ""))
+                wf_result = cast(
+                    BetaWebFetchToolResultBlockParam,
+                    {
+                        **wf_result,
+                        "content": {
+                            "type": "web_fetch_result",
+                            "url": url,
+                            "content": {
+                                "type": "document",
+                                "source": {
+                                    "type": "text",
+                                    "media_type": "text/plain",
+                                    "data": TOOL_RESULT_REMOVED,
+                                },
+                            },
+                        },
+                    },
+                )
+            return [wf_use, wf_result]
 
         elif content.id in assistant_internal().server_code_executions:
-            return list(assistant_internal().server_code_executions[content.id])
+            ce_use, ce_result = assistant_internal().server_code_executions[content.id]
+            if result_cleared:
+                # Create valid result block based on type (with a copy to avoid mutation)
+                if ce_result.get("type") == "bash_code_execution_tool_result":
+                    ce_result = cast(
+                        BetaBashCodeExecutionToolResultBlockParam,
+                        {
+                            **ce_result,
+                            "content": {
+                                "type": "bash_code_execution_result",
+                                "return_code": 0,
+                                "stdout": TOOL_RESULT_REMOVED,
+                                "stderr": "",
+                                "content": [],
+                            },
+                        },
+                    )
+                elif ce_result.get("type") == "text_editor_code_execution_tool_result":
+                    # Use a view result with placeholder for text editor
+                    ce_result = cast(
+                        BetaTextEditorCodeExecutionToolResultBlockParam,
+                        {
+                            **ce_result,
+                            "content": {
+                                "type": "text_editor_code_execution_view_result",
+                                "content": TOOL_RESULT_REMOVED,
+                                "file_type": "text",
+                            },
+                        },
+                    )
+            return [ce_use, ce_result]
 
+        # Fall through to reconstruction if not in cache
         if content.tool_type == "web_search":
             # we might be parsing an openai web search result so defend ourselves accordingly
             # note that if this is a native anthropic web_search or web_fetch it will have
             # been handledby plucking the blocks from assistant_internal()
             # therefore, this is a web_search from another system which we need to
             # normalize to the anthropic schema
-            try:
-                result_content = web_search_result_block_param_adapter.validate_json(
-                    content.result
+            if result_cleared:
+                result_content: WebSearchToolResultBlockParamContentParam = (
+                    WebSearchToolRequestErrorParam(
+                        type="web_search_tool_result_error", error_code="unavailable"
+                    )
                 )
-            except ValidationError:
-                result_content = WebSearchToolRequestErrorParam(
-                    type="web_search_tool_result_error", error_code="unavailable"
-                )
+            else:
+                try:
+                    result_content = (
+                        web_search_result_block_param_adapter.validate_json(
+                            content.result
+                        )
+                    )
+                except ValidationError:
+                    result_content = WebSearchToolRequestErrorParam(
+                        type="web_search_tool_result_error", error_code="unavailable"
+                    )
 
             return [
                 ServerToolUseBlockParam(
@@ -2016,12 +2179,17 @@ async def message_block_params(
             ]
         elif content.tool_type == "mcp_call":
             # we might be parsing an openai mcp tool result so defend ourselves accordingly
-            try:
-                mcp_result_content = beta_text_block_param_adapter.validate_json(
-                    content.result
-                )
-            except ValidationError:
+            # Handle cleared results gracefully
+            mcp_result_content: str | Iterable[BetaTextBlockParam]
+            if result_cleared:
                 mcp_result_content = content.result
+            else:
+                try:
+                    mcp_result_content = beta_text_block_param_adapter.validate_json(
+                        content.result
+                    )
+                except ValidationError:
+                    mcp_result_content = content.result
 
             return [
                 BetaMCPToolUseBlockParam(

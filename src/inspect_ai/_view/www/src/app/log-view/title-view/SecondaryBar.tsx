@@ -6,13 +6,18 @@ import {
   EvalResults,
   EvalSpec,
   EvalStats,
+  ProvenanceData,
 } from "../../../@types/log";
 import { EvalDescriptor } from "../../../app/samples/descriptor/types";
 import { sampleFilterItems } from "../../../app/samples/sample-tools/filters";
 import { ExpandablePanel } from "../../../components/ExpandablePanel";
 import { LabeledValue } from "../../../components/LabeledValue";
-import { useEvalDescriptor } from "../../../state/hooks";
-import { formatDataset, formatDuration } from "../../../utils/format";
+import { useEvalDescriptor, useSampleInvalidation } from "../../../state/hooks";
+import {
+  formatDataset,
+  formatDateTime,
+  formatDuration,
+} from "../../../utils/format";
 import styles from "./SecondaryBar.module.css";
 
 interface SecondaryBarProps {
@@ -36,6 +41,8 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
   sampleCount,
 }) => {
   const evalDescriptor = useEvalDescriptor();
+  const [sampleInvalidation] = useSampleInvalidation();
+
   if (!evalSpec || status !== "success") {
     return null;
   }
@@ -115,6 +122,18 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
         >
           {totalDuration}
         </LabeledValue>
+      ),
+    });
+  }
+
+  if (sampleInvalidation) {
+    values.push({
+      size: "minmax(12%, auto)",
+      value: (
+        <InvalidationStatus
+          key="sb-invalidation"
+          invalidation={sampleInvalidation}
+        />
       ),
     });
   }
@@ -228,4 +247,40 @@ const ParamSummary: FC<ParamSummaryProps> = ({ params }) => {
   } else {
     return null;
   }
+};
+
+interface InvalidationStatusProps {
+  invalidation: ProvenanceData;
+}
+
+/**
+ * A component that displays the sample invalidation status.
+ */
+const InvalidationStatus: FC<InvalidationStatusProps> = ({ invalidation }) => {
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      return formatDateTime(new Date(timestamp));
+    } catch {
+      return timestamp;
+    }
+  };
+
+  const details = [
+    invalidation.author && `By: ${invalidation.author}`,
+    invalidation.timestamp && `On: ${formatTimestamp(invalidation.timestamp)}`,
+    invalidation.reason && `Reason: ${invalidation.reason}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <LabeledValue
+      label="Status"
+      className={clsx(styles.justifyRight, "text-size-small")}
+    >
+      <span className={styles.invalidationStatus} title={details}>
+        ⚠ Invalidated
+      </span>
+    </LabeledValue>
+  );
 };

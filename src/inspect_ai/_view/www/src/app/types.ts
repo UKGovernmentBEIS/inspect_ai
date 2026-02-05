@@ -2,6 +2,7 @@ import { GridState } from "ag-grid-community";
 import { StateSnapshot } from "react-virtuoso";
 import {
   ApprovalEvent,
+  CompactionEvent,
   ContentImage,
   ContentText,
   EvalSample,
@@ -104,6 +105,7 @@ export interface LogsListing {
 export interface SampleHandle {
   id: string | number;
   epoch: number;
+  logFile: string;
 }
 
 export interface LogState {
@@ -126,17 +128,12 @@ export interface LogState {
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";
 
-export type SampleIdentifier = {
-  id: string | number;
-  epoch: number;
-};
-
 export interface EventFilter {
   filteredTypes: string[];
 }
 
 export interface SampleState {
-  sample_identifier: SampleIdentifier | undefined;
+  sample_identifier: SampleHandle | undefined;
   sampleInState: boolean;
   selectedSampleObject?: EvalSample;
   sampleStatus: SampleStatus;
@@ -158,6 +155,7 @@ export interface SampleState {
 export type Event =
   | SampleInitEvent
   | SampleLimitEvent
+  | CompactionEvent
   | SandboxEvent
   | StateEvent
   | StoreEvent

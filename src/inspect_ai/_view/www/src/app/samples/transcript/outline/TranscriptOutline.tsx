@@ -16,23 +16,16 @@ import { useScrollTrack, useVirtuosoState } from "../../../../state/scrolling";
 import { useStore } from "../../../../state/store";
 
 import { useSampleDetailNavigation } from "../../../routing/sampleNavigation";
-import { kSandboxSignalName } from "../transform/fixups";
 import { flatTree } from "../transform/flatten";
 import { OutlineRow } from "./OutlineRow";
 import styles from "./TranscriptOutline.module.css";
-import {
-  collapseScoring,
-  collapseTurns,
-  makeTurns,
-  noScorerChildren,
-  removeNodeVisitor,
-  removeStepSpanNameVisitor,
-} from "./tree-visitors";
+import { collapseScoring, collapseTurns, makeTurns } from "./tree-visitors";
 
 const kFramesToStabilize = 10;
 
 interface TranscriptOutlineProps {
   eventNodes: EventNode[];
+  filteredNodes: EventNode[];
   defaultCollapsedIds: Record<string, boolean>;
   running?: boolean;
   className?: string | string[];
@@ -62,6 +55,7 @@ const EventPaddingNode: EventNode = {
 
 export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   eventNodes,
+  filteredNodes,
   defaultCollapsedIds,
   running,
   className,
@@ -132,32 +126,9 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   }, [sampleDetailNavigation.event, setSelectedOutlineId, scrollRef]);
 
   const outlineNodeList = useMemo(() => {
-    // flattten the event tree
-    const nodeList = flatTree(
-      eventNodes,
-      (collapsedEvents
-        ? collapsedEvents[kTranscriptOutlineCollapseScope]
-        : undefined) || defaultCollapsedIds,
-      [
-        // Strip specific nodes
-        removeNodeVisitor("logger"),
-        removeNodeVisitor("info"),
-        removeNodeVisitor("state"),
-        removeNodeVisitor("store"),
-        removeNodeVisitor("approval"),
-        removeNodeVisitor("input"),
-        removeNodeVisitor("sandbox"),
-
-        // Strip the sandbox wrapper (and children)
-        removeStepSpanNameVisitor(kSandboxSignalName),
-
-        // Remove child events for scorers
-        noScorerChildren(),
-      ],
-    );
-
-    return collapseScoring(collapseTurns(makeTurns(nodeList)));
-  }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+    // Apply outline-specific transformations to the pre-filtered nodes
+    return collapseScoring(collapseTurns(makeTurns(filteredNodes)));
+  }, [filteredNodes]);
 
   // Event node, for scroll tracking
   const allNodesList = useMemo(() => {

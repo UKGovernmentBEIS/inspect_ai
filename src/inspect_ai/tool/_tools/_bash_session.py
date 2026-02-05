@@ -74,7 +74,7 @@ class BashSessionParams(
 DEFAULT_WAIT_FOR_OUTPUT = 30
 DEFAULT_IDLE_TIME = 0.5
 # this is how long we're willing to wait for the basic RPC call overhead.
-TRANSPORT_TIMEOUT = 5
+TRANSPORT_TIMEOUT = 30  # Some K8's deployments can be very slow
 
 
 @tool()
@@ -199,17 +199,20 @@ def bash_session(
         server_error_mapper = SandboxToolsServerErrorMapper()
 
         if not store.session_id:
-            store.session_id = (
-                await exec_model_request(
-                    method="bash_session_new_session",
-                    params={},
-                    result_type=NewSessionResult,
-                    transport=transport,
-                    server_error_mapper=server_error_mapper,
-                    timeout=TRANSPORT_TIMEOUT,
-                    user=user,
-                )
-            ).session_name
+            try:
+                store.session_id = (
+                    await exec_model_request(
+                        method="bash_session_new_session",
+                        params={},
+                        result_type=NewSessionResult,
+                        transport=transport,
+                        server_error_mapper=server_error_mapper,
+                        timeout=TRANSPORT_TIMEOUT,
+                        user=user,
+                    )
+                ).session_name
+            except TimeoutError:
+                raise RuntimeError("Timed out creating new session")
 
         timing: dict[str, object] = {
             "wait_for_output": wait_for_output,

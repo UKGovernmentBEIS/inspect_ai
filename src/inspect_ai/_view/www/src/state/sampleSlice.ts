@@ -26,7 +26,7 @@ export interface SampleSlice {
   sample: SampleState;
   sampleActions: {
     // The actual sample data
-    setSelectedSample: (sample: EvalSample) => void;
+    setSelectedSample: (sample: EvalSample, logFile: string) => void;
     getSelectedSample: () => EvalSample | undefined;
     clearSelectedSample: () => void;
 
@@ -108,7 +108,7 @@ export const createSampleSlice = (
     // Actions
     sample: initialState,
     sampleActions: {
-      setSelectedSample: (sample: EvalSample) => {
+      setSelectedSample: (sample: EvalSample, logFile: string) => {
         const isLarge = isLargeSample(sample);
 
         // Update state based on sample size
@@ -116,6 +116,7 @@ export const createSampleSlice = (
           state.sample.sample_identifier = {
             id: sample.id,
             epoch: sample.epoch,
+            logFile: logFile,
           };
           state.sample.sampleInState = !isLarge;
 
@@ -144,12 +145,14 @@ export const createSampleSlice = (
           : selectedSampleRef.current;
       },
       clearSelectedSample: () => {
-        // Clear both the ref and the state
+        samplePolling.stopPolling();
         selectedSampleRef.current = undefined;
         set((state) => {
           state.sample.sample_identifier = undefined;
           state.sample.selectedSampleObject = undefined;
           state.sample.sampleInState = false;
+          state.sample.runningEvents = [];
+          state.sample.sampleStatus = "ok";
           state.log.selectedSampleHandle = undefined;
         });
       },
@@ -280,17 +283,24 @@ export const createSampleSlice = (
         try {
           if (completed !== false) {
             log.debug(`LOADING COMPLETED SAMPLE: ${id}-${epoch}`);
+            // Stop any existing polling when loading a completed sample
+            samplePolling.stopPolling();
+            // Clear any running events from the previous sample
+            set((state) => {
+              state.sample.runningEvents = [];
+            });
             const sample = await get().api?.get_log_sample(logFile, id, epoch);
             log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
             if (sample) {
               if (
-                state.sample.sample_identifier?.id !== sample.id &&
-                state.sample.sample_identifier?.epoch !== sample.epoch
+                state.sample.sample_identifier?.id !== sample.id ||
+                state.sample.sample_identifier?.epoch !== sample.epoch ||
+                state.sample.sample_identifier?.logFile !== logFile
               ) {
                 sampleActions.clearCollapsedEvents();
               }
               const migratedSample = resolveSample(sample);
-              sampleActions.setSelectedSample(migratedSample);
+              sampleActions.setSelectedSample(migratedSample, logFile);
               sampleActions.setSampleStatus("ok");
             } else {
               sampleActions.setSampleStatus("error");
@@ -300,6 +310,21 @@ export const createSampleSlice = (
             }
           } else {
             log.debug(`POLLING RUNNING SAMPLE: ${id}-${epoch}`);
+
+            // Clear the previous sample so component uses runningEvents instead
+            // of old sample.events
+            selectedSampleRef.current = undefined;
+            set((state) => {
+              state.sample.selectedSampleObject = undefined;
+              state.sample.sampleInState = false;
+              state.sample.runningEvents = [];
+              // Set the new sample identifier for the sample we're about to poll
+              state.sample.sample_identifier = {
+                id,
+                epoch,
+                logFile,
+              };
+            });
 
             // Poll running sample - create a minimal SampleSummary object
             const sampleSummary: SampleSummary = { id, epoch } as SampleSummary;

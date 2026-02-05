@@ -87,7 +87,8 @@ async def mistral_conversation_generate(
         tools=mistral_conversation_tools(tools) if len(tools) > 0 else UNSET,
         completion_args=completion_args,
         store=False,
-        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+        | (config.extra_headers or {}),
     )
 
     # prepare response for inclusion in model call

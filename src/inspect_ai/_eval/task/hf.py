@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from string import ascii_uppercase
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -9,12 +9,17 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.epochs import Epochs
 from inspect_ai._eval.task.util import split_spec
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.dataset._dataset import DatasetRecord
+from inspect_ai.model import ChatMessageUser
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec
 from inspect_ai.solver._solver import Solver, SolverSpec
+
+if TYPE_CHECKING:
+    from inspect_ai.model import ChatMessage
 
 
 class HFSolver(BaseModel):
@@ -50,6 +55,8 @@ class HFScorer(BaseModel):
 class HFFieldSpec(FieldSpec):
     choices: str | list[str] | None = field(default=None)  # type: ignore[assignment]
     """ Overriding the FieldSpec to fit field spec coming from the eval.yaml """
+    input_image: str | None = field(default=None)
+    """ Optional field name for image data (data URI) to combine with text input for multimodal tasks """
 
 
 HFEpochReducer = Annotated[
@@ -106,7 +113,7 @@ def task_create_from_hf(task_name: str, **kwargs: Any) -> list[Task]:
                 revision=revision,
             )
         )
-    except hf_errors.RemoteEntryNotFoundError:
+    except hf_errors.EntryNotFoundError:
         raise PrerequisiteError(
             f"No 'eval.yaml' file found for Hugging Face Dataset '{repo_id}'"
         )
@@ -209,7 +216,7 @@ def parse_task_spec(task_spec: str) -> tuple[str, str | None]:
     return repo_id, taskname
 
 
-def _sanitize_target(record: DatasetRecord, target: str) -> str:
+def _sanitize_target(record: DatasetRecord, target: str, is_choices: bool) -> str:
     # if the target is a literal, return the value after the colon without checking the record.
     if target.startswith("literal:"):
         target = target.split(":")[1]
@@ -217,10 +224,10 @@ def _sanitize_target(record: DatasetRecord, target: str) -> str:
 
     # otherwise, get the target from the record and convert to a letter if it's a number.
     target = record[target]
-    if isinstance(target, int):
+    if isinstance(target, int) and is_choices:
         target = ascii_uppercase[target]
 
-    return target
+    return str(target)
 
 
 def _sanitize_choices(
@@ -237,10 +244,27 @@ def _sanitize_choices(
 
 
 def _record_to_sample_hf(record: DatasetRecord, field_spec: HFFieldSpec) -> Sample:
-    sample_kwargs = {}
-    sample_kwargs["input"] = record[field_spec.input]
+    # Handle multimodal input if input_image is specified
+    if field_spec.input_image and record[field_spec.input_image] not in [None, ""]:
+        text_input = record[field_spec.input]
+        image_data_uri = record[field_spec.input_image]
+        input_value: str | list[ChatMessage] = [
+            ChatMessageUser(
+                content=[
+                    ContentText(text=text_input),
+                    ContentImage(image=image_data_uri),
+                ]
+            )
+        ]
+    else:
+        # Standard text input
+        input_value = record[field_spec.input]
 
-    if target := _sanitize_target(record, field_spec.target):
+    sample_kwargs: dict[str, Any] = {"input": input_value}
+
+    if target := _sanitize_target(
+        record, field_spec.target, field_spec.choices is not None
+    ):
         sample_kwargs["target"] = target
 
     if choices := _sanitize_choices(record, field_spec.choices):

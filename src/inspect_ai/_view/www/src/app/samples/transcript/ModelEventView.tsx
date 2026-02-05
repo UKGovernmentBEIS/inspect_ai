@@ -12,8 +12,10 @@ import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
+import { ANSIDisplay } from "../../../components/AnsiDisplay";
 import { PulsingDots } from "../../../components/PulsingDots";
-import { usePrismHighlight } from "../../../state/hooks";
+import { usePrismHighlight } from "../../../components/prism";
+import { Message } from "../chat/messages";
 import styles from "./ModelEventView.module.css";
 import { EventNodeContext } from "./TranscriptVirtualList";
 import { EventTimingPanel } from "./event/EventTimingPanel";
@@ -42,9 +44,18 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined
-  const outputMessages = event.output.choices?.map((choice) => {
-    return choice.message;
-  });
+  // Clone messages to avoid mutating frozen state objects
+  const outputMessages: Message[] =
+    event.output.choices?.map((choice) => {
+      return { ...choice.message };
+    }) ?? [];
+  if (outputMessages.length > 0) {
+    outputMessages[outputMessages.length - 1].timestamp = event.completed;
+  }
+  const inputMessages: Message[] = event.input.map((msg) => ({ ...msg }));
+  if (inputMessages.length > 0) {
+    inputMessages[inputMessages.length - 1].timestamp = event.timestamp;
+  }
 
   const entries: Record<string, unknown> = { ...event.config };
   delete entries["max_connections"];
@@ -53,7 +64,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
   // panel and display those user messages (exclude tool_call messages as they
   // are already shown in the tool call above)
   const userMessages = [];
-  for (const msg of event.input.slice().reverse()) {
+  for (const msg of inputMessages.slice().reverse()) {
     if (
       (msg.role === "user" && !msg.tool_call_id) ||
       msg.role === "system" ||
@@ -72,6 +83,10 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     ? `Model Call (${event.role}): ${event.model}`
     : `Model Call: ${event.model}`;
 
+  const turnLabel = context?.turnInfo
+    ? `turn ${context.turnInfo.turnNumber}/${context.turnInfo.totalTurns}`
+    : undefined;
+
   return (
     <EventPanel
       eventNodeId={eventNode.id}
@@ -80,17 +95,28 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       title={formatTitle(panelTitle, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
+      turnLabel={turnLabel}
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView
           id={`${eventNode.id}-model-output`}
-          messages={[...userMessages, ...(outputMessages || [])]}
+          messages={[...userMessages, ...outputMessages]}
           numbered={false}
           toolCallStyle={showToolCalls ? "complete" : "omit"}
           resolveToolCallsIntoPreviousMessage={context?.hasToolEvents !== false}
           allowLinking={false}
         />
-        {event.pending ? (
+        {event.error ? (
+          <div className={styles.error}>
+            <i className={ApplicationIcons.error} aria-hidden="true" />
+            <ANSIDisplay
+              output={event.error}
+              style={{
+                fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
+              }}
+            />
+          </div>
+        ) : event.pending ? (
           <div className={clsx(styles.progress)}>
             <PulsingDots subtle={false} size="medium" />
           </div>
@@ -126,7 +152,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
         <EventSection title="Messages">
           <ChatView
             id={`${eventNode.id}-model-input-full`}
-            messages={[...event.input, ...(outputMessages || [])]}
+            messages={[...inputMessages, ...outputMessages]}
             resolveToolCallsIntoPreviousMessage={
               context?.hasToolEvents !== false
             }
@@ -149,6 +175,15 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
         />
       ) : (
         ""
+      )}
+
+      {event.traceback_ansi && (
+        <div data-name="Error" className={styles.container}>
+          <ANSIDisplay
+            output={event.traceback_ansi}
+            className={styles.traceback}
+          />
+        </div>
       )}
     </EventPanel>
   );

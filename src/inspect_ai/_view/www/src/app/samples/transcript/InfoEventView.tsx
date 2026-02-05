@@ -6,6 +6,7 @@ import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { RenderedText } from "../../content/RenderedText";
 import { EventPanel } from "./event/EventPanel";
+import { formatTitle } from "./event/utils";
 import styles from "./InfoEventView.module.css";
 import { EventNode } from "./types";
 
@@ -28,6 +29,7 @@ export const InfoEventView: FC<InfoEventViewProps> = ({
       <RenderedText
         markdown={event.data}
         className={clsx(styles.panel, "text-size-base")}
+        omitMath={true}
       />,
     );
   } else {
@@ -38,7 +40,11 @@ export const InfoEventView: FC<InfoEventViewProps> = ({
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={"Info" + (event.source ? ": " + event.source : "")}
+      title={formatTitle(
+        "Info" + (event.source ? ": " + event.source : ""),
+        undefined,
+        event.working_start,
+      )}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.info}

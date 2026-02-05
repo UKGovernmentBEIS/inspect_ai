@@ -38,7 +38,8 @@ from inspect_ai.model._providers.google import (
     content,
 )
 from inspect_ai.scorer import includes
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams
+from inspect_ai.solver import use_tools
+from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams, tool
 
 
 @skip_if_no_google
@@ -780,3 +781,110 @@ async def test_google_count_tokens_single_tool_result() -> None:
     # This should not raise - we're testing token counting for individual messages
     token_count = await model.api.count_tokens([tool_msg])
     assert token_count > 0
+
+
+@skip_if_no_google
+def test_google_streaming_basic():
+    """Test basic streaming with simple prompt."""
+    result = eval(
+        Task(
+            dataset=[Sample(input="Say hello in one sentence", target="hello")],
+            scorer=includes(),
+        ),
+        model="google/gemini-2.0-flash",
+        model_args=dict(streaming=True),
+    )[0]
+
+    assert result.status == "success"
+    assert result.samples
+    assert result.samples[0].output
+
+
+@skip_if_no_google
+def test_google_streaming_with_tools():
+    """Test streaming with tool calls."""
+
+    @tool
+    def add(x: int, y: int) -> int:
+        """
+        Add two numbers.
+
+        Args:
+            x: The first number to add.
+            y: The second number to add.
+
+        Returns:
+            The sum of the two numbers.
+        """
+        return x + y
+
+    result = eval(
+        Task(
+            dataset=[Sample(input="What is 5 + 3?", target="8")],
+            solver=use_tools([add]),
+            scorer=includes(),
+        ),
+        model="google/gemini-2.0-flash",
+        model_args=dict(streaming=True),
+    )[0]
+
+    assert result.status == "success"
+
+
+@skip_if_no_google
+def test_google_streaming_large_output():
+    """Test streaming with large max_tokens."""
+    result = eval(
+        Task(
+            dataset=[
+                Sample(
+                    input="Write a detailed story about space exploration",
+                    target="space",
+                )
+            ],
+            scorer=includes(),
+        ),
+        model="google/gemini-2.0-flash",
+        model_args=dict(streaming=True),
+        max_tokens=4096,
+    )[0]
+
+    assert result.status == "success"
+    assert result.samples[0].output
+
+
+@skip_if_no_google
+def test_google_streaming_captures_reasoning_summaries():
+    """Test that streaming DOES capture reasoning summaries from Gemini 3 thinking."""
+    result = eval(
+        Task(
+            dataset=[
+                Sample(
+                    input="What is the sum of the first 50 prime numbers?",
+                    target="5117",
+                )
+            ],
+            scorer=includes(),
+        ),
+        model="google/gemini-3-pro-preview",
+        model_args=dict(streaming=True),
+    )[0]
+
+    assert result.status == "success"
+
+    # Find assistant messages with reasoning
+    reasoning_blocks = []
+    for msg in result.samples[0].messages:
+        if msg.role == "assistant":
+            reasoning_blocks.extend(
+                [c for c in msg.content if isinstance(c, ContentReasoning)]
+            )
+
+    # Should have at least one reasoning block with a summary
+    assert len(reasoning_blocks) > 0, "Expected at least one ContentReasoning block"
+    assert any(r.summary and len(r.summary) > 0 for r in reasoning_blocks), (
+        "Expected at least one reasoning block with summary text"
+    )
+    assert all(r.redacted for r in reasoning_blocks), (
+        "All reasoning blocks should be redacted"
+    )
