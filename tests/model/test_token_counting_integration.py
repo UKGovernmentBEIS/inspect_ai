@@ -42,7 +42,11 @@ class TestPadToolMessagesForTokenCounting:
     def test_user_message_passes_through(self):
         """User messages should pass through unchanged."""
         messages = [
-            {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hello"}]}
+            {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "Hello"}],
+            }
         ]
         result = pad_tool_messages_for_token_counting(messages)
         assert len(result) == 1
@@ -144,8 +148,18 @@ class TestPadToolMessagesForTokenCounting:
     def test_multiple_orphaned_calls(self):
         """Multiple orphaned function_calls should each get a fake output."""
         messages = [
-            {"type": "function_call", "call_id": "call_1", "name": "tool1", "arguments": "{}"},
-            {"type": "function_call", "call_id": "call_2", "name": "tool2", "arguments": "{}"},
+            {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "tool1",
+                "arguments": "{}",
+            },
+            {
+                "type": "function_call",
+                "call_id": "call_2",
+                "name": "tool2",
+                "arguments": "{}",
+            },
         ]
         result = pad_tool_messages_for_token_counting(messages)
 
@@ -168,12 +182,26 @@ class TestPadToolMessagesForTokenCounting:
         """Mixed paired and orphaned tool calls should be handled correctly."""
         messages = [
             # Orphaned output
-            {"type": "function_call_output", "call_id": "orphan_out", "output": "orphan"},
+            {
+                "type": "function_call_output",
+                "call_id": "orphan_out",
+                "output": "orphan",
+            },
             # Paired call and output
-            {"type": "function_call", "call_id": "paired", "name": "tool", "arguments": "{}"},
+            {
+                "type": "function_call",
+                "call_id": "paired",
+                "name": "tool",
+                "arguments": "{}",
+            },
             {"type": "function_call_output", "call_id": "paired", "output": "result"},
             # Orphaned call
-            {"type": "function_call", "call_id": "orphan_call", "name": "tool2", "arguments": "{}"},
+            {
+                "type": "function_call",
+                "call_id": "orphan_call",
+                "name": "tool2",
+                "arguments": "{}",
+            },
         ]
         result = pad_tool_messages_for_token_counting(messages)
 
@@ -337,7 +365,9 @@ class TestBatchCountingSumsPerMessage:
                 tool_call_id="call_weather",
                 function="get_weather",
             ),
-            ChatMessageAssistant(content="The weather in Paris is 18°C and partly cloudy."),
+            ChatMessageAssistant(
+                content="The weather in Paris is 18°C and partly cloudy."
+            ),
         ]
 
         # This should not raise an error - padding handles orphaned tool calls

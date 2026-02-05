@@ -371,7 +371,11 @@ def test_chat_messages_from_compact_response_mixed_items():
         type="message",
         role="assistant",
         status="completed",
-        content=[ResponseOutputText(type="output_text", text="Recent response", annotations=[])],
+        content=[
+            ResponseOutputText(
+                type="output_text", text="Recent response", annotations=[]
+            )
+        ],
     )
 
     response = CompactedResponse(

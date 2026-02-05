@@ -199,11 +199,15 @@ def _extract_compaction_from_content_data(
     for item in content:
         if isinstance(item, ContentData) and isinstance(item.data, dict):
             metadata = item.data.get("compaction_metadata")
-            if metadata and metadata.get("type") == "openai_compact":
+            if (
+                metadata
+                and isinstance(metadata, dict)
+                and metadata.get("type") == "openai_compact"
+            ):
                 return ResponseCompactionItemParamParam(
                     type="compaction",
-                    id=metadata.get("id"),
-                    encrypted_content=metadata["encrypted_content"],
+                    id=str(metadata.get("id")) if metadata.get("id") else None,
+                    encrypted_content=str(metadata["encrypted_content"]),
                 )
     return None
 
