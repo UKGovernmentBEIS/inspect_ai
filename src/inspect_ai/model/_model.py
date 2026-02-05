@@ -533,26 +533,8 @@ class Model:
         conversation_length = len(input) if isinstance(input, list) else 1
         check_message_limit(conversation_length, raise_for_equal=True)
 
-        # base config for this model
-        base_config = self.config
-
-        # if we are the active_model then merge active generate config
-        active_config = active_generate_config()
-        if is_active_model:
-            base_config = base_config.merge(active_config)
-
-        ## otherwise merge connection-oriented config
-        else:
-            base_config = base_config.merge(
-                GenerateConfig(
-                    max_connections=active_config.max_connections,
-                    max_retries=active_config.max_retries,
-                    timeout=active_config.timeout,
-                )
-            )
-
-        # merge passed config
-        config = base_config.merge(config)
+        # resolve config
+        config = self._resolve_config(config)
 
         # resolve cache (prefer arg, fall back to config)
         if isinstance(cache, NotGiven):
@@ -674,6 +656,7 @@ class Model:
            config: Optional generation config for provider-specific counting
                (e.g., reasoning parameters that affect token allocation).
         """
+        config = self._resolve_config(config)
         model_name = ModelName(self)
         key = f"ModelCountTokens({self.api.connection_key()})"
         async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
@@ -743,6 +726,7 @@ class Model:
         Raises:
             NotImplementedError: For providers without native compaction support.
         """
+        config = self._resolve_config(config)
         model_name = ModelName(self)
         key = f"ModelCompact({self.api.connection_key()})"
 
@@ -1111,6 +1095,28 @@ class Model:
             key=f"Model{self.api.connection_key()}",
         ):
             yield
+
+    def _resolve_config(self, config: GenerateConfig | None) -> GenerateConfig:
+        # base config for this model
+        base_config = self.config
+
+        # if we are the active_model then merge active generate config
+        active_config = active_generate_config()
+        if self == active_model():
+            base_config = base_config.merge(active_config)
+
+        # otherwise merge connection-oriented config so its inherited everywhere
+        else:
+            base_config = base_config.merge(
+                GenerateConfig(
+                    max_connections=active_config.max_connections,
+                    max_retries=active_config.max_retries,
+                    timeout=active_config.timeout,
+                )
+            )
+
+        # merge passed config
+        return base_config.merge(config or GenerateConfig())
 
     def _record_model_interaction(
         self,

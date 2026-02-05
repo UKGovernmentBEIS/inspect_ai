@@ -9,7 +9,6 @@ from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
 from .._chat_message import ChatMessage, ChatMessageUser
-from .._generate_config import active_generate_config
 from .._model import Model, get_model
 from .._model_info import get_model_info
 from .memory import MEMORY_TOOL, memory_warning_message
@@ -84,9 +83,8 @@ def compaction(
         if count is not None:
             return count
 
-        # count tokens and update cache (pass config for accurate reasoning model counting)
-        config = active_generate_config()
-        count = await target_model.count_tokens([message], config=config)
+        # count tokens and update cache
+        count = await target_model.count_tokens([message])
         token_count_cache[id] = count
 
         # return count
@@ -106,11 +104,7 @@ def compaction(
             tools_info = get_tools_info(await resolve_tools(tools or []))
             tool_tokens = await target_model.count_tool_tokens(tools_info)
         if prefix_tokens is None:
-            prefix_tokens = (
-                await target_model.count_tokens(prefix, config=active_generate_config())
-                if prefix
-                else 0
-            )
+            prefix_tokens = await target_model.count_tokens(prefix) if prefix else 0
 
         # determine unprocessed messages (messages not yet added to input).
         # we allow unprocessed messages to accumulate in the input until
@@ -157,9 +151,7 @@ def compaction(
             compacted_input.extend(c_input)
 
             # log compaction
-            compacted_tokens = await target_model.count_tokens(
-                compacted_input, config=active_generate_config()
-            )
+            compacted_tokens = await target_model.count_tokens(compacted_input)
             transcript()._event(
                 CompactionEvent(
                     source="inspect",
@@ -233,9 +225,8 @@ async def _perform_compaction(
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
     MAX_ITERATIONS = 3
-    config = active_generate_config()
     c_input, c_message = await strategy.compact(messages, model)
-    compacted_tokens = await model.count_tokens(c_input, config=config)
+    compacted_tokens = await model.count_tokens(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
     for _ in range(MAX_ITERATIONS):
@@ -246,7 +237,7 @@ async def _perform_compaction(
 
         # Try compacting again
         c_input, c_message = await strategy.compact(list(c_input), model)
-        compacted_tokens = await model.count_tokens(c_input, config=config)
+        compacted_tokens = await model.count_tokens(c_input)
         total_compacted = tool_tokens + compacted_tokens
 
         # Stop if no progress (can't reduce further)
