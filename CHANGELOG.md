@@ -14,6 +14,7 @@
 - Inspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.
 - Inspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.
 - Bugfix: `handoff()` now respects `react()` name parameter when creating the transfer_to_X tool name.
+- Bugfix: Correctly handle optional `content` field in Anthropic agent bridge `tool_result`.
 
 ## 0.3.170 (03 February 2026)
 
