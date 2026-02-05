@@ -1,15 +1,23 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
+import { createLogger } from "../utils/logger";
 import { useLogSelection, usePrevious, useSampleData } from "./hooks";
+import { getSamplePolling } from "./samplePollingInstance";
+import { resolveSample } from "./sampleUtils";
 import { useStore } from "./store";
+
+const log = createLogger("useSampleLoader");
 
 /**
  * Hook that handles loading samples based on the current log selection.
- * Prevents duplicate loads by checking if the sample is already loaded or currently loading.
+ * Contains the full sample loading logic that was previously in sampleSlice.loadSample.
  */
 export function useSampleLoader() {
   const sampleData = useSampleData();
-  const loadSample = useStore((state) => state.sampleActions.loadSample);
   const logSelection = useLogSelection();
+
+  // Get store state and actions
+  const api = useStore((state) => state.api);
+  const sampleActions = useStore((state) => state.sampleActions);
 
   // Extract sample properties to avoid object reference issues
   const sampleId = logSelection.sample?.id;
@@ -24,6 +32,78 @@ export function useSampleLoader() {
   const prevSampleId = usePrevious(sampleId);
   const prevSampleNeedsReload = usePrevious<number>(
     sampleData.sampleNeedsReload,
+  );
+
+  const loadSample = useCallback(
+    async (
+      logFile: string,
+      id: number | string,
+      epoch: number,
+      completed?: boolean,
+    ) => {
+      // Skip if already loading this exact sample
+      const currentId = sampleData.selectedSampleIdentifier;
+      const isSameSample =
+        currentId?.id === id &&
+        currentId?.epoch === epoch &&
+        currentId?.logFile === logFile;
+      const isLoading =
+        sampleData.status === "loading" || sampleData.status === "streaming";
+
+      if (isSameSample && isLoading) {
+        return;
+      }
+
+      // Set the identifier first
+      sampleActions.setSampleIdentifier(logFile, id, epoch);
+      sampleActions.setSampleError(undefined);
+      sampleActions.setSampleStatus("loading");
+
+      try {
+        if (completed !== false) {
+          log.debug(`LOADING COMPLETED SAMPLE: ${id}-${epoch}`);
+          // Stop any existing polling when loading a completed sample
+          getSamplePolling().stopPolling();
+
+          // Fetch the sample from the API
+          const sample = await api?.get_log_sample(logFile, id, epoch);
+          log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
+
+          if (sample) {
+            // Clear collapsed events if the sample changed
+            if (
+              currentId?.id !== sample.id ||
+              currentId?.epoch !== sample.epoch ||
+              currentId?.logFile !== logFile
+            ) {
+              sampleActions.clearCollapsedEvents();
+            }
+            const migratedSample = resolveSample(sample);
+            sampleActions.setSelectedSample(migratedSample, logFile);
+            sampleActions.setSampleStatus("ok");
+          } else {
+            sampleActions.setSampleStatus("error");
+            throw new Error(
+              "Unable to load sample - an unknown error occurred",
+            );
+          }
+        } else {
+          log.debug(`PREPARING FOR POLLING RUNNING SAMPLE: ${id}-${epoch}`);
+          // Clear the previous sample so component uses runningEvents instead
+          // of old sample.events. Polling will be started by useSamplePolling.
+          sampleActions.clearSampleForPolling(logFile, id, epoch);
+        }
+      } catch (e) {
+        sampleActions.setSampleError(e as Error);
+        sampleActions.setSampleStatus("error");
+      }
+    },
+    [
+      api,
+      sampleActions,
+      sampleData.selectedSampleIdentifier,
+      sampleData.status,
+    ],
   );
 
   useEffect(() => {
