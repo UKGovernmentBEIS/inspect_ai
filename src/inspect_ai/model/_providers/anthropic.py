@@ -140,7 +140,7 @@ from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
@@ -437,6 +437,7 @@ class AnthropicAPI(ModelAPI):
                 model_call = ModelCall.create(
                     request={}, response=None, filter=model_call_filter
                 )
+            model_call.response = as_error_response(ex.body)
             model_call.time = self._http_hooks.end_request(request_id)
             return self.handle_bad_request(ex), model_call
 

@@ -33,7 +33,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
@@ -239,6 +239,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 UnprocessableEntityError,
                 PermissionDeniedError,
             ) as ex:
+                model_call.response = as_error_response(ex.body)
                 model_call.time = self._http_hooks.end_request(request_id)
                 return self.handle_bad_request(ex), model_call
 

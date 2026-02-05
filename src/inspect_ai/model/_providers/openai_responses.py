@@ -33,7 +33,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
@@ -179,6 +179,7 @@ async def generate_responses(
             usage=model_usage_from_response(model_response),
         ), model_call
     except BadRequestError as e:
+        model_call.response = as_error_response(e.body)
         model_call.time = http_hooks.end_request(request_id)
         if handle_bad_request:
             return handle_bad_request(e), model_call

@@ -32,7 +32,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
@@ -466,6 +466,7 @@ class BedrockAPI(ModelAPI):
                 model_call.time = self._http_hooks.end_request(request_id)
 
             except ClientError as ex:
+                model_call.response = as_error_response(ex.response)
                 model_call.time = time.monotonic() - start_time
                 # Look for an explicit validation exception
                 if ex.response["Error"]["Code"] == "ValidationException":

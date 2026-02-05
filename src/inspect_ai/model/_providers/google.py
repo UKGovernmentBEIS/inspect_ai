@@ -401,6 +401,9 @@ class GoogleGenAIAPI(ModelAPI):
                     else:
                         break
             except ClientError as ex:
+                model_call.response = {
+                    "error": {"message": str(ex.message), "code": ex.code}
+                }
                 model_call.time = http_hooks.end_request(request_id)
                 return self.handle_client_error(ex), model_call
 

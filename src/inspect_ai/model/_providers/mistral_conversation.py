@@ -111,6 +111,7 @@ async def mistral_conversation_generate(
         model_call.response = jsonable_python(conv_response.model_dump())
         model_call.time = http_hooks.end_request(request_id)
     except SDKError as ex:
+        model_call.response = {"error": {"message": str(ex)}}
         model_call.time = http_hooks.end_request(request_id)
         if ex.status_code == 400:
             return handle_bad_request(ex), model_call

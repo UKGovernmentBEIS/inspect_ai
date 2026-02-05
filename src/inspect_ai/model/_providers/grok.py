@@ -227,6 +227,9 @@ class GrokAPI(ModelAPI):
                     chat_response, tools
                 ), model_call
             except grpc.RpcError as ex:
+                model_call.response = {
+                    "error": {"code": str(ex.code()), "details": ex.details()}
+                }
                 model_call.time = time.monotonic() - start_time
                 if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
                     handled = self._handle_grpc_permission_denied(ex)

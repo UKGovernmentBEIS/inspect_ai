@@ -46,7 +46,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -188,6 +188,7 @@ class GroqAPI(ModelAPI):
             # return
             return output, model_call
         except APIStatusError as ex:
+            model_call.response = as_error_response(ex.body)
             model_call.time = self._http_hooks.end_request(request_id)
             return self.handle_bad_request(ex), model_call
 

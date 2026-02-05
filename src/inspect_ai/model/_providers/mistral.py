@@ -66,7 +66,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -236,6 +236,7 @@ class MistralAPI(ModelAPI):
                 model_call.response = jsonable_python(completion.model_dump())
                 model_call.time = http_hooks.end_request(request_id)
             except SDKError as ex:
+                model_call.response = as_error_response(ex.body)
                 model_call.time = http_hooks.end_request(request_id)
                 if ex.status_code == 400:
                     return self.handle_bad_request(ex), model_call

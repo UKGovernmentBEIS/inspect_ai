@@ -26,7 +26,7 @@ from inspect_ai.model import (
 from inspect_ai.tool import ToolCall, ToolInfo
 
 from .._call_tools import parse_tool_call, tool_parse_error_message
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelUsage, StopReason, as_stop_reason
 from .._providers.util import ChatAPIHandler, ChatAPIMessage, chat_api_input
 
@@ -63,6 +63,7 @@ async def generate_o1(
         completion: ChatCompletion = await client.chat.completions.create(**request)
         model_call.response = jsonable_python(completion.model_dump())
     except BadRequestError as ex:
+        model_call.response = as_error_response(ex.body)
         return handle_bad_request(model, ex), model_call
 
     # return model output

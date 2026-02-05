@@ -1,8 +1,37 @@
+import json
 from typing import Any, Callable, cast
 
 from pydantic import BaseModel, Field, JsonValue
 
 from inspect_ai._util.json import jsonable_python
+
+
+def as_error_response(body: object | None) -> dict[str, Any]:
+    """Convert an exception body to a safe response dict for ModelCall.
+
+    Handles different types that SDK exceptions may store:
+    - dict: returned as-is
+    - str: parsed as JSON if valid, otherwise wrapped as {"body": body}
+    - None/other: wrapped as {"body": body}
+
+    Args:
+        body: The error body from an SDK exception (ex.body, ex.response, etc.)
+
+    Returns:
+        A dict suitable for ModelCall.response
+    """
+    if isinstance(body, dict):
+        return body
+    if isinstance(body, str):
+        try:
+            parsed = json.loads(body)
+            if isinstance(parsed, dict):
+                return parsed
+            return {"body": parsed}
+        except (json.JSONDecodeError, TypeError):
+            return {"body": body}
+    return {"body": body}
+
 
 ModelCallFilter = Callable[[JsonValue | None, JsonValue], JsonValue]
 """Filter for transforming or removing some values (e.g. images).
