@@ -630,7 +630,7 @@ def _chat_message_assistant_from_openai_response(
 
             case ResponseFunctionWebSearch():
                 # Use warnings=False to suppress Pydantic serialization warnings for
-                # unknown action types like 'find_in_page' that the SDK doesn't support.
+                # action types the SDK may not yet support.
                 # See: https://github.com/pydantic/pydantic-ai/issues/3653
                 assistant_internal().server_tool_uses[output.id] = cast(
                     ResponseFunctionWebSearchParam,
@@ -842,8 +842,7 @@ def _is_valid_openai_web_search_action(action: dict[str, Any]) -> bool:
         # ActionOpenPage requires 'url'
         return "url" in action
     elif action_type in ("find", "find_in_page"):
-        # ActionFind requires 'pattern' and 'url'
-        # 'find_in_page' is a new type not yet in SDK, assumed same structure
+        # ActionFind / ActionFindInPage require 'pattern' and 'url'
         return "pattern" in action or "url" in action
 
     return False
@@ -853,8 +852,8 @@ def parse_web_search_action(arguments: str) -> dict[str, Any]:
     """Parse web search action from JSON arguments.
 
     Parses action as raw dict and filters None values to avoid Pydantic validation
-    issues with unknown action types like 'find_in_page' that the SDK doesn't
-    support yet. See: https://github.com/pydantic/pydantic-ai/issues/3653
+    issues with action types the SDK may not yet support.
+    See: https://github.com/pydantic/pydantic-ai/issues/3653
 
     If the parsed dict doesn't represent a valid OpenAI action, creates a conforming
     search action. This handles web search results from other providers (e.g., Anthropic)
