@@ -639,11 +639,11 @@ def messages_from_responses_input(
                     content.append(reasoning_from_responses_reasoning(param))
                 elif is_response_web_search_call(param):
                     ensure_id(param, "ws")
-                    # Workaround for OpenAI server implementation change
-                    # https://github.com/openai/openai-java/issues/526
+                    # Backwards compat: older SDK data may use "find" instead of
+                    # "find_in_page". https://github.com/openai/openai-java/issues/526
                     action = param["action"]
-                    if action["type"] == "find_in_page":  # type: ignore[comparison-overlap]
-                        action["type"] = "find"
+                    if action["type"] == "find":  # type: ignore[comparison-overlap]
+                        action["type"] = "find_in_page"
                     web_search = ResponseFunctionWebSearch.model_validate(param)
                     content.append(web_search_to_tool_use(web_search))
                 elif is_response_code_interpreter_call(param):
