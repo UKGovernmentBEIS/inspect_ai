@@ -1,4 +1,5 @@
-from typing import Any, Callable, Generator, Iterable, Iterator
+from collections.abc import Callable, Generator, Iterable, Iterator
+from typing import Any
 
 from inspect_ai.tool import ToolChoice, ToolInfo
 
