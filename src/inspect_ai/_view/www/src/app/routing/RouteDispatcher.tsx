@@ -5,10 +5,15 @@ import { LogViewContainer } from "../log-view/LogViewContainer";
 import { useLogRouteParams } from "./url";
 
 /**
- * RouteDispatcher component that determines whether to show FlowPanel, LogsPanel or LogViewContainer
- * based on the logPath parameter. If the path ends with .yaml/.yml, it shows the FlowPanel.
- * If logPath ends with .eval or .json, it shows the individual log view.
- * Otherwise, it shows the logs directory view.
+ * RouteDispatcher component that determines which view to show based on the route params.
+ *
+ * Note: Sample detail URLs (/logs/path/samples/sample/id/epoch) are handled by
+ * explicit routes in AppRouter.tsx that route directly to LogSampleDetailView.
+ *
+ * Routes to:
+ * - FlowPanel: for flow files (.yaml/.yml)
+ * - LogViewContainer: for log files (.eval/.json)
+ * - LogsPanel: for directory views
  */
 export const RouteDispatcher: FC = () => {
   const { logPath } = useLogRouteParams();

@@ -8,6 +8,7 @@ import {
 import { storeImplementation, useStore } from "../../state/store";
 import { AppErrorBoundary } from "../AppErrorBoundary";
 import { LogsPanel } from "../log-list/LogsPanel";
+import { LogSampleDetailView } from "../log-view/LogSampleDetailView";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { RouteDispatcher } from "./RouteDispatcher";
 import { SamplesRouter } from "./SamplesRouter";
@@ -71,11 +72,11 @@ export const AppRouter = createHashRouter(
         },
         {
           path: kSampleRouteUrlPattern,
-          element: <LogViewContainer />,
+          element: <LogSampleDetailView />,
         },
         {
           path: kSampleUuidRouteUrlPattern,
-          element: <LogViewContainer />,
+          element: <LogSampleDetailView />,
         },
         {
           path: "/samples/*",
