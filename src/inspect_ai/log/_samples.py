@@ -1,7 +1,10 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import AsyncGenerator, Iterator, Literal
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
 from anyio.abc import TaskGroup
 from shortuuid import uuid
@@ -194,6 +197,24 @@ def track_active_model_event(event: ModelEvent) -> Iterator[None]:
 
 def has_active_model_event() -> bool:
     return _active_model_event.get() is not None
+
+
+def set_active_model_event_call(
+    request: Any,
+    filter: "ModelCallFilter | None" = None,
+) -> "ModelCall":
+    """Create a ModelCall and register it with the active model event."""
+    from inspect_ai.log._transcript import transcript
+    from inspect_ai.model._model_call import ModelCall
+
+    if request is None:
+        request = {}
+    model_call = ModelCall.create(request, None, filter)
+    event = _active_model_event.get()
+    if event is not None:
+        event.call = model_call
+        transcript()._event_updated(event)
+    return model_call
 
 
 def report_active_sample_retry() -> None:

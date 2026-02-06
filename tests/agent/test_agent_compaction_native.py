@@ -265,7 +265,7 @@ Your answer MUST include the color.
             compaction=CompactionNative(threshold=8000),
         ),
         scorer=includes(),
-        message_limit=15,
+        message_limit=30,
     )
 
     log = eval(task, model="openai/gpt-5.1-codex")[0]
