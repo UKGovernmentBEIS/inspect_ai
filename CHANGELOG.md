@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
+- Scoring: Allow customisation of grouped metric names.
 - Inspect View: Improve scroll performance when viewing sample transcripts and messages.
 
 ## 0.3.171 (06 February 2026)
@@ -12,7 +13,6 @@
 - Anthropic: Built-in tool (e.g. web search, code execution) compatibility for Claude 4.6.
 - Anthropic: Support `--reasoning-effort` (via adaptive thinking) and  `--effort=max` option for Claude 4.6.
 - Added `extra_headers` to `GenerateConfig` for sending extra HTTP headers along with provider requests.
-- Scoring: Allow customisation of grouped metric names.
 - Together Batch API: Update to version 2.0.0 of `together` package.
 - Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
 - Inspect View: Show errors in model call events in the transcript.
