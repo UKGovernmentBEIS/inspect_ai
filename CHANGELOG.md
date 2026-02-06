@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
+- Scoring: Allow customisation of grouped metric names.
 - Inspect View: Improve scroll performance when viewing sample transcripts and messages.
 
 ## 0.3.171 (06 February 2026)
