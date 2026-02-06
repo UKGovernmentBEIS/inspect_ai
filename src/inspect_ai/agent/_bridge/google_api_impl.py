@@ -52,22 +52,6 @@ from .util import (
 logger = getLogger(__name__)
 
 
-def _convert_google_enums(obj: Any) -> Any:
-    """Convert Google SDK enum types to their string values.
-
-    Google's genai SDK uses enum classes (e.g., Type.OBJECT, Type.STRING) for type
-    fields, but ToolParams expects string literals ("object", "string"). This function
-    recursively converts enum values to lowercase strings.
-    """
-    if isinstance(obj, dict):
-        return {k: _convert_google_enums(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_convert_google_enums(item) for item in obj]
-    elif hasattr(obj, "value"):  # Enum-like object
-        return str(obj.value).lower()
-    return obj
-
-
 async def inspect_google_api_request_impl(
     json_data: dict[str, Any],
     web_search_providers: WebSearchProviders,
@@ -131,6 +115,14 @@ async def inspect_google_api_request_impl(
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
+
+
+def debug_log(caption: str, o: Any) -> None:
+    # from inspect_ai._util.json import to_json_str_safe
+
+    # print(caption)
+    # print(to_json_str_safe(o))
+    pass
 
 
 def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateConfig:
@@ -301,7 +293,6 @@ def messages_from_google_contents(
 
 
 def _extract_text_from_parts(parts: list[dict[str, Any]]) -> str:
-    """Extract combined text from parts."""
     texts = []
     for part in parts:
         if isinstance(part, dict) and "text" in part:
@@ -351,11 +342,8 @@ def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
-    """Extract user content and function responses from parts.
-
-    pending_tool_calls maps function_name -> list of call_ids from the previous
-    model message, used to match functionResponse with the correct tool_use_id.
-    """
+    # pending_tool_calls maps function_name -> list of call_ids from the previous
+    # model message, used to match functionResponse with the correct tool_use_id.
     content_parts: list[Content] = []
     tool_messages: list[ChatMessageTool] = []
 
@@ -603,9 +591,17 @@ def gemini_usage_metadata(usage: ModelUsage | None) -> dict[str, int]:
     }
 
 
-def debug_log(caption: str, o: Any) -> None:
-    # from inspect_ai._util.json import to_json_str_safe
+def _convert_google_enums(obj: Any) -> Any:
+    """Convert Google SDK enum types to their string values.
 
-    # print(caption)
-    # print(to_json_str_safe(o))
-    pass
+    Google's genai SDK uses enum classes (e.g., Type.OBJECT, Type.STRING) for type
+    fields, but ToolParams expects string literals ("object", "string"). This function
+    recursively converts enum values to lowercase strings.
+    """
+    if isinstance(obj, dict):
+        return {k: _convert_google_enums(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_google_enums(item) for item in obj]
+    elif hasattr(obj, "value"):  # Enum-like object
+        return str(obj.value).lower()
+    return obj
