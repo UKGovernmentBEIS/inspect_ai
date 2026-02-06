@@ -42,7 +42,7 @@ async def test_summary_basic() -> None:
     ]
 
     model = get_model("mockllm/model")
-    compacted, summary = await strategy.compact(messages, model)
+    compacted, summary = await strategy.compact(model, messages, [])
 
     # Summary should NOT be None (unlike Edit/Trim strategies)
     assert summary is not None
@@ -86,7 +86,7 @@ async def test_summary_existing_summary() -> None:
     ]
 
     model = get_model("mockllm/model")
-    compacted, summary = await strategy.compact(messages, model)
+    compacted, summary = await strategy.compact(model, messages, [])
 
     assert summary is not None
     assert summary.metadata is not None
@@ -114,7 +114,7 @@ async def test_summary_memory_addendum_with_memory_calls(
     ]
 
     model = get_model("mockllm/model")
-    compacted, summary = await strategy.compact(messages, model)
+    compacted, summary = await strategy.compact(model, messages, [])
 
     assert summary is not None
     # The prompt should include memory addendum - we can verify the strategy
@@ -134,7 +134,7 @@ async def test_summary_memory_disabled() -> None:
     ]
 
     model = get_model("mockllm/model")
-    compacted, summary = await strategy.compact(messages, model)
+    compacted, summary = await strategy.compact(model, messages, [])
 
     assert summary is not None
     # Strategy should complete without issues even with memory=False
@@ -154,7 +154,7 @@ async def test_summary_custom_model() -> None:
 
     # Pass a different model - the strategy should use its own custom model
     fallback_model = get_model("mockllm/fallback")
-    compacted, summary = await strategy.compact(messages, fallback_model)
+    compacted, summary = await strategy.compact(fallback_model, messages, [])
 
     assert summary is not None
 
@@ -172,7 +172,7 @@ async def test_summary_custom_prompt() -> None:
     ]
 
     model = get_model("mockllm/model")
-    compacted, summary = await strategy.compact(messages, model)
+    compacted, summary = await strategy.compact(model, messages, [])
 
     assert summary is not None
     # Strategy should use the custom prompt (verified by successful completion)
@@ -191,7 +191,7 @@ async def test_summary_no_system_message() -> None:
     ]
 
     model = get_model("mockllm/model")
-    compacted, summary = await strategy.compact(messages, model)
+    compacted, summary = await strategy.compact(model, messages, [])
 
     assert summary is not None
     # Without system message, compacted should have input + summary
@@ -215,7 +215,7 @@ async def test_summary_preserves_input_messages() -> None:
     ]
 
     model = get_model("mockllm/model")
-    compacted, summary = await strategy.compact(messages, model)
+    compacted, summary = await strategy.compact(model, messages, [])
 
     assert summary is not None
     # Should have: system + 2 inputs + summary

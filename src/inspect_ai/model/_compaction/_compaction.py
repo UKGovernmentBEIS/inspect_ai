@@ -126,6 +126,7 @@ def compaction(
             c_input, c_message = await _perform_compaction(
                 strategy=strategy,
                 messages=target_messages,
+                tools=tools_info,
                 model=target_model,
                 threshold=threshold,
                 tool_tokens=tool_tokens,
@@ -203,6 +204,7 @@ DEFAULT_CONTEXT_WINDOW = 128_000
 async def _perform_compaction(
     strategy: CompactionStrategy,
     messages: list[ChatMessage],
+    tools: list[ToolInfo],
     model: Model,
     threshold: int,
     tool_tokens: int,
@@ -213,6 +215,7 @@ async def _perform_compaction(
     Args:
         strategy: Compaction strategy to use.
         messages: Messages to compact.
+        tools: Available tools
         model: Target model for compaction.
         threshold: Token threshold to stay under.
         tool_tokens: Token count for tool definitions.
@@ -225,7 +228,7 @@ async def _perform_compaction(
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
     MAX_ITERATIONS = 3
-    c_input, c_message = await strategy.compact(messages, model)
+    c_input, c_message = await strategy.compact(model, messages, tools)
     compacted_tokens = await model.count_tokens(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
@@ -236,7 +239,7 @@ async def _perform_compaction(
         prev_tokens = compacted_tokens
 
         # Try compacting again
-        c_input, c_message = await strategy.compact(list(c_input), model)
+        c_input, c_message = await strategy.compact(model, list(c_input), tools)
         compacted_tokens = await model.count_tokens(c_input)
         total_compacted = tool_tokens + compacted_tokens
 

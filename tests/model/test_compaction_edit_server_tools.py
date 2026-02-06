@@ -161,7 +161,7 @@ async def check_server_tool_compaction(
         keep_thinking_turns=10,  # Keep thinking (not what we're testing)
         keep_tool_uses=1,  # Clear older tool results, keep only most recent
     )
-    compacted_messages, _ = await strategy.compact(messages, model)
+    compacted_messages, _ = await strategy.compact(model, messages, [])
 
     # Verify that tool results were actually cleared
     total_after, cleared_after = _count_server_tool_uses(compacted_messages)
