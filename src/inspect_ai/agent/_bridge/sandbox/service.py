@@ -98,14 +98,11 @@ def generate_google(
     code_execution: CodeExecutionProviders,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
-    """Generate handler for Google Gemini API requests."""
-
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
         _resolve_model(bridge.model, json_data)
         completion = await inspect_google_api_request(
             json_data, web_search, code_execution, bridge
         )
-        # google_api returns a dict directly, no model_dump needed
         return completion
 
     return generate
