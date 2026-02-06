@@ -57,14 +57,6 @@ One important thing to note about compaction is that it affects only the input t
 
 ## Automatic Compaction
 
-::: {.callout-note appearance="minimal"}
-The automatic compaction strategy described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 `CompactionAuto` provides the best of both worlds: it uses efficient provider-native compaction when available and falls back to summary-based compaction for unsupported providers. This is the recommended default for most use cases.
 
 For example, here we add automatic compaction to a `react()` agent:
@@ -92,14 +84,6 @@ Here are all options available for `CompactionAuto`:
 
 
 ## Native Compaction
-
-::: {.callout-note appearance="minimal"}
-The native compaction strategy described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 Native compaction delegates context management to the model provider's own compaction API rather than implementing it client-side. The provider compresses the conversation into a provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API and Anthropic Claude 4.6.
 

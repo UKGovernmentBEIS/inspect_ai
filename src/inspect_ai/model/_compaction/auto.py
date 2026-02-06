@@ -20,14 +20,6 @@ from .types import CompactionStrategy
 class CompactionAuto(CompactionStrategy):
     """Automatic compaction: tries native first, falls back to summary.
 
-    ::: {.callout-note appearance="minimal"}
-    The native compaction strategy is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     This strategy uses efficient provider-native compaction when available, and falls back to summary-based compaction for unsupported providers or models.
 
     This is the recommended default for most use cases, as it automatically

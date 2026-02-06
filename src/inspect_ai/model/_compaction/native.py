@@ -16,14 +16,6 @@ from .types import CompactionStrategy
 class CompactionNative(CompactionStrategy):
     """Compaction strategy using provider-native compaction APIs.
 
-    ::: {.callout-note appearance="minimal"}
-    The native compaction strategy is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     This strategy delegates compaction to the model provider's native compaction
     endpoint when available (e.g., OpenAI Codex models). For providers without
     native compaction support, this will raise NotImplementedError. Use

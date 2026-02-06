@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.171 (06 February 2026)
 
 - Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).
 - Compaction: New `CompactionAuto` strategy which uses `CompactionNative` if possible and falls back to `CompactionSummary`.
