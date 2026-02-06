@@ -72,32 +72,32 @@ export const LogSampleDetailView: FC = () => {
   // Get navigation handlers from the hook
   const { onPrevious, onNext, hasPrevious, hasNext } = useLogSampleNavigation();
 
-  // Custom navigation URL function that returns to the log's samples tab
-  // when navigating back from a sample detail view.
-  // The navbar uses dirname(currentPath) for the back button, so when the
-  // path is "metr/file.eval", dirname returns "metr/". We want to go to
-  // the log's samples tab instead (logsUrl("metr/file.eval", logDir, "samples")).
-  // The home button uses fnNavigationUrl("", logDir) which should go to root.
+  // Custom navigation URL function for breadcrumbs and back button.
+  // We use currentPath = `${logPath}/sample` so the log file becomes clickable.
+  // - Back button: dirname of "logPath/sample" is "logPath", goes to log's samples tab
+  // - Home button: goes to root
+  // - Log file breadcrumb: goes to log's samples tab
+  // - Parent folder breadcrumbs: go to those folders
   const fnNavigationUrl = useCallback(
     (file: string, log_dir?: string) => {
-      // Detect if this is the back button trying to go to the parent directory.
-      // The back button passes ensureTrailingSlash(dirname(logPath)).
-      // For "metr/file.eval", that's "metr/".
-      // We want to redirect this to the log's samples tab instead.
-      if (logPath && file) {
-        // Normalize: remove trailing slash for comparison
-        const normalizedFile = file.endsWith("/") ? file.slice(0, -1) : file;
-        const logDir = logPath.includes("/")
-          ? logPath.substring(0, logPath.lastIndexOf("/"))
-          : "";
-
-        // If the file matches the parent directory of the log path,
-        // redirect to the log's samples tab
-        if (normalizedFile === logDir) {
-          return logsUrl(logPath, log_dir, kLogViewSamplesTabId);
-        }
+      if (!logPath || !file) {
+        // Empty file = home button, go to root
+        return logsUrl(file, log_dir);
       }
-      // Otherwise, use the default logsUrl behavior
+
+      // Normalize: remove trailing slash for comparison
+      const normalizedFile = file.endsWith("/") ? file.slice(0, -1) : file;
+
+      // If clicking the log file itself or the virtual "sample" path,
+      // go to log's samples tab
+      if (
+        normalizedFile === logPath ||
+        normalizedFile === `${logPath}/sample`
+      ) {
+        return logsUrl(logPath, log_dir, kLogViewSamplesTabId);
+      }
+
+      // Otherwise, use the default logsUrl behavior (for parent folders)
       return logsUrl(file, log_dir);
     },
     [logPath],
@@ -115,7 +115,9 @@ export const LogSampleDetailView: FC = () => {
         hasNext,
       }}
       navbarConfig={{
-        currentPath: logPath,
+        // Add sample identifier to path so log file becomes clickable
+        // (breadcrumbs don't make the last segment a link)
+        currentPath: logPath ? `${logPath}/sample` : undefined,
         fnNavigationUrl,
         bordered: true,
       }}
