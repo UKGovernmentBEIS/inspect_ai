@@ -1665,6 +1665,8 @@ async def assistant_message_blocks(
             blocks.append(BetaMCPToolResultBlock.model_validate(block_param))
         elif block_param["type"] == "web_fetch_tool_result":
             blocks.append(BetaWebFetchToolResultBlock.model_validate(block_param))
+        elif block_param["type"] == "compaction":
+            blocks.append(BetaCompactionBlock.model_validate(block_param))
         else:
             logger.warning(
                 f"Unexpecxted assistant message block type: {block_param['type']}"
@@ -1829,13 +1831,15 @@ async def model_output_from_message(
 
 
 content_block_adapter = TypeAdapter[
-    BetaServerToolUseBlock
+    BetaCompactionBlock
+    | BetaServerToolUseBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
     | BetaWebFetchToolResultBlock
     | ContentBlock,
 ](
-    BetaServerToolUseBlock
+    BetaCompactionBlock
+    | BetaServerToolUseBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
     | BetaWebFetchToolResultBlock
