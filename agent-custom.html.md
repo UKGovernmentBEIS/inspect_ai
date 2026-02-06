@@ -175,7 +175,7 @@ compaction message (`c_message`) to be added to the main history.
 from typing import Sequence
 from inspect_ai.agent import AgentState, agent
 from inspect_ai.model import (
-    CompactionEdit, compaction, execute_tools, get_model
+    CompactionAuto, compaction, execute_tools, get_model
 from inspect_ai.tool import (
     Tool, ToolDef, ToolSource, mcp_connection
 )
@@ -186,7 +186,7 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
         # create compaction handler
         compact = compaction(
-            CompactionEdit(threshold=0.9),
+            CompactionAuto(),
             prefix=state.messages,
             tools=tools
         )

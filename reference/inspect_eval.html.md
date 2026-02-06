@@ -76,7 +76,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--max-tool-output` | integer | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. | None |
 | `--cache-prompt` | choice (`auto` \| `true` \| `false`) | Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools. | None |
 | `--verbosity` | choice (`low` \| `medium` \| `high`) | Constrains the verbosity of the model’s response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to “medium” for OpenAI models) | None |
-| `--effort` | choice (`low` \| `medium` \| `high`) | Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only. | None |
+| `--effort` | choice (`low` \| `medium` \| `high` \| `max`) | Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (`max` only supported on 4.6). | None |
 | `--reasoning-effort` | choice (`none` \| `minimal` \| `low` \| `medium` \| `high` \| `xhigh`) | Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). | None |
 | `--reasoning-tokens` | integer | Maximum number of tokens to use for reasoning. Anthropic Claude models only. | None |
 | `--reasoning-summary` | choice (`none` \| `concise` \| `detailed` \| `auto`) | Provide summary of reasoning steps (OpenAI reasoning models only). Use ‘auto’ to access the most detailed summarizer available for the current model (defaults to ‘auto’ if your organization is verified by OpenAI). | None |

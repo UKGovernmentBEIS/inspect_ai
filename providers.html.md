@@ -216,7 +216,7 @@ requisite identifier for beta features it utilizes
 If there are other beta features you want to enable, use the `betas`
 model arg (`-M`). For example, to enable [1M token context
 windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window)
-for Sonnet 5 models:
+for Sonnet 4.5 and Opus 4.6 models:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07

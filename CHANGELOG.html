@@ -149,9 +149,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#february-2026" id="toc-february-2026" class="nav-link" data-scroll-target="#february-2026">0.3.170 (03 February 2026)</a></li>
-  <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.169 (01 February 2026)</a></li>
+  <li><a href="#february-2026" id="toc-february-2026" class="nav-link active" data-scroll-target="#february-2026">0.3.171 (06 February 2026)</a></li>
+  <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.170 (03 February 2026)</a></li>
+  <li><a href="#february-2026-2" id="toc-february-2026-2" class="nav-link" data-scroll-target="#february-2026-2">0.3.169 (01 February 2026)</a></li>
   <li><a href="#january-2026" id="toc-january-2026" class="nav-link" data-scroll-target="#january-2026">0.3.168 (31 January 2026)</a></li>
   <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.167 (29 January 2026)</a></li>
   <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.166 (29 January 2026)</a></li>
@@ -328,22 +328,29 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="february-2026" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026">0.3.171 (06 February 2026)</h2>
 <ul>
-<li>Compaction: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> strategy which uses provider-native compaction (currently only available for OpenAI).</li>
+<li>Compaction: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).</li>
+<li>Compaction: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionauto">CompactionAuto</a></span> strategy which uses <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> if possible and falls back to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionsummary">CompactionSummary</a></span>.</li>
 <li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_from_events">store_from_events()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_from_events_as">store_from_events_as()</a></span> functions for reconstructing the store from a list of events.</li>
 <li>OpenAI: Updated to 2.17.0 of <code>openai</code> package to get correct types for web search <code>ActionFind</code>.</li>
+<li>Anthropic: Built-in tool (e.g.&nbsp;web search, code execution) compatibility for Claude 4.6.</li>
+<li>Anthropic: Support <code>--reasoning-effort</code> (via adaptive thinking) and <code>--effort=max</code> option for Claude 4.6.</li>
 <li>Added <code>extra_headers</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> for sending extra HTTP headers along with provider requests.</li>
 <li>Together Batch API: Update to version 2.0.0 of <code>together</code> package.</li>
 <li>Inspect View: Add sticky headers for transcript events and show turn number to improve “where am I” UX.</li>
 <li>Inspect View: Show errors in model call events in the transcript.</li>
 <li>Inspect View: Show tracebacks in model call events in the transcript.</li>
+<li>Inspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.</li>
+<li>Inspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.</li>
+<li>Inspect View: Fix issue where a large number of logs could result in laggy or hung viewer in VSCode.</li>
 <li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> now respects <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> name parameter when creating the transfer_to_X tool name.</li>
+<li>Bugfix: Correctly handle optional <code>content</code> field in Anthropic agent bridge <code>tool_result</code>.</li>
 </ul>
 </section>
-<section id="february-2026" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026">0.3.170 (03 February 2026)</h2>
+<section id="february-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-1">0.3.170 (03 February 2026)</h2>
 <ul>
 <li>Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stable_message_ids">stable_message_ids()</a></span> function for yielding stable ids based on model content (but always unique within a given conversation).</li>
 <li>Model API: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#compactionevent">CompactionEvent</a></span> for model compactions.</li>
@@ -357,8 +364,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Submit to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#human_cli">human_cli()</a></span> with no answer now correctly completes task.</li>
 </ul>
 </section>
-<section id="february-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-1">0.3.169 (01 February 2026)</h2>
+<section id="february-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-2">0.3.169 (01 February 2026)</h2>
 <ul>
 <li>Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g.&nbsp;PydanticAI).</li>
 <li>OpenAI: Workaround for openai Python SDK inability to round trip ‘find_in_page’ web search actions.</li>

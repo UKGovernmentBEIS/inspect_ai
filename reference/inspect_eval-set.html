@@ -1257,6 +1257,18 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#compactionauto" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CompactionAuto</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#compactionnative" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CompactionNative</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#compactionedit" class="sidebar-item-text sidebar-link">
  <span class="menu-text">CompactionEdit</span></a>
   </div>
@@ -1271,12 +1283,6 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#compactiontrim" class="sidebar-item-text sidebar-link">
  <span class="menu-text">CompactionTrim</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.model.html#compactionnative" class="sidebar-item-text sidebar-link">
- <span class="menu-text">CompactionNative</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3145,8 +3151,8 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td><code>--effort</code></td>
-<td>choice (<code>low</code> | <code>medium</code> | <code>high</code>)</td>
-<td>Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only.</td>
+<td>choice (<code>low</code> | <code>medium</code> | <code>high</code> | <code>max</code>)</td>
+<td>Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5 and 4.6 only (<code>max</code> only supported on 4.6).</td>
 <td>None</td>
 </tr>
 <tr class="odd">

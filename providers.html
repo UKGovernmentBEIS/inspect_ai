@@ -748,7 +748,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="ad0bda4e" class="cell">
+<div id="baf9b515" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">" openai/gpt-4o-mini"</span>, </span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    model_args<span class="op">=</span> { <span class="st">"responses_api"</span>: <span class="va">True</span> }</span>
@@ -857,7 +857,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="betas" class="level3">
 <h3 class="anchored" data-anchor-id="betas">Betas</h3>
 <p>Some Anthropic features require that you include a beta identifier in the <code>betas</code> field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g.&nbsp;“mcp-client-2025-04-04”, “computer-use-2025-01-24”, etc.).</p>
-<p>If there are other beta features you want to enable, use the <code>betas</code> model arg (<code>-M</code>). For example, to enable <a href="https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window">1M token context windows</a> for Sonnet 5 models:</p>
+<p>If there are other beta features you want to enable, use the <code>betas</code> model arg (<code>-M</code>). For example, to enable <a href="https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window">1M token context windows</a> for Sonnet 4.5 and Opus 4.6 models:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-sonnet-4-0 <span class="at">-M</span> betas=context-1m-2025-08-07</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="streaming" class="level3">
