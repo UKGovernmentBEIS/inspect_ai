@@ -71,9 +71,11 @@ class AgentBridge:
     def _id_for_message(
         self, message: ChatMessage, index: int, conversation: list[ChatMessage]
     ) -> str:
+        # message_id we will return
         message_id: str | None = None
         message_key = _message_key(message, index)
 
+        # do we already have an id for this message that isn't in the conversation?
         conversation_ids: set[str] = {m.id for m in conversation if m.id is not None}
         message_ids = self._message_ids.get(message_key, [])
         for id in message_ids:
@@ -81,18 +83,25 @@ class AgentBridge:
                 message_id = id
                 break
 
+        # if we didn't find an id then generate a new one and update our record
         if message_id is None:
             message_id = uuid()
             message_ids.append(message_id)
             self._message_ids[message_key] = message_ids
 
+        # return the id
         return message_id
 
     def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
-        # Use a high-water-mark heuristic to distinguish main-thread generations
-        # from side calls (e.g. bash path detection). Only update state when the
-        # message count exceeds the previous maximum, with a reset when compaction
-        # is detected (input drops below half the previous count).
+        # automatically track agent state based on observing generations made through
+        # the bridge. we need to distinguish between the "main" thread of generation
+        # and various types of side / sub-agent calls to the model (e.g. claude code
+        # does bash path detection using a side call). our heuristic is to keep the
+        # number of messages that were in the _last_ generation, and to update the
+        # state whenever the total messages exceeds it. this should pick up normal
+        # agent loops that keep appending, while at the same time discarding side model
+        # calls that tend to be shorter. finally, this should handle recovering from
+        # history compaction, which will shorten the message history considerably
         messages = input + [output.message]
 
         # Detect compaction: input significantly shorter but not a trivial side call.
