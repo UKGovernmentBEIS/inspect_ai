@@ -433,7 +433,7 @@ class AnthropicAPI(ModelAPI):
             return output, model_call
 
         except BadRequestError as ex:
-            return self.handle_bad_request(ex), model_call
+            return self.handle_bad_request(ex), model_call or ModelCall(request={})
 
         except APIStatusError as ex:
             if ex.status_code == 413:
@@ -442,7 +442,7 @@ class AnthropicAPI(ModelAPI):
                     content=ex.message,
                     stop_reason="model_length",
                     error=ex.message,
-                ), model_call
+                ), model_call or ModelCall(request={})
             else:
                 raise ex
 

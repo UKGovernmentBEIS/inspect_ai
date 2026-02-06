@@ -1,8 +1,6 @@
 import json
-from typing import TYPE_CHECKING, Any, Literal, Sequence
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from collections.abc import Callable
+from typing import Any, Literal, Sequence
 
 from mistralai import (
     CodeInterpreterTool,
