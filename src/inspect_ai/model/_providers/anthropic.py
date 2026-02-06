@@ -409,8 +409,7 @@ class AnthropicAPI(ModelAPI):
                     request["extra_body"] = dict()
                 request["extra_body"]["mcp_servers"] = mcp_servers_param
 
-            call = start_active_model_call(request, model_call_filter)
-            model_call = call
+            model_call = start_active_model_call(request, model_call_filter)
 
             # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (

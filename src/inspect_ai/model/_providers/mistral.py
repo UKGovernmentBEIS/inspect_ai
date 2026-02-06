@@ -222,8 +222,7 @@ class MistralAPI(ModelAPI):
             if req.get("tools", None) is not None:
                 req["tools"] = [tool.model_dump() for tool in req["tools"]]
 
-            call = start_active_model_call(req, None)
-            model_call = call
+            model_call = start_active_model_call(req, None)
 
             # send request
             try:

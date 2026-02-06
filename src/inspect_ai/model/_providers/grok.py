@@ -216,8 +216,9 @@ class GrokAPI(ModelAPI):
                     else:
                         chat_response = await chat.sample()
 
-                model_call.set_response(MessageToDict(chat_response._proto))
-                model_call.time = time.monotonic() - start_time
+                model_call.set_response(
+                    MessageToDict(chat_response._proto), time.monotonic() - start_time
+                )
 
                 # return
                 return self._model_output_from_response(
@@ -225,9 +226,9 @@ class GrokAPI(ModelAPI):
                 ), model_call
             except grpc.RpcError as ex:
                 model_call.set_response(
-                    {"error": {"code": str(ex.code()), "details": ex.details()}}
+                    {"error": {"code": str(ex.code()), "details": ex.details()}},
+                    time.monotonic() - start_time,
                 )
-                model_call.time = time.monotonic() - start_time
                 if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
                     handled = self._handle_grpc_permission_denied(ex)
                     if handled:

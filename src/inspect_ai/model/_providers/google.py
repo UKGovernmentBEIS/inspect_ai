@@ -72,6 +72,7 @@ from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -325,7 +326,7 @@ class GoogleGenAIAPI(ModelAPI):
                     config.response_schema.json_schema.model_dump(exclude_none=True)
                 )
 
-            model_call = build_model_call(
+            model_call = start_model_call(
                 contents=gemini_contents,  # type: ignore[arg-type]
                 safety_settings=self.safety_settings,
                 generation_config=parameters,
@@ -333,8 +334,6 @@ class GoogleGenAIAPI(ModelAPI):
                 tool_config=gemini_tool_config,
                 system_instruction=system_instruction,
             )
-
-            self.record_model_call(model_call)
 
             response: GenerateContentResponse | None = None
 
@@ -389,15 +388,16 @@ class GoogleGenAIAPI(ModelAPI):
                         break
             except ClientError as ex:
                 model_call.set_response(
-                    {"error": {"message": str(ex.message), "code": ex.code}}
+                    {"error": {"message": str(ex.message), "code": ex.code}},
+                    http_hooks.end_request(request_id),
                 )
-                model_call.time = http_hooks.end_request(request_id)
                 return self.handle_client_error(ex), model_call
 
             assert response is not None  # mypy confused by retry loop
 
-            model_call.set_response(response.model_dump())
-            model_call.time = http_hooks.end_request(request_id)
+            model_call.set_response(
+                response.model_dump(), http_hooks.end_request(request_id)
+            )
 
             model_name = response.model_version or self.service_model_name()
             output = ModelOutput(
@@ -885,7 +885,7 @@ def safety_settings_to_list(
     return settings
 
 
-def build_model_call(
+def start_model_call(
     contents: ContentListUnion | ContentListUnionDict,
     generation_config: GenerateContentConfig,
     safety_settings: list[SafetySettingDict],
@@ -893,7 +893,7 @@ def build_model_call(
     tool_config: ToolConfig | None,
     system_instruction: list[File | Part | Image | str] | None,
 ) -> ModelCall:
-    return ModelCall.create(
+    return start_active_model_call(
         request=dict(
             contents=contents,
             # the excluded fields are passed to the Python API as part of

@@ -143,8 +143,9 @@ class GroqAPI(ModelAPI):
                 **request,
             )
 
-            model_call.set_response(completion.model_dump())
-            model_call.time = self._http_hooks.end_request(request_id)
+            model_call.set_response(
+                completion.model_dump(), self._http_hooks.end_request(request_id)
+            )
 
             # extract metadata
             metadata: dict[str, Any] = {
@@ -185,8 +186,9 @@ class GroqAPI(ModelAPI):
             # return
             return output, model_call
         except APIStatusError as ex:
-            model_call.set_response(as_error_response(ex.body))
-            model_call.time = self._http_hooks.end_request(request_id)
+            model_call.set_response(
+                as_error_response(ex.body), self._http_hooks.end_request(request_id)
+            )
             return self.handle_bad_request(ex), model_call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:

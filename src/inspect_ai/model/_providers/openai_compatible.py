@@ -206,16 +206,16 @@ class OpenAICompatibleAPI(ModelAPI):
                 **completion_params,
             )
 
-            call = start_active_model_call(request, openai_media_filter)
-            model_call = call
+            model_call = start_active_model_call(request, openai_media_filter)
 
             try:
                 # generate completion and save response for model call
                 completion = await self._generate_completion(request, config)
+                response = completion.model_dump()
                 model_call.set_response(
-                    completion.model_dump(), self._http_hooks.end_request(request_id)
+                    response, self._http_hooks.end_request(request_id)
                 )
-                self.on_response(model_call.response)
+                self.on_response(response)
 
                 # get choices
                 choices = self.chat_choices_from_completion(completion, tools)

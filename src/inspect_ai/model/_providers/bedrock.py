@@ -456,11 +456,15 @@ class BedrockAPI(ModelAPI):
                 )
                 converse_response = ConverseResponse(**response)
 
-                model_call.set_response(response)
-                model_call.time = self._http_hooks.end_request(request_id)
+                model_call.set_response(
+                    response, self._http_hooks.end_request(request_id)
+                )
 
             except ClientError as ex:
-                model_call.set_response(as_error_response(ex.response))
+                model_call.set_response(
+                    as_error_response(ex.response),
+                    self._http_hooks.end_request(request_id),
+                )
                 # Look for an explicit validation exception
                 if ex.response["Error"]["Code"] == "ValidationException":
                     response = ex.response["Error"]["Message"].lower()

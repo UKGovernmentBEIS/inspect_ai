@@ -230,7 +230,8 @@ _active_samples: list[ActiveSample] = []
 
 
 def start_active_model_call(
-    request: Any, filter: "ModelCallFilter | None" = None
+    request: Any,
+    filter: "ModelCallFilter | None" = None,
 ) -> "ModelCall":
     """Create a ModelCall and register it with the active model event."""
     from inspect_ai.model._model_call import ModelCall
