@@ -431,7 +431,9 @@ describe("parseLogRouteParams", () => {
 
     test("/samples/sample/ pattern takes precedence over simple sampleId", () => {
       // /samples/sample/X/Y should be recognized as full sample route
-      const result = parseLogRouteParams("path/file.eval/samples/sample/myid/5");
+      const result = parseLogRouteParams(
+        "path/file.eval/samples/sample/myid/5",
+      );
       expect(result.sampleId).toBe("myid");
       expect(result.epoch).toBe("5");
     });
@@ -501,7 +503,9 @@ describe("parseLogRouteParams", () => {
 
     test("handles paths with file: prefix normalized for workspace tabs", () => {
       // file: prefix gets normalized with /// when reaching workspace tab logic
-      const result = parseLogRouteParams("file:/Users/test/path/file.eval/info");
+      const result = parseLogRouteParams(
+        "file:/Users/test/path/file.eval/info",
+      );
       expect(result).toEqual({
         logPath: "file:///Users/test/path/file.eval",
         tabId: "info",
