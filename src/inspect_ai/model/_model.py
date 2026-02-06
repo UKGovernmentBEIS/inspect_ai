@@ -1440,6 +1440,13 @@ def resolve_models(
     if isinstance(model, str):
         model = [m.strip() for m in model.split(",")]
 
+    # pre-compute vLLM LoRA config across all models before initialization
+    model_strs = [m for m in model if isinstance(m, str)]
+    if any(m.startswith("vllm/") for m in model_strs):
+        from inspect_ai.model._providers._vllm_lora import precompute_vllm_lora_config
+
+        precompute_vllm_lora_config(model_strs)
+
     # resolve models
     return [resolve_model(m) for m in model]
 

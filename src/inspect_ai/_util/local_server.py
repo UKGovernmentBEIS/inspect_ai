@@ -310,9 +310,13 @@ def start_local_server(
         for key, value in server_args.items():
             # Convert Python style args (underscore) to CLI style (dash)
             cli_key = key.replace("_", "-")
-            if value is None:
-                # If the value is empty, just add the flag
-                full_command.extend([f"--{cli_key}"])
+            if isinstance(value, bool):
+                if value:
+                    full_command.append(f"--{cli_key}")
+                else:
+                    logger.info(f"Skipping --{cli_key} (set to False)")
+            elif value is None:
+                full_command.append(f"--{cli_key}")
             else:
                 full_command.extend([f"--{cli_key}", str(value)])
 
