@@ -377,18 +377,23 @@ async def messages_from_anthropic_input(
                         continue
                     if c["type"] == "tool_result":
                         flush_pending_user_content()
-                        content = (
-                            c["content"]
-                            if isinstance(c["content"], str)
-                            else [content_block_to_content(b) for b in c["content"]]
-                        )
+                        content_value = c.get("content")
+                        if content_value is None:
+                            content: str | list[Content] = ""
+                        elif isinstance(content_value, str):
+                            content = content_value
+                        else:
+                            content = [
+                                content_block_to_content(b) for b in content_value
+                            ]
                         messages.append(
                             ChatMessageTool(
                                 tool_call_id=c["tool_use_id"],
                                 function=tool_names.get(c["tool_use_id"], None),
                                 content=content,
                                 error=ToolCallError(
-                                    type="unknown", message=str(c["content"])
+                                    type="unknown",
+                                    message=str(content_value) if content_value else "",
                                 )
                                 if c.get("is_error", False) is True
                                 else None,
