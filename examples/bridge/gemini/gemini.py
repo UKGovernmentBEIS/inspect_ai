@@ -31,15 +31,15 @@ def gemini() -> Agent:
                     "gemini",
                     "--model",
                     "inspect",
-                    "--yolo",  # Auto-approve all actions (required for non-interactive)
+                    "--yolo",
                     "--output-format",
                     "text",
-                    prompt,  # Positional argument at end
+                    prompt,
                 ],
                 env={
                     "GOOGLE_GEMINI_BASE_URL": f"http://localhost:{bridge.port}",
                     "GEMINI_API_KEY": "sk-inspect-bridge",
-                    "HOME": "/tmp",  # Gemini CLI needs a home directory
+                    "HOME": "/tmp",
                 },
             )
 

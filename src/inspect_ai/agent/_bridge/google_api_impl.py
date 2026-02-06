@@ -1,27 +1,10 @@
-"""Google Gemini API translation for agent bridge.
-
-Translates between Google's Gemini API format and Inspect's ChatMessage format.
-Based on LiteLLM's GoogleGenAIAdapter implementation.
-
-Gemini API format:
-- Input: contents[] with role ("user"/"model") and parts[] (text, functionCall, functionResponse)
-- System: systemInstruction with parts[]
-- Tools: tools[] with functionDeclarations[]
-- Output: candidates[] with content.parts[] and finishReason
-
-Inspect format:
-- Input: ChatMessage[] (ChatMessageUser, ChatMessageAssistant, ChatMessageTool, ChatMessageSystem)
-- Tools: ToolInfo[]
-- Output: ModelOutput with ChatMessageAssistant
-"""
-
 from __future__ import annotations
 
 import base64
 import hashlib
 import json
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal
 
 from shortuuid import uuid
 
@@ -108,6 +91,8 @@ async def inspect_google_api_request_impl(
         "generationConfig", json_data.get("generation_config", {})
     )
 
+    debug_log("SCAFFOLD INPUT", contents)
+
     # translate tools
     tools = tools_from_google_tools(
         google_tools, web_search_providers, code_execution_providers
@@ -118,6 +103,7 @@ async def inspect_google_api_request_impl(
 
     # translate messages
     messages = messages_from_google_contents(contents, system_instruction)
+    debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config
     config = generate_config_from_google(generation_config)
@@ -135,15 +121,19 @@ async def inspect_google_api_request_impl(
     if c_message is not None:
         messages.append(c_message)
 
+    debug_log("INSPECT OUTPUT", output.message)
+
     # update state if we have more messages than the last generation
     bridge._track_state(messages, output)
 
     # translate response to Gemini format
-    return gemini_response_from_output(output, model.api.model_name)
+    response = gemini_response_from_output(output, model.api.model_name)
+    debug_log("SCAFFOLD RESPONSE", response)
+
+    return response
 
 
 def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateConfig:
-    """Extract GenerateConfig from Google API parameters."""
     config = GenerateConfig()
 
     # From generationConfig
@@ -174,7 +164,6 @@ def tools_from_google_tools(
     web_search_providers: WebSearchProviders,
     code_execution_providers: CodeExecutionProviders,
 ) -> list[ToolInfo | Tool]:
-    """Translate Google tools format to Inspect tools."""
     tools: list[ToolInfo | Tool] = []
 
     for tool in google_tools or []:
@@ -212,7 +201,6 @@ def tools_from_google_tools(
 def tool_choice_from_google_tool_config(
     tool_config: dict[str, Any] | None,
 ) -> ToolChoice | None:
-    """Translate Google toolConfig to Inspect tool choice."""
     if not tool_config:
         return None
 
@@ -238,7 +226,6 @@ def messages_from_google_contents(
     contents: list[dict[str, Any]],
     system_instruction: dict[str, Any] | list[Any] | None,
 ) -> list[ChatMessage]:
-    """Translate Google contents format to Inspect messages."""
     messages: list[ChatMessage] = []
 
     # Extract system prompt text for deduplication
@@ -607,15 +594,6 @@ def _extract_model_parts(
 
 
 def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[str, Any]:
-    """Translate Inspect ModelOutput to Google Gemini API response format.
-
-    Also handles thought_signature by looking for ContentReasoning blocks with
-    redacted=True and attaching the signature to the first function call.
-
-    Additionally embeds the signature in a text part with a special marker so that
-    the CLI will preserve it in its history reconstruction. We then extract it
-    in messages_from_google_contents when receiving the next request.
-    """
     parts: list[dict[str, Any]] = []
     working_reasoning_block: ContentReasoning | None = None
 
@@ -703,21 +681,19 @@ def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[st
     return response
 
 
-def gemini_finish_reason(stop_reason: StopReason) -> str:
-    """Map Inspect stop reason to Gemini finish reason."""
-    mapping: dict[StopReason, str] = {
-        "stop": "STOP",
-        "max_tokens": "MAX_TOKENS",
-        "model_length": "MAX_TOKENS",
-        "tool_calls": "STOP",  # Gemini uses STOP for tool calls too
-        "content_filter": "SAFETY",
-        "unknown": "STOP",
-    }
-    return mapping.get(stop_reason, "STOP")
+def gemini_finish_reason(
+    stop_reason: StopReason,
+) -> Literal["STOP", "MAX_TOKENS", "SAFETY"]:
+    match stop_reason:
+        case "stop" | "tool_calls" | "unknown":
+            return "STOP"
+        case "max_tokens" | "model_length":
+            return "MAX_TOKENS"
+        case "content_filter":
+            return "SAFETY"
 
 
 def gemini_usage_metadata(usage: ModelUsage | None) -> dict[str, int]:
-    """Create Gemini usageMetadata from Inspect ModelUsage."""
     if usage is None:
         return {
             "promptTokenCount": 0,
@@ -729,3 +705,11 @@ def gemini_usage_metadata(usage: ModelUsage | None) -> dict[str, int]:
         "candidatesTokenCount": usage.output_tokens,
         "totalTokenCount": usage.total_tokens,
     }
+
+
+def debug_log(caption: str, o: Any) -> None:
+    # from inspect_ai._util.json import to_json_str_safe
+
+    # print(caption)
+    # print(to_json_str_safe(o))
+    pass

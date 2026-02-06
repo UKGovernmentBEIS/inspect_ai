@@ -375,9 +375,10 @@ def init_google_request_patch() -> None:
                 return SdkHttpResponse(headers={}, body=json.dumps(response))
 
         # Otherwise delegate to original
-        return await original_async_request(
+        result: SdkHttpResponse = await original_async_request(
             self, http_method, path, request_dict, http_options
         )
+        return result
 
     setattr(BaseApiClient, "async_request", patched_async_request)
 
