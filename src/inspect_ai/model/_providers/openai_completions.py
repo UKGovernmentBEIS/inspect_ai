@@ -12,7 +12,7 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -93,7 +93,7 @@ async def generate_completions(
     if isinstance(safety_identifier, str):
         request["safety_identifier"] = safety_identifier
 
-    model_call = start_active_model_call(
+    model_call = set_active_model_event_call(
         request=request,
         filter=openai_media_filter,
     )

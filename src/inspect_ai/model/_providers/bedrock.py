@@ -16,7 +16,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -443,7 +443,7 @@ class BedrockAPI(ModelAPI):
                 toolConfig=tool_config,
             )
 
-            model_call = start_active_model_call(
+            model_call = set_active_model_event_call(
                 request=replace_bytes_with_placeholder(
                     request.model_dump(exclude_none=True)
                 ),

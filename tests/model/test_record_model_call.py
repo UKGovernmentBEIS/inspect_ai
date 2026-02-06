@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._samples import (
-    start_active_model_call,
+    set_active_model_event_call,
     track_active_model_event,
 )
 from inspect_ai.log._transcript import Transcript, init_transcript
@@ -25,7 +25,7 @@ def test_set_active_model_event_call_notifies_transcript():
 
     with patch.object(transcript, "_event_updated") as mock_updated:
         with track_active_model_event(event):
-            call = start_active_model_call(request={"model": "test"})
+            call = set_active_model_event_call(request={"model": "test"})
 
         mock_updated.assert_called_once_with(event)
 

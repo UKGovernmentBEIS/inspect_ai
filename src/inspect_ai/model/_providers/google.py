@@ -72,7 +72,7 @@ from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -893,7 +893,7 @@ def start_model_call(
     tool_config: ToolConfig | None,
     system_instruction: list[File | Part | Image | str] | None,
 ) -> ModelCall:
-    return start_active_model_call(
+    return set_active_model_event_call(
         request=dict(
             contents=contents,
             # the excluded fields are passed to the Python API as part of

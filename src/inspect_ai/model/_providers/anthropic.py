@@ -120,7 +120,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
@@ -409,7 +409,7 @@ class AnthropicAPI(ModelAPI):
                     request["extra_body"] = dict()
                 request["extra_body"]["mcp_servers"] = mcp_servers_param
 
-            model_call = start_active_model_call(request, model_call_filter)
+            model_call = set_active_model_event_call(request, model_call_filter)
 
             # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (

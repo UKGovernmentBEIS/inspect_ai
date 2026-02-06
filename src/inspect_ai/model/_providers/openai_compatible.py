@@ -17,7 +17,7 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -206,7 +206,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 **completion_params,
             )
 
-            model_call = start_active_model_call(request, openai_media_filter)
+            model_call = set_active_model_event_call(request, openai_media_filter)
 
             try:
                 # generate completion and save response for model call

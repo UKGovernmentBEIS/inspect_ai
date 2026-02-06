@@ -54,7 +54,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -222,7 +222,7 @@ class MistralAPI(ModelAPI):
             if req.get("tools", None) is not None:
                 req["tools"] = [tool.model_dump() for tool in req["tools"]]
 
-            model_call = start_active_model_call(req, None)
+            model_call = set_active_model_event_call(req, None)
 
             # send request
             try:

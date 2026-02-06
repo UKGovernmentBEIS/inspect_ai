@@ -27,7 +27,7 @@ from tenacity import (
 
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -130,7 +130,7 @@ async def generate_responses(
     if isinstance(background, bool):
         request["background"] = background
 
-    model_call = start_active_model_call(
+    model_call = set_active_model_event_call(
         request=request,
         filter=openai_media_filter,
     )

@@ -40,7 +40,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -188,7 +188,7 @@ class GrokAPI(ModelAPI):
                 **grok_params,
             )
 
-            model_call = start_active_model_call(
+            model_call = set_active_model_event_call(
                 request=request,
                 filter=_grok_media_filter,
             )

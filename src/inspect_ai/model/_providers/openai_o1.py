@@ -14,7 +14,7 @@ from openai.types.chat import (
 from shortuuid import uuid
 from typing_extensions import override
 
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -50,7 +50,7 @@ async def generate_o1(
         **params,
     )
 
-    model_call = start_active_model_call(
+    model_call = set_active_model_event_call(
         request=request,
     )
 

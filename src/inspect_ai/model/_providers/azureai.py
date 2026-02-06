@@ -40,7 +40,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -208,7 +208,7 @@ class AzureAIAPI(ModelAPI):
             model_extras=self.model_args,
         )
 
-        model_call = start_active_model_call(
+        model_call = set_active_model_event_call(
             request=request
             | dict(
                 messages=[message.as_dict() for message in request["messages"]],

@@ -46,7 +46,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
-from inspect_ai.log._samples import start_active_model_call
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
@@ -95,7 +95,7 @@ async def mistral_conversation_generate(
         | (config.extra_headers or {}),
     )
 
-    model_call = start_active_model_call(
+    model_call = set_active_model_event_call(
         request=request,
     )
 
