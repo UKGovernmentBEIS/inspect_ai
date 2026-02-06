@@ -1,10 +1,12 @@
 import { FC, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
+import { useSampleSummaries } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { useLoadSample } from "../../state/useLoadSample";
 import { usePollSample } from "../../state/usePollSample";
 import { useLogSampleNavigation } from "../routing/sampleNavigation";
-import { logsUrl, useLogRouteParams } from "../routing/url";
+import { logSamplesUrl, logsUrl, useLogRouteParams } from "../routing/url";
 import { SampleDetailComponent } from "../samples/SampleDetailComponent";
 
 /**
@@ -25,10 +27,13 @@ import { SampleDetailComponent } from "../samples/SampleDetailComponent";
  */
 export const LogSampleDetailView: FC = () => {
   // Get route params
-  const { logPath, sampleId, epoch, sampleTabId } = useLogRouteParams();
+  const { logPath, sampleId, epoch, sampleTabId, sampleUuid } =
+    useLogRouteParams();
+  const navigate = useNavigate();
 
-  // Get store actions for log loading
+  // Get store state and actions for log loading
   const initLogDir = useStore((state) => state.logsActions.initLogDir);
+  const sampleSummaries = useSampleSummaries();
   const setSelectedLogFile = useStore(
     (state) => state.logsActions.setSelectedLogFile,
   );
@@ -68,6 +73,18 @@ export const LogSampleDetailView: FC = () => {
     syncLogs,
     selectSample,
   ]);
+
+  // Handle UUID routes by redirecting to id/epoch URL
+  useEffect(() => {
+    if (logPath && sampleUuid && sampleSummaries && sampleSummaries.length > 0) {
+      // Find the sample with the matching UUID
+      const sample = sampleSummaries.find((s) => s.uuid === sampleUuid);
+      if (sample) {
+        const url = logSamplesUrl(logPath, sample.id, sample.epoch, sampleTabId);
+        navigate(url, { replace: true });
+      }
+    }
+  }, [logPath, sampleUuid, sampleSummaries, sampleTabId, navigate]);
 
   // Load sample data (depends on selectedLogFile and selectedSampleHandle being set)
   useLoadSample();
