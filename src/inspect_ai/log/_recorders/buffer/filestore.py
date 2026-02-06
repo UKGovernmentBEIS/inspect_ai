@@ -3,7 +3,7 @@ import tempfile
 from logging import getLogger
 from pathlib import Path
 from typing import Literal
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZipFile
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
@@ -12,6 +12,7 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
+from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
 
 from ..._log import EvalSampleSummary
@@ -72,9 +73,7 @@ class SampleBufferFilestore(SampleBuffer):
         # write the file locally
         with tempfile.NamedTemporaryFile(mode="wb", delete=False) as segment_file:
             name = segment_file.name
-            with ZipFile(
-                segment_file, mode="w", compression=ZIP_DEFLATED, compresslevel=5
-            ) as zip:
+            with ZipFile(segment_file, mode="w", **zipfile_compress_kwargs) as zip:
                 for sf in files:
                     zip.writestr(
                         segment_file_name(sf.id, sf.epoch),
