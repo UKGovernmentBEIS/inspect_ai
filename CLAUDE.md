@@ -18,4 +18,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Error Handling**: Use appropriate exception types; include context in error messages
 - **Testing**: Write tests with pytest; maintain high coverage
 
+- **Async Concurrency**: Use `inspect_ai.util.collect()` instead of `asyncio.gather()` for running concurrent async tasks. It provides Trio compatibility and better transcript grouping.
+
 Respect existing code patterns when modifying files. Run linting before committing changes.

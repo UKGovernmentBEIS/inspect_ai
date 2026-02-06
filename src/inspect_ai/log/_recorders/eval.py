@@ -11,11 +11,14 @@ import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from inspect_ai._util.async_zip import AsyncZipReader, _get_central_directory
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai._util.zip_common import ZipEntry
 
 from .._log import (
     EvalLog,
@@ -209,8 +212,11 @@ class EvalRecorder(FileRecorder):
 
         # read log (use temp_log if we have it)
         try:
-            with file(temp_log or location, "rb") as z:
-                log = _read_log(z, location, header_only)
+            read_location = temp_log or location
+            async with AsyncFilesystem() as async_fs:
+                reader = AsyncZipReader(async_fs, read_location)
+                entries = await _get_central_directory(async_fs, read_location)
+                log = await _read_log(reader, entries, location, header_only)
 
                 if etag is not None:
                     log.etag = etag
@@ -231,7 +237,7 @@ class EvalRecorder(FileRecorder):
     async def read_log_bytes(
         cls, log_bytes: IO[bytes], header_only: bool = False
     ) -> EvalLog:
-        return _read_log(log_bytes, location="", header_only=header_only)
+        return _read_log_from_bytes(log_bytes, location="", header_only=header_only)
 
     @override
     @classmethod
@@ -551,7 +557,9 @@ class ZipLogFile:
             # read the log from the temp file then close it
             try:
                 self._temp_file.seek(0)
-                return _read_log(self._temp_file, self._file, header_only=header_only)
+                return _read_log_from_bytes(
+                    self._temp_file, self._file, header_only=header_only
+                )
             finally:
                 self._temp_file.close()
                 if self._zip:
@@ -579,9 +587,50 @@ class ZipLogFile:
         )
 
 
-def _read_log(log: IO[bytes], location: str, header_only: bool = False) -> EvalLog:
+async def _read_log(
+    reader: AsyncZipReader,
+    entries: list[ZipEntry],
+    location: str,
+    header_only: bool = False,
+) -> EvalLog:
+    entry_names = {e.filename for e in entries}
+
+    eval_log = await _read_header_async(reader, entry_names, location)
+
+    if REDUCTIONS_JSON in entry_names:
+        data = await _read_member_json(reader, REDUCTIONS_JSON)
+        reductions = [
+            EvalSampleReductions.model_validate(
+                reduction, context=get_deserializing_context()
+            )
+            for reduction in data
+        ]
+        if eval_log.results is not None:
+            eval_log.reductions = reductions
+
+    if not header_only:
+        samples: list[EvalSample] = []
+        for entry in entries:
+            if entry.filename.startswith(f"{SAMPLES_DIR}/") and entry.filename.endswith(
+                ".json"
+            ):
+                data = await _read_member_json(reader, entry.filename)
+                samples.append(
+                    EvalSample.model_validate(
+                        data, context=get_deserializing_context()
+                    ),
+                )
+        sort_samples(samples)
+        eval_log.samples = samples
+
+    return eval_log
+
+
+def _read_log_from_bytes(
+    log: IO[bytes], location: str, header_only: bool = False
+) -> EvalLog:
     with ZipFile(log, mode="r") as zip:
-        evalLog = _read_header(zip, location)
+        eval_log = _read_header(zip, location)
         if REDUCTIONS_JSON in zip.namelist():
             with zip.open(REDUCTIONS_JSON, "r") as f:
                 reductions = [
@@ -590,23 +639,50 @@ def _read_log(log: IO[bytes], location: str, header_only: bool = False) -> EvalL
                     )
                     for reduction in json.load(f)
                 ]
-                if evalLog.results is not None:
-                    evalLog.reductions = reductions
+                if eval_log.results is not None:
+                    eval_log.reductions = reductions
 
-        samples: list[EvalSample] | None = None
+        samples_list: list[EvalSample] | None = None
         if not header_only:
-            samples = []
+            samples_list = []
             for name in zip.namelist():
                 if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
                     with zip.open(name, "r") as f:
-                        samples.append(
+                        samples_list.append(
                             EvalSample.model_validate(
                                 json.load(f), context=get_deserializing_context()
                             ),
                         )
-            sort_samples(samples)
-            evalLog.samples = samples
-        return evalLog
+            sort_samples(samples_list)
+            eval_log.samples = samples_list
+        return eval_log
+
+
+async def _read_member_json(reader: AsyncZipReader, member: str) -> Any:
+    chunks: list[bytes] = []
+    async with await reader.open_member(member) as stream:
+        async for chunk in stream:
+            chunks.append(chunk)
+    return json.loads(b"".join(chunks))
+
+
+async def _read_header_async(
+    reader: AsyncZipReader, entry_names: set[str], location: str
+) -> EvalLog:
+    if HEADER_JSON in entry_names:
+        data = await _read_member_json(reader, HEADER_JSON)
+        log = EvalLog.model_validate(data, context=get_deserializing_context())
+        log.location = location
+        return log
+    else:
+        data = await _read_member_json(reader, _journal_path(START_JSON))
+        start = LogStart.model_validate(data, context=get_deserializing_context())
+        return EvalLog(
+            version=start.version,
+            eval=start.eval,
+            plan=start.plan,
+            location=location,
+        )
 
 
 def _read_start(zip: ZipFile) -> LogStart | None:

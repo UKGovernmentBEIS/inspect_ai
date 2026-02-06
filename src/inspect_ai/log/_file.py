@@ -366,9 +366,11 @@ def read_eval_log_headers(
 async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    return [
-        await read_eval_log_async(log_file, header_only=True) for log_file in log_files
-    ]
+    from inspect_ai.util._collect import collect
+
+    return await collect(
+        *[read_eval_log_async(log_file, header_only=True) for log_file in log_files]
+    )
 
 
 def read_eval_log_sample(
