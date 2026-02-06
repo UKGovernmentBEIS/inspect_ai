@@ -124,9 +124,6 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     _s3_client: Any | None = None
     _s3_client_async: Any | None = None
 
-    def __init__(self, max_pool_connections: int = 50) -> None:
-        self._max_pool_connections = max_pool_connections
-
     async def get_etag(self, filename: str) -> str | None:
         """Get the ETag for a file. Returns None for non-S3 files."""
         if is_s3_filename(filename):
@@ -281,7 +278,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     def s3_client(self) -> Any:
         if self._s3_client is None:
             config = Config(
-                max_pool_connections=self._max_pool_connections,
+                max_pool_connections=50,
                 retries={"max_attempts": 10, "mode": "adaptive"},
             )
             self._s3_client = boto3.client("s3", config=config)
@@ -294,7 +291,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
             session = aioboto3.Session()
             config = AioConfig(
-                max_pool_connections=self._max_pool_connections,
+                max_pool_connections=50,
                 retries={"max_attempts": 10, "mode": "adaptive"},
             )
             self._s3_client_async = await session.client(

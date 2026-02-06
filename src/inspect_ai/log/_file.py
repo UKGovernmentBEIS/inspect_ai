@@ -371,7 +371,7 @@ def read_eval_log_headers(
 async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    async with AsyncFilesystem(max_pool_connections=200) as fs:
+    async with AsyncFilesystem() as fs:
         return await collect(
             *[
                 read_eval_log_async(log_file, header_only=True, async_fs=fs)
