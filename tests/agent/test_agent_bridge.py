@@ -422,6 +422,30 @@ def google_web_search_agent() -> Agent:
     return execute
 
 
+@agent
+def google_code_execution_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            client = genai.Client(api_key="inspect")
+
+            await client.aio.models.generate_content(
+                model="inspect",
+                contents=[  # type: ignore[arg-type]
+                    {
+                        "role": "user",
+                        "parts": [{"text": user_prompt(state.messages).text}],
+                    }
+                ],
+                config=genai.types.GenerateContentConfig(
+                    tools=[{"code_execution": {}}],  # type: ignore[list-item]
+                ),
+            )
+
+            return bridge.state
+
+    return execute
+
+
 @task
 def bridged_task(agent: Agent):
     return Task(
@@ -722,6 +746,18 @@ def test_bridged_web_search_tool_google():
     # Google SDK uses camelCase field names in serialized output
     assert '"googleSearch"' in log_json
     # Note: Google's native search embeds results in text with grounding metadata,
+    # not ContentToolUse objects, so we don't call check_server_tool_use() here
+
+
+@skip_if_no_google
+def test_bridged_code_execution_tool_google():
+    log = eval(
+        code_execution_task(google_code_execution_agent()),
+        model="google/gemini-2.0-flash",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"codeExecution"' in log_json
+    # Note: Google's code execution returns results inline in response parts,
     # not ContentToolUse objects, so we don't call check_server_tool_use() here
 
 
