@@ -735,6 +735,13 @@ class Model:
             NotImplementedError: For providers without native compaction support.
         """
         config = self._resolve_config(None)
+
+        # provide max_tokens from the model api if required (same as generate)
+        if config.max_tokens is None:
+            config.max_tokens = self.api.max_tokens_for_config(config)
+            if config.max_tokens is None:
+                config.max_tokens = self.api.max_tokens()
+
         model_name = ModelName(self)
         key = f"ModelCompact({self.api.connection_key()})"
 
