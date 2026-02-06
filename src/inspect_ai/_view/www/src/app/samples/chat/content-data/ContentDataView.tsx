@@ -13,7 +13,7 @@ export interface ContentDataProps {
 }
 
 interface RenderableData {
-  type: string;
+  type?: string;
   name?: string;
   [key: string]: any;
 }
