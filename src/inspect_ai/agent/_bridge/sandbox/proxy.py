@@ -1679,6 +1679,41 @@ async def model_proxy_server(
                                 {"type": "content_block_stop", "index": index},
                             )
 
+                        elif block_type == "compaction":
+                            # Compaction blocks stream differently - a single delta
+                            # with the complete content (no intermediate streaming)
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": {
+                                        "type": "compaction",
+                                        "content": "",
+                                    },
+                                },
+                            )
+
+                            # Single delta with complete content
+                            content_value = block.get("content", "")
+                            yield _sse_anthropic(
+                                "content_block_delta",
+                                {
+                                    "type": "content_block_delta",
+                                    "index": index,
+                                    "delta": {
+                                        "type": "compaction_delta",
+                                        "content": content_value,
+                                    },
+                                },
+                            )
+
+                            # content_block_stop
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
                     # 3. message_delta event with cumulative usage
                     usage = message.get("usage", {})
                     message_delta_data: dict[str, Any] = {

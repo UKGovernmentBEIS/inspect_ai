@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI).
+- Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).
+- Compaction: New `CompactionAuto` strategy which uses `CompactionNative` if possible and falls back to `CompactionSummary`.
 - `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
 - OpenAI: Updated to 2.17.0 of `openai` package to get correct types for web search `ActionFind`.
 - Anthropic: Built-in tool (e.g. web search, code execution) compatibility for Claude 4.6.
