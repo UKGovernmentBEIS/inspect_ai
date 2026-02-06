@@ -2,7 +2,6 @@ import { FC, Fragment, useEffect, useMemo, useRef } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
 import { Status } from "../../../@types/log";
 import { InlineSampleDisplay } from "../../../app/samples/InlineSampleDisplay.tsx";
-import { SampleDialog } from "../../../app/samples/SampleDialog.tsx";
 import {
   SampleTools,
   ScoreFilterTools,
@@ -174,40 +173,12 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     }, 0);
   }, [selectedItemIndex]);
 
-  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
-
-  // Focus the sample list when sample dialog is hidden, but only when it's being dismissed
-  const previousShowingDialogRef = useRef(showingSampleDialog);
-  useEffect(() => {
-    // Only focus when transitioning from showing dialog to not showing dialog
-    if (
-      previousShowingDialogRef.current &&
-      !showingSampleDialog &&
-      sampleListHandle.current
-    ) {
-      setTimeout(() => {
-        const element = document.querySelector(".samples-list");
-        if (element instanceof HTMLElement) {
-          element.focus();
-        }
-      }, 10);
-    }
-    previousShowingDialogRef.current = showingSampleDialog;
-  }, [showingSampleDialog]);
-
   useEffect(() => {
     if (sampleSummaries.length === 1 && selectedLogFile) {
       const sample = sampleSummaries[0];
       selectSample(sample.id, sample.epoch, selectedLogFile);
     }
   }, [sampleSummaries, selectSample, selectedLogFile]);
-
-  const title = useMemo(() => {
-    if (selectedSampleHandle) {
-      return `Sample ${selectedSampleHandle.id} (Epoch ${selectedSampleHandle.epoch})`;
-    }
-    return "";
-  }, [selectedSampleHandle]);
 
   if (totalSampleCount === 0) {
     if (running) {
@@ -230,17 +201,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
             running={running}
           />
         ) : undefined}
-        {showingSampleDialog && (
-          <SampleDialog
-            id={
-              selectedSampleHandle
-                ? `${selectedSampleHandle.id}_${selectedSampleHandle.epoch}`
-                : ""
-            }
-            title={title}
-            showingSampleDialog={showingSampleDialog}
-          />
-        )}
       </Fragment>
     );
   }

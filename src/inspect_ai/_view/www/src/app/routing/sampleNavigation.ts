@@ -133,10 +133,6 @@ export const useSampleNavigation = () => {
   }, [selectedSampleHandle, sampleSummaries]);
 
   const selectSample = useStore((state) => state.logActions.selectSample);
-  const setShowingSampleDialog = useStore(
-    (state) => state.appActions.setShowingSampleDialog,
-  );
-  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
 
   // Navigate to a specific sample with index
   const showSample = useCallback(
@@ -146,63 +142,31 @@ export const useSampleNavigation = () => {
       if (resolvedPath) {
         // Update internal state
         selectSample(id, epoch, resolvedPath);
-        setShowingSampleDialog(true);
 
         // Use specified sampleTabId if provided, otherwise use current sampleTabId from URL params
         const currentSampleTabId = specifiedSampleTabId || sampleTabId;
 
         const url = logSamplesUrl(resolvedPath, id, epoch, currentSampleTabId);
 
-        // Navigate to the sample URL
+        // Navigate to the sample URL (now goes to LogSampleDetailView)
         navigate(url);
       }
     },
-    [
-      resolveLogPath,
-      selectSample,
-      setShowingSampleDialog,
-      navigate,
-      sampleTabId,
-    ],
+    [resolveLogPath, selectSample, navigate, sampleTabId],
   );
 
   const navigateSampleIndex = useCallback(
     (index: number) => {
       if (index > -1 && index < sampleSummaries.length) {
-        if (showingSampleDialog) {
-          const resolvedPath = resolveLogPath();
-          if (resolvedPath) {
-            const summary = sampleSummaries[index];
-            const url = logSamplesUrl(
-              resolvedPath,
-              summary.id,
-              summary.epoch,
-              sampleTabId,
-            );
-
-            // Navigate to the sample URL
-            navigate(url);
-          }
-        } else {
-          const summary = sampleSummaries[index];
-          // Use logPath from url, otherwise fall back to selectedLogFile
-          const logFile = logPath || selectedLogFile;
-          if (logFile) {
-            selectSample(summary.id, summary.epoch, logFile);
-          }
+        const summary = sampleSummaries[index];
+        // Use logPath from url, otherwise fall back to selectedLogFile
+        const logFile = logPath || selectedLogFile;
+        if (logFile) {
+          selectSample(summary.id, summary.epoch, logFile);
         }
       }
     },
-    [
-      sampleSummaries,
-      showingSampleDialog,
-      resolveLogPath,
-      sampleTabId,
-      navigate,
-      selectSample,
-      logPath,
-      selectedLogFile,
-    ],
+    [sampleSummaries, selectSample, logPath, selectedLogFile],
   );
 
   // Navigate to the next sample
