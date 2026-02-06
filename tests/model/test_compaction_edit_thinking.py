@@ -180,7 +180,7 @@ async def test_thinking_compaction_google() -> None:
 @pytest.mark.asyncio
 async def test_thinking_compaction_mistral() -> None:
     await check_thinking_compaction(
-        "mistral/magistral-small-2506",
+        "mistral/magistral-medium-2509",
         GenerateConfig(reasoning_effort="low"),
         conversation_api=False,
     )
