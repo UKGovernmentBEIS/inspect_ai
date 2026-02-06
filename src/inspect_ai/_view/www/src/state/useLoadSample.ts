@@ -21,7 +21,9 @@ export function useLoadSample() {
   // Get store state and actions
   const api = useStore((state) => state.api);
   const sampleActions = useStore((state) => state.sampleActions);
-  const clearListPosition = useStore((state) => state.appActions.clearListPosition);
+  const clearListPosition = useStore(
+    (state) => state.appActions.clearListPosition,
+  );
 
   // Extract sample properties to avoid object reference issues
   const sampleId = logSelection.sample?.id;
