@@ -146,7 +146,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 s3_get_size, self.s3_client(), bucket, key
             )
         else:
-            return stat(filename).st_size
+            return stat(_local_path(filename)).st_size
 
     async def read_file(self, filename: str) -> bytes:
         if is_s3_filename(filename):
@@ -188,7 +188,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             fs = filesystem(filename)
             if fs.is_local():
                 # If local, use AnyIO's async/chunking file reading support
-                return _AnyIOFileByteReceiveStream(filename, start, end)
+                return _AnyIOFileByteReceiveStream(_local_path(filename), start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
                 return _BytesByteReceiveStream(f.read(end - start))
@@ -234,7 +234,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     suffix_length,
                 )
         else:
-            file_size = stat(filename).st_size
+            file_size = stat(_local_path(filename)).st_size
             start = max(0, file_size - suffix_length)
             data = await self.read_file_bytes_fully(filename, start, file_size)
             return SuffixResult(data, file_size)
@@ -336,3 +336,10 @@ def s3_bucket_and_key(filename: str) -> tuple[str, str]:
 
 def is_s3_filename(filename: str) -> bool:
     return filename.startswith("s3://")
+
+
+def _local_path(filename: str) -> str:
+    """Convert a file:// URL to a local path, or return as-is."""
+    if filename.startswith("file://"):
+        return urlparse(filename).path
+    return filename
