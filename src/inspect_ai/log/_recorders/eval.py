@@ -193,7 +193,12 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+        async_fs: AsyncFilesystem | None = None,
+    ) -> EvalLog:
         # if the log is not stored in the local filesystem then download it first,
         # and then read it from a temp file (eliminates the possiblity of hundreds
         # of small fetches from the zip file streams)
@@ -213,21 +218,28 @@ class EvalRecorder(FileRecorder):
         # read log (use temp_log if we have it)
         try:
             read_location = temp_log or location
-            async with AsyncFilesystem() as async_fs:
-                reader = AsyncZipReader(async_fs, read_location)
-                entries = await _get_central_directory(async_fs, read_location)
-                log = await _read_log(reader, entries, location, header_only)
 
-                if etag is not None:
-                    log.etag = etag
-                elif fs.is_s3() and header_only:
-                    file_info = fs.info(location)
-                    # if the file is modified in S3 at this point, the ETag will be incorrect
-                    # this is challenging to fix
-                    # but this should be ok because the ETag is for conditional writes, and only the entire log gets written back
-                    log.etag = file_info.etag
+            async def do_read(afs: AsyncFilesystem) -> EvalLog:
+                reader = AsyncZipReader(afs, read_location)
+                entries = await _get_central_directory(afs, read_location)
+                return await _read_log(reader, entries, location, header_only)
 
-                return log
+            if async_fs is not None:
+                log = await do_read(async_fs)
+            else:
+                async with AsyncFilesystem() as owned_fs:
+                    log = await do_read(owned_fs)
+
+            if etag is not None:
+                log.etag = etag
+            elif fs.is_s3() and header_only:
+                file_info = fs.info(location)
+                # if the file is modified in S3 at this point, the ETag will be incorrect
+                # this is challenging to fix
+                # but this should be ok because the ETag is for conditional writes, and only the entire log gets written back
+                log.etag = file_info.etag
+
+            return log
         finally:
             if temp_log:
                 os.unlink(temp_log)

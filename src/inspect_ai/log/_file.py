@@ -10,6 +10,7 @@ from pydantic import (
 )
 
 from inspect_ai._util._async import current_async_backend, run_coroutine
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -21,6 +22,7 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.util._collect import collect
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -289,6 +291,7 @@ async def read_eval_log_async(
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    async_fs: AsyncFilesystem | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -302,6 +305,8 @@ async def read_eval_log_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension).
+       async_fs (AsyncFilesystem | None): Optional shared async filesystem
+          for connection reuse across multiple reads.
 
     Returns:
        EvalLog object read from file.
@@ -332,7 +337,7 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_location(log_file)
         else:
             recorder_type = recorder_type_for_format(format)
-        log = await recorder_type.read_log(log_file, header_only)
+        log = await recorder_type.read_log(log_file, header_only, async_fs)
 
     # resolve attachement if requested
     if resolve_attachments and log.samples:
@@ -366,11 +371,13 @@ def read_eval_log_headers(
 async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    from inspect_ai.util._collect import collect
-
-    return await collect(
-        *[read_eval_log_async(log_file, header_only=True) for log_file in log_files]
-    )
+    async with AsyncFilesystem() as fs:
+        return await collect(
+            *[
+                read_eval_log_async(log_file, header_only=True, async_fs=fs)
+                for log_file in log_files
+            ]
+        )
 
 
 def read_eval_log_sample(
