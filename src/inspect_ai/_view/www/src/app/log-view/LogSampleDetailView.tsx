@@ -1,5 +1,6 @@
-import { FC } from "react";
-import { useLoadLog } from "../../state/useLoadLog";
+import { FC, useCallback, useEffect } from "react";
+import { kLogViewSamplesTabId } from "../../constants";
+import { useStore } from "../../state/store";
 import { useLoadSample } from "../../state/useLoadSample";
 import { usePollSample } from "../../state/usePollSample";
 import { useLogRouteParams, logsUrl } from "../routing/url";
@@ -11,7 +12,8 @@ import { SampleDetailComponent } from "../samples/SampleDetailComponent";
  * This is shown when navigating to /logs/path/to/file.eval/samples/sample/id/epoch
  *
  * This component handles:
- * - Loading hooks (useLoadLog, useLoadSample, usePollSample)
+ * - Log loading (initLogDir, setSelectedLogFile, syncLogs)
+ * - Sample selection and loading (useLoadSample, usePollSample)
  * - Navigation state via useLogSampleNavigation (respects log filters)
  *
  * Unlike SampleDetailView, this component:
@@ -22,16 +24,71 @@ import { SampleDetailComponent } from "../samples/SampleDetailComponent";
  * Rendering is delegated to SampleDetailComponent.
  */
 export const LogSampleDetailView: FC = () => {
-  // Load sample data
-  useLoadLog();
-  useLoadSample();
-  usePollSample();
-
   // Get route params
   const { logPath, sampleId, epoch, sampleTabId } = useLogRouteParams();
 
+  // Get store actions for log loading
+  const initLogDir = useStore((state) => state.logsActions.initLogDir);
+  const setSelectedLogFile = useStore(
+    (state) => state.logsActions.setSelectedLogFile,
+  );
+  const syncLogs = useStore((state) => state.logsActions.syncLogs);
+  const selectSample = useStore((state) => state.logActions.selectSample);
+
+  // Load the log and select the sample when route params change
+  useEffect(() => {
+    const loadLogAndSample = async () => {
+      if (logPath && sampleId && epoch) {
+        // Initialize log directory if needed
+        await initLogDir();
+
+        // Set the selected log file
+        setSelectedLogFile(logPath);
+
+        // Sync logs to ensure we have the latest data
+        void syncLogs();
+
+        // Select the sample
+        const targetEpoch = parseInt(epoch, 10);
+        selectSample(sampleId, targetEpoch, logPath);
+      }
+    };
+
+    loadLogAndSample();
+  }, [
+    logPath,
+    sampleId,
+    epoch,
+    initLogDir,
+    setSelectedLogFile,
+    syncLogs,
+    selectSample,
+  ]);
+
+  // Load sample data (depends on selectedLogFile and selectedSampleHandle being set)
+  useLoadSample();
+  usePollSample();
+
   // Get navigation handlers from the hook
   const { onPrevious, onNext, hasPrevious, hasNext } = useLogSampleNavigation();
+
+  // Custom navigation URL function that returns to the log's samples tab
+  // when navigating back from a sample detail view.
+  // The navbar uses dirname(currentPath) for the back button, so when the
+  // path is "metr/file.eval", dirname returns "metr/". We want to go to
+  // the log's samples tab instead (logsUrl("metr/file.eval", logDir, "samples")).
+  const fnNavigationUrl = useCallback(
+    (file: string, log_dir?: string) => {
+      // If the file is the parent directory of the current log path,
+      // navigate to the log's samples tab instead
+      if (logPath && logPath.startsWith(file) && file !== logPath) {
+        return logsUrl(logPath, log_dir, kLogViewSamplesTabId);
+      }
+      // Otherwise, use the default logsUrl behavior
+      return logsUrl(file, log_dir);
+    },
+    [logPath],
+  );
 
   return (
     <SampleDetailComponent
@@ -46,7 +103,7 @@ export const LogSampleDetailView: FC = () => {
       }}
       navbarConfig={{
         currentPath: logPath,
-        fnNavigationUrl: logsUrl,
+        fnNavigationUrl,
         bordered: true,
       }}
     />

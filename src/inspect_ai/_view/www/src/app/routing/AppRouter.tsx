@@ -8,15 +8,12 @@ import {
 import { storeImplementation, useStore } from "../../state/store";
 import { AppErrorBoundary } from "../AppErrorBoundary";
 import { LogsPanel } from "../log-list/LogsPanel";
-import { LogSampleDetailView } from "../log-view/LogSampleDetailView";
 import { LogViewContainer } from "../log-view/LogViewContainer";
 import { RouteDispatcher } from "./RouteDispatcher";
 import { SamplesRouter } from "./SamplesRouter";
 import {
   kLogRouteUrlPattern,
   kLogsRoutUrlPattern as kLogsRouteUrlPattern,
-  kSampleRouteUrlPattern,
-  kSampleUuidRouteUrlPattern,
 } from "./url";
 
 // Create a layout component that includes the RouteTracker
@@ -67,16 +64,10 @@ export const AppRouter = createHashRouter(
           element: <LogsPanel />,
         },
         {
+          // This matches all /logs/* paths including sample detail URLs
+          // The RouteDispatcher parses the path and routes to the appropriate component
           path: kLogRouteUrlPattern,
           element: <RouteDispatcher />,
-        },
-        {
-          path: kSampleRouteUrlPattern,
-          element: <LogSampleDetailView />,
-        },
-        {
-          path: kSampleUuidRouteUrlPattern,
-          element: <LogSampleDetailView />,
         },
         {
           path: "/samples/*",
