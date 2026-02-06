@@ -13,11 +13,6 @@ async def inspect_google_api_request(
     code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
 ) -> dict[str, Any]:
-    """Process Google Gemini API request and return Gemini-format response.
-
-    Translates between Google's Gemini API format (contents, parts, functionCall)
-    and Inspect's internal ChatMessage format.
-    """
     from .google_api_impl import inspect_google_api_request_impl
 
     return await inspect_google_api_request_impl(

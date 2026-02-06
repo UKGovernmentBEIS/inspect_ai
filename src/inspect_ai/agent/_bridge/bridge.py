@@ -354,27 +354,23 @@ def init_google_request_patch() -> None:
         http_options: Any = None,
     ) -> SdkHttpResponse:
         config = _patch_config.get()
-        # Check if enabled and is a generateContent request
         if config.enabled and ":generateContent" in path:
-            # Extract model from path (format: models/{model}:generateContent)
             model_name = _google_api_model_name(path)
             if model_name and targets_inspect_model({"model": model_name}):
                 if ":streamGenerateContent" in path:
                     raise_stream_error()
 
-                # Route to inspect bridge
                 response = await inspect_google_api_request(
                     cast(dict[str, Any], request_dict),
                     config.web_search,
                     config.code_execution,
                     config.bridge,
                 )
-                # Return as SdkHttpResponse
                 import json
 
                 return SdkHttpResponse(headers={}, body=json.dumps(response))
 
-        # Otherwise delegate to original
+        # otherwise just delegate
         result: SdkHttpResponse = await original_async_request(
             self, http_method, path, request_dict, http_options
         )
