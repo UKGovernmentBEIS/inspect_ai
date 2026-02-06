@@ -527,7 +527,7 @@ class AnthropicAPI(ModelAPI):
         # create edit param (count tokens so we provide a trigger that will fire)
         tokens = await self.count_tokens(input, config)
         edit = BetaCompact20260112EditParam(
-            type=COMPACT_20260112,
+            type="compact_20260112",
             instructions=instructions,
             trigger=BetaInputTokensTriggerParam(
                 type="input_tokens", value=round(tokens * 0.9)
