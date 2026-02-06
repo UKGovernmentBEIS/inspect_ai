@@ -391,7 +391,7 @@ class ModelAPI(abc.ABC):
             tools: Tools available for the model to call.
             config: Model configuration.
             instructions: Additional instructions to give the model about compaction
-               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
+                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
         Returns:
             A tuple of (compacted_messages, usage) where compacted_messages is a
