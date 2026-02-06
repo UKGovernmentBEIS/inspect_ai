@@ -124,11 +124,12 @@ Here are all options available for `CompactionSummary`:
 | `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
 | `memory` | True | Warn the model to save content to memory before compaction (when the memory tool is available). |
 | `model` | None | Model to use for generating the summary. Defaults to the compaction target model if not specified. |
+| `instructions` | None |  Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets, variable names, and technical decisions."). These instructions will be inserted into the `prompt`. |
 | `prompt` | None | Custom prompt for summarization. Uses a built-in default prompt if not provided. |
 
 : {tbl-colwidths=\[15,12,73\]}
 
-The default summarization prompt asks the model to capture the task overview, current state, important discoveries, next steps, and context to preserve. You can provide a custom `prompt` to tailor the summary to your specific use case.
+The default summarization prompt asks the model to capture the task overview, current state, important discoveries, next steps, and context to preserve. You can provide custom `instructions` or even completely override the `prompt` to tailor the summary to your specific use case.
 
 
 ## Edit Compaction
