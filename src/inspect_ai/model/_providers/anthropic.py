@@ -415,7 +415,7 @@ class AnthropicAPI(ModelAPI):
             if _input_has_compaction(input) and not _request_has_edit_compaction(
                 request
             ):
-                _add_edit_compation(request)
+                _add_edit_compation(request, betas)
 
             # add compaction beta header if required
             if _request_has_edit_compaction(request):
@@ -2147,10 +2147,28 @@ CONTEXT_MANAGEMENT = "context_management"
 MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
 
 
-def _add_edit_compation(request: dict[str, Any]) -> None:
+def _add_edit_compation(request: dict[str, Any], betas: list[str]) -> None:
+    """Add compaction edit to request without triggering new compaction.
+
+    When messages already contain compaction blocks, we need to include
+    context_management for the API to accept them. We set trigger just
+    below the context window limit to prevent automatic compaction
+    (user controls compaction via their own threshold).
+    """
+    # Determine max trigger based on context window
+    if "context-1m-2025-08-07" in betas:
+        max_trigger = 990_000  # Just below 1M context
+    else:
+        max_trigger = 190_000  # Just above default 150k trigger
+
     extra_body = request.setdefault(EXTRA_BODY, {})
     context_mgmt = extra_body.setdefault(CONTEXT_MANAGEMENT, {})
-    context_mgmt.setdefault(EDITS, []).append({EDIT_TYPE: COMPACT_20260112})
+    context_mgmt.setdefault(EDITS, []).append(
+        {
+            EDIT_TYPE: COMPACT_20260112,
+            "trigger": {"type": "input_tokens", "value": max_trigger},
+        }
+    )
 
 
 def _request_has_edit_compaction(request: dict[str, Any]) -> bool:
