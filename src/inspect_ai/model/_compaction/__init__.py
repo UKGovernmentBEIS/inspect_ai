@@ -1,4 +1,5 @@
 from ._compaction import compaction
+from .auto import CompactionAuto
 from .edit import CompactionEdit
 from .native import CompactionNative
 from .summary import CompactionSummary
@@ -9,6 +10,7 @@ __all__ = [
     "compaction",
     "Compact",
     "CompactionStrategy",
+    "CompactionAuto",
     "CompactionEdit",
     "CompactionSummary",
     "CompactionTrim",

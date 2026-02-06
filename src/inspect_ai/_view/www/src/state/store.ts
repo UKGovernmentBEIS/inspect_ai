@@ -71,7 +71,12 @@ export const initializeStore = (
     },
     setItem: debounce(<T>(name: string, value: T): void => {
       if (storage) {
-        storage.setItem(name, value);
+        const wrapper = value as { state: PersistedState; version: number };
+        const filtered = {
+          state: filterState(wrapper.state),
+          version: wrapper.version,
+        };
+        storage.setItem(name, filtered);
       }
     }, 1000),
     removeItem: (name: string): void => {
@@ -163,16 +168,13 @@ export const initializeStore = (
         {
           name: "app-storage",
           storage: storageImplementation,
-          partialize: (state) => {
-            const persisted: PersistedState = filterState({
+          partialize: (state) =>
+            ({
               app: { ...state.app, rehydrated: true },
               log: state.log,
               logs: state.logs,
               sample: state.sample,
-            });
-            log.debug("PARTIALIZED STATE", persisted);
-            return persisted as unknown as StoreState;
-          },
+            }) as unknown as StoreState,
           version: 1,
           onRehydrateStorage: (state: StoreState) => {
             return (hydrationState, error) => {

@@ -1,0 +1,32 @@
+.detail {
+  display: grid;
+  grid-template-rows: max-content 1fr;
+  height: 100vh;
+}
+
+.panel {
+  overflow-y: auto;
+}
+
+.sampleInfo {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.25rem;
+}
+
+.sampleNav {
+  display: grid;
+  grid-template-columns: max-content auto max-content;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 1em;
+}
+
+.nav:hover:not(.disabled) {
+  cursor: pointer;
+}
+
+.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
