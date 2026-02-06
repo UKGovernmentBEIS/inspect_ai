@@ -2,6 +2,7 @@
 
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
 - Scoring: Allow customisation of grouped metric names.
+- Inspect View: Show live requests and responses for model call events in the transcript.
 - Inspect View: Improve scroll performance when viewing sample transcripts and messages.
 
 ## 0.3.171 (06 February 2026)
@@ -17,7 +18,6 @@
 - Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
 - Inspect View: Show errors in model call events in the transcript.
 - Inspect View: Show tracebacks in model call events in the transcript.
-- Inspect View: Show requests and responses for model call events in the transcript.
 - Inspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.
 - Inspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.
 - Inspect View: Fix issue where a large number of logs could result in laggy or hung viewer in VSCode.

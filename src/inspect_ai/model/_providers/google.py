@@ -395,9 +395,7 @@ class GoogleGenAIAPI(ModelAPI):
 
             assert response is not None  # mypy confused by retry loop
 
-            model_call.set_response(
-                response.model_dump(), http_hooks.end_request(request_id)
-            )
+            model_call.set_response(response, http_hooks.end_request(request_id))
 
             model_name = response.model_version or self.service_model_name()
             output = ModelOutput(
