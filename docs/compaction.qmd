@@ -8,23 +8,14 @@ Compaction enables you to automatically manage conversation context as it grows,
 
 | Strategy | Description |
 |------------------------------------|------------------------------------|
-| `CompactionEdit` | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
+| `CompactionNative` | Use provider-specific native compaction API (OpenAI and Anthropic only). |
 | `CompactionSummary` | Compact by having a model create a summary of the message history. |
+| `CompactionEdit` | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
 | `CompactionTrim` | Compact by trimming the message history to preserve a percentage of the input. |
-| `CompactionNative` | Use provider-specific native compaction API (currently only available for OpenAI). |
 
 : {tbl-colwidths=\[35,65\]}
 
-Which strategy should you use? Here are some general guidelines:
-
-- `CompactionEdit` is a good default choice—it's efficient (no additional model calls) and preserves the conversation structure while removing older content. 
-
-- `CompactionSummary` is good when maintaining semantic understanding of the full history is more important than preserving exact details; note this requires an additional model call for each compaction. 
-
-- `CompactionTrim` is the simplest option, useful when you just need to reduce history depth without concern for preserving specific content.
-
-- `CompactionNative` is appropriate when you want maximum token efficiency and are convinced that provider compaction preserves important context (note this is currently only available for OpenAI).
-
+Native compaction with a fallback to summary compaction is generally a good choice, especially for long-horizton tasks where you want maximum token efficiency. Edit and trim compaction are good for short or medium horizon tasks where you want to preseve as much context as possible.
 
 Compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction. 
 
@@ -40,19 +31,21 @@ Compaction is built-in to the [ReAct Agent](react-agent.qmd) and the [Agent Brid
 
 ``` python
 from inspect_ai.agent import react
-from inspect_ai.model import CompactionEdit, CompactionSummary
+from inspect_ai.model import (
+    CompactionEdit, CompactionNative, CompactionSummary
+)
 from inspect_ai.tool import bash, text_editor
+
+# native compaction w/ summary fallback
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionNative(fallback=CompactionSummary())
+)
 
 # edit compaction
 react(
     tools=[bash(), text_editor()],
     compaction=CompactionEdit(keep_tool_uses=3)
-)
-
-# summary compaction
-react(
-    tools=[bash(), text_editor()],
-    compaction=CompactionSummary(threshold=0.8)
 )
 ```
 
@@ -61,39 +54,46 @@ If you are creating a custom agent, you will need to incorporate compaction into
 One important thing to note about compaction is that it affects only the input that the model sees---the core history with all messages is still retained by agents when using compaction.
 
 
-## Edit Compaction
+## Native Compaction
 
-Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions. When compaction triggers multiple times, it continues clearing older content on each cycle.
+::: {.callout-note appearance="minimal"}
+The native compaction strategy described below is available only in the development version of Inspect. To install the development version from GitHub:
 
-For example, here we add edit compaction to a `react()` agent (all parameters to `CompactionEdit` reflect the built-in defaults):
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Native compaction delegates context management to the model provider's own compaction API rather than implementing it client-side. The provider compresses the conversation into a provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API and Anthropic Claude 4.6. 
+
+For example, here we add native compaction to a `react()` agent:
 
 ``` python
 from inspect_ai.agent import react
-from inspect_ai.model import CompactionEdit
+from inspect_ai.model import CompactionNative
 from inspect_ai.tool import bash, text_editor
 
 react(
     tools=[bash(), text_editor()],
-    compaction=CompactionEdit(
-        threshold=0.9,
-        keep_tool_uses=3,
-        keep_thinking_turns=1,
+    compaction=CompactionNative(
+        threshold=0.9, 
+        fallback=CompactionSummary()
     )
 )
 ```
 
-Here are all options available for `CompactionEdit`:
+Since native compaction is not available for all providers and models, you should generally specify a `fallback` strategy that will be used when the provider doesn't support native compaction. 
+
+Here are all options available for `CompactionNative`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
-| `memory` | True | Warn the model to save content to memory before compaction (when the memory tool is available). |
-| `keep_thinking_turns` | 1 | Number of recent assistant turns to preserve thinking blocks in. Use `"all"` to keep all thinking blocks. |
-| `keep_tool_uses` | 3 | Number of recent tool use/result pairs to preserve. Oldest interactions are removed first. |
-| `keep_tool_inputs` | True | If `True`, only clears tool results while keeping the original tool calls visible. If `False`, removes both tool calls and results. |
-| `exclude_tools` | None | List of tool names whose uses/results should never be cleared. |
+| `instructions` | None | Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets, variable names, and technical decisions.") |
+| `fallback` | None | Fallback compaction strategy to use if the provider does not support native compaction. |
+| `memory` | False | Warn the model to save content to memory before compaction (when the memory tool is available). Defaults to `False` since native compaction preserves context server-side. |
 
-: {tbl-colwidths=\[22,12,66\]}
+: {tbl-colwidths=\[15,12,73\]}
 
 ## Summary Compaction
 
@@ -130,6 +130,41 @@ Here are all options available for `CompactionSummary`:
 
 The default summarization prompt asks the model to capture the task overview, current state, important discoveries, next steps, and context to preserve. You can provide a custom `prompt` to tailor the summary to your specific use case.
 
+
+## Edit Compaction
+
+Edit compaction reduces context size by removing content from the message history while preserving the overall structure. It works in phases: first clearing extended thinking blocks from older turns, then removing tool call results (and optionally the tool calls themselves) from older interactions. When compaction triggers multiple times, it continues clearing older content on each cycle.
+
+For example, here we add edit compaction to a `react()` agent (all parameters to `CompactionEdit` reflect the built-in defaults):
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionEdit
+from inspect_ai.tool import bash, text_editor
+
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionEdit(
+        threshold=0.9,
+        keep_tool_uses=3,
+        keep_thinking_turns=1,
+    )
+)
+```
+
+Here are all options available for `CompactionEdit`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
+| `memory` | True | Warn the model to save content to memory before compaction (when the memory tool is available). |
+| `keep_thinking_turns` | 1 | Number of recent assistant turns to preserve thinking blocks in. Use `"all"` to keep all thinking blocks. |
+| `keep_tool_uses` | 3 | Number of recent tool use/result pairs to preserve. Oldest interactions are removed first. |
+| `keep_tool_inputs` | True | If `True`, only clears tool results while keeping the original tool calls visible. If `False`, removes both tool calls and results. |
+| `exclude_tools` | None | List of tool names whose uses/results should never be cleared. |
+
+: {tbl-colwidths=\[22,12,66\]}
+
 ## Trim Compaction
 
 Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. When compaction triggers multiple times, it continues discarding older messages on each cycle. 
@@ -162,57 +197,6 @@ Here are all options available for `CompactionTrim`:
 
 : {tbl-colwidths=\[15,12,73\]}
 
-## Native Compaction
-
-::: {.callout-note appearance="minimal"}
-The native compaction strategy described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
-Native compaction delegates context management to the model provider's own compaction API rather than implementing it client-side. The provider compresses the conversation into a provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API and Anthropic Claude 4.6. 
-
-For example, here we add native compaction to a `react()` agent:
-
-``` python
-from inspect_ai.agent import react
-from inspect_ai.model import CompactionNative
-from inspect_ai.tool import bash, text_editor
-
-react(
-    tools=[bash(), text_editor()],
-    compaction=CompactionNative(threshold=0.9)
-)
-```
-
-Since native compaction is not available for all providers and models, you can specify a `fallback` strategy that will be used when the provider doesn't support native compaction:
-
-``` python
-from inspect_ai.agent import react
-from inspect_ai.model import CompactionEdit, CompactionNative
-from inspect_ai.tool import bash, text_editor
-
-react(
-    tools=[bash(), text_editor()],
-    compaction=CompactionNative(
-        threshold=0.9,
-        fallback=CompactionSummary()
-    )
-)
-```
-
-Here are all options available for `CompactionNative`:
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
-| `instructions` | None | Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets, variable names, and technical decisions.") |
-| `fallback` | None | Fallback compaction strategy to use if the provider does not support native compaction. |
-| `memory` | False | Warn the model to save content to memory before compaction (when the memory tool is available). Defaults to `False` since native compaction preserves context server-side. |
-
-: {tbl-colwidths=\[15,12,73\]}
 
 ## Memory Tool {#memory-tool}
 
