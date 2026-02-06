@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
 - Scoring: Allow customisation of grouped metric names.
 - Inspect View: Improve scroll performance when viewing sample transcripts and messages.
