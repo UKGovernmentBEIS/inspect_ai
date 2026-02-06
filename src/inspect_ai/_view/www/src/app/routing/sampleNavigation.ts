@@ -314,3 +314,97 @@ export const useSamplesGridNavigation = () => {
     navigateToSampleDetail,
   };
 };
+
+/**
+ * Hook for sample navigation within the log context (LogSampleDetailView).
+ * Uses filteredSamples to navigate between samples respecting current filters.
+ * Unlike useSampleNavigation, this hook doesn't manage dialog state.
+ */
+export const useLogSampleNavigation = () => {
+  const navigate = useNavigate();
+  const { logPath, sampleTabId } = useLogRouteParams();
+
+  // Get filtered samples for navigation
+  const sampleSummaries = useFilteredSamples();
+
+  // Get the currently selected sample
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
+  );
+
+  // Action to update selected sample in store
+  const selectSample = useStore((state) => state.logActions.selectSample);
+
+  // Calculate current index in the filtered samples list
+  const currentIndex = useMemo(() => {
+    if (!selectedSampleHandle) {
+      return -1;
+    }
+    return sampleSummaries.findIndex((summary) => {
+      return (
+        sampleIdsEqual(summary.id, selectedSampleHandle.id) &&
+        summary.epoch === selectedSampleHandle.epoch
+      );
+    });
+  }, [selectedSampleHandle, sampleSummaries]);
+
+  // Navigation state
+  const hasPrevious = currentIndex > 0;
+  const hasNext =
+    currentIndex >= 0 && currentIndex < sampleSummaries.length - 1;
+
+  // Navigate to previous sample
+  const onPrevious = useCallback(() => {
+    if (hasPrevious && logPath) {
+      const prevSample = sampleSummaries[currentIndex - 1];
+      // Update store state before navigation
+      selectSample(prevSample.id, prevSample.epoch, logPath);
+      const url = logSamplesUrl(
+        logPath,
+        prevSample.id,
+        prevSample.epoch,
+        sampleTabId,
+      );
+      navigate(url);
+    }
+  }, [
+    hasPrevious,
+    logPath,
+    sampleSummaries,
+    currentIndex,
+    sampleTabId,
+    selectSample,
+    navigate,
+  ]);
+
+  // Navigate to next sample
+  const onNext = useCallback(() => {
+    if (hasNext && logPath) {
+      const nextSample = sampleSummaries[currentIndex + 1];
+      // Update store state before navigation
+      selectSample(nextSample.id, nextSample.epoch, logPath);
+      const url = logSamplesUrl(
+        logPath,
+        nextSample.id,
+        nextSample.epoch,
+        sampleTabId,
+      );
+      navigate(url);
+    }
+  }, [
+    hasNext,
+    logPath,
+    sampleSummaries,
+    currentIndex,
+    sampleTabId,
+    selectSample,
+    navigate,
+  ]);
+
+  return {
+    onPrevious,
+    onNext,
+    hasPrevious,
+    hasNext,
+  };
+};
