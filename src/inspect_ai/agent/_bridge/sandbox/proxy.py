@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 from email.utils import formatdate
@@ -1778,38 +1779,25 @@ async def model_proxy_server(
             /v1beta/models/gemini-2.5-pro:generateContent -> gemini-2.5-pro
             /models/gemini-2.5-flash:streamGenerateContent -> gemini-2.5-flash
         """
-        # Path format: /v1beta/models/{model}:{action} or /models/{model}:{action}
-        parts = path.split("/")
-        for i, part in enumerate(parts):
-            if part == "models" and i + 1 < len(parts):
-                model_action = parts[i + 1]
-                # Split on : to separate model from action
-                if ":" in model_action:
-                    return model_action.split(":")[0]
-                return model_action
-        return "inspect"
+        match = re.search(r"models/([^/:]+)", path)
+        return match.group(1) if match else "inspect"
 
     @server.route("/v1beta/models/*", method="POST")
     @server.route("/models/*", method="POST")
     async def google_generate_content(request: dict[str, Any]) -> dict[str, Any]:
-        """Handle Google Gemini API generateContent and streamGenerateContent requests."""
         try:
             path = request.get("path", "")
             json_body = request.get("json", {}) or {}
 
-            # Determine if streaming based on path
             is_streaming = ":streamGenerateContent" in path
 
-            # Extract model from path and add to request
             model_name = _extract_model_from_google_path(path)
             json_body["model"] = model_name
 
-            # Call the bridge service
             completion = await call_bridge_model_service_async(
                 "generate_google", json_data=json_body
             )
 
-            # Parse the completion
             resp = (
                 completion if isinstance(completion, dict) else json.loads(completion)
             )
@@ -1817,29 +1805,18 @@ async def model_proxy_server(
             # Check if response has function calls with thoughtSignature
             # If so, return non-streaming to preserve thoughtSignature
             # (Gemini CLI may not handle thoughtSignature correctly in streaming mode)
-            has_thought_signature = False
-            if is_streaming:
-                candidates = resp.get("candidates", [])
-                for candidate in candidates:
-                    content = candidate.get("content", {})
-                    parts = content.get("parts", [])
-                    for part in parts:
-                        if "thoughtSignature" in part:
-                            has_thought_signature = True
-                            break
-                    if has_thought_signature:
-                        break
+            has_thought_signature = is_streaming and any(
+                "thoughtSignature" in part
+                for candidate in resp.get("candidates", [])
+                for part in candidate.get("content", {}).get("parts", [])
+            )
 
-            # Return non-streaming if not requested
             if not is_streaming:
                 return {"status": 200, "body": resp}
 
-            # If we have thoughtSignature, return as a single SSE chunk to preserve it
-            # (streaming multiple chunks seems to cause CLI to lose the signature)
             if has_thought_signature:
 
                 async def single_chunk_stream() -> AsyncIterator[bytes]:
-                    # Send the complete response as a single SSE event
                     yield f"data: {json.dumps(resp)}\n\n".encode("utf-8")
 
                 return {
@@ -1852,9 +1829,7 @@ async def model_proxy_server(
                     "chunked": True,
                 }
 
-            # Otherwise, stream the response
             async def stream_response() -> AsyncIterator[bytes]:
-                # Google streams as Server-Sent Events with data: prefix
                 # For generateContent, we simulate streaming by chunking the response
                 candidates = resp.get("candidates", [])
                 for candidate in candidates:
@@ -1862,12 +1837,10 @@ async def model_proxy_server(
                     parts = content.get("parts", [])
 
                     # Collect function calls to send together (they shouldn't be split)
-                    # Per Gemini docs: thoughtSignature is sibling to functionCall in same part
                     fc_parts: list[dict[str, Any]] = []
 
                     for part in parts:
                         if "text" in part:
-                            # Stream text in chunks, preserving thought attribute
                             text = part["text"]
                             is_thought = part.get("thought", False)
                             for chunk in _iter_chunks(text):
@@ -1891,7 +1864,6 @@ async def model_proxy_server(
                                 )
 
                         elif "functionCall" in part:
-                            # Collect function calls with thoughtSignature as sibling
                             fc_part: dict[str, Any] = {
                                 "functionCall": part["functionCall"]
                             }
@@ -1899,7 +1871,6 @@ async def model_proxy_server(
                                 fc_part["thoughtSignature"] = part["thoughtSignature"]
                             fc_parts.append(fc_part)
 
-                    # Send all function calls in a single chunk
                     if fc_parts:
                         fc_response = {
                             "candidates": [
@@ -1915,7 +1886,6 @@ async def model_proxy_server(
                         }
                         yield f"data: {json.dumps(fc_response)}\n\n".encode("utf-8")
 
-                    # Final chunk with finish reason
                     final_response = {
                         "candidates": [
                             {
