@@ -26,9 +26,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-# DO NOT MERGE: remove and delete binaries
-# src/inspect_ai/binaries/
-!src/inspect_ai/binaries/inspect-sandbox-tools-*-v6*
+src/inspect_ai/binaries/
 *.env
 
 # PyInstaller
