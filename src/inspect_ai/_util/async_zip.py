@@ -16,6 +16,7 @@ from typing_extensions import Self
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 
+from .compression import decompress_bytes
 from .compression_transcoding import CompressedToUncompressedStream
 from .zip_common import ZipCompressionMethod, ZipEntry
 
@@ -458,21 +459,7 @@ class AsyncZipReader:
                 abs_data_start + entry.compressed_size,
             )
 
-        if entry.compression_method == ZipCompressionMethod.STORED:
-            return compressed_data
-        elif entry.compression_method == ZipCompressionMethod.DEFLATE:
-            import zlib
-
-            return zlib.decompress(compressed_data, -15)
-        elif entry.compression_method == ZipCompressionMethod.ZSTD:
-            import zstandard
-
-            dctx = zstandard.ZstdDecompressor()
-            return dctx.decompress(compressed_data)
-        else:
-            raise NotImplementedError(
-                f"Unsupported compression method: {entry.compression_method}"
-            )
+        return decompress_bytes(compressed_data, entry.compression_method)
 
     async def _get_member_range_and_method(
         self, member: str | ZipEntry

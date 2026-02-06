@@ -4,6 +4,8 @@ from typing import Protocol
 
 import zstandard
 
+from .zip_common import ZipCompressionMethod
+
 
 class Decompressor(Protocol):
     """Protocol for async decompressors that read from a stream iterator."""
@@ -91,6 +93,18 @@ class DeflateDecompressor(Decompressor):
                 if final:
                     return final
                 raise
+
+
+def decompress_bytes(data: bytes, method: ZipCompressionMethod) -> bytes:
+    """Decompress a complete buffer using the given ZIP compression method."""
+    if method == ZipCompressionMethod.STORED:
+        return data
+    elif method == ZipCompressionMethod.DEFLATE:
+        return zlib.decompress(data, -15)
+    elif method == ZipCompressionMethod.ZSTD:
+        return zstandard.ZstdDecompressor().decompress(data)
+    else:
+        raise NotImplementedError(f"Unsupported compression method: {method}")
 
 
 class Compressor(Protocol):
