@@ -318,8 +318,9 @@ export const useLogSampleNavigation = () => {
 
   // Navigate to previous sample
   const onPrevious = useCallback(() => {
-    if (hasPrevious && logPath) {
+    if (hasPrevious && logPath && currentIndex > 0) {
       const prevSample = sampleSummaries[currentIndex - 1];
+      if (!prevSample) return;
       // Update store state before navigation
       selectSample(prevSample.id, prevSample.epoch, logPath);
       const url = logSamplesUrl(
@@ -342,8 +343,9 @@ export const useLogSampleNavigation = () => {
 
   // Navigate to next sample
   const onNext = useCallback(() => {
-    if (hasNext && logPath) {
+    if (hasNext && logPath && currentIndex < sampleSummaries.length - 1) {
       const nextSample = sampleSummaries[currentIndex + 1];
+      if (!nextSample) return;
       // Update store state before navigation
       selectSample(nextSample.id, nextSample.epoch, logPath);
       const url = logSamplesUrl(

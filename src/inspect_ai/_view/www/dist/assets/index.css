@@ -19019,18 +19019,17 @@ span.ap-marker-container:hover span.ap-marker {
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
-._container_kflcj_1 {
+._container_ly812_1 {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-._scroller_kflcj_7 {
+._scroller_ly812_7 {
   overflow-y: auto;
   width: 100%;
   height: 100%;
   position: relative;
-  will-change: scroll-position;
 }
 ._container_15b4r_1 {
   display: flex;

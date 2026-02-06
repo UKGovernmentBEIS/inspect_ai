@@ -43,7 +43,6 @@
 }
 
 .scrollBody {
-  will-change: scroll-position;
 }
 
 .header {

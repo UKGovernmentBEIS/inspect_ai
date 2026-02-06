@@ -3,8 +3,8 @@ import { kLogViewSamplesTabId } from "../../constants";
 import { useStore } from "../../state/store";
 import { useLoadSample } from "../../state/useLoadSample";
 import { usePollSample } from "../../state/usePollSample";
-import { useLogRouteParams, logsUrl } from "../routing/url";
 import { useLogSampleNavigation } from "../routing/sampleNavigation";
+import { logsUrl, useLogRouteParams } from "../routing/url";
 import { SampleDetailComponent } from "../samples/SampleDetailComponent";
 
 /**
@@ -50,11 +50,15 @@ export const LogSampleDetailView: FC = () => {
 
         // Select the sample
         const targetEpoch = parseInt(epoch, 10);
+        if (isNaN(targetEpoch)) {
+          return;
+        }
+
         selectSample(sampleId, targetEpoch, logPath);
       }
     };
 
-    loadLogAndSample();
+    void loadLogAndSample();
   }, [
     logPath,
     sampleId,

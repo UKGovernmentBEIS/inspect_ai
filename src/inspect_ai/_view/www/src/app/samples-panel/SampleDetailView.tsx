@@ -127,7 +127,7 @@ export const SampleDetailView: FC = () => {
       navigation={{
         onPrevious: handlePrevious,
         onNext: handleNext,
-        hasPrevious,
+        hasPrevious: !!hasPrevious,
         hasNext: !!hasNext,
       }}
       navbarConfig={{
