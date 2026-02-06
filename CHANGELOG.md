@@ -17,6 +17,7 @@
 - Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
 - Inspect View: Show errors in model call events in the transcript.
 - Inspect View: Show tracebacks in model call events in the transcript.
+- Inspect View: Show requests and responses for model call events in the transcript.
 - Inspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.
 - Inspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.
 - Inspect View: Fix issue where a large number of logs could result in laggy or hung viewer in VSCode.

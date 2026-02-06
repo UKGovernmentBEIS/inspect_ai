@@ -326,7 +326,9 @@ def walk_model_call(
     if call:
         return ModelCall(
             request=walk_json_dict(call.request, content_fn, context),
-            response=walk_json_dict(call.response, content_fn, context),
+            response=walk_json_dict(call.response, content_fn, context)
+            if call.response
+            else None,
             time=call.time,
         )
     else:
