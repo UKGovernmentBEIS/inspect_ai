@@ -78,9 +78,9 @@ class ModelCall(BaseModel):
                     dict[str, JsonValue], _walk_json_value(None, response_dict, filter)
                 )
 
-        return ModelCall(
-            request=request_dict, response=response_dict, time=time, _filter=filter
-        )
+        call = ModelCall(request=request_dict, response=response_dict, time=time)
+        call._filter = filter
+        return call
 
     def set_response(self, response: Any, time: float | None = None) -> None:
         response_dict = jsonable_python(response)
