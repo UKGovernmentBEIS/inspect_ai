@@ -12,6 +12,7 @@
 - Inspect View: Show tracebacks in model call events in the transcript.
 - Inspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.
 - Inspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.
+- Inspect View: Fix issue where a large number of logs could result in laggy or hung viewer in VSCode.
 - Bugfix: `handoff()` now respects `react()` name parameter when creating the transfer_to_X tool name.
 - Bugfix: Correctly handle optional `content` field in Anthropic agent bridge `tool_result`.
 
