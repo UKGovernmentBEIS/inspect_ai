@@ -475,8 +475,8 @@ class AnthropicAPI(ModelAPI):
             for m in input
         ]
 
-        # Filter out compaction content from messages (count_tokens API doesn't support it)
-        input = _filter_compaction_content(input)
+        # Check if messages contain compaction blocks before conversion
+        has_compaction = _messages_contain_compaction(input)
 
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
@@ -498,9 +498,22 @@ class AnthropicAPI(ModelAPI):
         if self.is_thinking_model() and _messages_contain_thinking(messages):
             thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
-        response = await self.client.messages.count_tokens(
-            model=self.service_model_name(), messages=messages, **thinking_config
-        )
+        if has_compaction:
+            # Use beta header with context_management for compaction support
+            response = await self.client.messages.count_tokens(
+                model=self.service_model_name(),
+                messages=messages,
+                extra_headers={"anthropic-beta": "compact-2026-01-12"},
+                extra_body={
+                    "context_management": {"edits": [{"type": "compact_20260112"}]}
+                },
+                **thinking_config,
+            )
+        else:
+            # Standard token counting
+            response = await self.client.messages.count_tokens(
+                model=self.service_model_name(), messages=messages, **thinking_config
+            )
         return response.input_tokens
 
     @override
@@ -1271,6 +1284,16 @@ def _messages_contain_thinking(messages: list[MessageParam]) -> bool:
                     block_type = block.get("type", "")
                     if block_type in ("thinking", "redacted_thinking"):
                         return True
+    return False
+
+
+def _messages_contain_compaction(messages: list[ChatMessage]) -> bool:
+    """Check if any message contains compaction blocks."""
+    for msg in messages:
+        if isinstance(msg.content, list):
+            for content in msg.content:
+                if _is_compaction_content(content):
+                    return True
     return False
 
 
@@ -2190,28 +2213,6 @@ def _is_compaction_content(content: Content) -> bool:
     if isinstance(content, ContentData):
         return _compaction_from_content_data(content) is not None
     return False
-
-
-def _filter_compaction_content(messages: list[ChatMessage]) -> list[ChatMessage]:
-    """Filter out compaction content from messages.
-
-    The count_tokens API doesn't support compaction blocks, so we need to
-    filter them out before counting. We replace messages that contain only
-    compaction content with placeholder text.
-    """
-    result: list[ChatMessage] = []
-    for msg in messages:
-        if isinstance(msg.content, list):
-            # Filter out compaction content items
-            filtered_content = [c for c in msg.content if not _is_compaction_content(c)]
-            if filtered_content:
-                # Create a copy with filtered content
-                msg = msg.model_copy(update={"content": filtered_content})
-            else:
-                # All content was compaction - replace with placeholder
-                msg = msg.model_copy(update={"content": "[compacted context]"})
-        result.append(msg)
-    return result
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
