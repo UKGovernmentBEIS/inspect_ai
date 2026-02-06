@@ -77,12 +77,25 @@ export const LogSampleDetailView: FC = () => {
   // The navbar uses dirname(currentPath) for the back button, so when the
   // path is "metr/file.eval", dirname returns "metr/". We want to go to
   // the log's samples tab instead (logsUrl("metr/file.eval", logDir, "samples")).
+  // The home button uses fnNavigationUrl("", logDir) which should go to root.
   const fnNavigationUrl = useCallback(
     (file: string, log_dir?: string) => {
-      // If the file is the parent directory of the current log path,
-      // navigate to the log's samples tab instead
-      if (logPath && logPath.startsWith(file) && file !== logPath) {
-        return logsUrl(logPath, log_dir, kLogViewSamplesTabId);
+      // Detect if this is the back button trying to go to the parent directory.
+      // The back button passes ensureTrailingSlash(dirname(logPath)).
+      // For "metr/file.eval", that's "metr/".
+      // We want to redirect this to the log's samples tab instead.
+      if (logPath && file) {
+        // Normalize: remove trailing slash for comparison
+        const normalizedFile = file.endsWith("/") ? file.slice(0, -1) : file;
+        const logDir = logPath.includes("/")
+          ? logPath.substring(0, logPath.lastIndexOf("/"))
+          : "";
+
+        // If the file matches the parent directory of the log path,
+        // redirect to the log's samples tab
+        if (normalizedFile === logDir) {
+          return logsUrl(logPath, log_dir, kLogViewSamplesTabId);
+        }
       }
       // Otherwise, use the default logsUrl behavior
       return logsUrl(file, log_dir);

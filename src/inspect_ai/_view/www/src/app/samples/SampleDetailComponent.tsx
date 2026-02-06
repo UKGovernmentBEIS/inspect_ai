@@ -86,6 +86,15 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
   }, [sampleData]);
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
+  // Check if the loaded sample matches the requested sample from URL params
+  // This prevents showing old sample data while a new sample is loading
+  const sampleMatchesRequest = useMemo(() => {
+    if (!sample || !sampleId || !epoch) return false;
+    return (
+      String(sample.id) === sampleId && sample.epoch === parseInt(epoch, 10)
+    );
+  }, [sample, sampleId, epoch]);
+
   // Find functionality
   const showFind = useStore((state) => state.app.showFind);
   const setShowFind = useStore((state) => state.appActions.setShowFind);
@@ -209,7 +218,7 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
           </div>
         </ApplicationNavbar>
 
-        {sampleStatus !== "loading" && sample && (
+        {sampleStatus !== "loading" && sample && sampleMatchesRequest && (
           <InlineSampleComponent
             showActivity={false}
             className={styles.panel}
