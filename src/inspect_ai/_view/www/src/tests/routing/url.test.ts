@@ -592,3 +592,162 @@ describe("decodeUrlParam", () => {
     expect(decodeUrlParam("%ZZ")).toBe("%ZZ");
   });
 });
+
+/**
+ * Helper function to encode path parts, copied from src/utils/uri.ts
+ */
+function encodePathParts(url: string): string {
+  if (!url) return url;
+
+  try {
+    const fullUrl = new URL(url);
+    fullUrl.pathname = fullUrl.pathname
+      .split("/")
+      .map((segment) =>
+        segment ? encodeURIComponent(decodeURIComponent(segment)) : "",
+      )
+      .join("/");
+    return fullUrl.toString();
+  } catch {
+    return url
+      .split("/")
+      .map((segment) =>
+        segment ? encodeURIComponent(decodeURIComponent(segment)) : "",
+      )
+      .join("/");
+  }
+}
+
+/**
+ * URL construction function copied from src/app/routing/url.ts
+ * Tests should verify this properly encodes sample IDs with special characters.
+ */
+function logSamplesUrl(
+  logPath: string,
+  sampleId?: string | number,
+  sampleEpoch?: string | number,
+  sampleTabId?: string,
+): string {
+  const decodedLogPath = decodeUrlParam(logPath) || logPath;
+
+  if (sampleId !== undefined && sampleEpoch !== undefined) {
+    // Encode sampleId to handle slashes and special characters
+    // This must be done before encodePathParts since it splits on /
+    const encodedSampleId = encodeURIComponent(String(sampleId));
+    return encodePathParts(
+      `/logs/${decodedLogPath}/samples/sample/${encodedSampleId}/${sampleEpoch}/${sampleTabId || ""}`,
+    );
+  } else {
+    return encodePathParts(
+      `/logs/${decodedLogPath}/samples/${sampleTabId || ""}`,
+    );
+  }
+}
+
+/**
+ * URL construction function copied from src/app/routing/url.ts
+ */
+function samplesSampleUrl(
+  logPath: string,
+  sampleId: string | number,
+  epoch: string | number,
+  sampleTabId?: string,
+): string {
+  const decodedLogPath = decodeUrlParam(logPath) || logPath;
+  // Encode sampleId to handle slashes and special characters
+  // This must be done before encodePathParts since it splits on /
+  const encodedSampleId = encodeURIComponent(String(sampleId));
+  return encodePathParts(
+    `/samples/${decodedLogPath}/sample/${encodedSampleId}/${epoch}/${sampleTabId || ""}`,
+  );
+}
+
+describe("sample IDs with slashes", () => {
+  test("logSamplesUrl encodes slashes in sample IDs", () => {
+    const url = logSamplesUrl(
+      "path/to/file.eval",
+      "ascii/car",
+      1,
+      "transcript",
+    );
+    // The slash in "ascii/car" should be encoded as %2F
+    expect(url).toContain("ascii%2Fcar");
+  });
+
+  test("samplesSampleUrl encodes slashes in sample IDs", () => {
+    const url = samplesSampleUrl(
+      "path/to/file.eval",
+      "ascii/car",
+      1,
+      "transcript",
+    );
+    // The slash in "ascii/car" should be encoded as %2F
+    expect(url).toContain("ascii%2Fcar");
+  });
+
+  test("parseLogRouteParams decodes slashes in sample IDs", () => {
+    // When the URL has an encoded slash, parsing should decode it
+    const result = parseLogRouteParams(
+      "path/to/file.eval/samples/sample/ascii%2Fcar/1/transcript",
+    );
+    expect(result.sampleId).toBe("ascii/car");
+    expect(result.epoch).toBe("1");
+    expect(result.sampleTabId).toBe("transcript");
+  });
+
+  test("parseSamplesRouteParams decodes slashes in sample IDs", () => {
+    const result = parseSamplesRouteParams(
+      "path/to/file.eval/sample/ascii%2Fcar/1/transcript",
+    );
+    expect(result.sampleId).toBe("ascii/car");
+    expect(result.epoch).toBe("1");
+    expect(result.tabId).toBe("transcript");
+  });
+
+  test("round-trip: logSamplesUrl then parseLogRouteParams", () => {
+    const url = logSamplesUrl(
+      "path/to/file.eval",
+      "ascii/car",
+      1,
+      "transcript",
+    );
+    // Extract the path portion after /logs/
+    const path = url.replace(/^\/logs\//, "");
+    const result = parseLogRouteParams(path);
+    expect(result.sampleId).toBe("ascii/car");
+    expect(result.epoch).toBe("1");
+    expect(result.logPath).toBe("path/to/file.eval");
+  });
+
+  test("round-trip: samplesSampleUrl then parseSamplesRouteParams", () => {
+    const url = samplesSampleUrl(
+      "path/to/file.eval",
+      "ascii/car",
+      1,
+      "transcript",
+    );
+    // Extract the path portion after /samples/
+    const path = url.replace(/^\/samples\//, "");
+    const result = parseSamplesRouteParams(path);
+    expect(result.sampleId).toBe("ascii/car");
+    expect(result.epoch).toBe("1");
+    expect(result.samplesPath).toBe("path/to/file.eval");
+  });
+
+  test("handles multiple slashes in sample ID", () => {
+    const url = logSamplesUrl(
+      "path/to/file.eval",
+      "category/sub/item",
+      1,
+      "transcript",
+    );
+    // All slashes should be encoded
+    expect(url).toContain("category%2Fsub%2Fitem");
+  });
+
+  test("handles sample ID that is just a slash", () => {
+    const url = logSamplesUrl("path/to/file.eval", "/", 1, "transcript");
+    expect(url).toContain("%2F");
+    expect(url).not.toMatch(/\/samples\/sample\/\/\d/); // Should not have literal double slash
+  });
+});
