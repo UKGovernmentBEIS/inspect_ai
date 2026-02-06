@@ -9,7 +9,7 @@ from pydantic import (
     Field,
 )
 
-from inspect_ai._util._async import current_async_backend, run_coroutine
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
@@ -22,7 +22,6 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
-from inspect_ai.util._collect import collect
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -372,9 +371,11 @@ async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     async with AsyncFilesystem() as fs:
-        return await collect(
-            *[
-                read_eval_log_async(log_file, header_only=True, async_fs=fs)
+        return await tg_collect(
+            [
+                lambda lf=log_file: read_eval_log_async(
+                    lf, header_only=True, async_fs=fs
+                )
                 for log_file in log_files
             ]
         )
