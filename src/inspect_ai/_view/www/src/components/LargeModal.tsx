@@ -136,7 +136,9 @@ export const LargeModal: FC<LargeModalProps> = ({
             className={clsx("modal-body", styles.scrollBody, classNames?.body)}
             ref={scrollRef}
           >
-            <StickyScrollProvider value={scrollRef}>{children}</StickyScrollProvider>
+            <StickyScrollProvider value={scrollRef}>
+              {children}
+            </StickyScrollProvider>
           </div>
           {modalFooter}
         </div>

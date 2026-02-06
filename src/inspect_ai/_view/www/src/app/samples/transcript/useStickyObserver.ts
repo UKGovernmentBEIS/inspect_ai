@@ -23,7 +23,8 @@ function updateStickyState(container: Element | null, elements: Set<Element>) {
     // Element is stuck when its top is at or near the sticky position relative to container
     // We check if the element's top (relative to container) is at the sticky position
     const relativeTop = rect.top - containerTop;
-    const isStuck = relativeTop <= STICKY_TOP + 1 && relativeTop >= STICKY_TOP - 1;
+    const isStuck =
+      relativeTop <= STICKY_TOP + 1 && relativeTop >= STICKY_TOP - 1;
 
     el.toggleAttribute("data-useStickyObserver-stuck", isStuck);
   });
