@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Improve scroll performance when viewing sample transcripts and messages.
+
 ## 0.3.171 (06 February 2026)
 
 - Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).
