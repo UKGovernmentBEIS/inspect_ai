@@ -1,4 +1,5 @@
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from os import stat
 from types import TracebackType
 from typing import Any, cast
@@ -111,6 +112,15 @@ class _AnyIOFileByteReceiveStream(ByteReceiveStream):
             self._file = None
 
 
+@dataclass
+class SuffixResult:
+    """Result of reading the suffix of a file."""
+
+    data: bytes
+    file_size: int
+    etag: str | None = None
+
+
 class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     """Interface for reading/writing files that uses different interfaces depending on context
 
@@ -123,20 +133,6 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     _s3_client: Any | None = None
     _s3_client_async: Any | None = None
-
-    async def get_etag(self, filename: str) -> str | None:
-        """Get the ETag for a file. Returns None for non-S3 files."""
-        if is_s3_filename(filename):
-            bucket, key = s3_bucket_and_key(filename)
-            if current_async_backend() == "asyncio":
-                response = await (await self.s3_client_async()).head_object(
-                    Bucket=bucket, Key=key
-                )
-                return cast(str, response.get("ETag"))
-            return await anyio.to_thread.run_sync(
-                s3_get_etag, self.s3_client(), bucket, key
-            )
-        return None
 
     async def get_size(self, filename: str) -> int:
         if is_s3_filename(filename):
@@ -205,16 +201,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             chunks.append(chunk)
         return b"".join(chunks)
 
-    async def read_file_suffix(
-        self, filename: str, suffix_length: int
-    ) -> tuple[bytes, int]:
+    async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
         """Read the last suffix_length bytes of a file.
 
         Uses a suffix range request (``bytes=-N``) to avoid a separate
         HEAD request for the file size.
 
         Returns:
-            Tuple of (data, total_file_size).
+            SuffixResult with data, file_size, and etag (S3 only).
         """
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
@@ -224,12 +218,13 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 )
                 content_range: str = response["ContentRange"]
                 total_size = int(content_range.split("/")[-1])
+                etag = cast(str | None, response.get("ETag"))
                 body = response["Body"]
                 try:
                     data = cast(bytes, await body.read())
                 finally:
                     body.close()
-                return data, total_size
+                return SuffixResult(data, total_size, etag)
             else:
                 return await anyio.to_thread.run_sync(
                     s3_read_file_suffix,
@@ -242,7 +237,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             file_size = stat(filename).st_size
             start = max(0, file_size - suffix_length)
             data = await self.read_file_bytes_fully(filename, start, file_size)
-            return data, file_size
+            return SuffixResult(data, file_size)
 
     async def write_file(self, filename: str, content: bytes) -> None:
         if is_s3_filename(filename):
@@ -301,11 +296,6 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         return self._s3_client_async
 
 
-def s3_get_etag(s3: Any, bucket: str, key: str) -> str | None:
-    response = s3.head_object(Bucket=bucket, Key=key)
-    return cast(str | None, response.get("ETag"))
-
-
 def s3_get_size(s3: Any, bucket: str, key: str) -> int:
     response = s3.head_object(Bucket=bucket, Key=key)
     return cast(int, response["ContentLength"])
@@ -324,12 +314,13 @@ def s3_read_file_bytes(s3: Any, bucket: str, key: str, start: int, end: int) -> 
 
 def s3_read_file_suffix(
     s3: Any, bucket: str, key: str, suffix_length: int
-) -> tuple[bytes, int]:
+) -> SuffixResult:
     response = s3.get_object(Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}")
     content_range: str = response["ContentRange"]
     total_size = int(content_range.split("/")[-1])
+    etag = cast(str | None, response.get("ETag"))
     data = cast(bytes, response["Body"].read())
-    return data, total_size
+    return SuffixResult(data, total_size, etag)
 
 
 def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:

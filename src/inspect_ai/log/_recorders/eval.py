@@ -11,7 +11,7 @@ import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.async_zip import AsyncZipReader, _get_central_directory
+from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
@@ -199,6 +199,19 @@ class EvalRecorder(FileRecorder):
         header_only: bool = False,
         async_fs: AsyncFilesystem | None = None,
     ) -> EvalLog:
+        if async_fs is not None:
+            return await cls._read_log_impl(location, header_only, async_fs)
+        else:
+            async with AsyncFilesystem() as owned_fs:
+                return await cls._read_log_impl(location, header_only, owned_fs)
+
+    @classmethod
+    async def _read_log_impl(
+        cls,
+        location: str,
+        header_only: bool,
+        async_fs: AsyncFilesystem,
+    ) -> EvalLog:
         # if the log is not stored in the local filesystem then download it first,
         # and then read it from a temp file (eliminates the possiblity of hundreds
         # of small fetches from the zip file streams)
@@ -218,29 +231,16 @@ class EvalRecorder(FileRecorder):
         # read log (use temp_log if we have it)
         try:
             read_location = temp_log or location
-
-            async def do_read(afs: AsyncFilesystem) -> EvalLog:
-                reader = AsyncZipReader(afs, read_location)
-                entries = await _get_central_directory(afs, read_location)
-                return await _read_log(reader, entries, location, header_only)
-
-            if async_fs is not None:
-                log = await do_read(async_fs)
-            else:
-                async with AsyncFilesystem() as owned_fs:
-                    log = await do_read(owned_fs)
+            reader = AsyncZipReader(async_fs, read_location)
+            cd = await reader.entries()
+            log = await _read_log(reader, cd.entries, location, header_only)
 
             if etag is not None:
                 log.etag = etag
             elif fs.is_s3() and header_only:
-                # if the file is modified in S3 at this point, the ETag will be incorrect
-                # this is challenging to fix
-                # but this should be ok because the ETag is for conditional writes, and only the entire log gets written back
-                if async_fs is not None:
-                    log.etag = await async_fs.get_etag(location)
-                else:
-                    file_info = fs.info(location)
-                    log.etag = file_info.etag
+                # ETag is captured from the S3 response used to read the
+                # central directory, so no extra request is needed.
+                log.etag = reader.etag
 
             return log
         finally:

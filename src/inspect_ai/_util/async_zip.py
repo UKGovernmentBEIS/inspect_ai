@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import struct
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 import anyio
@@ -22,6 +23,25 @@ from .zip_common import ZipCompressionMethod, ZipEntry
 DEFAULT_CHUNK_SIZE = 1024 * 1024
 
 
+@dataclass
+class CentralDirectoryLocation:
+    """Location and raw data needed to parse the central directory."""
+
+    offset: int
+    size: int
+    tail: bytes
+    tail_start: int
+    etag: str | None = None
+
+
+@dataclass
+class CentralDirectory:
+    """Parsed central directory with entries and file metadata."""
+
+    entries: list[ZipEntry]
+    etag: str | None = None
+
+
 # This is an exploratory cache of central directories keyed by filename
 # It's not production ready for a variety of reasons.
 # The file may have changed since the last read:
@@ -30,7 +50,7 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024
 # I'm still not confident about the relationship between this class
 # and the filesystem class.
 
-central_directories_cache: dict[str, list[ZipEntry]] = {}
+central_directories_cache: dict[str, CentralDirectory] = {}
 _filename_locks: dict[str, anyio.Lock] = {}
 _locks_lock = anyio.Lock()
 
@@ -40,10 +60,10 @@ _locks_lock = anyio.Lock()
 
 async def _get_central_directory(
     filesystem: AsyncFilesystem, filename: str
-) -> list[ZipEntry]:
+) -> CentralDirectory:
     # Fast path: check cache without locks
-    if (entries := central_directories_cache.get(filename, None)) is not None:
-        return entries
+    if (cd := central_directories_cache.get(filename, None)) is not None:
+        return cd
 
     # Get or create the lock for this specific filename
     async with _locks_lock:
@@ -54,32 +74,30 @@ async def _get_central_directory(
     # Acquire the per-filename lock
     async with file_lock:
         # Double-check after acquiring lock
-        if (entries := central_directories_cache.get(filename, None)) is not None:
-            return entries
+        if (cd := central_directories_cache.get(filename, None)) is not None:
+            return cd
 
-        entries = await _parse_central_directory(filesystem, filename)
-        central_directories_cache[filename] = entries
-        return entries
+        cd = await _parse_central_directory(filesystem, filename)
+        central_directories_cache[filename] = cd
+        return cd
 
 
 async def _find_central_directory(
     filesystem: AsyncFilesystem, filename: str
-) -> tuple[int, int, bytes, int]:
+) -> CentralDirectoryLocation:
     """Locate and parse the central directory metadata.
 
     Uses a suffix range request to avoid a separate HEAD for the file size.
 
     Returns:
-        Tuple of (cd_offset, cd_size, tail_data, tail_start) where cd_offset
-        is the byte offset of the central directory, cd_size is its size in
-        bytes, tail_data is the raw bytes read from the end of the file, and
-        tail_start is the absolute offset where tail_data begins.
+        CentralDirectoryLocation with offset, size, tail data, and etag.
 
     Raises:
         ValueError: If EOCD signature not found or ZIP64 structure is corrupt
     """
-    tail, file_size = await filesystem.read_file_suffix(filename, 65536)
-    tail_start = file_size - len(tail)
+    suffix = await filesystem.read_file_suffix(filename, 65536)
+    tail = suffix.data
+    tail_start = suffix.file_size - len(tail)
 
     # Search backward for EOCD signature
     eocd_sig = b"PK\x05\x06"
@@ -126,28 +144,26 @@ async def _find_central_directory(
         # Parse ZIP64 central directory size and offset
         cd_size, cd_offset = struct.unpack_from("<QQ", eocd64_data, 40)
 
-    return cd_offset, cd_size, tail, tail_start
+    return CentralDirectoryLocation(cd_offset, cd_size, tail, tail_start, suffix.etag)
 
 
 async def _parse_central_directory(
     filesystem: AsyncFilesystem, filename: str
-) -> list[ZipEntry]:
+) -> CentralDirectory:
     """Parse the central directory and return all entries.
 
     Returns:
-        List of ZipEntry objects, one per member in the archive
+        CentralDirectory with entries and etag.
     """
-    cd_offset, cd_size, tail, tail_start = await _find_central_directory(
-        filesystem, filename
-    )
+    cd_loc = await _find_central_directory(filesystem, filename)
 
     # Reuse the tail buffer if the central directory falls within it
-    if cd_offset >= tail_start:
-        rel = cd_offset - tail_start
-        buf = tail[rel : rel + cd_size]
+    if cd_loc.offset >= cd_loc.tail_start:
+        rel = cd_loc.offset - cd_loc.tail_start
+        buf = cd_loc.tail[rel : rel + cd_loc.size]
     else:
         buf = await filesystem.read_file_bytes_fully(
-            filename, cd_offset, cd_offset + cd_size
+            filename, cd_loc.offset, cd_loc.offset + cd_loc.size
         )
 
     entries = []
@@ -224,7 +240,7 @@ async def _parse_central_directory(
         )
         pos += 46 + name_len + extra_len + comment_len
 
-    return entries
+    return CentralDirectory(entries, cd_loc.etag)
 
 
 class _ZipMemberBytes:
@@ -323,12 +339,24 @@ class AsyncZipReader:
         self._filesystem = filesystem
         self._filename = filename
         self._chunk_size = chunk_size
-        self._entries: list[ZipEntry] | None = None
-        self._entries_lock = anyio.Lock()
+        self._central_directory: CentralDirectory | None = None
+
+    @property
+    def etag(self) -> str | None:
+        """ETag from the S3 response used to read the central directory."""
+        return self._central_directory.etag if self._central_directory else None
+
+    async def entries(self) -> CentralDirectory:
+        """Load and cache the central directory."""
+        if self._central_directory is None:
+            self._central_directory = await _get_central_directory(
+                self._filesystem, self._filename
+            )
+        return self._central_directory
 
     async def get_member_entry(self, member_name: str) -> ZipEntry:
-        entries = await _get_central_directory(self._filesystem, self._filename)
-        entry = next((e for e in entries if e.filename == member_name), None)
+        cd = await self.entries()
+        entry = next((e for e in cd.entries if e.filename == member_name), None)
         if entry is None:
             raise KeyError(member_name)
         return entry
