@@ -213,7 +213,7 @@ export const useSampleNavigation = () => {
     [resolveLogPath, sampleTabId],
   );
 
-  // Navigate back from sample dialog
+  // Navigate back from sample detail view
   const clearSampleUrl = useCallback(() => {
     const resolvedPath = resolveLogPath();
     if (resolvedPath) {
@@ -282,7 +282,6 @@ export const useSamplesGridNavigation = () => {
 /**
  * Hook for sample navigation within the log context (LogSampleDetailView).
  * Uses filteredSamples to navigate between samples respecting current filters.
- * Unlike useSampleNavigation, this hook doesn't manage dialog state.
  */
 export const useLogSampleNavigation = () => {
   const navigate = useNavigate();
