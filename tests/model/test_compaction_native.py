@@ -114,7 +114,7 @@ async def test_native_compaction_with_supported_model() -> None:
 @pytest.mark.asyncio
 async def test_native_compaction_dynamically_supported() -> None:
     strategy = CompactionNative()
-    model = get_model("openai/gpt-4o")
+    model = get_model("openai/gpt-5")
     messages = _sample_messages()
 
     result, summary = await strategy.compact(messages, model)
