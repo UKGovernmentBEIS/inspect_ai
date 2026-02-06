@@ -671,11 +671,7 @@ def _read_log_from_bytes(
 
 
 async def _read_member_json(reader: AsyncZipReader, member: str) -> Any:
-    chunks: list[bytes] = []
-    async with await reader.open_member(member) as stream:
-        async for chunk in stream:
-            chunks.append(chunk)
-    return json.loads(b"".join(chunks))
+    return json.loads(await reader.read_member_fully(member))
 
 
 async def _read_header_async(

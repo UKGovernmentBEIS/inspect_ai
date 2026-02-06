@@ -64,21 +64,22 @@ async def _get_central_directory(
 
 async def _find_central_directory(
     filesystem: AsyncFilesystem, filename: str
-) -> tuple[int, int]:
+) -> tuple[int, int, bytes, int]:
     """Locate and parse the central directory metadata.
 
+    Uses a suffix range request to avoid a separate HEAD for the file size.
+
     Returns:
-        Tuple of (cd_offset, cd_size) where cd_offset is the byte offset
-        of the central directory and cd_size is its size in bytes.
+        Tuple of (cd_offset, cd_size, tail_data, tail_start) where cd_offset
+        is the byte offset of the central directory, cd_size is its size in
+        bytes, tail_data is the raw bytes read from the end of the file, and
+        tail_start is the absolute offset where tail_data begins.
 
     Raises:
         ValueError: If EOCD signature not found or ZIP64 structure is corrupt
     """
-    size = await filesystem.get_size(filename)
-
-    # Read last 64KB to find EOCD
-    tail_start = max(0, size - 65536)
-    tail = await filesystem.read_file_bytes_fully(filename, tail_start, size)
+    tail, file_size = await filesystem.read_file_suffix(filename, 65536)
+    tail_start = file_size - len(tail)
 
     # Search backward for EOCD signature
     eocd_sig = b"PK\x05\x06"
@@ -108,10 +109,14 @@ async def _find_central_directory(
         fields = struct.unpack_from("<IQI", tail, loc_idx + 4)
         eocd64_offset = fields[1]
 
-        # Read ZIP64 EOCD
-        eocd64_data = await filesystem.read_file_bytes_fully(
-            filename, eocd64_offset, eocd64_offset + 56
-        )
+        # Read ZIP64 EOCD (reuse tail if possible)
+        if eocd64_offset >= tail_start:
+            rel = eocd64_offset - tail_start
+            eocd64_data = tail[rel : rel + 56]
+        else:
+            eocd64_data = await filesystem.read_file_bytes_fully(
+                filename, eocd64_offset, eocd64_offset + 56
+            )
 
         # Verify ZIP64 EOCD signature
         eocd64_sig = b"PK\x06\x06"
@@ -121,7 +126,7 @@ async def _find_central_directory(
         # Parse ZIP64 central directory size and offset
         cd_size, cd_offset = struct.unpack_from("<QQ", eocd64_data, 40)
 
-    return cd_offset, cd_size
+    return cd_offset, cd_size, tail, tail_start
 
 
 async def _parse_central_directory(
@@ -132,10 +137,18 @@ async def _parse_central_directory(
     Returns:
         List of ZipEntry objects, one per member in the archive
     """
-    cd_offset, cd_size = await _find_central_directory(filesystem, filename)
-    buf = await filesystem.read_file_bytes_fully(
-        filename, cd_offset, cd_offset + cd_size
+    cd_offset, cd_size, tail, tail_start = await _find_central_directory(
+        filesystem, filename
     )
+
+    # Reuse the tail buffer if the central directory falls within it
+    if cd_offset >= tail_start:
+        rel = cd_offset - tail_start
+        buf = tail[rel : rel + cd_size]
+    else:
+        buf = await filesystem.read_file_bytes_fully(
+            filename, cd_offset, cd_offset + cd_size
+        )
 
     entries = []
     pos = 0
@@ -368,6 +381,70 @@ class AsyncZipReader:
             self._filename,
             await self._get_member_range_and_method(member),
         )
+
+    async def read_member_fully(self, member: str | ZipEntry) -> bytes:
+        """Read a member's decompressed content fully into memory.
+
+        Reads the local file header and compressed data in a single request,
+        then decompresses. More efficient than ``open_member`` for small members
+        because it avoids a separate request for the local file header.
+
+        Args:
+            member: Name or ZipEntry of the member file within the archive
+
+        Returns:
+            Decompressed member content as bytes
+        """
+        entry = (
+            member
+            if isinstance(member, ZipEntry)
+            else await self.get_member_entry(member)
+        )
+
+        # Estimate variable header size from central directory filename
+        # plus generous padding for the extra field
+        name_len_estimate = len(entry.filename.encode("utf-8"))
+        variable_header_padding = name_len_estimate + 256
+
+        # Read local header + compressed data in one request
+        read_start = entry.local_header_offset
+        read_end = read_start + 30 + variable_header_padding + entry.compressed_size
+        buf = await self._filesystem.read_file_bytes_fully(
+            self._filename, read_start, read_end
+        )
+
+        # Parse local header to find exact data offset
+        _, _, _, _, _, _, _, _, _, name_len, extra_len = struct.unpack_from(
+            "<4sHHHHHIIIHH", buf
+        )
+        data_start = 30 + name_len + extra_len
+
+        if data_start + entry.compressed_size <= len(buf):
+            compressed_data = buf[data_start : data_start + entry.compressed_size]
+        else:
+            # Variable header was larger than estimated; fall back to separate read
+            abs_data_start = read_start + data_start
+            compressed_data = await self._filesystem.read_file_bytes_fully(
+                self._filename,
+                abs_data_start,
+                abs_data_start + entry.compressed_size,
+            )
+
+        if entry.compression_method == ZipCompressionMethod.STORED:
+            return compressed_data
+        elif entry.compression_method == ZipCompressionMethod.DEFLATE:
+            import zlib
+
+            return zlib.decompress(compressed_data, -15)
+        elif entry.compression_method == ZipCompressionMethod.ZSTD:
+            import zstandard
+
+            dctx = zstandard.ZstdDecompressor()
+            return dctx.decompress(compressed_data)
+        else:
+            raise NotImplementedError(
+                f"Unsupported compression method: {entry.compression_method}"
+            )
 
     async def _get_member_range_and_method(
         self, member: str | ZipEntry

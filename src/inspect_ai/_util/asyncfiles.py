@@ -191,6 +191,45 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             chunks.append(chunk)
         return b"".join(chunks)
 
+    async def read_file_suffix(
+        self, filename: str, suffix_length: int
+    ) -> tuple[bytes, int]:
+        """Read the last suffix_length bytes of a file.
+
+        Uses a suffix range request (``bytes=-N``) to avoid a separate
+        HEAD request for the file size.
+
+        Returns:
+            Tuple of (data, total_file_size).
+        """
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                response = await (await self.s3_client_async()).get_object(
+                    Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}"
+                )
+                content_range: str = response["ContentRange"]
+                total_size = int(content_range.split("/")[-1])
+                body = response["Body"]
+                try:
+                    data = cast(bytes, await body.read())
+                finally:
+                    body.close()
+                return data, total_size
+            else:
+                return await anyio.to_thread.run_sync(
+                    s3_read_file_suffix,
+                    self.s3_client(),
+                    bucket,
+                    key,
+                    suffix_length,
+                )
+        else:
+            file_size = stat(filename).st_size
+            start = max(0, file_size - suffix_length)
+            data = await self.read_file_bytes_fully(filename, start, file_size)
+            return data, file_size
+
     async def write_file(self, filename: str, content: bytes) -> None:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
@@ -262,6 +301,16 @@ def s3_read_file_bytes(s3: Any, bucket: str, key: str, start: int, end: int) -> 
     range_header = f"bytes={start}-{end - 1}"
     response = s3.get_object(Bucket=bucket, Key=key, Range=range_header)
     return cast(bytes, response["Body"].read())
+
+
+def s3_read_file_suffix(
+    s3: Any, bucket: str, key: str, suffix_length: int
+) -> tuple[bytes, int]:
+    response = s3.get_object(Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}")
+    content_range: str = response["ContentRange"]
+    total_size = int(content_range.split("/")[-1])
+    data = cast(bytes, response["Body"].read())
+    return data, total_size
 
 
 def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
