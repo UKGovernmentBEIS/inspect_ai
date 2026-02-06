@@ -475,6 +475,9 @@ class AnthropicAPI(ModelAPI):
             for m in input
         ]
 
+        # Filter out compaction content from messages (count_tokens API doesn't support it)
+        input = _filter_compaction_content(input)
+
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
 
@@ -2180,6 +2183,35 @@ def _compaction_from_content_data(
                 )
 
     return None
+
+
+def _is_compaction_content(content: Content) -> bool:
+    """Check if content is a compaction block."""
+    if isinstance(content, ContentData):
+        return _compaction_from_content_data(content) is not None
+    return False
+
+
+def _filter_compaction_content(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Filter out compaction content from messages.
+
+    The count_tokens API doesn't support compaction blocks, so we need to
+    filter them out before counting. We replace messages that contain only
+    compaction content with placeholder text.
+    """
+    result: list[ChatMessage] = []
+    for msg in messages:
+        if isinstance(msg.content, list):
+            # Filter out compaction content items
+            filtered_content = [c for c in msg.content if not _is_compaction_content(c)]
+            if filtered_content:
+                # Create a copy with filtered content
+                msg = msg.model_copy(update={"content": filtered_content})
+            else:
+                # All content was compaction - replace with placeholder
+                msg = msg.model_copy(update={"content": "[compacted context]"})
+        result.append(msg)
+    return result
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
