@@ -233,11 +233,14 @@ class EvalRecorder(FileRecorder):
             if etag is not None:
                 log.etag = etag
             elif fs.is_s3() and header_only:
-                file_info = fs.info(location)
                 # if the file is modified in S3 at this point, the ETag will be incorrect
                 # this is challenging to fix
                 # but this should be ok because the ETag is for conditional writes, and only the entire log gets written back
-                log.etag = file_info.etag
+                if async_fs is not None:
+                    log.etag = await async_fs.get_etag(location)
+                else:
+                    file_info = fs.info(location)
+                    log.etag = file_info.etag
 
             return log
         finally:

@@ -124,6 +124,23 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     _s3_client: Any | None = None
     _s3_client_async: Any | None = None
 
+    def __init__(self, max_pool_connections: int = 50) -> None:
+        self._max_pool_connections = max_pool_connections
+
+    async def get_etag(self, filename: str) -> str | None:
+        """Get the ETag for a file. Returns None for non-S3 files."""
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                response = await (await self.s3_client_async()).head_object(
+                    Bucket=bucket, Key=key
+                )
+                return cast(str, response.get("ETag"))
+            return await anyio.to_thread.run_sync(
+                s3_get_etag, self.s3_client(), bucket, key
+            )
+        return None
+
     async def get_size(self, filename: str) -> int:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
@@ -264,7 +281,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     def s3_client(self) -> Any:
         if self._s3_client is None:
             config = Config(
-                max_pool_connections=50,
+                max_pool_connections=self._max_pool_connections,
                 retries={"max_attempts": 10, "mode": "adaptive"},
             )
             self._s3_client = boto3.client("s3", config=config)
@@ -277,7 +294,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
             session = aioboto3.Session()
             config = AioConfig(
-                max_pool_connections=50,
+                max_pool_connections=self._max_pool_connections,
                 retries={"max_attempts": 10, "mode": "adaptive"},
             )
             self._s3_client_async = await session.client(
@@ -285,6 +302,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             ).__aenter__()
 
         return self._s3_client_async
+
+
+def s3_get_etag(s3: Any, bucket: str, key: str) -> str | None:
+    response = s3.head_object(Bucket=bucket, Key=key)
+    return cast(str | None, response.get("ETag"))
 
 
 def s3_get_size(s3: Any, bucket: str, key: str) -> int:
