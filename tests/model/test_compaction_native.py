@@ -10,7 +10,6 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
 )
-from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.native import CompactionNative
 from inspect_ai.model._model import get_model
 from inspect_ai.model._providers.anthropic import MIN_COMPACTION_TOKENS
@@ -28,67 +27,14 @@ def _sample_messages() -> list[ChatMessage]:
 
 
 @pytest.mark.asyncio
-async def test_native_no_fallback_raises() -> None:
-    """CompactionNative with no fallback raises NotImplementedError on mockllm."""
+async def test_native_raises_not_implemented() -> None:
+    """CompactionNative raises NotImplementedError on unsupported providers."""
     strategy = CompactionNative()
     model = get_model("mockllm/model")
     messages = _sample_messages()
 
     with pytest.raises(NotImplementedError):
         await strategy.compact(model, messages, [])
-
-
-@pytest.mark.asyncio
-async def test_native_with_fallback_uses_fallback() -> None:
-    """CompactionNative with fallback uses the fallback strategy on mockllm."""
-    fallback = CompactionEdit()
-    strategy = CompactionNative(fallback=fallback)
-    model = get_model("mockllm/model")
-    messages = _sample_messages()
-
-    result, summary = await strategy.compact(model, messages, [])
-
-    # Should succeed (no exception) and return compacted messages
-    assert len(result) > 0
-    assert isinstance(result, list)
-
-
-@pytest.mark.asyncio
-async def test_native_fallback_is_sticky() -> None:
-    """After the first fallback, _use_fallback is True and subsequent calls use fallback directly."""
-    fallback = CompactionEdit()
-    strategy = CompactionNative(fallback=fallback)
-    model = get_model("mockllm/model")
-    messages = _sample_messages()
-
-    # First call triggers fallback via NotImplementedError catch
-    assert strategy._use_fallback is False
-    await strategy.compact(model, messages, [])
-    assert strategy._use_fallback is True
-
-    # Second call goes through the sticky fallback path (no try/except)
-    result, summary = await strategy.compact(model, messages, [])
-    assert len(result) > 0
-    assert strategy._use_fallback is True
-
-
-@pytest.mark.asyncio
-async def test_native_fallback_returns_fallback_result() -> None:
-    """Verify the return value matches what the fallback strategy produces."""
-    fallback = CompactionEdit()
-    strategy = CompactionNative(fallback=fallback)
-    model = get_model("mockllm/model")
-    messages = _sample_messages()
-
-    # Get result from CompactionNative with fallback
-    native_result, native_summary = await strategy.compact(model, messages, [])
-
-    # Get result directly from CompactionEdit for comparison
-    edit_result, edit_summary = await fallback.compact(model, messages, [])
-
-    # Results should match since the fallback delegates to CompactionEdit
-    assert len(native_result) == len(edit_result)
-    assert native_summary == edit_summary
 
 
 @skip_if_no_openai
@@ -108,9 +54,6 @@ async def test_native_compaction_with_supported_model() -> None:
     # Native compaction returns None for the supplemental message
     assert summary is None
 
-    # The fallback should not have been triggered
-    assert strategy._use_fallback is False
-
 
 @skip_if_no_openai
 @pytest.mark.asyncio
@@ -127,9 +70,6 @@ async def test_native_compaction_dynamically_supported() -> None:
 
     # Native compaction returns None for the supplemental message
     assert summary is None
-
-    # The fallback should not have been triggered
-    assert strategy._use_fallback is False
 
 
 # --- Anthropic-specific tests ---
@@ -154,26 +94,22 @@ async def test_anthropic_compaction_minimum_tokens_raises() -> None:
 
 @skip_if_no_anthropic
 @pytest.mark.asyncio
-async def test_anthropic_compaction_below_minimum_no_fallback() -> None:
-    """CompactionNative does NOT fall back when Anthropic input is below minimum threshold.
+async def test_anthropic_compaction_below_minimum_raises() -> None:
+    """CompactionNative raises RuntimeError when Anthropic input is below minimum threshold.
 
     RuntimeError for minimum token threshold is a hard error - users should be
-    explicitly aware of this limitation rather than silently falling back.
+    explicitly aware of this limitation.
     """
-    fallback = CompactionEdit()
-    strategy = CompactionNative(fallback=fallback)
+    strategy = CompactionNative()
     model = get_model("anthropic/claude-opus-4-6")
     messages = _sample_messages()
 
-    # Should raise RuntimeError even with fallback configured
+    # Should raise RuntimeError
     with pytest.raises(RuntimeError) as exc_info:
         await strategy.compact(model, messages, [])
 
     # Verify the error message contains useful information
     assert str(MIN_COMPACTION_TOKENS) in str(exc_info.value)
-
-    # Fallback should NOT have been triggered
-    assert strategy._use_fallback is False
 
 
 @skip_if_no_anthropic
@@ -189,25 +125,6 @@ async def test_anthropic_unsupported_model_raises_not_implemented() -> None:
     # Direct call to the provider's compact method should raise NotImplementedError
     with pytest.raises(NotImplementedError):
         await model.api.compact(messages, [], model.config)
-
-
-@skip_if_no_anthropic
-@pytest.mark.asyncio
-async def test_anthropic_unsupported_model_triggers_fallback() -> None:
-    """CompactionNative with fallback falls back on unsupported Anthropic models."""
-    fallback = CompactionEdit()
-    strategy = CompactionNative(fallback=fallback)
-    # Use an older model that doesn't support compaction
-    config = GenerateConfig(max_tokens=4096)
-    model = get_model("anthropic/claude-3-haiku-20240307", config=config)
-    messages = _long_messages()  # Need enough tokens to pass minimum threshold
-
-    # Should succeed via fallback since model doesn't support compaction
-    result, summary = await strategy.compact(model, messages, [])
-
-    # Fallback should have been triggered
-    assert strategy._use_fallback is True
-    assert len(result) > 0
 
 
 def _long_messages() -> list[ChatMessage]:

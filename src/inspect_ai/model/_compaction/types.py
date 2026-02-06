@@ -22,7 +22,12 @@ class CompactionStrategy(abc.ABC):
                 to compaction when the memory tool is available.
         """
         self.threshold = threshold
-        self.memory = memory
+        self._memory = memory
+
+    @property
+    def memory(self) -> bool:
+        """Whether to warn the model to save content to memory before compaction."""
+        return self._memory
 
     @abc.abstractmethod
     async def compact(

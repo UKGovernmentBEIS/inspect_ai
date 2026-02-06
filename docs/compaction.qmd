@@ -8,6 +8,7 @@ Compaction enables you to automatically manage conversation context as it grows,
 
 | Strategy | Description |
 |------------------------------------|------------------------------------|
+| `CompactionAuto` | Automatic compaction: tries native first, falls back to summary. |
 | `CompactionNative` | Use provider-specific native compaction API (OpenAI and Anthropic only). |
 | `CompactionSummary` | Compact by having a model create a summary of the message history. |
 | `CompactionEdit` | Compact by editing the message history to remove content (e.g. tool call results and reasoning). |
@@ -15,13 +16,13 @@ Compaction enables you to automatically manage conversation context as it grows,
 
 : {tbl-colwidths=\[35,65\]}
 
-Native compaction with a fallback to summary compaction is generally a good choice, especially for long-horizton tasks where you want maximum token efficiency. Edit and trim compaction are good for short or medium horizon tasks where you want to preseve as much context as possible.
+`CompactionAuto` is the recommended default for most use cases—it automatically uses native compaction when available and falls back to summary-based compaction otherwise. Edit and trim compaction are good for short or medium horizon tasks where you want to preserve as much context as possible.
 
-Compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction. 
+Compaction can also make use of the [memory()](#memory-tool) tool to offload important context to files prior to compaction.
 
 #### Compaction Threshold
 
-Compaction works by monitoring model input and executing when input tokens get close to the model's context window size. You can configure the compaction `threshold` by specifying either a percentage or a specific token count. 
+Compaction works by monitoring model input and executing when input tokens get close to the model's context window size. You can configure the compaction `threshold` by specifying either a percentage or a specific token count.
 
 Float values between 0 and 1 (e.g., `0.9`) are interpreted as a percentage of the context window, while integer values (e.g., `100000`) are interpreted as an absolute token count. The default threshold is `0.9` (90% of the context window).
 
@@ -32,14 +33,14 @@ Compaction is built-in to the [ReAct Agent](react-agent.qmd) and the [Agent Brid
 ``` python
 from inspect_ai.agent import react
 from inspect_ai.model import (
-    CompactionEdit, CompactionNative, CompactionSummary
+    CompactionAuto, CompactionEdit, CompactionNative
 )
 from inspect_ai.tool import bash, text_editor
 
-# native compaction w/ summary fallback
+# automatic compaction (recommended default)
 react(
     tools=[bash(), text_editor()],
-    compaction=CompactionNative(fallback=CompactionSummary())
+    compaction=CompactionAuto()
 )
 
 # edit compaction
@@ -54,6 +55,42 @@ If you are creating a custom agent, you will need to incorporate compaction into
 One important thing to note about compaction is that it affects only the input that the model sees---the core history with all messages is still retained by agents when using compaction.
 
 
+## Automatic Compaction
+
+::: {.callout-note appearance="minimal"}
+The automatic compaction strategy described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+`CompactionAuto` provides the best of both worlds: it uses efficient provider-native compaction when available and falls back to summary-based compaction for unsupported providers. This is the recommended default for most use cases.
+
+For example, here we add automatic compaction to a `react()` agent:
+
+``` python
+from inspect_ai.agent import react
+from inspect_ai.model import CompactionAuto
+from inspect_ai.tool import bash, text_editor
+
+react(
+    tools=[bash(), text_editor()],
+    compaction=CompactionAuto(threshold=0.9)
+)
+```
+
+Here are all options available for `CompactionAuto`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
+| `instructions` | None | Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets and technical decisions.") |
+| `memory` | "auto" | Warn the model to save content to memory before compaction (when the memory tool is available). Use `"auto"` to disable memory for native compaction and enable it for summary compaction. |
+
+: {tbl-colwidths=\[15,12,73\]}
+
+
 ## Native Compaction
 
 ::: {.callout-note appearance="minimal"}
@@ -64,7 +101,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-Native compaction delegates context management to the model provider's own compaction API rather than implementing it client-side. The provider compresses the conversation into a provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API and Anthropic Claude 4.6. 
+Native compaction delegates context management to the model provider's own compaction API rather than implementing it client-side. The provider compresses the conversation into a provider-specific representation that preserves semantic meaning while achieving aggressive token savings. Native compaction is currently available for OpenAI models that use the Responses API and Anthropic Claude 4.6.
 
 For example, here we add native compaction to a `react()` agent:
 
@@ -75,23 +112,19 @@ from inspect_ai.tool import bash, text_editor
 
 react(
     tools=[bash(), text_editor()],
-    compaction=CompactionNative(
-        threshold=0.9, 
-        fallback=CompactionSummary()
-    )
+    compaction=CompactionNative(threshold=0.9)
 )
 ```
 
-Since native compaction is not available for all providers and models, you should generally specify a `fallback` strategy that will be used when the provider doesn't support native compaction. 
+Note that `CompactionNative` will raise `NotImplementedError` if the model provider doesn't support native compaction. Use `CompactionAuto` for automatic fallback to summary-based compaction.
 
 Here are all options available for `CompactionNative`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
-| `instructions` | None | Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets, variable names, and technical decisions.") |
-| `fallback` | None | Fallback compaction strategy to use if the provider does not support native compaction. |
-| `memory` | False | Warn the model to save content to memory before compaction (when the memory tool is available). Defaults to `False` since native compaction preserves context server-side. |
+| `instructions` | None | Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets and technical decisions.") |
+| `memory` | False | Warn the model to save content to memory before compaction (when the memory tool is available). Defaults to `False`. |
 
 : {tbl-colwidths=\[15,12,73\]}
 
@@ -124,7 +157,7 @@ Here are all options available for `CompactionSummary`:
 | `threshold` | 0.9 | Token count or percent of context window to trigger compaction. |
 | `memory` | True | Warn the model to save content to memory before compaction (when the memory tool is available). |
 | `model` | None | Model to use for generating the summary. Defaults to the compaction target model if not specified. |
-| `instructions` | None |  Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets, variable names, and technical decisions."). These instructions will be inserted into the `prompt`. |
+| `instructions` | None |  Additional instructions to give the model about compaction (e.g. "Focus on preserving code snippets and technical decisions."). These instructions will be inserted into the `prompt`. |
 | `prompt` | None | Custom prompt for summarization. Uses a built-in default prompt if not provided. |
 
 : {tbl-colwidths=\[15,12,73\]}
@@ -168,7 +201,7 @@ Here are all options available for `CompactionEdit`:
 
 ## Trim Compaction
 
-Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. When compaction triggers multiple times, it continues discarding older messages on each cycle. 
+Trim compaction is the simplest compaction strategy—it preserves a specified percentage of the conversation history while retaining all system and input messages. When compaction triggers multiple times, it continues discarding older messages on each cycle.
 
 For example, here we add trim compaction to a `react()` agent (all parameters to `CompactionTrim` reflect the built-in defaults):
 
