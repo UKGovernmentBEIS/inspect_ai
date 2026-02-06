@@ -526,11 +526,20 @@ class AnthropicAPI(ModelAPI):
         """
         # create edit param (count tokens so we provide a trigger that will fire)
         tokens = await self.count_tokens(input, config)
+        trigger_value = round(tokens * 0.9)
+
+        # Anthropic API requires minimum trigger value of 50,000 tokens
+        if trigger_value < MIN_COMPACTION_TOKENS:
+            raise RuntimeError(
+                f"Anthropic native compaction requires at least {MIN_COMPACTION_TOKENS} "
+                f"tokens (input has {tokens} tokens, trigger would be {trigger_value})"
+            )
+
         edit = BetaCompact20260112EditParam(
             type="compact_20260112",
             instructions=instructions,
             trigger=BetaInputTokensTriggerParam(
-                type="input_tokens", value=round(tokens * 0.9)
+                type="input_tokens", value=trigger_value
             ),
             pause_after_compaction=True,
         )
@@ -543,6 +552,7 @@ class AnthropicAPI(ModelAPI):
             }
         )
         output, _ = await self.generate(input, tools, "auto", config)
+
         if isinstance(output, ModelOutput):
             # confirm a compaction occurred
             if _message_has_compaction(output.message):
@@ -557,7 +567,15 @@ class AnthropicAPI(ModelAPI):
                 raise RuntimeError(
                     f"Anthropic server-side compaction failed (no compaction occurred): {output.model_dump_json(exclude_none=True)}"
                 )
-
+        elif isinstance(output, BadRequestError):
+            # Check if model doesn't support compaction
+            error_msg = str(output)
+            if "does not support context management" in error_msg:
+                raise NotImplementedError(
+                    f"Model {self.model_name} does not support native compaction: {error_msg}"
+                ) from output
+            else:
+                raise output from None
         else:
             raise output from None
 
@@ -706,6 +724,10 @@ class AnthropicAPI(ModelAPI):
             for field in anthropic_extra_body_fields():
                 if field in config.extra_body and field not in params:
                     params[field] = config.extra_body[field]
+            # pass through other extra_body fields (e.g. context_management for compaction)
+            for key, value in config.extra_body.items():
+                if key not in anthropic_extra_body_fields():
+                    extra_body[key] = value
 
         # return config
         return params, extra_body, headers, betas
@@ -1767,19 +1789,35 @@ async def model_output_from_message(
     usage = message.usage.model_dump()
     input_tokens_cache_write = usage.get("cache_creation_input_tokens", None)
     input_tokens_cache_read = usage.get("cache_read_input_tokens", None)
+
+    # When compaction occurs, the top-level usage excludes compaction iteration tokens.
+    # The iterations array contains per-iteration usage which we aggregate for accuracy.
+    iterations = usage.get("iterations", None)
+    if isinstance(iterations, list) and len(iterations) > 0:
+        # Aggregate tokens from all iterations
+        input_tokens = sum(
+            it.get("input_tokens", 0) for it in iterations if isinstance(it, dict)
+        )
+        output_tokens = sum(
+            it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
+        )
+    else:
+        input_tokens = message.usage.input_tokens
+        output_tokens = message.usage.output_tokens
+
     total_tokens = (
-        message.usage.input_tokens
+        input_tokens
         + (input_tokens_cache_write or 0)
         + (input_tokens_cache_read or 0)
-        + message.usage.output_tokens  # includes reasoning tokens
+        + output_tokens  # includes reasoning tokens
     )
     return (
         ModelOutput(
             model=message.model,
             choices=[choice],
             usage=ModelUsage(
-                input_tokens=message.usage.input_tokens,
-                output_tokens=message.usage.output_tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
                 total_tokens=total_tokens,
                 input_tokens_cache_write=input_tokens_cache_write,
                 input_tokens_cache_read=input_tokens_cache_read,
@@ -2076,6 +2114,7 @@ EDIT_TYPE = "type"
 COMPACT_20260112 = "compact_20260112"
 EXTRA_BODY = "extra_body"
 CONTEXT_MANAGEMENT = "context_management"
+MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
 
 
 def _add_edit_compation(request: dict[str, Any]) -> None:
