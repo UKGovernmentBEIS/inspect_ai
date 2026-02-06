@@ -1,10 +1,10 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, AsyncGenerator, Iterator, Literal
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
 
 if TYPE_CHECKING:
-    from inspect_ai.model._model_call import ModelCall
+    from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
 from anyio.abc import TaskGroup
 from shortuuid import uuid
@@ -227,3 +227,16 @@ def active_samples() -> list[ActiveSample]:
 
 
 _active_samples: list[ActiveSample] = []
+
+
+def start_active_model_call(
+    request: Any, filter: "ModelCallFilter | None" = None
+) -> "ModelCall":
+    """Create a ModelCall and register it with the active model event."""
+    from inspect_ai.model._model_call import ModelCall
+
+    if request is None:
+        request = {}
+    model_call = ModelCall.create(request, None, filter)
+    set_active_model_event_call(model_call)
+    return model_call

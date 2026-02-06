@@ -116,10 +116,11 @@ from inspect_ai._util.error import exception_message
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data, file_as_data_uri
-from inspect_ai._util.json import jsonable_python, to_json_str_safe
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
@@ -408,13 +409,8 @@ class AnthropicAPI(ModelAPI):
                     request["extra_body"] = dict()
                 request["extra_body"]["mcp_servers"] = mcp_servers_param
 
-            model_call = ModelCall.create(
-                request=request,
-                response=None,
-                filter=model_call_filter,
-            )
-
-            self.record_model_call(model_call)
+            call = start_active_model_call(request, model_call_filter)
+            model_call = call
 
             # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (
@@ -423,31 +419,24 @@ class AnthropicAPI(ModelAPI):
                 else self.streaming
             )
 
-            response, output = await self._perform_request_and_continuations(
-                request, streaming, tools, config
-            )
+            try:
+                response, output = await self._perform_request_and_continuations(
+                    request, streaming, tools, config
+                )
+            except (BadRequestError, APIStatusError) as ex:
+                model_call.set_response(
+                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                )
+                raise ex
 
-            model_call.response = jsonable_python(response)
-            model_call.time = self._http_hooks.end_request(request_id)
+            model_call.set_response(response, self._http_hooks.end_request(request_id))
 
             return output, model_call
 
         except BadRequestError as ex:
-            if model_call is None:
-                model_call = ModelCall.create(
-                    request={}, response=None, filter=model_call_filter
-                )
-            model_call.response = as_error_response(ex.body)
-            model_call.time = self._http_hooks.end_request(request_id)
             return self.handle_bad_request(ex), model_call
 
         except APIStatusError as ex:
-            if model_call is None:
-                model_call = ModelCall.create(
-                    request={}, response=None, filter=model_call_filter
-                )
-            model_call.response = as_error_response(ex.body)
-            model_call.time = self._http_hooks.end_request(request_id)
             if ex.status_code == 413:
                 return ModelOutput.from_content(
                     model=self.service_model_name(),

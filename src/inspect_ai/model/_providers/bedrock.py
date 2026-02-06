@@ -1,5 +1,4 @@
 import base64
-import time
 from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
@@ -16,8 +15,8 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -396,8 +395,6 @@ class BedrockAPI(ModelAPI):
         from botocore.config import Config
         from botocore.exceptions import ClientError
 
-        start_time = time.monotonic()
-
         # The bedrock client
         request_id = self._http_hooks.start_request()
         async with self.session.client(  # type: ignore[call-overload]
@@ -446,14 +443,11 @@ class BedrockAPI(ModelAPI):
                 toolConfig=tool_config,
             )
 
-            model_call = ModelCall.create(
+            model_call = start_active_model_call(
                 request=replace_bytes_with_placeholder(
                     request.model_dump(exclude_none=True)
                 ),
-                response=None,
             )
-
-            self.record_model_call(model_call)
 
             try:
                 # Process the reponse
@@ -462,23 +456,19 @@ class BedrockAPI(ModelAPI):
                 )
                 converse_response = ConverseResponse(**response)
 
-                model_call.response = jsonable_python(response)
+                model_call.set_response(response)
                 model_call.time = self._http_hooks.end_request(request_id)
 
             except ClientError as ex:
-                model_call.response = as_error_response(ex.response)
-                model_call.time = time.monotonic() - start_time
+                model_call.set_response(as_error_response(ex.response))
                 # Look for an explicit validation exception
                 if ex.response["Error"]["Code"] == "ValidationException":
-                    error_response = ex.response["Error"]["Message"].lower()
-                    if (
-                        "too many input tokens" in error_response
-                        or "is too long" in error_response
-                    ):
+                    response = ex.response["Error"]["Message"].lower()
+                    if "too many input tokens" in response or "is too long" in response:
                         return (
                             ModelOutput.from_content(
                                 model=self.model_name,
-                                content=error_response,
+                                content=response,
                                 stop_reason="model_length",
                             ),
                             model_call,

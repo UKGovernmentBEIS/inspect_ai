@@ -40,7 +40,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.json import jsonable_python
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -208,7 +208,7 @@ class AzureAIAPI(ModelAPI):
             model_extras=self.model_args,
         )
 
-        model_call = ModelCall.create(
+        model_call = start_active_model_call(
             request=request
             | dict(
                 messages=[message.as_dict() for message in request["messages"]],
@@ -216,17 +216,14 @@ class AzureAIAPI(ModelAPI):
                 if request.get("tools", None) is not None
                 else None,
             ),
-            response=None,
             filter=openai_media_filter,
         )
-
-        self.record_model_call(model_call)
 
         # make call
         try:
             response: ChatCompletions = await client.complete(**request)
 
-            model_call.response = jsonable_python(response.as_dict())
+            model_call.set_response(response.as_dict())
 
             return ModelOutput(
                 model=response.model,
@@ -241,7 +238,7 @@ class AzureAIAPI(ModelAPI):
             ), model_call
 
         except AzureError as ex:
-            model_call.response = {"error": {"message": str(ex.message)}}
+            model_call.set_response({"error": {"message": str(ex.message)}})
             return self.handle_azure_error(ex), model_call
         finally:
             await client.close()

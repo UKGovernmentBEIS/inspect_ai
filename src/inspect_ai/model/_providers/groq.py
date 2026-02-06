@@ -31,8 +31,8 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.url import is_http_url
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -133,20 +133,17 @@ class GroqAPI(ModelAPI):
             **params,
         )
 
-        model_call = ModelCall.create(
+        model_call = start_active_model_call(
             request=request,
-            response=None,
             filter=model_call_filter,
         )
-
-        self.record_model_call(model_call)
 
         try:
             completion: ChatCompletion = await self.client.chat.completions.create(
                 **request,
             )
 
-            model_call.response = jsonable_python(completion.model_dump())
+            model_call.set_response(completion.model_dump())
             model_call.time = self._http_hooks.end_request(request_id)
 
             # extract metadata
@@ -188,7 +185,7 @@ class GroqAPI(ModelAPI):
             # return
             return output, model_call
         except APIStatusError as ex:
-            model_call.response = as_error_response(ex.body)
+            model_call.set_response(as_error_response(ex.body))
             model_call.time = self._http_hooks.end_request(request_id)
             return self.handle_bad_request(ex), model_call
 

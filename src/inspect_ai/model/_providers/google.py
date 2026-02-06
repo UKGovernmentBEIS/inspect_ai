@@ -17,6 +17,8 @@ from google.genai.types import (
     Candidate,
     CodeExecutionResult,
     Content,
+    ContentListUnion,
+    ContentListUnionDict,
     ContentUnion,
     ExecutableCode,
     File,
@@ -67,7 +69,6 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
@@ -324,27 +325,13 @@ class GoogleGenAIAPI(ModelAPI):
                     config.response_schema.json_schema.model_dump(exclude_none=True)
                 )
 
-            model_call = ModelCall.create(
-                request=dict(
-                    contents=gemini_contents,
-                    # the excluded fields are passed to the Python API as part of
-                    # GenerateContentConfig however they are passed separately in
-                    # the actual http request body, so reflect that here
-                    generation_config=parameters.model_copy(
-                        update={
-                            "safety_settings": None,
-                            "tools": None,
-                            "tool_config": None,
-                            "system_instruction": None,
-                        }
-                    ),
-                    safety_settings=self.safety_settings,
-                    tools=gemini_tools,
-                    tool_config=gemini_tool_config,
-                    system_instruction=system_instruction,
-                ),
-                response=None,
-                filter=model_call_filter,
+            model_call = build_model_call(
+                contents=gemini_contents,  # type: ignore[arg-type]
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
+                system_instruction=system_instruction,
             )
 
             self.record_model_call(model_call)
@@ -401,15 +388,15 @@ class GoogleGenAIAPI(ModelAPI):
                     else:
                         break
             except ClientError as ex:
-                model_call.response = {
-                    "error": {"message": str(ex.message), "code": ex.code}
-                }
+                model_call.set_response(
+                    {"error": {"message": str(ex.message), "code": ex.code}}
+                )
                 model_call.time = http_hooks.end_request(request_id)
                 return self.handle_client_error(ex), model_call
 
             assert response is not None  # mypy confused by retry loop
 
-            model_call.response = jsonable_python(response.model_dump())
+            model_call.set_response(response.model_dump())
             model_call.time = http_hooks.end_request(request_id)
 
             model_name = response.model_version or self.service_model_name()
@@ -896,6 +883,37 @@ def safety_settings_to_list(
             SafetySetting(category=setting["category"], threshold=setting["threshold"])
         )
     return settings
+
+
+def build_model_call(
+    contents: ContentListUnion | ContentListUnionDict,
+    generation_config: GenerateContentConfig,
+    safety_settings: list[SafetySettingDict],
+    tools: ToolListUnion | None,
+    tool_config: ToolConfig | None,
+    system_instruction: list[File | Part | Image | str] | None,
+) -> ModelCall:
+    return ModelCall.create(
+        request=dict(
+            contents=contents,
+            # the excluded fields are passed to the Python API as part of
+            # GenerateContentConfig however they are passed separately in
+            # the actual http request body, so reflect that here
+            generation_config=generation_config.model_copy(
+                update={
+                    "safety_settings": None,
+                    "tools": None,
+                    "tool_config": None,
+                    "system_instruction": None,
+                }
+            ),
+            safety_settings=safety_settings,
+            tools=tools if tools is not None else None,
+            tool_config=tool_config if tool_config is not None else None,
+            system_instruction=system_instruction,
+        ),
+        filter=model_call_filter,
+    )
 
 
 def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:

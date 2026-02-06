@@ -26,8 +26,8 @@ from tenacity import (
 )
 
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -130,15 +130,10 @@ async def generate_responses(
     if isinstance(background, bool):
         request["background"] = background
 
-    model_call = ModelCall.create(
+    model_call = start_active_model_call(
         request=request,
-        response=None,
         filter=openai_media_filter,
     )
-
-    from inspect_ai.log._samples import set_active_model_event_call
-
-    set_active_model_event_call(model_call)
 
     try:
         # generate response
@@ -166,8 +161,10 @@ async def generate_responses(
         # Use warnings=False to suppress Pydantic serialization warnings for
         # action types the SDK may not yet support.
         # See: https://github.com/pydantic/pydantic-ai/issues/3653
-        model_call.response = jsonable_python(model_response.model_dump(warnings=False))
-        model_call.time = http_hooks.end_request(request_id)
+        model_call.set_response(
+            model_response.model_dump(warnings=False),
+            http_hooks.end_request(request_id),
+        )
 
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)
@@ -179,8 +176,9 @@ async def generate_responses(
             usage=model_usage_from_response(model_response),
         ), model_call
     except BadRequestError as e:
-        model_call.response = as_error_response(e.body)
-        model_call.time = http_hooks.end_request(request_id)
+        model_call.set_response(
+            as_error_response(e.body), http_hooks.end_request(request_id)
+        )
         if handle_bad_request:
             return handle_bad_request(e), model_call
         else:

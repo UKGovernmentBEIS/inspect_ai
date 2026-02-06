@@ -39,8 +39,8 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.url import is_http_url
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -167,8 +167,10 @@ class GrokAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         async with self.model_client() as client:
+            # set start time
             start_time = time.monotonic()
 
+            # prepare input for chat call
             grok_messages = await _grok_messages(input)
             grok_tools = [self._grok_tool(tool) for tool in tools]
             grok_tool_choice = (
@@ -186,13 +188,10 @@ class GrokAPI(ModelAPI):
                 **grok_params,
             )
 
-            model_call = ModelCall.create(
+            model_call = start_active_model_call(
                 request=request,
-                response=None,
                 filter=_grok_media_filter,
             )
-
-            self.record_model_call(model_call)
 
             try:
                 # chat call
@@ -217,9 +216,7 @@ class GrokAPI(ModelAPI):
                     else:
                         chat_response = await chat.sample()
 
-                model_call.response = jsonable_python(
-                    MessageToDict(chat_response._proto)
-                )
+                model_call.set_response(MessageToDict(chat_response._proto))
                 model_call.time = time.monotonic() - start_time
 
                 # return
@@ -227,9 +224,9 @@ class GrokAPI(ModelAPI):
                     chat_response, tools
                 ), model_call
             except grpc.RpcError as ex:
-                model_call.response = {
-                    "error": {"code": str(ex.code()), "details": ex.details()}
-                }
+                model_call.set_response(
+                    {"error": {"code": str(ex.code()), "details": ex.details()}}
+                )
                 model_call.time = time.monotonic() - start_time
                 if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
                     handled = self._handle_grpc_permission_denied(ex)

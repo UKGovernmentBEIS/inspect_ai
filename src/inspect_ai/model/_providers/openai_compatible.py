@@ -17,7 +17,7 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
-from inspect_ai._util.json import jsonable_python
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -206,19 +206,15 @@ class OpenAICompatibleAPI(ModelAPI):
                 **completion_params,
             )
 
-            model_call = ModelCall.create(
-                request=request,
-                response=None,
-                filter=openai_media_filter,
-            )
-
-            self.record_model_call(model_call)
+            call = start_active_model_call(request, openai_media_filter)
+            model_call = call
 
             try:
                 # generate completion and save response for model call
                 completion = await self._generate_completion(request, config)
-                model_call.response = jsonable_python(completion.model_dump())
-                model_call.time = self._http_hooks.end_request(request_id)
+                model_call.set_response(
+                    completion.model_dump(), self._http_hooks.end_request(request_id)
+                )
                 self.on_response(model_call.response)
 
                 # get choices
@@ -239,8 +235,9 @@ class OpenAICompatibleAPI(ModelAPI):
                 UnprocessableEntityError,
                 PermissionDeniedError,
             ) as ex:
-                model_call.response = as_error_response(ex.body)
-                model_call.time = self._http_hooks.end_request(request_id)
+                model_call.set_response(
+                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                )
                 return self.handle_bad_request(ex), model_call
 
     def resolve_tools(

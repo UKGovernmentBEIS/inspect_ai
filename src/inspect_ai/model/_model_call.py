@@ -1,7 +1,7 @@
 import json
 from typing import Any, Callable, cast
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, PrivateAttr
 
 from inspect_ai._util.json import jsonable_python
 
@@ -42,6 +42,8 @@ class ModelCall(BaseModel):
     time: float | None = Field(default=None)
     """Time taken for underlying model call."""
 
+    _filter: ModelCallFilter | None = PrivateAttr(default=None)
+
     @staticmethod
     def create(
         request: Any,
@@ -76,7 +78,19 @@ class ModelCall(BaseModel):
                     dict[str, JsonValue], _walk_json_value(None, response_dict, filter)
                 )
 
-        return ModelCall(request=request_dict, response=response_dict, time=time)
+        return ModelCall(
+            request=request_dict, response=response_dict, time=time, _filter=filter
+        )
+
+    def set_response(self, response: Any, time: float | None = None) -> None:
+        response_dict = jsonable_python(response)
+        if self._filter:
+            response_dict = cast(
+                dict[str, JsonValue],
+                _walk_json_value(None, response_dict, self._filter),
+            )
+        self.response = response_dict
+        self.time = time
 
 
 def _walk_json_value(

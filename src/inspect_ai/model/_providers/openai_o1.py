@@ -14,7 +14,7 @@ from openai.types.chat import (
 from shortuuid import uuid
 from typing_extensions import override
 
-from inspect_ai._util.json import jsonable_python
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -50,20 +50,15 @@ async def generate_o1(
         **params,
     )
 
-    model_call = ModelCall.create(
+    model_call = start_active_model_call(
         request=request,
-        response=None,
     )
-
-    from inspect_ai.log._samples import set_active_model_event_call
-
-    set_active_model_event_call(model_call)
 
     try:
         completion: ChatCompletion = await client.chat.completions.create(**request)
-        model_call.response = jsonable_python(completion.model_dump())
+        model_call.set_response(completion.model_dump())
     except BadRequestError as ex:
-        model_call.response = as_error_response(ex.body)
+        model_call.set_response(as_error_response(ex.body))
         return handle_bad_request(model, ex), model_call
 
     # return model output

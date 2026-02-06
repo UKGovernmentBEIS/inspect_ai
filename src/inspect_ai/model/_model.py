@@ -372,16 +372,6 @@ class ModelAPI(abc.ABC):
         """Is reasoning history eligible for compation for this provider?"""
         return True
 
-    def record_model_call(self, call: ModelCall) -> None:
-        """Record a model call on the active model event.
-
-        Call this after creating a ModelCall with the request to allow
-        the viewer to display the request while the call is pending.
-        """
-        from inspect_ai.log._samples import set_active_model_event_call
-
-        set_active_model_event_call(call)
-
     async def compact(
         self,
         messages: list[ChatMessage],

@@ -45,8 +45,8 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.url import is_http_url
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
@@ -76,7 +76,7 @@ async def mistral_conversation_generate(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
-    handle_bad_request: "Callable[[SDKError], ModelOutput | Exception]",
+    handle_bad_request: Callable[[SDKError], ModelOutput | Exception],
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # build request
     request_id = http_hooks.start_request()
@@ -95,24 +95,21 @@ async def mistral_conversation_generate(
         | (config.extra_headers or {}),
     )
 
-    model_call = ModelCall.create(
+    model_call = start_active_model_call(
         request=request,
-        response=None,
     )
-
-    from inspect_ai.log._samples import set_active_model_event_call
-
-    set_active_model_event_call(model_call)
 
     # send request
     try:
         conv_response = await client.beta.conversations.start_async(**request)
 
-        model_call.response = jsonable_python(conv_response.model_dump())
-        model_call.time = http_hooks.end_request(request_id)
+        model_call.set_response(
+            conv_response.model_dump(), http_hooks.end_request(request_id)
+        )
     except SDKError as ex:
-        model_call.response = {"error": {"message": str(ex)}}
-        model_call.time = http_hooks.end_request(request_id)
+        model_call.set_response(
+            {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
+        )
         if ex.status_code == 400:
             return handle_bad_request(ex), model_call
         else:

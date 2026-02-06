@@ -11,8 +11,8 @@ from openai import (
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 
-from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.logger import warn_once
+from inspect_ai.log._samples import start_active_model_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -93,15 +93,10 @@ async def generate_completions(
     if isinstance(safety_identifier, str):
         request["safety_identifier"] = safety_identifier
 
-    model_call = ModelCall.create(
+    model_call = start_active_model_call(
         request=request,
-        response=None,
         filter=openai_media_filter,
     )
-
-    from inspect_ai.log._samples import set_active_model_event_call
-
-    set_active_model_event_call(model_call)
 
     try:
         completion = await (
@@ -113,15 +108,17 @@ async def generate_completions(
         # threw up its hands because of the `**request`.
         assert isinstance(completion, ChatCompletion)
 
-        model_call.response = jsonable_python(completion.model_dump())
-        model_call.time = http_hooks.end_request(request_id)
+        model_call.set_response(
+            completion.model_dump(), http_hooks.end_request(request_id)
+        )
 
         # return output and call
         choices = chat_choices_from_openai(completion, tools)
         return model_output_from_openai(completion, choices), model_call
     except (BadRequestError, UnprocessableEntityError) as e:
-        model_call.response = as_error_response(e.body)
-        model_call.time = http_hooks.end_request(request_id)
+        model_call.set_response(
+            as_error_response(e.body), http_hooks.end_request(request_id)
+        )
         return openai_handle_bad_request(openai_api.service_model_name(), e), model_call
 
 
