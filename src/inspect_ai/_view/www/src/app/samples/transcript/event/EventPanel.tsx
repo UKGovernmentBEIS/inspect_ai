@@ -18,7 +18,7 @@ import {
   useSampleEventUrl,
 } from "../../../routing/url";
 import { kTranscriptCollapseScope } from "../types";
-import { useStickyObserver } from "../hooks";
+import { useStickyObserver } from "../useStickyObserver";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {

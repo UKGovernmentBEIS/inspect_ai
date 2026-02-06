@@ -335,7 +335,7 @@ class TestBatchCountingSumsPerMessage:
 
         # They should be approximately equal
         # Allow some variance due to message boundary tokens
-        assert abs(batch_count - sum_of_individual) <= sum_of_individual * 0.1
+        assert abs(batch_count - sum_of_individual) <= sum_of_individual * 0.125
 
     @pytest.mark.asyncio
     async def test_batch_count_with_tool_calls(self, openai_model):

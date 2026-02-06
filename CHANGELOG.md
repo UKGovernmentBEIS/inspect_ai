@@ -1,6 +1,13 @@
 ## Unreleased
 
-- Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI).
+- OpenRouter: Retry 500 and 504 errors returned in request JSON body.
+- Scoring: Allow customisation of grouped metric names.
+- Inspect View: Improve scroll performance when viewing sample transcripts and messages.
+
+## 0.3.171 (06 February 2026)
+
+- Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).
+- Compaction: New `CompactionAuto` strategy which uses `CompactionNative` if possible and falls back to `CompactionSummary`.
 - `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
 - OpenAI: Updated to 2.17.0 of `openai` package to get correct types for web search `ActionFind`.
 - Anthropic: Built-in tool (e.g. web search, code execution) compatibility for Claude 4.6.
@@ -12,6 +19,7 @@
 - Inspect View: Show tracebacks in model call events in the transcript.
 - Inspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.
 - Inspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.
+- Inspect View: Fix issue where a large number of logs could result in laggy or hung viewer in VSCode.
 - Bugfix: `handoff()` now respects `react()` name parameter when creating the transfer_to_X tool name.
 - Bugfix: Correctly handle optional `content` field in Anthropic agent bridge `tool_result`.
 

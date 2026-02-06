@@ -236,7 +236,7 @@ async def test_compaction_edit_clears_memory_content(
         ChatMessageTool(content="Created", tool_call_id="mem1", function="memory"),
     ]
 
-    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
 
     assistant = compacted[1]
     assert isinstance(assistant, ChatMessageAssistant)
@@ -261,7 +261,7 @@ async def test_compaction_edit_preserves_memory_content_when_disabled(
         ChatMessageTool(content="Created", tool_call_id="mem1", function="memory"),
     ]
 
-    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
 
     assistant = compacted[1]
     assert isinstance(assistant, ChatMessageAssistant)
@@ -286,7 +286,7 @@ async def test_compaction_trim_clears_memory_content(
         ChatMessageTool(content="Created", tool_call_id="mem1", function="memory"),
     ]
 
-    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
 
     assistant = compacted[1]
     assert isinstance(assistant, ChatMessageAssistant)
@@ -309,7 +309,7 @@ async def test_compaction_trim_preserves_memory_content_when_disabled(
         ChatMessageTool(content="Created", tool_call_id="mem1", function="memory"),
     ]
 
-    compacted, _ = await strategy.compact(messages, get_model("mockllm/model"))
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
 
     assistant = compacted[1]
     assert isinstance(assistant, ChatMessageAssistant)

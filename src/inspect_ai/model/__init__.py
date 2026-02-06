@@ -40,6 +40,7 @@ from ._chat_message import (
 )
 from ._compaction import (
     Compact,
+    CompactionAuto,
     CompactionEdit,
     CompactionNative,
     CompactionStrategy,
@@ -130,6 +131,7 @@ __all__ = [
     "compaction",
     "Compact",
     "CompactionStrategy",
+    "CompactionAuto",
     "CompactionEdit",
     "CompactionSummary",
     "CompactionTrim",
