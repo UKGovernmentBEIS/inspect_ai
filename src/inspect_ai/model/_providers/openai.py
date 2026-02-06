@@ -10,6 +10,7 @@ from openai import (
     AsyncOpenAI,
     NotGiven,
     RateLimitError,
+    omit,
 )
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
@@ -556,14 +557,16 @@ class OpenAIAPI(ModelAPI):
     @override
     async def compact(
         self,
-        messages: list[ChatMessage],
-        config: GenerateConfig | None = None,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using client.responses.compact().
 
-        Args:
-            messages: The messages to compact.
-            config: Optional generation config for reasoning parameters.
+        input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+            tools: Tools available for the model to call.
+            config: Model configuration.
 
         Returns:
             A tuple of (compacted messages, usage info).
@@ -577,12 +580,13 @@ class OpenAIAPI(ModelAPI):
             )
 
         # Convert messages to OpenAI format
-        input_params = await openai_responses_inputs(messages, self)
+        input_params = await openai_responses_inputs(input, self)
 
         # Call compact endpoint (note: compact() doesn't accept reasoning params)
         response = await self.client.responses.compact(
             model=self.service_model_name(),
             input=input_params,
+            instructions=instructions if instructions is not None else omit,
         )
 
         # Extract compaction item and create ChatMessage with ContentData

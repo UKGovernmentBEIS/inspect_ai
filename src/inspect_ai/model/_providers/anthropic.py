@@ -69,7 +69,11 @@ from anthropic.types.beta import (
     BetaBashCodeExecutionToolResultBlock,
     BetaBashCodeExecutionToolResultBlockParam,
     BetaCodeExecutionTool20250825Param,
+    BetaCompact20260112EditParam,
+    BetaCompactionBlock,
+    BetaCompactionBlockParam,
     BetaDirectCaller,
+    BetaInputTokensTriggerParam,
     BetaMCPToolResultBlock,
     BetaMCPToolUseBlock,
     BetaMCPToolUseBlockParam,
@@ -106,6 +110,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
+    ContentData,
     ContentDocument,
     ContentImage,
     ContentReasoning,
@@ -201,7 +206,7 @@ class AnthropicAPI(ModelAPI):
                 model_args.pop(name)
             return value
 
-        self.extra_body: dict[str, Any] | None = collect_model_arg("extra_body")
+        self.extra_body: dict[str, Any] | None = collect_model_arg(EXTRA_BODY)
 
         # call super
         super().__init__(
@@ -327,7 +332,7 @@ class AnthropicAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+    ) -> tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
 
@@ -402,21 +407,31 @@ class AnthropicAPI(ModelAPI):
             ):
                 betas.append("web-fetch-2025-09-10")
 
+            # extra_body
+            if len(extra_body) > 0 or self.extra_body is not None:
+                request[EXTRA_BODY] = extra_body | (self.extra_body or {})
+
+            # add compaction if the input has it and there is no config
+            if _input_has_compaction(input) and not _request_has_edit_compaction(
+                request
+            ):
+                _add_edit_compation(request, betas)
+
+            # add compaction beta header if required
+            if _request_has_edit_compaction(request):
+                betas.append("compact-2026-01-12")
+
+            # resolve betas and extra headers
             if len(betas) > 0:
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
-
             request["extra_headers"] = extra_headers
-
-            # extra_body
-            if len(extra_body) > 0 or self.extra_body is not None:
-                request["extra_body"] = extra_body | (self.extra_body or {})
 
             # mcp servers
             if len(mcp_servers_param) > 0:
-                if "extra_body" not in request:
-                    request["extra_body"] = dict()
-                request["extra_body"]["mcp_servers"] = mcp_servers_param
+                if EXTRA_BODY not in request:
+                    request[EXTRA_BODY] = dict()
+                request[EXTRA_BODY]["mcp_servers"] = mcp_servers_param
 
             # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (
@@ -460,6 +475,9 @@ class AnthropicAPI(ModelAPI):
             for m in input
         ]
 
+        # Check if messages contain compaction blocks before conversion
+        has_compaction = _messages_contain_compaction(input)
+
         # Convert to Anthropic message format
         messages = [await message_param(m) for m in input]
 
@@ -480,10 +498,102 @@ class AnthropicAPI(ModelAPI):
         if self.is_thinking_model() and _messages_contain_thinking(messages):
             thinking_config["thinking"] = {"type": "enabled", "budget_tokens": 1024}
 
-        response = await self.client.messages.count_tokens(
-            model=self.service_model_name(), messages=messages, **thinking_config
-        )
+        if has_compaction:
+            # Use beta header with context_management for compaction support
+            response = await self.client.messages.count_tokens(
+                model=self.service_model_name(),
+                messages=messages,
+                extra_headers={"anthropic-beta": "compact-2026-01-12"},
+                extra_body={
+                    "context_management": {"edits": [{"type": "compact_20260112"}]}
+                },
+                **thinking_config,
+            )
+        else:
+            # Standard token counting
+            response = await self.client.messages.count_tokens(
+                model=self.service_model_name(), messages=messages, **thinking_config
+            )
         return response.input_tokens
+
+    @override
+    async def compact(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        """Compact messages using provider-native compaction.
+
+        Args:
+            input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+            tools: Tools available for the model to call.
+            config: Model configuration.
+            instructions: Additional instructions to give the model about compaction
+
+        Returns:
+            A tuple of (compacted_messages, usage) where compacted_messages is a
+            list containing a single message with compaction metadata, and usage
+            contains token counts for the compaction operation.
+
+        Raises:
+            NotImplementedError: For providers or models without native compaction support.
+        """
+        # create edit param (count tokens so we provide a trigger that will fire)
+        tokens = await self.count_tokens(input, config)
+        trigger_value = round(tokens * 0.9)
+
+        # Anthropic API requires minimum trigger value of 50,000 tokens
+        if trigger_value < MIN_COMPACTION_TOKENS:
+            raise RuntimeError(
+                f"Anthropic native compaction requires at least {MIN_COMPACTION_TOKENS} "
+                f"tokens (input has {tokens} tokens, trigger would be {trigger_value})"
+            )
+
+        edit = BetaCompact20260112EditParam(
+            type="compact_20260112",
+            instructions=instructions,
+            trigger=BetaInputTokensTriggerParam(
+                type="input_tokens", value=trigger_value
+            ),
+            pause_after_compaction=True,
+        )
+
+        # delegate to generate with context_management config
+        config = config.model_copy(
+            update={
+                EXTRA_BODY: (config.extra_body or {})
+                | {CONTEXT_MANAGEMENT: {EDITS: [edit]}}
+            }
+        )
+        output, _ = await self.generate(input, tools, "auto", config)
+
+        if isinstance(output, ModelOutput):
+            # confirm a compaction occurred
+            if _message_has_compaction(output.message):
+                return (
+                    [
+                        output.message,
+                        ChatMessageUser(content="Please continue with the task."),
+                    ],
+                    output.usage,
+                )
+            else:
+                raise RuntimeError(
+                    f"Anthropic server-side compaction failed (no compaction occurred): {output.model_dump_json(exclude_none=True)}"
+                )
+        elif isinstance(output, BadRequestError):
+            # Check if model doesn't support compaction
+            error_msg = str(output)
+            if "does not support context management" in error_msg:
+                raise NotImplementedError(
+                    f"Model {self.model_name} does not support native compaction: {error_msg}"
+                ) from output
+            else:
+                raise output from None
+        else:
+            raise output from None
 
     async def _perform_request_and_continuations(
         self,
@@ -630,6 +740,10 @@ class AnthropicAPI(ModelAPI):
             for field in anthropic_extra_body_fields():
                 if field in config.extra_body and field not in params:
                     params[field] = config.extra_body[field]
+            # pass through other extra_body fields (e.g. context_management for compaction)
+            for key, value in config.extra_body.items():
+                if key not in anthropic_extra_body_fields():
+                    extra_body[key] = value
 
         # return config
         return params, extra_body, headers, betas
@@ -1173,6 +1287,16 @@ def _messages_contain_thinking(messages: list[MessageParam]) -> bool:
     return False
 
 
+def _messages_contain_compaction(messages: list[ChatMessage]) -> bool:
+    """Check if any message contains compaction blocks."""
+    for msg in messages:
+        if isinstance(msg.content, list):
+            for content in msg.content:
+                if _is_compaction_content(content):
+                    return True
+    return False
+
+
 def _supports_web_search(model_name: str) -> bool:
     """Check if the model supports Anthropic's native web search tool."""
     # https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool#supported-models
@@ -1480,6 +1604,7 @@ MessageBlock = Union[
     | ToolUseBlock
     | BetaToolUseBlock
     | ServerToolUseBlock
+    | BetaCompactionBlock
     | BetaServerToolUseBlock
     | WebSearchToolResultBlock
     | BetaWebSearchToolResultBlock
@@ -1498,6 +1623,7 @@ MessageBlockParam = Union[
     | ImageBlockParam
     | ToolUseBlockParam
     | ServerToolUseBlockParam
+    | BetaCompactionBlockParam
     | BetaServerToolUseBlockParam
     | BetaBashCodeExecutionToolResultBlockParam
     | WebSearchToolResultBlockParam
@@ -1565,6 +1691,8 @@ async def assistant_message_blocks(
             blocks.append(BetaMCPToolResultBlock.model_validate(block_param))
         elif block_param["type"] == "web_fetch_tool_result":
             blocks.append(BetaWebFetchToolResultBlock.model_validate(block_param))
+        elif block_param["type"] == "compaction":
+            blocks.append(BetaCompactionBlock.model_validate(block_param))
         else:
             logger.warning(
                 f"Unexpecxted assistant message block type: {block_param['type']}"
@@ -1689,19 +1817,35 @@ async def model_output_from_message(
     usage = message.usage.model_dump()
     input_tokens_cache_write = usage.get("cache_creation_input_tokens", None)
     input_tokens_cache_read = usage.get("cache_read_input_tokens", None)
+
+    # When compaction occurs, the top-level usage excludes compaction iteration tokens.
+    # The iterations array contains per-iteration usage which we aggregate for accuracy.
+    iterations = usage.get("iterations", None)
+    if isinstance(iterations, list) and len(iterations) > 0:
+        # Aggregate tokens from all iterations
+        input_tokens = sum(
+            it.get("input_tokens", 0) for it in iterations if isinstance(it, dict)
+        )
+        output_tokens = sum(
+            it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
+        )
+    else:
+        input_tokens = message.usage.input_tokens
+        output_tokens = message.usage.output_tokens
+
     total_tokens = (
-        message.usage.input_tokens
+        input_tokens
         + (input_tokens_cache_write or 0)
         + (input_tokens_cache_read or 0)
-        + message.usage.output_tokens  # includes reasoning tokens
+        + output_tokens  # includes reasoning tokens
     )
     return (
         ModelOutput(
             model=message.model,
             choices=[choice],
             usage=ModelUsage(
-                input_tokens=message.usage.input_tokens,
-                output_tokens=message.usage.output_tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
                 total_tokens=total_tokens,
                 input_tokens_cache_write=input_tokens_cache_write,
                 input_tokens_cache_read=input_tokens_cache_read,
@@ -1713,13 +1857,15 @@ async def model_output_from_message(
 
 
 content_block_adapter = TypeAdapter[
-    BetaServerToolUseBlock
+    BetaCompactionBlock
+    | BetaServerToolUseBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
     | BetaWebFetchToolResultBlock
     | ContentBlock,
 ](
-    BetaServerToolUseBlock
+    BetaCompactionBlock
+    | BetaServerToolUseBlock
     | BetaBashCodeExecutionToolResultBlock
     | BetaTextEditorCodeExecutionToolResultBlock
     | BetaWebFetchToolResultBlock
@@ -1729,7 +1875,8 @@ content_block_adapter = TypeAdapter[
 
 def content_and_tool_calls_from_assistant_content_blocks(
     content_blocks_input: Sequence[
-        BetaServerToolUseBlockParam
+        BetaCompactionBlockParam
+        | BetaServerToolUseBlockParam
         | BetaBashCodeExecutionToolResultBlockParam
         | BetaTextEditorCodeExecutionToolResultBlock
         | ContentBlockParam
@@ -1739,7 +1886,8 @@ def content_and_tool_calls_from_assistant_content_blocks(
 ) -> tuple[list[Content], list[ToolCall] | None]:
     # resolve params to blocks
     content_blocks: list[
-        BetaServerToolUseBlock
+        BetaCompactionBlock
+        | BetaServerToolUseBlock
         | BetaBashCodeExecutionToolResultBlock
         | BetaTextEditorCodeExecutionToolResultBlock
         | BetaWebFetchToolResultBlock
@@ -1874,6 +2022,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     result=to_json_str_safe(content_block.content),
                 )
             )
+        elif content_block.type == "compaction":
+            content.append(_content_data_for_compaction(content_block))
+
         elif isinstance(content_block, TextBlock):
             if content_block.text is None:
                 continue
@@ -1986,6 +2137,100 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
 
     return content, tool_calls
+
+
+EDITS = "edits"
+EDIT_TYPE = "type"
+COMPACT_20260112 = "compact_20260112"
+EXTRA_BODY = "extra_body"
+CONTEXT_MANAGEMENT = "context_management"
+MIN_COMPACTION_TOKENS = 50000  # Anthropic API minimum trigger value
+
+
+def _add_edit_compation(request: dict[str, Any], betas: list[str]) -> None:
+    """Add compaction edit to request without triggering new compaction.
+
+    When messages already contain compaction blocks, we need to include
+    context_management for the API to accept them. We set trigger just
+    below the context window limit to prevent automatic compaction
+    (user controls compaction via their own threshold).
+    """
+    # Determine max trigger based on context window
+    if "context-1m-2025-08-07" in betas:
+        max_trigger = 990_000  # Just below 1M context
+    else:
+        max_trigger = 190_000  # Just above default 150k trigger
+
+    extra_body = request.setdefault(EXTRA_BODY, {})
+    context_mgmt = extra_body.setdefault(CONTEXT_MANAGEMENT, {})
+    context_mgmt.setdefault(EDITS, []).append(
+        {
+            EDIT_TYPE: COMPACT_20260112,
+            "trigger": {"type": "input_tokens", "value": max_trigger},
+        }
+    )
+
+
+def _request_has_edit_compaction(request: dict[str, Any]) -> bool:
+    edits = request.get(EXTRA_BODY, {}).get(CONTEXT_MANAGEMENT, {}).get(EDITS, [])
+    return isinstance(edits, list) and any(
+        isinstance(e, dict) and e.get(EDIT_TYPE) == COMPACT_20260112 for e in edits
+    )
+
+
+def _input_has_compaction(input: list[ChatMessage]) -> bool:
+    return any(
+        [
+            _message_has_compaction(m)
+            for m in input
+            if isinstance(m, ChatMessageAssistant)
+        ]
+    )
+
+
+def _message_has_compaction(message: ChatMessageAssistant) -> bool:
+    if isinstance(message.content, list):
+        for c in message.content:
+            if (
+                isinstance(c, ContentData)
+                and _compaction_from_content_data(c) is not None
+            ):
+                return True
+
+    return False
+
+
+def _content_data_for_compaction(block: BetaCompactionBlock) -> ContentData:
+    return ContentData(
+        data={
+            "compaction_metadata": {
+                "type": "anthropic_compact",
+                "content": block.content,
+            }
+        }
+    )
+
+
+def _compaction_from_content_data(
+    content: ContentData,
+) -> BetaCompactionBlockParam | None:
+    compaction_metadata = content.data.get("compaction_metadata", None)
+    if isinstance(compaction_metadata, dict):
+        if compaction_metadata.get("type") == "anthropic_compact":
+            compaction_content = compaction_metadata.get("content", None)
+            if isinstance(compaction_content, str) or compaction_content is None:
+                return BetaCompactionBlockParam(
+                    type="compaction", content=compaction_content
+                )
+
+    return None
+
+
+def _is_compaction_content(content: Content) -> bool:
+    """Check if content is a compaction block."""
+    if isinstance(content, ContentData):
+        return _compaction_from_content_data(content) is not None
+    return False
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
@@ -2313,6 +2558,13 @@ async def message_block_params(
         return [
             DocumentBlockParam(type="document", source=source, title=content.filename)
         ]
+
+    elif isinstance(content, ContentData):
+        compaction_param = _compaction_from_content_data(content)
+        if compaction_param:
+            return [compaction_param]
+        else:
+            raise RuntimeError(f"Unexpected data block: {content.data}")
 
     else:
         raise RuntimeError(

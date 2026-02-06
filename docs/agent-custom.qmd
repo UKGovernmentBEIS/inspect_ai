@@ -137,7 +137,7 @@ For example, here we enhance the simple agent loop example from above with compa
 from typing import Sequence
 from inspect_ai.agent import AgentState, agent
 from inspect_ai.model import (
-    CompactionEdit, compaction, execute_tools, get_model
+    CompactionAuto, compaction, execute_tools, get_model
 from inspect_ai.tool import (
     Tool, ToolDef, ToolSource, mcp_connection
 )
@@ -148,7 +148,7 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
         # create compaction handler              # <1>
         compact = compaction(                    # <1>
-            CompactionEdit(threshold=0.9),       # <1>
+            CompactionAuto(),                    # <1>
             prefix=state.messages,               # <1>
             tools=tools                          # <1>
         )                                        # <1>
