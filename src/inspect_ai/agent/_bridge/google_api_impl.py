@@ -91,7 +91,6 @@ async def inspect_google_api_request_impl(
     code_execution_providers: CodeExecutionProviders,
     bridge: AgentBridge,
 ) -> dict[str, Any]:
-    """Process Google Gemini API request and return Gemini-format response."""
     # resolve model
     bridge_model_name = str(json_data.get("model", "inspect"))
     model = resolve_inspect_model(bridge_model_name)
