@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Agent Bridge: Google Gemini API is now supported for both in-process and sandbox-based agent bridges.
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
 - Scoring: Allow customisation of grouped metric names.
 - Inspect View: Show live requests and responses for model call events in the transcript.

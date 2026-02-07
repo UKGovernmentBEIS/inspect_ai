@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 from email.utils import formatdate
@@ -1732,13 +1733,159 @@ async def model_proxy_server(
             _handle_model_proxy_error(ex)
             os._exit(1)
 
+    # ---------- Google Gemini API routes ----------
+    # Route patterns for Google's Gemini API using wildcard matching
+    # Supports: /v1beta/models/{model}:generateContent and /models/{model}:generateContent
+
+    def _extract_model_from_google_path(path: str) -> str:
+        """Extract model name from Google API path.
+
+        Examples:
+            /v1beta/models/gemini-2.5-pro:generateContent -> gemini-2.5-pro
+            /models/gemini-2.5-flash:streamGenerateContent -> gemini-2.5-flash
+        """
+        match = re.search(r"models/([^/:]+)", path)
+        return match.group(1) if match else "inspect"
+
+    @server.route("/v1beta/models/*", method="POST")
+    @server.route("/models/*", method="POST")
+    async def google_generate_content(request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            path = request.get("path", "")
+            json_body = request.get("json", {}) or {}
+
+            is_streaming = ":streamGenerateContent" in path
+
+            model_name = _extract_model_from_google_path(path)
+            json_body["model"] = model_name
+
+            completion = await call_bridge_model_service_async(
+                "generate_google", json_data=json_body
+            )
+
+            resp = (
+                completion if isinstance(completion, dict) else json.loads(completion)
+            )
+
+            # Check if response has function calls with thoughtSignature
+            # If so, return non-streaming to preserve thoughtSignature
+            # (Gemini CLI may not handle thoughtSignature correctly in streaming mode)
+            has_thought_signature = is_streaming and any(
+                "thoughtSignature" in part
+                for candidate in resp.get("candidates", [])
+                for part in candidate.get("content", {}).get("parts", [])
+            )
+
+            if not is_streaming:
+                return {"status": 200, "body": resp}
+
+            if has_thought_signature:
+
+                async def single_chunk_stream() -> AsyncIterator[bytes]:
+                    yield f"data: {json.dumps(resp)}\n\n".encode("utf-8")
+
+                return {
+                    "status": 200,
+                    "body_iter": single_chunk_stream(),
+                    "headers": {
+                        "Content-Type": "text/event-stream; charset=utf-8",
+                        "Cache-Control": "no-cache",
+                    },
+                    "chunked": True,
+                }
+
+            async def stream_response() -> AsyncIterator[bytes]:
+                # For generateContent, we simulate streaming by chunking the response
+                candidates = resp.get("candidates", [])
+                for candidate in candidates:
+                    content = candidate.get("content", {})
+                    parts = content.get("parts", [])
+
+                    # Collect function calls to send together (they shouldn't be split)
+                    fc_parts: list[dict[str, Any]] = []
+
+                    for part in parts:
+                        if "text" in part:
+                            text = part["text"]
+                            for chunk in _iter_chunks(text):
+                                chunk_response = {
+                                    "candidates": [
+                                        {
+                                            "content": {
+                                                "parts": [{"text": chunk}],
+                                                "role": "model",
+                                            },
+                                            "finishReason": None,
+                                            "index": candidate.get("index", 0),
+                                        }
+                                    ]
+                                }
+                                yield f"data: {json.dumps(chunk_response)}\n\n".encode(
+                                    "utf-8"
+                                )
+
+                        elif "functionCall" in part:
+                            fc_part: dict[str, Any] = {
+                                "functionCall": part["functionCall"]
+                            }
+                            if "thoughtSignature" in part:
+                                fc_part["thoughtSignature"] = part["thoughtSignature"]
+                            fc_parts.append(fc_part)
+
+                    if fc_parts:
+                        fc_response = {
+                            "candidates": [
+                                {
+                                    "content": {
+                                        "parts": fc_parts,
+                                        "role": "model",
+                                    },
+                                    "finishReason": None,
+                                    "index": candidate.get("index", 0),
+                                }
+                            ]
+                        }
+                        yield f"data: {json.dumps(fc_response)}\n\n".encode("utf-8")
+
+                    final_response = {
+                        "candidates": [
+                            {
+                                "content": {"parts": [], "role": "model"},
+                                "finishReason": candidate.get("finishReason", "STOP"),
+                                "index": candidate.get("index", 0),
+                            }
+                        ],
+                        "usageMetadata": resp.get("usageMetadata", {}),
+                    }
+                    yield f"data: {json.dumps(final_response)}\n\n".encode("utf-8")
+
+            return {
+                "status": 200,
+                "body_iter": stream_response(),
+                "headers": {
+                    "Content-Type": "text/event-stream; charset=utf-8",
+                    "Cache-Control": "no-cache",
+                },
+                "chunked": True,
+            }
+
+        except Exception as ex:
+            _handle_model_proxy_error(ex)
+            os._exit(1)
+
     # -------- MCP HTTP Server Endpoint --------
+
+    MCP_PROTOCOL_VERSION = "2025-03-26"
 
     def _jsonrpc_response(req_id: Any, result: Any) -> dict[str, Any]:
         """Build a JSON-RPC 2.0 success response."""
         return {
             "status": 200,
             "body": {"jsonrpc": "2.0", "id": req_id, "result": result},
+            "headers": {
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            },
         }
 
     def _jsonrpc_error(
@@ -1748,7 +1895,24 @@ async def model_proxy_server(
         error: dict[str, Any] = {"code": code, "message": message}
         if data is not None:
             error["data"] = data
-        return {"status": 200, "body": {"jsonrpc": "2.0", "id": req_id, "error": error}}
+        return {
+            "status": 200,
+            "body": {"jsonrpc": "2.0", "id": req_id, "error": error},
+            "headers": {
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            },
+        }
+
+    @server.route("/mcp/*", method="GET")
+    async def mcp_endpoint_get(_request: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "status": 405,
+            "headers": {
+                "Allow": "POST",
+                "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+            },
+        }
 
     @server.route("/mcp/*", method="POST")
     async def mcp_endpoint(request: dict[str, Any]) -> dict[str, Any]:
@@ -1774,12 +1938,11 @@ async def model_proxy_server(
             method = json_body.get("method")
             req_id = json_body.get("id")
 
-            # Handle MCP methods
             if method == "initialize":
                 return _jsonrpc_response(
                     req_id,
                     {
-                        "protocolVersion": "2024-11-05",
+                        "protocolVersion": MCP_PROTOCOL_VERSION,
                         "capabilities": {"tools": {}},
                         "serverInfo": {"name": server_name, "version": "1.0.0"},
                     },
