@@ -203,6 +203,7 @@ dev = [
   "types-python-dateutil",
   "xai_sdk",
   "uvicorn",
+  "zstandard>=0.20.0",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = [
