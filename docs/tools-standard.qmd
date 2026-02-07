@@ -597,6 +597,7 @@ Skills were originally created as a feature of Claude Code, but are now widely s
 - [Agent Skills Specification](https://agentskills.io/specification)
 - [Claude Code Agent Skills](https://code.claude.com/docs/en/skills)
 - [Codex CLI Agent Skills](https://developers.openai.com/codex/skills/)
+- [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/skills/)
 
 The `skill()` tool takes a list of paths that contain standard skill specifications, copies them into the sample's sandbox, and provides a tool description that enumerates the available skills. For example, here we make available "system-info" and "network-info" skills:
 

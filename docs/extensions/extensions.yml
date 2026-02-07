@@ -24,7 +24,7 @@
 
 - name: "[Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/)"
   description: |
-    Software engineering agents (Claude Code and Codex CLI) for Inspect.
+    Software engineering agents (Claude Code, Codex CLI, and Gemini CLI) for Inspect.
   author: "[Meridian](https://github.com/meridianlabs-ai/inspect_swe)"
   categories: ["Agents"]
 
