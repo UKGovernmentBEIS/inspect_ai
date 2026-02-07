@@ -1,6 +1,7 @@
 import json
+from collections.abc import Callable
 from logging import getLogger
-from typing import Any, Callable
+from typing import Any
 
 import anyio
 from openai import (
@@ -26,12 +27,13 @@ from tenacity import (
 
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
@@ -98,19 +100,6 @@ async def generate_responses(
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
 
-    # setup request and response for ModelCall
-    request: dict[str, Any] = {}
-    response: dict[str, Any] = {}
-
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            # TODO: is this the right filter?
-            filter=openai_media_filter,
-            time=http_hooks.end_request(request_id),
-        )
-
     # prepare request (we do this so we can log the ModelCall)
     tool_params = (
         openai_responses_tools(tools, model_name, config)
@@ -141,6 +130,11 @@ async def generate_responses(
     if isinstance(background, bool):
         request["background"] = background
 
+    model_call = set_active_model_event_call(
+        request=request,
+        filter=openai_media_filter,
+    )
+
     try:
         # generate response
         model_response: Response = await (
@@ -167,7 +161,10 @@ async def generate_responses(
         # Use warnings=False to suppress Pydantic serialization warnings for
         # action types the SDK may not yet support.
         # See: https://github.com/pydantic/pydantic-ai/issues/3653
-        response = model_response.model_dump(warnings=False)
+        model_call.set_response(
+            model_response.model_dump(warnings=False),
+            http_hooks.end_request(request_id),
+        )
 
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)
@@ -177,12 +174,15 @@ async def generate_responses(
             model=model_response.model,
             choices=choices,
             usage=model_usage_from_response(model_response),
-        ), model_call()
+        ), model_call
     except BadRequestError as e:
+        model_call.set_response(
+            as_error_response(e.body), http_hooks.end_request(request_id)
+        )
         if handle_bad_request:
-            return handle_bad_request(e), model_call()
+            return handle_bad_request(e), model_call
         else:
-            return openai_handle_bad_request(model_name, e), model_call()
+            return openai_handle_bad_request(model_name, e), model_call
 
 
 def model_usage_from_response(model_response: Response) -> ModelUsage | None:

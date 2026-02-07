@@ -125,6 +125,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
     is_result_cleared,
@@ -145,7 +146,7 @@ from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .._providers._anthropic_citations import (
     to_anthropic_citation,
@@ -336,17 +337,7 @@ class AnthropicAPI(ModelAPI):
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
 
-        # setup request and response for ModelCall
-        request: dict[str, Any] = {}
-        response: dict[str, Any] = {}
-
-        def model_call() -> ModelCall:
-            return ModelCall.create(
-                request=request,
-                response=response,
-                filter=model_call_filter,
-                time=self._http_hooks.end_request(request_id),
-            )
+        model_call: ModelCall | None = None
 
         # generate
         try:
@@ -358,7 +349,7 @@ class AnthropicAPI(ModelAPI):
             ) = await self.resolve_chat_input(input, tools, config)
 
             # prepare request params (assembled this way so we can log the raw model call)
-            request = dict(messages=messages)
+            request: dict[str, Any] = dict(messages=messages)
 
             # system messages and tools
             if system_param is not None:
@@ -433,6 +424,8 @@ class AnthropicAPI(ModelAPI):
                     request[EXTRA_BODY] = dict()
                 request[EXTRA_BODY]["mcp_servers"] = mcp_servers_param
 
+            model_call = set_active_model_event_call(request, model_call_filter)
+
             # stream if we are using reasoning or >= 8192 max_tokens
             streaming = (
                 self.auto_streaming(config)
@@ -440,14 +433,22 @@ class AnthropicAPI(ModelAPI):
                 else self.streaming
             )
 
-            response, output = await self._perform_request_and_continuations(
-                request, streaming, tools, config
-            )
+            try:
+                response, output = await self._perform_request_and_continuations(
+                    request, streaming, tools, config
+                )
+            except (BadRequestError, APIStatusError) as ex:
+                model_call.set_response(
+                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                )
+                raise ex
 
-            return output, model_call()
+            model_call.set_response(response, self._http_hooks.end_request(request_id))
+
+            return output, model_call
 
         except BadRequestError as ex:
-            return self.handle_bad_request(ex), model_call()
+            return self.handle_bad_request(ex), model_call or ModelCall(request={})
 
         except APIStatusError as ex:
             if ex.status_code == 413:
@@ -456,7 +457,7 @@ class AnthropicAPI(ModelAPI):
                     content=ex.message,
                     stop_reason="model_length",
                     error=ex.message,
-                ), model_call()
+                ), model_call or ModelCall(request={})
             else:
                 raise ex
 
