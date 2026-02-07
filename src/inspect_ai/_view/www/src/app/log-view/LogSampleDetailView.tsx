@@ -27,8 +27,13 @@ import { SampleDetailComponent } from "../samples/SampleDetailComponent";
  */
 export const LogSampleDetailView: FC = () => {
   // Get route params
-  const { logPath, sampleId, epoch, sampleTabId, sampleUuid } =
-    useLogRouteParams();
+  const {
+    logPath: routeLogPath,
+    sampleId: routeSampleId,
+    epoch: routeEpoch,
+    sampleTabId,
+    sampleUuid,
+  } = useLogRouteParams();
   const navigate = useNavigate();
 
   // Get store state and actions for log loading
@@ -40,34 +45,46 @@ export const LogSampleDetailView: FC = () => {
   const syncLogs = useStore((state) => state.logsActions.syncLogs);
   const selectSample = useStore((state) => state.logActions.selectSample);
 
+  // Fall back to state for VSCode restored state scenario
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+  const selectedSampleHandle = useStore(
+    (state) => state.log.selectedSampleHandle,
+  );
+
+  // Use route params if available, otherwise fall back to state
+  const logPath = routeLogPath || selectedLogFile;
+  const sampleId = routeSampleId || selectedSampleHandle?.id?.toString();
+  const epoch = routeEpoch || selectedSampleHandle?.epoch?.toString();
+
   // Load the log and select the sample when route params change
+  // Only run this effect when we have route params (not state fallback)
   useEffect(() => {
     const loadLogAndSample = async () => {
-      if (logPath && sampleId && epoch) {
+      if (routeLogPath && routeSampleId && routeEpoch) {
         // Initialize log directory if needed
         await initLogDir();
 
         // Set the selected log file
-        setSelectedLogFile(logPath);
+        setSelectedLogFile(routeLogPath);
 
         // Sync logs to ensure we have the latest data
         void syncLogs();
 
         // Select the sample
-        const targetEpoch = parseInt(epoch, 10);
+        const targetEpoch = parseInt(routeEpoch, 10);
         if (isNaN(targetEpoch)) {
           return;
         }
 
-        selectSample(sampleId, targetEpoch, logPath);
+        selectSample(routeSampleId, targetEpoch, routeLogPath);
       }
     };
 
     void loadLogAndSample();
   }, [
-    logPath,
-    sampleId,
-    epoch,
+    routeLogPath,
+    routeSampleId,
+    routeEpoch,
     initLogDir,
     setSelectedLogFile,
     syncLogs,
