@@ -127,10 +127,15 @@ export function useLoadSample() {
       sampleEpoch !== undefined
     ) {
       // Check if the current selection matches what's already loaded
-      const isCurrentSampleLoaded =
+      // AND that we actually have the sample data (not just the identifier).
+      // This is important for VSCode reloads where the identifier may be
+      // persisted but the actual sample data (stored in a ref) is lost.
+      const identifierMatches =
         sampleData.selectedSampleIdentifier?.id === sampleId &&
         sampleData.selectedSampleIdentifier?.epoch === sampleEpoch &&
         sampleData.selectedSampleIdentifier?.logFile === logSelection.logFile;
+      const hasSampleData = sampleData.getSelectedSample() !== undefined;
+      const isCurrentSampleLoaded = identifierMatches && hasSampleData;
 
       // Check if we're currently loading
       const isLoading =
@@ -178,6 +183,7 @@ export function useLoadSample() {
     sampleData.selectedSampleIdentifier,
     sampleData.status,
     sampleData.sampleNeedsReload,
+    sampleData.getSelectedSample,
     prevLogFile,
     prevSampleId,
     prevCompleted,
