@@ -24,6 +24,9 @@ export function useLoadSample() {
   const clearListPosition = useStore(
     (state) => state.appActions.clearListPosition,
   );
+  const getSelectedSample = useStore(
+    (state) => state.sampleActions.getSelectedSample,
+  );
 
   // Extract sample properties to avoid object reference issues
   const sampleId = logSelection.sample?.id;
@@ -134,7 +137,7 @@ export function useLoadSample() {
         sampleData.selectedSampleIdentifier?.id === sampleId &&
         sampleData.selectedSampleIdentifier?.epoch === sampleEpoch &&
         sampleData.selectedSampleIdentifier?.logFile === logSelection.logFile;
-      const hasSampleData = sampleData.getSelectedSample() !== undefined;
+      const hasSampleData = getSelectedSample() !== undefined;
       const isCurrentSampleLoaded = identifierMatches && hasSampleData;
 
       // Check if we're currently loading
@@ -189,5 +192,6 @@ export function useLoadSample() {
     prevCompleted,
     prevSampleNeedsReload,
     loadSample,
+    getSelectedSample,
   ]);
 }
