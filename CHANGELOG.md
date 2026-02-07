@@ -1,3 +1,7 @@
+## 0.3.172 (09 February 2026)
+
+- Inspect View: Fix a regression which affected the display of samples within VSCode.
+
 ## 0.3.171 (06 February 2026)
 
 - Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).
