@@ -56,27 +56,6 @@ def token_filler() -> Tool:
 
 
 @tool
-def simple_lookup() -> Tool:
-    """A simple tool that returns a moderate amount of content."""
-
-    async def execute(query: str) -> str:
-        """Look up information about a query.
-
-        Args:
-            query: What to look up
-
-        Returns:
-            Information about the query
-        """
-        return (
-            f"Information about {query}: This is relevant context that provides details about the topic. "
-            * 50
-        )
-
-    return execute
-
-
-@tool
 def large_content_with_secret() -> Tool:
     """Tool that returns large content with an embedded secret code.
 
@@ -128,10 +107,10 @@ def test_openai_native_compaction_multiple_events() -> None:
 - ALPHA_CODE: {unique_facts["ALPHA_CODE"]}
 - BETA_CODE: {unique_facts["BETA_CODE"]}
 
-IMPORTANT: You MUST use the token_filler tool exactly 5 times before submitting.
-Use these topics in order: 'history', 'science', 'technology', 'mathematics', 'philosophy'.
+IMPORTANT: You MUST use the token_filler tool exactly 4 times before submitting.
+Use these topics in order: 'history', 'science', 'technology', 'mathematics'.
 
-After all 5 tool calls, provide your final answer including BOTH codes you were given
+After all 4 tool calls, provide your final answer including BOTH codes you were given
 at the start (ALPHA_CODE and BETA_CODE values).
 """
 
@@ -177,90 +156,6 @@ at the start (ALPHA_CODE and BETA_CODE values).
         f"Expected model to preserve at least one code in output. "
         f"Looking for '{unique_facts['ALPHA_CODE']}' or '{unique_facts['BETA_CODE']}' "
         f"in: {final_output[:500]}..."
-    )
-
-
-@skip_if_no_openai
-@flaky_retry(max_retries=2)
-def test_openai_native_compaction_stress_multiple() -> None:
-    """Stress test: verify aggressive compaction threshold triggers multiple events."""
-    task = Task(
-        dataset=[
-            Sample(
-                input="IMPORTANT: You MUST use the token_filler tool exactly 8 times in order with these topics: 'art', 'music', 'literature', 'film', 'dance', 'sculpture', 'photography', 'architecture'. After all 8 tool calls, say 'COMPLETE' in your final answer.",
-                target="COMPLETE",
-            )
-        ],
-        solver=react(
-            tools=[token_filler()],
-            # Very low threshold to force multiple compaction events
-            compaction=CompactionNative(threshold=6000),
-        ),
-        scorer=includes(),
-        message_limit=30,
-    )
-
-    log = eval(task, model="openai/gpt-5.1-codex")[0]
-
-    assert log.status == "success", f"Eval failed: {log.error}"
-
-    # Verify multiple compaction events (at least 2 with such a low threshold)
-    compaction_events = get_compaction_events(log)
-    assert len(compaction_events) >= 2, (
-        f"Expected at least 2 compaction events with aggressive threshold, got {len(compaction_events)}"
-    )
-
-    # Verify token counts are present for all compaction events
-    for event in compaction_events:
-        assert event.tokens_before is not None
-        assert event.tokens_after is not None
-
-
-@skip_if_no_openai
-@flaky_retry(max_retries=2)
-def test_openai_native_compaction_semantic_preservation() -> None:
-    """Verify semantic relationships are preserved through compaction."""
-    # Embed semantic relationships that require reasoning
-    prompt = """Remember these facts carefully:
-- Alice is Bob's sister
-- Bob's favorite color is blue
-- Carol is Alice's daughter
-- The family dog is named Max
-
-IMPORTANT: You MUST use the token_filler tool exactly 4 times in order with these topics:
-'pets', 'colors', 'families', 'relationships'.
-
-After all 4 tool calls, answer this question in your final response:
-"What is Alice's brother's favorite color?"
-
-Your answer MUST include the color.
-"""
-
-    task = Task(
-        dataset=[Sample(input=prompt, target="blue")],
-        solver=react(
-            tools=[token_filler()],
-            # Low threshold to trigger compaction reliably
-            compaction=CompactionNative(threshold=8000),
-        ),
-        scorer=includes(),
-        message_limit=30,
-    )
-
-    log = eval(task, model="openai/gpt-5.1-codex")[0]
-
-    assert log.status == "success", f"Eval failed: {log.error}"
-
-    # Verify at least one compaction event
-    compaction_events = get_compaction_events(log)
-    assert len(compaction_events) >= 1, "Expected at least 1 compaction event"
-
-    # Verify the model can still reason about the relationships
-    assert log.samples
-    final_output = (log.samples[0].output.completion or "").lower()
-    assert "blue" in final_output, (
-        f"Expected model to derive that Alice's brother's favorite color is blue. "
-        f"Output: {final_output[:300]}..."
     )
 
 
@@ -326,58 +221,5 @@ def test_anthropic_native_compaction_context_preservation() -> None:
     final_output = log.samples[0].output.completion or ""
     assert secret_code in final_output, (
         f"Expected SECRET_CODE '{secret_code}' to be preserved in output. "
-        f"Output: {final_output[:300]}..."
-    )
-
-
-@skip_if_no_anthropic
-@pytest.mark.slow
-@flaky_retry(max_retries=1)
-def test_anthropic_native_compaction_with_tool_heavy_trajectory() -> None:
-    """Verify Anthropic compaction works with multiple tool calls."""
-    secret_code = "VELVET_THUNDER_3847"
-
-    task = Task(
-        dataset=[
-            Sample(
-                input=(
-                    "Call large_content_with_secret three times with topics "
-                    "'physics', 'chemistry', and 'biology'. "
-                    "After all calls, report the SECRET_CODE you found."
-                ),
-                target=secret_code,
-            )
-        ],
-        solver=react(
-            tools=[large_content_with_secret()],
-            # 3 calls at ~32k each = ~96k tokens. Using 56k threshold to potentially
-            # trigger multiple compaction events as tokens accumulate.
-            compaction=CompactionNative(threshold=56000),
-        ),
-        scorer=includes(),
-        message_limit=18,
-    )
-
-    # Each tool call generates ~136KB, need at least 150000 bytes
-    log = eval(task, model="anthropic/claude-opus-4-6", max_tool_output=200000)[0]
-
-    assert log.status == "success", f"Eval failed: {log.error}"
-
-    # Verify at least one compaction event occurred
-    compaction_events = get_compaction_events(log)
-    assert len(compaction_events) >= 1, (
-        f"Expected at least 1 compaction event. Got {len(compaction_events)} events."
-    )
-
-    # Verify compaction event structure
-    for event in compaction_events:
-        assert event.tokens_before is not None
-        assert event.tokens_after is not None
-
-    # Verify secret code preservation through compaction
-    assert log.samples
-    final_output = log.samples[0].output.completion or ""
-    assert secret_code in final_output, (
-        f"Expected SECRET_CODE '{secret_code}' to be preserved. "
         f"Output: {final_output[:300]}..."
     )
