@@ -70,7 +70,7 @@ InstallState = Literal["pypi", "clean", "edited"]
 #  1) it is accessible in all major linux distributions
 #  2) all users have permissions to read/write to it (i.e. world-writable)
 #  3) it is unlikely to be cleared during an evaluation (https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard)
-#  4) it is unlikely to be accidentally stumbled upon by an LLM solving a taks that requires interacting with temp files
+#  4) it is unlikely to be accidentally stumbled upon by an LLM solving a task that requires interacting with temp files
 # We additionally choose a dot-prefixed random hash sub-directory to further attempt to prevent LLMs from stumbling on the injected tools.
 SANDBOX_TOOLS_CLI = f"/var/tmp/.da7be258e003d428/{SANDBOX_TOOLS_BASE_NAME}"
 
