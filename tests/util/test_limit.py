@@ -163,6 +163,7 @@ def test_get_sample_limits_within_eval() -> None:
             assert limits.time.usage > 0
             assert limits.working.limit == 10_000
             assert limits.working.usage > 0
+            assert limits.cost.limit is None
 
             # Verify that we still get the sample level limits when a scoped limit is active
             with token_limit(1):

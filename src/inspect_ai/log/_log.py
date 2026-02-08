@@ -21,8 +21,14 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.log._edit import ProvenanceData
-from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    ModelOutput,
+    ModelUsage,
+)
 from inspect_ai.model._model_config import ModelConfig
+from inspect_ai.model._model_output import ModelPricingConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -120,6 +126,12 @@ class EvalConfig(BaseModel):
     working_limit: int | None = Field(default=None)
     """Meximum working time per sample."""
 
+    cost_limit: float | None = Field(default=None)
+    """Maximum cost (in dollars) per sample."""
+
+    model_pricing_config: ModelPricingConfig | None = Field(default=None)
+    """Model pricing configuration for cost tracking."""
+
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
 
@@ -176,7 +188,7 @@ class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
     type: Literal[
-        "context", "time", "working", "message", "token", "operator", "custom"
+        "context", "time", "working", "message", "token", "cost", "operator", "custom"
     ]
     """The type of limit"""
 

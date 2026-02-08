@@ -71,8 +71,10 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
+    check_cost_limit,
     check_message_limit,
     check_token_limit,
+    record_model_cost,
     record_model_usage,
 )
 
@@ -101,7 +103,7 @@ from ._generate_config import (
     set_active_generate_config,
 )
 from ._model_call import ModelCall, as_error_response
-from ._model_output import ModelOutput, ModelUsage
+from ._model_output import ModelOutput, ModelPricingConfig, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
@@ -1857,20 +1859,34 @@ def init_sample_model_usage() -> None:
 
 
 def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
-    from inspect_ai.log._samples import set_active_sample_total_tokens
+    from inspect_ai.log._samples import (
+        set_active_sample_total_cost,
+        set_active_sample_total_tokens,
+    )
+
+    # compute cost and set on usage before recording (so ModelUsage.__add__
+    # accumulates it in the per-model usage dicts)
+    pricing_config = pricing_config_var.get(None)
+    if pricing_config is not None:
+        usage.total_cost = compute_model_cost(model, usage, pricing_config)
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
     record_model_usage(usage)
 
-    # compute total tokens
+    # compute total tokens and update active sample
     total_tokens = sample_total_tokens()
-
-    # update active sample
     set_active_sample_total_tokens(total_tokens)
-
     check_token_limit()
+
+    # check cost limit
+    if pricing_config is not None:
+        cost = usage.total_cost
+        assert cost is not None
+        record_model_cost(cost)
+        set_active_sample_total_cost(sample_total_cost())
+        check_cost_limit()
 
 
 def set_model_usage(
@@ -1903,3 +1919,58 @@ def sample_total_tokens() -> int:
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
 )
+
+
+pricing_config_var: ContextVar[ModelPricingConfig | None] = ContextVar(
+    "pricing_config", default=None
+)
+
+
+def init_pricing_config(config: ModelPricingConfig | None) -> None:
+    """Initialize pricing configuration for cost tracking."""
+    pricing_config_var.set(config)
+
+
+def compute_model_cost(
+    model: str, usage: ModelUsage, config: ModelPricingConfig
+) -> float:
+    """Compute cost for a model call based on usage and pricing config.
+
+    Args:
+        model: Model name (e.g. "openai/gpt-4o").
+        usage: Token usage from the model call.
+        config: Pricing configuration with per-model prices.
+
+    Returns:
+        Cost in dollars.
+    """
+    pricing = config.prices[model]
+
+    # output_tokens INCLUDES reasoning_tokens across all providers.
+    # If reasoning_tokens exist, charge them at the reasoning rate
+    # and subtract from output.
+    output_for_pricing = usage.output_tokens
+    cost = usage.input_tokens * pricing.input / 1_000_000
+
+    if pricing.reasoning and usage.reasoning_tokens:
+        output_for_pricing -= usage.reasoning_tokens
+        cost += usage.reasoning_tokens * pricing.reasoning / 1_000_000
+
+    cost += output_for_pricing * pricing.output / 1_000_000
+
+    if usage.input_tokens_cache_write and pricing.input_cache_write:
+        cost += usage.input_tokens_cache_write * pricing.input_cache_write / 1_000_000
+
+    if usage.input_tokens_cache_read and pricing.input_cache_read:
+        cost += usage.input_tokens_cache_read * pricing.input_cache_read / 1_000_000
+
+    return cost
+
+
+def sample_total_cost() -> float:
+    """Get total cost across all models for the current sample."""
+    return sum(
+        usage.total_cost
+        for usage in sample_model_usage().values()
+        if usage.total_cost is not None
+    )
