@@ -67,7 +67,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
   // if there is an assistant message immediately before then include this
   // (as it could be an assistant compaction message)
-  let offset: number | undefined = undefined
+  let offset: number | undefined = undefined;
   const lastMessage = inputMessages.at(-1);
   if (lastMessage?.role === "assistant") {
     userMessages.push(lastMessage);

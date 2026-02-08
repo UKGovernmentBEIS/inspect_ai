@@ -16012,7 +16012,7 @@ so disabling selection can break that functionality */
   opacity: 0.8;
   text-decoration: none;
 }
-._title_j2l6h_1 {
+._title_1gjvf_1 {
   margin-bottom: 0.25em;
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -16022,19 +16022,20 @@ so disabling selection can break that functionality */
   font-weight: var(--bs-body-font-weight) !important;
 }
 
-._content_j2l6h_11 {
+._content_1gjvf_11 {
   margin-bottom: 0.5em;
   overflow-wrap: anywhere;
 }
 
-._grid_j2l6h_16 {
-    border: solid var(--bs-border-color) 1px;
-    border-radius: var(--bs-border-radius);
+._grid_1gjvf_16 {
+  border: solid var(--bs-border-color) 1px;
+  border-radius: var(--bs-border-radius);
 }
 
-._content_j2l6h_11 ._grid_j2l6h_16 .text-style-label {
-    text-transform: none !important;
-}._grid_14885_1 {
+._content_1gjvf_11 ._grid_1gjvf_16 .text-style-label {
+  text-transform: none !important;
+}
+._grid_14885_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.5em;

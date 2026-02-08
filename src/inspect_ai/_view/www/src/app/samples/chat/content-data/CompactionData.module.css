@@ -14,10 +14,10 @@
 }
 
 .grid {
-    border: solid var(--bs-border-color) 1px;
-    border-radius: var(--bs-border-radius);
+  border: solid var(--bs-border-color) 1px;
+  border-radius: var(--bs-border-radius);
 }
 
 .content .grid :global(.text-style-label) {
-    text-transform: none !important;
+  text-transform: none !important;
 }

@@ -1533,13 +1533,13 @@ def _tool_result_to_text(msg: ChatMessageTool) -> str:
         content = msg.content
     else:
         # Join text content from list
-        content = "\n".join(
-            c.text for c in msg.content if isinstance(c, ContentText)
-        )
+        content = "\n".join(c.text for c in msg.content if isinstance(c, ContentText))
 
     # Include error if present
     if msg.error:
-        return f"[Tool result for {function_name} (error: {msg.error.message})]\n{content}"
+        return (
+            f"[Tool result for {function_name} (error: {msg.error.message})]\n{content}"
+        )
     else:
         return f"[Tool result for {function_name}]\n{content}"
 

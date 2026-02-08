@@ -56,7 +56,6 @@ interface ContentDataRenderer {
   render: (id: string, data: RenderableData) => ReactNode;
 }
 
-
 const compactionDataRenderer: ContentDataRenderer = {
   name: "Compaction",
   canRender: (data: RenderableData) => {
