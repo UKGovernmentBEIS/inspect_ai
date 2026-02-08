@@ -28,6 +28,7 @@ from anthropic import (
     BadRequestError,
     NotGiven,
 )
+from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
     ContentBlock,
@@ -631,23 +632,7 @@ class AnthropicAPI(ModelAPI):
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
             async with self.client.messages.stream(**request) as stream:
-                # Capture compaction content from streaming events since the SDK's
-                # regular stream doesn't properly accumulate it into the final message
-                compaction_content: str | None = None
-                async for event in stream:
-                    if (
-                        hasattr(event, "delta")
-                        and getattr(event.delta, "type", None) == "compaction_delta"
-                    ):
-                        compaction_content = getattr(event.delta, "content", None)
-                head_message = stream.current_message_snapshot
-
-                # Fix up compaction blocks with the captured content
-                if compaction_content is not None:
-                    for block in head_message.content:
-                        if getattr(block, "type", None) == "compaction":
-                            setattr(block, "content", compaction_content)
-                            break
+                head_message, _ = await _capture_compaction_from_stream(stream)
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
@@ -2248,6 +2233,47 @@ def _is_compaction_content(content: Content) -> bool:
     if isinstance(content, ContentData):
         return _compaction_from_content_data(content) is not None
     return False
+
+
+async def _capture_compaction_from_stream(
+    stream: AsyncMessageStream,
+) -> tuple[Message, str | None]:
+    """Consume a streaming response and capture any compaction content.
+
+    The Anthropic SDK's streaming doesn't properly accumulate compaction_delta
+    events into the final message snapshot. This function iterates through all
+    streaming events, captures any compaction_delta content, and returns the
+    final message with the compaction content properly set.
+
+    Args:
+        stream: The Anthropic AsyncMessageStream from messages.stream().
+
+    Returns:
+        A tuple of (message, compaction_content) where message is the final
+        message snapshot with compaction blocks fixed up, and compaction_content
+        is the raw content captured from compaction_delta events (or None).
+    """
+    compaction_content: str | None = None
+
+    # Iterate through all streaming events to capture compaction_delta content
+    async for event in stream:
+        if (
+            hasattr(event, "delta")
+            and getattr(event.delta, "type", None) == "compaction_delta"
+        ):
+            compaction_content = getattr(event.delta, "content", None)
+
+    # Get the final message snapshot
+    message = stream.current_message_snapshot
+
+    # Fix up compaction blocks with captured content
+    if compaction_content is not None:
+        for block in message.content:
+            if getattr(block, "type", None) == "compaction":
+                setattr(block, "content", compaction_content)
+                break
+
+    return message, compaction_content
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:

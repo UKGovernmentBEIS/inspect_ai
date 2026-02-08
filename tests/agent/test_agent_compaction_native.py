@@ -27,55 +27,6 @@ def get_compaction_events(log: EvalLog) -> list[CompactionEvent]:
     return [e for e in log.samples[0].events if isinstance(e, CompactionEvent)]
 
 
-def generate_large_prompt(unique_facts: dict[str, str], target_tokens: int) -> str:
-    """Generate a prompt with embedded unique facts and filler content.
-
-    Args:
-        unique_facts: Dictionary of fact names to unique values to embed
-        target_tokens: Approximate number of tokens to generate
-
-    Returns:
-        A large prompt string with embedded facts
-    """
-    # Start with the unique facts prominently placed
-    facts_section = "IMPORTANT FACTS TO REMEMBER:\n"
-    for name, value in unique_facts.items():
-        facts_section += f"- {name}: {value}\n"
-    facts_section += "\n"
-
-    # Add filler content to reach target tokens
-    # Each line is approximately 20 tokens
-    tokens_per_line = 20
-    lines_needed = (target_tokens - len(unique_facts) * 10) // tokens_per_line
-
-    filler_topics = [
-        "The history of computing spans several decades and includes many important developments.",
-        "Database systems evolved from hierarchical models to relational and now distributed systems.",
-        "Networking protocols enable communication between computers across the globe reliably.",
-        "Operating systems manage hardware resources and provide services to applications efficiently.",
-        "Programming languages have evolved from assembly to high-level functional paradigms.",
-        "Software engineering practices include testing, documentation, and code review processes.",
-        "Distributed systems face challenges like consistency, availability, and partition tolerance.",
-        "Security in computing involves encryption, authentication, and authorization mechanisms.",
-        "Cloud computing provides scalable resources through virtualization and containerization.",
-        "Machine learning algorithms learn patterns from data to make predictions accurately.",
-    ]
-
-    filler = ""
-    for i in range(lines_needed):
-        topic = filler_topics[i % len(filler_topics)]
-        filler += f"{topic} (Context block {i + 1})\n"
-
-    return f"""{facts_section}
-
-You are a helpful assistant. Below is background context for our conversation.
-
-{filler}
-
-Please remember the IMPORTANT FACTS listed at the beginning. You may be asked about them later.
-After using the tools as requested, always include the remembered facts in your final answer."""
-
-
 @tool
 def token_filler() -> Tool:
     """Tool that returns large filler content to help trigger compaction."""
@@ -121,6 +72,34 @@ def simple_lookup() -> Tool:
             f"Information about {query}: This is relevant context that provides details about the topic. "
             * 50
         )
+
+    return execute
+
+
+@tool
+def large_content_with_secret() -> Tool:
+    """Tool that returns large content with an embedded secret code.
+
+    Used to test Anthropic native compaction by generating ~32k tokens per call.
+    With 2 calls (~64k tokens), this exceeds Anthropic's internal requirement
+    that input × 0.9 >= 50k (i.e., need ~56k+ tokens to trigger compaction).
+    """
+
+    async def execute(topic: str) -> str:
+        """Generate large content with embedded secret about a topic.
+
+        Args:
+            topic: The topic to generate content about
+
+        Returns:
+            Large content with embedded secret code
+        """
+        # Generate ~32k tokens per call
+        # "This is context. " ≈ 4 tokens, 8000 repetitions ≈ 32k tokens
+        # Byte size: 17 chars × 8000 = 136KB (needs max_tool_output >= 150000)
+        # With 2 calls: ~64k tokens, and 64k × 0.9 = 57.6k > Anthropic's 50k minimum
+        filler = f"Detailed analysis of {topic}: " + ("This is context. " * 8000)
+        return f"{filler}\n\nIMPORTANT SECRET_CODE: VELVET_THUNDER_3847"
 
     return execute
 
@@ -292,56 +271,45 @@ Your answer MUST include the color.
 @pytest.mark.slow
 @flaky_retry(max_retries=1)
 def test_anthropic_native_compaction_context_preservation() -> None:
-    """Verify Anthropic native compaction preserves context with 50k+ token input.
+    """Verify Anthropic native compaction preserves context from tool results.
 
-    This test is expensive due to the large token requirement (Anthropic requires
-    minimum 50k tokens before compaction can trigger).
+    This test uses tool results to generate 50k+ tokens (Anthropic's minimum
+    for compaction) rather than large initial prompts. This approach better
+    tests real-world usage where content accumulates during tool use.
     """
-    # Generate unique secrets that should survive compaction
-    unique_facts = {
-        "SECRET_ALPHA": "CRIMSON_PHOENIX_4829",
-        "SECRET_BETA": "AZURE_DRAGON_5173",
-        "SECRET_GAMMA": "GOLDEN_SERPENT_8462",
-    }
-
-    # Generate a prompt large enough to meet Anthropic's 50k minimum
-    # We need ~62k tokens to safely exceed the 50k threshold after 90% calculation
-    large_prompt = generate_large_prompt(unique_facts, target_tokens=62000)
-
-    # Add the task instructions at the end
-    task_prompt = f"""{large_prompt}
-
-Now, please use the simple_lookup tool twice to look up 'context verification' and 'memory test'.
-
-After using the tools, your final answer MUST include at least one of the SECRET values
-you were asked to remember at the beginning:
-- SECRET_ALPHA
-- SECRET_BETA
-- SECRET_GAMMA
-
-State the secret value explicitly in your response.
-"""
+    # The secret is embedded in tool results, not the initial prompt
+    secret_code = "VELVET_THUNDER_3847"
 
     task = Task(
-        dataset=[Sample(input=task_prompt, target=unique_facts["SECRET_ALPHA"])],
+        dataset=[
+            Sample(
+                input=(
+                    "Call large_content_with_secret twice with topics 'history' and 'science'. "
+                    "Then report the SECRET_CODE you found in the tool results."
+                ),
+                target=secret_code,
+            )
+        ],
         solver=react(
-            tools=[simple_lookup()],
-            # Use absolute threshold just above 50k to trigger compaction
-            # once the initial ~62k token prompt is loaded
-            compaction=CompactionNative(threshold=55000),
+            tools=[large_content_with_secret()],
+            # 2 calls at ~32k each = ~64k tokens. Anthropic requires input × 0.9 >= 50k,
+            # so we need ~56k+ tokens. Setting threshold=56000 triggers compaction.
+            compaction=CompactionNative(threshold=56000),
         ),
         scorer=includes(),
-        message_limit=15,  # Allow enough messages for tool calls + final answer
+        message_limit=15,
     )
 
-    log = eval(task, model="anthropic/claude-opus-4-6")[0]
+    # Use max_tool_output to allow larger tool results (in bytes)
+    # Each tool call generates ~136KB, need at least 150000 bytes
+    log = eval(task, model="anthropic/claude-opus-4-6", max_tool_output=200000)[0]
 
     assert log.status == "success", f"Eval failed: {log.error}"
 
     # Verify at least one compaction event occurred
     compaction_events = get_compaction_events(log)
     assert len(compaction_events) >= 1, (
-        f"Expected at least 1 compaction event with 50k+ tokens. "
+        f"Expected at least 1 compaction event with 56k+ tokens from tool results. "
         f"Got {len(compaction_events)} events."
     )
 
@@ -349,24 +317,16 @@ State the secret value explicitly in your response.
     event = compaction_events[0]
     assert event.tokens_before is not None
     assert event.tokens_after is not None
-    assert event.tokens_before > 50000, (
-        f"Expected tokens_before > 50000, got {event.tokens_before}"
+    assert event.tokens_before >= 56000, (
+        f"Expected tokens_before >= 56000, got {event.tokens_before}"
     )
 
-    # Verify the model preserved at least one secret through compaction
-    # Check both final output and all messages for the secret values
+    # Verify the model preserved the secret through compaction
     assert log.samples
     final_output = log.samples[0].output.completion or ""
-    all_messages_text = " ".join(
-        str(m.content) for m in log.samples[0].messages if hasattr(m, "content")
-    )
-    preserved_any = any(
-        secret in final_output or secret in all_messages_text
-        for secret in unique_facts.values()
-    )
-    assert preserved_any, (
-        f"Expected model to preserve at least one secret value. "
-        f"Looking for any of {list(unique_facts.values())} in output: {final_output[:300]}..."
+    assert secret_code in final_output, (
+        f"Expected SECRET_CODE '{secret_code}' to be preserved in output. "
+        f"Output: {final_output[:300]}..."
     )
 
 
@@ -374,35 +334,32 @@ State the secret value explicitly in your response.
 @pytest.mark.slow
 @flaky_retry(max_retries=1)
 def test_anthropic_native_compaction_with_tool_heavy_trajectory() -> None:
-    """Verify Anthropic compaction works with multiple tool calls after large prompt."""
-    unique_facts = {
-        "MISSION_CODE": "VELVET_THUNDER_3847",
-    }
-
-    # Generate large initial prompt (60k tokens)
-    large_prompt = generate_large_prompt(unique_facts, target_tokens=60000)
-
-    task_prompt = f"""{large_prompt}
-
-Your mission code is: {unique_facts["MISSION_CODE"]}
-
-Use the simple_lookup tool 3 times to look up: 'status check', 'verification', 'confirmation'.
-
-After all lookups, confirm you remember the MISSION_CODE by stating it in your final response.
-"""
+    """Verify Anthropic compaction works with multiple tool calls."""
+    secret_code = "VELVET_THUNDER_3847"
 
     task = Task(
-        dataset=[Sample(input=task_prompt, target=unique_facts["MISSION_CODE"])],
+        dataset=[
+            Sample(
+                input=(
+                    "Call large_content_with_secret three times with topics "
+                    "'physics', 'chemistry', and 'biology'. "
+                    "After all calls, report the SECRET_CODE you found."
+                ),
+                target=secret_code,
+            )
+        ],
         solver=react(
-            tools=[simple_lookup()],
-            # Threshold just above 50k to trigger compaction with our ~60k prompt
-            compaction=CompactionNative(threshold=52000),
+            tools=[large_content_with_secret()],
+            # 3 calls at ~32k each = ~96k tokens. Using 56k threshold to potentially
+            # trigger multiple compaction events as tokens accumulate.
+            compaction=CompactionNative(threshold=56000),
         ),
         scorer=includes(),
-        message_limit=18,  # Allow enough messages for 3 tool calls + final answer
+        message_limit=18,
     )
 
-    log = eval(task, model="anthropic/claude-opus-4-6")[0]
+    # Each tool call generates ~136KB, need at least 150000 bytes
+    log = eval(task, model="anthropic/claude-opus-4-6", max_tool_output=200000)[0]
 
     assert log.status == "success", f"Eval failed: {log.error}"
 
@@ -417,18 +374,10 @@ After all lookups, confirm you remember the MISSION_CODE by stating it in your f
         assert event.tokens_before is not None
         assert event.tokens_after is not None
 
-    # Verify mission code preservation through compaction
-    # Check both final output and all messages for the code
+    # Verify secret code preservation through compaction
     assert log.samples
     final_output = log.samples[0].output.completion or ""
-    all_messages_text = " ".join(
-        str(m.content) for m in log.samples[0].messages if hasattr(m, "content")
-    )
-    code_preserved = (
-        unique_facts["MISSION_CODE"] in final_output
-        or unique_facts["MISSION_CODE"] in all_messages_text
-    )
-    assert code_preserved, (
-        f"Expected MISSION_CODE '{unique_facts['MISSION_CODE']}' to be preserved. "
+    assert secret_code in final_output, (
+        f"Expected SECRET_CODE '{secret_code}' to be preserved. "
         f"Output: {final_output[:300]}..."
     )
