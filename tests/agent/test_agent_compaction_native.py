@@ -29,6 +29,12 @@ def test_openai_native_compaction_context_preservation() -> None:
     check_native_compaction_context_preservation("openai/gpt-5.2")
 
 
+@skip_if_no_anthropic
+@pytest.mark.slow
+def test_opeanai_native_compaction_multiple_events() -> None:
+    check_native_compaction_multiple_events("openai/gpt-5.2")
+
+
 def check_native_compaction_context_preservation(model: str) -> None:
     """Verify native compaction preserves context from tool results.
 
