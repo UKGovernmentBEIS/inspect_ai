@@ -100,7 +100,7 @@ from ._generate_config import (
     active_generate_config,
     set_active_generate_config,
 )
-from ._model_call import ModelCall
+from ._model_call import ModelCall, as_error_response
 from ._model_output import ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
@@ -391,7 +391,7 @@ class ModelAPI(abc.ABC):
             tools: Tools available for the model to call.
             config: Model configuration.
             instructions: Additional instructions to give the model about compaction
-               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
+                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
         Returns:
             A tuple of (compacted_messages, usage) where compacted_messages is a
@@ -1142,7 +1142,10 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
-    ) -> tuple[Callable[[ModelOutput | Exception, ModelCall | None], None], BaseModel]:
+    ) -> tuple[
+        Callable[[ModelOutput | Exception, ModelCall | None], None],
+        BaseModel,
+    ]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
@@ -1180,7 +1183,23 @@ class Model:
                 event.traceback = traceback_text
                 event.traceback_ansi = traceback_ansi
 
-            event.call = updated_call
+            if updated_call is not None:
+                event.call = updated_call
+
+            if (
+                isinstance(result, Exception)
+                and event.call is not None
+                and event.call.response is None
+            ):
+                # We try to set these in the individual providers' error handling, but we make a last
+                # ditch effort here to set them if we don't have a response.
+                if hasattr(result, "body"):
+                    event.call.response = as_error_response(result.body)
+                elif hasattr(result, "response"):
+                    event.call.response = as_error_response(result.response)
+                else:
+                    event.call.response = as_error_response(str(result))
+
             event.pending = None
             transcript()._event_updated(event)
 

@@ -181,6 +181,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
         <APIView
           data-name="API"
           call={event.call}
+          error={event.error}
           className={styles.container}
         />
       ) : (
@@ -201,17 +202,18 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
 interface APIViewProps {
   call: ModelCall;
+  error?: string | null;
   className?: string | string[];
 }
 
-export const APIView: FC<APIViewProps> = ({ call, className }) => {
+export const APIView: FC<APIViewProps> = ({ call, error, className }) => {
   const requestCode = useMemo(() => {
-    return JSON.stringify(call.request, undefined, 2);
-  }, [call.request]);
+    return call?.request ? JSON.stringify(call.request, undefined, 2) : "";
+  }, [call?.request]);
 
   const responseCode = useMemo(() => {
-    return JSON.stringify(call.response, undefined, 2);
-  }, [call.response]);
+    return call?.response ? JSON.stringify(call.response, undefined, 2) : null;
+  }, [call?.response]);
 
   if (!call) {
     return null;
@@ -220,10 +222,16 @@ export const APIView: FC<APIViewProps> = ({ call, className }) => {
   return (
     <div className={clsx(className)}>
       <EventSection title="Request" copyContent={requestCode}>
-        <APICodeCell sourceCode={requestCode} />
+        {requestCode ? <APICodeCell sourceCode={requestCode} /> : "None"}
       </EventSection>
-      <EventSection title="Response" copyContent={responseCode}>
-        <APICodeCell sourceCode={responseCode} />
+      <EventSection title="Response" copyContent={responseCode ?? ""}>
+        {responseCode ? (
+          <APICodeCell sourceCode={responseCode} />
+        ) : error ? (
+          "None"
+        ) : (
+          <PulsingDots subtle={false} size="medium" />
+        )}
       </EventSection>
     </div>
   );
@@ -236,7 +244,7 @@ interface APICodeCellProps {
 
 export const APICodeCell: FC<APICodeCellProps> = ({ id, sourceCode }) => {
   const sourceCodeRef = useRef<HTMLDivElement | null>(null);
-  usePrismHighlight(sourceCodeRef, sourceCode.length);
+  usePrismHighlight(sourceCodeRef, sourceCode?.length ?? 0);
 
   if (!sourceCode) {
     return null;

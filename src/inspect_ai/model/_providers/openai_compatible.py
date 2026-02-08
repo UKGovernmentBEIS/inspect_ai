@@ -17,6 +17,7 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -32,7 +33,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
     OpenAIAsyncHttpxClient,
@@ -186,18 +187,6 @@ class OpenAICompatibleAPI(ModelAPI):
             # allocate request_id (so we can see it from ModelCall)
             request_id = self._http_hooks.start_request()
 
-            # setup request and response for ModelCall
-            request: dict[str, Any] = {}
-            response: dict[str, Any] = {}
-
-            def model_call() -> ModelCall:
-                return ModelCall.create(
-                    request=request,
-                    response=response,
-                    filter=openai_media_filter,
-                    time=self._http_hooks.end_request(request_id),
-                )
-
             # get completion params (slice off service from model name)
             completion_params = self.completion_params(
                 config=config,
@@ -217,10 +206,15 @@ class OpenAICompatibleAPI(ModelAPI):
                 **completion_params,
             )
 
+            model_call = set_active_model_event_call(request, openai_media_filter)
+
             try:
                 # generate completion and save response for model call
                 completion = await self._generate_completion(request, config)
                 response = completion.model_dump()
+                model_call.set_response(
+                    response, self._http_hooks.end_request(request_id)
+                )
                 self.on_response(response)
 
                 # get choices
@@ -234,14 +228,17 @@ class OpenAICompatibleAPI(ModelAPI):
                     ]
 
                 # return output
-                return model_output_from_openai(completion, choices), model_call()
+                return model_output_from_openai(completion, choices), model_call
 
             except (
                 BadRequestError,
                 UnprocessableEntityError,
                 PermissionDeniedError,
             ) as ex:
-                return self.handle_bad_request(ex), model_call()
+                model_call.set_response(
+                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
+                )
+                return self.handle_bad_request(ex), model_call
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig

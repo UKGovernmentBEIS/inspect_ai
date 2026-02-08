@@ -42,11 +42,6 @@ export const SampleRow: FC<SampleRowProps> = ({
   // Determine if this sample can be viewed (completed or streaming)
   const isViewable = completed || streamSampleData;
 
-  // This is used to screen out content when the sample dialog is open
-  // this allows the sample list to retain precise state (since it remains loaded)
-  // while not causing text content to be present in the DOM
-  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
-
   if (
     !completed &&
     scoresRendered.length === 0 &&
@@ -55,7 +50,7 @@ export const SampleRow: FC<SampleRowProps> = ({
     scoresRendered = [null];
   }
   const scoreColumnContent = scoresRendered.map((scoreRendered, i) => {
-    if (!showingSampleDialog && sample.error) {
+    if (sample.error) {
       return <SampleErrorView message={sample.error} />;
     } else if (completed) {
       return scoreRendered;
@@ -82,7 +77,7 @@ export const SampleRow: FC<SampleRowProps> = ({
       }}
     >
       <div className={clsx("sample-id", "three-line-clamp", styles.cell)}>
-        {!showingSampleDialog ? sample.id : undefined}
+        {sample.id}
       </div>
       <div
         className={clsx(
@@ -92,19 +87,14 @@ export const SampleRow: FC<SampleRowProps> = ({
           styles.wrapAnywhere,
         )}
       >
-        {!showingSampleDialog ? (
-          <RenderedText
-            markdown={truncateMarkdown(
-              inputString(sample.input).join(" "),
-              250,
-            )}
-            forceRender={true}
-            omitMedia={true}
-          />
-        ) : undefined}
+        <RenderedText
+          markdown={truncateMarkdown(inputString(sample.input).join(" "), 250)}
+          forceRender={true}
+          omitMedia={true}
+        />
       </div>
       <div className={clsx("sample-target", "three-line-clamp", styles.cell)}>
-        {sample?.target && !showingSampleDialog ? (
+        {sample?.target ? (
           <RenderedText
             markdown={truncateMarkdown(arrayToString(sample.target), 250)}
             className={clsx("no-last-para-padding", styles.noLeft)}
@@ -114,7 +104,7 @@ export const SampleRow: FC<SampleRowProps> = ({
         ) : undefined}
       </div>
       <div className={clsx("sample-answer", "three-line-clamp", styles.cell)}>
-        {sample && !showingSampleDialog ? (
+        {sample ? (
           <RenderedText
             markdown={truncateMarkdown(answer || "", 250)}
             className={clsx("no-last-para-padding", styles.noLeft)}
@@ -133,7 +123,7 @@ export const SampleRow: FC<SampleRowProps> = ({
           styles.cell,
         )}
       >
-        {!showingSampleDialog ? sample.limit : undefined}
+        {sample.limit}
       </div>
       <div
         className={clsx(
@@ -144,9 +134,7 @@ export const SampleRow: FC<SampleRowProps> = ({
           styles.centered,
         )}
       >
-        {!showingSampleDialog && sample.retries && sample.retries > 0
-          ? sample.retries
-          : undefined}
+        {sample.retries && sample.retries > 0 ? sample.retries : undefined}
       </div>
       {scoreColumnContent.map((scoreColumnContent, i) => (
         <div
