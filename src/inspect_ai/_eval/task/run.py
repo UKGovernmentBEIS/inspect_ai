@@ -84,7 +84,11 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
-from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
+from inspect_ai.model._model import (
+    init_pricing_config,
+    init_sample_model_usage,
+    sample_model_usage,
+)
 from inspect_ai.model._providers.providers import (
     validate_anthropic_client,
     validate_openai_client,
@@ -211,6 +215,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         options.task.approval,
     )
 
+    # init pricing config for cost tracking
+    init_pricing_config(config.model_pricing_config)
+
     # track stats and error
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
@@ -239,6 +246,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         log_images=log_images,
         message_limit=config.message_limit,
         token_limit=config.token_limit,
+        cost_limit=config.cost_limit,
     )
 
     # resolve the plan (unroll chains)
@@ -736,6 +744,7 @@ async def task_run_sample(
             epoch=state.epoch,
             message_limit=state.message_limit,
             token_limit=state.token_limit,
+            cost_limit=state.cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
@@ -789,6 +798,7 @@ async def task_run_sample(
                     # run sample w/ optional limits
                     with (
                         state._token_limit,
+                        state._cost_limit,
                         state._message_limit,
                         create_time_limit(time_limit),
                         create_working_limit(working_limit),
@@ -1191,6 +1201,7 @@ async def resolve_dataset(
     log_images: bool,
     message_limit: int | None,
     token_limit: int | None,
+    cost_limit: float | None = None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # slice dataset
     dataset = slice_dataset(dataset, limit, sample_id)
@@ -1220,6 +1231,7 @@ async def resolve_dataset(
                 messages=sample_messages(sample),
                 message_limit=message_limit,
                 token_limit=token_limit,
+                cost_limit=cost_limit,
                 completed=False,
                 metadata=sample.metadata if sample.metadata else {},
             )
