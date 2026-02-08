@@ -2,6 +2,9 @@
 
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
 - Scoring: Allow customisation of grouped metric names.
+- Compaction: Correct capture of compaction results for Anthropic streaming mode.
+- Compaction: Improved prefix handling (drop all by system messages) for native compaction.
+- Compaction: Improved display of OpenAI and Anthropic compaction data in the viewer.
 - Inspect View: Show live requests and responses for model call events in the transcript.
 - Inspect View: Improve scroll performance when viewing sample transcripts and messages.
 
