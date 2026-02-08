@@ -547,22 +547,11 @@ class AnthropicAPI(ModelAPI):
         Raises:
             NotImplementedError: For providers or models without native compaction support.
         """
-        # create edit param (count tokens so we provide a trigger that will fire)
-        tokens = await self.count_tokens(input, config)
-        trigger_value = round(tokens * 0.9)
-
-        # Anthropic API requires minimum trigger value of 50,000 tokens
-        if trigger_value < MIN_COMPACTION_TOKENS:
-            raise RuntimeError(
-                f"Anthropic native compaction requires at least {MIN_COMPACTION_TOKENS} "
-                f"tokens (input has {tokens} tokens, trigger would be {trigger_value})"
-            )
-
         edit = BetaCompact20260112EditParam(
             type="compact_20260112",
             instructions=instructions,
             trigger=BetaInputTokensTriggerParam(
-                type="input_tokens", value=trigger_value
+                type="input_tokens", value=MIN_COMPACTION_TOKENS
             ),
             pause_after_compaction=True,
         )
@@ -582,7 +571,11 @@ class AnthropicAPI(ModelAPI):
                 return [output.message], output.usage
             else:
                 raise RuntimeError(
-                    f"Anthropic server-side compaction failed (no compaction occurred): {output.model_dump_json(exclude_none=True)}"
+                    f"Anthropic native compaction did not trigger. "
+                    f"This can occur when the total input tokens (including tools) "
+                    f"is below Anthropic's {MIN_COMPACTION_TOKENS} token minimum for compaction. "
+                    f"Consider increasing the compaction threshold or using a "
+                    f"non-native compaction strategy."
                 )
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
@@ -2282,7 +2275,7 @@ def _compaction_from_content_data(
     if isinstance(compaction_metadata, dict):
         if compaction_metadata.get("type") == "anthropic_compact":
             compaction_content = compaction_metadata.get("content", None)
-            if isinstance(compaction_content, str) or compaction_content is None:
+            if isinstance(compaction_content, str):
                 return BetaCompactionBlockParam(
                     type="compaction", content=compaction_content
                 )
