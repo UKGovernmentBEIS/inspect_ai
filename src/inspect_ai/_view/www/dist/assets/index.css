@@ -15990,12 +15990,8 @@ so disabling selection can break that functionality */
 ._query_1376z_8 {
   font-family: var(--bs-font-monospace);
 }
-._contentData_1sd1z_1 {
-  border: solid var(--bs-light-border-subtle) 1px;
-  padding: 0.5em;
+._contentData_1lrx1_1 {
   margin-bottom: 0.5em;
-  margin-top: 0.5em;
-  margin-left: 1em;
 }
 ._webSearch_1mixg_1 {
   display: grid;
@@ -16015,6 +16011,40 @@ so disabling selection can break that functionality */
 ._result_1mixg_12 a {
   opacity: 0.8;
   text-decoration: none;
+}
+._title_1gjvf_1 {
+  margin-bottom: 0.25em;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 0.3em;
+  align-items: baseline;
+  color: var(--bs-secondary) !important;
+  font-weight: var(--bs-body-font-weight) !important;
+}
+
+._content_1gjvf_11 {
+  margin-bottom: 0.5em;
+  overflow-wrap: anywhere;
+}
+
+._grid_1gjvf_16 {
+  border: solid var(--bs-border-color) 1px;
+  border-radius: var(--bs-border-radius);
+}
+
+._content_1gjvf_11 ._grid_1gjvf_16 .text-style-label {
+  text-transform: none !important;
+}
+._grid_14885_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.5em;
+  row-gap: 0.2em;
+}
+
+._cell_14885_8 {
+  font-weight: 400;
+  white-space: nowrap;
 }
 ._documentFrame_1576h_1 {
   display: grid;
@@ -16218,17 +16248,6 @@ a._citationLink_1ggvf_9:hover {
 
 ._container_3x3ql_19 {
   padding: 0.4em 0.4em 0.4em 0.4em;
-}
-._grid_14885_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 0.5em;
-  row-gap: 0.2em;
-}
-
-._cell_14885_8 {
-  font-weight: 400;
-  white-space: nowrap;
 }
 ._query_seqs2_1 {
   margin-bottom: 0.5rem;

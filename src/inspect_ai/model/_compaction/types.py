@@ -29,6 +29,19 @@ class CompactionStrategy(abc.ABC):
         """Whether to warn the model to save content to memory before compaction."""
         return self._memory
 
+    @property
+    def preserve_prefix(self) -> bool:
+        """Instruction to orchestrator: preserve prefix messages in compacted output.
+
+        When True (default), the orchestration layer will prepend any prefix
+        messages not already in the compacted output.
+
+        When False (native compaction), only system messages are prepended
+        since user content is either preserved by the provider (OpenAI) or
+        semantically encoded in the compaction block (Anthropic).
+        """
+        return True
+
     @abc.abstractmethod
     async def compact(
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]

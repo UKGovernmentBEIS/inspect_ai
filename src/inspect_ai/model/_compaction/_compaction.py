@@ -142,9 +142,15 @@ def compaction(
             if c_message is not None:
                 processed_message_ids.add(message_id(c_message))
 
-            # Preserve prefix messages not already in output
-            input_ids = {message_id(m) for m in c_input}
-            prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
+            # Preserve prefix messages based on strategy type
+            if strategy.preserve_prefix:
+                # Non-native strategies: prepend any prefix messages not in output
+                input_ids = {message_id(m) for m in c_input}
+                prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
+            else:
+                # Native compaction: only prepend system messages
+                # (user content is preserved by provider or in compaction block)
+                prepend_prefix = [m for m in prefix if m.role == "system"]
             c_input = prepend_prefix + c_input
 
             # update input
