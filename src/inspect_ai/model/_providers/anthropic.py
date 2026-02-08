@@ -574,13 +574,7 @@ class AnthropicAPI(ModelAPI):
         if isinstance(output, ModelOutput):
             # confirm a compaction occurred
             if _message_has_compaction(output.message):
-                return (
-                    [
-                        output.message,
-                        ChatMessageUser(content="Please continue with the task."),
-                    ],
-                    output.usage,
-                )
+                return [output.message], output.usage
             else:
                 raise RuntimeError(
                     f"Anthropic server-side compaction failed (no compaction occurred): {output.model_dump_json(exclude_none=True)}"
