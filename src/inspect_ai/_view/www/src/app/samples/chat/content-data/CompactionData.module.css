@@ -1,0 +1,24 @@
+.title {
+  margin-bottom: 0.25em;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 0.3em;
+  align-items: baseline;
+  color: var(--bs-secondary) !important;
+  font-weight: var(--bs-body-font-weight) !important;
+}
+
+.content {
+  padding: 0.5em;
+  margin-bottom: 0.5em;
+  overflow-wrap: anywhere;
+}
+
+.grid {
+    border: solid var(--bs-border-color) 1px;
+    border-radius: var(--bs-border-radius);
+}
+
+.content .grid :global(.text-style-label) {
+    text-transform: none !important;
+}
