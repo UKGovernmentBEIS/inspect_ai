@@ -631,7 +631,23 @@ class AnthropicAPI(ModelAPI):
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
             async with self.client.messages.stream(**request) as stream:
-                head_message = await stream.get_final_message()
+                # Capture compaction content from streaming events since the SDK's
+                # regular stream doesn't properly accumulate it into the final message
+                compaction_content: str | None = None
+                async for event in stream:
+                    if (
+                        hasattr(event, "delta")
+                        and getattr(event.delta, "type", None) == "compaction_delta"
+                    ):
+                        compaction_content = getattr(event.delta, "content", None)
+                head_message = stream.current_message_snapshot
+
+                # Fix up compaction blocks with the captured content
+                if compaction_content is not None:
+                    for block in head_message.content:
+                        if getattr(block, "type", None) == "compaction":
+                            setattr(block, "content", compaction_content)
+                            break
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
