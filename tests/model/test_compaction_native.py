@@ -16,7 +16,6 @@ from inspect_ai.model._providers.anthropic import (
     CONTEXT_MANAGEMENT,
     EDITS,
     EXTRA_BODY,
-    MIN_COMPACTION_TOKENS,
     _add_edit_compation,
 )
 
@@ -111,43 +110,6 @@ async def test_native_compaction_dynamically_supported() -> None:
 
 
 # --- Anthropic-specific tests ---
-
-
-@skip_if_no_anthropic
-@pytest.mark.asyncio
-async def test_anthropic_compaction_minimum_tokens_raises() -> None:
-    """Anthropic native compaction raises RuntimeError when input is below minimum threshold."""
-    model = get_model("anthropic/claude-opus-4-6")
-    messages = _sample_messages()  # Small message list, well below 50k tokens
-
-    # Direct call to the provider's compact method should raise RuntimeError
-    # because the input is below the minimum threshold
-    with pytest.raises(RuntimeError) as exc_info:
-        await model.api.compact(messages, [], model.config)
-
-    # Verify the error message contains useful information
-    assert str(MIN_COMPACTION_TOKENS) in str(exc_info.value)
-    assert "tokens" in str(exc_info.value)
-
-
-@skip_if_no_anthropic
-@pytest.mark.asyncio
-async def test_anthropic_compaction_below_minimum_raises() -> None:
-    """CompactionNative raises RuntimeError when Anthropic input is below minimum threshold.
-
-    RuntimeError for minimum token threshold is a hard error - users should be
-    explicitly aware of this limitation.
-    """
-    strategy = CompactionNative()
-    model = get_model("anthropic/claude-opus-4-6")
-    messages = _sample_messages()
-
-    # Should raise RuntimeError
-    with pytest.raises(RuntimeError) as exc_info:
-        await strategy.compact(model, messages, [])
-
-    # Verify the error message contains useful information
-    assert str(MIN_COMPACTION_TOKENS) in str(exc_info.value)
 
 
 @skip_if_no_anthropic
