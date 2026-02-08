@@ -144,7 +144,12 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
-from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
+from .._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall, as_error_response
@@ -938,6 +943,10 @@ class AnthropicAPI(ModelAPI):
         list[BetaRequestMCPServerURLDefinitionParam],
         list[MessageParam],
     ]:
+        # Convert orphaned tool results to text messages before processing
+        # (handles case where native compaction summarized away tool_use blocks)
+        input = _convert_orphaned_tool_results(input)
+
         # extract system message
         system_messages, messages = split_system_messages(input)
 
@@ -1513,6 +1522,65 @@ def message_tool_choice(
 
     # return
     return tool_choice_param
+
+
+def _tool_result_to_text(msg: ChatMessageTool) -> str:
+    """Convert a tool result message to plain text."""
+    function_name = msg.function or "unknown"
+
+    # Extract text content
+    if isinstance(msg.content, str):
+        content = msg.content
+    else:
+        # Join text content from list
+        content = "\n".join(
+            c.text for c in msg.content if isinstance(c, ContentText)
+        )
+
+    # Include error if present
+    if msg.error:
+        return f"[Tool result for {function_name} (error: {msg.error.message})]\n{content}"
+    else:
+        return f"[Tool result for {function_name}]\n{content}"
+
+
+def _convert_orphaned_tool_results(
+    messages: list[ChatMessage],
+) -> list[ChatMessage]:
+    """Convert orphaned tool results to regular user text messages.
+
+    When native compaction summarizes away tool_use blocks, subsequent tool_results
+    become "orphaned" (their tool_use_id has no match). This function detects such
+    orphans and converts them to regular user text messages so the API doesn't
+    reject them.
+
+    Args:
+        messages: List of messages to process.
+
+    Returns:
+        New list with orphaned tool results converted to user text messages.
+    """
+    # Collect all tool_use IDs from assistant messages
+    tool_use_ids: set[str] = set()
+    for msg in messages:
+        if isinstance(msg, ChatMessageAssistant) and msg.tool_calls:
+            for tc in msg.tool_calls:
+                tool_use_ids.add(tc.id)
+
+    # Process messages, converting orphaned tool results to text
+    result: list[ChatMessage] = []
+    for msg in messages:
+        if isinstance(msg, ChatMessageTool) and msg.tool_call_id:
+            if msg.tool_call_id not in tool_use_ids:
+                # Orphaned tool result - convert to user text message
+                text_content = _tool_result_to_text(msg)
+                result.append(ChatMessageUser(content=text_content))
+            else:
+                result.append(msg)
+        else:
+            result.append(msg)
+
+    return result
 
 
 async def message_param(message: ChatMessage) -> MessageParam:
