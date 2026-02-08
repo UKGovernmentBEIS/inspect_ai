@@ -11,6 +11,7 @@ import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
@@ -540,7 +541,9 @@ class ZipLogFile:
 
             with trace_action(logger, "Log Write", self._file):
                 try:
-                    with file(self._file, "wb") as f:
+                    # Atomic write with durability guarantee to prevent corruption
+                    # from disk-full errors or interruptions (issue #2949)
+                    with atomic_write(self._file, fsync=True) as f:
                         f.write(log_bytes)
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end

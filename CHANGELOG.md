@@ -178,6 +178,7 @@
 - Human CLI Agent: Ability to add custom instructions and .bashrc commands to agent shell.
 - Properly handle working time reporting for overlapping coroutines waiting on semaphores.
 - Eval Logs: Support reading from `IO[bytes]` via `read_eval_log()`.
+- Eval Logs: Implement atomic write pattern to prevent corruption when disk fills or write is interrupted.
 - Inspect View: Properly display dict scores in sample list.
 - Inspect View: Improve display of Codex `shell_command` tool calls.
 - Inspect View: Improve the display of very wide metrics results in the results dialog.
