@@ -1201,7 +1201,7 @@ async def resolve_dataset(
     log_images: bool,
     message_limit: int | None,
     token_limit: int | None,
-    cost_limit: float | None = None,
+    cost_limit: float | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # slice dataset
     dataset = slice_dataset(dataset, limit, sample_id)
