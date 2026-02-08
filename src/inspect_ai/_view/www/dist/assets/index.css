@@ -15990,10 +15990,8 @@ so disabling selection can break that functionality */
 ._query_1376z_8 {
   font-family: var(--bs-font-monospace);
 }
-._contentData_litsg_1 {
-  border: solid var(--bs-light-border-subtle) 1px;
+._contentData_1lrx1_1 {
   margin-bottom: 0.5em;
-  margin-top: 0.5em;
 }
 ._webSearch_1mixg_1 {
   display: grid;
@@ -16014,7 +16012,7 @@ so disabling selection can break that functionality */
   opacity: 0.8;
   text-decoration: none;
 }
-._title_1903v_1 {
+._title_j2l6h_1 {
   margin-bottom: 0.25em;
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -16024,18 +16022,17 @@ so disabling selection can break that functionality */
   font-weight: var(--bs-body-font-weight) !important;
 }
 
-._content_1903v_11 {
-  padding: 0.5em;
+._content_j2l6h_11 {
   margin-bottom: 0.5em;
   overflow-wrap: anywhere;
 }
 
-._grid_1903v_17 {
+._grid_j2l6h_16 {
     border: solid var(--bs-border-color) 1px;
     border-radius: var(--bs-border-radius);
 }
 
-._content_1903v_11 ._grid_1903v_17 .text-style-label {
+._content_j2l6h_11 ._grid_j2l6h_16 .text-style-label {
     text-transform: none !important;
 }._grid_14885_1 {
   display: grid;

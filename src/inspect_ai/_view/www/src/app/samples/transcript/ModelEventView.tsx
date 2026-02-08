@@ -64,7 +64,17 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
   // panel and display those user messages (exclude tool_call messages as they
   // are already shown in the tool call above)
   const userMessages = [];
-  for (const msg of inputMessages.slice().reverse()) {
+
+  // if there is an assistant message immediately before then include this
+  // (as it could be an assistant compaction message)
+  let offset: number | undefined = undefined
+  const lastMessage = inputMessages.at(-1);
+  if (lastMessage?.role === "assistant") {
+    userMessages.push(lastMessage);
+    offset = -1;
+  }
+
+  for (const msg of inputMessages.slice(offset).reverse()) {
     if (
       (msg.role === "user" && !msg.tool_call_id) ||
       msg.role === "system" ||
