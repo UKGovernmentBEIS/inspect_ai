@@ -568,7 +568,11 @@ class AnthropicAPI(ModelAPI):
         if isinstance(output, ModelOutput):
             # confirm a compaction occurred
             if _message_has_compaction(output.message):
-                return [output.message], output.usage
+                # Strip reasoning blocks from the compacted output — they're
+                # from the compaction inference, not the task, and would waste
+                # input tokens on subsequent turns.
+                message = _strip_reasoning(output.message)
+                return [message], output.usage
             else:
                 raise RuntimeError(
                     f"Anthropic native compaction did not trigger. "
@@ -2288,6 +2292,21 @@ def _is_compaction_content(content: Content) -> bool:
     if isinstance(content, ContentData):
         return _compaction_from_content_data(content) is not None
     return False
+
+
+def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
+    """Strip reasoning blocks from a compacted assistant message.
+
+    The compaction generate call may include reasoning (thinking) blocks
+    that reflect the model's thinking about compaction, not the task itself.
+    These should be removed so they don't waste input tokens on subsequent turns.
+    """
+    if not isinstance(message.content, list):
+        return message
+    stripped = [c for c in message.content if not isinstance(c, ContentReasoning)]
+    if len(stripped) == len(message.content):
+        return message  # nothing to strip
+    return message.model_copy(update={"content": stripped})
 
 
 async def _capture_compaction_from_stream(
