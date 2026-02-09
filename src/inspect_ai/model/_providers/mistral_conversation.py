@@ -1,5 +1,6 @@
 import json
-from typing import Any, Callable, Literal, Sequence
+from collections.abc import Callable
+from typing import Any, Literal, Sequence
 
 from mistralai import (
     CodeInterpreterTool,
@@ -43,6 +44,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
@@ -91,23 +93,23 @@ async def mistral_conversation_generate(
         | (config.extra_headers or {}),
     )
 
-    # prepare response for inclusion in model call
-    response: dict[str, Any] = {}
-
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            time=http_hooks.end_request(request_id),
-        )
+    model_call = set_active_model_event_call(
+        request=request,
+    )
 
     # send request
     try:
         conv_response = await client.beta.conversations.start_async(**request)
-        response = conv_response.model_dump()
+
+        model_call.set_response(
+            conv_response.model_dump(), http_hooks.end_request(request_id)
+        )
     except SDKError as ex:
+        model_call.set_response(
+            {"error": {"message": str(ex)}}, http_hooks.end_request(request_id)
+        )
         if ex.status_code == 400:
-            return handle_bad_request(ex), model_call()
+            return handle_bad_request(ex), model_call
         else:
             raise ex
 
@@ -126,7 +128,7 @@ async def mistral_conversation_generate(
             ),
             total_tokens=conv_response.usage.total_tokens or 0,
         ),
-    ), model_call()
+    ), model_call
 
 
 def mistral_conversation_completion_args(

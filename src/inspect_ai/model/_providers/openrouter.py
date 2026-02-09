@@ -202,7 +202,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         if error is not None:
             if error["code"] == 429:
                 raise OpenAIResponseError("rate_limit_exceeded", error["message"])
-            elif error["code"] in [408, 502]:
+            elif error["code"] in [408, 500, 502, 504]:
                 raise OpenAIResponseError("server_error", error["message"])
             else:
                 raise OpenRouterError(error)
