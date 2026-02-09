@@ -40,6 +40,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -169,38 +170,30 @@ class GrokAPI(ModelAPI):
             # set start time
             start_time = time.monotonic()
 
-            # setup request and response for ModelCall
-            request: dict[str, Any] = {}
-            response: dict[str, Any] = {}
+            # prepare input for chat call
+            grok_messages = await _grok_messages(input)
+            grok_tools = [self._grok_tool(tool) for tool in tools]
+            grok_tool_choice = (
+                self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
+            )
+            grok_params = self._grok_params(config)
 
-            def model_call() -> ModelCall:
-                return ModelCall.create(
-                    request=request,
-                    response=response,
-                    filter=_grok_media_filter,
-                    time=time.monotonic() - start_time,
-                )
+            request = dict(
+                model=self.model_name,
+                messages=[MessageToDict(m) for m in grok_messages],
+                tools=[MessageToDict(t) for t in grok_tools],
+                tool_choice=MessageToDict(grok_tool_choice)
+                if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
+                else grok_tool_choice,
+                **grok_params,
+            )
+
+            model_call = set_active_model_event_call(
+                request=request,
+                filter=_grok_media_filter,
+            )
 
             try:
-                # prepare input for chat call
-                grok_messages = await _grok_messages(input)
-                grok_tools = [self._grok_tool(tool) for tool in tools]
-                grok_tool_choice = (
-                    self._grok_tool_choice(tool_choice) if len(tools) > 0 else None
-                )
-                grok_params = self._grok_params(config)
-
-                # update request (convert proto to dict)
-                request = dict(
-                    model=self.model_name,
-                    messages=[MessageToDict(m) for m in grok_messages],
-                    tools=[MessageToDict(t) for t in grok_tools],
-                    tool_choice=MessageToDict(grok_tool_choice)
-                    if isinstance(grok_tool_choice, chat_pb2.ToolChoice)
-                    else grok_tool_choice,
-                    **grok_params,
-                )
-
                 # chat call
                 chat = client.chat.create(
                     model=self.model_name,
@@ -223,22 +216,27 @@ class GrokAPI(ModelAPI):
                     else:
                         chat_response = await chat.sample()
 
-                # update response
-                response = MessageToDict(chat_response._proto)
+                model_call.set_response(
+                    MessageToDict(chat_response._proto), time.monotonic() - start_time
+                )
 
                 # return
                 return self._model_output_from_response(
                     chat_response, tools
-                ), model_call()
+                ), model_call
             except grpc.RpcError as ex:
+                model_call.set_response(
+                    {"error": {"code": str(ex.code()), "details": ex.details()}},
+                    time.monotonic() - start_time,
+                )
                 if ex.code() == grpc.StatusCode.PERMISSION_DENIED:
                     handled = self._handle_grpc_permission_denied(ex)
                     if handled:
-                        return handled, model_call()
+                        return handled, model_call
                     else:
                         raise ex
                 elif ex.code() == grpc.StatusCode.INVALID_ARGUMENT:
-                    return self._handle_grpc_bad_request(ex), model_call()
+                    return self._handle_grpc_bad_request(ex), model_call
                 else:
                     raise ex
 

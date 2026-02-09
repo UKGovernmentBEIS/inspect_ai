@@ -285,7 +285,11 @@ export const useSamplesGridNavigation = () => {
  */
 export const useLogSampleNavigation = () => {
   const navigate = useNavigate();
-  const { logPath, sampleTabId } = useLogRouteParams();
+  const { logPath: routeLogPath, sampleTabId } = useLogRouteParams();
+
+  // Fall back to selectedLogFile for VSCode single-file mode where route params aren't available
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+  const logPath = routeLogPath || selectedLogFile;
 
   // Get filtered samples for navigation
   const sampleSummaries = useFilteredSamples();

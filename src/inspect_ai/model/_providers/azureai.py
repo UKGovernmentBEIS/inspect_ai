@@ -40,6 +40,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -207,22 +208,23 @@ class AzureAIAPI(ModelAPI):
             model_extras=self.model_args,
         )
 
-        def model_call(response: ChatCompletions | None = None) -> ModelCall:
-            return ModelCall.create(
-                request=request
-                | dict(
-                    messages=[message.as_dict() for message in request["messages"]],
-                    tools=[tool.as_dict() for tool in request["tools"]]
-                    if request.get("tools", None) is not None
-                    else None,
-                ),
-                response=response.as_dict() if response else {},
-                filter=openai_media_filter,
-            )
+        model_call = set_active_model_event_call(
+            request=request
+            | dict(
+                messages=[message.as_dict() for message in request["messages"]],
+                tools=[tool.as_dict() for tool in request["tools"]]
+                if request.get("tools", None) is not None
+                else None,
+            ),
+            filter=openai_media_filter,
+        )
 
         # make call
         try:
             response: ChatCompletions = await client.complete(**request)
+
+            model_call.set_response(response.as_dict())
+
             return ModelOutput(
                 model=response.model,
                 choices=chat_completion_choices(
@@ -233,10 +235,11 @@ class AzureAIAPI(ModelAPI):
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
                 ),
-            ), model_call(response)
+            ), model_call
 
         except AzureError as ex:
-            return self.handle_azure_error(ex), model_call()
+            model_call.set_response({"error": {"message": str(ex.message)}})
+            return self.handle_azure_error(ex), model_call
         finally:
             await client.close()
 

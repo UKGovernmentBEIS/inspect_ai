@@ -46,6 +46,17 @@ class CompactionNative(CompactionStrategy):
         super().__init__(threshold=threshold, memory=memory)
         self._instructions = instructions
 
+    @property
+    @override
+    def preserve_prefix(self) -> bool:
+        """Instruction to orchestrator: do not preserve prefix messages.
+
+        For native compaction, only system messages are prepended since user
+        content is either preserved by the provider (OpenAI) or semantically
+        encoded in the compaction block (Anthropic).
+        """
+        return False
+
     @override
     async def compact(
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
