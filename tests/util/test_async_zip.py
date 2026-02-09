@@ -1,5 +1,6 @@
 import json
 import os
+import struct
 import sys
 import zipfile
 import zlib
@@ -201,6 +202,160 @@ async def test_read_zstd_compressed_member(zstd_zip_file: Path) -> None:
         data = b"".join(chunks)
         parsed = json.loads(data.decode("utf-8"))
         assert parsed["message"] == "hello zstd"
+
+
+@pytest.mark.asyncio
+async def test_read_member_fully_deflated(test_zip_file: Path) -> None:
+    """Test read_member_fully with deflate-compressed members."""
+    zip_path = str(test_zip_file)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, zip_path)
+
+        data = await reader.read_member_fully("test.json")
+        parsed = json.loads(data.decode("utf-8"))
+        assert parsed["message"] == "hello world"
+
+        data = await reader.read_member_fully("nested/data.txt")
+        assert data == b"This is nested data"
+
+
+@pytest.mark.asyncio
+async def test_read_member_fully_stored(tmp_path: Path) -> None:
+    """Test read_member_fully with uncompressed (STORED) members."""
+    zip_path = tmp_path / "stored.zip"
+    content = b"uncompressed content here"
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("plain.txt", content)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        data = await reader.read_member_fully("plain.txt")
+        assert data == content
+
+
+@pytest.mark.asyncio
+async def test_read_member_fully_zstd(zstd_zip_file: Path) -> None:
+    """Test read_member_fully with zstd-compressed members."""
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zstd_zip_file))
+        data = await reader.read_member_fully("test.json")
+        parsed = json.loads(data.decode("utf-8"))
+        assert parsed["message"] == "hello zstd"
+
+
+@pytest.mark.asyncio
+async def test_read_member_fully_not_found(test_zip_file: Path) -> None:
+    """Test that read_member_fully raises KeyError for non-existent member."""
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(test_zip_file))
+        with pytest.raises(KeyError):
+            await reader.read_member_fully("nonexistent.txt")
+
+
+@pytest.mark.asyncio
+async def test_read_member_fully_by_entry(test_zip_file: Path) -> None:
+    """Test read_member_fully when passing a ZipEntry instead of a string."""
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(test_zip_file))
+        entry = await reader.get_member_entry("test.json")
+        data = await reader.read_member_fully(entry)
+        parsed = json.loads(data.decode("utf-8"))
+        assert parsed["message"] == "hello world"
+
+
+@pytest.mark.asyncio
+async def test_read_member_fully_matches_open_member(tmp_path: Path) -> None:
+    """Test that read_member_fully returns the same data as open_member."""
+    zip_path = tmp_path / "compare.zip"
+    large_data = os.urandom(1024 * 100)  # 100KB random data
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("large.bin", large_data)
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+
+        # read_member_fully path
+        full_data = await reader.read_member_fully("large.bin")
+
+        # open_member (streaming) path
+        chunks = []
+        async with await reader.open_member("large.bin") as stream:
+            async for chunk in stream:
+                chunks.append(chunk)
+        streamed_data = b"".join(chunks)
+
+        assert full_data == streamed_data == large_data
+
+
+@pytest.mark.asyncio
+async def test_read_member_fully_large_extra_field(tmp_path: Path) -> None:
+    """Test read_member_fully when the local header extra field exceeds the estimate.
+
+    This exercises the fallback path where the initial read doesn't capture
+    all compressed data because the local header's extra field is larger
+    than the 256-byte padding estimate.
+    """
+    zip_path = tmp_path / "large_extra.zip"
+    content = b"test content"
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("test.txt", content)
+
+    # Patch the local header's extra field to be very large (512 bytes)
+    with open(zip_path, "r+b") as f:
+        # Read local header
+        sig = f.read(4)
+        assert sig == b"PK\x03\x04"
+        header_fields = f.read(26)
+        name_len, extra_len = struct.unpack_from("<HH", header_fields, 22)
+
+        # Read existing name and extra
+        name = f.read(name_len)
+        _old_extra = f.read(extra_len)
+        data_pos = f.tell()
+
+        # Read remaining file (compressed data + central directory + EOCD)
+        rest = f.read()
+
+        # Write back with a much larger extra field
+        big_extra = b"\x00" * 512
+        f.seek(0)
+        f.write(b"PK\x03\x04")
+        # Rewrite header with new extra_len
+        new_header = header_fields[:22] + struct.pack("<HH", name_len, len(big_extra))
+        f.write(new_header)
+        f.write(name)
+        f.write(big_extra)
+
+        new_data_pos = f.tell()
+        offset_delta = new_data_pos - data_pos
+
+        f.write(rest)
+        f.truncate()
+
+        # Fix central directory's local header offset (it's still 0, so no change needed)
+        # But we need to fix the central directory offset in EOCD
+        f.seek(0)
+        all_bytes = f.read()
+
+        # Find EOCD
+        eocd_idx = all_bytes.rfind(b"PK\x05\x06")
+        # EOCD: sig(4) + disk(2) + cd_disk(2) + entries_disk(2) + entries_total(2) + cd_size(4) + cd_offset(4)
+        cd_offset = struct.unpack_from("<I", all_bytes, eocd_idx + 16)[0]
+        new_cd_offset = cd_offset + offset_delta
+
+        # Find central directory entry and fix compressed data references
+        # The central directory offset needs updating in EOCD
+        f.seek(eocd_idx + 16)
+        f.write(struct.pack("<I", new_cd_offset))
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        data = await reader.read_member_fully("test.txt")
+        assert data == content
 
 
 @pytest.mark.asyncio

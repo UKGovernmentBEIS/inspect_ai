@@ -102,7 +102,7 @@ def decompress_bytes(data: bytes, method: ZipCompressionMethod) -> bytes:
     elif method == ZipCompressionMethod.DEFLATE:
         return zlib.decompress(data, -15)
     elif method == ZipCompressionMethod.ZSTD:
-        return zstandard.ZstdDecompressor().decompress(data)
+        return zstandard.ZstdDecompressor().stream_reader(data).read()
     else:
         raise NotImplementedError(f"Unsupported compression method: {method}")
 
