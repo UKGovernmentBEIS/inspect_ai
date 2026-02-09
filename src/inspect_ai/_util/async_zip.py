@@ -11,7 +11,6 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
-import anyio
 from typing_extensions import Self
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -43,44 +42,10 @@ class CentralDirectory:
     etag: str | None = None
 
 
-# This is an exploratory cache of central directories keyed by filename
-# It's not production ready for a variety of reasons.
-# The file may have changed since the last read:
-#   - for some filesystems, we could add the etag into the key
-#   - we could fall back to modified time??
-# I'm still not confident about the relationship between this class
-# and the filesystem class.
-
-central_directories_cache: dict[str, CentralDirectory] = {}
-_filename_locks: dict[str, anyio.Lock] = {}
-_locks_lock = anyio.Lock()
-
-
-# source_cm was never entered, nothing to close
-
-
 async def _get_central_directory(
     filesystem: AsyncFilesystem, filename: str
 ) -> CentralDirectory:
-    # Fast path: check cache without locks
-    if (cd := central_directories_cache.get(filename, None)) is not None:
-        return cd
-
-    # Get or create the lock for this specific filename
-    async with _locks_lock:
-        if filename not in _filename_locks:
-            _filename_locks[filename] = anyio.Lock()
-        file_lock = _filename_locks[filename]
-
-    # Acquire the per-filename lock
-    async with file_lock:
-        # Double-check after acquiring lock
-        if (cd := central_directories_cache.get(filename, None)) is not None:
-            return cd
-
-        cd = await _parse_central_directory(filesystem, filename)
-        central_directories_cache[filename] = cd
-        return cd
+    return await _parse_central_directory(filesystem, filename)
 
 
 async def _find_central_directory(
