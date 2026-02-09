@@ -48,6 +48,9 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const columnButtonRef = useRef<HTMLButtonElement>(null);
 
+  const [selectedRows, setSelectedRows] = useState<LogListRow[]>([]);
+  const [downloading, setDownloading] = useState(false);
+
   const showRetriedLogs = useStore((state) => state.logs.showRetriedLogs);
   const setShowRetriedLogs = useStore(
     (state) => state.logsActions.setShowRetriedLogs,
@@ -59,6 +62,8 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
   const { filteredCount } = useLogsListing();
 
   const syncing = useStore((state) => state.app.status.syncing);
+  const api = useStore((state) => state.api);
+  const downloadLogs = useStore((state) => state.capabilities.downloadLogs);
 
   const watchedLogs = useStore((state) => state.logs.listing.watchedLogs);
   const navigate = useNavigate();
@@ -263,6 +268,25 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
     }
   }, [logItems, maybeShowSingleLog, navigate]);
 
+  const downloadableRows = useMemo(
+    () => selectedRows.filter((row) => row.log?.name),
+    [selectedRows],
+  );
+
+  const handleDownloadSelected = useCallback(async () => {
+    if (!api?.download_logs || downloadableRows.length === 0) return;
+
+    setDownloading(true);
+    try {
+      const logNames = downloadableRows.map((row) => row.log!.name);
+      await api.download_logs(logNames);
+    } catch (error) {
+      console.error("Failed to download logs:", error);
+    } finally {
+      setDownloading(false);
+    }
+  }, [api, downloadableRows]);
+
   return (
     <div className={clsx(styles.panel)}>
       <ApplicationNavbar
@@ -270,6 +294,20 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
         currentPath={logPath}
         showActivity="log"
       >
+        {downloadLogs && api?.download_logs && downloadableRows.length > 0 && (
+          <NavbarButton
+            key="download-selected"
+            label={`Download (${downloadableRows.length})`}
+            icon={
+              downloading
+                ? ApplicationIcons.loading
+                : ApplicationIcons.downloadLog
+            }
+            disabled={downloading}
+            onClick={handleDownloadSelected}
+          />
+        )}
+
         {hasFilter && (
           <NavbarButton
             key="reset-filters"
@@ -323,6 +361,7 @@ export const LogsPanel: FC<LogsPanelProps> = ({ maybeShowSingleLog }) => {
             items={logItems}
             currentPath={currentDir}
             gridRef={gridRef}
+            onSelectionChanged={setSelectedRows}
           />
         </div>
         <LogListFooter

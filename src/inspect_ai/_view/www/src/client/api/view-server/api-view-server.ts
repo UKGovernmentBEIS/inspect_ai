@@ -352,6 +352,31 @@ export function viewServerApi(
     document.body.removeChild(link);
   };
 
+  const download_logs = async (log_files: string[]): Promise<void> => {
+    const baseUrl = apiBaseUrl || __VIEW_SERVER_API_URL__;
+    const url = `${baseUrl}/logs-download`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: log_files }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = "inspect-logs.zip";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+  };
+
   return {
     client_events,
     get_log_root,
@@ -366,6 +391,7 @@ export function viewServerApi(
     log_message,
     download_file,
     download_log,
+    download_logs,
     open_log_file: async () => {},
     eval_pending_samples,
     eval_log_sample_data,
