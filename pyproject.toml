@@ -157,7 +157,7 @@ dev = [
   "azure-ai-inference",
   "fastapi",
   "google-genai",
-  "griffe",
+  "griffe<=1.14.0",
   "groq",
   "huggingface_hub>=1.0.0",
   "inspect_scout",
