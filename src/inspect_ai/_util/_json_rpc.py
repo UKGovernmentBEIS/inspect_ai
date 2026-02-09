@@ -1,10 +1,9 @@
 import json
+from abc import ABC, abstractmethod
 from itertools import count
 from typing import Any, Literal, Protocol, Type, TypeAlias, TypeVar
 
 from pydantic import BaseModel, RootModel
-
-from inspect_ai.tool._tool import ToolError, ToolParsingError
 
 
 class JSONRPCResponseBase(BaseModel):
@@ -87,27 +86,66 @@ class JSONRPCTransport(Protocol):
     ) -> str: ...
 
 
-class JSONRPCServerErrorMapper(Protocol):
-    """Protocol for mapping server-specific JSON-RPC error codes to appropriate exceptions.
+class JSONRPCErrorMapper(ABC):
+    """Abstract base for mapping JSON-RPC error codes to appropriate exceptions.
 
-    This protocol defines the interface for error mapping functions that can interpret
-    server-specific error codes (typically in the -32099 to -32000 range) and convert
-    them into meaningful Python exceptions. Different server implementations may use
-    custom error codes to represent domain-specific error conditions.
+    Implementors provide domain-specific exception types for three categories
+    of JSON-RPC errors. For example, a tool-layer implementation might map
+    invalid_params to ToolParsingError and internal_error to ToolError so that
+    those errors are fed back to the model rather than crashing the eval.
 
-    Args:
-        code: The JSON-RPC error code from the server response.
-        message: The error message from the server response.
-        method: The JSON-RPC method that was called when the error occurred.
-        params: The parameters that were passed to the JSON-RPC method.
-
-    Returns:
-        An appropriate Exception instance that represents the server error.
+    All methods are static — implementations are stateless so there is no need
+    to instantiate the mapper. Pass the *class* rather than an instance.
     """
 
-    def __call__(
-        self, code: int, message: str, method: str, params: JSONRPCParamsType
-    ) -> Exception: ...
+    @staticmethod
+    @abstractmethod
+    def server_error(
+        code: int, message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        """Map a server-defined error code (-32000..-32099) to an exception."""
+        ...
+
+    @staticmethod
+    @abstractmethod
+    def invalid_params(
+        message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        """Map a -32602 (Invalid params) error to an exception."""
+        ...
+
+    @staticmethod
+    @abstractmethod
+    def internal_error(
+        message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        """Map a -32603 (Internal error) error to an exception."""
+        ...
+
+
+class GenericJSONRPCErrorMapper(JSONRPCErrorMapper):
+    """Default error mapper that uses standard Python exception types."""
+
+    @staticmethod
+    def server_error(
+        code: int, message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del code, method, params
+        return RuntimeError(message)
+
+    @staticmethod
+    def invalid_params(
+        message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del method, params
+        return ValueError(message)
+
+    @staticmethod
+    def internal_error(
+        message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del method, params
+        return RuntimeError(message)
 
 
 async def exec_scalar_request(
@@ -115,7 +153,7 @@ async def exec_scalar_request(
     params: JSONRPCParamsType,
     result_type: Type[ScalarT],
     transport: JSONRPCTransport,
-    server_error_mapper: JSONRPCServerErrorMapper,
+    error_mapper: type[JSONRPCErrorMapper],
     **transport_extra_args: Any,
 ) -> ScalarT:
     """
@@ -126,7 +164,7 @@ async def exec_scalar_request(
       params (JSONRPCParamsType): The parameters for the JSON-RPC method.
       result_type (Type[ScalarT]): The scalar type (str, int, float, bool, None) to validate the result against.
       transport (JSONRPCTransport): The transport callable to use for the RPC communication.
-      server_error_mapper (JSONRPCServerErrorMapper): A callable to map server specific JSON-RPC errors to exceptions.
+      error_mapper (JSONRPCErrorMapper): Maps JSON-RPC error codes to appropriate exceptions.
       **transport_extra_args: Additional arguments passed to the transport (e.g. timeout, user).
 
     Returns:
@@ -134,14 +172,13 @@ async def exec_scalar_request(
 
     Raises:
       RuntimeError: If execution fails or if there is an error in the JSON-RPC response.
-      ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
       ValueError: If the result is not of the expected scalar type.
     """
     rpc_result = await _exec_request(
         method=method,
         params=params,
         transport=transport,
-        server_error_mapper=server_error_mapper,
+        error_mapper=error_mapper,
         **transport_extra_args,
     )
     if (result_type is type(None) and rpc_result is not None) or not isinstance(
@@ -156,7 +193,7 @@ async def exec_model_request(
     params: JSONRPCParamsType,
     result_type: Type[BaseModelT],
     transport: JSONRPCTransport,
-    server_error_mapper: JSONRPCServerErrorMapper | None = None,
+    error_mapper: type[JSONRPCErrorMapper],
     **transport_extra_args: Any,
 ) -> BaseModelT:
     """
@@ -167,7 +204,7 @@ async def exec_model_request(
       params (JSONRPCParamsType): The parameters for the JSON-RPC method.
       result_type (Type[BaseModelT]): The Pydantic model class to validate and parse the result.
       transport (JSONRPCTransport): The transport callable to use for the RPC communication.
-      server_error_mapper (JSONRPCServerErrorMapper): A callable to map server specific JSON-RPC errors to exceptions.
+      error_mapper (JSONRPCErrorMapper): Maps JSON-RPC error codes to appropriate exceptions.
       **transport_extra_args: Additional arguments passed to the transport (e.g. timeout, user).
 
     Returns:
@@ -175,14 +212,13 @@ async def exec_model_request(
 
     Raises:
       RuntimeError: If the sandbox execution fails or if there is an error in the JSON-RPC response.
-      ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
       ValueError: If the result cannot be validated against the provided model class.
     """
     rpc_result = await _exec_request(
         method=method,
         params=params,
         transport=transport,
-        server_error_mapper=server_error_mapper,
+        error_mapper=error_mapper,
         **transport_extra_args,
     )
     return result_type.model_validate(rpc_result, strict=True)
@@ -219,7 +255,7 @@ async def exec_notification(
     )
     if stdout.strip():
         raise RuntimeError(
-            f"Unexpected response to a Notification: {_rpc_call_description(method, params)}: {stdout}"
+            f"Unexpected response to a Notification: {rpc_call_description(method, params)}: {stdout}"
         )
 
 
@@ -228,7 +264,7 @@ async def _exec_request(
     method: str,
     params: JSONRPCParamsType,
     transport: JSONRPCTransport,
-    server_error_mapper: JSONRPCServerErrorMapper | None = None,
+    error_mapper: type[JSONRPCErrorMapper],
     **transport_extra_args: Any,
 ) -> object:
     """Execute a request using the provided transport mechanism."""
@@ -241,7 +277,7 @@ async def _exec_request(
         ),
         method,
         params,
-        server_error_mapper,
+        error_mapper,
     )
 
 
@@ -249,7 +285,7 @@ def parse_json_rpc_response(
     response_str: str,
     method: str,
     params: JSONRPCParamsType,
-    server_error_mapper: JSONRPCServerErrorMapper | None = None,
+    error_mapper: type[JSONRPCErrorMapper],
 ) -> object:
     """Validates the JSON RPC response and returns the result or raises a proper Inspect error."""
     match JSONRPCResponse.model_validate_json(response_str).root:
@@ -257,11 +293,11 @@ def parse_json_rpc_response(
             return rpc_result
         case JSONRPCErrorResponse(error=JSONRPCError(code=code, message=message)):
             raise exception_for_rpc_response_error(
-                code, message, method, params, server_error_mapper
+                code, message, method, params, error_mapper
             )
         case _:
             raise ValueError(
-                f"Unexpected JSON RPC response to request {_rpc_call_description(method, params)}: {response_str}"
+                f"Unexpected JSON RPC response to request {rpc_call_description(method, params)}: {response_str}"
             )
 
 
@@ -270,9 +306,9 @@ def exception_for_rpc_response_error(
     message: str,
     method: str,
     params: JSONRPCParamsType,
-    server_error_mapper: JSONRPCServerErrorMapper | None = None,
+    error_mapper: type[JSONRPCErrorMapper],
 ) -> Exception:
-    """Maps JSON-RPC error codes to Inspect tool related exceptions."""
+    """Maps JSON-RPC error codes to exceptions via the provided error mapper."""
     # code    message           meaning
     # -32000
     #    |    Server error      Reserved for implementation-defined server-errors.
@@ -284,21 +320,11 @@ def exception_for_rpc_response_error(
     # -32700  Parse error       Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
 
     if -32099 <= code <= -32000:
-        # This range is server defined. This layer has no idea what server was
-        # called, so if special mapping is needed, it must be provided by the
-        # caller.
-        return (
-            server_error_mapper(code, message, method, params)
-            if server_error_mapper
-            else ToolError(message)
-        )
-    elif code == -32602:  # (Invalid params)
-        # Even though the Inspect side does validation, it can't possibly be
-        # complete - especially for tools that have dynamic action dependant
-        # rules for optional/required params.
-        return ToolParsingError(message)
+        return error_mapper.server_error(code, message, method, params)
+    elif code == -32602:
+        return error_mapper.invalid_params(message, method, params)
     elif code == -32603:
-        return ToolError(message)
+        return error_mapper.internal_error(message, method, params)
     else:
         # -32600 (Invalid Request)
         #   If we sent a bogus request, it's 100% a code bug.
@@ -308,11 +334,11 @@ def exception_for_rpc_response_error(
         #   this is a request oriented error.
         #
         return RuntimeError(
-            f"Error executing tool command{f'  {_rpc_call_description(method, params)}' if method and params else ''}: {code=} {message}"
+            f"Error executing tool command{f'  {rpc_call_description(method, params)}' if method and params else ''}: {code=} {message}"
         )
 
 
-def _rpc_call_description(method: str, params: JSONRPCParamsType) -> str:
+def rpc_call_description(method: str, params: JSONRPCParamsType) -> str:
     """
     Generate a string description of an RPC call.
 
@@ -324,10 +350,10 @@ def _rpc_call_description(method: str, params: JSONRPCParamsType) -> str:
         str: A string description of the RPC call.
 
     Examples:
-        >>> _rpc_call_description("subtract", {"minuend": 42, "subtrahend": 23})
+        >>> rpc_call_description("subtract", {"minuend": 42, "subtrahend": 23})
         'subtract(minuend: 42, subtrahend: 23)'
 
-        >>> _rpc_call_description("subtract", (42, 23))
+        >>> rpc_call_description("subtract", (42, 23))
         'subtract(42, 23)'
     """
     normalized_params = (

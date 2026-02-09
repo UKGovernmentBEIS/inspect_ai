@@ -83,17 +83,21 @@ def _ensure_server_is_running() -> None:
     if _can_connect_to_socket():
         return  # Server already running and responsive
 
-    # Get the correct executable path for staticx bundled executables. When running
-    # under staticx, sys.argv[0] points to the extracted temp executable which gets
-    # deleted when the parent process exits, breaking the server. The STATICX_PROG_PATH
-    # env var provides the absolute path of the program being executed.
-    executable_path = os.environ.get("STATICX_PROG_PATH")
-    if executable_path is None:
-        raise RuntimeError("STATICX_PROG_PATH environment variable not found. ")
-
-    # Start server (it will handle socket cleanup on startup)
     process = subprocess.Popen(
-        [executable_path, "server"],
+        (
+            # Production staticx mode
+            [executable_path, "server"]
+            # Get the correct executable path for staticx bundled executables. When
+            # running under staticx, sys.argv[0] points to the extracted temp executable
+            # which gets deleted when the parent process exits, breaking the server.
+            # The STATICX_PROG_PATH env var provides the absolute path of the program
+            # being executed.
+            if (executable_path := os.environ.get("STATICX_PROG_PATH"))
+            # Dev/test mode: use Python interpreter with module invocation
+            else [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "server"]
+        ),
+        stdout=open("/tmp/sandbox-tools-server-stdout.log", "a"),
+        stderr=open("/tmp/sandbox-tools-server-stderr.log", "a"),
     )
 
     # Wait for socket to become available

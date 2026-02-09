@@ -8,6 +8,9 @@ from inspect_sandbox_tools._in_process_tools._version import (
 from inspect_sandbox_tools._remote_tools._bash_session import (
     json_rpc_methods as bash_session_methods,
 )
+from inspect_sandbox_tools._remote_tools._exec_remote import (
+    json_rpc_methods as exec_remote_methods,
+)
 from inspect_sandbox_tools._remote_tools._mcp import json_rpc_methods as mcp_methods
 from inspect_sandbox_tools._remote_tools._remote_version import (
     json_rpc_methods as remote_version_methods,
@@ -18,6 +21,7 @@ from inspect_sandbox_tools._remote_tools._remote_version import (
 _TOOLS = {
     "inspect_sandbox_tools._remote_tools": {
         "bash_session": bash_session_methods,
+        "exec_remote": exec_remote_methods,
         "mcp": mcp_methods,
         "remote_version": remote_version_methods,
     },

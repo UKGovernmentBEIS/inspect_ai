@@ -1,12 +1,4 @@
-# inspect_sandbox_tools
-
 This package provides tool support for inspect_ai without requiring custom Docker images or Dockerfiles. It uses an executable injection approach to deploy tool functionality directly into running containers.
-
-## TODOS
-
-- [ ] Test `build_within_container.py`
-- [ ] Confirm `bash_session` e2e flow
-- [ ] Confirm `web_browser` e2e flow using legacy code
 
 ### Stateful Tool Design Pattern
 
@@ -100,6 +92,10 @@ Tools communicate through a two-layer RPC architecture:
 3. Sends JSON-RPC requests to the server via HTTP over Unix socket (`~/.cache/container-tools.sock`)
 4. Server maintains state across requests and returns responses
 5. The stateless executable forwards the response back through Layer 1
+
+## Releasing
+
+See [RELEASING.md](RELEASING.md) for the end-to-end process for building, publishing, and distributing new sandbox tools versions.
 
 ## Testing
 

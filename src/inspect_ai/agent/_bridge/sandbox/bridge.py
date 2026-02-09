@@ -10,17 +10,15 @@ from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
-from inspect_ai.tool._sandbox_tools_utils.sandbox import (
-    SANDBOX_TOOLS_CLI,
-    sandbox_with_injected_tools,
-)
+from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._sandbox import SandboxEnvironment
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox.exec_remote import ExecRemoteStreamingOptions
 
 from ..._agent import AgentState
 from ..util import default_code_execution_providers, internal_web_search_providers
@@ -139,17 +137,26 @@ async def sandbox_agent_bridge(
                 started,
             )
 
-            # proxy server that runs in container and forwards to sandbox service
-            tg.start_soon(run_model_proxy, sandbox_env, port, instance, started)
+            # wait for model service to start
+            await started.wait()
 
-            # ensure services are up
-            await anyio.sleep(0.1)
+            # proxy server that runs in container and forwards to sandbox service
+            proxy = await sandbox_env.exec_remote(
+                cmd=[SANDBOX_CLI, "model_proxy"],
+                options=ExecRemoteStreamingOptions(
+                    env={
+                        f"{MODEL_SERVICE.upper()}_PORT": str(port),
+                        f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
+                    }
+                ),
+            )
 
             # main agent
             try:
                 yield bridge
                 agent_completed = True
             finally:
+                await proxy.kill()
                 tg.cancel_scope.cancel()
     except Exception as ex:
         # If the agent completed successfully but we got an error during cleanup,
@@ -161,27 +168,6 @@ async def sandbox_agent_bridge(
         else:
             # Error occurred before or during agent execution
             raise inner_exception(ex)
-
-
-async def run_model_proxy(
-    sandbox: SandboxEnvironment, port: int, instance: str, started: anyio.Event
-) -> None:
-    # wait for model service to be started up
-    await started.wait()
-
-    # run the model proxy script
-    result = await sandbox.exec(
-        cmd=[SANDBOX_TOOLS_CLI, "model_proxy"],
-        env={
-            f"{MODEL_SERVICE.upper()}_PORT": str(port),
-            f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
-        },
-        concurrency=False,
-    )
-    if not result.success:
-        raise RuntimeError(
-            f"Error running model proxy script for agent bridge: {result.stderr}"
-        )
 
 
 def _register_bridged_tools(
