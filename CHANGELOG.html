@@ -149,9 +149,13 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#february-2026" id="toc-february-2026" class="nav-link active" data-scroll-target="#february-2026">0.3.171 (06 February 2026)</a></li>
-  <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.170 (03 February 2026)</a></li>
-  <li><a href="#february-2026-2" id="toc-february-2026-2" class="nav-link" data-scroll-target="#february-2026-2">0.3.169 (01 February 2026)</a></li>
+  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
+  <li><a href="#february-2026" id="toc-february-2026" class="nav-link" data-scroll-target="#february-2026">0.3.174 (09 February 2026)</a></li>
+  <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.173 (08 February 2026)</a></li>
+  <li><a href="#february-2026-2" id="toc-february-2026-2" class="nav-link" data-scroll-target="#february-2026-2">0.3.172 (06 February 2026)</a></li>
+  <li><a href="#february-2026-3" id="toc-february-2026-3" class="nav-link" data-scroll-target="#february-2026-3">0.3.171 (06 February 2026)</a></li>
+  <li><a href="#february-2026-4" id="toc-february-2026-4" class="nav-link" data-scroll-target="#february-2026-4">0.3.170 (03 February 2026)</a></li>
+  <li><a href="#february-2026-5" id="toc-february-2026-5" class="nav-link" data-scroll-target="#february-2026-5">0.3.169 (01 February 2026)</a></li>
   <li><a href="#january-2026" id="toc-january-2026" class="nav-link" data-scroll-target="#january-2026">0.3.168 (31 January 2026)</a></li>
   <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.167 (29 January 2026)</a></li>
   <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.166 (29 January 2026)</a></li>
@@ -328,8 +332,37 @@ ul.task-list li input[type="checkbox"] {
 
 
 
+<section id="unreleased" class="level2">
+<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<ul>
+<li>OpenRouter: Retry 500 and 504 errors returned in request JSON body.</li>
+<li>Scoring: Allow customisation of grouped metric names.</li>
+<li>Inspect View: Show live requests and responses for model call events in the transcript.</li>
+<li>Inspect View: Improve scroll performance when viewing sample transcripts and messages.</li>
+</ul>
+</section>
 <section id="february-2026" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026">0.3.171 (06 February 2026)</h2>
+<h2 class="anchored" data-anchor-id="february-2026">0.3.174 (09 February 2026)</h2>
+<ul>
+<li>Compaction: Remove reasoning blocks from <code>compact()</code> result for Anthropic provider.</li>
+</ul>
+</section>
+<section id="february-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-1">0.3.173 (08 February 2026)</h2>
+<ul>
+<li>Compaction: Correct capture of compaction results for Anthropic streaming mode.</li>
+<li>Compaction: Improved prefix handling (drop all by system messages) for native compaction.</li>
+<li>Compaction: Improved display of OpenAI and Anthropic compaction data in the viewer.</li>
+</ul>
+</section>
+<section id="february-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-2">0.3.172 (06 February 2026)</h2>
+<ul>
+<li>Inspect View: Fix a regression which affected the display of samples within VSCode.</li>
+</ul>
+</section>
+<section id="february-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-3">0.3.171 (06 February 2026)</h2>
 <ul>
 <li>Compaction: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).</li>
 <li>Compaction: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionauto">CompactionAuto</a></span> strategy which uses <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> if possible and falls back to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionsummary">CompactionSummary</a></span>.</li>
@@ -349,8 +382,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Correctly handle optional <code>content</code> field in Anthropic agent bridge <code>tool_result</code>.</li>
 </ul>
 </section>
-<section id="february-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-1">0.3.170 (03 February 2026)</h2>
+<section id="february-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-4">0.3.170 (03 February 2026)</h2>
 <ul>
 <li>Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stable_message_ids">stable_message_ids()</a></span> function for yielding stable ids based on model content (but always unique within a given conversation).</li>
 <li>Model API: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#compactionevent">CompactionEvent</a></span> for model compactions.</li>
@@ -364,8 +397,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Submit to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#human_cli">human_cli()</a></span> with no answer now correctly completes task.</li>
 </ul>
 </section>
-<section id="february-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-2">0.3.169 (01 February 2026)</h2>
+<section id="february-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-5">0.3.169 (01 February 2026)</h2>
 <ul>
 <li>Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g.&nbsp;PydanticAI).</li>
 <li>OpenAI: Workaround for openai Python SDK inability to round trip ‘find_in_page’ web search actions.</li>

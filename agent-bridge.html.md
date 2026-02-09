@@ -32,8 +32,8 @@ learn from the following examples:
 | [OpenAI Agents SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk) | Demonstrates using a native [Open AI Agents SDK](https://openai.github.io/openai-agents-python/) agent to perform Q/A using web search. |
 | [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) | Demonstrates using a native [LangChain](https://www.langchain.com/) agent to perform Q/A using the [Tavili Search API](https://tavily.com/) |
 | [Pydantic AI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/pydantic-ai) | Demonstrates using a native [Pydantic AI](https://ai.pydantic.dev/) agent to perform Q/A using web search. |
-| [Claude Code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/claude) | Demonstrates using a [Claude Code](https://www.anthropic.com/claude-code) agent to explore a Kali Linux system. |
-| [Codex CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex) | Demonstrates using a [Codex CLI](https://github.com/openai/codex) agent to explore a Kali Linux system. |
+| [Claude Code](https://meridianlabs-ai.github.io/inspect_swe/claude_code.html) | Demonstrates using a [Claude Code](https://www.anthropic.com/claude-code) agent to explore a Kali Linux system. |
+| [Codex CLI](https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html) | Demonstrates using a [Codex CLI](https://github.com/openai/codex) agent to explore a Kali Linux system. |
 
 ## Agent Bridge
 
@@ -94,10 +94,10 @@ Line 18
 Return the `state` changes automatically tracked by the `bridge` .
 
 The [OpenAI Agents
-SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk)
-and
+SDK](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/agentsdk),
+[PydanticAI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/pydantic-ai)
 [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
-example provides a more in-depth demonstration of using the Python agent
+example provide a more in-depth demonstration of using the Python agent
 bridge with Inspect.
 
 ## Sandbox Bridge
@@ -179,11 +179,11 @@ Line 26
 Return the `state` changes automatically tracked by the `bridge`.
 
 The [Claude
-Code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/claude)
+Code](https://meridianlabs-ai.github.io/inspect_swe/claude_code.html)
 and [Codex
-CLI](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/codex)
-examples provide more in-depth demonstrations of running custom agents
-in sandboxes.
+CLI](https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html)
+agents in the Inspect SWE package provide more in-depth demonstrations
+of running custom agents in sandboxes.
 
 ## Bridged Tools
 

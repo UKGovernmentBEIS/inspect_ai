@@ -727,8 +727,8 @@ Definition** command in your source editor.
 The `grouped()` function applies a given metric to subgroups of samples
 defined by a key in sample `metadata`, creating a separate metric for
 each group along with an `"all"` metric that aggregates across all
-samplesor groups. Each sample must have a value for whatever key is used
-for grouping.
+samples or groups. Each sample must have a value for whatever key is
+used for grouping.
 
 For example, let’s say you wanted to create a separate accuracy metric
 for each distinct “category” variable defined in `Sample` metadata:
@@ -757,6 +757,17 @@ individual grouped values, pass `all="groups"`:
 ``` python
 grouped(accuracy(), "category", all="groups")
 ```
+
+You can customize the metric names using the `name_template` parameter.
+The template uses `{group_name}` as a placeholder for the group value:
+
+``` python
+grouped(accuracy(), "category", name_template="category_{group_name}")
+```
+
+This would produce metrics named `category_physics`,
+`category_chemistry`, etc. instead of just `physics`, `chemistry`. It
+does not affect the “all” metric, so that can be named separately.
 
 ### Clustered Stderr
 
