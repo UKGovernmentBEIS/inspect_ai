@@ -28,6 +28,7 @@ from anthropic import (
     BadRequestError,
     NotGiven,
 )
+from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
     ContentBlock,
@@ -143,7 +144,12 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.util._json import set_additional_properties_false
 
 from ..._util.httpx import httpx_should_retry
-from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
+from .._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from .._generate_config import GenerateConfig, normalized_batch_config
 from .._model import ModelAPI, log_model_retry
 from .._model_call import ModelCall, as_error_response
@@ -541,22 +547,11 @@ class AnthropicAPI(ModelAPI):
         Raises:
             NotImplementedError: For providers or models without native compaction support.
         """
-        # create edit param (count tokens so we provide a trigger that will fire)
-        tokens = await self.count_tokens(input, config)
-        trigger_value = round(tokens * 0.9)
-
-        # Anthropic API requires minimum trigger value of 50,000 tokens
-        if trigger_value < MIN_COMPACTION_TOKENS:
-            raise RuntimeError(
-                f"Anthropic native compaction requires at least {MIN_COMPACTION_TOKENS} "
-                f"tokens (input has {tokens} tokens, trigger would be {trigger_value})"
-            )
-
         edit = BetaCompact20260112EditParam(
             type="compact_20260112",
             instructions=instructions,
             trigger=BetaInputTokensTriggerParam(
-                type="input_tokens", value=trigger_value
+                type="input_tokens", value=MIN_COMPACTION_TOKENS
             ),
             pause_after_compaction=True,
         )
@@ -573,16 +568,18 @@ class AnthropicAPI(ModelAPI):
         if isinstance(output, ModelOutput):
             # confirm a compaction occurred
             if _message_has_compaction(output.message):
-                return (
-                    [
-                        output.message,
-                        ChatMessageUser(content="Please continue with the task."),
-                    ],
-                    output.usage,
-                )
+                # Strip reasoning blocks from the compacted output — they're
+                # from the compaction inference, not the task, and would waste
+                # input tokens on subsequent turns.
+                message = _strip_reasoning(output.message)
+                return [message], output.usage
             else:
                 raise RuntimeError(
-                    f"Anthropic server-side compaction failed (no compaction occurred): {output.model_dump_json(exclude_none=True)}"
+                    f"Anthropic native compaction did not trigger. "
+                    f"This can occur when the total input tokens (including tools) "
+                    f"is below Anthropic's {MIN_COMPACTION_TOKENS} token minimum for compaction. "
+                    f"Consider increasing the compaction threshold or using a "
+                    f"non-native compaction strategy."
                 )
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
@@ -631,7 +628,7 @@ class AnthropicAPI(ModelAPI):
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
             async with self.client.messages.stream(**request) as stream:
-                head_message = await stream.get_final_message()
+                head_message, _ = await _capture_compaction_from_stream(stream)
         else:
             head_message = await self.client.messages.create(**request, stream=False)
 
@@ -943,6 +940,10 @@ class AnthropicAPI(ModelAPI):
         list[BetaRequestMCPServerURLDefinitionParam],
         list[MessageParam],
     ]:
+        # Convert orphaned tool results to text messages before processing
+        # (handles case where native compaction summarized away tool_use blocks)
+        input = _convert_orphaned_tool_results(input)
+
         # extract system message
         system_messages, messages = split_system_messages(input)
 
@@ -1518,6 +1519,65 @@ def message_tool_choice(
 
     # return
     return tool_choice_param
+
+
+def _tool_result_to_text(msg: ChatMessageTool) -> str:
+    """Convert a tool result message to plain text."""
+    function_name = msg.function or "unknown"
+
+    # Extract text content
+    if isinstance(msg.content, str):
+        content = msg.content
+    else:
+        # Join text content from list
+        content = "\n".join(c.text for c in msg.content if isinstance(c, ContentText))
+
+    # Include error if present
+    if msg.error:
+        return (
+            f"[Tool result for {function_name} (error: {msg.error.message})]\n{content}"
+        )
+    else:
+        return f"[Tool result for {function_name}]\n{content}"
+
+
+def _convert_orphaned_tool_results(
+    messages: list[ChatMessage],
+) -> list[ChatMessage]:
+    """Convert orphaned tool results to regular user text messages.
+
+    When native compaction summarizes away tool_use blocks, subsequent tool_results
+    become "orphaned" (their tool_use_id has no match). This function detects such
+    orphans and converts them to regular user text messages so the API doesn't
+    reject them.
+
+    Args:
+        messages: List of messages to process.
+
+    Returns:
+        New list with orphaned tool results converted to user text messages.
+    """
+    # Collect all tool_use IDs from assistant messages
+    tool_use_ids: set[str] = set()
+    for msg in messages:
+        if isinstance(msg, ChatMessageAssistant) and msg.tool_calls:
+            for tc in msg.tool_calls:
+                tool_use_ids.add(tc.id)
+
+    # Process messages, converting orphaned tool results to text
+    result: list[ChatMessage] = []
+    for msg in messages:
+        if isinstance(msg, ChatMessageTool) and msg.tool_call_id:
+            if msg.tool_call_id not in tool_use_ids:
+                # Orphaned tool result - convert to user text message
+                text_content = _tool_result_to_text(msg)
+                result.append(ChatMessageUser(content=text_content))
+            else:
+                result.append(msg)
+        else:
+            result.append(msg)
+
+    return result
 
 
 async def message_param(message: ChatMessage) -> MessageParam:
@@ -2219,7 +2279,7 @@ def _compaction_from_content_data(
     if isinstance(compaction_metadata, dict):
         if compaction_metadata.get("type") == "anthropic_compact":
             compaction_content = compaction_metadata.get("content", None)
-            if isinstance(compaction_content, str) or compaction_content is None:
+            if isinstance(compaction_content, str):
                 return BetaCompactionBlockParam(
                     type="compaction", content=compaction_content
                 )
@@ -2232,6 +2292,62 @@ def _is_compaction_content(content: Content) -> bool:
     if isinstance(content, ContentData):
         return _compaction_from_content_data(content) is not None
     return False
+
+
+def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
+    """Strip reasoning blocks from a compacted assistant message.
+
+    The compaction generate call may include reasoning (thinking) blocks
+    that reflect the model's thinking about compaction, not the task itself.
+    These should be removed so they don't waste input tokens on subsequent turns.
+    """
+    if not isinstance(message.content, list):
+        return message
+    stripped = [c for c in message.content if not isinstance(c, ContentReasoning)]
+    if len(stripped) == len(message.content):
+        return message  # nothing to strip
+    return message.model_copy(update={"content": stripped})
+
+
+async def _capture_compaction_from_stream(
+    stream: AsyncMessageStream,
+) -> tuple[Message, str | None]:
+    """Consume a streaming response and capture any compaction content.
+
+    The Anthropic SDK's streaming doesn't properly accumulate compaction_delta
+    events into the final message snapshot. This function iterates through all
+    streaming events, captures any compaction_delta content, and returns the
+    final message with the compaction content properly set.
+
+    Args:
+        stream: The Anthropic AsyncMessageStream from messages.stream().
+
+    Returns:
+        A tuple of (message, compaction_content) where message is the final
+        message snapshot with compaction blocks fixed up, and compaction_content
+        is the raw content captured from compaction_delta events (or None).
+    """
+    compaction_content: str | None = None
+
+    # Iterate through all streaming events to capture compaction_delta content
+    async for event in stream:
+        if (
+            hasattr(event, "delta")
+            and getattr(event.delta, "type", None) == "compaction_delta"
+        ):
+            compaction_content = getattr(event.delta, "content", None)
+
+    # Get the final message snapshot
+    message = stream.current_message_snapshot
+
+    # Fix up compaction blocks with captured content
+    if compaction_content is not None:
+        for block in message.content:
+            if getattr(block, "type", None) == "compaction":
+                setattr(block, "content", compaction_content)
+                break
+
+    return message, compaction_content
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
