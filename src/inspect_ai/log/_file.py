@@ -1,5 +1,6 @@
 import os
 import re
+from functools import partial
 from logging import getLogger
 from pathlib import Path
 from typing import IO, Any, Callable, Generator, Literal, cast
@@ -371,14 +372,11 @@ async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     async with AsyncFilesystem() as fs:
-        return await tg_collect(
-            [
-                lambda lf=log_file: read_eval_log_async(
-                    lf, header_only=True, async_fs=fs
-                )
-                for log_file in log_files
-            ]
-        )
+
+        async def _read(lf: str | Path | EvalLogInfo) -> EvalLog:
+            return await read_eval_log_async(lf, header_only=True, async_fs=fs)
+
+        return await tg_collect([partial(_read, lf) for lf in log_files])
 
 
 def read_eval_log_sample(
