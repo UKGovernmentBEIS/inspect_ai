@@ -203,6 +203,8 @@ dev = [
   "types-python-dateutil",
   "xai_sdk",
   "uvicorn",
+  # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
+  "zipfile-zstd>=0.0.4; python_version < '3.14'",
   "zstandard>=0.20.0",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
