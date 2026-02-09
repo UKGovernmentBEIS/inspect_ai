@@ -1,9 +1,6 @@
-## Unreleased
+## 0.3.174 (09 February 2026)
 
-- OpenRouter: Retry 500 and 504 errors returned in request JSON body.
-- Scoring: Allow customisation of grouped metric names.
-- Inspect View: Show live requests and responses for model call events in the transcript.
-- Inspect View: Improve scroll performance when viewing sample transcripts and messages.
+- Compaction: Remove reasoning blocks from `compact()` result for Anthropic provider.
 
 ## 0.3.173 (08 February 2026)
 

@@ -235,7 +235,6 @@ class TestPadToolMessagesForTokenCounting:
 
 @requires_openai_api_key
 @pytest.mark.slow
-@pytest.mark.calls_llm
 class TestPerMessageTokenCounting:
     """Integration tests for per-message token counting with OpenAI."""
 
@@ -303,7 +302,6 @@ class TestPerMessageTokenCounting:
 
 @requires_openai_api_key
 @pytest.mark.slow
-@pytest.mark.calls_llm
 class TestBatchCountingSumsPerMessage:
     """Tests verifying count_tokens(list) produces similar results to summing individual counts."""
 
@@ -380,7 +378,6 @@ class TestBatchCountingSumsPerMessage:
 
 @requires_openai_api_key
 @pytest.mark.slow
-@pytest.mark.calls_llm
 class TestNativeTokenCountingFallback:
     """Tests for native token counting with fallback behavior."""
 
