@@ -7,6 +7,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event import CompactionEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model._compaction import CompactionNative
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import includes
 from inspect_ai.tool import Tool, tool
 
@@ -19,7 +20,20 @@ def test_anthropic_native_compaction_context_preservation() -> None:
 
 @skip_if_no_anthropic
 @pytest.mark.slow
+def test_anthropic_native_compaction_context_preservation_reasoning() -> None:
+    check_native_compaction_context_preservation(
+        "anthropic/claude-opus-4-6", config=GenerateConfig(reasoning_effort="medium")
+    )
+
+
+@skip_if_no_anthropic
+@pytest.mark.slow
 def test_anthropic_native_compaction_multiple_events() -> None:
+    # Note: reasoning_effort cannot be used here because Anthropic's API
+    # doesn't support tool_choice (and thus disable_parallel_tool_use) with
+    # thinking mode. The model would make all tool calls in parallel, exceeding
+    # the context window. Reasoning + compaction is tested separately in
+    # test_anthropic_native_compaction_context_preservation_reasoning.
     check_native_compaction_multiple_events("anthropic/claude-opus-4-6")
 
 
@@ -29,13 +43,17 @@ def test_openai_native_compaction_context_preservation() -> None:
     check_native_compaction_context_preservation("openai/gpt-5.2")
 
 
-@skip_if_no_anthropic
+@skip_if_no_openai
 @pytest.mark.slow
-def test_opeanai_native_compaction_multiple_events() -> None:
-    check_native_compaction_multiple_events("openai/gpt-5.2")
+def test_openai_native_compaction_multiple_events() -> None:
+    check_native_compaction_multiple_events(
+        "openai/gpt-5.2", config=GenerateConfig(reasoning_effort="medium")
+    )
 
 
-def check_native_compaction_context_preservation(model: str) -> None:
+def check_native_compaction_context_preservation(
+    model: str, config: GenerateConfig | None = None
+) -> None:
     """Verify native compaction preserves context from tool results.
 
     This test uses tool results to generate 50k+ tokens (Anthropic's minimum
@@ -62,6 +80,7 @@ def check_native_compaction_context_preservation(model: str) -> None:
             compaction=CompactionNative(threshold=56000),
         ),
         scorer=includes(),
+        config=config or GenerateConfig(),
     )
 
     # Use max_tool_output to allow larger tool results (in bytes)
@@ -128,7 +147,9 @@ def get_compaction_events(log: EvalLog) -> list[CompactionEvent]:
     return [e for e in log.samples[0].events if isinstance(e, CompactionEvent)]
 
 
-def check_native_compaction_multiple_events(model: str) -> None:
+def check_native_compaction_multiple_events(
+    model: str, config: GenerateConfig | None = None
+) -> None:
     """Verify multiple compaction events preserve context from all phases."""
     alpha_ref = "RED_OCEAN_1234"
     beta_ref = "GREEN_FOREST_5678"
@@ -153,16 +174,19 @@ def check_native_compaction_multiple_events(model: str) -> None:
         ],
         solver=react(
             tools=[large_content_with_phase_identifier()],
-            # 6 calls at ~32k each, processed in pairs = ~64k tokens per pair
-            # Threshold 56k triggers compaction after each pair (Anthropic minimum is ~56k)
+            # Each call generates ~48k tokens. With threshold=56k, compaction
+            # triggers after every 2 calls. Even if the model shortcuts to
+            # 3 calls (one per phase), we still get 2 compaction events:
+            # calls 1-2 → compaction, then compacted (~15k) + call 3 (~48k) > 56k.
             compaction=CompactionNative(threshold=56000),
         ),
         scorer=includes(),
+        config=config or GenerateConfig(),
     )
 
     # parallel_tool_calls=False ensures calls happen over multiple turns
     # so tokens accumulate and trigger compaction at the right points
-    log = eval(task, model=model, max_tool_output=200000, parallel_tool_calls=False)[0]
+    log = eval(task, model=model, max_tool_output=250000, parallel_tool_calls=False)[0]
 
     assert log.status == "success", f"Eval failed: {log.error}"
 
@@ -197,7 +221,10 @@ def large_content_with_phase_identifier() -> Tool:
             phase: Either "alpha", "beta", or "gamma" to determine which reference ID
             topic: The topic to generate content about
         """
-        filler = f"Detailed analysis of {topic}: " + ("This is context. " * 8000)
+        # Generate ~48k tokens per call (12000 repetitions × ~4 tokens each).
+        # Larger results ensure 2+ compaction events even if the model
+        # shortcuts to 3 calls (one per phase) when using reasoning.
+        filler = f"Detailed analysis of {topic}: " + ("This is context. " * 12000)
 
         if phase == "alpha":
             return f"{filler}\n\nALPHA_REF: RED_OCEAN_1234"
