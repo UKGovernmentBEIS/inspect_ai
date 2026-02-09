@@ -5,6 +5,16 @@
 - Inspect View: Show live requests and responses for model call events in the transcript.
 - Inspect View: Improve scroll performance when viewing sample transcripts and messages.
 
+## 0.3.174 (09 February 2026)
+
+- Compaction: Remove reasoning blocks from `compact()` result for Anthropic provider.
+
+## 0.3.173 (08 February 2026)
+
+- Compaction: Correct capture of compaction results for Anthropic streaming mode.
+- Compaction: Improved prefix handling (drop all by system messages) for native compaction.
+- Compaction: Improved display of OpenAI and Anthropic compaction data in the viewer.
+
 ## 0.3.172 (06 February 2026)
 
 - Inspect View: Fix a regression which affected the display of samples within VSCode.

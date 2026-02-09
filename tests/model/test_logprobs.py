@@ -69,7 +69,7 @@ async def test_together_logprobs() -> None:
     )
 
 
-@pytest.mark.asynio
+@pytest.mark.asyncio
 @skip_if_no_together
 async def test_together_logprobs_openai_format() -> None:
     response = await generate_with_logprobs("together/openai/gpt-oss-20b")
