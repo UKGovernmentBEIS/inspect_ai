@@ -32,18 +32,6 @@ class ModelPricingConfig(BaseModel):
     """Pricing for each model, keyed by model name."""
 
 
-def _optional_int_sum(a: int | None, b: int | None) -> int | None:
-    if a is not None and b is not None:
-        return a + b
-    return a if a is not None else b
-
-
-def _optional_float_sum(a: float | None, b: float | None) -> float | None:
-    if a is not None and b is not None:
-        return a + b
-    return a if a is not None else b
-
-
 class ModelUsage(BaseModel):
     """Token usage for completion."""
 
@@ -69,20 +57,31 @@ class ModelUsage(BaseModel):
     """Total cost in dollars for this usage."""
 
     def __add__(self, other: "ModelUsage") -> "ModelUsage":
+        def optional_sum(
+            a: int | float | None, b: int | float | None
+        ) -> int | float | None:
+            if a is not None and b is not None:
+                return a + b
+            if a is not None:
+                return a
+            if b is not None:
+                return b
+            return None
+
         return ModelUsage(
             input_tokens=self.input_tokens + other.input_tokens,
             output_tokens=self.output_tokens + other.output_tokens,
             total_tokens=self.total_tokens + other.total_tokens,
-            input_tokens_cache_write=_optional_int_sum(
+            input_tokens_cache_write=optional_sum(
                 self.input_tokens_cache_write, other.input_tokens_cache_write
             ),
-            input_tokens_cache_read=_optional_int_sum(
+            input_tokens_cache_read=optional_sum(
                 self.input_tokens_cache_read, other.input_tokens_cache_read
             ),
-            reasoning_tokens=_optional_int_sum(
+            reasoning_tokens=optional_sum(
                 self.reasoning_tokens, other.reasoning_tokens
             ),
-            total_cost=_optional_float_sum(self.total_cost, other.total_cost),
+            total_cost=optional_sum(self.total_cost, other.total_cost),
         )
 
 
