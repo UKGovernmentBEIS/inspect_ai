@@ -234,7 +234,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     suffix_length,
                 )
         else:
-            file_size = stat(_local_path(filename)).st_size
+            file_size = filesystem(filename).info(filename).size
             start = max(0, file_size - suffix_length)
             data = await self.read_file_bytes_fully(filename, start, file_size)
             return SuffixResult(data, file_size)
