@@ -221,7 +221,8 @@ The `cost_limit` requires a model pricing configuration to be provided via `--mo
 
 Cost tracking requires a YAML or JSON pricing configuration that specifies the price (in dollars per million tokens) for each model present in the eval or eval set. 
 
-Each model in the eval or eval set needs a price set for each ModelUsage field. 
+Each model in the eval or eval set needs a price set for `input`, `output`, `input_cache_write`, and `input_cache_read`. Prices should be given in dollars per million tokens. Set unused fields to `0`.
+
 Below is an example model-pricing-config file given in YAML: 
 
 ``` yaml
@@ -230,20 +231,18 @@ openai/gpt-4o:
     output: 10.00
     input_cache_write: 0
     input_cache_read: 1.25
-    reasoning: 0
 anthropic/claude-sonnet-4-5-20250514:
     input: 3.00
     output: 15.00
     input_cache_write: 3.75
     input_cache_read: 0.30
-    reasoning: 0
 ```
 
-All prices are in dollars per million tokens. Set unused fields to `0`.
+(As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)
 
 When a model pricing config is provided for an eval (e.g. using `--model-pricing-config`) costs will be tracked for the sample as a whole, as well as any events within the sample that have a ModelUsage field.
 
-When a model pricing config is present, cost limits can be set on samples:
+Additionally, providing a model pricing config allows setting sample cost limits:
 
 ``` bash
 inspect eval ctf.py --model-pricing-config pricing.yaml --cost-limit 2.00

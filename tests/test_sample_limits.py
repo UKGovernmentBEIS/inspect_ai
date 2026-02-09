@@ -379,7 +379,6 @@ def test_cost_limit() -> None:
                 output=1000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
-                reasoning=0.0,
             )
         }
     )
@@ -428,7 +427,6 @@ def test_model_not_in_pricing_config_errors() -> None:
                 output=1.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
-                reasoning=0.0,
             )
         }
     )
@@ -455,7 +453,6 @@ def test_pricing_config_without_cost_limit_tracks_cost() -> None:
                 output=1000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
-                reasoning=0.0,
             )
         }
     )
@@ -487,14 +484,12 @@ def test_two_models_both_in_pricing_config_tracks_cost() -> None:
                 output=1000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
-                reasoning=0.0,
             ),
             "mockllm/model2": ModelPricing(
                 input=2000.0,
                 output=2000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
-                reasoning=0.0,
             ),
         }
     )

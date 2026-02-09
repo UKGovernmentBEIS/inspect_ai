@@ -73,7 +73,6 @@ def test_compute_model_cost_basic() -> None:
                 output=2000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
-                reasoning=0.0,
             )
         }
     )
@@ -81,30 +80,6 @@ def test_compute_model_cost_basic() -> None:
 
     # (3 * 1000 + 4 * 2000) / 1_000_000 = 0.011
     assert compute_model_cost("model", usage, config) == 0.011
-
-
-def test_compute_model_cost_with_reasoning_tokens() -> None:
-    config = ModelPricingConfig(
-        prices={
-            "model": ModelPricing(
-                input=1000.0,
-                output=2000.0,
-                input_cache_write=0.0,
-                input_cache_read=0.0,
-                reasoning=5000.0,
-            )
-        }
-    )
-    # output_tokens includes reasoning_tokens (provider convention)
-    usage = ModelUsage(
-        input_tokens=10, output_tokens=20, total_tokens=30, reasoning_tokens=8
-    )
-
-    # input:     10 * 1000 / 1M = 0.01
-    # reasoning:  8 * 5000 / 1M = 0.04
-    # output:    12 * 2000 / 1M = 0.024   (20 - 8 = 12 non-reasoning output)
-    # total: 0.074
-    assert math.isclose(compute_model_cost("model", usage, config), 0.074)
 
 
 def test_compute_model_cost_with_cache_tokens() -> None:
@@ -115,7 +90,6 @@ def test_compute_model_cost_with_cache_tokens() -> None:
                 output=2000.0,
                 input_cache_write=1500.0,
                 input_cache_read=100.0,
-                reasoning=0.0,
             )
         }
     )
@@ -141,7 +115,6 @@ def test_compute_model_cost_with_all_token_types() -> None:
             "model": ModelPricing(
                 input=1000.0,
                 output=2000.0,
-                reasoning=5000.0,
                 input_cache_write=1500.0,
                 input_cache_read=100.0,
             )
@@ -157,9 +130,8 @@ def test_compute_model_cost_with_all_token_types() -> None:
     )
 
     # input:       10 * 1000 / 1M = 0.01
-    # reasoning:    8 * 5000 / 1M = 0.04
-    # output:      12 * 2000 / 1M = 0.024
+    # output:      20 * 2000 / 1M = 0.04  (includes reasoning tokens)
     # cache_write: 20 * 1500 / 1M = 0.03
     # cache_read:  30 *  100 / 1M = 0.003
-    # total: 0.107
-    assert math.isclose(compute_model_cost("model", usage, config), 0.107)
+    # total: 0.083
+    assert math.isclose(compute_model_cost("model", usage, config), 0.083)

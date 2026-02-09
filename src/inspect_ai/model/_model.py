@@ -1946,22 +1946,15 @@ def compute_model_cost(
     """
     pricing = config.prices[model]
 
-    # output_tokens INCLUDES reasoning_tokens across all providers.
-    # If reasoning_tokens exist, charge them at the reasoning rate
-    # and subtract from output.
     output_for_pricing = usage.output_tokens
     cost = usage.input_tokens * pricing.input / 1_000_000
-
-    if pricing.reasoning and usage.reasoning_tokens:
-        output_for_pricing -= usage.reasoning_tokens
-        cost += usage.reasoning_tokens * pricing.reasoning / 1_000_000
-
+    # output_tokens INCLUDES reasoning_tokens across current providers. 
     cost += output_for_pricing * pricing.output / 1_000_000
 
-    if usage.input_tokens_cache_write and pricing.input_cache_write:
+    if usage.input_tokens_cache_write is not None:
         cost += usage.input_tokens_cache_write * pricing.input_cache_write / 1_000_000
 
-    if usage.input_tokens_cache_read and pricing.input_cache_read:
+    if usage.input_tokens_cache_read is not None:
         cost += usage.input_tokens_cache_read * pricing.input_cache_read / 1_000_000
 
     return cost

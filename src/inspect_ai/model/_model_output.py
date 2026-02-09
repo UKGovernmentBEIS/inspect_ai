@@ -24,9 +24,6 @@ class ModelPricing(BaseModel):
     input_cache_read: float
     """Price per million input tokens read from cache."""
 
-    reasoning: float
-    """Price per million reasoning tokens."""
-
 
 class ModelPricingConfig(BaseModel):
     """Model pricing configuration."""
