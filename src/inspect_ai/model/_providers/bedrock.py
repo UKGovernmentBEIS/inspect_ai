@@ -16,6 +16,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -30,7 +31,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
@@ -442,14 +443,11 @@ class BedrockAPI(ModelAPI):
                 toolConfig=tool_config,
             )
 
-            def model_call(response: dict[str, Any] = {}) -> ModelCall:
-                return ModelCall.create(
-                    request=replace_bytes_with_placeholder(
-                        request.model_dump(exclude_none=True)
-                    ),
-                    response=response,
-                    time=self._http_hooks.end_request(request_id),
-                )
+            model_call = set_active_model_event_call(
+                request=replace_bytes_with_placeholder(
+                    request.model_dump(exclude_none=True)
+                ),
+            )
 
             try:
                 # Process the reponse
@@ -458,18 +456,29 @@ class BedrockAPI(ModelAPI):
                 )
                 converse_response = ConverseResponse(**response)
 
+                model_call.set_response(
+                    response, self._http_hooks.end_request(request_id)
+                )
+
             except ClientError as ex:
+                model_call.set_response(
+                    as_error_response(ex.response),
+                    self._http_hooks.end_request(request_id),
+                )
                 # Look for an explicit validation exception
                 if ex.response["Error"]["Code"] == "ValidationException":
                     response = ex.response["Error"]["Message"].lower()
                     if "too many input tokens" in response or "is too long" in response:
-                        return ModelOutput.from_content(
-                            model=self.model_name,
-                            content=response,
-                            stop_reason="model_length",
+                        return (
+                            ModelOutput.from_content(
+                                model=self.model_name,
+                                content=response,
+                                stop_reason="model_length",
+                            ),
+                            model_call,
                         )
                     else:
-                        return ex, model_call()
+                        return ex, model_call
                 else:
                     raise ex
 
@@ -477,7 +486,7 @@ class BedrockAPI(ModelAPI):
         output = model_output_from_response(self.model_name, converse_response, tools)
 
         # return
-        return output, model_call(response)
+        return output, model_call
 
     def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
         if self.is_gpt_oss():

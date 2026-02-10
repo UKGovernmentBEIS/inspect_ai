@@ -14,6 +14,7 @@ from openai.types.chat import (
 from shortuuid import uuid
 from typing_extensions import override
 
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -25,7 +26,7 @@ from inspect_ai.model import (
 from inspect_ai.tool import ToolCall, ToolInfo
 
 from .._call_tools import parse_tool_call, tool_parse_error_message
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelUsage, StopReason, as_stop_reason
 from .._providers.util import ChatAPIHandler, ChatAPIMessage, chat_api_input
 
@@ -48,19 +49,17 @@ async def generate_o1(
         messages=chat_messages(input, tools, handler),
         **params,
     )
-    response: dict[str, Any] = {}
 
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-        )
+    model_call = set_active_model_event_call(
+        request=request,
+    )
 
     try:
         completion: ChatCompletion = await client.chat.completions.create(**request)
-        response = completion.model_dump()
+        model_call.set_response(completion.model_dump())
     except BadRequestError as ex:
-        return handle_bad_request(model, ex), model_call()
+        model_call.set_response(as_error_response(ex.body))
+        return handle_bad_request(model, ex), model_call
 
     # return model output
     return ModelOutput(
@@ -83,7 +82,7 @@ async def generate_o1(
         )
         if completion.usage
         else None,
-    ), model_call()
+    ), model_call
 
 
 def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput | Exception:

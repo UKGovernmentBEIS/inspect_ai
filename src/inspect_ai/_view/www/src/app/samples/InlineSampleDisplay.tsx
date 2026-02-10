@@ -4,9 +4,10 @@ import { SampleDisplay } from "./SampleDisplay";
 
 import clsx from "clsx";
 import { ActivityBar } from "../../components/ActivityBar";
+import { StickyScrollProvider } from "../../components/StickyScrollContext";
 import { useSampleData } from "../../state/hooks";
-import { useSampleLoader } from "../../state/useSampleLoader";
-import { useSamplePolling } from "../../state/useSamplePolling";
+import { useLoadSample } from "../../state/useLoadSample";
+import { usePollSample } from "../../state/usePollSample";
 import styles from "./InlineSampleDisplay.module.css";
 
 interface InlineSampleDisplayProps {
@@ -21,12 +22,19 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   showActivity,
   className,
 }) => {
-  // Sample hooks
-  const sampleData = useSampleData();
-
   // Use shared hooks for loading and polling
-  useSampleLoader();
-  useSamplePolling();
+  useLoadSample();
+  usePollSample();
+  return (
+    <InlineSampleComponent showActivity={showActivity} className={className} />
+  );
+};
+
+export const InlineSampleComponent: FC<InlineSampleDisplayProps> = ({
+  showActivity,
+  className,
+}) => {
+  const sampleData = useSampleData();
 
   // Scroll ref
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -40,16 +48,21 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
         />
       )}
       <div className={clsx(styles.scroller)} ref={scrollRef}>
-        <div className={styles.body}>
-          {sampleData.error ? (
-            <ErrorPanel
-              title="Unable to load sample"
-              error={sampleData.error}
-            />
-          ) : (
-            <SampleDisplay id={"inline-sample-display"} scrollRef={scrollRef} />
-          )}
-        </div>
+        <StickyScrollProvider value={scrollRef}>
+          <div className={styles.body}>
+            {sampleData.error ? (
+              <ErrorPanel
+                title="Unable to load sample"
+                error={sampleData.error}
+              />
+            ) : (
+              <SampleDisplay
+                id={"inline-sample-display"}
+                scrollRef={scrollRef}
+              />
+            )}
+          </div>
+        </StickyScrollProvider>
       </div>
     </div>
   );

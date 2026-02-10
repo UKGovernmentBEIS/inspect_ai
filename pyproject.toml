@@ -157,7 +157,7 @@ dev = [
   "azure-ai-inference",
   "fastapi",
   "google-genai",
-  "griffe",
+  "griffe<=1.14.0",
   "groq",
   "huggingface_hub>=1.0.0",
   "inspect_scout",
@@ -184,7 +184,7 @@ dev = [
   "pytest-watcher",
   "pytest-xdist",
   "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
-  "together<2.0.0",        # version-capped since 2.0.0 have breaking changes
+  "together>=2.0.0",
   "textual-dev>=0.86.2",
   "trio",
   "pandas-stubs",
@@ -210,7 +210,7 @@ doc = [
   "jupyter",
   "panflute",
   "markdown",
-  "griffe",
+  "griffe<=1.14.0",
   "click>=8.2.0",
 ]
 dist = ["twine", "build"]

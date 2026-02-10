@@ -80,7 +80,6 @@ function buildColumnDefs(
   selectedScores: ScoreLabel[],
   scores: ScoreLabel[],
   epochs: number,
-  showingSampleDialog: boolean,
 ): ColDef<ListItem>[] {
   const shape = samplesDescriptor?.messageShape;
   const normalized = shape?.normalized;
@@ -145,7 +144,7 @@ function buildColumnDefs(
               styles.cell,
             )}
           >
-            {!showingSampleDialog ? params.data.data.id : undefined}
+            {params.data.data.id}
           </div>
         );
       },
@@ -169,7 +168,7 @@ function buildColumnDefs(
               styles.centered,
             )}
           >
-            {!showingSampleDialog ? params.data.sampleEpoch : undefined}
+            {params.data.sampleEpoch}
           </div>
         );
       },
@@ -200,13 +199,11 @@ function buildColumnDefs(
               styles.wrapAnywhere,
             )}
           >
-            {!showingSampleDialog ? (
-              <RenderedText
-                markdown={markdown}
-                forceRender={true}
-                omitMedia={true}
-              />
-            ) : undefined}
+            <RenderedText
+              markdown={markdown}
+              forceRender={true}
+              omitMedia={true}
+            />
           </div>
         );
       },
@@ -238,14 +235,12 @@ function buildColumnDefs(
               styles.cell,
             )}
           >
-            {!showingSampleDialog ? (
-              <RenderedText
-                markdown={markdown}
-                className={clsx("no-last-para-padding", styles.noLeft)}
-                forceRender={true}
-                omitMedia={true}
-              />
-            ) : undefined}
+            <RenderedText
+              markdown={markdown}
+              className={clsx("no-last-para-padding", styles.noLeft)}
+              forceRender={true}
+              omitMedia={true}
+            />
           </div>
         );
       },
@@ -269,16 +264,12 @@ function buildColumnDefs(
               styles.cell,
             )}
           >
-            {!showingSampleDialog ? (
-              <RenderedText
-                markdown={markdown}
-                className={clsx("no-last-para-padding", styles.noLeft)}
-                forceRender={true}
-                omitMedia={true}
-              />
-            ) : (
-              ""
-            )}
+            <RenderedText
+              markdown={markdown}
+              className={clsx("no-last-para-padding", styles.noLeft)}
+              forceRender={true}
+              omitMedia={true}
+            />
           </div>
         );
       },
@@ -302,7 +293,7 @@ function buildColumnDefs(
               styles.cell,
             )}
           >
-            {!showingSampleDialog ? params.data.data.limit : undefined}
+            {params.data.data.limit}
           </div>
         );
       },
@@ -329,9 +320,7 @@ function buildColumnDefs(
               styles.centered,
             )}
           >
-            {!showingSampleDialog && data.retries && data.retries > 0
-              ? data.retries
-              : undefined}
+            {data.retries && data.retries > 0 ? data.retries : undefined}
           </div>
         );
       },
@@ -357,7 +346,7 @@ function buildColumnDefs(
         const { data, completed, scoresRendered } = params.data;
         const renderedScores = scoresRendered ?? [];
 
-        if (!showingSampleDialog && data.error) {
+        if (data.error) {
           return (
             <div className={clsx("text-size-small", styles.cell, styles.score)}>
               <SampleErrorView message={data.error} />
@@ -414,7 +403,6 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   );
 
   const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
-  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
   const evalSpec = selectedLogDetails?.eval;
   const epochs = evalSpec?.config?.epochs || 1;
   const { setDocumentTitle } = useDocumentTitle();
@@ -529,18 +517,9 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   const selectedScores = useSelectedScores();
   const scores = useScores();
   const samplesDescriptor = useSampleDescriptor();
-  // showingSampleDialog is included so cells render empty while the dialog is open,
-  // preserving scroll position and selection state without unnecessary DOM content.
   const columnDefs = useMemo(
-    () =>
-      buildColumnDefs(
-        samplesDescriptor,
-        selectedScores,
-        scores,
-        epochs,
-        showingSampleDialog,
-      ),
-    [samplesDescriptor, selectedScores, scores, epochs, showingSampleDialog],
+    () => buildColumnDefs(samplesDescriptor, selectedScores, scores, epochs),
+    [samplesDescriptor, selectedScores, scores, epochs],
   );
 
   const getRowId = useCallback((params: { data: ListItem }) => {

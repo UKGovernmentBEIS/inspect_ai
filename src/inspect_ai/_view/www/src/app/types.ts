@@ -40,7 +40,6 @@ export interface AppState {
     sample: string;
   };
   dialogs: {
-    sample: boolean;
     transcriptFilter: boolean;
     options: boolean;
   };

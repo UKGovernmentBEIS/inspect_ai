@@ -72,6 +72,7 @@ from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -325,19 +326,16 @@ class GoogleGenAIAPI(ModelAPI):
                     config.response_schema.json_schema.model_dump(exclude_none=True)
                 )
 
-            response: GenerateContentResponse | None = None
+            model_call = start_model_call(
+                contents=gemini_contents,  # type: ignore[arg-type]
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
+                system_instruction=system_instruction,
+            )
 
-            def model_call() -> ModelCall:
-                return build_model_call(
-                    contents=gemini_contents,  # type: ignore[arg-type]
-                    safety_settings=self.safety_settings,
-                    generation_config=parameters,
-                    tools=gemini_tools,
-                    tool_config=gemini_tool_config,
-                    system_instruction=system_instruction,
-                    response=response,
-                    time=http_hooks.end_request(request_id),
-                )
+            response: GenerateContentResponse | None = None
 
             try:
                 # google sometimes requires retries for malformed function calls
@@ -389,9 +387,16 @@ class GoogleGenAIAPI(ModelAPI):
                     else:
                         break
             except ClientError as ex:
-                return self.handle_client_error(ex), model_call()
+                model_call.set_response(
+                    {"error": {"message": str(ex.message), "code": ex.code}},
+                    http_hooks.end_request(request_id),
+                )
+                return self.handle_client_error(ex), model_call
 
             assert response is not None  # mypy confused by retry loop
+
+            model_call.set_response(response, http_hooks.end_request(request_id))
+
             model_name = response.model_version or self.service_model_name()
             output = ModelOutput(
                 model=model_name,
@@ -399,7 +404,7 @@ class GoogleGenAIAPI(ModelAPI):
                 usage=usage_metadata_to_model_usage(response.usage_metadata),
             )
 
-            return output, model_call()
+            return output, model_call
 
     async def _stream_generate_content(
         self,
@@ -555,7 +560,11 @@ class GoogleGenAIAPI(ModelAPI):
         )
 
     @override
-    async def count_tokens(self, input: str | list[ChatMessage]) -> int:
+    async def count_tokens(
+        self,
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
         client = self.model_client()
         async with client.aio:
             # normalize to messages
@@ -582,7 +591,7 @@ class GoogleGenAIAPI(ModelAPI):
                 return response.total_tokens
             else:
                 logger.warning("Gemini token count returned None")
-                return await super().count_tokens(input)
+                return await super().count_tokens(input, config)
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -874,17 +883,15 @@ def safety_settings_to_list(
     return settings
 
 
-def build_model_call(
+def start_model_call(
     contents: ContentListUnion | ContentListUnionDict,
     generation_config: GenerateContentConfig,
     safety_settings: list[SafetySettingDict],
     tools: ToolListUnion | None,
     tool_config: ToolConfig | None,
     system_instruction: list[File | Part | Image | str] | None,
-    response: GenerateContentResponse | None,
-    time: float | None,
 ) -> ModelCall:
-    return ModelCall.create(
+    return set_active_model_event_call(
         request=dict(
             contents=contents,
             # the excluded fields are passed to the Python API as part of
@@ -903,9 +910,7 @@ def build_model_call(
             tool_config=tool_config if tool_config is not None else None,
             system_instruction=system_instruction,
         ),
-        response=response if response is not None else {},
         filter=model_call_filter,
-        time=time,
     )
 
 

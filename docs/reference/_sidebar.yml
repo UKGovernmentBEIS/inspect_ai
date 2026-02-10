@@ -364,6 +364,10 @@ website:
           href: reference/inspect_ai.model.qmd#compact
         - text: CompactionStrategy
           href: reference/inspect_ai.model.qmd#compactionstrategy
+        - text: CompactionAuto
+          href: reference/inspect_ai.model.qmd#compactionauto
+        - text: CompactionNative
+          href: reference/inspect_ai.model.qmd#compactionnative
         - text: CompactionEdit
           href: reference/inspect_ai.model.qmd#compactionedit
         - text: CompactionSummary
@@ -674,6 +678,10 @@ website:
           href: reference/inspect_ai.util.qmd#store_as
         - text: StoreModel
           href: reference/inspect_ai.util.qmd#storemodel
+        - text: store_from_events
+          href: reference/inspect_ai.util.qmd#store_from_events
+        - text: store_from_events_as
+          href: reference/inspect_ai.util.qmd#store_from_events_as
         - text: message_limit
           href: reference/inspect_ai.util.qmd#message_limit
         - text: token_limit

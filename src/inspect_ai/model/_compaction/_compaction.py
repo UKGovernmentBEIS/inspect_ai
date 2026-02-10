@@ -126,6 +126,7 @@ def compaction(
             c_input, c_message = await _perform_compaction(
                 strategy=strategy,
                 messages=target_messages,
+                tools=tools_info,
                 model=target_model,
                 threshold=threshold,
                 tool_tokens=tool_tokens,
@@ -141,9 +142,15 @@ def compaction(
             if c_message is not None:
                 processed_message_ids.add(message_id(c_message))
 
-            # ensure we preserve the prefix (could have been wiped out by a summarization)
-            input_ids = {message_id(m) for m in c_input}
-            prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
+            # Preserve prefix messages based on strategy type
+            if strategy.preserve_prefix:
+                # Non-native strategies: prepend any prefix messages not in output
+                input_ids = {message_id(m) for m in c_input}
+                prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
+            else:
+                # Native compaction: only prepend system messages
+                # (user content is preserved by provider or in compaction block)
+                prepend_prefix = [m for m in prefix if m.role == "system"]
             c_input = prepend_prefix + c_input
 
             # update input
@@ -203,6 +210,7 @@ DEFAULT_CONTEXT_WINDOW = 128_000
 async def _perform_compaction(
     strategy: CompactionStrategy,
     messages: list[ChatMessage],
+    tools: list[ToolInfo],
     model: Model,
     threshold: int,
     tool_tokens: int,
@@ -213,6 +221,7 @@ async def _perform_compaction(
     Args:
         strategy: Compaction strategy to use.
         messages: Messages to compact.
+        tools: Available tools
         model: Target model for compaction.
         threshold: Token threshold to stay under.
         tool_tokens: Token count for tool definitions.
@@ -225,7 +234,7 @@ async def _perform_compaction(
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
     MAX_ITERATIONS = 3
-    c_input, c_message = await strategy.compact(messages, model)
+    c_input, c_message = await strategy.compact(model, messages, tools)
     compacted_tokens = await model.count_tokens(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
@@ -236,7 +245,7 @@ async def _perform_compaction(
         prev_tokens = compacted_tokens
 
         # Try compacting again
-        c_input, c_message = await strategy.compact(list(c_input), model)
+        c_input, c_message = await strategy.compact(model, list(c_input), tools)
         compacted_tokens = await model.count_tokens(c_input)
         total_compacted = tool_tokens + compacted_tokens
 
@@ -271,10 +280,10 @@ def _resolve_threshold(model: Model, threshold: int | float) -> int:
     if isinstance(threshold, int) or threshold > 1.0:
         return int(threshold)
     else:
-        # Look up the model's context window
+        # Look up the model's input token capacity
         info = get_model_info(model)
-        if info and info.context_length:
-            context_window = info.context_length
+        if info and info.input_tokens:
+            context_window = info.input_tokens
         else:
             logger.warning(
                 f"Unable to determine context window for {model} (falling back to default of {DEFAULT_CONTEXT_WINDOW})"

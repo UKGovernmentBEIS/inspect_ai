@@ -61,9 +61,12 @@ title: "inspect_ai.model"
 ### compaction
 ### Compact
 ### CompactionStrategy
+### CompactionAuto
+### CompactionNative
 ### CompactionEdit
 ### CompactionSummary
 ### CompactionTrim
+
 
 ## Model Info
 

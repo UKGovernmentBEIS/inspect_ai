@@ -57,7 +57,7 @@ export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type Verbosity = ("low" | "medium" | "high") | null;
-export type Effort = ("low" | "medium" | "high") | null;
+export type Effort = ("low" | "medium" | "high" | "max") | null;
 export type ReasoningEffort =
   | ("none" | "minimal" | "low" | "medium" | "high" | "xhigh")
   | null;
@@ -579,6 +579,9 @@ export type Error2 = string | null;
 export type Traceback1 = string | null;
 export type TracebackAnsi1 = string | null;
 export type Cache1 = ("read" | "write") | null;
+export type Response = {
+  [k: string]: JsonValue;
+} | null;
 export type Time1 = number | null;
 export type Completed1 = string | null;
 export type WorkingTime = number | null;
@@ -1736,9 +1739,6 @@ export interface ModelCall {
   time: Time1;
 }
 export interface Request {
-  [k: string]: JsonValue;
-}
-export interface Response {
   [k: string]: JsonValue;
 }
 /**
