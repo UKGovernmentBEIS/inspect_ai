@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Analysis: Async reading of logs/samples in `samples_df()`. Improves reading summary samples from ~114 minutes to ~15 seconds for ~600 files. 
 - Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
 
 ## 0.3.175 (10 February 2026)
