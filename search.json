@@ -2293,53 +2293,53 @@
     "href": "CHANGELOG.html",
     "title": "Inspect",
     "section": "",
-    "text": "OpenRouter: Retry 500 and 504 errors returned in request JSON body.\nScoring: Allow customisation of grouped metric names.\nInspect View: Show live requests and responses for model call events in the transcript.\nInspect View: Improve scroll performance when viewing sample transcripts and messages."
-  },
-  {
-    "objectID": "CHANGELOG.html#unreleased",
-    "href": "CHANGELOG.html#unreleased",
-    "title": "Inspect",
-    "section": "",
-    "text": "OpenRouter: Retry 500 and 504 errors returned in request JSON body.\nScoring: Allow customisation of grouped metric names.\nInspect View: Show live requests and responses for model call events in the transcript.\nInspect View: Improve scroll performance when viewing sample transcripts and messages."
+    "text": "OpenRouter: Retry 500 and 504 errors returned in request JSON body.\nScoring: Allow customisation of grouped metric names.\nModel API: Don’t strictly require OpenAI and Anthropic versions when they aren’t in use.\nInspect View: Show live requests and responses for model call events in the transcript.\nInspect View: Improve scroll performance when viewing sample transcripts and messages."
   },
   {
     "objectID": "CHANGELOG.html#february-2026",
     "href": "CHANGELOG.html#february-2026",
     "title": "Inspect",
-    "section": "0.3.174 (09 February 2026)",
-    "text": "0.3.174 (09 February 2026)\n\nCompaction: Remove reasoning blocks from compact() result for Anthropic provider."
+    "section": "",
+    "text": "OpenRouter: Retry 500 and 504 errors returned in request JSON body.\nScoring: Allow customisation of grouped metric names.\nModel API: Don’t strictly require OpenAI and Anthropic versions when they aren’t in use.\nInspect View: Show live requests and responses for model call events in the transcript.\nInspect View: Improve scroll performance when viewing sample transcripts and messages."
   },
   {
     "objectID": "CHANGELOG.html#february-2026-1",
     "href": "CHANGELOG.html#february-2026-1",
     "title": "Inspect",
-    "section": "0.3.173 (08 February 2026)",
-    "text": "0.3.173 (08 February 2026)\n\nCompaction: Correct capture of compaction results for Anthropic streaming mode.\nCompaction: Improved prefix handling (drop all by system messages) for native compaction.\nCompaction: Improved display of OpenAI and Anthropic compaction data in the viewer."
+    "section": "0.3.174 (09 February 2026)",
+    "text": "0.3.174 (09 February 2026)\n\nCompaction: Remove reasoning blocks from compact() result for Anthropic provider."
   },
   {
     "objectID": "CHANGELOG.html#february-2026-2",
     "href": "CHANGELOG.html#february-2026-2",
     "title": "Inspect",
-    "section": "0.3.172 (06 February 2026)",
-    "text": "0.3.172 (06 February 2026)\n\nInspect View: Fix a regression which affected the display of samples within VSCode."
+    "section": "0.3.173 (08 February 2026)",
+    "text": "0.3.173 (08 February 2026)\n\nCompaction: Correct capture of compaction results for Anthropic streaming mode.\nCompaction: Improved prefix handling (drop all by system messages) for native compaction.\nCompaction: Improved display of OpenAI and Anthropic compaction data in the viewer."
   },
   {
     "objectID": "CHANGELOG.html#february-2026-3",
     "href": "CHANGELOG.html#february-2026-3",
     "title": "Inspect",
-    "section": "0.3.171 (06 February 2026)",
-    "text": "0.3.171 (06 February 2026)\n\nCompaction: New CompactionNative strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).\nCompaction: New CompactionAuto strategy which uses CompactionNative if possible and falls back to CompactionSummary.\nstore_from_events() and store_from_events_as() functions for reconstructing the store from a list of events.\nOpenAI: Updated to 2.17.0 of openai package to get correct types for web search ActionFind.\nAnthropic: Built-in tool (e.g. web search, code execution) compatibility for Claude 4.6.\nAnthropic: Support --reasoning-effort (via adaptive thinking) and --effort=max option for Claude 4.6.\nAdded extra_headers to GenerateConfig for sending extra HTTP headers along with provider requests.\nTogether Batch API: Update to version 2.0.0 of together package.\nInspect View: Add sticky headers for transcript events and show turn number to improve “where am I” UX.\nInspect View: Show errors in model call events in the transcript.\nInspect View: Show tracebacks in model call events in the transcript.\nInspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.\nInspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.\nInspect View: Fix issue where a large number of logs could result in laggy or hung viewer in VSCode.\nBugfix: handoff() now respects react() name parameter when creating the transfer_to_X tool name.\nBugfix: Correctly handle optional content field in Anthropic agent bridge tool_result."
+    "section": "0.3.172 (06 February 2026)",
+    "text": "0.3.172 (06 February 2026)\n\nInspect View: Fix a regression which affected the display of samples within VSCode."
   },
   {
     "objectID": "CHANGELOG.html#february-2026-4",
     "href": "CHANGELOG.html#february-2026-4",
     "title": "Inspect",
-    "section": "0.3.170 (03 February 2026)",
-    "text": "0.3.170 (03 February 2026)\n\nAdded stable_message_ids() function for yielding stable ids based on model content (but always unique within a given conversation).\nModel API: Added CompactionEvent for model compactions.\nSandboxes: Enable sandbox providers to declare Docker compatibility, which will result in Docker config files being passed to them.\nDocker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).\nInspect View: Improve reliability of code syntax highlighting in messages and events.\nInspect View: Support zstd compression of eval log file contents.\nInspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.\nInspect View: Render &lt;think&gt; tags when included in user messages.\nBugfix: Correct handling for --reasoning-history CLI argument (don’t parse as boolean).\nBugfix: Submit to human_cli() with no answer now correctly completes task."
+    "section": "0.3.171 (06 February 2026)",
+    "text": "0.3.171 (06 February 2026)\n\nCompaction: New CompactionNative strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).\nCompaction: New CompactionAuto strategy which uses CompactionNative if possible and falls back to CompactionSummary.\nstore_from_events() and store_from_events_as() functions for reconstructing the store from a list of events.\nOpenAI: Updated to 2.17.0 of openai package to get correct types for web search ActionFind.\nAnthropic: Built-in tool (e.g. web search, code execution) compatibility for Claude 4.6.\nAnthropic: Support --reasoning-effort (via adaptive thinking) and --effort=max option for Claude 4.6.\nAdded extra_headers to GenerateConfig for sending extra HTTP headers along with provider requests.\nTogether Batch API: Update to version 2.0.0 of together package.\nInspect View: Add sticky headers for transcript events and show turn number to improve “where am I” UX.\nInspect View: Show errors in model call events in the transcript.\nInspect View: Show tracebacks in model call events in the transcript.\nInspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.\nInspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.\nInspect View: Fix issue where a large number of logs could result in laggy or hung viewer in VSCode.\nBugfix: handoff() now respects react() name parameter when creating the transfer_to_X tool name.\nBugfix: Correctly handle optional content field in Anthropic agent bridge tool_result."
   },
   {
     "objectID": "CHANGELOG.html#february-2026-5",
     "href": "CHANGELOG.html#february-2026-5",
+    "title": "Inspect",
+    "section": "0.3.170 (03 February 2026)",
+    "text": "0.3.170 (03 February 2026)\n\nAdded stable_message_ids() function for yielding stable ids based on model content (but always unique within a given conversation).\nModel API: Added CompactionEvent for model compactions.\nSandboxes: Enable sandbox providers to declare Docker compatibility, which will result in Docker config files being passed to them.\nDocker Sandbox: Store auto-compose files in centralized project-keyed location (rather than alongside tasks).\nInspect View: Improve reliability of code syntax highlighting in messages and events.\nInspect View: Support zstd compression of eval log file contents.\nInspect View: Fix issue where viewing sample events could result in flashing and scroll oscillation.\nInspect View: Render &lt;think&gt; tags when included in user messages.\nBugfix: Correct handling for --reasoning-history CLI argument (don’t parse as boolean).\nBugfix: Submit to human_cli() with no answer now correctly completes task."
+  },
+  {
+    "objectID": "CHANGELOG.html#february-2026-6",
+    "href": "CHANGELOG.html#february-2026-6",
     "title": "Inspect",
     "section": "0.3.169 (01 February 2026)",
     "text": "0.3.169 (01 February 2026)\n\nAnthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g. PydanticAI).\nOpenAI: Workaround for openai Python SDK inability to round trip ‘find_in_page’ web search actions.\nReasoning: Don’t process &lt;think&gt; tags in assistant message loading (now all done directly by model providers).\nWeb Search: Use internal search providers by default when no external provider is defined (previously they required explicit enabling).\nWeb Search: Fallback to Google CSE provider only when Google CSE environment variables are defined (the CSE service has been deprecated by Google).\nEval Logs: Improve eval log loading performance with JSON cache key for messages.\nAgent Bridge: Make sandbox_agent_bridge cleanup errors non-fatal when agent completes\nCompaction: Add source=“compaction” to InfoEvent created by compaction."
