@@ -1,5 +1,6 @@
 import type {
   ColDef,
+  ColumnResizedEvent,
   ICellRendererParams,
   IRowNode,
   RowClickedEvent,
@@ -64,30 +65,6 @@ function buildColumnDefs(
   epochs: number,
 ): ColDef<SampleListItem>[] {
   const shape = samplesDescriptor?.messageShape;
-  const normalized = shape?.normalized;
-  const raw = shape?.raw;
-
-  // Calculate proportional flex values from normalized shape (min 0.15, scale by 10)
-  const inputFlex =
-    normalized && normalized.input > 0
-      ? Math.max(0.15, normalized.input) * 10
-      : 0;
-  const targetFlex =
-    normalized && normalized.target > 0
-      ? Math.max(0.15, normalized.target) * 10
-      : 0;
-  const answerFlex =
-    normalized && normalized.answer > 0
-      ? Math.max(0.15, normalized.answer) * 10
-      : 0;
-  const limitFlex =
-    normalized && normalized.limit > 0
-      ? Math.max(0.15, normalized.limit) * 10
-      : 0;
-
-  // Fixed widths from raw shape (rem to px approximation)
-  const idWidth = Math.max(2, Math.min(10, raw?.id || 2)) * 14;
-  const hasRetries = normalized && normalized.retries > 0;
 
   const scoreLabels =
     !selectedScores || selectedScores.length === 0
@@ -96,24 +73,12 @@ function buildColumnDefs(
         ? ["Score"]
         : (selectedScores?.map((s) => s.name) ?? []);
 
-  // Score columns use fixed initial widths (matching old CSS grid `rem` sizing)
-  // so the proportional text columns (input/target/answer/limit) fill remaining space.
-  const rawScores = raw?.scores ?? [];
-  const scoreSizes =
-    rawScores.length > 0
-      ? rawScores.map((size) => Math.max(3, size))
-      : scoreLabels.map(() => 6);
-  const scoreWidth = (i: number) => (scoreSizes[i] ?? scoreSizes[0] ?? 6) * 9;
-
   const columns: ColDef<SampleListItem>[] = [
     {
       colId: "id",
       headerName: "Id",
-      width: idWidth,
-      minWidth: 28,
-      maxWidth: 140,
-      hide: false,
-      suppressSizeToFit: true,
+      flex: 1,
+      minWidth: 35,
       valueGetter: (params) => params.data?.data?.id,
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;
@@ -124,6 +89,7 @@ function buildColumnDefs(
               "text-size-base",
               "three-line-clamp",
               styles.cell,
+              styles.wrapAnywhere,
             )}
           >
             {params.data.data.id}
@@ -137,7 +103,6 @@ function buildColumnDefs(
       width: 50,
       minWidth: 28,
       hide: epochs <= 1,
-      suppressSizeToFit: true,
       valueGetter: (params) => params.data?.data?.epoch,
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;
@@ -158,9 +123,9 @@ function buildColumnDefs(
     {
       colId: "input",
       headerName: "Input",
-      flex: inputFlex || 1,
+      flex: 3,
       minWidth: 80,
-      hide: inputFlex === 0,
+      hide: !shape?.hasInput,
       valueGetter: (params) => {
         return params.data ? inputString(params.data.data.input).join(" ") : "";
       },
@@ -192,9 +157,9 @@ function buildColumnDefs(
     {
       colId: "target",
       headerName: "Target",
-      flex: targetFlex || 1,
+      flex: 1,
       minWidth: 80,
-      hide: targetFlex === 0,
+      hide: !shape?.hasTarget,
       valueGetter: (params) => {
         return params.data?.data?.target != null
           ? arrayToString(params.data.data.target)
@@ -213,6 +178,7 @@ function buildColumnDefs(
               "text-size-base",
               "three-line-clamp",
               styles.cell,
+              styles.wrapAnywhere,
             )}
           >
             <RenderedText
@@ -228,9 +194,9 @@ function buildColumnDefs(
     {
       colId: "answer",
       headerName: "Answer",
-      flex: answerFlex || 1,
+      flex: 1,
       minWidth: 80,
-      hide: answerFlex === 0,
+      hide: !shape?.hasAnswer,
       valueGetter: (params) => params.data?.answer ?? "",
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;
@@ -242,6 +208,7 @@ function buildColumnDefs(
               "text-size-base",
               "three-line-clamp",
               styles.cell,
+              styles.wrapAnywhere,
             )}
           >
             <RenderedText
@@ -257,10 +224,9 @@ function buildColumnDefs(
     {
       colId: "limit",
       headerName: "Limit",
-      flex: limitFlex || 0.5,
+      flex: 0.5,
       minWidth: 28,
-      maxWidth: 80,
-      hide: limitFlex === 0,
+      hide: !shape?.hasLimit,
       valueGetter: (params) => params.data?.data?.limit,
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;
@@ -283,9 +249,7 @@ function buildColumnDefs(
       headerName: "Retries",
       width: 56,
       minWidth: 28,
-      maxWidth: 70,
-      hide: !hasRetries,
-      suppressSizeToFit: true,
+      hide: !shape?.hasRetries,
       valueGetter: (params) => params.data?.data?.retries,
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;
@@ -311,7 +275,7 @@ function buildColumnDefs(
     columns.push({
       headerName: label,
       colId: `score-${i}`,
-      width: scoreWidth(i),
+      width: 80,
       minWidth: 28,
       valueGetter: (params) => {
         if (!params.data?.data || !samplesDescriptor) return undefined;
@@ -486,6 +450,29 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     return makeSampleRowId(params.data.data.id, params.data.data.epoch);
   }, []);
 
+  const manuallyResized = useRef(new Set<string>());
+
+  const handleColumnResized = useCallback(
+    (event: ColumnResizedEvent<SampleListItem>) => {
+      if (
+        event.finished &&
+        event.source === "uiColumnResized" &&
+        event.column
+      ) {
+        manuallyResized.current.add(event.column.getColId());
+        const state = columnDefs
+          .filter(
+            (c) => c.colId && c.flex && !manuallyResized.current.has(c.colId),
+          )
+          .map((c) => ({ colId: c.colId!, flex: c.flex }));
+        if (state.length > 0) {
+          listHandle.current?.api?.applyColumnState({ state });
+        }
+      }
+    },
+    [listHandle, columnDefs],
+  );
+
   const sampleCount = items.length;
 
   const warnings = useMemo(() => {
@@ -559,6 +546,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           getRowId={getRowId}
           rowSelection={{ mode: "singleRow", checkboxes: false }}
           onRowClicked={handleRowClick}
+          onColumnResized={handleColumnResized}
           theme={themeBalham}
           enableCellTextSelection={true}
           suppressCellFocus={true}

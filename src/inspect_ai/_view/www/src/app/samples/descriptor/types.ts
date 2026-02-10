@@ -43,16 +43,10 @@ export interface SelectedScore {
 }
 
 export interface MessageShape {
-  raw: MessageShapeData;
-  normalized: MessageShapeData;
-}
-
-export interface MessageShapeData {
   id: number;
-  input: number;
-  target: number;
-  answer: number;
-  limit: number;
-  retries: number;
-  scores: number[];
+  hasInput: boolean;
+  hasTarget: boolean;
+  hasAnswer: boolean;
+  hasLimit: boolean;
+  hasRetries: boolean;
 }

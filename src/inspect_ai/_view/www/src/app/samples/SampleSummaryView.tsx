@@ -109,16 +109,10 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   }
   const fields = resolveSample(sample, sampleDescriptor);
 
-  const limitSize =
-    sampleDescriptor?.messageShape.normalized.limit > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
-      : 0;
-  const retrySize =
-    sampleDescriptor?.messageShape.normalized.retries > 0 ? 6 : 0;
-  const idSize = Math.max(
-    2,
-    Math.min(10, sampleDescriptor?.messageShape.raw.id),
-  );
+  const shape = sampleDescriptor?.messageShape;
+  const limitSize = shape?.hasLimit ? 1 : 0;
+  const retrySize = shape?.hasRetries ? 6 : 0;
+  const idSize = Math.max(2, shape?.id ?? 2);
 
   // The columns for the sample
   const columns: SummaryColumn[] = [];

@@ -46,7 +46,7 @@
 }
 
 .wrapAnywhere {
-  word-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .noLeft {
@@ -54,8 +54,10 @@
 }
 
 .score {
-  display: flex;
-  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .centered {
