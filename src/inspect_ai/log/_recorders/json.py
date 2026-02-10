@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from pydantic_core import from_json
 from typing_extensions import override
 
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
@@ -136,7 +137,12 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+        async_fs: AsyncFilesystem | None = None,
+    ) -> EvalLog:
         fs = filesystem(location)
 
         if header_only:
