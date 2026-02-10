@@ -3,10 +3,11 @@ import math
 import os
 import tempfile
 from datetime import datetime, timezone
-from typing import Literal, override
+from typing import Literal
 
 import pytest
 from pydantic_core import PydanticSerializationError
+from typing_extensions import override
 
 from inspect_ai import Task, eval
 from inspect_ai._util.file import filesystem
