@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
+- Eval Logs: Add progress callback interface for reading eval logs
 
 ## 0.3.175 (10 February 2026)
 
