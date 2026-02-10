@@ -262,7 +262,7 @@ def behavior_router():
 
         if behavior == "error":
             if state.sample_id == "14-error":
-                1 / 0
+                _ = 1 / 0  # we want the real exception
             raise ValueError(f"Simulated error for sample {state.sample_id}")
 
         if behavior == "limit":
