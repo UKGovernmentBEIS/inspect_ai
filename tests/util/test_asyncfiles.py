@@ -262,6 +262,59 @@ async def test_local_read_file_bytes_fully_entire_file():
         Path(temp_path).unlink()
 
 
+# =============================================================================
+# Tests for info() with local files
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_local_info_file():
+    """Test info() returns correct FileInfo for a local file."""
+    test_data = b"Hello, World!"
+
+    with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+        f.write(test_data)
+        temp_path = f.name
+
+    try:
+        async with AsyncFilesystem() as fs:
+            info = await fs.info(temp_path)
+            assert info.type == "file"
+            assert info.size == len(test_data)
+            assert info.mtime is not None
+            assert info.name.endswith(Path(temp_path).name)
+    finally:
+        Path(temp_path).unlink()
+
+
+@pytest.mark.asyncio
+async def test_local_info_directory():
+    """Test info() returns correct FileInfo for a local directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        async with AsyncFilesystem() as fs:
+            info = await fs.info(temp_dir)
+            assert info.type == "directory"
+            assert info.name.endswith(Path(temp_dir).name)
+
+
+@pytest.mark.asyncio
+async def test_local_info_size_matches_get_size():
+    """Test that info().size matches get_size() for local files."""
+    test_data = b"0123456789" * 50  # 500 bytes
+
+    with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+        f.write(test_data)
+        temp_path = f.name
+
+    try:
+        async with AsyncFilesystem() as fs:
+            info = await fs.info(temp_path)
+            size = await fs.get_size(temp_path)
+            assert info.size == size
+    finally:
+        Path(temp_path).unlink()
+
+
 @pytest.mark.asyncio
 async def test_local_get_size():
     """Test AsyncFilesystem.get_size with local files."""

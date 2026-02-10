@@ -513,6 +513,7 @@ def read_eval_log_sample_summaries(
 async def read_eval_log_sample_summaries_async(
     log_file: str | Path | EvalLogInfo,
     format: Literal["eval", "json", "auto"] = "auto",
+    async_fs: AsyncFilesystem | None = None,
 ) -> list[EvalSampleSummary]:
     """Read sample summaries from an eval log.
 
@@ -520,6 +521,7 @@ async def read_eval_log_sample_summaries_async(
        log_file (str | FileInfo): Log file to read.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       async_fs (AsyncFilesystem | None): Optional shared async filesystem.
 
     Returns:
        Sample summaries for eval log.
@@ -537,7 +539,7 @@ async def read_eval_log_sample_summaries_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    return await recorder_type.read_log_sample_summaries(log_file)
+    return await recorder_type.read_log_sample_summaries(log_file, async_fs)
 
 
 def read_eval_log_samples(

@@ -17,7 +17,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": ["-k", "test_mcp_server_sandbox"],
+      "args": [
+        "-k",
+        "test_mcp_server_sandbox"
+      ],
       // "args": ["-k", "test_mcp_server_sandbox", "--runapi"],
       "cwd": "${workspaceFolder}"
     },
@@ -25,9 +28,20 @@
       "name": "Python Debugger: Current File",
       "type": "debugpy",
       "request": "launch",
-      "program": "${file}",
+      "program": "${file} s3://inspect-flow-test/metr/",
       "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+    },
+    {
+      "name": "test_samples_df",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/test_samples_df.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "s3://inspect-flow-test/metr/"
+      ]
     }
   ],
   "inputs": [
