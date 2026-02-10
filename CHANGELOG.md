@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.175 (10 February 2026)
 
 - Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
