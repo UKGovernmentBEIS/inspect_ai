@@ -1675,6 +1675,7 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "universal-pathlib" },
     { name = "zipp" },
+    { name = "zstandard" },
 ]
 
 [package.optional-dependencies]
@@ -1733,7 +1734,6 @@ dev = [
     { name = "uvicorn" },
     { name = "xai-sdk" },
     { name = "zipfile-zstd", marker = "python_full_version < '3.14'" },
-    { name = "zstandard" },
 ]
 dev-mcp-tests = [
     { name = "mcp-server-fetch" },
@@ -1854,7 +1854,7 @@ requires-dist = [
     { name = "xai-sdk", marker = "extra == 'dev'", specifier = ">=1.4.0" },
     { name = "zipfile-zstd", marker = "python_full_version < '3.14' and extra == 'dev'", specifier = ">=0.0.4" },
     { name = "zipp", specifier = ">=3.19.1" },
-    { name = "zstandard", marker = "extra == 'dev'", specifier = ">=0.20.0" },
+    { name = "zstandard", specifier = ">=0.20.0" },
 ]
 provides-extras = ["dev", "dev-mcp-tests", "doc", "dist"]
 
