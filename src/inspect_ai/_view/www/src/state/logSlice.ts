@@ -68,7 +68,7 @@ export interface LogSlice {
 // Initial state
 const initialState = {
   // Log state
-  șselectedSampleId: undefined,
+  selectedSampleId: undefined,
   selectedSampleEpoch: undefined,
   selectedLogDetails: undefined,
   pendingSampleSummaries: undefined,
