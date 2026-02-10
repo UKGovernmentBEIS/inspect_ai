@@ -22,6 +22,33 @@ The eval produces 15 samples x 2 epochs = 30 sample-epoch pairs exercising:
   Error         | 13-error, 14-error        | both    | red error icons
   Running/hang  | 15-hang                   | both    | pulsing dots (Ctrl+C)
 
+Follow-output replay timing (~60s):
+  Samples complete at staggered intervals so the View has time to show new
+  rows appearing and the list auto-scrolling (or not) to the latest result.
+  Epoch 2 is offset by +3s so both epochs of the same sample don't land
+  at the same instant.  15-hang never completes.
+
+  Phase 1 (0-10s):  nothing — all rows pulsing dots
+  Phase 2 (10-18s): first few results trickle in
+  Phase 3 (18-30s): quiet gap (only epoch-2 echoes)
+  Phase 4 (30s+):   remaining samples pour in
+
+  Approx completion timeline (epoch 1 / epoch 2):
+   10s  / 13s — 13-error, 14-error, 07-limit
+   11s  / 14s — 11-correct
+   15s  / 18s — 10 (numeric ID)
+        — quiet gap —
+   30s  / 33s — 12-wrong
+   33s  / 36s — 08-chat-input
+   36s  / 39s — 01-flaky
+   39s  / 42s — 06-multi-target
+   42s  / 45s — 09-long-id
+   45s  / 48s — 03-partial
+   48s  / 51s — 04-refusal
+   51s  / 54s — 05-long-text
+   55s  / —   — 02-slow (epoch 2 hangs)
+    —   / —   — 15-hang (never)
+
 Edge cases tested:
   - Numeric ID (10) vs string IDs — mixed type sorting
   - Long string ID — column width / wrap-anywhere
@@ -169,6 +196,33 @@ SAMPLES = [
     ),
 ]
 
+# Staggered delays (seconds) to simulate ~60s of "follow output" replay.
+# Phase 1 (0-10s):  nothing completes — all rows show pulsing dots.
+# Phase 2 (10-15s): first 1-2 results land — check if list scrolls to them.
+# Phase 3 (15-30s): quiet — only epoch-2 echoes of phase-2 samples.
+# Phase 4 (30s+):   remaining samples pour in — bulk follow-output test.
+# Epoch 2 adds +3s so both epochs don't land at the same instant.
+# 15-hang never completes (sleeps forever).
+REPLAY_DELAYS: dict[str, float] = {
+    # phase 1/2: errors + first results at ~10s
+    "13-error": 10,
+    "14-error": 10,
+    "07-limit": 10,
+    "11-correct": 11,
+    "10": 15,
+    # phase 3: quiet gap (only epoch-2 of above at +3s)
+    # phase 4: the rest after 30s
+    "12-wrong": 30,
+    "08-chat-input": 33,
+    "01-flaky": 36,
+    "06-multi-target": 39,
+    "09-long-id-for-testing-column-width-calculation": 42,
+    "03-partial": 45,
+    "04-refusal": 48,
+    "05-long-text": 51,
+    "02-slow": 55,
+}
+
 WRONG_ANSWERS: dict[str, str] = {
     "12-wrong": "The capital is Osaka",
     "09-long-id-for-testing-column-width-calculation": "I think the answer is 15",
@@ -200,7 +254,15 @@ def behavior_router():
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         behavior = state.metadata.get("behavior", "correct")
 
+        # Staggered delay so samples trickle in over ~60s (follow-output replay).
+        base_delay = REPLAY_DELAYS.get(str(state.sample_id), 0)
+        if base_delay > 0:
+            epoch_offset = (state.epoch - 1) * 3
+            await asyncio.sleep(base_delay + epoch_offset)
+
         if behavior == "error":
+            if state.sample_id == "14-error":
+                1 / 0
             raise ValueError(f"Simulated error for sample {state.sample_id}")
 
         if behavior == "limit":
