@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.175 (10 February 2026)
 
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
 - Scoring: Allow customisation of grouped metric names.
