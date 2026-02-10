@@ -353,9 +353,46 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     setDocumentTitle({ evalSpec });
   }, [setDocumentTitle, evalSpec]);
 
+  // Follow output: auto-scroll to bottom as new items arrive while running
+  const followOutputRef = useRef(running);
+  const prevItemCountRef = useRef(items.length);
+
+  // When running starts, enable follow output
+  useEffect(() => {
+    if (running) {
+      followOutputRef.current = true;
+    }
+  }, [running]);
+
+  // When new items arrive while running and following, scroll to bottom
+  useEffect(() => {
+    if (
+      running &&
+      followOutputRef.current &&
+      items.length > prevItemCountRef.current &&
+      listHandle.current?.api
+    ) {
+      listHandle.current.api.ensureIndexVisible(items.length - 1, "bottom");
+    }
+    prevItemCountRef.current = items.length;
+  }, [items.length, running, listHandle]);
+
+  // Track whether user is at the bottom of the grid
+  const handleBodyScroll = useCallback(() => {
+    if (!running || !listHandle.current?.api) return;
+    const api = listHandle.current.api;
+    const vPixel = api.getVerticalPixelRange();
+    const totalHeight = api.getDisplayedRowCount() * kSampleHeight;
+    const viewportHeight = vPixel.bottom - vPixel.top;
+    const atBottom = vPixel.bottom >= totalHeight - viewportHeight * 0.1;
+    followOutputRef.current = atBottom;
+  }, [running, listHandle]);
+
+  // When eval finishes, scroll to top
   const prevRunningRef = useRef(running);
   useEffect(() => {
     if (!running && prevRunningRef.current && listHandle.current?.api) {
+      followOutputRef.current = false;
       setTimeout(() => {
         listHandle.current?.api?.ensureIndexVisible(0, "top");
       }, 100);
@@ -551,6 +588,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           enableCellTextSelection={true}
           suppressCellFocus={true}
           domLayout="normal"
+          onBodyScroll={handleBodyScroll}
           onFirstDataRendered={() => {
             selectCurrentSample();
           }}

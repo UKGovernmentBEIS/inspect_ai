@@ -31,9 +31,6 @@ export const LogView: FC = () => {
 
   const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const evalSpec = useEvalSpec();
-  const runningMetrics = useStore(
-    (state) => state.log.pendingSampleSummaries?.metrics,
-  );
 
   // Use individual tab config hooks
   const samplesTabConfig = useSamplesTabConfig(
@@ -122,7 +119,6 @@ export const LogView: FC = () => {
           evalSpec={evalSpec}
           evalPlan={selectedLogDetails?.plan}
           evalResults={selectedLogDetails?.results}
-          runningMetrics={runningMetrics}
           evalStats={selectedLogDetails?.stats}
           status={selectedLogDetails?.status}
         />
