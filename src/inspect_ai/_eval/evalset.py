@@ -38,6 +38,7 @@ from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
+    ReadEvalLogsProgress,
     list_eval_logs,
     read_eval_log_headers,
     write_log_dir_manifest,
@@ -582,9 +583,11 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 
 # list all eval logs
 # recursive=False is used by inspect_flow
-def list_all_eval_logs(log_dir: str, recursive: bool = True) -> list[Log]:
+def list_all_eval_logs(
+    log_dir: str, recursive: bool = True, progress: ReadEvalLogsProgress | None = None
+) -> list[Log]:
     log_files = list_eval_logs(log_dir, recursive=recursive)
-    log_headers = read_eval_log_headers(log_files)
+    log_headers = read_eval_log_headers(log_files, progress)
     task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
     return [
         Log(info=info, header=header, task_identifier=task_identifier)
