@@ -210,7 +210,7 @@ doc = [
   "jupyter",
   "panflute",
   "markdown",
-  "griffe",
+  "griffe<=1.14.0",
   "click>=8.2.0",
 ]
 dist = ["twine", "build"]
