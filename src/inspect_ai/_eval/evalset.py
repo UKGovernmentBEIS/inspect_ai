@@ -582,7 +582,7 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 
 
 # list all eval logs
-# recursive=False is used by inspect_flow
+# recursive=False and progress are used by inspect_flow
 def list_all_eval_logs(
     log_dir: str, recursive: bool = True, progress: ReadEvalLogsProgress | None = None
 ) -> list[Log]:

@@ -1,6 +1,5 @@
 import os
 import re
-from abc import ABC, abstractmethod
 from functools import partial
 from logging import getLogger
 from pathlib import Path
@@ -361,12 +360,12 @@ async def read_eval_log_async(
     return log
 
 
-class ReadEvalLogsProgress(ABC):
-    @abstractmethod
-    def before_reading_logs(self, total_files: int) -> None: ...
+class ReadEvalLogsProgress:
+    def before_reading_logs(self, total_files: int) -> None:
+        pass
 
-    @abstractmethod
-    def after_read_log(self, log_file: str) -> None: ...
+    def after_read_log(self, log_file: str) -> None:
+        pass
 
 
 def read_eval_log_headers(
