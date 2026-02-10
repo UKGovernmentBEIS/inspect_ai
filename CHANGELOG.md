@@ -1,6 +1,9 @@
-## 0.3.175 (10 February 2026)
+## Unreleased
 
 - Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
+
+## 0.3.175 (10 February 2026)
+
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
 - Scoring: Allow customisation of grouped metric names.
 - Model API: Don't strictly require OpenAI and Anthropic versions when they aren't in use.
