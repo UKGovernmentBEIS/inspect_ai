@@ -1,4 +1,5 @@
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from os import stat
 from types import TracebackType
 from typing import Any, cast
@@ -111,6 +112,15 @@ class _AnyIOFileByteReceiveStream(ByteReceiveStream):
             self._file = None
 
 
+@dataclass
+class SuffixResult:
+    """Result of reading the suffix of a file."""
+
+    data: bytes
+    file_size: int
+    etag: str | None = None
+
+
 class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     """Interface for reading/writing files that uses different interfaces depending on context
 
@@ -136,7 +146,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 s3_get_size, self.s3_client(), bucket, key
             )
         else:
-            return stat(filename).st_size
+            return stat(_local_path(filename)).st_size
 
     async def read_file(self, filename: str) -> bytes:
         if is_s3_filename(filename):
@@ -178,7 +188,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             fs = filesystem(filename)
             if fs.is_local():
                 # If local, use AnyIO's async/chunking file reading support
-                return _AnyIOFileByteReceiveStream(filename, start, end)
+                return _AnyIOFileByteReceiveStream(_local_path(filename), start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
                 return _BytesByteReceiveStream(f.read(end - start))
@@ -190,6 +200,44 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         async for chunk in stream:
             chunks.append(chunk)
         return b"".join(chunks)
+
+    async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
+        """Read the last suffix_length bytes of a file.
+
+        Uses a suffix range request (``bytes=-N``) to avoid a separate
+        HEAD request for the file size.
+
+        Returns:
+            SuffixResult with data, file_size, and etag (S3 only).
+        """
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                response = await (await self.s3_client_async()).get_object(
+                    Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}"
+                )
+                content_range: str = response["ContentRange"]
+                total_size = int(content_range.split("/")[-1])
+                etag = cast(str | None, response.get("ETag"))
+                body = response["Body"]
+                try:
+                    data = cast(bytes, await body.read())
+                finally:
+                    body.close()
+                return SuffixResult(data, total_size, etag)
+            else:
+                return await anyio.to_thread.run_sync(
+                    s3_read_file_suffix,
+                    self.s3_client(),
+                    bucket,
+                    key,
+                    suffix_length,
+                )
+        else:
+            file_size = filesystem(filename).info(filename).size
+            start = max(0, file_size - suffix_length)
+            data = await self.read_file_bytes_fully(filename, start, file_size)
+            return SuffixResult(data, file_size)
 
     async def write_file(self, filename: str, content: bytes) -> None:
         if is_s3_filename(filename):
@@ -264,6 +312,17 @@ def s3_read_file_bytes(s3: Any, bucket: str, key: str, start: int, end: int) -> 
     return cast(bytes, response["Body"].read())
 
 
+def s3_read_file_suffix(
+    s3: Any, bucket: str, key: str, suffix_length: int
+) -> SuffixResult:
+    response = s3.get_object(Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}")
+    content_range: str = response["ContentRange"]
+    total_size = int(content_range.split("/")[-1])
+    etag = cast(str | None, response.get("ETag"))
+    data = cast(bytes, response["Body"].read())
+    return SuffixResult(data, total_size, etag)
+
+
 def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
     s3.put_object(Bucket=bucket, Key=key, Body=content)
 
@@ -277,3 +336,10 @@ def s3_bucket_and_key(filename: str) -> tuple[str, str]:
 
 def is_s3_filename(filename: str) -> bool:
     return filename.startswith("s3://")
+
+
+def _local_path(filename: str) -> str:
+    """Convert a file:// URL to a local path, or return as-is."""
+    if filename.startswith("file://"):
+        return urlparse(filename).path
+    return filename
