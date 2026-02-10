@@ -287,34 +287,44 @@ export const createSamplesDescriptor = (
 ): SamplesDescriptor | undefined => {
   const messageShape = samples.reduce(
     (shape: MessageShape, sample) => {
-      if (!shape.hasInput) {
-        shape.hasInput = inputString(sample.input).join(" ").length > 0;
+      shape.inputSize = Math.min(
+        Math.max(shape.inputSize, inputString(sample.input).join(" ").length),
+        300,
+      );
+      shape.targetSize = Math.min(
+        Math.max(shape.targetSize, arrayToString(sample.target).length),
+        300,
+      );
+      if (selectedScores.length > 0) {
+        shape.answerSize = Math.min(
+          Math.max(
+            shape.answerSize,
+            evalDescriptor.scoreAnswer(sample, selectedScores[0])?.length ?? 0,
+          ),
+          300,
+        );
       }
-      if (!shape.hasTarget) {
-        shape.hasTarget = arrayToString(sample.target).length > 0;
-      }
-      if (!shape.hasAnswer && selectedScores.length > 0) {
-        shape.hasAnswer =
-          (evalDescriptor.scoreAnswer(sample, selectedScores[0])?.length ?? 0) >
-          0;
-      }
-      if (!shape.hasLimit) {
-        shape.hasLimit = !!sample.limit;
-      }
-      if (!shape.hasRetries) {
-        shape.hasRetries = !!sample.retries;
-      }
-      shape.id = Math.min(Math.max(shape.id, String(sample.id).length), 10);
-
+      shape.id = Math.min(Math.max(shape.id, String(sample.id).length), 300);
+      shape.limitSize = Math.min(
+        Math.max(shape.limitSize, sample.limit ? sample.limit.length : 0),
+        300,
+      );
+      shape.retriesSize = Math.min(
+        Math.max(
+          shape.retriesSize,
+          sample.retries ? String(sample.retries).length : 0,
+        ),
+        300,
+      );
       return shape;
     },
     {
       id: 0,
-      hasInput: false,
-      hasTarget: false,
-      hasAnswer: false,
-      hasLimit: false,
-      hasRetries: false,
+      inputSize: 0,
+      targetSize: 0,
+      answerSize: 0,
+      limitSize: 0,
+      retriesSize: 0,
     },
   );
 

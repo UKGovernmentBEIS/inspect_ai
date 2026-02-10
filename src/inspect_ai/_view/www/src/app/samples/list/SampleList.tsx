@@ -65,6 +65,9 @@ function buildColumnDefs(
   epochs: number,
 ): ColDef<SampleListItem>[] {
   const shape = samplesDescriptor?.messageShape;
+  const inputFlex = shape?.inputSize || 3;
+  const targetFlex = shape?.targetSize || 1;
+  const answerFlex = shape?.answerSize || 1;
 
   const scoreLabels =
     !selectedScores || selectedScores.length === 0
@@ -77,7 +80,7 @@ function buildColumnDefs(
     {
       colId: "id",
       headerName: "Id",
-      flex: 1,
+      flex: shape?.id || 1,
       minWidth: 35,
       valueGetter: (params) => params.data?.data?.id,
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
@@ -123,9 +126,9 @@ function buildColumnDefs(
     {
       colId: "input",
       headerName: "Input",
-      flex: 3,
+      flex: inputFlex,
       minWidth: 80,
-      hide: !shape?.hasInput,
+      hide: !shape?.inputSize,
       valueGetter: (params) => {
         return params.data ? inputString(params.data.data.input).join(" ") : "";
       },
@@ -157,9 +160,9 @@ function buildColumnDefs(
     {
       colId: "target",
       headerName: "Target",
-      flex: 1,
+      flex: targetFlex,
       minWidth: 80,
-      hide: !shape?.hasTarget,
+      hide: !shape?.targetSize,
       valueGetter: (params) => {
         return params.data?.data?.target != null
           ? arrayToString(params.data.data.target)
@@ -194,9 +197,9 @@ function buildColumnDefs(
     {
       colId: "answer",
       headerName: "Answer",
-      flex: 1,
+      flex: answerFlex,
       minWidth: 80,
-      hide: !shape?.hasAnswer,
+      hide: !shape?.answerSize,
       valueGetter: (params) => params.data?.answer ?? "",
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;
@@ -224,9 +227,9 @@ function buildColumnDefs(
     {
       colId: "limit",
       headerName: "Limit",
-      flex: 0.5,
+      flex: shape?.limitSize || 0.5,
       minWidth: 28,
-      hide: !shape?.hasLimit,
+      hide: !shape?.limitSize,
       valueGetter: (params) => params.data?.data?.limit,
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;
@@ -237,6 +240,7 @@ function buildColumnDefs(
               "text-size-small",
               "three-line-clamp",
               styles.cell,
+              styles.wrapAnywhere,
             )}
           >
             {params.data.data.limit}
@@ -249,7 +253,7 @@ function buildColumnDefs(
       headerName: "Retries",
       width: 56,
       minWidth: 28,
-      hide: !shape?.hasRetries,
+      hide: !shape?.retriesSize,
       valueGetter: (params) => params.data?.data?.retries,
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;

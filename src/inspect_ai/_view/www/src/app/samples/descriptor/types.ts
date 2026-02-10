@@ -44,9 +44,9 @@ export interface SelectedScore {
 
 export interface MessageShape {
   id: number;
-  hasInput: boolean;
-  hasTarget: boolean;
-  hasAnswer: boolean;
-  hasLimit: boolean;
-  hasRetries: boolean;
+  inputSize: number;
+  targetSize: number;
+  answerSize: number;
+  limitSize: number;
+  retriesSize: number;
 }
