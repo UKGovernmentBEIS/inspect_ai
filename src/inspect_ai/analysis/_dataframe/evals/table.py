@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from functools import partial
 from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
+from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import EvalLog
 
 from ..columns import Column, ColumnError, ColumnType
@@ -136,27 +139,40 @@ def _read_evals_df(
     eval_ids: set[str] = set()
     eval_logs: list[EvalLog] = []
     records: list[dict[str, ColumnType]] = []
-    for item in logs:
-        log = read_eval_log(item, header_only=True) if isinstance(item, str) else item
 
-        if strict:
-            record = import_record(log, log, columns, strict=True)
-        else:
-            record, errors = import_record(log, log, columns, strict=False)
-            all_errors.extend(errors)
+    async def read_evals_df_async() -> None:
+        async with AsyncFilesystem() as fs:
 
-        # don't add duplicate ids
-        eval_id = str(record.get(EVAL_ID, ""))
-        if eval_id not in eval_ids:
-            eval_ids.add(eval_id)
-            eval_logs.append(log)
-            records.append(record)
-            total_samples += (
-                len(log.eval.dataset.sample_ids)
-                if log.eval.dataset.sample_ids is not None
-                else (log.eval.dataset.samples or 100)
-            )
-        progress()
+            async def read_eval_df(item: str | EvalLog) -> None:
+                log = (
+                    await read_eval_log_async(item, header_only=True, async_fs=fs)
+                    if isinstance(item, str)
+                    else item
+                )
+
+                if strict:
+                    record = import_record(log, log, columns, strict=True)
+                else:
+                    record, errors = import_record(log, log, columns, strict=False)
+                    all_errors.extend(errors)
+
+                # don't add duplicate ids
+                eval_id = str(record.get(EVAL_ID, ""))
+                if eval_id not in eval_ids:
+                    eval_ids.add(eval_id)
+                    eval_logs.append(log)
+                    records.append(record)
+                    nonlocal total_samples
+                    total_samples += (
+                        len(log.eval.dataset.sample_ids)
+                        if log.eval.dataset.sample_ids is not None
+                        else (log.eval.dataset.samples or 100)
+                    )
+                progress()
+
+            await tg_collect([partial(read_eval_df, item) for item in logs])
+
+    run_coroutine(read_evals_df_async())
 
     # return table (+errors if strict=False)
     evals_table = records_to_pandas(records)
