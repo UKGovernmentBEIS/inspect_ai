@@ -181,12 +181,14 @@ class EvalRecorder(FileRecorder):
         )
         await log.write(HEADER_JSON, eval_header)
 
+        # flush and write the results
+        await log.flush()
+        result = await log.close(header_only)
+
         # stop tracking this eval
         del self.data[key]
 
-        # flush and write the results
-        await log.flush()
-        return await log.close(header_only)
+        return result
 
     @classmethod
     @override
