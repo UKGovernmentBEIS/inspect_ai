@@ -2,6 +2,7 @@
 
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
 - Scoring: Allow customisation of grouped metric names.
+- Model API: Don't strictly require OpenAI and Anthropic versions when they aren't in use.
 - Inspect View: Show live requests and responses for model call events in the transcript.
 - Inspect View: Improve scroll performance when viewing sample transcripts and messages.
 - Inspect View: Make samples in task detail sortable, inline epoch filter.

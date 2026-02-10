@@ -19195,29 +19195,29 @@ span.ap-marker-container:hover span.ap-marker {
   margin-left: 0.1em;
   margin-top: -3px;
 }
-._mainLayout_qunb2_1 {
+._mainLayout_1s8x3_1 {
   display: flex;
   flex-direction: column;
   width: 100%;
 }
 
-._samplesListGrid_qunb2_7 .ag-row {
+._samplesListGrid_1s8x3_7 .ag-row {
   border-bottom: 1px solid var(--bs-border-color);
 }
 
-._samplesListGrid_qunb2_7 .ag-row.ag-row-selected {
+._samplesListGrid_1s8x3_7 .ag-row.ag-row-selected {
   box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
 }
 
-._samplesListGrid_qunb2_7 .ag-header-cell {
+._samplesListGrid_1s8x3_7 .ag-header-cell {
   padding: 0;
 }
-._samplesListGrid_qunb2_7 .ag-header-cell-label::before {
+._samplesListGrid_1s8x3_7 .ag-header-cell-label::before {
   content: "";
   flex: 0 1 var(--ag-cell-horizontal-padding);
 }
 
-._samplesListGrid_qunb2_7 .ag-header-cell-text {
+._samplesListGrid_1s8x3_7 .ag-header-cell-text {
   font-size: var(--inspect-font-size-smallestest);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -19225,54 +19225,41 @@ span.ap-marker-container:hover span.ap-marker {
   font-weight: 400;
 }
 
-._samplesListGrid_qunb2_7 .ag-sort-order {
+._samplesListGrid_1s8x3_7 .ag-sort-order {
   font-size: var(--inspect-font-size-smallestest);
   align-self: center;
   margin-right: -10px;
 }
 
-._samplesListGrid_qunb2_7 .ag-cell {
+._samplesListGrid_1s8x3_7 .ag-cell {
   align-items: flex-start;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
   white-space: normal;
 }
 
-._samplesListGrid_qunb2_7 .ag-full-width-row {
-  cursor: default;
-}
-
-._cell_qunb2_48 {
+._cell_1s8x3_44 {
   line-height: var(--bs-body-line-height);
 }
 
-._wrapAnywhere_qunb2_52 {
-  word-wrap: anywhere;
+._wrapAnywhere_1s8x3_48 {
+  overflow-wrap: break-word;
 }
 
-._noLeft_qunb2_56 {
+._noLeft_1s8x3_52 {
   padding-left: 0;
 }
 
-._score_qunb2_60 {
-  display: flex;
-  justify-content: center;
+._score_1s8x3_56 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-._centered_qunb2_65 {
+._centered_1s8x3_63 {
   display: flex;
   justify-content: center;
-}
-
-._separator_qunb2_70 {
-  display: flex;
-  align-items: center;
-  padding: 0.25em 1em;
-  height: 100%;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: var(--bs-secondary);
-  cursor: default;
 }
 ._panel_1yknn_1 {
   width: 100%;
