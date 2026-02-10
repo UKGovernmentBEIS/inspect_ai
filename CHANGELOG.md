@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
+- Bugfix: Correct handling of `ComposeConfig` for Docker sandbox provider.
 
 ## 0.3.175 (10 February 2026)
 
