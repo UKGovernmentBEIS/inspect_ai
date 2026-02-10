@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, Field
 
-from inspect_ai import Task, eval_async
+from inspect_ai import Task, eval
 from inspect_ai._util.json import JsonChange
 from inspect_ai.dataset import Sample
 from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, StoreEvent
@@ -478,8 +478,6 @@ def test_store_from_events_as_no_instance_excludes_instanced_keys() -> None:
 
 def test_json_change_move_requires_from() -> None:
     """Move operation should raise error if from field is missing."""
-    import pytest
-
     from inspect_ai._util.json import JsonChange
     from inspect_ai.util._store import _json_change_to_patch_op
 
@@ -498,8 +496,6 @@ def test_json_change_move_requires_from() -> None:
 
 def test_json_change_copy_requires_from() -> None:
     """Copy operation should raise error if from field is missing."""
-    import pytest
-
     from inspect_ai._util.json import JsonChange
     from inspect_ai.util._store import _json_change_to_patch_op
 
@@ -540,8 +536,7 @@ def test_json_change_remove_no_value() -> None:
 # End-to-end tests: Run eval, write log, re-hydrate store from events
 
 
-@pytest.mark.asyncio
-async def test_store_from_events_end_to_end() -> None:
+def test_store_from_events_end_to_end() -> None:
     """End-to-end test: run eval with multiple solvers, re-hydrate store from events.
 
     Uses three solvers, each setting one value, to test that store_from_events()
@@ -578,7 +573,7 @@ async def test_store_from_events_end_to_end() -> None:
         scorer=match(),
     )
 
-    logs = await eval_async(task, model="mockllm/model")
+    logs = eval(task, model="mockllm/model")
     log = logs[0]
     assert log.samples is not None
     sample = log.samples[0]
@@ -591,8 +586,7 @@ async def test_store_from_events_end_to_end() -> None:
     assert reconstructed.get("nested") == {"a": 1, "b": [1, 2, 3]}
 
 
-@pytest.mark.asyncio
-async def test_store_from_events_as_end_to_end() -> None:
+def test_store_from_events_as_end_to_end() -> None:
     """End-to-end test: run eval with multiple solvers using StoreModel.
 
     Uses three solvers, each setting different StoreModel fields, to test that
@@ -633,7 +627,7 @@ async def test_store_from_events_as_end_to_end() -> None:
         scorer=match(),
     )
 
-    logs = await eval_async(task, model="mockllm/model")
+    logs = eval(task, model="mockllm/model")
     assert logs[0].samples is not None
     sample = logs[0].samples[0]
 
@@ -645,8 +639,7 @@ async def test_store_from_events_as_end_to_end() -> None:
     assert reconstructed.items == ["a", "b", "c"]
 
 
-@pytest.mark.asyncio
-async def test_store_from_events_as_with_instances_end_to_end() -> None:
+def test_store_from_events_as_with_instances_end_to_end() -> None:
     """End-to-end test: run eval with multiple solvers writing to different instances.
 
     Uses three solvers, each writing to a different StoreModel instance, to test that
@@ -690,7 +683,7 @@ async def test_store_from_events_as_with_instances_end_to_end() -> None:
         scorer=match(),
     )
 
-    logs = await eval_async(task, model="mockllm/model")
+    logs = eval(task, model="mockllm/model")
     assert logs[0].samples is not None
     sample = logs[0].samples[0]
 
@@ -710,8 +703,7 @@ async def test_store_from_events_as_with_instances_end_to_end() -> None:
     assert agent2.message == "second agent"
 
 
-@pytest.mark.asyncio
-async def test_store_from_events_via_log_file() -> None:
+def test_store_from_events_via_log_file() -> None:
     """End-to-end test: write log to disk, read it back, re-hydrate store.
 
     Tests all scenarios:
@@ -760,7 +752,7 @@ async def test_store_from_events_via_log_file() -> None:
     )
 
     with tempfile.TemporaryDirectory() as log_dir:
-        await eval_async(task, model="mockllm/model", log_dir=log_dir)
+        eval(task, model="mockllm/model", log_dir=log_dir)
 
         # Read log back from disk
         log_files = list_eval_logs(log_dir)
@@ -803,8 +795,7 @@ async def test_store_from_events_via_log_file() -> None:
         assert base_model.message != agent1.message != agent2.message
 
 
-@pytest.mark.asyncio
-async def test_store_from_events_nested_models_end_to_end() -> None:
+def test_store_from_events_nested_models_end_to_end() -> None:
     """End-to-end test: StoreModel with nested BaseModel children using multiple solvers.
 
     Tests the pattern where a StoreModel contains nested BaseModel instances
@@ -852,7 +843,7 @@ async def test_store_from_events_nested_models_end_to_end() -> None:
         scorer=match(),
     )
 
-    logs = await eval_async(task, model="mockllm/model")
+    logs = eval(task, model="mockllm/model")
     assert logs[0].samples is not None
     sample = logs[0].samples[0]
 
@@ -878,8 +869,7 @@ async def test_store_from_events_nested_models_end_to_end() -> None:
     assert reconstructed.notes == "Evaluation complete"
 
 
-@pytest.mark.asyncio
-async def test_store_from_events_nested_models_via_log_file() -> None:
+def test_store_from_events_nested_models_via_log_file() -> None:
     """End-to-end test: nested models persisted to disk and re-hydrated.
 
     Writes a log with nested StoreModel to disk, reads it back,
@@ -919,7 +909,7 @@ async def test_store_from_events_nested_models_via_log_file() -> None:
     )
 
     with tempfile.TemporaryDirectory() as log_dir:
-        await eval_async(task, model="mockllm/model", log_dir=log_dir)
+        eval(task, model="mockllm/model", log_dir=log_dir)
 
         # Read log back from disk
         log_files = list_eval_logs(log_dir)
