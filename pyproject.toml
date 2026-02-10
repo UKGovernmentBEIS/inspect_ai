@@ -157,7 +157,7 @@ dev = [
   "azure-ai-inference",
   "fastapi",
   "google-genai>=1.56.0",
-  "griffe<=1.14.0",
+  "griffe<=2.0.0",
   "groq>=0.28.0",
   "huggingface_hub>=1.0.0",
   "inspect_scout",
@@ -210,7 +210,7 @@ doc = [
   "jupyter",
   "panflute",
   "markdown",
-  "griffe<=1.14.0",
+  "griffe<=2.0.0",
   "click>=8.2.0",
 ]
 dist = ["twine", "build"]
