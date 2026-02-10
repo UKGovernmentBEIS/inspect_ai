@@ -19,8 +19,7 @@ import {
 import { useStore } from "../../../state/store.ts";
 import { ApplicationIcons } from "../../appearance/icons.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
-import { getSampleProcessor } from "./grouping.ts";
-import { ListItem } from "./types.ts";
+import { SampleListItem } from "./types.ts";
 
 // Individual hook for Samples tab
 export const useSamplesTabConfig = (
@@ -103,29 +102,23 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const selectSample = useStore((state) => state.logActions.selectSample);
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
-  const sampleListHandle = useRef<AgGridReact<ListItem> | null>(null);
+  const sampleListHandle = useRef<AgGridReact<SampleListItem> | null>(null);
 
-  const sampleProcessor = useMemo(() => {
-    if (!samplesDescriptor) return undefined;
-
-    return getSampleProcessor(samplesDescriptor, selectedScores);
-  }, [samplesDescriptor, selectedScores]);
-
-  const items = useMemo(() => {
-    const resolvedSamples = sampleSummaries?.flatMap((sample, index) => {
-      const results: ListItem[] = [];
-      const previousSample =
-        index !== 0 ? sampleSummaries[index - 1] : undefined;
-      const items = sampleProcessor
-        ? sampleProcessor(sample, index, previousSample)
-        : [];
-
-      results.push(...items);
-      return results;
-    });
-
-    return resolvedSamples || [];
-  }, [sampleSummaries, sampleProcessor]);
+  const items: SampleListItem[] = useMemo(() => {
+    if (!samplesDescriptor) return [];
+    const scores = selectedScores || [];
+    return sampleSummaries.map(
+      (sample): SampleListItem => ({
+        data: sample,
+        answer:
+          samplesDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+        scoresRendered: scores.map((sc) =>
+          samplesDescriptor.evalDescriptor.score(sample, sc)?.render(),
+        ),
+        completed: sample.completed !== undefined ? sample.completed : true,
+      }),
+    );
+  }, [sampleSummaries, samplesDescriptor, selectedScores]);
 
   useEffect(() => {
     if (sampleSummaries.length === 1 && selectedLogFile) {

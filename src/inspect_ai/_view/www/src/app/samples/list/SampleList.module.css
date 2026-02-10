@@ -41,10 +41,6 @@
   white-space: normal;
 }
 
-.samplesListGrid :global(.ag-full-width-row) {
-  cursor: default;
-}
-
 .cell {
   line-height: var(--bs-body-line-height);
 }
@@ -65,15 +61,4 @@
 .centered {
   display: flex;
   justify-content: center;
-}
-
-.separator {
-  display: flex;
-  align-items: center;
-  padding: 0.25em 1em;
-  height: 100%;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: var(--bs-secondary);
-  cursor: default;
 }
