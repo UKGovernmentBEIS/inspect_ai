@@ -43,7 +43,6 @@
   },
   "python.testing.pytestArgs": [
     "tests",
-    "--runapi"
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
