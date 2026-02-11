@@ -16,7 +16,7 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import list_eval_logs, read_eval_log
 from inspect_ai.scorer import includes
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.solver import Generate, TaskState, generate, solver, user_message
 
 
 @solver
@@ -33,6 +33,18 @@ def error_or_sleep_solver():
         return state
 
     return solve
+
+
+def _conversation_then_error_solvers() -> list:
+    """Build a solver chain with conversation turns before the error/sleep."""
+    return [
+        generate(),
+        user_message("follow up question"),
+        generate(),
+        user_message("another follow up"),
+        generate(),
+        error_or_sleep_solver(),
+    ]
 
 
 @solver
@@ -56,7 +68,7 @@ def test_fail_on_error_logs_cancelled_samples():
     num_samples = 5
     task = Task(
         dataset=_make_samples(num_samples),
-        solver=[error_or_sleep_solver()],
+        solver=_conversation_then_error_solvers(),
         scorer=includes(),
         fail_on_error=True,
     )
@@ -73,9 +85,20 @@ def test_fail_on_error_logs_cancelled_samples():
     assert errored[0].error is not None
     assert "Intentional test error" in errored[0].error.message
 
+    # the errored sample should have conversation history from before the error:
+    # initial user msg + assistant + user follow-up + assistant + user follow-up + assistant = 6
+    assert len(errored[0].messages) >= 6
+
     # at least some of the other samples should be logged with cancellation errors
     cancelled = [s for s in log.samples if s.id != 1 and s.error is not None]
     assert len(cancelled) > 0
+
+    # cancelled samples should preserve their conversation history and events
+    for sample in cancelled:
+        # should have at least the initial message + some conversation turns
+        assert len(sample.messages) >= 1
+        # should have transcript events (SampleInitEvent, ModelEvents, ErrorEvent, etc.)
+        assert len(sample.events) >= 2
 
     # every logged sample should have an error (either ValueError or cancellation)
     for sample in log.samples:
@@ -91,7 +114,7 @@ def test_fail_on_error_threshold_logs_cancelled_samples():
         """Samples 1-3 error after brief delay; samples 4-6 sleep."""
 
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            if state.sample_id <= 3:
+            if int(state.sample_id) <= 3:
                 await anyio.sleep(0.1)
                 raise ValueError(f"Error in sample {state.sample_id}")
             await anyio.sleep(30)
