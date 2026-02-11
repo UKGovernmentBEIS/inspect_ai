@@ -1674,6 +1674,7 @@ dependencies = [
     { name = "tiktoken" },
     { name = "typing-extensions" },
     { name = "universal-pathlib" },
+    { name = "zipfile-zstd", marker = "python_full_version < '3.14'" },
     { name = "zipp" },
     { name = "zstandard" },
 ]
@@ -1852,6 +1853,7 @@ requires-dist = [
     { name = "universal-pathlib", specifier = ">=0.2.6" },
     { name = "uvicorn", marker = "extra == 'dev'" },
     { name = "xai-sdk", marker = "extra == 'dev'", specifier = ">=1.4.0" },
+    { name = "zipfile-zstd", marker = "python_full_version < '3.14'", specifier = ">=0.0.4" },
     { name = "zipfile-zstd", marker = "python_full_version < '3.14' and extra == 'dev'", specifier = ">=0.0.4" },
     { name = "zipp", specifier = ">=3.19.1" },
     { name = "zstandard", specifier = ">=0.20.0" },
@@ -3451,7 +3453,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "2.18.0"
+version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -3463,9 +3465,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/cb/f2c9f988a06d1fcdd18ddc010f43ac384219a399eb01765493d6b34b1461/openai-2.18.0.tar.gz", hash = "sha256:5018d3bcb6651c5aac90e6d0bf9da5cde1bdd23749f67b45b37c522b6e6353af", size = 632124, upload-time = "2026-02-09T21:42:18.017Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/5a/f495777c02625bfa18212b6e3b73f1893094f2bf660976eb4bc6f43a1ca2/openai-2.20.0.tar.gz", hash = "sha256:2654a689208cd0bf1098bb9462e8d722af5cbe961e6bba54e6f19fb843d88db1", size = 642355, upload-time = "2026-02-10T19:02:54.145Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/5f/8940e0641c223eaf972732b3154f2178a968290f8cb99e8c88582cde60ed/openai-2.18.0-py3-none-any.whl", hash = "sha256:538f97e1c77a00e3a99507688c878cda7e9e63031807ba425c68478854d48b30", size = 1069897, upload-time = "2026-02-09T21:42:16.4Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/a0/cf4297aa51bbc21e83ef0ac018947fa06aea8f2364aad7c96cbf148590e6/openai-2.20.0-py3-none-any.whl", hash = "sha256:38d989c4b1075cd1f76abc68364059d822327cf1a932531d429795f4fc18be99", size = 1098479, upload-time = "2026-02-10T19:02:52.157Z" },
 ]
 
 [[package]]
