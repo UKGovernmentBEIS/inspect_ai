@@ -21,12 +21,24 @@ export const SampleErrorView: FC<SampleErrorViewProps> = ({
 }) => {
   align = align || "center";
 
+  const type = errorType(message);
+
   return (
-    <div className={styles.body}>
+    <div
+      className={clsx(
+        styles.body,
+        isCanceledError(type) ? styles.safe : undefined,
+      )}
+    >
       <i className={clsx(ApplicationIcons.error, styles.iconSmall)} />
       <div className={styles.message} style={ApplicationStyles.lineClamp(2)}>
-        {errorType(message)}
+        {type}
       </div>
     </div>
   );
+};
+
+const isCanceledError = (type?: string) => {
+  console.log(type);
+  return type === "CancelledError";
 };

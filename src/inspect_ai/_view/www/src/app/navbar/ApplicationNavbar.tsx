@@ -11,6 +11,7 @@ interface ApplicationNavbarProps {
   bordered?: boolean;
   children?: ReactNode;
   showActivity?: "all" | "sample" | "log";
+  breadcrumbsEnabled?: boolean;
 }
 
 export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
@@ -19,6 +20,7 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
   bordered,
   children,
   showActivity = "all",
+  breadcrumbsEnabled,
 }) => {
   const optionsRef = useRef<HTMLButtonElement>(null);
   const loading = useStore((state) => state.app.status.loading);
@@ -47,6 +49,7 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
         currentPath={currentPath}
         fnNavigationUrl={fnNavigationUrl}
         bordered={bordered}
+        breadcrumbsEnabled={breadcrumbsEnabled}
       >
         {children}
         <ViewerOptionsButton
