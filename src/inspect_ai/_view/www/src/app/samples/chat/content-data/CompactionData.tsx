@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import styles from "./CompactionData.module.css";
 import ExpandablePanel from "../../../../components/ExpandablePanel";
-import { RenderedText } from "../../../content/RenderedText";
 import { MetaDataGrid } from "../../../content/MetaDataGrid";
+import { RenderedText } from "../../../content/RenderedText";
+import styles from "./CompactionData.module.css";
 
 export const kCompactionMetadata = "compaction_metadata";
 
@@ -18,6 +18,7 @@ export const CompactionData: FC<{
   >;
 
   let compactionContent: ReactNode | undefined = undefined;
+
   if (compactionMetadata.type === "anthropic_compact") {
     compactionContent = (
       <ExpandablePanel id={`${id}-compacted-content`} collapse={true}>

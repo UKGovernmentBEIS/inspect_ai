@@ -140,10 +140,18 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           lines={15}
           className={clsx("text-size-small")}
         >
-          <MessageContent contents={normalizedContent} context={context} />
+          <MessageContent
+            id={id}
+            contents={normalizedContent}
+            context={context}
+          />
         </ExpandablePanel>
       ) : (
-        <MessageContent contents={normalizedContent} context={context} />
+        <MessageContent
+          id={id}
+          contents={normalizedContent}
+          context={context}
+        />
       )}
     </div>
   );

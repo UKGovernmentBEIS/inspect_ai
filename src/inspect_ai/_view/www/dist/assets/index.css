@@ -16021,6 +16021,17 @@ so disabling selection can break that functionality */
   opacity: 0.8;
   text-decoration: none;
 }
+._grid_14885_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.5em;
+  row-gap: 0.2em;
+}
+
+._cell_14885_8 {
+  font-weight: 400;
+  white-space: nowrap;
+}
 ._title_1gjvf_1 {
   margin-bottom: 0.25em;
   display: grid;
@@ -16043,17 +16054,6 @@ so disabling selection can break that functionality */
 
 ._content_1gjvf_11 ._grid_1gjvf_16 .text-style-label {
   text-transform: none !important;
-}
-._grid_14885_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 0.5em;
-  row-gap: 0.2em;
-}
-
-._cell_14885_8 {
-  font-weight: 400;
-  white-space: nowrap;
 }
 ._documentFrame_1576h_1 {
   display: grid;

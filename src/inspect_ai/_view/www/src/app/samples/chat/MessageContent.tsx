@@ -46,6 +46,7 @@ type ContentType = string | string[] | ContentObject;
 type Contents = string | string[] | ContentObject[];
 
 interface MessageContentProps {
+  id: string;
   contents: Contents;
   context: MessagesContext;
 }
@@ -66,6 +67,7 @@ export const isMessageContent = (
  * Supports rendering strings, images, and tools using specific renderers.
  */
 export const MessageContent: FC<MessageContentProps> = ({
+  id,
   contents,
   context,
 }) => {
@@ -74,7 +76,7 @@ export const MessageContent: FC<MessageContentProps> = ({
     return normalized.map((content, index) => {
       if (typeof content === "string") {
         return messageRenderers["text"].render(
-          `text-content-${index}`,
+          `${id}-text-content-${index}`,
           {
             type: "text",
             text: content,
@@ -90,7 +92,7 @@ export const MessageContent: FC<MessageContentProps> = ({
           const renderer = messageRenderers[content.type];
           if (renderer) {
             return renderer.render(
-              `text-${content.type}-${index}`,
+              `${id}-text-${content.type}-${index}`,
               content,
               index === contents.length - 1,
               context,
@@ -111,7 +113,7 @@ export const MessageContent: FC<MessageContentProps> = ({
       citations: null,
     };
     return messageRenderers["text"].render(
-      "text-message-content",
+      `${id}-text-message-content`,
       contentText,
       true,
       context,

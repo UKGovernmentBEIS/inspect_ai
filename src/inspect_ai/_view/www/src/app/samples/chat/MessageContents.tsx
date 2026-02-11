@@ -101,7 +101,11 @@ export const MessageContents: FC<MessageContentsProps> = ({
       <Fragment>
         {message.content && (
           <div className={styles.content}>
-            <MessageContent contents={message.content} context={context} />
+            <MessageContent
+              id={id}
+              contents={message.content}
+              context={context}
+            />
           </div>
         )}
         {toolCalls}
@@ -111,7 +115,11 @@ export const MessageContents: FC<MessageContentsProps> = ({
     return (
       <>
         {message.content && (
-          <MessageContent contents={message.content} context={context} />
+          <MessageContent
+            id={id}
+            contents={message.content}
+            context={context}
+          />
         )}
       </>
     );
