@@ -5,6 +5,7 @@ import {
   Capabilities,
   EvalHeader,
   LogContents,
+  LogDetails,
   LogPreview,
   LogViewAPI,
   PendingSampleResponse,
@@ -219,6 +220,36 @@ export function viewServerApi(
     return logHeaders.map(toLogPreview);
   };
 
+  const get_log_details = async (file: string): Promise<LogDetails> => {
+    const params = new URLSearchParams();
+    params.append("file", file);
+    const result = await requestApi.fetchString(
+      "GET",
+      `/log-details?${params.toString()}`,
+    );
+    return result.parsed;
+  };
+
+  const get_log_sample = async (
+    file: string,
+    id: string | number,
+    epoch: number,
+    exclude_fields?: string[],
+  ) => {
+    const params = new URLSearchParams();
+    params.append("file", file);
+    params.append("id", String(id));
+    params.append("epoch", String(epoch));
+    if (exclude_fields?.length) {
+      params.append("exclude_fields", exclude_fields.join(","));
+    }
+    const result = await requestApi.fetchString(
+      "GET",
+      `/log-sample?${params.toString()}`,
+    );
+    return result.parsed;
+  };
+
   const log_message = async (
     log_file: string,
     message: string,
@@ -362,6 +393,8 @@ export function viewServerApi(
     get_log_contents,
     get_log_size,
     get_log_bytes,
+    get_log_details,
+    get_log_sample,
     get_log_summaries,
     log_message,
     download_file,

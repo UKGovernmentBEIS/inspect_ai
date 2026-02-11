@@ -8,6 +8,7 @@ import { useCollapsedState } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { ApplicationIcons } from "../../appearance/icons";
 import { useLogRouteParams } from "../../routing/url";
+import { EventProgressPanel } from "./event/EventProgressPanel";
 import { TranscriptOutline } from "./outline/TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
@@ -244,11 +245,21 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     }
   }, [scrollRef, flattenedNodes]);
 
+  const eventsLoading = useStore((state) => state.sample.eventsLoading);
+  const eventsError = useStore((state) => state.sample.eventsError);
+
   if (sampleStatus === "loading" && flattenedNodes.length === 0) {
     return undefined;
   }
 
+  if (eventsLoading && flattenedNodes.length === 0) {
+    return <EventProgressPanel text="Loading events..." />;
+  }
+
   if (flattenedNodes.length === 0) {
+    if (eventsError) {
+      return <NoContentsPanel text={`Failed to load events: ${eventsError}`} />;
+    }
     const isCompletedFiltered =
       flattenedNodes.length === 0 && events.length > 0;
     const message = isCompletedFiltered

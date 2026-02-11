@@ -1,3 +1,9 @@
+## Unreleased
+
+- Inspect View: Two-phase sample loading — show sample metadata immediately, then load events in background.
+- Inspect View: Optimistic single-read for remote ZIP file entries, reducing HTTP requests.
+- Inspect View: Remove dead `get_log_summary` / `readEvalBasicInfo` code paths.
+
 ## 0.3.177 (10 February 2026)
 
 - Anthropic: Do not pass through unrecognized `extra_body` fields.

@@ -28,8 +28,16 @@ export interface SampleSlice {
     getSelectedSample: () => EvalSample | undefined;
     clearSelectedSample: () => void;
 
+    prepareForSampleLoad: (
+      logFile: string,
+      id: number | string,
+      epoch: number,
+    ) => void;
+
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
+    setEventsLoading: (loading: boolean) => void;
+    setEventsError: (error: string | undefined) => void;
 
     setCollapsedEvents: (
       scope: string,
@@ -58,13 +66,6 @@ export interface SampleSlice {
       epoch: number,
     ) => void;
 
-    // Used by useSampleLoader to set identifier before loading
-    setSampleIdentifier: (
-      logFile: string,
-      id: number | string,
-      epoch: number,
-    ) => void;
-
     // Used by samplePolling to update running events
     setRunningEvents: (events: Event[]) => void;
   };
@@ -79,6 +80,8 @@ const initialState: SampleState = {
   sampleInState: false,
   sampleStatus: "ok",
   sampleError: undefined,
+  eventsLoading: false,
+  eventsError: undefined,
 
   visiblePopover: undefined,
 
@@ -151,6 +154,27 @@ export const createSampleSlice = (
           state.sample.sampleInState = false;
           state.sample.runningEvents = [];
           state.sample.sampleStatus = "ok";
+          state.sample.eventsLoading = false;
+          state.sample.eventsError = undefined;
+          state.log.selectedSampleHandle = undefined;
+        });
+      },
+      prepareForSampleLoad: (
+        logFile: string,
+        id: number | string,
+        epoch: number,
+      ) => {
+        getSamplePolling().stopPolling();
+        selectedSampleRef.current = undefined;
+        set((state) => {
+          state.sample.selectedSampleObject = undefined;
+          state.sample.sampleInState = false;
+          state.sample.runningEvents = [];
+          state.sample.sampleStatus = "loading";
+          state.sample.sampleError = undefined;
+          state.sample.eventsLoading = false;
+          state.sample.eventsError = undefined;
+          state.sample.sample_identifier = { logFile, id, epoch };
           state.log.selectedSampleHandle = undefined;
         });
       },
@@ -161,6 +185,14 @@ export const createSampleSlice = (
       setSampleError: (error: Error | undefined) =>
         set((state) => {
           state.sample.sampleError = error;
+        }),
+      setEventsLoading: (loading: boolean) =>
+        set((state) => {
+          state.sample.eventsLoading = loading;
+        }),
+      setEventsError: (error: string | undefined) =>
+        set((state) => {
+          state.sample.eventsError = error;
         }),
       setCollapsedEvents: (
         scope: string,
@@ -267,15 +299,6 @@ export const createSampleSlice = (
             epoch,
             logFile,
           };
-        });
-      },
-      setSampleIdentifier: (
-        logFile: string,
-        id: number | string,
-        epoch: number,
-      ) => {
-        set((state) => {
-          state.sample.sample_identifier = { id, epoch, logFile };
         });
       },
       setRunningEvents: (events: Event[]) => {

@@ -128,6 +128,9 @@ export const clientApi = (
    * Gets a log summary
    */
   const get_log_details = async (log_file: string): Promise<LogDetails> => {
+    if (api.get_log_details) {
+      return api.get_log_details(log_file);
+    }
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
       if (remoteLogFile) {
@@ -176,6 +179,9 @@ export const clientApi = (
     id: string | number,
     epoch: number,
   ): Promise<EvalSample | undefined> => {
+    if (api.get_log_sample) {
+      return api.get_log_sample(log_file, id, epoch);
+    }
     if (isEvalFile(log_file)) {
       async function fetchSample(useCache: boolean) {
         const remoteLogFile = await remoteEvalFile(log_file, useCache);
@@ -218,20 +224,15 @@ export const clientApi = (
     return undefined;
   };
 
-  const read_eval_file_log_summary = async (log_file: string) => {
-    // If the API supports this, delegate to it
-    if (api.get_log_summary) {
-      return api.get_log_summary(log_file);
-    } else {
-      // Don't re-use the eval log file since we know these are all different log files
-      const remoteLogFile = await openRemoteLogFile(
-        api,
-        encodePathParts(log_file),
-        5,
-      );
-      return remoteLogFile.readEvalBasicInfo();
-    }
-  };
+  const get_log_sample_lite = api.get_log_sample
+    ? async (log_file: string, id: string | number, epoch: number) => {
+        return api.get_log_sample!(log_file, id, epoch, [
+          "events",
+          "attachments",
+          "store",
+        ]);
+      }
+    : undefined;
 
   /**
    * Gets log headers
@@ -239,49 +240,7 @@ export const clientApi = (
   const get_log_summaries = async (
     log_files: string[],
   ): Promise<LogPreview[]> => {
-    const eval_files: Record<string, number> = {};
-    const json_files: Record<string, number> = {};
-    let index = 0;
-
-    // Separate files into eval_files and json_files
-    for (const file of log_files) {
-      if (isEvalFile(file)) {
-        eval_files[file] = index;
-      } else {
-        json_files[file] = index;
-      }
-      index++;
-    }
-
-    // Get the promises for eval log headers
-    const evalLogHeadersPromises = Object.keys(eval_files).map((file) =>
-      read_eval_file_log_summary(file).then((summary) => ({
-        index: eval_files[file], // Store original index
-        summary,
-      })),
-    );
-
-    // Get the promise for json log headers
-    const jsonLogHeadersPromise = api
-      .get_log_summaries(Object.keys(json_files))
-      .then((summaries) =>
-        summaries.map((summary, i) => ({
-          index: json_files[Object.keys(json_files)[i]], // Store original index
-          summary,
-        })),
-      );
-
-    // Wait for all promises to resolve
-    const summaries = await Promise.all([
-      ...evalLogHeadersPromises,
-      jsonLogHeadersPromise,
-    ]);
-
-    // Flatten the nested array and sort headers by their original index
-    const orderedSummaries = summaries.flat().sort((a, b) => a.index - b.index);
-
-    // Return only the header values in the correct order
-    return orderedSummaries.map(({ summary }) => summary);
+    return api.get_log_summaries(log_files);
   };
 
   const get_log_dir = async (): Promise<string | undefined> => {
@@ -388,6 +347,9 @@ export const clientApi = (
     get_log_summaries: middleware("get_log_summaries", get_log_summaries),
     get_log_details: middleware("get_log_details", get_log_details),
     get_log_sample: middleware("get_log_sample", get_log_sample),
+    get_log_sample_lite: get_log_sample_lite
+      ? middleware("get_log_sample_lite", get_log_sample_lite)
+      : undefined,
     open_log_file: middleware("open_log_file", (log_file, log_dir) => {
       return api.open_log_file(log_file, log_dir);
     }),

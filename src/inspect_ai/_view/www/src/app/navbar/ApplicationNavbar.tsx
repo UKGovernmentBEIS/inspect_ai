@@ -23,6 +23,7 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
   const optionsRef = useRef<HTMLButtonElement>(null);
   const loading = useStore((state) => state.app.status.loading);
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
+  const eventsLoading = useStore((state) => state.sample.eventsLoading);
 
   const isShowing = useStore((state) => state.app.dialogs.options);
   const setShowing = useStore(
@@ -31,15 +32,15 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
 
   const hasActivity = useMemo(() => {
     if (showActivity === "all") {
-      return !!loading || sampleStatus === "loading";
+      return !!loading || sampleStatus === "loading" || eventsLoading;
     } else if (showActivity === "log") {
       return !!loading;
     } else if (showActivity === "sample") {
-      return sampleStatus === "loading";
+      return sampleStatus === "loading" || eventsLoading;
     } else {
       return false;
     }
-  }, [showActivity, loading, sampleStatus]);
+  }, [showActivity, loading, sampleStatus, eventsLoading]);
 
   return (
     <div>
