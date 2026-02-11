@@ -306,9 +306,9 @@ def _read_samples_df_serial(
         p.reset(description=f"reading {entity}s", completed=0, total=total_samples)
 
         # read samples
-        async def process_eval_log(
+        async def read_samples_async(
             eval_id: str, eval_log: EvalLog, async_fs: AsyncFilesystem
-        ) -> None:
+        ) -> Iterable[EvalSample | EvalSampleSummary]:
             # get samples (in-memory, full log, or summaries from disk)
             if (
                 is_eval_logs
@@ -323,7 +323,19 @@ def _read_samples_df_serial(
                 samples = await read_eval_log_sample_summaries_async(
                     eval_log.location, async_fs=async_fs
                 )
+            p.update()
+            return samples
 
+        log_samples = run_tg_collect_with_fs(
+            [
+                partial(read_samples_async, eval_id, eval_log)
+                for eval_id, eval_log in zip(evals_table[EVAL_ID].to_list(), eval_logs)
+            ]
+        )
+
+        for samples, eval_id, eval_log in zip(
+            log_samples, evals_table[EVAL_ID].to_list(), eval_logs
+        ):
             for sample in samples:
                 if strict:
                     record = import_record(
@@ -398,14 +410,6 @@ def _read_samples_df_serial(
 
                 # record sample record
                 sample_records.append(record)
-                p.update()
-
-        run_tg_collect_with_fs(
-            [
-                partial(process_eval_log, eval_id, eval_log)
-                for eval_id, eval_log in zip(evals_table[EVAL_ID].to_list(), eval_logs)
-            ]
-        )
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)

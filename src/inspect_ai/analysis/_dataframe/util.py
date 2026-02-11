@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from functools import partial
+from itertools import chain
 from os import PathLike
 from pathlib import Path
 from re import Pattern
@@ -79,19 +80,19 @@ def resolve_logs(
     ]
 
     # expand directories
-    log_paths: list[FileInfo] = []
-
-    async def expand_log(log_str: str, async_fs: AsyncFilesystem) -> None:
+    async def expand_log(log_str: str, async_fs: AsyncFilesystem) -> list[FileInfo]:
         info = await async_fs.info(log_str)
         if info.type == "directory":
             fs = filesystem(log_str)
-            log_paths.extend(
-                [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
-            )
+            return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
         else:
-            log_paths.append(info)
+            return [info]
 
-    run_tg_collect_with_fs([partial(expand_log, s) for s in logs_str])
+    log_paths = list(
+        chain.from_iterable(
+            run_tg_collect_with_fs([partial(expand_log, s) for s in logs_str])
+        )
+    )
 
     log_files = log_files_from_ls(log_paths, sort=False)
     return [log_file.name for log_file in log_files]

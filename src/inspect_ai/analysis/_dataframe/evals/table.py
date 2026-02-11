@@ -139,13 +139,18 @@ def _read_evals_df(
     eval_logs: list[EvalLog] = []
     records: list[dict[str, ColumnType]] = []
 
-    async def read_eval_df(item: str | EvalLog, fs: AsyncFilesystem) -> None:
+    async def read_eval_df(item: str | EvalLog, fs: AsyncFilesystem) -> EvalLog:
         log = (
             await read_eval_log_async(item, header_only=True, async_fs=fs)
             if isinstance(item, str)
             else item
         )
+        progress()
+        return log
 
+    logs = run_tg_collect_with_fs([partial(read_eval_df, item) for item in logs])
+
+    for log in logs:
         if strict:
             record = import_record(log, log, columns, strict=True)
         else:
@@ -158,15 +163,11 @@ def _read_evals_df(
             eval_ids.add(eval_id)
             eval_logs.append(log)
             records.append(record)
-            nonlocal total_samples
             total_samples += (
                 len(log.eval.dataset.sample_ids)
                 if log.eval.dataset.sample_ids is not None
                 else (log.eval.dataset.samples or 100)
             )
-        progress()
-
-    run_tg_collect_with_fs([partial(read_eval_df, item) for item in logs])
 
     # return table (+errors if strict=False)
     evals_table = records_to_pandas(records)
