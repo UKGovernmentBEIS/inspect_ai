@@ -3,6 +3,8 @@
 - Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
 - Model API: for 400 errors, print the error after the request payload rather than before.
 - Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
+- Inspect View: Fix regression in log viewer navigation in VSCode.
+- Inspect View: Improve transcript display appearance in VSCode.
 
 ## 0.3.177 (10 February 2026)
 

@@ -14330,6 +14330,11 @@ pre[class*="language-"] {
   /* Inspect Glass */
   --inspect-glass-color: #000000;
   --inspect-glass-opacity: 0.3;
+
+  --inspect-event-panel-sticky-top: 30px;
+  --inspect-event-panel-sticky-margin: -5px -10px -5px 0;
+  --inspect-event-panel-sticky-stuck-margin-left: -22px;
+  --inspect-event-panel-sticky-stuck-margin-right: -10px;
 }
 
 body:not([class^="vscode-"]) button {
@@ -14490,6 +14495,10 @@ body[class^="vscode-"] {
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
   --inspect-glass-color: var(--vscode-editor-foreground);
   --inspect-glass-opacity: 0.15;
+  --inspect-event-panel-sticky-top: 25px;
+  --inspect-event-panel-sticky-margin: 0px -10px -5px 0;
+  --inspect-event-panel-sticky-stuck-margin-left: -19px;
+  --inspect-event-panel-sticky-stuck-margin-right: -10px;
 }
 
 html.vscode {
@@ -17540,45 +17549,45 @@ button._segment_mhb7y_9 {
 ._navs_1vm6p_1 {
   margin-right: 0;
 }
-._stickyWrapper_16okh_1 {
+._stickyWrapper_1yfru_1 {
   position: sticky;
-  /* top needs to be in sync with a hardcoded rootMargin of IntersectionObserver, negative margins are combined from multiple parents */
-  top: 30px;
+  top: var(--inspect-event-panel-sticky-top);
   padding: 5px 10px 5px 0;
-  margin: -5px -10px -5px 0;
+  margin: var(--inspect-event-panel-sticky-margin);
   background-color: transparent;
   z-index: 1;
   border-bottom: solid 1px transparent;
   border-left: solid 1px transparent;
 }
 
-._stickyWrapper_16okh_1[data-useStickyObserver-stuck] {
+._stickyWrapper_1yfru_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
   padding-left: 10px;
-  margin-left: -22px;
-  margin-right: -10px;
+  margin-left: var(--inspect-event-panel-sticky-stuck-margin-left);
+  margin-right: var(--inspect-event-panel-sticky-stuck-margin-right);
   border-bottom-color: var(--bs-light-border-subtle);
   border-left-color: var(--bs-light-border-subtle);
+  border-right-color: var(--bs-light-border-subtle);
 }
 
-._label_16okh_22 {
+._label_1yfru_22 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._navs_16okh_27 {
+._navs_1yfru_27 {
   justify-self: end;
   display: flex;
   align-items: baseline;
 }
 
-._turnLabel_16okh_33 {
+._turnLabel_1yfru_33 {
   margin-left: 0.625rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_16okh_39 {
+._card_1yfru_39 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -17586,20 +17595,20 @@ button._segment_mhb7y_9 {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_16okh_47 {
+._cardContent_1yfru_47 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_16okh_47._hidden_16okh_52 {
+._cardContent_1yfru_47._hidden_1yfru_52 {
   display: none;
 }
 
-._hidden_16okh_52 {
+._hidden_1yfru_52 {
   display: none;
 }
 
-._copyLink_16okh_60 {
+._copyLink_1yfru_60 {
   font-size: 1.2em;
   height: 1em;
   opacity: 0;
@@ -17607,16 +17616,16 @@ button._segment_mhb7y_9 {
   padding-right: 2em;
 }
 
-._hover_16okh_68 ._copyLink_16okh_60 {
+._hover_1yfru_68 ._copyLink_1yfru_60 {
   opacity: 0.75;
 }
 
-._root_16okh_72 {
+._root_1yfru_72 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_16okh_77 {
+._bottomDongle_1yfru_77 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -17633,7 +17642,7 @@ button._segment_mhb7y_9 {
   cursor: pointer;
 }
 
-._dongleIcon_16okh_94 {
+._dongleIcon_1yfru_94 {
   padding-right: 0.3em;
 }
 ._panel_vz394_1 {
