@@ -1,7 +1,15 @@
 ## Unreleased
 
 - Analysis: Async reading of logs/samples in `samples_df()`. Improves reading summary samples from ~114 minutes to ~15 seconds for ~600 files. 
+
+## 0.3.177 (10 February 2026)
+
+- Anthropic: Do not pass through unrecognized `extra_body` fields.
+
+## 0.3.176 (10 February 2026)
+
 - Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
+- Bugfix: Correct handling of `ComposeConfig` for Docker sandbox provider.
 
 ## 0.3.175 (10 February 2026)
 
