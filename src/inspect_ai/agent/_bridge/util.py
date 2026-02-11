@@ -40,7 +40,7 @@ async def bridge_generate(
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
-        input_messages, c_message = await compact(input)
+        input_messages, c_message = await compact.compact_input(input)
     else:
         input_messages = input
         c_message = None
@@ -83,6 +83,11 @@ async def bridge_generate(
                 tools=tools,
                 config=config,
             )
+
+        # Update the compaction baseline with the actual input token
+        # count from the generate call (most accurate source of truth)
+        if compact is not None:
+            compact.record_output(output)
 
         # Check for refusal and retry if needed
         if (

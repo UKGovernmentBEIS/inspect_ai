@@ -78,7 +78,7 @@ async def test_threshold_absolute_int() -> None:
     ]
 
     # Should not trigger compaction
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # No compaction occurred
     assert len(result) == 3
 
@@ -97,7 +97,7 @@ async def test_threshold_absolute_float_above_one() -> None:
         user_msg("Message", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # Under threshold, no compaction
     assert len(result) == 2
 
@@ -125,7 +125,7 @@ async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
         assistant_msg("A" * 50, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # The test verifies the mechanism works - whether warning is issued
     # depends on exact token count which varies with tiktoken encoding.
@@ -150,7 +150,7 @@ async def test_memory_warning_disabled() -> None:
         assistant_msg("A" * 30, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # No memory warning should be present when memory=False
     has_warning = any(
@@ -178,7 +178,7 @@ async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
         assistant_msg("A" * 30, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # No memory warning without memory tool
     has_warning = any(
@@ -218,7 +218,7 @@ async def test_prefix_restored() -> None:
         assistant_msg("A" * 100, "msg3"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # Prefix should be preserved in result
     assert len(result) >= 2
@@ -241,7 +241,7 @@ async def test_prefix_empty() -> None:
         assistant_msg("Answer", "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
@@ -265,7 +265,7 @@ async def test_cycle_processed_ids() -> None:
         user_msg("Q1", "msg1"),
         assistant_msg("A1", "msg2"),
     ]
-    result1, _ = await compact(messages1)
+    result1, _ = await compact.compact_input(messages1)
 
     # Second call with additional messages
     messages2: list[ChatMessage] = [
@@ -275,7 +275,7 @@ async def test_cycle_processed_ids() -> None:
         user_msg("Q2", "msg3"),
         assistant_msg("A2", "msg4"),
     ]
-    result2, _ = await compact(messages2)
+    result2, _ = await compact.compact_input(messages2)
 
     # All messages should be included
     assert len(result2) == 5
@@ -297,8 +297,8 @@ async def test_cycle_token_cache() -> None:
     ]
 
     # Call twice with same messages
-    result1, _ = await compact(messages)
-    result2, _ = await compact(messages)
+    result1, _ = await compact.compact_input(messages)
+    result2, _ = await compact.compact_input(messages)
 
     # Results should be consistent
     assert len(result1) == len(result2)
@@ -323,7 +323,7 @@ async def test_tools_empty() -> None:
         user_msg("Question", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
@@ -341,7 +341,7 @@ async def test_tools_none() -> None:
         user_msg("Question", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
@@ -365,7 +365,7 @@ async def test_boundary_under_threshold() -> None:
         assistant_msg("Short", "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # No compaction
     assert len(result) == 3
 
@@ -397,7 +397,7 @@ async def test_boundary_triggers_compaction() -> None:
         assistant_msg("Done", "msg5"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Compaction should have occurred (summary is still None for Edit strategy)
     assert summary is None  # Edit strategy returns None
     # Tool result should have been cleared
@@ -424,7 +424,7 @@ async def test_return_edit_none() -> None:
         assistant_msg("B" * 100, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Edit strategy always returns None for summary
     assert summary is None
 
@@ -444,7 +444,7 @@ async def test_return_trim_none() -> None:
         assistant_msg("B" * 100, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Trim strategy always returns None for summary
     assert summary is None
 
@@ -469,7 +469,7 @@ async def test_return_summary_not_none() -> None:
         user_msg("C" * 800, "msg3"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Summary strategy returns non-None summary when compaction occurs
     assert summary is not None
     assert isinstance(summary, ChatMessageUser)
@@ -497,7 +497,7 @@ async def test_edge_small_threshold() -> None:
     ]
 
     # Should work without errors
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert result is not None
 
 
@@ -514,7 +514,7 @@ async def test_single_message() -> None:
         user_msg("Hello", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 1
 
 
@@ -539,14 +539,14 @@ async def test_summary_integration() -> None:
         user_msg("Q" * 500, "msg2"),
     ]
 
-    result1, summary1 = await compact(messages1)
+    result1, summary1 = await compact.compact_input(messages1)
     assert summary1 is not None
 
     # Second call with the summary included
     messages2: list[ChatMessage] = messages1 + [summary1]
     messages2.append(assistant_msg("Continuing", "msg3"))
 
-    result2, summary2 = await compact(messages2)
+    result2, summary2 = await compact.compact_input(messages2)
     # The factory should handle the summary in the history
     assert result2 is not None
 
@@ -578,7 +578,7 @@ async def test_iterative_compaction_succeeds() -> None:
         messages.append(assistant_msg(f"A{i}" * 10, f"a{i}"))
 
     # Should succeed via iteration (not raise RuntimeError)
-    result, _ = await compact(messages)
+    result, _ = await compact.compact_input(messages)
     assert result is not None
     assert len(result) < len(messages)
 
@@ -601,7 +601,7 @@ async def test_iterative_compaction_stops_when_no_progress() -> None:
 
     # Should raise RuntimeError since Edit can't reduce these messages
     with pytest.raises(RuntimeError, match="Compaction insufficient"):
-        await compact(messages)
+        await compact.compact_input(messages)
 
 
 @pytest.mark.asyncio
@@ -620,7 +620,7 @@ async def test_compaction_error_message_breakdown() -> None:
     ]
 
     with pytest.raises(RuntimeError) as exc_info:
-        await compact(messages)
+        await compact.compact_input(messages)
 
     error_msg = str(exc_info.value)
     assert "tools:" in error_msg
@@ -790,7 +790,7 @@ async def test_compaction_strips_citations() -> None:
         ),
     ]
 
-    result, _ = await compact(messages)
+    result, _ = await compact.compact_input(messages)
 
     # Find any assistant message with ContentText content
     for msg in result:

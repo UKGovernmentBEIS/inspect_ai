@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
+- Compaction: Improve token counting by using input tokens reported from call to `generate()`.
 - Model API: for 400 errors, print the error after the request payload rather than before.
 
 ## 0.3.177 (10 February 2026)
