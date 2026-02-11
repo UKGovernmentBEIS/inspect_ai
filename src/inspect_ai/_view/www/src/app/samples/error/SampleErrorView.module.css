@@ -6,6 +6,10 @@
   justify-items: center;
 }
 
+.body.safe {
+  color: var(--bs-secondary);
+}
+
 .iconSmall {
   font-size: var(--inspect-font-size-small);
   line-height: var(--inspect-font-size-small);

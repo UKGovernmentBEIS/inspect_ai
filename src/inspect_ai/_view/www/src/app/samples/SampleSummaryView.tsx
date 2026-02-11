@@ -225,7 +225,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Error",
       value: <SampleErrorView message={fields.error} />,
-      size: "fit-content(10em)",
+      size: "fit-content(20em)",
       center: true,
     });
   }

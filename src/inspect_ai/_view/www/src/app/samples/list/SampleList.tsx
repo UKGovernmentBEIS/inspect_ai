@@ -355,7 +355,8 @@ const gridColumnsValue = (
 ) => {
   const { input, target, answer, limit, retries, id, scores, errors } =
     gridColumns(sampleDescriptor, hasErrors);
-  const result = `${id} ${input} ${target} ${answer} ${limit} ${retries} ${scores.join(" ")} ${errors}`;
+  const parts = [id, input, target, answer, limit, retries, ...scores, errors];
+  const result = parts.join(" ");
   return result;
 };
 
@@ -402,7 +403,7 @@ const gridColumns = (
     }
   };
 
-  const errors = hasErrors ? 8 : 0;
+  const errors = hasErrors ? "fit-content(20em)" : "0";
 
   return {
     input: frSize(input),
@@ -410,7 +411,7 @@ const gridColumns = (
     answer: frSize(answer),
     limit: frSize(limit),
     retries: `${retries}em`,
-    errors: `${errors}em`,
+    errors,
     id: `${id}rem`,
     scores,
   };
