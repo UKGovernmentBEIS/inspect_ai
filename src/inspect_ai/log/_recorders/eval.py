@@ -737,7 +737,7 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[EvalSampleSummary]:
             )
     else:
         summaries: list[EvalSampleSummary] = []
-        for i in range(1, count):
+        for i in range(1, count + 1):
             summary_file = _journal_summary_file(i)
             summary_path = _journal_summary_path(summary_file)
             summary = _read_json(zip, summary_path)
