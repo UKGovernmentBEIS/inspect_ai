@@ -1,4 +1,6 @@
+import json
 import re
+from collections.abc import Iterator
 from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
@@ -46,6 +48,95 @@ def is_ijson_nan_inf_error(
         or "invalid char in json text" in error_msg
         or "unexpected symbol" in error_msg
     )
+
+
+def load_json_exclude(f: Any, exclude_fields: set[str]) -> dict[str, Any]:
+    """Load a JSON object from a file, skipping excluded top-level fields.
+
+    Uses ijson for streaming parse so excluded fields (e.g. large ``events``
+    arrays) are never materialised.  Falls back to ``json.load`` when ijson
+    encounters NaN/Inf values it cannot handle.
+    """
+    import ijson  # type: ignore
+    from ijson import IncompleteJSONError
+    from ijson.backends.python import (  # type: ignore[import-untyped]
+        UnexpectedSymbol,
+    )
+
+    try:
+        parser = ijson.parse(f, use_float=True)
+        _, event, _ = next(parser)
+        if event != "start_map":
+            raise ValueError(f"Expected start_map event at root, got: {event}")
+
+        data: dict[str, Any] = {}
+        for _, event, value in parser:
+            if event == "end_map":
+                break
+            if event != "map_key":
+                raise ValueError(f"Expected map_key event, got: {event}")
+            key = value
+            if key in exclude_fields:
+                _skip_json_value(parser)
+            else:
+                _, next_event, next_value = next(parser)
+                data[key] = _build_json_value(next_event, next_value, parser)
+    except (
+        ValueError,
+        IncompleteJSONError,
+        UnexpectedSymbol,
+    ) as ex:
+        if is_ijson_nan_inf_error(ex):
+            f.seek(0)
+            data = json.load(f)
+            for field in exclude_fields:
+                data.pop(field, None)
+        else:
+            raise
+    return data
+
+
+def _skip_json_value(parser: Iterator[tuple[str, str, Any]]) -> None:
+    """Skip the next JSON value from an ijson parse stream without materializing it."""
+    _, event, _ = next(parser)
+    if event in ("null", "boolean", "number", "string"):
+        return
+    depth = 1
+    for _, event, _ in parser:
+        if event in ("start_map", "start_array"):
+            depth += 1
+        elif event in ("end_map", "end_array"):
+            depth -= 1
+            if depth == 0:
+                return
+    raise ValueError("Truncated JSON: unexpected end of stream while skipping value")
+
+
+def _build_json_value(
+    event: str, value: Any, parser: Iterator[tuple[str, str, Any]]
+) -> Any:
+    """Build a Python value from an ijson parse stream."""
+    if event in ("null", "boolean", "number", "string"):
+        return value
+    elif event == "start_array":
+        arr: list[Any] = []
+        for _, ev, val in parser:
+            if ev == "end_array":
+                return arr
+            arr.append(_build_json_value(ev, val, parser))
+        raise ValueError("Unterminated JSON array")
+    elif event == "start_map":
+        obj: dict[str, Any] = {}
+        for _, ev, val in parser:
+            if ev == "end_map":
+                return obj
+            if ev != "map_key":
+                raise ValueError(f"Expected map_key event, got: {ev}")
+            key = val
+            _, next_ev, next_val = next(parser)
+            obj[key] = _build_json_value(next_ev, next_val, parser)
+        raise ValueError("Unterminated JSON object")
+    raise ValueError(f"Unexpected ijson event: {event}")
 
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]

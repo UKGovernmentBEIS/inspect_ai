@@ -30,9 +30,11 @@ from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
 from inspect_ai._view.common import (
     delete_log,
+    get_log_details,
     get_log_dir,
     get_log_file,
     get_log_files,
+    get_log_sample,
     get_log_size,
     get_logs,
     normalize_uri,
@@ -314,13 +316,45 @@ def view_server_app(
         request: Request, file: list[str] = Query([])
     ) -> Response:
         files = [normalize_uri(f) for f in file]
+        mapped_files: list[str] = [""] * len(files)
+
+        async def _validate_and_map(idx: int, f: str) -> None:
+            await _validate_read(request, f)
+            mapped_files[idx] = await _map_file(request, f)
+
         async with anyio.create_task_group() as tg:
-            for f in files:
-                tg.start_soon(_validate_read, request, f)
-        headers = await read_eval_log_headers_async(
-            [await _map_file(request, file) for file in files]
-        )
+            for i, f in enumerate(files):
+                tg.start_soon(_validate_and_map, i, f)
+
+        headers = await read_eval_log_headers_async(mapped_files)
         return InspectJsonResponse(to_jsonable_python(headers, exclude_none=True))
+
+    @app.get("/log-details")
+    async def api_log_details(request: Request, file: str = Query(...)) -> Response:
+        file = normalize_uri(file)
+        await _validate_read(request, file)
+        mapped_file = await _map_file(request, file)
+        details = await get_log_details(mapped_file)
+        return InspectJsonResponse(details)
+
+    @app.get("/log-sample")
+    async def api_log_sample(
+        request: Request,
+        file: str = Query(...),
+        id: str = Query(...),
+        epoch: int = Query(...),
+        exclude_fields: str = Query(""),
+    ) -> Response:
+        file = normalize_uri(file)
+        await _validate_read(request, file)
+        mapped_file = await _map_file(request, file)
+        sample = await get_log_sample(
+            mapped_file,
+            id,
+            epoch,
+            exclude_fields=set(exclude_fields.split(",")) if exclude_fields else None,
+        )
+        return InspectJsonResponse(sample)
 
     @app.get("/events")
     async def api_events(

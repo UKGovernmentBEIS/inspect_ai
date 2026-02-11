@@ -16,7 +16,7 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
-from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
+from inspect_ai._util.json import load_json_exclude, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 
@@ -266,7 +266,12 @@ class EvalRecorder(FileRecorder):
         uuid: str | None = None,
         exclude_fields: set[str] | None = None,
     ) -> EvalSample:
-        with file(location, "rb") as z:
+        # Use readahead caching for S3 to reduce the number of small range
+        # requests during ZipFile initialisation (~7 vs ~11 with cache="none").
+        fs = filesystem(location)
+        fs_options = {"default_cache_type": "readahead"} if fs.is_s3() else {}
+
+        with file(location, "rb", fs_options=fs_options) as z:
             with ZipFile(z, mode="r") as zip:
                 try:
                     # if a uuid was specified then read the summaries and find the matching sample
@@ -289,34 +294,7 @@ class EvalRecorder(FileRecorder):
 
                     with zip.open(_sample_filename(id, epoch), "r") as f:
                         if exclude_fields:
-                            # Use streaming JSON parser to skip large fields
-                            # This significantly reduces memory usage for large samples
-                            import ijson  # type: ignore
-                            from ijson import IncompleteJSONError
-                            from ijson.backends.python import (  # type: ignore[import-untyped]
-                                UnexpectedSymbol,
-                            )
-
-                            try:
-                                data: dict[str, Any] = {}
-                                for key, value in ijson.kvitems(f, "", use_float=True):
-                                    if key not in exclude_fields:
-                                        data[key] = value
-                            except (
-                                ValueError,
-                                IncompleteJSONError,
-                                UnexpectedSymbol,
-                            ) as ex:
-                                # ijson doesn't support NaN/Inf which are valid in
-                                # Python's JSON. Fall back to standard json.load
-                                # and manually remove excluded fields.
-                                if is_ijson_nan_inf_error(ex):
-                                    f.seek(0)
-                                    data = json.load(f)
-                                    for field in exclude_fields:
-                                        data.pop(field, None)
-                                else:
-                                    raise
+                            data = load_json_exclude(f, exclude_fields)
                         else:
                             data = json.load(f)
                         return EvalSample.model_validate(

@@ -120,6 +120,31 @@ def test_read_sample_by_uuid():
         assert sampleA.input == sampleB.input
 
 
+def test_read_sample_exclude_fields():
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        log = read_eval_log(log_file)
+        eval_log_path = os.path.join(tmpdirname, "new_log.eval")
+        write_eval_log(log, eval_log_path)
+
+        full_sample = read_eval_log_sample(eval_log_path, 1, 1)
+        assert len(full_sample.events) > 0, (
+            "Fixture must have events for this test to be meaningful"
+        )
+
+        sample = read_eval_log_sample(
+            eval_log_path, 1, 1, exclude_fields={"events", "attachments", "store"}
+        )
+        assert sample.events == []
+        assert sample.attachments == {}
+        assert sample.store == {}
+        assert sample.target == " Yes"
+        assert sample.input == full_sample.input
+        assert sample.target == full_sample.target
+        assert sample.id == full_sample.id
+        assert sample.epoch == full_sample.epoch
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)

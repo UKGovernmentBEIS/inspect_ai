@@ -1,6 +1,16 @@
+import io
 import json
+import math
 
-from inspect_ai._util.json import json_changes, to_json_str_safe
+import pytest
+
+from inspect_ai._util.json import (
+    _build_json_value,
+    _skip_json_value,
+    json_changes,
+    load_json_exclude,
+    to_json_str_safe,
+)
 from inspect_ai.dataset._sources.json import (
     json_dataset_reader,
     jsonlines_dataset_reader,
@@ -308,3 +318,79 @@ def test_json_dataset_reader_kwargs(tmp_path):
     assert result == [
         {"x": None, "y": float("inf"), "z": float("-inf"), "a": "5", "b": 5}
     ]
+
+
+@pytest.mark.parametrize(
+    "json_str,expected",
+    [
+        ("42", 42),
+        ('"hello"', "hello"),
+        ("null", None),
+        ("true", True),
+        ("[]", []),
+        ("{}", {}),
+        ("[1, 2, 3]", [1, 2, 3]),
+        ('{"a": 1, "b": [2, 3]}', {"a": 1, "b": [2, 3]}),
+        ('{"nested": {"deep": [{"x": 1}]}}', {"nested": {"deep": [{"x": 1}]}}),
+    ],
+)
+def test_build_json_value(json_str: str, expected: object) -> None:
+    import ijson  # type: ignore
+
+    parser = ijson.parse(io.BytesIO(json_str.encode()), use_float=True)
+    _, event, value = next(parser)
+    result = _build_json_value(event, value, parser)
+    assert result == expected
+
+
+def test_skip_json_value() -> None:
+    import ijson  # type: ignore
+
+    data = b'{"skip": {"nested": [1,2,3]}, "keep": 42}'
+    parser = ijson.parse(io.BytesIO(data), use_float=True)
+    _, ev, _ = next(parser)
+    assert ev == "start_map"
+    _, ev, key1 = next(parser)
+    assert key1 == "skip"
+    _skip_json_value(parser)
+    _, ev, key2 = next(parser)
+    assert key2 == "keep"
+    _, ev2, val2 = next(parser)
+    result = _build_json_value(ev2, val2, parser)
+    assert result == 42
+
+
+@pytest.mark.parametrize(
+    "json_bytes,exclude,expected",
+    [
+        (b'{"a": 1, "b": [2, 3], "c": "hello"}', {"b"}, {"a": 1, "c": "hello"}),
+        (b'{"a": 1, "b": 2, "c": 3, "d": 4}', {"b", "d"}, {"a": 1, "c": 3}),
+        (
+            b'{"keep": "yes", "skip": {"deep": {"nested": [1, 2, {"x": true}]}}}',
+            {"skip"},
+            {"keep": "yes"},
+        ),
+        (b'{"a": 1, "b": 2}', set(), {"a": 1, "b": 2}),
+        (b'{"a": 1, "b": 2}', {"a", "b"}, {}),
+        (b'{"a": 1}', {"nonexistent"}, {"a": 1}),
+    ],
+)
+def test_load_json_exclude(
+    json_bytes: bytes, exclude: set[str], expected: dict[str, object]
+) -> None:
+    result = load_json_exclude(io.BytesIO(json_bytes), exclude)
+    assert result == expected
+
+
+def test_load_json_exclude_nan_inf_fallback():
+    data = b'{"a": NaN, "b": 2, "skip": [1, 2, 3]}'
+    result = load_json_exclude(io.BytesIO(data), {"skip"})
+    assert math.isnan(result["a"])
+    assert result["b"] == 2
+    assert "skip" not in result
+
+
+def test_load_json_exclude_non_object_root():
+    data = b"[1, 2, 3]"
+    with pytest.raises(ValueError, match="Expected start_map"):
+        load_json_exclude(io.BytesIO(data), {"x"})
