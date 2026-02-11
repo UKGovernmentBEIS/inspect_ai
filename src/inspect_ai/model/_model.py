@@ -100,7 +100,7 @@ from ._generate_config import (
     active_generate_config,
     set_active_generate_config,
 )
-from ._model_call import ModelCall
+from ._model_call import ModelCall, as_error_response
 from ._model_output import ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
@@ -374,8 +374,10 @@ class ModelAPI(abc.ABC):
 
     async def compact(
         self,
-        messages: list[ChatMessage],
-        config: GenerateConfig | None = None,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
 
@@ -385,9 +387,11 @@ class ModelAPI(abc.ABC):
         context window limit.
 
         Args:
-            messages: List of chat messages to compact.
-            config: Optional generation config for provider-specific settings
-                (e.g., reasoning parameters for OpenAI models).
+            input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+            tools: Tools available for the model to call.
+            config: Model configuration.
+            instructions: Additional instructions to give the model about compaction
+                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
         Returns:
             A tuple of (compacted_messages, usage) where compacted_messages is a
@@ -707,8 +711,9 @@ class Model:
 
     async def compact(
         self,
-        messages: list[ChatMessage],
-        config: GenerateConfig | None = None,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        instructions: str | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
 
@@ -716,17 +721,27 @@ class Model:
         Automatically tracks token usage and enforces token limits.
 
         Args:
-            messages: List of chat messages to compact.
-            config: Optional generation config for provider-specific settings.
+          input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+          tools: Tools available for the model to call.
+          config: Model configuration.
+          instructions: Additional instructions to give the model about compaction
+               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
         Returns:
-            A tuple of (compacted_messages, usage) where compacted_messages is
-            a list of compacted messages and usage contains token counts.
+          A tuple of (compacted_messages, usage) where compacted_messages is
+          a list of compacted messages and usage contains token counts.
 
         Raises:
             NotImplementedError: For providers without native compaction support.
         """
-        config = self._resolve_config(config)
+        config = self._resolve_config(None)
+
+        # provide max_tokens from the model api if required (same as generate)
+        if config.max_tokens is None:
+            config.max_tokens = self.api.max_tokens_for_config(config)
+            if config.max_tokens is None:
+                config.max_tokens = self.api.max_tokens()
+
         model_name = ModelName(self)
         key = f"ModelCompact({self.api.connection_key()})"
 
@@ -745,12 +760,12 @@ class Model:
                 )
             )
             async def _compact(
-                messages: list[ChatMessage], config: GenerateConfig | None
+                messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
-                return await self.api.compact(messages, config)
+                return await self.api.compact(messages, tools, config, instructions)
 
             # Call compact with retry handling
-            compacted_messages, usage = await _compact(messages, config)
+            compacted_messages, usage = await _compact(input)
 
             # Record and check usage
             if usage:
@@ -959,7 +974,7 @@ class Model:
                 # request which caused the error
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
-                error_message = f"{error}\n\nRequest:\n{request}"
+                error_message = f"\nRequest:\n{request}\n\n{error}"
                 raise RuntimeError(error_message)
 
             # update output with time (call.time captures time spent
@@ -1127,7 +1142,10 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
-    ) -> tuple[Callable[[ModelOutput | Exception, ModelCall | None], None], BaseModel]:
+    ) -> tuple[
+        Callable[[ModelOutput | Exception, ModelCall | None], None],
+        BaseModel,
+    ]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
@@ -1165,7 +1183,23 @@ class Model:
                 event.traceback = traceback_text
                 event.traceback_ansi = traceback_ansi
 
-            event.call = updated_call
+            if updated_call is not None:
+                event.call = updated_call
+
+            if (
+                isinstance(result, Exception)
+                and event.call is not None
+                and event.call.response is None
+            ):
+                # We try to set these in the individual providers' error handling, but we make a last
+                # ditch effort here to set them if we don't have a response.
+                if hasattr(result, "body"):
+                    event.call.response = as_error_response(result.body)
+                elif hasattr(result, "response"):
+                    event.call.response = as_error_response(result.response)
+                else:
+                    event.call.response = as_error_response(str(result))
+
             event.pending = None
             transcript()._event_updated(event)
 

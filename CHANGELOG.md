@@ -1,14 +1,56 @@
 ## Unreleased
 
-- Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI).
+- Model API: for 400 errors, print the error after the request payload rather than before.
+
+## 0.3.177 (10 February 2026)
+
+- Anthropic: Do not pass through unrecognized `extra_body` fields.
+
+## 0.3.176 (10 February 2026)
+
+- Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
+- Bugfix: Correct handling of `ComposeConfig` for Docker sandbox provider.
+
+## 0.3.175 (10 February 2026)
+
+- OpenRouter: Retry 500 and 504 errors returned in request JSON body.
+- Scoring: Allow customisation of grouped metric names.
+- Model API: Don't strictly require OpenAI and Anthropic versions when they aren't in use.
+- Inspect View: Show live requests and responses for model call events in the transcript.
+- Inspect View: Improve scroll performance when viewing sample transcripts and messages.
+
+## 0.3.174 (09 February 2026)
+
+- Compaction: Remove reasoning blocks from `compact()` result for Anthropic provider.
+
+## 0.3.173 (08 February 2026)
+
+- Compaction: Correct capture of compaction results for Anthropic streaming mode.
+- Compaction: Improved prefix handling (drop all by system messages) for native compaction.
+- Compaction: Improved display of OpenAI and Anthropic compaction data in the viewer.
+
+## 0.3.172 (06 February 2026)
+
+- Inspect View: Fix a regression which affected the display of samples within VSCode.
+
+## 0.3.171 (06 February 2026)
+
+- Compaction: New `CompactionNative` strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).
+- Compaction: New `CompactionAuto` strategy which uses `CompactionNative` if possible and falls back to `CompactionSummary`.
 - `store_from_events()` and `store_from_events_as()` functions for reconstructing the store from a list of events.
 - OpenAI: Updated to 2.17.0 of `openai` package to get correct types for web search `ActionFind`.
+- Anthropic: Built-in tool (e.g. web search, code execution) compatibility for Claude 4.6.
+- Anthropic: Support `--reasoning-effort` (via adaptive thinking) and  `--effort=max` option for Claude 4.6.
 - Added `extra_headers` to `GenerateConfig` for sending extra HTTP headers along with provider requests.
 - Together Batch API: Update to version 2.0.0 of `together` package.
 - Inspect View: Add sticky headers for transcript events and show turn number to improve "where am I" UX.
 - Inspect View: Show errors in model call events in the transcript.
 - Inspect View: Show tracebacks in model call events in the transcript.
+- Inspect View: Fix slow performance loading samples caused by unnecessary repeat load calls in SampleDetailView.
+- Inspect View: Fix incorrectly disabled sample navigation when viewing samples with numeric sample ids.
+- Inspect View: Fix issue where a large number of logs could result in laggy or hung viewer in VSCode.
 - Bugfix: `handoff()` now respects `react()` name parameter when creating the transfer_to_X tool name.
+- Bugfix: Correctly handle optional `content` field in Anthropic agent bridge `tool_result`.
 
 ## 0.3.170 (03 February 2026)
 

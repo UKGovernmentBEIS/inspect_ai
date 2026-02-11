@@ -72,7 +72,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   focusOnLoad,
 }) => {
   // Tab ids
-  const baseId = `sample-dialog`;
+  const baseId = `sample-display`;
 
   const sampleData = useSampleData();
   const sample = useMemo(() => {

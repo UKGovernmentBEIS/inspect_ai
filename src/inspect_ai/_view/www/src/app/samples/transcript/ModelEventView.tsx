@@ -64,7 +64,17 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
   // panel and display those user messages (exclude tool_call messages as they
   // are already shown in the tool call above)
   const userMessages = [];
-  for (const msg of inputMessages.slice().reverse()) {
+
+  // if there is an assistant message immediately before then include this
+  // (as it could be an assistant compaction message)
+  let offset: number | undefined = undefined;
+  const lastMessage = inputMessages.at(-1);
+  if (lastMessage?.role === "assistant") {
+    userMessages.push(lastMessage);
+    offset = -1;
+  }
+
+  for (const msg of inputMessages.slice(offset).reverse()) {
     if (
       (msg.role === "user" && !msg.tool_call_id) ||
       msg.role === "system" ||
@@ -171,6 +181,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
         <APIView
           data-name="API"
           call={event.call}
+          error={event.error}
           className={styles.container}
         />
       ) : (
@@ -191,17 +202,18 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
 interface APIViewProps {
   call: ModelCall;
+  error?: string | null;
   className?: string | string[];
 }
 
-export const APIView: FC<APIViewProps> = ({ call, className }) => {
+export const APIView: FC<APIViewProps> = ({ call, error, className }) => {
   const requestCode = useMemo(() => {
-    return JSON.stringify(call.request, undefined, 2);
-  }, [call.request]);
+    return call?.request ? JSON.stringify(call.request, undefined, 2) : "";
+  }, [call?.request]);
 
   const responseCode = useMemo(() => {
-    return JSON.stringify(call.response, undefined, 2);
-  }, [call.response]);
+    return call?.response ? JSON.stringify(call.response, undefined, 2) : null;
+  }, [call?.response]);
 
   if (!call) {
     return null;
@@ -210,10 +222,16 @@ export const APIView: FC<APIViewProps> = ({ call, className }) => {
   return (
     <div className={clsx(className)}>
       <EventSection title="Request" copyContent={requestCode}>
-        <APICodeCell sourceCode={requestCode} />
+        {requestCode ? <APICodeCell sourceCode={requestCode} /> : "None"}
       </EventSection>
-      <EventSection title="Response" copyContent={responseCode}>
-        <APICodeCell sourceCode={responseCode} />
+      <EventSection title="Response" copyContent={responseCode ?? ""}>
+        {responseCode ? (
+          <APICodeCell sourceCode={responseCode} />
+        ) : error ? (
+          "None"
+        ) : (
+          <PulsingDots subtle={false} size="medium" />
+        )}
       </EventSection>
     </div>
   );
@@ -226,7 +244,7 @@ interface APICodeCellProps {
 
 export const APICodeCell: FC<APICodeCellProps> = ({ id, sourceCode }) => {
   const sourceCodeRef = useRef<HTMLDivElement | null>(null);
-  usePrismHighlight(sourceCodeRef, sourceCode.length);
+  usePrismHighlight(sourceCodeRef, sourceCode?.length ?? 0);
 
   if (!sourceCode) {
     return null;

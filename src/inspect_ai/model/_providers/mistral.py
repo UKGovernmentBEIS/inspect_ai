@@ -54,6 +54,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -65,7 +66,7 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -215,30 +216,27 @@ class MistralAPI(ModelAPI):
                     ),
                 )
 
-            # prepare response for inclusion in model call
-            response: dict[str, Any] = {}
+            # prepare request for inclusion in model call
+            req = request.copy()
+            req.update(messages=[message.model_dump() for message in req["messages"]])
+            if req.get("tools", None) is not None:
+                req["tools"] = [tool.model_dump() for tool in req["tools"]]
 
-            def model_call() -> ModelCall:
-                req = request.copy()
-                req.update(
-                    messages=[message.model_dump() for message in req["messages"]]
-                )
-                if req.get("tools", None) is not None:
-                    req["tools"] = [tool.model_dump() for tool in req["tools"]]
-
-                return ModelCall.create(
-                    request=req,
-                    response=response,
-                    time=http_hooks.end_request(request_id),
-                )
+            model_call = set_active_model_event_call(req, None)
 
             # send request
             try:
                 completion = await client.chat.complete_async(**request)
-                response = completion.model_dump()
+
+                model_call.set_response(
+                    completion.model_dump(), http_hooks.end_request(request_id)
+                )
             except SDKError as ex:
+                model_call.set_response(
+                    as_error_response(ex.body), http_hooks.end_request(request_id)
+                )
                 if ex.status_code == 400:
-                    return self.handle_bad_request(ex), model_call()
+                    return self.handle_bad_request(ex), model_call
                 else:
                     raise ex
 
@@ -262,7 +260,7 @@ class MistralAPI(ModelAPI):
                     ),
                     total_tokens=completion.usage.total_tokens,
                 ),
-            ), model_call()
+            ), model_call
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""

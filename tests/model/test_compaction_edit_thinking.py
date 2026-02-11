@@ -113,7 +113,7 @@ async def check_thinking_compaction(
         keep_tool_uses=10,  # Keep tool uses
     )
     # Set the model so CompactionEdit can check compact_reasoning_history()
-    compacted_messages, _ = await strategy.compact(messages, model)
+    compacted_messages, _ = await strategy.compact(model, messages, [])
 
     # Verify thinking was removed (only if provider supports it)
     thinking_turns = 0
@@ -180,7 +180,7 @@ async def test_thinking_compaction_google() -> None:
 @pytest.mark.asyncio
 async def test_thinking_compaction_mistral() -> None:
     await check_thinking_compaction(
-        "mistral/magistral-small-2506",
+        "mistral/magistral-medium-2509",
         GenerateConfig(reasoning_effort="low"),
         conversation_api=False,
     )
