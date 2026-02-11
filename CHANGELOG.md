@@ -2,6 +2,7 @@
 
 - Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
 - Model API: for 400 errors, print the error after the request payload rather than before.
+- Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
 
 ## 0.3.177 (10 February 2026)
 
