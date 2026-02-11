@@ -58,6 +58,6 @@ def resolve_model_costs(
 
     if len(missing) < len(all_models):
         raise PrerequisiteError(
-            f"Some models have cost data configured but others don't. "
+            f"Some models have cost data configured but not all models. Cost data should be provided for either no models, or models being used. "
             f"Missing cost data for: {", ".join(missing)}. Use set_model_cost() or --model-cost-config to configure pricing."
         )

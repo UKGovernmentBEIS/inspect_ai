@@ -12,7 +12,7 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
-from inspect_ai.model._util import resolve_model_roles, resolve_model_costs
+from inspect_ai.model._util import resolve_model_costs, resolve_model_roles
 from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):
@@ -57,7 +57,6 @@ from inspect_ai.model._model import (
     init_model_usage,
     resolve_models,
 )
-from inspect_ai.model._model_info import get_model_info
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -572,7 +571,7 @@ async def _eval_async_inner(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
-            
+
         resolve_model_costs(resolved_tasks, cost_limit)
 
         # if there is no max tasks then base it on unique model names

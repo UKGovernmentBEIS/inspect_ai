@@ -351,10 +351,7 @@ def set_model_cost(model: str, cost: ModelCost) -> None:
     """
     info = get_model_info(model)
     if info is None:
-        raise ValueError(
-            f"Model '{model}' not found. Use set_model_info() to register "
-            "the model before setting its cost."
-        )
+        raise ValueError(f"Model '{model}' not found.")
     _custom_models[model] = info.model_copy(update={"cost": cost})
 
 

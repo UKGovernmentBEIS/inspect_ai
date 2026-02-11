@@ -30,7 +30,7 @@ from inspect_ai.util._limit import sample_limits
 
 
 @pytest.fixture(autouse=True)
-def reset_model_cache():
+def _clear_model_info() -> Generator[None, None, None]:
     clear_model_info_cache()
     yield
     clear_model_info_cache()
