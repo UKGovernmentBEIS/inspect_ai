@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Fix stale state read in logsSlice after syncLogs.
+
 ## 0.3.177 (10 February 2026)
 
 - Anthropic: Do not pass through unrecognized `extra_body` fields.
