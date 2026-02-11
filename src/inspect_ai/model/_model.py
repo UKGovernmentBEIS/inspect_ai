@@ -1863,7 +1863,6 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
-
     from inspect_ai.model._model_info import get_model_info
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
