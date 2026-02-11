@@ -381,10 +381,9 @@ async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
     progress: ReadEvalLogsProgress | None = None,
 ) -> list[EvalLog]:
-
     if progress:
         progress.before_reading_logs(len(log_files))
-    
+
     async def _read(lf: str | Path | EvalLogInfo, fs: AsyncFilesystem) -> EvalLog:
         log = await read_eval_log_async(lf, header_only=True, async_fs=fs)
         if progress:
@@ -394,6 +393,7 @@ async def read_eval_log_headers_async(
         return log
 
     return await tg_collect_with_fs([partial(_read, lf) for lf in log_files])
+
 
 def read_eval_log_sample(
     log_file: str | Path | EvalLogInfo,

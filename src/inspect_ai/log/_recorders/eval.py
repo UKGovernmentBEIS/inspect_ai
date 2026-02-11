@@ -5,7 +5,7 @@ import os
 import tempfile
 from logging import getLogger
 from typing import IO, Any, BinaryIO, Iterable, cast
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZipFile
 
 import anyio
 from pydantic import BaseModel, Field
