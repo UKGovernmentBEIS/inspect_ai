@@ -34,6 +34,8 @@ export interface NavbarConfig {
   fnNavigationUrl: (file: string, log_dir?: string) => string;
   /** Whether to show a border on the navbar */
   bordered?: boolean;
+
+  breadcrumbsEnabled?: boolean;
 }
 
 /**
@@ -77,7 +79,12 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
   navbarConfig,
 }) => {
   const { onPrevious, onNext, hasPrevious, hasNext } = navigation;
-  const { currentPath, fnNavigationUrl, bordered = true } = navbarConfig;
+  const {
+    currentPath,
+    fnNavigationUrl,
+    bordered = true,
+    breadcrumbsEnabled,
+  } = navbarConfig;
 
   // Sample data and status
   const sampleData = useSampleData();
@@ -186,6 +193,7 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
           currentPath={currentPath}
           fnNavigationUrl={fnNavigationUrl}
           bordered={bordered}
+          breadcrumbsEnabled={breadcrumbsEnabled}
         >
           <div className={clsx(styles.sampleNav)}>
             <div

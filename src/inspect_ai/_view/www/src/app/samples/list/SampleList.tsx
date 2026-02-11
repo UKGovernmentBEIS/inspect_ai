@@ -188,9 +188,28 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
 
   const scores = useScores();
 
+  const sampleCount = items?.reduce((prev, current) => {
+    if (current.type === "sample") {
+      return prev + 1;
+    } else {
+      return prev;
+    }
+  }, 0);
+
+  // Count any sample errors and display a bad alerting the user
+  // to any errors
+  const errorCount = items?.reduce((previous, item: ListItem) => {
+    if (typeof item.data === "object" && item.data.error) {
+      return previous + 1;
+    }
+    return previous;
+  }, 0);
+
+  const hasErrors = errorCount > 0;
+
   const gridColumnsTemplate = useMemo(() => {
-    return gridColumnsValue(samplesDescriptor);
-  }, [samplesDescriptor]);
+    return gridColumnsValue(samplesDescriptor, hasErrors);
+  }, [samplesDescriptor, hasErrors]);
 
   const renderRow = useCallback(
     (_index: number, item: ListItem) => {
@@ -237,25 +256,10 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     ],
   );
 
-  const { input, limit, answer, target, retries } =
-    gridColumns(samplesDescriptor);
-
-  const sampleCount = items?.reduce((prev, current) => {
-    if (current.type === "sample") {
-      return prev + 1;
-    } else {
-      return prev;
-    }
-  }, 0);
-
-  // Count any sample errors and display a bad alerting the user
-  // to any errors
-  const errorCount = items?.reduce((previous, item: ListItem) => {
-    if (typeof item.data === "object" && item.data.error) {
-      return previous + 1;
-    }
-    return previous;
-  }, 0);
+  const { input, limit, answer, target, retries } = gridColumns(
+    samplesDescriptor,
+    hasErrors,
+  );
 
   // Count limits
   const limitCount = items?.reduce((previous, item) => {
@@ -305,6 +309,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         answer={answer !== "0"}
         limit={limit !== "0"}
         retries={retries !== "0em"}
+        errors={hasErrors}
         scoreLabels={scoreHeaders(selectedScores, scores)}
         gridColumnsTemplate={gridColumnsTemplate}
       />
@@ -344,14 +349,21 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   );
 });
 
-const gridColumnsValue = (sampleDescriptor?: SamplesDescriptor) => {
-  const { input, target, answer, limit, retries, id, scores } =
-    gridColumns(sampleDescriptor);
-  const result = `${id} ${input} ${target} ${answer} ${limit} ${retries} ${scores.join(" ")}`;
+const gridColumnsValue = (
+  sampleDescriptor?: SamplesDescriptor,
+  hasErrors?: boolean,
+) => {
+  const { input, target, answer, limit, retries, id, scores, errors } =
+    gridColumns(sampleDescriptor, hasErrors);
+  const parts = [id, input, target, answer, limit, retries, ...scores, errors];
+  const result = parts.join(" ");
   return result;
 };
 
-const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
+const gridColumns = (
+  sampleDescriptor?: SamplesDescriptor,
+  hasErrors?: boolean,
+) => {
   const input =
     sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
@@ -391,12 +403,15 @@ const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
     }
   };
 
+  const errors = hasErrors ? "fit-content(20em)" : "0";
+
   return {
     input: frSize(input),
     target: frSize(target),
     answer: frSize(answer),
     limit: frSize(limit),
     retries: `${retries}em`,
+    errors,
     id: `${id}rem`,
     scores,
   };

@@ -5,9 +5,6 @@ import { useStickyScrollContainer } from "../../../components/StickyScrollContex
 // workaround for https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@container#stuck
 // use as :global([data-useStickyObserver-stuck]) in CSS modules
 
-// The sticky top position from EventPanel.module.css
-const STICKY_TOP = 30;
-
 // Track scroll listeners per container to avoid duplicate listeners
 const scrollListenerMap = new Map<
   Element | null,
@@ -17,6 +14,12 @@ const scrollListenerMap = new Map<
 function updateStickyState(container: Element | null, elements: Set<Element>) {
   const containerRect = container?.getBoundingClientRect();
   const containerTop = containerRect?.top ?? 0;
+  const stickyTop =
+    parseFloat(
+      getComputedStyle(document.body).getPropertyValue(
+        "--inspect-event-panel-sticky-top",
+      ),
+    ) || 0;
 
   elements.forEach((el) => {
     const rect = el.getBoundingClientRect();
@@ -24,7 +27,7 @@ function updateStickyState(container: Element | null, elements: Set<Element>) {
     // We check if the element's top (relative to container) is at the sticky position
     const relativeTop = rect.top - containerTop;
     const isStuck =
-      relativeTop <= STICKY_TOP + 1 && relativeTop >= STICKY_TOP - 1;
+      relativeTop <= stickyTop + 1 && relativeTop >= stickyTop - 1;
 
     el.toggleAttribute("data-useStickyObserver-stuck", isStuck);
   });

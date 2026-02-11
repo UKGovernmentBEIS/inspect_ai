@@ -751,6 +751,7 @@ async def task_run_sample(
         start_time: float | None = None
         error: EvalError | None = None
         raise_error: BaseException | None = None
+        cancelled_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
         limit: EvalSampleLimit | None = None
 
@@ -921,6 +922,13 @@ async def task_run_sample(
                     state = sample_state() or state
                     limit = EvalSampleLimit(type="operator", limit=1)
 
+                except anyio.get_cancelled_exc_class() as ex:
+                    with anyio.CancelScope(shield=True):
+                        cancelled_error = ex
+                        # convert to standard error
+                        error = eval_error(ex, type(ex), ex, ex.__traceback__)
+                        transcript()._event(ErrorEvent(error=error))
+
                 except Exception as ex:
                     error, raise_error = handle_error(ex)
 
@@ -941,134 +949,146 @@ async def task_run_sample(
                 solver_score_names = [*state.scores]
 
                 # scoring
-                await emit_sample_scoring(
-                    eval_set_id,
-                    run_id,
-                    task_id,
-                    state.uuid,
-                )
-                try:
-                    # timeout during scoring will result in an ordinary sample error
-                    with create_time_limit(scoring_time_limit):
-                        if error is None:
-                            async with span(name="scorers"):
-                                for scorer in scorers or []:
-                                    scorer_name = unique_scorer_name(
-                                        scorer, list({*solver_score_names, *results})
-                                    )
-                                    async with span(name=scorer_name, type="scorer"):
-                                        if not scorer:
-                                            continue
-                                        score_result = await scorer(
-                                            state, Target(sample.target)
+                with anyio.CancelScope(shield=cancelled_error is not None):
+                    await emit_sample_scoring(
+                        eval_set_id,
+                        run_id,
+                        task_id,
+                        state.uuid,
+                    )
+                    try:
+                        # timeout during scoring will result in an ordinary sample error
+                        with create_time_limit(scoring_time_limit):
+                            if error is None:
+                                async with span(name="scorers"):
+                                    for scorer in scorers or []:
+                                        scorer_name = unique_scorer_name(
+                                            scorer,
+                                            list({*solver_score_names, *results}),
                                         )
-                                        if scorer_name in state.scores:
-                                            raise RuntimeError(
-                                                f"Scorer {scorer_name} has modified state.scores"
+                                        async with span(
+                                            name=scorer_name, type="scorer"
+                                        ):
+                                            if not scorer:
+                                                continue
+                                            score_result = await scorer(
+                                                state, Target(sample.target)
                                             )
-                                        if score_result is not None:
-                                            state.scores[scorer_name] = score_result
-
-                                            transcript()._event(
-                                                ScoreEvent(
-                                                    score=score_result,
-                                                    target=sample.target,
-                                                    model_usage=sample_model_usage()
-                                                    or None,
+                                            if scorer_name in state.scores:
+                                                raise RuntimeError(
+                                                    f"Scorer {scorer_name} has modified state.scores"
                                                 )
-                                            )
+                                            if score_result is not None:
+                                                state.scores[scorer_name] = score_result
 
-                                            results[scorer_name] = SampleScore(
-                                                score=score_result,
-                                                sample_id=sample.id,
-                                                sample_metadata=sample.metadata,
-                                                scorer=registry_unqualified_name(
-                                                    scorer
-                                                ),
-                                            )
+                                                transcript()._event(
+                                                    ScoreEvent(
+                                                        score=score_result,
+                                                        target=sample.target,
+                                                        model_usage=sample_model_usage()
+                                                        or None,
+                                                    )
+                                                )
 
-                                for name in solver_score_names:
-                                    score = state.scores[name]
-                                    transcript()._event(
-                                        ScoreEvent(
-                                            score=score,
-                                            target=sample.target,
-                                            model_usage=sample_model_usage() or None,
-                                        )
-                                    )
-                                    results[name] = SampleScore(
+                                                results[scorer_name] = SampleScore(
+                                                    score=score_result,
+                                                    sample_id=sample.id,
+                                                    sample_metadata=sample.metadata,
+                                                    scorer=registry_unqualified_name(
+                                                        scorer
+                                                    ),
+                                                )
+
+                            for name in solver_score_names:
+                                score = state.scores[name]
+                                transcript()._event(
+                                    ScoreEvent(
                                         score=score,
-                                        sample_id=state.sample_id,
-                                        sample_metadata=state.metadata,
+                                        target=sample.target,
+                                        model_usage=sample_model_usage() or None,
                                     )
-
-                except anyio.get_cancelled_exc_class():
-                    if active.interrupt_action:
-                        transcript()._event(
-                            SampleLimitEvent(
-                                type="operator",
-                                message="Unable to score sample due to operator interruption",
-                            )
-                        )
-
-                    raise
-
-                except Exception as ex:
-                    # handle error
-                    error, raise_error = handle_error(ex)
-                finally:
-                    # run task cleanup if required (inside sandbox context)
-                    if cleanup is not None:
-                        with anyio.CancelScope(shield=True):
-                            try:
-                                await cleanup(state)
-                            except Exception as ex:
-                                py_logger.warning(
-                                    f"Exception occurred during task cleanup: {ex}",
-                                    exc_info=ex,
                                 )
+                                results[name] = SampleScore(
+                                    score=score,
+                                    sample_id=state.sample_id,
+                                    sample_metadata=state.metadata,
+                                )
+
+                    except anyio.get_cancelled_exc_class() as ex:
+                        with anyio.CancelScope(shield=True):
+                            cancelled_error = ex
+                            if active.interrupt_action:
+                                transcript()._event(
+                                    SampleLimitEvent(
+                                        type="operator",
+                                        message="Unable to score sample due to operator interruption",
+                                    )
+                                )
+
+                            # convert to standard error
+                            error = eval_error(ex, type(ex), ex, ex.__traceback__)
+                            transcript()._event(ErrorEvent(error=error))
+
+                    except Exception as ex:
+                        # handle error
+                        error, raise_error = handle_error(ex)
+                    finally:
+                        # run task cleanup if required (inside sandbox context)
+                        if cleanup is not None:
+                            with anyio.CancelScope(shield=True):
+                                try:
+                                    await cleanup(state)
+                                except Exception as ex:
+                                    py_logger.warning(
+                                        f"Exception occurred during task cleanup: {ex}",
+                                        exc_info=ex,
+                                    )
 
         except Exception as ex:
             error, raise_error = handle_error(ex)
         finally:
             # cleanup the task init span if required
             if cleanup_span is not None:
-                await cleanup_span.__aexit__(None, None, None)
+                with anyio.CancelScope(shield=cancelled_error is not None):
+                    await cleanup_span.__aexit__(None, None, None)
 
         # complete the sample if there is no error or if there is no retry_on_error in play
-        if not error or (retry_on_error == 0):
-            progress(SAMPLE_TOTAL_PROGRESS_UNITS)
+        with anyio.CancelScope(shield=cancelled_error is not None):
+            if not error or (retry_on_error == 0) or (cancelled_error is not None):
+                progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
-            # if we are logging images then be sure to base64 images injected by solvers
-            if log_images:
-                state = (await states_with_base64_content([state]))[0]
+                # if we are logging images then be sure to base64 images injected by solvers
+                if log_images:
+                    state = (await states_with_base64_content([state]))[0]
 
-            # otherwise ensure there are no base64 images in sample or messages
-            else:
-                sample = sample_without_base64_content(sample)
-                state = state_without_base64_content(state)
+                # otherwise ensure there are no base64 images in sample or messages
+                else:
+                    sample = sample_without_base64_content(sample)
+                    state = state_without_base64_content(state)
 
-            # emit/log sample end
-            eval_sample = create_eval_sample(
-                start_time=start_time,
-                sample=sample,
-                state=state,
-                scores=results,
-                error=error,
-                limit=limit,
-                error_retries=error_retries,
-                started_at=sample_start_datetime(),
-            )
-            if logger:
-                await log_sample(
-                    eval_sample=eval_sample, logger=logger, log_images=log_images
+                # emit/log sample end
+                eval_sample = create_eval_sample(
+                    start_time=start_time,
+                    sample=sample,
+                    state=state,
+                    scores=results,
+                    error=error,
+                    limit=limit,
+                    error_retries=error_retries,
+                    started_at=sample_start_datetime(),
                 )
-            await emit_sample_end(eval_set_id, run_id, task_id, state.uuid, eval_sample)
+                if logger:
+                    await log_sample(
+                        eval_sample=eval_sample, logger=logger, log_images=log_images
+                    )
+                await emit_sample_end(
+                    eval_set_id, run_id, task_id, state.uuid, eval_sample
+                )
 
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
-    if error and retry_on_error > 0:
+    if error and retry_on_error > 0 and cancelled_error is None:
         # remove any buffered sample events
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)
@@ -1106,6 +1126,10 @@ async def task_run_sample(
             run_id=run_id,
             task_id=task_id,
         )
+
+    # re-raise cancellation after logging to preserve structured concurrency
+    elif cancelled_error is not None:
+        raise cancelled_error
 
     # no error
     elif error is None:
