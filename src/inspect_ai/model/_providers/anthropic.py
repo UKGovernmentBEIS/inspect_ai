@@ -738,10 +738,9 @@ class AnthropicAPI(ModelAPI):
             for field in anthropic_extra_body_fields():
                 if field in config.extra_body and field not in params:
                     params[field] = config.extra_body[field]
-            # pass through other extra_body fields (e.g. context_management for compaction)
-            for key, value in config.extra_body.items():
-                if key not in anthropic_extra_body_fields():
-                    extra_body[key] = value
+            # pass through context_management for compaction
+            if CONTEXT_MANAGEMENT in config.extra_body:
+                extra_body[CONTEXT_MANAGEMENT] = config.extra_body[CONTEXT_MANAGEMENT]
 
         # return config
         return params, extra_body, headers, betas
