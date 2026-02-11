@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.178 (11 February 2026)
 
 - Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
 - Compaction: Improve token counting by using input tokens reported from call to `generate()`.
