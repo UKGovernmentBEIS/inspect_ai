@@ -1,3 +1,7 @@
+## Unreleased
+
+- Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
+
 ## 0.3.178 (11 February 2026)
 
 - Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
