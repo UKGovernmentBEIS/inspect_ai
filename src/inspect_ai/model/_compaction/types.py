@@ -3,6 +3,7 @@ from typing import Protocol
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_info import ToolInfo
 
 
@@ -59,14 +60,29 @@ class CompactionStrategy(abc.ABC):
 
 
 class Compact(Protocol):
-    async def __call__(
+    """Interface for compaction strategies."""
+
+    async def compact_input(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
-        """Compact messages.
+        """Compact messages for input to the model.
 
         Args:
             messages: Full message history
 
         Returns: Input to present to the model and (optionally) a message to append to the history (e.g. a summarization).
+        """
+        ...
+
+    def record_output(self, output: ModelOutput) -> None:
+        """Record the output from a generate call.
+
+        After each generate call, pass the ModelOutput to calibrate
+        the compaction's token estimation. This accounts for API-level
+        overhead (tool definitions, system messages, thinking
+        configuration) that per-message counting cannot capture.
+
+        Args:
+            output: The ModelOutput from the generate call.
         """
         ...

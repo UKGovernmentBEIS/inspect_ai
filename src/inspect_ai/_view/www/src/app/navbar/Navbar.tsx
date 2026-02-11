@@ -13,6 +13,7 @@ interface NavbarProps {
   bordered?: boolean;
   fnNavigationUrl: (file: string, log_dir?: string) => string;
   currentPath: string | undefined;
+  breadcrumbsEnabled?: boolean;
 }
 
 export const Navbar: FC<NavbarProps> = ({
@@ -20,6 +21,7 @@ export const Navbar: FC<NavbarProps> = ({
   bordered,
   children,
   currentPath,
+  breadcrumbsEnabled,
 }) => {
   const logDir = useStore((state) => state.logs.logDir);
   const baseLogDir = dirname(logDir || "");
@@ -77,44 +79,48 @@ export const Navbar: FC<NavbarProps> = ({
         >
           <i className={clsx(ApplicationIcons.navbar.home)} />
         </Link>
-        <div className={clsx(styles.pathContainer)} ref={pathContainerRef}>
-          {logDir ? (
-            <ol className={clsx("breadcrumb", styles.breadcrumbs)}>
-              {visibleSegments?.map((segment, index) => {
-                const isLast = index === visibleSegments.length - 1;
-                const shouldShowEllipsis =
-                  showEllipsis && index === 1 && visibleSegments.length >= 2;
+        {breadcrumbsEnabled !== false && (
+          <div className={clsx(styles.pathContainer)} ref={pathContainerRef}>
+            {logDir ? (
+              <ol className={clsx("breadcrumb", styles.breadcrumbs)}>
+                {visibleSegments?.map((segment, index) => {
+                  const isLast = index === visibleSegments.length - 1;
+                  const shouldShowEllipsis =
+                    showEllipsis && index === 1 && visibleSegments.length >= 2;
 
-                return (
-                  <Fragment key={index}>
-                    {shouldShowEllipsis && (
-                      <li className={clsx("breadcrumb-item", styles.ellipsis)}>
-                        <span>...</span>
+                  return (
+                    <Fragment key={index}>
+                      {shouldShowEllipsis && (
+                        <li
+                          className={clsx("breadcrumb-item", styles.ellipsis)}
+                        >
+                          <span>...</span>
+                        </li>
+                      )}
+                      <li
+                        className={clsx(
+                          styles.pathLink,
+                          "breadcrumb-item",
+                          isLast ? "active" : undefined,
+                        )}
+                      >
+                        {segment.url && !isLast ? (
+                          <Link to={segment.url}>{segment.text}</Link>
+                        ) : (
+                          <span className={clsx(styles.pathSegment)}>
+                            {segment.text}
+                          </span>
+                        )}
                       </li>
-                    )}
-                    <li
-                      className={clsx(
-                        styles.pathLink,
-                        "breadcrumb-item",
-                        isLast ? "active" : undefined,
-                      )}
-                    >
-                      {segment.url && !isLast ? (
-                        <Link to={segment.url}>{segment.text}</Link>
-                      ) : (
-                        <span className={clsx(styles.pathSegment)}>
-                          {segment.text}
-                        </span>
-                      )}
-                    </li>
-                  </Fragment>
-                );
-              })}
-            </ol>
-          ) : (
-            ""
-          )}
-        </div>
+                    </Fragment>
+                  );
+                })}
+              </ol>
+            ) : (
+              ""
+            )}
+          </div>
+        )}
       </div>
       <div className={clsx(styles.right)}>{children}</div>
     </nav>

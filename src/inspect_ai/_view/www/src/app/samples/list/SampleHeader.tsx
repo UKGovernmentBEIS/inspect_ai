@@ -1,15 +1,17 @@
+import clsx from "clsx";
+import { FC } from "react";
+import styles from "./SampleHeader.module.css";
+
 interface SampleHeaderProps {
   input?: boolean;
   target?: boolean;
   answer?: boolean;
   limit?: boolean;
   retries?: boolean;
+  errors?: boolean;
   scoreLabels?: string[];
   gridColumnsTemplate: string;
 }
-import clsx from "clsx";
-import { FC } from "react";
-import styles from "./SampleHeader.module.css";
 
 export const SampleHeader: FC<SampleHeaderProps> = ({
   input = true,
@@ -17,6 +19,7 @@ export const SampleHeader: FC<SampleHeaderProps> = ({
   answer = true,
   limit = true,
   retries = false,
+  errors = false,
   scoreLabels = ["Score"],
   gridColumnsTemplate,
 }) => (
@@ -43,5 +46,6 @@ export const SampleHeader: FC<SampleHeaderProps> = ({
         {label}
       </div>
     ))}
+    <div>{errors ? "Error" : ""}</div>
   </div>
 );

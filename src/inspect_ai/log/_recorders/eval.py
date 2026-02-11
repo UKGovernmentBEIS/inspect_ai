@@ -19,6 +19,7 @@ from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
+from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
 from .._log import (
     EvalLog,
@@ -603,8 +604,7 @@ class ZipLogFile:
         self._zip = ZipFile(
             self._temp_file,
             mode="a",
-            compression=ZIP_DEFLATED,
-            compresslevel=5,
+            **zipfile_compress_kwargs,
         )
 
     # raw unsynchronized version of write
@@ -769,7 +769,7 @@ async def _read_all_summaries_async(
         )
     else:
         summaries: list[EvalSampleSummary] = []
-        for i in range(1, count):
+        for i in range(1, count + 1):
             summary_file = _journal_summary_file(i)
             summary_path = _journal_summary_path(summary_file)
             summaries.extend(

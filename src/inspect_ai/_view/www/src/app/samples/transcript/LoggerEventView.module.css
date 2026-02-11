@@ -8,3 +8,7 @@
 .jsonPanel {
   padding: 0 !important;
 }
+
+.wrap {
+  overflow-wrap: anywhere;
+}
