@@ -1,3 +1,7 @@
+## Unreleased
+
+- Model API: for 400 errors, print the error after the request payload rather than before.
+
 ## 0.3.177 (10 February 2026)
 
 - Anthropic: Do not pass through unrecognized `extra_body` fields.
