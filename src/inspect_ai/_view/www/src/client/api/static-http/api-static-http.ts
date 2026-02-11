@@ -151,20 +151,6 @@ function staticHttpApiForLog(logInfo: {
     get_log_bytes: async (log_file: string, start: number, end: number) => {
       return await fetchRange(log_file, start, end);
     },
-    get_log_summary: async (log_file: string) => {
-      const manifest = await getManifest();
-      if (manifest) {
-        const manifestAbs: Record<string, LogPreview> = {};
-        Object.keys(manifest).forEach((key) => {
-          manifestAbs[joinURI(log_dir || "", key)] = manifest[key];
-        });
-        const header = manifestAbs[log_file];
-        if (header) {
-          return header;
-        }
-      }
-      throw new Error(`Unable to load eval log header for ${log_file}`);
-    },
     get_log_summaries: async (files: string[]) => {
       if (files.length === 0) {
         return [];

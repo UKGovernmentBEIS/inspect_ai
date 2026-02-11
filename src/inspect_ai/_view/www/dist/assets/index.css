@@ -17421,6 +17421,29 @@ button._segment_mhb7y_9 {
 ._selected_1ml4j_40 {
   font-weight: 600;
 }
+._panel_87mfl_1 {
+  display: flex;
+  justify-content: center;
+  padding-top: 1em;
+  padding-bottom: 1em;
+}
+
+._container_87mfl_8 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+}
+
+._spinner_87mfl_14 {
+  height: 15px;
+  width: 14px;
+  border-width: 2px;
+  color: var(--bs-secondary);
+}
+
+._text_87mfl_21 {
+  margin-top: -2px;
+}
 ._eventRow_1j0jk_1 {
   display: grid;
   grid-template-columns: 10px 1fr;

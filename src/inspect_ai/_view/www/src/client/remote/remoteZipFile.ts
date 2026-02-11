@@ -138,39 +138,50 @@ export const openRemoteZipFile = async (
         throw new Error(`File not found: ${file}`);
       }
 
-      // Local file header is 30 bytes long by spec
       const headerSize = 30;
-      const headerData = await fetchBytes(
+      const filenameByteLen = new TextEncoder().encode(entry.filename).length;
+      // Margin for the local header's extra field (typically <64 bytes, ZIP64 needs ~28)
+      const extraFieldMargin = 256;
+      const estimatedTotal =
+        headerSize + filenameByteLen + extraFieldMargin + entry.compressedSize;
+
+      // Optimistic single read — clamp to maxBytes to avoid over-fetching
+      const fetchSize = maxBytes
+        ? Math.min(estimatedTotal, maxBytes)
+        : estimatedTotal;
+      let fileData = await fetchBytes(
         url,
         entry.fileOffset,
-        entry.fileOffset + headerSize - 1,
+        entry.fileOffset + fetchSize - 1,
       );
 
-      // Parse the local file header to get the filename length and extra field length
-      // 26-27 bytes in local header
-      const filenameLength = headerData[26] + (headerData[27] << 8);
+      // Check actual lengths from the local header
+      const actualFilenameLen = fileData[26] + (fileData[27] << 8);
+      const actualExtraFieldLen = fileData[28] + (fileData[29] << 8);
+      const actualTotal =
+        headerSize +
+        actualFilenameLen +
+        actualExtraFieldLen +
+        entry.compressedSize;
 
-      // 28-29 bytes in local header
-      const extraFieldLength = headerData[28] + (headerData[29] << 8);
-
-      // Use the entry's compressed size from the central directory
-      const totalSizeToFetch =
-        headerSize + filenameLength + extraFieldLength + entry.compressedSize;
-
-      // Throw an error if this request exceeds our maximum size
-      if (maxBytes && totalSizeToFetch > maxBytes) {
+      if (maxBytes && actualTotal > maxBytes) {
         throw new FileSizeLimitError(file, maxBytes);
       }
 
-      // Use the total size to fetch the compressed data
-      const fileData = await fetchBytes(
-        url,
-        entry.fileOffset,
-        entry.fileOffset + totalSizeToFetch - 1,
-      );
+      if (actualTotal > fetchSize) {
+        // Estimate was too small (rare: extra field > 256 bytes), re-fetch
+        fileData = await fetchBytes(
+          url,
+          entry.fileOffset,
+          entry.fileOffset + actualTotal - 1,
+        );
+      }
 
       // Parse and decompress the entry
-      const zipFileEntry = await parseZipFileEntry(file, fileData);
+      const zipFileEntry = await parseZipFileEntry(
+        file,
+        fileData.subarray(0, actualTotal),
+      );
       return decompressData(
         zipFileEntry.data,
         zipFileEntry.compressionMethod,

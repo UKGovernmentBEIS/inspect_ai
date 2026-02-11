@@ -167,7 +167,13 @@ export interface LogViewAPI {
     start: number,
     end: number,
   ) => Promise<Uint8Array>;
-  get_log_summary?: (log_file: string) => Promise<LogPreview>;
+  get_log_details?: (log_file: string) => Promise<LogDetails>;
+  get_log_sample?: (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+    exclude_fields?: string[],
+  ) => Promise<EvalSample | undefined>;
   get_log_summaries: (log_files: string[]) => Promise<LogPreview[]>;
   log_message: (log_file: string, message: string) => Promise<void>;
   download_file: (
@@ -216,6 +222,11 @@ export interface ClientAPI {
 
   // Sample retrieval
   get_log_sample: (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+  ) => Promise<EvalSample | undefined>;
+  get_log_sample_lite?: (
     log_file: string,
     id: string | number,
     epoch: number,

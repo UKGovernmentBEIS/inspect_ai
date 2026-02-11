@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { EvalSample } from "../@types/log";
 import { createLogger } from "../utils/logger";
 import { useLogSelection, usePrevious, useSampleData } from "./hooks";
 import { getSamplePolling } from "./samplePollingInstance";
@@ -9,6 +10,9 @@ import { useStore } from "./store";
 const SAMPLE_LIST_KEYS = ["transcript-tree"];
 
 const log = createLogger("useSampleLoader");
+
+// Generation counter to invalidate stale Phase 2 responses
+let loadGeneration = 0;
 
 /**
  * Hook that handles loading samples based on the current log selection.
@@ -63,6 +67,9 @@ export function useLoadSample() {
         return;
       }
 
+      // Invalidate any in-flight Phase 2 responses
+      const thisGeneration = ++loadGeneration;
+
       // Clear scroll positions for sample-related virtuoso lists
       // This ensures the new sample starts at the top instead of restoring
       // the previous sample's scroll position
@@ -70,10 +77,8 @@ export function useLoadSample() {
         clearListPosition(key);
       }
 
-      // Set the identifier first
-      sampleActions.setSampleIdentifier(logFile, id, epoch);
-      sampleActions.setSampleError(undefined);
-      sampleActions.setSampleStatus("loading");
+      // Clear old sample data and prepare for new load in a single state update
+      sampleActions.prepareForSampleLoad(logFile, id, epoch);
 
       try {
         if (completed !== false) {
@@ -81,21 +86,67 @@ export function useLoadSample() {
           // Stop any existing polling when loading a completed sample
           getSamplePolling().stopPolling();
 
-          // Fetch the sample from the API
-          const sample = await api?.get_log_sample(logFile, id, epoch);
-          log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
-
-          if (sample) {
-            // Clear collapsed events if the sample changed
-            if (
-              currentId?.id !== sample.id ||
-              currentId?.epoch !== sample.epoch ||
-              currentId?.logFile !== logFile
-            ) {
+          // Helper to apply a loaded sample to state
+          const applySample = (sample: EvalSample, clearCollapsed: boolean) => {
+            if (clearCollapsed) {
               sampleActions.clearCollapsedEvents();
             }
             const migratedSample = resolveSample(sample);
             sampleActions.setSelectedSample(migratedSample, logFile);
+          };
+
+          const isNewSample =
+            currentId?.id !== id ||
+            currentId?.epoch !== epoch ||
+            currentId?.logFile !== logFile;
+
+          // Phase 1: Try lite sample first (fast, excludes events/attachments/store)
+          if (api?.get_log_sample_lite) {
+            const liteSample = await api.get_log_sample_lite(
+              logFile,
+              id,
+              epoch,
+            );
+            if (liteSample) {
+              log.debug(`LOADED LITE SAMPLE: ${id}-${epoch}`);
+              applySample(liteSample, isNewSample);
+              sampleActions.setSampleStatus("ok");
+              sampleActions.setEventsLoading(true);
+
+              // Phase 2: Load full sample in background
+              api
+                .get_log_sample(logFile, id, epoch)
+                .then((fullSample) => {
+                  if (thisGeneration !== loadGeneration) return;
+                  if (fullSample) {
+                    log.debug(
+                      `LOADED FULL SAMPLE (background): ${id}-${epoch}`,
+                    );
+                    applySample(fullSample, false);
+                  }
+                })
+                .catch((err) => {
+                  if (thisGeneration !== loadGeneration) return;
+                  log.debug(`Background full sample load failed: ${err}`);
+                  sampleActions.setEventsError(
+                    err?.message || "Failed to load events",
+                  );
+                })
+                .finally(() => {
+                  if (thisGeneration === loadGeneration) {
+                    sampleActions.setEventsLoading(false);
+                  }
+                });
+              return;
+            }
+          }
+
+          // Fallback: Full load (existing code path)
+          const sample = await api?.get_log_sample(logFile, id, epoch);
+          log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
+
+          if (sample) {
+            applySample(sample, isNewSample);
             sampleActions.setSampleStatus("ok");
           } else {
             sampleActions.setSampleStatus("error");

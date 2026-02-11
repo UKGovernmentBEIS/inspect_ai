@@ -138,6 +138,8 @@ export interface SampleState {
   sampleStatus: SampleStatus;
   sampleError: Error | undefined;
   sampleNeedsReload: number;
+  eventsLoading: boolean;
+  eventsError: string | undefined;
 
   visiblePopover?: string;
 

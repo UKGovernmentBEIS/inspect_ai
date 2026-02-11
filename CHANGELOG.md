@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Inspect View: Two-phase sample loading — show sample metadata immediately, then load events in background.
 - Model API: for 400 errors, print the error after the request payload rather than before.
 
 ## 0.3.177 (10 February 2026)
