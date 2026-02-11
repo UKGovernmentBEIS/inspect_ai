@@ -60,6 +60,8 @@ class CompactionStrategy(abc.ABC):
 
 
 class Compact(Protocol):
+    """Interface for compaction strategies."""
+
     async def compact_input(
         self, messages: list[ChatMessage]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
