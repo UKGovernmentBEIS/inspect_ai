@@ -362,7 +362,7 @@ export const createLogsSlice = (
             !state.app.singleFileMode
           ) {
             await state.logsActions.syncLogs();
-            const logHandle = state.logs.logs.find((val: { name: string }) =>
+            const logHandle = get().logs.logs.find((val: { name: string }) =>
               val.name.endsWith(logFile),
             );
             if (!logHandle) {

@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Model API: for 400 errors, print the error after the request payload rather than before.
+- Inspect View: Fix stale state read in logsSlice after syncLogs.
 
 ## 0.3.177 (10 February 2026)
 
