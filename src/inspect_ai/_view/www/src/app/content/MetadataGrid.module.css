@@ -9,3 +9,7 @@
   font-weight: 400;
   white-space: nowrap;
 }
+
+.value {
+  overflow-wrap: anywhere;
+}

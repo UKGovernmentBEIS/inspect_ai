@@ -16021,16 +16021,20 @@ so disabling selection can break that functionality */
   opacity: 0.8;
   text-decoration: none;
 }
-._grid_14885_1 {
+._grid_1vh2w_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.5em;
   row-gap: 0.2em;
 }
 
-._cell_14885_8 {
+._cell_1vh2w_8 {
   font-weight: 400;
   white-space: nowrap;
+}
+
+._value_1vh2w_13 {
+  overflow-wrap: anywhere;
 }
 ._title_1gjvf_1 {
   margin-bottom: 0.25em;
