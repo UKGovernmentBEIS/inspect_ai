@@ -24,7 +24,7 @@ from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
 from inspect_ai.event._event import Event
 from inspect_ai.log._file import (
-    read_eval_log,
+    read_eval_log_async,
     read_eval_log_sample_summaries_async,
 )
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
@@ -317,7 +317,9 @@ def _read_samples_df_serial(
             ):
                 samples: Iterable[EvalSample | EvalSampleSummary] = eval_log.samples
             elif require_full_samples:
-                full_log = read_eval_log(eval_log.location, resolve_attachments=True)
+                full_log = await read_eval_log_async(
+                    eval_log.location, resolve_attachments=True, async_fs=async_fs
+                )
                 samples = full_log.samples or []
             else:
                 samples = await read_eval_log_sample_summaries_async(
