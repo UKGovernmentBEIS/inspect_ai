@@ -14,5 +14,8 @@
 
 .message {
   text-align: center;
-  width: 300px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
