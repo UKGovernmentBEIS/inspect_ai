@@ -85,7 +85,9 @@ exclude = [
   "build",
   "(?:^|/)_resources/",
   "examples/bridge",
+  "examples/evals_in_eval",
   "examples/hooks",
+  "examples/http_proxy",
   "src/inspect_tool_support",
   "src/inspect_sandbox_tools",
 ]
@@ -152,24 +154,24 @@ inspect = "inspect_ai._cli.main:main"
 [project.optional-dependencies]
 dev = [
   "adlfs>=2025.8.0",
-  "anthropic>=0.62.0",
+  "anthropic>=0.78.0",
   "azure-identity",
   "azure-ai-inference",
   "fastapi",
-  "google-genai",
-  "griffe",
-  "groq",
+  "google-genai>=1.56.0",
+  "griffe<=1.14.0",
+  "groq>=0.28.0",
   "huggingface_hub>=1.0.0",
   "inspect_scout",
   "ipython",
   "jsonpath-ng",
   "markdown",
   "mcp>=1.10.0",
-  "mistralai",
+  "mistralai>=1.9.11",
   "moto[server]",
   "mypy>=1.17.0",
   "nbformat",
-  "openai",
+  "openai>=2.17.0",
   "pandas>=2.0.0",
   "panflute",
   "pip",
@@ -201,8 +203,10 @@ dev = [
   "types-protobuf",
   "types-psutil",
   "types-python-dateutil",
-  "xai_sdk",
+  "xai_sdk>=1.4.0",
   "uvicorn",
+  # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
+  "zipfile-zstd>=0.0.4; python_version < '3.14'",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = [
@@ -210,7 +214,7 @@ doc = [
   "jupyter",
   "panflute",
   "markdown",
-  "griffe",
+  "griffe<=1.14.0",
   "click>=8.2.0",
 ]
 dist = ["twine", "build"]

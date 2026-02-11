@@ -669,6 +669,17 @@ class GoogleGenAIAPI(ModelAPI):
         )
 
     def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
+        # exceeding a quota with a limit of 0 means no access to model or capability,
+        # for these cases convert to a runtime error so the sample fails.
+        if (
+            ex.code == 429
+            and ex.message
+            and "quota" in ex.message
+            and "limit: 0" in ex.message
+        ):
+            return RuntimeError(ex.message)
+
+        # detect context overflow and convert to ModelOutput
         if (
             ex.code == 400
             and ex.message

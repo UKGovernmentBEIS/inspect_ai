@@ -84,14 +84,7 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
-from inspect_ai.model._model import (
-    init_sample_model_usage,
-    sample_model_usage,
-)
-from inspect_ai.model._providers.providers import (
-    validate_anthropic_client,
-    validate_openai_client,
-)
+from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -1329,19 +1322,21 @@ def create_sample_semaphore(
 
 def init_sample_assistant_internal() -> None:
     if importlib.util.find_spec("openai"):
-        validate_openai_client("OpenAI API")
+        try:
+            from inspect_ai.model._openai_responses import (
+                init_sample_openai_assistant_internal,
+            )
 
-        from inspect_ai.model._openai_responses import (
-            init_sample_openai_assistant_internal,
-        )
-
-        init_sample_openai_assistant_internal()
+            init_sample_openai_assistant_internal()
+        except ImportError:
+            pass
 
     if importlib.util.find_spec("anthropic"):
-        validate_anthropic_client("Anthropic API")
+        try:
+            from inspect_ai.model._providers.anthropic import (
+                init_sample_anthropic_assistant_internal,
+            )
 
-        from inspect_ai.model._providers.anthropic import (
-            init_sample_anthropic_assistant_internal,
-        )
-
-        init_sample_anthropic_assistant_internal()
+            init_sample_anthropic_assistant_internal()
+        except ImportError:
+            pass

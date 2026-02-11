@@ -1,7 +1,25 @@
 ## Unreleased
 
+- Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
+- Model API: for 400 errors, print the error after the request payload rather than before.
+- Eval Logs: Add progress callback interface for reading eval logs
+- Sandboxes: Added `http_proxy` example for intercepting and remapping HTTP requests from agents using mitmproxy.
+- Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
+
+## 0.3.177 (10 February 2026)
+
+- Anthropic: Do not pass through unrecognized `extra_body` fields.
+
+## 0.3.176 (10 February 2026)
+
+- Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.
+- Bugfix: Correct handling of `ComposeConfig` for Docker sandbox provider.
+
+## 0.3.175 (10 February 2026)
+
 - OpenRouter: Retry 500 and 504 errors returned in request JSON body.
 - Scoring: Allow customisation of grouped metric names.
+- Model API: Don't strictly require OpenAI and Anthropic versions when they aren't in use.
 - Inspect View: Show live requests and responses for model call events in the transcript.
 - Inspect View: Improve scroll performance when viewing sample transcripts and messages.
 
@@ -59,6 +77,7 @@
 - Web Search: Use internal search providers by default when no external provider is defined (previously they required explicit enabling).
 - Web Search: Fallback to Google CSE provider only when Google CSE environment variables are defined (the CSE service has been deprecated by Google).
 - Eval Logs: Improve eval log loading performance with JSON cache key for messages.
+- Eval Logs: Support Zstd compression of eval logs for improved performance via `INSPECT_USE_ZSTD` environment variable.
 - Agent Bridge: Make sandbox_agent_bridge cleanup errors non-fatal when agent completes
 - Compaction: Add source="compaction" to InfoEvent created by compaction.
 

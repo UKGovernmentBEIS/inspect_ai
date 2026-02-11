@@ -977,7 +977,7 @@ class Model:
                 # request which caused the error
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
-                error_message = f"{error}\n\nRequest:\n{request}"
+                error_message = f"\nRequest:\n{request}\n\n{error}"
                 raise RuntimeError(error_message)
 
             # update output with time (call.time captures time spent

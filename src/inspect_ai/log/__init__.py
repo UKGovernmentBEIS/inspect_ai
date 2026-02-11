@@ -1,3 +1,5 @@
+import sys
+
 from inspect_ai._util.deprecation import relocated_module_attribute
 from inspect_ai._util.error import EvalError, WriteConflictError
 
@@ -245,3 +247,7 @@ relocated_module_attribute(
     _EVENT_MODULE_VERSION_3_137,
     _REMOVED_IN,
 )
+
+if sys.version_info < (3, 14):
+    # On Python < 3.14, this monkey-patches zipfile to support zstandard compression.
+    import zipfile_zstd  # type: ignore[import-not-found, import-untyped]  # noqa: F401

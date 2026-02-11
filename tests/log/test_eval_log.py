@@ -7,6 +7,7 @@ from typing import Literal
 
 import pytest
 from pydantic_core import PydanticSerializationError
+from typing_extensions import override
 
 from inspect_ai import Task, eval
 from inspect_ai._util.file import filesystem
@@ -18,7 +19,13 @@ from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import read_eval_log
 from inspect_ai.log._edit import ProvenanceData
-from inspect_ai.log._file import read_eval_log_sample, write_eval_log
+from inspect_ai.log._file import (
+    ReadEvalLogsProgress,
+    list_eval_logs,
+    read_eval_log_headers,
+    read_eval_log_sample,
+    write_eval_log,
+)
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
@@ -376,3 +383,30 @@ def test_read_bytes_header(format):
 
     assert log2.samples is None
     assert log.eval.task == log2.eval.task
+
+
+list_logs_dir = os.path.join("tests", "log", "test_list_logs")
+
+
+def test_progress_called_with_read_eval_log_headers():
+    log_files = list_eval_logs(list_logs_dir, formats=["eval", "json"])
+
+    class TrackingProgress(ReadEvalLogsProgress):
+        def __init__(self) -> None:
+            self.total: int | None = None
+            self.read_files: list[str] = []
+
+        @override
+        def before_reading_logs(self, total_files: int) -> None:
+            self.total = total_files
+
+        @override
+        def after_read_log(self, log_file: str) -> None:
+            self.read_files.append(log_file)
+
+    progress = TrackingProgress()
+    headers = read_eval_log_headers(log_files, progress)
+
+    assert progress.total == len(log_files)
+    assert len(progress.read_files) == len(log_files)
+    assert len(headers) == len(log_files)
