@@ -17648,15 +17648,19 @@ button._segment_mhb7y_9 {
 ._panel_vz394_1 {
   margin: 0.2em 0;
 }
-._grid_1eq5o_1 {
+._grid_159mg_1 {
   width: 100%;
   display: grid;
   grid-template-columns: 1fr max-content;
   column-gap: 1em;
 }
 
-._jsonPanel_1eq5o_8 {
+._jsonPanel_159mg_8 {
   padding: 0 !important;
+}
+
+._wrap_159mg_12 {
+  overflow-wrap: anywhere;
 }
 ._container_1ww70_1 {
   margin: 1em 0 0 0;

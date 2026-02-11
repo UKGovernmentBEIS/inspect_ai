@@ -5,6 +5,7 @@
 - Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
 - Inspect View: Fix regression in log viewer navigation in VSCode.
 - Inspect View: Improve transcript display appearance in VSCode.
+- Inspect View: Improve log events display in transcripts.
 
 ## 0.3.177 (10 February 2026)
 
