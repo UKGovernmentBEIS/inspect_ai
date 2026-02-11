@@ -7,8 +7,7 @@ from pathlib import Path
 from re import Pattern
 from typing import TYPE_CHECKING, Sequence, TypeAlias, cast
 
-from inspect_ai._util._async import run_coroutine, tg_collect
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
@@ -82,26 +81,17 @@ def resolve_logs(
     # expand directories
     log_paths: list[FileInfo] = []
 
-    async def expand_directories() -> None:
-        async with AsyncFilesystem() as async_fs:
+    async def expand_log(log_str: str, async_fs: AsyncFilesystem) -> None:
+        info = await async_fs.info(log_str)
+        if info.type == "directory":
+            fs = filesystem(log_str)
+            log_paths.extend(
+                [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
+            )
+        else:
+            log_paths.append(info)
 
-            async def expand_log(log_str: str) -> None:
-                info = await async_fs.info(log_str)
-                if info.type == "directory":
-                    fs = filesystem(log_str)
-                    log_paths.extend(
-                        [
-                            fi
-                            for fi in fs.ls(info.name, recursive=True)
-                            if fi.type == "file"
-                        ]
-                    )
-                else:
-                    log_paths.append(info)
-
-            await tg_collect([partial(expand_log, s) for s in logs_str])
-
-    run_coroutine(expand_directories())
+    run_tg_collect_with_fs([partial(expand_log, s) for s in logs_str])
 
     log_files = log_files_from_ls(log_paths, sort=False)
     return [log_file.name for log_file in log_files]

@@ -18,8 +18,7 @@ from typing import (
     overload,
 )
 
-from inspect_ai._util._async import run_coroutine, tg_collect
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
@@ -307,117 +306,106 @@ def _read_samples_df_serial(
         p.reset(description=f"reading {entity}s", completed=0, total=total_samples)
 
         # read samples
-        async def read_samples_async() -> None:
-            async with AsyncFilesystem() as async_fs:
+        async def process_eval_log(
+            eval_id: str, eval_log: EvalLog, async_fs: AsyncFilesystem
+        ) -> None:
+            # get samples (in-memory, full log, or summaries from disk)
+            if (
+                is_eval_logs
+                and eval_log.samples is not None
+                and len(eval_log.samples) > 0
+            ):
+                samples: Iterable[EvalSample | EvalSampleSummary] = eval_log.samples
+            elif require_full_samples:
+                full_log = read_eval_log(eval_log.location, resolve_attachments=True)
+                samples = full_log.samples or []
+            else:
+                samples = await read_eval_log_sample_summaries_async(
+                    eval_log.location, async_fs=async_fs
+                )
 
-                async def process_eval_log(eval_id: str, eval_log: EvalLog) -> None:
-                    # get samples (in-memory, full log, or summaries from disk)
-                    if (
-                        is_eval_logs
-                        and eval_log.samples is not None
-                        and len(eval_log.samples) > 0
-                    ):
-                        samples: Iterable[EvalSample | EvalSampleSummary] = (
-                            eval_log.samples
+            for sample in samples:
+                if strict:
+                    record = import_record(
+                        eval_log, sample, columns_sample, strict=True
+                    )
+                else:
+                    record, errors = import_record(
+                        eval_log, sample, columns_sample, strict=False
+                    )
+                    all_errors.extend(errors)
+
+                # inject ids
+                sample_id = sample.uuid or auto_sample_id(eval_id, sample)
+                ids: dict[str, ColumnType] = {
+                    EVAL_ID: eval_id,
+                    SAMPLE_ID: sample_id,
+                }
+
+                # record with ids
+                record = ids | record
+
+                # if there are detail columns then blow out w/ detail
+                if detail is not None:
+                    # filter detail records
+                    assert isinstance(sample, EvalSample)
+                    if isinstance(detail, MessagesDetail):
+                        detail_items: list[ChatMessage] | list[Event] = (
+                            sample_messages_from_events(sample.events, detail.filter)
                         )
-                    elif require_full_samples:
-                        full_log = read_eval_log(
-                            eval_log.location, resolve_attachments=True
-                        )
-                        samples = full_log.samples or []
+                    elif isinstance(detail, EventsDetail):
+                        detail_items = [
+                            e
+                            for e in sample.events
+                            if detail.filter is None or detail.filter(e)
+                        ]
                     else:
-                        samples = await read_eval_log_sample_summaries_async(
-                            eval_log.location, async_fs=async_fs
-                        )
+                        detail_items = []
 
-                    for sample in samples:
+                    # read detail records (provide auto-ids)
+                    for index, item in enumerate(detail_items):
                         if strict:
-                            record = import_record(
-                                eval_log, sample, columns_sample, strict=True
+                            detail_record = import_record(
+                                eval_log,
+                                item,
+                                columns_detail,
+                                strict=True,
                             )
                         else:
-                            record, errors = import_record(
-                                eval_log, sample, columns_sample, strict=False
+                            detail_record, errors = import_record(
+                                eval_log,
+                                item,
+                                columns_detail,
+                                strict=False,
                             )
                             all_errors.extend(errors)
 
-                        # inject ids
-                        sample_id = sample.uuid or auto_sample_id(eval_id, sample)
-                        ids: dict[str, ColumnType] = {
-                            EVAL_ID: eval_id,
-                            SAMPLE_ID: sample_id,
-                        }
+                        # ensure ids
+                        detail_id_field = f"{detail.name}_id"
+                        detail_id = detail_record.get(detail_id_field, None)
+                        if detail_id is None:
+                            detail_record[detail_id_field] = auto_detail_id(
+                                sample_id, detail.name, index
+                            )
+                        ids = {SAMPLE_ID: sample_id}
+                        detail_record = ids | detail_record
 
-                        # record with ids
-                        record = ids | record
+                        # inject order
+                        detail_record["order"] = index + 1
 
-                        # if there are detail columns then blow out w/ detail
-                        if detail is not None:
-                            # filter detail records
-                            assert isinstance(sample, EvalSample)
-                            if isinstance(detail, MessagesDetail):
-                                detail_items: list[ChatMessage] | list[Event] = (
-                                    sample_messages_from_events(
-                                        sample.events, detail.filter
-                                    )
-                                )
-                            elif isinstance(detail, EventsDetail):
-                                detail_items = [
-                                    e
-                                    for e in sample.events
-                                    if detail.filter is None or detail.filter(e)
-                                ]
-                            else:
-                                detail_items = []
+                        # append detail record
+                        detail_records.append(detail_record)
 
-                            # read detail records (provide auto-ids)
-                            for index, item in enumerate(detail_items):
-                                if strict:
-                                    detail_record = import_record(
-                                        eval_log,
-                                        item,
-                                        columns_detail,
-                                        strict=True,
-                                    )
-                                else:
-                                    detail_record, errors = import_record(
-                                        eval_log,
-                                        item,
-                                        columns_detail,
-                                        strict=False,
-                                    )
-                                    all_errors.extend(errors)
+                # record sample record
+                sample_records.append(record)
+                p.update()
 
-                                # ensure ids
-                                detail_id_field = f"{detail.name}_id"
-                                detail_id = detail_record.get(detail_id_field, None)
-                                if detail_id is None:
-                                    detail_record[detail_id_field] = auto_detail_id(
-                                        sample_id, detail.name, index
-                                    )
-                                ids = {SAMPLE_ID: sample_id}
-                                detail_record = ids | detail_record
-
-                                # inject order
-                                detail_record["order"] = index + 1
-
-                                # append detail record
-                                detail_records.append(detail_record)
-
-                        # record sample record
-                        sample_records.append(record)
-                        p.update()
-
-                await tg_collect(
-                    [
-                        partial(process_eval_log, eval_id, eval_log)
-                        for eval_id, eval_log in zip(
-                            evals_table[EVAL_ID].to_list(), eval_logs
-                        )
-                    ]
-                )
-
-        run_coroutine(read_samples_async())
+        run_tg_collect_with_fs(
+            [
+                partial(process_eval_log, eval_id, eval_log)
+                for eval_id, eval_log in zip(evals_table[EVAL_ID].to_list(), eval_logs)
+            ]
+        )
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)

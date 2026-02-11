@@ -1,7 +1,8 @@
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
+from functools import partial
 from types import TracebackType
-from typing import Any, cast
+from typing import Any, Awaitable, Callable, Iterable, TypeVar, cast
 from urllib.parse import urlparse
 
 import anyio.to_thread
@@ -13,7 +14,7 @@ from anyio.abc import ByteReceiveStream
 from botocore.config import Config
 from typing_extensions import override
 
-from inspect_ai._util._async import current_async_backend
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.file import FileInfo, file, filesystem
 
 
@@ -354,3 +355,42 @@ def _local_path(filename: str) -> str:
     if filename.startswith("file://"):
         return urlparse(filename).path
     return filename
+
+
+R = TypeVar("R")
+
+
+async def tg_collect_with_fs(
+    funcs: Iterable[Callable[[AsyncFilesystem], Awaitable[R]]],
+    exception_group: bool = False,
+) -> list[R]:
+    """Run funcs concurrently with a shared AsyncFilesystem.
+
+    Each func receives an AsyncFilesystem as its sole argument. A single
+    shared filesystem is created and used across all concurrent tasks.
+
+    Args:
+        funcs: Async callables that accept an AsyncFilesystem.
+        exception_group: ``True`` to raise an ExceptionGroup,
+            ``False`` (default) to raise only the first exception.
+
+    Returns:
+        List of results in the same order as input funcs.
+    """
+    async with AsyncFilesystem() as fs:
+        return await tg_collect(
+            [partial(fn, fs) for fn in funcs],
+            exception_group=exception_group,
+        )
+
+
+def run_tg_collect_with_fs(
+    funcs: Iterable[Callable[[AsyncFilesystem], Awaitable[R]]],
+    exception_group: bool = False,
+) -> list[R]:
+    """Sync wrapper for :func:`tg_collect_with_fs`.
+
+    Creates a shared AsyncFilesystem, runs all funcs concurrently,
+    and returns results via ``run_coroutine``.
+    """
+    return run_coroutine(tg_collect_with_fs(funcs, exception_group))

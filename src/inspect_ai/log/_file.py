@@ -10,8 +10,8 @@ from pydantic import (
     Field,
 )
 
-from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util._async import current_async_backend, run_coroutine
+from inspect_ai._util.asyncfiles import AsyncFilesystem, tg_collect_with_fs
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -371,12 +371,10 @@ def read_eval_log_headers(
 async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    async with AsyncFilesystem() as fs:
+    async def _read(lf: str | Path | EvalLogInfo, fs: AsyncFilesystem) -> EvalLog:
+        return await read_eval_log_async(lf, header_only=True, async_fs=fs)
 
-        async def _read(lf: str | Path | EvalLogInfo) -> EvalLog:
-            return await read_eval_log_async(lf, header_only=True, async_fs=fs)
-
-        return await tg_collect([partial(_read, lf) for lf in log_files])
+    return await tg_collect_with_fs([partial(_read, lf) for lf in log_files])
 
 
 def read_eval_log_sample(
