@@ -716,62 +716,70 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="compaction" class="level2">
 <h2 class="anchored" data-anchor-id="compaction">Compaction</h2>
 <p><a href="./compaction.html">Compaction</a> enables you to automatically manage conversation context as it grows, helping you optimize costs and stay within context window limits for long-running agents. Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compaction">compaction()</a></span> function along with a compaction strategy to incorporate compaction into your custom agent.</p>
-<p>For example, here we enhance the simple agent loop example from above with compaction. Note that the <code>compact</code> function returns both compacted <code>input</code> for us to pass to <code>model.generate()</code> as well as an optional compaction message (<code>c_message</code>) to be added to the main history.</p>
+<p>For example, here we enhance the simple agent loop example from above with compaction. The <code>compact</code> handler has two methods: <code>compact_input()</code> to prepare input for the model, and <code>record_output()</code> to calibrate token estimation from the model’s actual usage.</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-4"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-4-1"><a href="#annotated-cell-4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Sequence</span>
 <span id="annotated-cell-4-2"><a href="#annotated-cell-4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> AgentState, agent</span>
 <span id="annotated-cell-4-3"><a href="#annotated-cell-4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> (</span>
 <span id="annotated-cell-4-4"><a href="#annotated-cell-4-4" aria-hidden="true" tabindex="-1"></a>    CompactionAuto, compaction, execute_tools, get_model</span>
-<span id="annotated-cell-4-5"><a href="#annotated-cell-4-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> (</span>
-<span id="annotated-cell-4-6"><a href="#annotated-cell-4-6" aria-hidden="true" tabindex="-1"></a>    Tool, ToolDef, ToolSource, mcp_connection</span>
-<span id="annotated-cell-4-7"><a href="#annotated-cell-4-7" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="annotated-cell-4-8"><a href="#annotated-cell-4-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-9"><a href="#annotated-cell-4-9" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="annotated-cell-4-10"><a href="#annotated-cell-4-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent(tools: Sequence[Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolSource]):</span>
-<span id="annotated-cell-4-11"><a href="#annotated-cell-4-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState):</span>
-<span id="annotated-cell-4-12"><a href="#annotated-cell-4-12" aria-hidden="true" tabindex="-1"></a></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="1">1</button><span id="annotated-cell-4-13" class="code-annotation-target"><a href="#annotated-cell-4-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># create compaction handler</span></span>
-<span id="annotated-cell-4-14"><a href="#annotated-cell-4-14" aria-hidden="true" tabindex="-1"></a>        compact <span class="op">=</span> compaction(</span>
-<span id="annotated-cell-4-15"><a href="#annotated-cell-4-15" aria-hidden="true" tabindex="-1"></a>            CompactionAuto(),</span>
-<span id="annotated-cell-4-16"><a href="#annotated-cell-4-16" aria-hidden="true" tabindex="-1"></a>            prefix<span class="op">=</span>state.messages,</span>
-<span id="annotated-cell-4-17"><a href="#annotated-cell-4-17" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>tools</span>
-<span id="annotated-cell-4-18"><a href="#annotated-cell-4-18" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="annotated-cell-4-19"><a href="#annotated-cell-4-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-20"><a href="#annotated-cell-4-20" aria-hidden="true" tabindex="-1"></a>        <span class="co"># establish MCP server connections required by tools</span></span>
-<span id="annotated-cell-4-21"><a href="#annotated-cell-4-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> mcp_connection(tools):</span>
-<span id="annotated-cell-4-22"><a href="#annotated-cell-4-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-23"><a href="#annotated-cell-4-23" aria-hidden="true" tabindex="-1"></a>            <span class="cf">while</span> <span class="va">True</span>:</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="2">2</button><span id="annotated-cell-4-24" class="code-annotation-target"><a href="#annotated-cell-4-24" aria-hidden="true" tabindex="-1"></a>                <span class="co"># perform compaction</span></span>
-<span id="annotated-cell-4-25"><a href="#annotated-cell-4-25" aria-hidden="true" tabindex="-1"></a>                <span class="bu">input</span>, c_message <span class="op">=</span> <span class="cf">await</span> compact(state.messages)</span>
-<span id="annotated-cell-4-26"><a href="#annotated-cell-4-26" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> message:</span>
-<span id="annotated-cell-4-27"><a href="#annotated-cell-4-27" aria-hidden="true" tabindex="-1"></a>                    state.messages.append(c_message)</span>
-<span id="annotated-cell-4-28"><a href="#annotated-cell-4-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-29"><a href="#annotated-cell-4-29" aria-hidden="true" tabindex="-1"></a>                <span class="co"># call model and append to messages</span></span>
-<span id="annotated-cell-4-30"><a href="#annotated-cell-4-30" aria-hidden="true" tabindex="-1"></a>                state.output <span class="op">=</span> <span class="cf">await</span> get_model().generate(</span>
-<span id="annotated-cell-4-31"><a href="#annotated-cell-4-31" aria-hidden="true" tabindex="-1"></a>                    <span class="bu">input</span><span class="op">=</span><span class="bu">input</span>,                          </span>
-<span id="annotated-cell-4-32"><a href="#annotated-cell-4-32" aria-hidden="true" tabindex="-1"></a>                    tools<span class="op">=</span>tools,                                   </span>
-<span id="annotated-cell-4-33"><a href="#annotated-cell-4-33" aria-hidden="true" tabindex="-1"></a>                )                                                  </span>
-<span id="annotated-cell-4-34"><a href="#annotated-cell-4-34" aria-hidden="true" tabindex="-1"></a>                state.messages.append(output.message)              </span>
-<span id="annotated-cell-4-35"><a href="#annotated-cell-4-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-36"><a href="#annotated-cell-4-36" aria-hidden="true" tabindex="-1"></a>                <span class="co"># make tool calls or terminate if there are none</span></span>
-<span id="annotated-cell-4-37"><a href="#annotated-cell-4-37" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> output.message.tool_calls:                      </span>
-<span id="annotated-cell-4-38"><a href="#annotated-cell-4-38" aria-hidden="true" tabindex="-1"></a>                    messages, state.output <span class="op">=</span> <span class="cf">await</span> execute_tools(</span>
-<span id="annotated-cell-4-39"><a href="#annotated-cell-4-39" aria-hidden="true" tabindex="-1"></a>                        message, tools     </span>
-<span id="annotated-cell-4-40"><a href="#annotated-cell-4-40" aria-hidden="true" tabindex="-1"></a>                    )</span>
-<span id="annotated-cell-4-41"><a href="#annotated-cell-4-41" aria-hidden="true" tabindex="-1"></a>                    state.messages.extend(messages)</span>
-<span id="annotated-cell-4-42"><a href="#annotated-cell-4-42" aria-hidden="true" tabindex="-1"></a>                <span class="cf">else</span>:</span>
-<span id="annotated-cell-4-43"><a href="#annotated-cell-4-43" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">break</span></span>
-<span id="annotated-cell-4-44"><a href="#annotated-cell-4-44" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-45"><a href="#annotated-cell-4-45" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> state</span>
-<span id="annotated-cell-4-46"><a href="#annotated-cell-4-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-47"><a href="#annotated-cell-4-47" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="annotated-cell-4-5"><a href="#annotated-cell-4-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="annotated-cell-4-6"><a href="#annotated-cell-4-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> (</span>
+<span id="annotated-cell-4-7"><a href="#annotated-cell-4-7" aria-hidden="true" tabindex="-1"></a>    Tool, ToolDef, ToolSource, mcp_connection</span>
+<span id="annotated-cell-4-8"><a href="#annotated-cell-4-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="annotated-cell-4-9"><a href="#annotated-cell-4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-4-10"><a href="#annotated-cell-4-10" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="annotated-cell-4-11"><a href="#annotated-cell-4-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent(tools: Sequence[Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolSource]):</span>
+<span id="annotated-cell-4-12"><a href="#annotated-cell-4-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState):</span>
+<span id="annotated-cell-4-13"><a href="#annotated-cell-4-13" aria-hidden="true" tabindex="-1"></a></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="1">1</button><span id="annotated-cell-4-14" class="code-annotation-target"><a href="#annotated-cell-4-14" aria-hidden="true" tabindex="-1"></a>        <span class="co"># create compaction handler</span></span>
+<span id="annotated-cell-4-15"><a href="#annotated-cell-4-15" aria-hidden="true" tabindex="-1"></a>        compact <span class="op">=</span> compaction(</span>
+<span id="annotated-cell-4-16"><a href="#annotated-cell-4-16" aria-hidden="true" tabindex="-1"></a>            CompactionAuto(),</span>
+<span id="annotated-cell-4-17"><a href="#annotated-cell-4-17" aria-hidden="true" tabindex="-1"></a>            prefix<span class="op">=</span>state.messages,</span>
+<span id="annotated-cell-4-18"><a href="#annotated-cell-4-18" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>tools</span>
+<span id="annotated-cell-4-19"><a href="#annotated-cell-4-19" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="annotated-cell-4-20"><a href="#annotated-cell-4-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-4-21"><a href="#annotated-cell-4-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># establish MCP server connections required by tools</span></span>
+<span id="annotated-cell-4-22"><a href="#annotated-cell-4-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> mcp_connection(tools):</span>
+<span id="annotated-cell-4-23"><a href="#annotated-cell-4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-4-24"><a href="#annotated-cell-4-24" aria-hidden="true" tabindex="-1"></a>            <span class="cf">while</span> <span class="va">True</span>:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="2">2</button><span id="annotated-cell-4-25" class="code-annotation-target"><a href="#annotated-cell-4-25" aria-hidden="true" tabindex="-1"></a>                <span class="co"># compact input</span></span>
+<span id="annotated-cell-4-26"><a href="#annotated-cell-4-26" aria-hidden="true" tabindex="-1"></a>                <span class="bu">input</span>, c_message <span class="op">=</span> <span class="cf">await</span> compact.compact_input(state.messages)</span>
+<span id="annotated-cell-4-27"><a href="#annotated-cell-4-27" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> c_message:</span>
+<span id="annotated-cell-4-28"><a href="#annotated-cell-4-28" aria-hidden="true" tabindex="-1"></a>                    state.messages.append(c_message)</span>
+<span id="annotated-cell-4-29"><a href="#annotated-cell-4-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-4-30"><a href="#annotated-cell-4-30" aria-hidden="true" tabindex="-1"></a>                <span class="co"># call model and append to messages</span></span>
+<span id="annotated-cell-4-31"><a href="#annotated-cell-4-31" aria-hidden="true" tabindex="-1"></a>                state.output <span class="op">=</span> <span class="cf">await</span> get_model().generate(</span>
+<span id="annotated-cell-4-32"><a href="#annotated-cell-4-32" aria-hidden="true" tabindex="-1"></a>                    <span class="bu">input</span><span class="op">=</span><span class="bu">input</span>,</span>
+<span id="annotated-cell-4-33"><a href="#annotated-cell-4-33" aria-hidden="true" tabindex="-1"></a>                    tools<span class="op">=</span>tools,</span>
+<span id="annotated-cell-4-34"><a href="#annotated-cell-4-34" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="annotated-cell-4-35"><a href="#annotated-cell-4-35" aria-hidden="true" tabindex="-1"></a>                state.messages.append(state.output.message)</span>
+<span id="annotated-cell-4-36"><a href="#annotated-cell-4-36" aria-hidden="true" tabindex="-1"></a></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="3">3</button><span id="annotated-cell-4-37" class="code-annotation-target"><a href="#annotated-cell-4-37" aria-hidden="true" tabindex="-1"></a>                <span class="co"># record output for token calibration</span></span>
+<span id="annotated-cell-4-38"><a href="#annotated-cell-4-38" aria-hidden="true" tabindex="-1"></a>                compact.record_output(state.output)</span>
+<span id="annotated-cell-4-39"><a href="#annotated-cell-4-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-4-40"><a href="#annotated-cell-4-40" aria-hidden="true" tabindex="-1"></a>                <span class="co"># make tool calls or terminate if there are none</span></span>
+<span id="annotated-cell-4-41"><a href="#annotated-cell-4-41" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> state.output.message.tool_calls:</span>
+<span id="annotated-cell-4-42"><a href="#annotated-cell-4-42" aria-hidden="true" tabindex="-1"></a>                    messages, state.output <span class="op">=</span> <span class="cf">await</span> execute_tools(</span>
+<span id="annotated-cell-4-43"><a href="#annotated-cell-4-43" aria-hidden="true" tabindex="-1"></a>                        state.output.message, tools</span>
+<span id="annotated-cell-4-44"><a href="#annotated-cell-4-44" aria-hidden="true" tabindex="-1"></a>                    )</span>
+<span id="annotated-cell-4-45"><a href="#annotated-cell-4-45" aria-hidden="true" tabindex="-1"></a>                    state.messages.extend(messages)</span>
+<span id="annotated-cell-4-46"><a href="#annotated-cell-4-46" aria-hidden="true" tabindex="-1"></a>                <span class="cf">else</span>:</span>
+<span id="annotated-cell-4-47"><a href="#annotated-cell-4-47" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">break</span></span>
+<span id="annotated-cell-4-48"><a href="#annotated-cell-4-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-4-49"><a href="#annotated-cell-4-49" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> state</span>
+<span id="annotated-cell-4-50"><a href="#annotated-cell-4-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-4-51"><a href="#annotated-cell-4-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
 <dt data-target-cell="annotated-cell-4" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="13,14,15,16,17,18" data-code-annotation="1">Create the <code>compact()</code> function using the specified strategy. Pass a <code>prefix</code> that should always be included in any compacted history as well as <code>tools</code> (used for computing the input tokens).</span>
+<span data-code-cell="annotated-cell-4" data-code-lines="14,15,16,17,18,19" data-code-annotation="1">Create the compaction handler using the specified strategy. Pass a <code>prefix</code> that should always be included in any compacted history as well as <code>tools</code> (used for computing the input tokens).</span>
 </dd>
 <dt data-target-cell="annotated-cell-4" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="24,25,26,27" data-code-annotation="2">Apply compaction prior to calling <code>model.generate()</code>—pass the compacted <code>input</code> to the model and append the <code>c_message</code> (if specified) to the message history.</span>
+<span data-code-cell="annotated-cell-4" data-code-lines="25,26,27,28" data-code-annotation="2">Call <code>compact_input()</code> prior to <code>model.generate()</code>—pass the compacted <code>input</code> to the model and append the <code>c_message</code> (if specified) to the message history.</span>
+</dd>
+<dt data-target-cell="annotated-cell-4" data-target-annotation="3">3</dt>
+<dd>
+<span data-code-cell="annotated-cell-4" data-code-lines="37,38" data-code-annotation="3">Call <code>record_output()</code> after <code>model.generate()</code> to calibrate token estimation using the model’s actual reported usage. This improves the accuracy of compaction threshold detection.</span>
 </dd>
 </dl>
 <div class="callout callout-style-default callout-note callout-titled">
@@ -784,7 +792,7 @@ Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The returned <code>compact</code> function maintains internal state and is designed for sequential use within a single conversation’s agent loop. Do not call it concurrently.</p>
+<p>The returned <code>compact</code> handler maintains internal state and is designed for sequential use within a single conversation’s agent loop. Do not call it concurrently.</p>
 </div>
 </div>
 <p>There are various configurable compaction strategies available—see the <a href="./compaction.html">Compaction</a> documentation for details.</p>
@@ -837,7 +845,7 @@ Note
 <span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            state.messages, tools<span class="op">=</span>[bash_session(instance<span class="op">=</span>instance)]</span>
 <span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then, pass a unique id as the <code>instance</code>:</p>
-<div id="512149e1" class="cell">
+<div id="2b7681d9" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>react(..., tools<span class="op">=</span>[bash_explorer(instance<span class="op">=</span>uuid())])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>

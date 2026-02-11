@@ -167,15 +167,16 @@ within context window limits for long-running agents. Use the
 compaction into your custom agent.
 
 For example, here we enhance the simple agent loop example from above
-with compaction. Note that the `compact` function returns both compacted
-`input` for us to pass to `model.generate()` as well as an optional
-compaction message (`c_message`) to be added to the main history.
+with compaction. The `compact` handler has two methods:
+`compact_input()` to prepare input for the model, and `record_output()`
+to calibrate token estimation from the model’s actual usage.
 
 ``` python
 from typing import Sequence
 from inspect_ai.agent import AgentState, agent
 from inspect_ai.model import (
     CompactionAuto, compaction, execute_tools, get_model
+)
 from inspect_ai.tool import (
     Tool, ToolDef, ToolSource, mcp_connection
 )
@@ -195,22 +196,25 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
         async with mcp_connection(tools):
 
             while True:
-                # perform compaction
-                input, c_message = await compact(state.messages)
-                if message:
+                # compact input
+                input, c_message = await compact.compact_input(state.messages)
+                if c_message:
                     state.messages.append(c_message)
 
                 # call model and append to messages
                 state.output = await get_model().generate(
-                    input=input,                          
-                    tools=tools,                                   
-                )                                                  
-                state.messages.append(output.message)              
+                    input=input,
+                    tools=tools,
+                )
+                state.messages.append(state.output.message)
+
+                # record output for token calibration
+                compact.record_output(state.output)
 
                 # make tool calls or terminate if there are none
-                if output.message.tool_calls:                      
+                if state.output.message.tool_calls:
                     messages, state.output = await execute_tools(
-                        message, tools     
+                        state.output.message, tools
                     )
                     state.messages.extend(messages)
                 else:
@@ -221,19 +225,24 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     return execute
 ```
 
-Lines 13-18  
-Create the `compact()` function using the specified strategy. Pass a
+Lines 14-19  
+Create the compaction handler using the specified strategy. Pass a
 `prefix` that should always be included in any compacted history as well
 as `tools` (used for computing the input tokens).
 
-Lines 24-27  
-Apply compaction prior to calling `model.generate()`—pass the compacted
+Lines 25-28  
+Call `compact_input()` prior to `model.generate()`—pass the compacted
 `input` to the model and append the `c_message` (if specified) to the
 message history.
 
+Lines 37-38  
+Call `record_output()` after `model.generate()` to calibrate token
+estimation using the model’s actual reported usage. This improves the
+accuracy of compaction threshold detection.
+
 > [!NOTE]
 >
-> The returned `compact` function maintains internal state and is
+> The returned `compact` handler maintains internal state and is
 > designed for sequential use within a single conversation’s agent loop.
 > Do not call it concurrently.
 
