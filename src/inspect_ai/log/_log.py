@@ -28,7 +28,6 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.model._model_config import ModelConfig
-from inspect_ai.model._model_output import ModelPricingConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -128,9 +127,6 @@ class EvalConfig(BaseModel):
 
     cost_limit: float | None = Field(default=None)
     """Maximum cost (in dollars) per sample."""
-
-    model_pricing_config: ModelPricingConfig | None = Field(default=None)
-    """Model pricing configuration for cost tracking."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""

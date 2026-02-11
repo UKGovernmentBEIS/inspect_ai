@@ -85,7 +85,6 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._model import (
-    init_pricing_config,
     init_sample_model_usage,
     sample_model_usage,
 )
@@ -214,9 +213,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         generate_config,
         options.task.approval,
     )
-
-    # init pricing config for cost tracking
-    init_pricing_config(config.model_pricing_config)
 
     # track stats and error
     results: EvalResults | None = None

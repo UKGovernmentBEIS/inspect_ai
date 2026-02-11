@@ -58,7 +58,7 @@ from inspect_ai.model._model import (
     init_model_usage,
     resolve_models,
 )
-from inspect_ai.model._model_output import ModelPricingConfig
+from inspect_ai.model._model_info import get_model_info
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -110,7 +110,6 @@ def eval(
     message_limit: int | None = None,
     token_limit: int | None = None,
     cost_limit: float | None = None,
-    model_pricing_config: str | ModelPricingConfig | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     max_samples: int | None = None,
@@ -183,8 +182,7 @@ def eval(
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
         cost_limit: Limit on total cost (in dollars) for each sample.
-        model_pricing_config: YAML/JSON config file path or ModelPricingConfig
-            with model prices for cost tracking.
+            Requires model cost data via set_model_cost() or --model-cost-config.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -257,7 +255,6 @@ def eval(
                 message_limit=message_limit,
                 token_limit=token_limit,
                 cost_limit=cost_limit,
-                model_pricing_config=model_pricing_config,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 max_samples=max_samples,
@@ -318,7 +315,6 @@ async def eval_async(
     message_limit: int | None = None,
     token_limit: int | None = None,
     cost_limit: float | None = None,
-    model_pricing_config: str | ModelPricingConfig | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     max_samples: int | None = None,
@@ -378,8 +374,7 @@ async def eval_async(
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
         cost_limit: Limit on total cost (in dollars) for each sample.
-        model_pricing_config: YAML/JSON config file path or ModelPricingConfig
-            with model prices for cost tracking.
+            Requires model cost data via set_model_cost() or --model-cost-config.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
@@ -442,7 +437,6 @@ async def eval_async(
                 message_limit=message_limit,
                 token_limit=token_limit,
                 cost_limit=cost_limit,
-                model_pricing_config=model_pricing_config,
                 time_limit=time_limit,
                 working_limit=working_limit,
                 max_samples=max_samples,
@@ -508,7 +502,6 @@ async def _eval_async_inner(
     message_limit: int | None = None,
     token_limit: int | None = None,
     cost_limit: float | None = None,
-    model_pricing_config: str | ModelPricingConfig | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
     max_samples: int | None = None,
@@ -581,9 +574,8 @@ async def _eval_async_inner(
                 "Error: No inspect tasks were found at the specified paths."
             )
 
-        resolved_pricing_config = resolve_pricing_config(
-            model_pricing_config, resolved_tasks, cost_limit
-        )
+        if cost_limit is not None:
+            validate_model_costs(resolved_tasks)
 
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
@@ -664,7 +656,6 @@ async def _eval_async_inner(
             message_limit=message_limit,
             token_limit=token_limit,
             cost_limit=cost_limit,
-            model_pricing_config=resolved_pricing_config,
             time_limit=time_limit,
             working_limit=working_limit,
             max_samples=max_samples,
@@ -1237,44 +1228,32 @@ def eval_resolve_tasks(
     return resolved_tasks, approval
 
 
-def resolve_pricing_config(
-    model_pricing_config: str | ModelPricingConfig | None,
-    resolved_tasks: list[ResolvedTask],
-    cost_limit: float | None,
-) -> ModelPricingConfig | None:
-    """Resolve and validate model pricing configuration."""
-    resolved: ModelPricingConfig | None = None
-    if isinstance(model_pricing_config, str):
-        resolved = ModelPricingConfig.model_validate(resolve_args(model_pricing_config))
-    elif isinstance(model_pricing_config, ModelPricingConfig):
-        resolved = model_pricing_config
+def validate_model_costs(resolved_tasks: list[ResolvedTask]) -> None:
+    """Validate all models in the eval have cost data configured."""
+    # collect all unique model names
+    model_names: set[str] = set()
+    for task in resolved_tasks:
+        model_names.add(str(ModelName(task.model)))
+        if task.model_roles:
+            for role_model in task.model_roles.values():
+                model_names.add(str(ModelName(role_model)))
 
-    if cost_limit is not None and resolved is None:
-        raise PrerequisiteError(
-            "cost_limit requires model_pricing_config to be specified"
-        )
-
-    if resolved is not None:
-        for resolved_task in resolved_tasks:
-            model_name = str(ModelName(resolved_task.model))
-            if model_name not in resolved.prices:
-                raise PrerequisiteError(
-                    f"Model '{model_name}' not found in model_pricing_config, "
-                    "but is present in eval. Model pricing config must have "
-                    "pricing for all models present."
-                )
-            if resolved_task.model_roles:
-                for role_model in resolved_task.model_roles.values():
-                    role_model_name = str(ModelName(role_model))
-                    if role_model_name not in resolved.prices:
-                        raise PrerequisiteError(
-                            f"Model '{role_model_name}' not found in "
-                            "model_pricing_config, but is present in eval. "
-                            "Model pricing config must have pricing for all "
-                            "models present."
-                        )
-
-    return resolved
+    for model_name in model_names:
+        info = get_model_info(model_name)
+        if info is None:
+            raise PrerequisiteError(
+                f"cost_limit requires cost data for all models. "
+                f"Model '{model_name}' is not in the model database. "
+                f"Use set_model_info() to register it, then set_model_cost() "
+                f"to set pricing."
+            )
+        if info.cost is None:
+            raise PrerequisiteError(
+                f"cost_limit requires cost data for all models. "
+                f"Model '{model_name}' has no cost data configured. "
+                f"Use set_model_cost() or --model-cost-config to configure "
+                f"pricing."
+            )
 
 
 def init_eval_display(

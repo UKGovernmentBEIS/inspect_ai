@@ -9,29 +9,6 @@ from inspect_ai.tool._tool_call import ToolCall
 from ._chat_message import ChatMessage, ChatMessageAssistant
 
 
-class ModelPricing(BaseModel):
-    """Pricing for a model in $/million tokens."""
-
-    input: float
-    """Price per million input tokens."""
-
-    output: float
-    """Price per million output tokens."""
-
-    input_cache_write: float
-    """Price per million input tokens written to cache."""
-
-    input_cache_read: float
-    """Price per million input tokens read from cache."""
-
-
-class ModelPricingConfig(BaseModel):
-    """Model pricing configuration."""
-
-    prices: dict[str, ModelPricing]
-    """Pricing for each model, keyed by model name."""
-
-
 class ModelUsage(BaseModel):
     """Token usage for completion."""
 

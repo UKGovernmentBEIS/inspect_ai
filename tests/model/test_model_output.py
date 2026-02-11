@@ -1,9 +1,20 @@
 import math
 from pathlib import Path
 
+import pytest
+
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.model._model import compute_model_cost
-from inspect_ai.model._model_output import ModelPricing, ModelPricingConfig, ModelUsage
+from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
+from inspect_ai.model._model_output import ModelUsage
+
+
+@pytest.fixture(autouse=True)
+def reset_model_cache():
+    clear_model_info_cache()
+    yield
+    clear_model_info_cache()
 
 
 def test_completion_deserialization() -> None:
@@ -66,32 +77,34 @@ def test_model_usage_addition_with_none_fields() -> None:
 
 
 def test_compute_model_cost_basic() -> None:
-    config = ModelPricingConfig(
-        prices={
-            "model": ModelPricing(
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
                 input=1000.0,
                 output=2000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
             )
-        }
+        ),
     )
     usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
 
     # (3 * 1000 + 4 * 2000) / 1_000_000 = 0.011
-    assert compute_model_cost("model", usage, config) == 0.011
+    assert compute_model_cost("model", usage) == 0.011
 
 
 def test_compute_model_cost_with_cache_tokens() -> None:
-    config = ModelPricingConfig(
-        prices={
-            "model": ModelPricing(
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
                 input=1000.0,
                 output=2000.0,
                 input_cache_write=1500.0,
                 input_cache_read=100.0,
             )
-        }
+        ),
     )
     usage = ModelUsage(
         input_tokens=10,
@@ -106,19 +119,22 @@ def test_compute_model_cost_with_cache_tokens() -> None:
     # cache_write: 20 * 1500 / 1M = 0.03
     # cache_read:  30 *  100 / 1M = 0.003
     # total: 0.053
-    assert math.isclose(compute_model_cost("model", usage, config), 0.053)
+    cost = compute_model_cost("model", usage)
+    assert cost is not None
+    assert math.isclose(cost, 0.053)
 
 
 def test_compute_model_cost_with_all_token_types() -> None:
-    config = ModelPricingConfig(
-        prices={
-            "model": ModelPricing(
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
                 input=1000.0,
                 output=2000.0,
                 input_cache_write=1500.0,
                 input_cache_read=100.0,
             )
-        }
+        ),
     )
     usage = ModelUsage(
         input_tokens=10,
@@ -134,4 +150,11 @@ def test_compute_model_cost_with_all_token_types() -> None:
     # cache_write: 20 * 1500 / 1M = 0.03
     # cache_read:  30 *  100 / 1M = 0.003
     # total: 0.083
-    assert math.isclose(compute_model_cost("model", usage, config), 0.083)
+    cost = compute_model_cost("model", usage)
+    assert cost is not None
+    assert math.isclose(cost, 0.083)
+
+
+def test_compute_model_cost_no_cost_data() -> None:
+    usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    assert compute_model_cost("unknown/model", usage) is None

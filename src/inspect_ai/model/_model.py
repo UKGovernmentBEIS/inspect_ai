@@ -103,7 +103,7 @@ from ._generate_config import (
     set_active_generate_config,
 )
 from ._model_call import ModelCall, as_error_response
-from ._model_output import ModelOutput, ModelPricingConfig, ModelUsage
+from ._model_output import ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
@@ -1866,9 +1866,10 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
     # accumulates it in the per-model usage dicts)
-    pricing_config = pricing_config_var.get(None)
-    if pricing_config is not None:
-        usage.total_cost = compute_model_cost(model, usage, pricing_config)
+    cost = compute_model_cost(model, usage)
+    # cost is None when model has no cost data configured
+    if cost is not None:
+        usage.total_cost = cost
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
@@ -1880,10 +1881,8 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     set_active_sample_total_tokens(total_tokens)
     check_token_limit()
 
-    # check cost limit
-    if pricing_config is not None:
-        cost = usage.total_cost
-        assert cost is not None
+    # record cost and check limit
+    if cost is not None:
         record_model_cost(cost)
         set_active_sample_total_cost(sample_total_cost())
         check_cost_limit()
@@ -1921,41 +1920,27 @@ sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
 )
 
 
-pricing_config_var: ContextVar[ModelPricingConfig | None] = ContextVar(
-    "pricing_config", default=None
-)
-
-
-def init_pricing_config(config: ModelPricingConfig | None) -> None:
-    """Initialize pricing configuration for cost tracking."""
-    pricing_config_var.set(config)
-
-
-def compute_model_cost(
-    model: str, usage: ModelUsage, config: ModelPricingConfig
-) -> float:
-    """Compute cost for a model call based on usage and pricing config.
-
-    Args:
-        model: Model name (e.g. "openai/gpt-4o").
-        usage: Token usage from the model call.
-        config: Pricing configuration with per-model prices.
+def compute_model_cost(model: str, usage: ModelUsage) -> float | None:
+    """Compute cost for a model call based on usage and model info.
 
     Returns:
-        Cost in dollars.
+        Cost in dollars, or None if no cost data available.
     """
-    pricing = config.prices[model]
+    from inspect_ai.model._model_info import get_model_info
 
-    output_for_pricing = usage.output_tokens
-    cost = usage.input_tokens * pricing.input / 1_000_000
-    # output_tokens INCLUDES reasoning_tokens across current providers. 
-    cost += output_for_pricing * pricing.output / 1_000_000
+    info = get_model_info(model)
+    # info can be None (unknown model) or info.cost can be None (no cost configured)
+    if info is None or info.cost is None:
+        return None
+
+    cost_data = info.cost
+    cost = usage.input_tokens * cost_data.input / 1_000_000
+    cost += usage.output_tokens * cost_data.output / 1_000_000
 
     if usage.input_tokens_cache_write is not None:
-        cost += usage.input_tokens_cache_write * pricing.input_cache_write / 1_000_000
-
+        cost += usage.input_tokens_cache_write * cost_data.input_cache_write / 1_000_000
     if usage.input_tokens_cache_read is not None:
-        cost += usage.input_tokens_cache_read * pricing.input_cache_read / 1_000_000
+        cost += usage.input_tokens_cache_read * cost_data.input_cache_read / 1_000_000
 
     return cost
 

@@ -1,1 +1,1 @@
-Cost is computed from token usage and a user-provided pricing configuration (see [Model Pricing](#model-pricing)). Cost limits are checked whenever `generate()` is called.
+Cost is computed from token usage and model cost data (see [Model Cost](#model-cost)). Cost limits are checked whenever `generate()` is called.

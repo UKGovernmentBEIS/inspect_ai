@@ -281,10 +281,10 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_COST_LIMIT",
     )
     @click.option(
-        "--model-pricing-config",
+        "--model-cost-config",
         type=str,
-        help="YAML or JSON config file with model prices for cost tracking.",
-        envvar="INSPECT_EVAL_MODEL_PRICING_CONFIG",
+        help="YAML or JSON file with model prices for cost tracking.",
+        envvar="INSPECT_EVAL_MODEL_COST_CONFIG",
     )
     @click.option(
         "--time-limit",
@@ -636,7 +636,7 @@ def eval_command(
     message_limit: int | None,
     token_limit: int | None,
     cost_limit: float | None,
-    model_pricing_config: str | None,
+    model_cost_config: str | None,
     time_limit: int | None,
     working_limit: int | None,
     max_samples: int | None,
@@ -697,7 +697,7 @@ def eval_command(
         message_limit=message_limit,
         token_limit=token_limit,
         cost_limit=cost_limit,
-        model_pricing_config=model_pricing_config,
+        model_cost_config=model_cost_config,
         time_limit=time_limit,
         working_limit=working_limit,
         max_samples=max_samples,
@@ -839,7 +839,7 @@ def eval_set_command(
     message_limit: int | None,
     token_limit: int | None,
     cost_limit: float | None,
-    model_pricing_config: str | None,
+    model_cost_config: str | None,
     time_limit: int | None,
     working_limit: int | None,
     max_samples: int | None,
@@ -907,7 +907,7 @@ def eval_set_command(
         message_limit=message_limit,
         token_limit=token_limit,
         cost_limit=cost_limit,
-        model_pricing_config=model_pricing_config,
+        model_cost_config=model_cost_config,
         time_limit=time_limit,
         working_limit=working_limit,
         max_samples=max_samples,
@@ -973,7 +973,7 @@ def eval_exec(
     message_limit: int | None,
     token_limit: int | None,
     cost_limit: float | None,
-    model_pricing_config: str | None,
+    model_cost_config: str | None,
     time_limit: int | None,
     working_limit: int | None,
     max_samples: int | None,
@@ -1060,6 +1060,16 @@ def eval_exec(
     score = False if no_score else True
     score_display = False if no_score_display else None
 
+    # apply model cost config
+    if model_cost_config is not None:
+        from inspect_ai._util.config import resolve_args
+        from inspect_ai.model._model_data.model_data import ModelCost
+        from inspect_ai.model._model_info import set_model_cost
+
+        cost_data = resolve_args(model_cost_config)
+        for cost_model_name, pricing in cost_data["prices"].items():
+            set_model_cost(cost_model_name, ModelCost(**pricing))
+
     # build params
     params: dict[str, Any] = (
         dict(
@@ -1091,7 +1101,6 @@ def eval_exec(
             message_limit=message_limit,
             token_limit=token_limit,
             cost_limit=cost_limit,
-            model_pricing_config=model_pricing_config,
             time_limit=time_limit,
             working_limit=working_limit,
             max_samples=max_samples,

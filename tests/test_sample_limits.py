@@ -12,10 +12,10 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._model_output import (
     ModelOutput,
-    ModelPricing,
-    ModelPricingConfig,
     ModelUsage,
 )
 from inspect_ai.scorer import match
@@ -27,6 +27,13 @@ from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver, generate
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._limit import sample_limits
+
+
+@pytest.fixture(autouse=True)
+def reset_model_cache():
+    clear_model_info_cache()
+    yield
+    clear_model_info_cache()
 
 
 @solver
@@ -372,15 +379,16 @@ def repeat_forever(output: ModelOutput) -> Generator[ModelOutput, None, None]:
 
 
 def test_cost_limit() -> None:
-    pricing_config = ModelPricingConfig(
-        prices={
-            "mockllm/model": ModelPricing(
+    set_model_info(
+        "mockllm/model",
+        ModelInfo(
+            cost=ModelCost(
                 input=1000.0,
                 output=1000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
             )
-        }
+        ),
     )
     # 3 input + 4 output = 7 total tokens per call
     # Cost = (3 * 1000 + 4 * 1000) / 1M = $0.007 per call
@@ -400,15 +408,12 @@ def test_cost_limit() -> None:
         task,
         model=model,
         cost_limit=0.01,
-        model_pricing_config=pricing_config,
     )[0]
     check_limit_event(log, "cost")
 
 
-def test_cost_limit_without_pricing_config_errors() -> None:
-    with pytest.raises(
-        PrerequisiteError, match="cost_limit requires model_pricing_config"
-    ):
+def test_cost_limit_without_cost_data_errors() -> None:
+    with pytest.raises(PrerequisiteError, match="is not in the model database"):
         eval(
             Task(
                 dataset=[Sample(input="hi")],
@@ -419,20 +424,12 @@ def test_cost_limit_without_pricing_config_errors() -> None:
         )
 
 
-def test_model_not_in_pricing_config_errors() -> None:
-    pricing_config = ModelPricingConfig(
-        prices={
-            "other/model": ModelPricing(
-                input=1.0,
-                output=1.0,
-                input_cache_write=0.0,
-                input_cache_read=0.0,
-            )
-        }
-    )
+def test_model_without_cost_data_errors() -> None:
+    # Register model info without cost data
+    set_model_info("mockllm/model", ModelInfo())
     with pytest.raises(
         PrerequisiteError,
-        match="not found in model_pricing_config, but is present in eval",
+        match="has no cost data configured",
     ):
         eval(
             Task(
@@ -441,20 +438,20 @@ def test_model_not_in_pricing_config_errors() -> None:
             ),
             model="mockllm/model",
             cost_limit=1.0,
-            model_pricing_config=pricing_config,
         )
 
 
-def test_pricing_config_without_cost_limit_tracks_cost() -> None:
-    pricing_config = ModelPricingConfig(
-        prices={
-            "mockllm/model": ModelPricing(
+def test_cost_data_without_cost_limit_tracks_cost() -> None:
+    set_model_info(
+        "mockllm/model",
+        ModelInfo(
+            cost=ModelCost(
                 input=1000.0,
                 output=1000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
             )
-        }
+        ),
     )
     output = ModelOutput.from_content(model="mockllm/model", content="Hello")
     output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
@@ -467,7 +464,6 @@ def test_pricing_config_without_cost_limit_tracks_cost() -> None:
     log = eval(
         task,
         model=model,
-        model_pricing_config=pricing_config,
     )[0]
     assert log.status == "success"
     # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
@@ -476,22 +472,28 @@ def test_pricing_config_without_cost_limit_tracks_cost() -> None:
     assert find_limit_event(log) is None
 
 
-def test_two_models_both_in_pricing_config_tracks_cost() -> None:
-    pricing_config = ModelPricingConfig(
-        prices={
-            "mockllm/model": ModelPricing(
+def test_two_models_both_with_cost_data_tracks_cost() -> None:
+    set_model_info(
+        "mockllm/model",
+        ModelInfo(
+            cost=ModelCost(
                 input=1000.0,
                 output=1000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
-            ),
-            "mockllm/model2": ModelPricing(
+            )
+        ),
+    )
+    set_model_info(
+        "mockllm/model2",
+        ModelInfo(
+            cost=ModelCost(
                 input=2000.0,
                 output=2000.0,
                 input_cache_write=0.0,
                 input_cache_read=0.0,
-            ),
-        }
+            )
+        ),
     )
     output1 = ModelOutput.from_content(model="mockllm/model", content="Hello")
     output1.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
@@ -508,7 +510,6 @@ def test_two_models_both_in_pricing_config_tracks_cost() -> None:
             get_model("mockllm/model", custom_outputs=[output1]),
             get_model("mockllm/model2", custom_outputs=[output2]),
         ],
-        model_pricing_config=pricing_config,
     )
     assert len(logs) == 2
     for log in logs:
