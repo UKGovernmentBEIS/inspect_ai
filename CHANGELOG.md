@@ -1,6 +1,13 @@
 ## Unreleased
 
+- Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
+- Model API: for 400 errors, print the error after the request payload rather than before.
 - Eval Logs: Add progress callback interface for reading eval logs
+- Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
+
+## 0.3.177 (10 February 2026)
+
+- Anthropic: Do not pass through unrecognized `extra_body` fields.
 
 ## 0.3.176 (10 February 2026)
 
@@ -69,6 +76,7 @@
 - Web Search: Use internal search providers by default when no external provider is defined (previously they required explicit enabling).
 - Web Search: Fallback to Google CSE provider only when Google CSE environment variables are defined (the CSE service has been deprecated by Google).
 - Eval Logs: Improve eval log loading performance with JSON cache key for messages.
+- Eval Logs: Support Zstd compression of eval logs for improved performance via `INSPECT_USE_ZSTD` environment variable.
 - Agent Bridge: Make sandbox_agent_bridge cleanup errors non-fatal when agent completes
 - Compaction: Add source="compaction" to InfoEvent created by compaction.
 
