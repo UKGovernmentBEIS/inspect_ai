@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
+
 ## 0.3.177 (10 February 2026)
 
 - Anthropic: Do not pass through unrecognized `extra_body` fields.
