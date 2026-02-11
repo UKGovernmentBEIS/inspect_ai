@@ -2,6 +2,7 @@
 
 - Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
 - Model API: for 400 errors, print the error after the request payload rather than before.
+- Eval Logs: Add progress callback interface for reading eval logs
 - Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
 - Sandboxes: Added `http_proxy` example for intercepting and remapping HTTP requests from agents using mitmproxy.
 
