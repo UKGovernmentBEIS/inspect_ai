@@ -103,6 +103,7 @@ from ._generate_config import (
     set_active_generate_config,
 )
 from ._model_call import ModelCall, as_error_response
+from ._model_data.model_data import ModelCost
 from ._model_output import ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
@@ -1866,10 +1867,11 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
     # accumulates it in the per-model usage dicts)
-    cost = compute_model_cost(model, usage)
-    # cost is None when model has no cost data configured
-    if cost is not None:
-        usage.total_cost = cost
+    from inspect_ai.model._model_info import get_model_info
+
+    info = get_model_info(model)
+    if info is not None and info.cost is not None:
+        usage.total_cost = compute_model_cost(info.cost, usage)
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
@@ -1881,9 +1883,9 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     set_active_sample_total_tokens(total_tokens)
     check_token_limit()
 
-    # record cost and check limit
-    if cost is not None:
-        record_model_cost(cost)
+    # record cost to limit tree and check
+    if usage.total_cost is not None:
+        record_model_cost(usage.total_cost)
         set_active_sample_total_cost(sample_total_cost())
         check_cost_limit()
 
@@ -1920,20 +1922,16 @@ sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
 )
 
 
-def compute_model_cost(model: str, usage: ModelUsage) -> float | None:
-    """Compute cost for a model call based on usage and model info.
+def compute_model_cost(cost_data: ModelCost, usage: ModelUsage) -> float:
+    """Compute cost for a model call based on usage and cost data.
+
+    Args:
+        cost_data: Per-token pricing for the model.
+        usage: Token counts for the call.
 
     Returns:
-        Cost in dollars, or None if no cost data available.
+        Cost in dollars.
     """
-    from inspect_ai.model._model_info import get_model_info
-
-    info = get_model_info(model)
-    # info can be None (unknown model) or info.cost can be None (no cost configured)
-    if info is None or info.cost is None:
-        return None
-
-    cost_data = info.cost
     cost = usage.input_tokens * cost_data.input / 1_000_000
     cost += usage.output_tokens * cost_data.output / 1_000_000
 

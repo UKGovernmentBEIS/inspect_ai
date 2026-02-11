@@ -49,7 +49,6 @@ from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
     Model,
-    ModelName,
 )
 from inspect_ai.model._model import (
     get_model,
@@ -1225,7 +1224,6 @@ def eval_resolve_tasks(
 
     # return tasks and approval
     return resolved_tasks, approval
-
 
 
 def init_eval_display(
