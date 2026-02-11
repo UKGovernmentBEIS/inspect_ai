@@ -1,6 +1,13 @@
-from typing import Mapping
+from __future__ import annotations
 
+from typing import TYPE_CHECKING, Mapping
+
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model_info import get_model_info
+
+if TYPE_CHECKING:
+    from inspect_ai._eval.task.resolved import ResolvedTask
 
 
 def resolve_model_roles(
@@ -23,3 +30,34 @@ def resolve_model(model: str | Model | None) -> Model | None:
         return get_model(model)
     else:
         return model
+
+
+def _has_cost_data(model: Model) -> bool:
+    info = get_model_info(model)
+    return info is not None and info.cost is not None
+
+
+def resolve_model_costs(
+    resolved_tasks: list[ResolvedTask], cost_limit: float | None
+) -> None:
+    all_models: set[Model] = set()
+    for task in resolved_tasks:
+        all_models.add(task.model)
+        if task.model_roles:
+            all_models.update(task.model_roles.values())
+
+    missing = sorted(m.canonical_name() for m in all_models if not _has_cost_data(m))
+    if not missing:
+        return
+
+    if cost_limit is not None:
+        raise PrerequisiteError(
+            f"cost_limit requires cost data for all models. "
+            f"Missing cost data for: {", ".join(missing)}. Use set_model_cost() or --model-cost-config to configure pricing."
+        )
+
+    if len(missing) < len(all_models):
+        raise PrerequisiteError(
+            f"Some models have cost data configured but others don't. "
+            f"Missing cost data for: {", ".join(missing)}. Use set_model_cost() or --model-cost-config to configure pricing."
+        )

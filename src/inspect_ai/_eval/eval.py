@@ -12,7 +12,7 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
-from inspect_ai.model._util import resolve_model_roles
+from inspect_ai.model._util import resolve_model_roles, resolve_model_costs
 from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):
@@ -573,9 +573,8 @@ async def _eval_async_inner(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
-
-        if cost_limit is not None:
-            validate_model_costs(resolved_tasks)
+            
+        resolve_model_costs(resolved_tasks, cost_limit)
 
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
@@ -1227,33 +1226,6 @@ def eval_resolve_tasks(
     # return tasks and approval
     return resolved_tasks, approval
 
-
-def validate_model_costs(resolved_tasks: list[ResolvedTask]) -> None:
-    """Validate all models in the eval have cost data configured."""
-    # collect all unique model names
-    model_names: set[str] = set()
-    for task in resolved_tasks:
-        model_names.add(str(ModelName(task.model)))
-        if task.model_roles:
-            for role_model in task.model_roles.values():
-                model_names.add(str(ModelName(role_model)))
-
-    for model_name in model_names:
-        info = get_model_info(model_name)
-        if info is None:
-            raise PrerequisiteError(
-                f"cost_limit requires cost data for all models. "
-                f"Model '{model_name}' is not in the model database. "
-                f"Use set_model_info() to register it, then set_model_cost() "
-                f"to set pricing."
-            )
-        if info.cost is None:
-            raise PrerequisiteError(
-                f"cost_limit requires cost data for all models. "
-                f"Model '{model_name}' has no cost data configured. "
-                f"Use set_model_cost() or --model-cost-config to configure "
-                f"pricing."
-            )
 
 
 def init_eval_display(

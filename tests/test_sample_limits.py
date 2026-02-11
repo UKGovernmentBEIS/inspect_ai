@@ -380,7 +380,7 @@ def repeat_forever(output: ModelOutput) -> Generator[ModelOutput, None, None]:
 
 def test_cost_limit() -> None:
     set_model_info(
-        "mockllm/model",
+        "model",
         ModelInfo(
             cost=ModelCost(
                 input=1000.0,
@@ -413,7 +413,7 @@ def test_cost_limit() -> None:
 
 
 def test_cost_limit_without_cost_data_errors() -> None:
-    with pytest.raises(PrerequisiteError, match="is not in the model database"):
+    with pytest.raises(PrerequisiteError, match="Missing cost data for"):
         eval(
             Task(
                 dataset=[Sample(input="hi")],
@@ -426,10 +426,10 @@ def test_cost_limit_without_cost_data_errors() -> None:
 
 def test_model_without_cost_data_errors() -> None:
     # Register model info without cost data
-    set_model_info("mockllm/model", ModelInfo())
+    set_model_info("model", ModelInfo())
     with pytest.raises(
         PrerequisiteError,
-        match="has no cost data configured",
+        match="Missing cost data for",
     ):
         eval(
             Task(
@@ -443,7 +443,7 @@ def test_model_without_cost_data_errors() -> None:
 
 def test_cost_data_without_cost_limit_tracks_cost() -> None:
     set_model_info(
-        "mockllm/model",
+        "model",
         ModelInfo(
             cost=ModelCost(
                 input=1000.0,
@@ -474,7 +474,7 @@ def test_cost_data_without_cost_limit_tracks_cost() -> None:
 
 def test_two_models_both_with_cost_data_tracks_cost() -> None:
     set_model_info(
-        "mockllm/model",
+        "model",
         ModelInfo(
             cost=ModelCost(
                 input=1000.0,
@@ -485,7 +485,7 @@ def test_two_models_both_with_cost_data_tracks_cost() -> None:
         ),
     )
     set_model_info(
-        "mockllm/model2",
+        "model2",
         ModelInfo(
             cost=ModelCost(
                 input=2000.0,
