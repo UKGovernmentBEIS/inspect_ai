@@ -85,7 +85,7 @@ class Recorder(abc.ABC):
     @classmethod
     @abc.abstractmethod
     async def read_log_sample_summaries(
-        cls, location: str
+        cls, location: str, async_fs: AsyncFilesystem | None = None
     ) -> list[EvalSampleSummary]: ...
 
     @classmethod

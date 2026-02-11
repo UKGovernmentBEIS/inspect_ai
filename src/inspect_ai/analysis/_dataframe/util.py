@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import re
+from functools import partial
+from itertools import chain
 from os import PathLike
 from pathlib import Path
 from re import Pattern
 from typing import TYPE_CHECKING, Sequence, TypeAlias, cast
 
+from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
@@ -77,16 +80,19 @@ def resolve_logs(
     ]
 
     # expand directories
-    log_paths: list[FileInfo] = []
-    for log_str in logs_str:
-        fs = filesystem(log_str)
-        info = fs.info(log_str)
+    async def expand_log(log_str: str, async_fs: AsyncFilesystem) -> list[FileInfo]:
+        info = await async_fs.info(log_str)
         if info.type == "directory":
-            log_paths.extend(
-                [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
-            )
+            fs = filesystem(log_str)
+            return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
         else:
-            log_paths.append(info)
+            return [info]
+
+    log_paths = list(
+        chain.from_iterable(
+            run_tg_collect_with_fs([partial(expand_log, s) for s in logs_str])
+        )
+    )
 
     log_files = log_files_from_ls(log_paths, sort=False)
     return [log_file.name for log_file in log_files]

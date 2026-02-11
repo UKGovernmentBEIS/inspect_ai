@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from functools import partial
 from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
+from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.analysis._dataframe.progress import import_progress, no_progress
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import EvalLog
 
 from ..columns import Column, ColumnError, ColumnType
@@ -136,9 +138,19 @@ def _read_evals_df(
     eval_ids: set[str] = set()
     eval_logs: list[EvalLog] = []
     records: list[dict[str, ColumnType]] = []
-    for item in logs:
-        log = read_eval_log(item, header_only=True) if isinstance(item, str) else item
 
+    async def read_eval_df(item: str | EvalLog, fs: AsyncFilesystem) -> EvalLog:
+        log = (
+            await read_eval_log_async(item, header_only=True, async_fs=fs)
+            if isinstance(item, str)
+            else item
+        )
+        progress()
+        return log
+
+    logs = run_tg_collect_with_fs([partial(read_eval_df, item) for item in logs])
+
+    for log in logs:
         if strict:
             record = import_record(log, log, columns, strict=True)
         else:
@@ -156,7 +168,6 @@ def _read_evals_df(
                 if log.eval.dataset.sample_ids is not None
                 else (log.eval.dataset.samples or 100)
             )
-        progress()
 
     # return table (+errors if strict=False)
     evals_table = records_to_pandas(records)
