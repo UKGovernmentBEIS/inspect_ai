@@ -1,8 +1,6 @@
 ## Unreleased
 
 - Eval Logs: Add server-side `/log-details` and `/log-sample` endpoints for efficient sample loading.
-- Eval Logs: Add `load_json_exclude()` streaming JSON utility to skip large fields without materialisation.
-- Eval Logs: Use S3 readahead caching to reduce range requests during ZIP file reads.
 
 ## 0.3.177 (10 February 2026)
 
