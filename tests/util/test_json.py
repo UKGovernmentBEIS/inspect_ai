@@ -344,7 +344,7 @@ def test_build_json_value(json_str: str, expected: object) -> None:
 
 
 def test_skip_json_value() -> None:
-    import ijson  # type: ignore
+    import ijson
 
     data = b'{"skip": {"nested": [1,2,3]}, "keep": 42}'
     parser = ijson.parse(io.BytesIO(data), use_float=True)

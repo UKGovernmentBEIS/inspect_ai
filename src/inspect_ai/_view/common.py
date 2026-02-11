@@ -3,7 +3,7 @@ import contextlib
 import inspect
 import os
 import urllib.parse
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Awaitable, Callable
 from functools import partial
 from io import BytesIO
 from logging import getLogger
@@ -152,24 +152,32 @@ async def get_log_file(file: str, header_only_param: str | None) -> bytes:
 
 
 async def get_log_details(file: str) -> dict[str, Any]:
-    log, summaries = await tg_collect(
-        [
-            partial(read_eval_log_async, file, header_only=True),
-            partial(read_eval_log_sample_summaries_async, file),
-        ]
+    results = await tg_collect(
+        cast(
+            list[Callable[[], Awaitable[Any]]],
+            [
+                partial(read_eval_log_async, file, header_only=True),
+                partial(read_eval_log_sample_summaries_async, file),
+            ],
+        )
     )
-    return to_jsonable_python(
-        {
-            "version": log.version,
-            "status": log.status,
-            "eval": log.eval,
-            "plan": log.plan,
-            "results": log.results,
-            "stats": log.stats,
-            "error": log.error,
-            "sampleSummaries": summaries,
-        },
-        exclude_none=True,
+    log = results[0]
+    summaries = results[1]
+    return cast(
+        dict[str, Any],
+        to_jsonable_python(
+            {
+                "version": log.version,
+                "status": log.status,
+                "eval": log.eval,
+                "plan": log.plan,
+                "results": log.results,
+                "stats": log.stats,
+                "error": log.error,
+                "sampleSummaries": summaries,
+            },
+            exclude_none=True,
+        ),
     )
 
 
@@ -182,7 +190,7 @@ async def get_log_sample(
     sample = await read_eval_log_sample_async(
         file, id=id, epoch=epoch, exclude_fields=exclude_fields
     )
-    return to_jsonable_python(sample, exclude_none=True)
+    return cast(dict[str, Any], to_jsonable_python(sample, exclude_none=True))
 
 
 async def get_log_size(log_file: str) -> int:
