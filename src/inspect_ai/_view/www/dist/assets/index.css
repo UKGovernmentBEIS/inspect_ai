@@ -16431,7 +16431,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: #f8d7da;
   color: #721c24;
 }
-._header_1u3sd_1 {
+._header_zt4xm_1 {
   background: var(--bs-light);
   display: grid;
   grid-template-columns: 1fr max-content;
@@ -16441,11 +16441,11 @@ a._citationLink_1ggvf_9:hover {
   overflow: hidden;
 }
 
-._header_1u3sd_1._bordered_1u3sd_11 {
+._header_zt4xm_1._bordered_zt4xm_11 {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._breadcrumbs_1u3sd_15 {
+._breadcrumbs_zt4xm_15 {
   border-left: solid var(--bs-border-color) 1px;
   padding-left: 0.5em;
   margin-bottom: 0;
@@ -16456,12 +16456,12 @@ a._citationLink_1ggvf_9:hover {
   flex-wrap: nowrap;
 }
 
-._ellipsis_1u3sd_26 {
+._ellipsis_zt4xm_26 {
   color: var(--bs-secondary);
   font-weight: normal;
 }
 
-._left_1u3sd_31 {
+._left_zt4xm_31 {
   display: grid;
   grid-template-columns: max-content max-content 1fr;
   align-items: center;
@@ -16471,7 +16471,7 @@ a._citationLink_1ggvf_9:hover {
   max-width: 100%;
 }
 
-._right_1u3sd_41 {
+._right_zt4xm_41 {
   display: grid;
   grid-auto-columns: max-content;
   grid-auto-flow: column;
@@ -16480,15 +16480,20 @@ a._citationLink_1ggvf_9:hover {
   column-gap: 0.5em;
 }
 
-._toolbarButton_1u3sd_50 {
+._toolbarButton_zt4xm_50 {
   color: var(--bs-body-color);
 }
 
-._toolbarButton_1u3sd_50:hover {
+._disabled_zt4xm_54 {
+  color: var(--bs-secondary);
+  pointer-events: none;
+}
+
+._toolbarButton_zt4xm_50:hover {
   color: var(--bs-link-hover-color);
 }
 
-._pathContainer_1u3sd_58 {
+._pathContainer_zt4xm_63 {
   overflow-x: hidden;
 }
 ._navbarButton_1gksz_1 {
