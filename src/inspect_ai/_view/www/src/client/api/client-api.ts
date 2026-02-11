@@ -409,6 +409,11 @@ export const clientApi = (
           return api.download_log!(log_file);
         })
       : undefined,
+    download_logs: api.download_logs
+      ? middleware("download_logs", (log_files: string[]) => {
+          return api.download_logs!(log_files);
+        })
+      : undefined,
     log_message: middleware(
       "log_message",
       (log_file: string, message: string) => {

@@ -1,6 +1,7 @@
 import json
 import logging
 import urllib.parse
+import zipfile
 from io import BytesIO
 from logging import getLogger
 from pathlib import Path
@@ -193,6 +194,55 @@ def view_server_app(
                 headers=headers,
                 media_type="application/octet-stream",
             )
+
+    @app.post("/logs-download")
+    async def api_logs_download(
+        request: Request,
+    ) -> Response:
+        body = await request.json()
+        files: list[str] = body.get("files", [])
+        if not files:
+            raise HTTPException(status_code=400, detail="No files specified")
+
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as zf:
+            seen_names: dict[str, int] = {}
+            for file_path in files:
+                file = normalize_uri(file_path)
+                await _validate_read(request, file)
+                mapped_file = await _map_file(request, file)
+
+                file_size = await get_log_size(mapped_file)
+                stream = await stream_log_bytes(mapped_file, log_file_size=file_size)
+
+                if isinstance(stream, BytesIO):
+                    data = stream.getvalue()
+                else:
+                    chunks = []
+                    async for chunk in stream:
+                        chunks.append(chunk)
+                    data = b"".join(chunks)
+
+                base_name = Path(file).stem
+                zip_name = f"{base_name}.eval"
+                if zip_name in seen_names:
+                    seen_names[zip_name] += 1
+                    zip_name = f"{base_name}_{seen_names[zip_name]}.eval"
+                else:
+                    seen_names[zip_name] = 0
+
+                zf.writestr(zip_name, data)
+
+        zip_bytes = zip_buffer.getvalue()
+        headers = {
+            "Content-Length": str(len(zip_bytes)),
+            "Content-Disposition": 'attachment; filename="inspect-logs.zip"',
+        }
+        return Response(
+            content=zip_bytes,
+            headers=headers,
+            media_type="application/zip",
+        )
 
     @app.get("/log-dir")
     async def api_log_dir(

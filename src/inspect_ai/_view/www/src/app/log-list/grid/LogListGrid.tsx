@@ -2,6 +2,7 @@ import type {
   GridColumnsChangedEvent,
   IRowNode,
   RowClickedEvent,
+  SelectionChangedEvent,
   StateUpdatedEvent,
 } from "ag-grid-community";
 import { themeBalham } from "ag-grid-community";
@@ -24,12 +25,14 @@ interface LogListGridProps {
   items: Array<FileLogItem | FolderLogItem | PendingTaskItem>;
   currentPath?: string;
   gridRef?: RefObject<AgGridReact<LogListRow> | null>;
+  onSelectionChanged?: (selectedRows: LogListRow[]) => void;
 }
 
 export const LogListGrid: FC<LogListGridProps> = ({
   items,
   currentPath,
   gridRef: externalGridRef,
+  onSelectionChanged,
 }) => {
   const {
     gridState,
@@ -128,12 +131,29 @@ export const LogListGrid: FC<LogListGridProps> = ({
     });
   }, [items, logDetails]);
 
+  const isRowSelectable = useCallback((node: IRowNode<LogListRow>) => {
+    return node.data?.type === "file";
+  }, []);
+
+  const handleSelectionChanged = useCallback(
+    (e: SelectionChangedEvent<LogListRow>) => {
+      if (onSelectionChanged) {
+        const selectedRows = e.api.getSelectedRows();
+        onSelectionChanged(selectedRows);
+      }
+    },
+    [onSelectionChanged],
+  );
+
   const handleRowClick = useCallback(
     (e: RowClickedEvent<LogListRow>) => {
-      if (e.data && e.node && gridRef.current?.api) {
-        gridRef.current.api.deselectAll();
-        e.node.setSelected(true);
+      // skip navigation if clicking the checkbox column
+      const target = e.event?.target as HTMLElement | undefined;
+      if (target?.closest(".ag-checkbox-input-wrapper")) {
+        return;
+      }
 
+      if (e.data) {
         const mouseEvent = e.event as MouseEvent | undefined;
         const openInNewWindow =
           mouseEvent?.metaKey ||
@@ -153,7 +173,7 @@ export const LogListGrid: FC<LogListGridProps> = ({
         }
       }
     },
-    [navigate, gridRef],
+    [navigate],
   );
 
   const handleOpenRow = useCallback(
@@ -246,8 +266,14 @@ export const LogListGrid: FC<LogListGridProps> = ({
           }}
           autoSizeStrategy={{ type: "fitGridWidth" }}
           headerHeight={25}
-          rowSelection={{ mode: "singleRow", checkboxes: false }}
+          rowSelection={{
+            mode: "multiRow",
+            checkboxes: true,
+            headerCheckbox: true,
+            isRowSelectable,
+          }}
           getRowId={(params) => params.data.id}
+          onSelectionChanged={handleSelectionChanged}
           onGridColumnsChanged={(e: GridColumnsChangedEvent<LogListRow>) => {
             const cols = e.api.getColumnDefs();
             if (cols && cols?.length > maxColCount.current) {
