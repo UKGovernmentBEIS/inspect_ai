@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Model API: for 400 errors, print the error after the request payload rather than before.
 - Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
 
 ## 0.3.177 (10 February 2026)
