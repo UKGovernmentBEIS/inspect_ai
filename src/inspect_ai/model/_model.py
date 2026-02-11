@@ -498,13 +498,6 @@ class Model:
     def _set_role(self, role: str) -> None:
         self._role = role
 
-    @property
-    def _cost_data(self) -> ModelCost | None:
-        from inspect_ai.model._model_info import get_model_info
-
-        info = get_model_info(f"{self}")
-        return info.cost if info is not None else None
-
     def __str__(self) -> str:
         return f"{ModelName(self)}"
 
@@ -779,9 +772,7 @@ class Model:
 
             # Record and check usage
             if usage:
-                record_and_check_model_usage(
-                    f"{self}", usage, cost_data=self._cost_data
-                )
+                record_and_check_model_usage(f"{self}", usage)
 
             return compacted_messages, usage
 
@@ -1006,10 +997,7 @@ class Model:
 
             # record usage
             if output.usage:
-                # record usage
-                record_and_check_model_usage(
-                    f"{self}", output.usage, cost_data=self._cost_data
-                )
+                record_and_check_model_usage(f"{self}", output.usage)
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -1870,19 +1858,21 @@ def init_sample_model_usage() -> None:
     sample_model_usage_context_var.set({})
 
 
-def record_and_check_model_usage(
-    model: str, usage: ModelUsage, cost_data: ModelCost | None = None
-) -> None:
+def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     from inspect_ai.log._samples import (
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
 
+    from inspect_ai.model._model_info import get_model_info
+
+    # compute cost and set on usage before recording (so ModelUsage.__add__
+    # accumulates it in the per-model usage dicts)
+    info = get_model_info(model)
     total_cost: float | None = None
-    if cost_data is not None:
-        # compute cost and set on usage before recording (so ModelUsage.__add__
-        # accumulates it in the per-model usage dicts)
-        total_cost = compute_model_cost(cost_data, usage)
+    # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
+    if info is not None and info.cost is not None:
+        total_cost = compute_model_cost(info.cost, usage)
         usage.total_cost = total_cost
 
     # record usage

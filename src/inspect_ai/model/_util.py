@@ -32,11 +32,6 @@ def resolve_model(model: str | Model | None) -> Model | None:
         return model
 
 
-def _has_cost_data(model: Model) -> bool:
-    info = get_model_info(model)
-    return info is not None and info.cost is not None
-
-
 def resolve_model_costs(
     resolved_tasks: list[ResolvedTask], cost_limit: float | None
 ) -> None:
@@ -46,18 +41,25 @@ def resolve_model_costs(
         if task.model_roles:
             all_models.update(task.model_roles.values())
 
-    missing = sorted(m.canonical_name() for m in all_models if not _has_cost_data(m))
-    if not missing:
+    missing_models: list[str] = []
+    for model in all_models:
+        model_name = f"{model}"
+        info = get_model_info(model_name)
+        # Note that we handle info=None here because None is a valid output of get_model_info (e.g. for mock models)
+        if info is None or info.cost is None:
+            missing_models.append(model_name)
+
+    if not missing_models:
         return
 
     if cost_limit is not None:
         raise PrerequisiteError(
             f"cost_limit requires cost data for all models. "
-            f"Missing cost data for: {", ".join(missing)}. Use set_model_cost() or --model-cost-config to configure pricing."
+            f"Missing cost data for: {', '.join(missing_models)}. Use set_model_cost() or --model-cost-config to configure pricing."
         )
 
-    if len(missing) < len(all_models):
+    if len(missing_models) < len(all_models):
         raise PrerequisiteError(
             f"Some models have cost data configured but not all models. Cost data should be provided for either no models, or models being used. "
-            f"Missing cost data for: {", ".join(missing)}. Use set_model_cost() or --model-cost-config to configure pricing."
+            f"Missing cost data for: {', '.join(missing_models)}. Use set_model_cost() or --model-cost-config to configure pricing."
         )
