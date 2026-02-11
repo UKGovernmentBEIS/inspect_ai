@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Model API: for 400 errors, print the error after the request payload rather than before.
+- Eval Logs: Add server-side `/log-details` and `/log-sample` endpoints for efficient sample loading.
 
 ## 0.3.177 (10 February 2026)
 

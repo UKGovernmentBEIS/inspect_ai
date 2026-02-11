@@ -32,9 +32,11 @@ from .common import (
     async_connection,
     delete_log,
     get_log_bytes,
+    get_log_details,
     get_log_dir,
     get_log_file,
     get_log_files,
+    get_log_sample,
     get_log_size,
     get_logs,
     normalize_uri,
@@ -295,6 +297,28 @@ def view_server(
         files = [normalize_uri(file) for file in files]
         map(validate_log_file_request, files)
         return await log_headers_response(files)
+
+    @routes.get("/api/log-details")
+    async def api_log_details(request: web.Request) -> web.Response:
+        file = query_param_required("file", request, str)
+        file = normalize_uri(file)
+        validate_log_file_request(file)
+        details = await get_log_details(file)
+        return web.json_response(details)
+
+    @routes.get("/api/log-sample")
+    async def api_log_sample(request: web.Request) -> web.Response:
+        file = query_param_required("file", request, str)
+        file = normalize_uri(file)
+        validate_log_file_request(file)
+        id = query_param_required("id", request, str)
+        epoch = query_param_required("epoch", request, int)
+        exclude_fields_param = request.query.get("exclude_fields", "")
+        exclude_fields = (
+            set(exclude_fields_param.split(",")) if exclude_fields_param else None
+        )
+        sample = await get_log_sample(file, id, epoch, exclude_fields=exclude_fields)
+        return web.json_response(sample)
 
     @routes.get("/api/events")
     async def api_events(request: web.Request) -> web.Response:

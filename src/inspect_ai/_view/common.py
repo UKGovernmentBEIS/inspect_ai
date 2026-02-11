@@ -3,7 +3,8 @@ import contextlib
 import inspect
 import os
 import urllib.parse
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Awaitable, Callable
+from functools import partial
 from io import BytesIO
 from logging import getLogger
 from typing import Any, AsyncIterator, Literal, Tuple, cast
@@ -12,9 +13,11 @@ import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
+from pydantic_core import to_jsonable_python
 from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import (
     azure_warning_hint,
@@ -29,6 +32,8 @@ from inspect_ai.log._file import (
     log_file_info,
     log_files_from_ls,
     read_eval_log_async,
+    read_eval_log_sample_async,
+    read_eval_log_sample_summaries_async,
 )
 
 logger = getLogger(__name__)
@@ -144,6 +149,48 @@ async def get_log_file(file: str, header_only_param: str | None) -> bytes:
         contents = eval_log_json(log)
 
     return contents
+
+
+async def get_log_details(file: str) -> dict[str, Any]:
+    results = await tg_collect(
+        cast(
+            list[Callable[[], Awaitable[Any]]],
+            [
+                partial(read_eval_log_async, file, header_only=True),
+                partial(read_eval_log_sample_summaries_async, file),
+            ],
+        )
+    )
+    log = results[0]
+    summaries = results[1]
+    return cast(
+        dict[str, Any],
+        to_jsonable_python(
+            {
+                "version": log.version,
+                "status": log.status,
+                "eval": log.eval,
+                "plan": log.plan,
+                "results": log.results,
+                "stats": log.stats,
+                "error": log.error,
+                "sampleSummaries": summaries,
+            },
+            exclude_none=True,
+        ),
+    )
+
+
+async def get_log_sample(
+    file: str,
+    id: str,
+    epoch: int,
+    exclude_fields: set[str] | None = None,
+) -> dict[str, Any]:
+    sample = await read_eval_log_sample_async(
+        file, id=id, epoch=epoch, exclude_fields=exclude_fields
+    )
+    return cast(dict[str, Any], to_jsonable_python(sample, exclude_none=True))
 
 
 async def get_log_size(log_file: str) -> int:
