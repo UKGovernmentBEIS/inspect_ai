@@ -73,6 +73,19 @@ export const transformTree = (roots: EventNode[]): EventNode[] => {
 const transformers = () => {
   const treeNodeTransformers: TreeNodeTransformer[] = [
     {
+      name: "skip_agent_solver_span",
+      matches: (node) => {
+        const result =
+          node.event.event === SPAN_BEGIN &&
+          node.event["type"] === TYPE_SOLVER &&
+          node.children.length === 1 &&
+          node.children[0].event.event === SPAN_BEGIN &&
+          node.children[0].event.type === TYPE_AGENT;
+        return result;
+      },
+      process: (node) => skipThisNode(node),
+    },
+    {
       name: "unwrap_tools",
       matches: (node) =>
         node.event.event === SPAN_BEGIN && node.event.type === TYPE_TOOL,
@@ -197,7 +210,7 @@ const skipFirstChildNode = (node: EventNode): EventNode => {
 const skipThisNode = (node: EventNode): EventNode => {
   const newNode = { ...node.children[0] };
   newNode.depth = node.depth;
-  newNode.children = reduceDepth(newNode.children, 2);
+  newNode.children = reduceDepth(newNode.children, 1);
   return newNode;
 };
 
