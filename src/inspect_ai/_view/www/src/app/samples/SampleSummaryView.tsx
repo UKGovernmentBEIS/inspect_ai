@@ -13,7 +13,7 @@ import {
   inputString,
 } from "../../utils/format";
 import { truncateMarkdown } from "../../utils/markdown";
-import { FlatSampleError } from "./error/FlatSampleErrorView";
+import { SampleErrorView } from "./error/SampleErrorView";
 
 import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../client/api/types";
@@ -207,25 +207,25 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   }
 
   if (selectedScores && selectedScores.length > 0) {
-    selectedScores.forEach((scoreLabel) => {
-      columns.push({
+    const scoreColumns = selectedScores
+      .map((scoreLabel) => ({
         label: selectedScores.length === 1 ? "Score" : scoreLabel.name,
-        value: fields.error ? (
-          <FlatSampleError message={fields.error} />
-        ) : (
+        value:
           sampleDescriptor?.evalDescriptor
             .score(sample, scoreLabel)
-            ?.render() || ""
-        ),
+            ?.render() || "",
         size: "fit-content(15em)",
         center: true,
-      });
-    });
-  } else {
+      }))
+      .filter((col) => col.value !== "");
+    columns.push(...scoreColumns);
+  }
+
+  if (fields.error) {
     columns.push({
-      label: "Score",
-      value: fields.error ? <FlatSampleError message={fields.error} /> : "",
-      size: "fit-content(15em)",
+      label: "Error",
+      value: <SampleErrorView message={fields.error} />,
+      size: "fit-content(20em)",
       center: true,
     });
   }

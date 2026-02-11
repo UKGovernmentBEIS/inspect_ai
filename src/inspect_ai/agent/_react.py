@@ -522,7 +522,7 @@ def _model_generate(
     async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
         # optionally perform compaction on the input
         if compact is not None:
-            input_messages, c_message = await compact(state.messages)
+            input_messages, c_message = await compact.compact_input(state.messages)
             if c_message is not None:
                 state.messages.append(c_message)
         else:
@@ -542,6 +542,12 @@ def _model_generate(
             # no retry, we are done
             state.output = output
             state.messages.append(state.output.message)
+
+            # update the compaction baseline with the actual input token
+            # count from the generate call (most accurate source of truth)
+            if compact is not None:
+                compact.record_output(output)
+
             break
         return state
 

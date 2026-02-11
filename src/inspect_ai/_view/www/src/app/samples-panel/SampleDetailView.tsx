@@ -53,6 +53,7 @@ export const SampleDetailView: FC = () => {
   );
   const clearLog = useStore((state) => state.logActions.clearLog);
   const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
+  const singleFileMode = useStore((state) => state.app.singleFileMode);
 
   // Find current sample in displayed samples list
   const currentIndex = useMemo(() => {
@@ -134,6 +135,7 @@ export const SampleDetailView: FC = () => {
         currentPath: routeLogPath,
         fnNavigationUrl: samplesUrl,
         bordered: true,
+        breadcrumbsEnabled: !singleFileMode,
       }}
     />
   );

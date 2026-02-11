@@ -50,9 +50,7 @@ export const SampleRow: FC<SampleRowProps> = ({
     scoresRendered = [null];
   }
   const scoreColumnContent = scoresRendered.map((scoreRendered, i) => {
-    if (sample.error) {
-      return <SampleErrorView message={sample.error} />;
-    } else if (completed) {
+    if (completed) {
       return scoreRendered;
     } else if (i === scoresRendered.length - 1) {
       return <PulsingDots subtle={false} />;
@@ -144,6 +142,16 @@ export const SampleRow: FC<SampleRowProps> = ({
           {scoreColumnContent}
         </div>
       ))}
+      <div
+        className={clsx(
+          "sample-error",
+          "text-size-small",
+          styles.cell,
+          styles.error,
+        )}
+      >
+        {sample.error ? <SampleErrorView message={sample.error} /> : undefined}
+      </div>
     </div>
   );
 
