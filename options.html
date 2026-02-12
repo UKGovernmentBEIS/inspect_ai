@@ -909,6 +909,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>--working-limit</code></td>
 <td>Limit on total working time (model generation, tool calls, etc.) for each sample.</td>
 </tr>
+<tr class="odd">
+<td><code>--cost-limit</code></td>
+<td>Limit on total cost (in dollars) for each sample. Requires model cost data via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#set_model_cost">set_model_cost()</a></span> or <code>--model-cost-config</code>.</td>
+</tr>
+<tr class="even">
+<td><code>--model-cost-config</code></td>
+<td>YAML or JSON file with model prices for cost tracking.</td>
+</tr>
 </tbody>
 </table>
 </section>

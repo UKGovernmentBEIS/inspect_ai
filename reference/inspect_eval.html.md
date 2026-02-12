@@ -44,6 +44,8 @@ inspect eval [OPTIONS] [TASKS]...
 | `--max-sandboxes` | integer | Maximum number of sandboxes (per-provider) to run in parallel. | None |
 | `--message-limit` | integer | Limit on total messages used for each sample. | None |
 | `--token-limit` | integer | Limit on total tokens used for each sample. | None |
+| `--cost-limit` | float | Limit on total cost (in dollars) for each sample. | None |
+| `--model-cost-config` | text | YAML or JSON file with model prices for cost tracking. | None |
 | `--time-limit` | integer | Limit on total running time for each sample. | None |
 | `--working-limit` | integer | Limit on total working time (e.g. model generation, tool calls, etc.) for each sample. | None |
 | `--fail-on-error` | float | Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. | None |

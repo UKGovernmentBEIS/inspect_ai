@@ -1299,8 +1299,20 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#set_model_cost" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">set_model_cost</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#modelinfo" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ModelInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelcost" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelCost</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2235,6 +2247,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#cost_limit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cost_limit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#time_limit" class="sidebar-item-text sidebar-link">
  <span class="menu-text">time_limit</span></a>
   </div>
@@ -2906,6 +2924,18 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--token-limit</code></td>
 <td>integer</td>
 <td>Limit on total tokens used for each sample.</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--cost-limit</code></td>
+<td>float</td>
+<td>Limit on total cost (in dollars) for each sample.</td>
+<td>None</td>
+</tr>
+<tr class="odd">
+<td><code>--model-cost-config</code></td>
+<td>text</td>
+<td>YAML or JSON file with model prices for cost tracking.</td>
 <td>None</td>
 </tr>
 <tr class="even">

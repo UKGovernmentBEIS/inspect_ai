@@ -23,6 +23,8 @@ covered include:
     narrowly execution time).
 4.  Setting a maximum number of messages or tokens in a sample before
     forcing the model to give up.
+5.  Setting a maximum cost (in dollars) per sample, based on a model
+    pricing configuration.
 
 ## Eval Retries
 
@@ -313,6 +315,90 @@ def intercode_ctf():
 > tokens that can be yielded from a single call to the model you should
 > use the `max_tokens` generation option.
 
+### Cost Limit
+
+Cost is computed from token usage and model cost data (see [Model
+Cost](#model-cost)). Cost limits are checked whenever `generate()` is
+called.
+
+Here we set a `cost_limit` of \$2.00 for each sample within a task:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=120)]),
+            generate(),
+        ],
+        cost_limit=2.00,
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+> [!IMPORTANT]
+>
+> The `cost_limit` requires model cost data to be configured via
+> `set_model_cost()` or `--model-cost-config`. An error will be raised
+> if a cost limit is set without cost data for all models used in the
+> evaluation.
+
+#### Model Cost
+
+Cost tracking requires cost data for each model present in the eval or
+eval set. There are two ways to set cost data:
+
+**Python API:**
+
+``` python
+from inspect_ai.model import set_model_cost, ModelCost
+
+set_model_cost("openai/gpt-4o", ModelCost(
+    input=2.50, output=10.00,
+    input_cache_write=0, input_cache_read=1.25,
+))
+```
+
+**CLI (YAML or JSON file):**
+
+Each model needs a price set for `input`, `output`, `input_cache_write`,
+and `input_cache_read`. Prices should be given in dollars per million
+tokens. Set unused fields to `0`.
+
+Below is an example cost config file given in YAML:
+
+``` yaml
+openai/gpt-4o:
+    input: 2.50
+    output: 10.00
+    input_cache_write: 0
+    input_cache_read: 1.25
+anthropic/claude-sonnet-4-5-20250514:
+    input: 3.00
+    output: 15.00
+    input_cache_write: 3.75
+    input_cache_read: 0.30
+```
+
+(As of Feb 9 2026, all major model providers count reasoning tokens as
+output tokens, so no separate price needs to be provided for reasoning
+tokens. If your use case requires separate calculation of reasoning
+token prices, contact us.)
+
+When model cost data is configured, costs will be tracked for the sample
+as a whole, as well as any events within the sample that have a
+ModelUsage field.
+
+Additionally, configuring model cost data allows setting sample cost
+limits:
+
+``` bash
+inspect eval ctf.py --model-cost-config pricing.yaml --cost-limit 2.00
+```
+
 ### Custom Limit
 
 When limits are exceeded, a `LimitExceededError` is raised and caught by
@@ -534,6 +620,33 @@ def myagent() -> Solver:
 > *while the context manager is open*. If you want to limit the number
 > of tokens that can be yielded from a single call to the model you
 > should use the `max_tokens` generation option.
+
+### Cost Limit
+
+Cost is computed from token usage and model cost data (see [Model
+Cost](#model-cost)). Cost limits are checked whenever `generate()` is
+called.
+
+To limit the total cost within a block of code:
+
+``` python
+@agent
+def myagent(budget: float = 2.00) -> Agent:
+    async def execute(state: AgentState):
+
+        with cost_limit(budget):
+            # a LimitExceededError will be raised if the limit is exceeded
+            ...
+```
+
+Cost limits work similarly to token limits, with stacking and tracking
+of costs used while the context manager is open.
+
+> [!IMPORTANT]
+>
+> Using `cost_limit()` requires model cost data to be configured via
+> `set_model_cost()` or `--model-cost-config`. See [Model
+> Cost](#model-cost) for details.
 
 ## Agent Limits
 

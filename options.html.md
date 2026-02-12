@@ -160,6 +160,8 @@ example:
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |
 | `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. |
+| `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via `set_model_cost()` or `--model-cost-config`. |
+| `--model-cost-config` | YAML or JSON file with model prices for cost tracking. |
 
 ## Eval Logs
 
