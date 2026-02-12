@@ -247,12 +247,7 @@ export function buildColumnDefs(
         if (completed && rendered !== undefined) {
           return <ScoreCellDiv>{rendered}</ScoreCellDiv>;
         }
-        if (
-          !completed &&
-          i === (selectedScores?.length ?? 1) - 1 &&
-          ((selectedScores?.length ?? 0) > 0 ||
-            Object.keys(data.scores || {}).length === 0)
-        ) {
+        if (!completed && i === selectedScores.length - 1) {
           return (
             <ScoreCellDiv>
               <PulsingDots subtle={false} />
