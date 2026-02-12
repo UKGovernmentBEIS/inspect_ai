@@ -58,10 +58,12 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._condense import condense_sample
+
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
     read_eval_log_sample_async,
+    push_eval_result_to_model_repo
 )
 from inspect_ai.log._log import (
     EvalSampleLimit,
@@ -155,6 +157,7 @@ class TaskRunOptions:
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
+    push_hub_results: bool = field(default=False)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
 
@@ -467,6 +470,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             eval_log = await logger.log_finish(
                 "error" if mark_log_as_error else "success", stats, results, reductions
             )
+
+            # push eval result to model repo
+            if options.push_hub_results and eval_log.location:
+                push_eval_result_to_model_repo(eval_log, eval_log.location)
 
             await emit_task_end(logger, eval_log)
 
