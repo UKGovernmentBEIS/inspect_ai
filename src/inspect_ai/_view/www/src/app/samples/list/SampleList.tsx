@@ -312,6 +312,12 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           domLayout="normal"
           onBodyScroll={handleBodyScroll}
           onFirstDataRendered={() => {
+            if (running && followOutputRef.current) {
+              listHandle.current?.api?.ensureIndexVisible(
+                items.length - 1,
+                "bottom",
+              );
+            }
             selectCurrentSample();
           }}
         />
