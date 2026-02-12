@@ -35,31 +35,26 @@ def resolve_model(model: str | Model | None) -> Model | None:
 def resolve_model_costs(
     resolved_tasks: list[ResolvedTask], cost_limit: float | None
 ) -> None:
-    all_models: set[Model] = set()
     for task in resolved_tasks:
-        all_models.add(task.model)
+        task_cost_limit = cost_limit if cost_limit is not None else task.task.cost_limit
+        if task_cost_limit is None:
+            continue
+
+        models: set[Model] = {task.model}
         if task.model_roles:
-            all_models.update(task.model_roles.values())
+            models.update(task.model_roles.values())
 
-    missing_models: list[str] = []
-    for model in all_models:
-        model_name = f"{model}"
-        info = get_model_info(model_name)
-        # Note that we handle info=None here because None is a valid output of get_model_info (e.g. for mock models)
-        if info is None or info.cost is None:
-            missing_models.append(model_name)
+        missing: list[str] = []
+        for model in models:
+            model_name = f"{model}"
+            info = get_model_info(model_name)
+            if info is None or info.cost is None:
+                missing.append(model_name)
 
-    if not missing_models:
-        return
-
-    if cost_limit is not None:
-        raise PrerequisiteError(
-            f"cost_limit requires cost data for all models. "
-            f"Missing cost data for: {', '.join(missing_models)}. Use set_model_cost() or --model-cost-config to configure pricing."
-        )
-
-    if len(missing_models) < len(all_models):
-        raise PrerequisiteError(
-            f"Some models have cost data configured but not all models. Cost data should be provided for either no models, or models being used. "
-            f"Missing cost data for: {', '.join(missing_models)}. Use set_model_cost() or --model-cost-config to configure pricing."
-        )
+        if missing:
+            raise PrerequisiteError(
+                f"cost_limit requires cost data for all models. "
+                f"Missing cost data for: {', '.join(missing)}. "
+                f"Use set_model_cost() or --model-cost-config to "
+                f"configure pricing."
+            )

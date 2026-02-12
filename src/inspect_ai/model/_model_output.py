@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Literal, Type
+from typing import Any, Literal, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
@@ -7,6 +7,8 @@ from inspect_ai._util.content import Content
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
+
+_T = TypeVar("_T", int, float)
 
 
 class ModelUsage(BaseModel):
@@ -34,9 +36,7 @@ class ModelUsage(BaseModel):
     """Total cost in dollars for this usage."""
 
     def __add__(self, other: "ModelUsage") -> "ModelUsage":
-        def optional_sum(
-            a: int | float | None, b: int | float | None
-        ) -> int | float | None:
+        def optional_sum(a: _T | None, b: _T | None) -> _T | None:
             if a is not None and b is not None:
                 return a + b
             if a is not None:

@@ -2,6 +2,7 @@
 
 - Analysis: Async reading of logs/samples in `samples_df()`. Improves reading summary samples from ~114 minutes to ~15 seconds for ~600 files. 
 - Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
+- Limits: New `cost_limit()` context manager for scoped application of cost limits (can also be applied directly samples or agents).
 
 ## 0.3.178 (11 February 2026)
 

@@ -88,6 +88,36 @@ def test_can_get_usage() -> None:
     assert limit.usage == 0.5
 
 
+def test_stacking_cost_limits() -> None:
+    outer = cost_limit(0.05)
+    inner = cost_limit(0.01)
+
+    with outer:
+        _consume_cost(0.005)
+        with inner:
+            with pytest.raises(LimitExceededError) as exc_info:
+                _consume_cost(0.02)
+            # inner limit should be the one that triggered
+            assert exc_info.value.source is inner
+            assert exc_info.value.limit == 0.01
+
+    # outer tracked the full cost
+    assert outer.usage == 0.025
+
+
+def test_stacking_cost_limits_outer_exceeded() -> None:
+    outer = cost_limit(0.01)
+    inner = cost_limit(0.05)
+
+    with outer:
+        with inner:
+            with pytest.raises(LimitExceededError) as exc_info:
+                _consume_cost(0.02)
+            # outer limit should be the one that triggered (checked root to leaf)
+            assert exc_info.value.source is outer
+            assert exc_info.value.limit == 0.01
+
+
 def _consume_cost(amount: float) -> None:
     record_model_cost(amount)
     check_cost_limit()

@@ -635,10 +635,10 @@ def eval_command(
     batch: int | str | None,
     message_limit: int | None,
     token_limit: int | None,
-    cost_limit: float | None,
-    model_cost_config: str | None,
     time_limit: int | None,
     working_limit: int | None,
+    cost_limit: float | None,
+    model_cost_config: str | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -696,10 +696,10 @@ def eval_command(
         sample_shuffle=sample_shuffle,
         message_limit=message_limit,
         token_limit=token_limit,
-        cost_limit=cost_limit,
-        model_cost_config=model_cost_config,
         time_limit=time_limit,
         working_limit=working_limit,
+        cost_limit=cost_limit,
+        model_cost_config=model_cost_config,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -838,10 +838,10 @@ def eval_set_command(
     batch: int | str | None,
     message_limit: int | None,
     token_limit: int | None,
-    cost_limit: float | None,
-    model_cost_config: str | None,
     time_limit: int | None,
     working_limit: int | None,
+    cost_limit: float | None,
+    model_cost_config: str | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -972,10 +972,10 @@ def eval_exec(
     sample_shuffle: int | None,
     message_limit: int | None,
     token_limit: int | None,
-    cost_limit: float | None,
-    model_cost_config: str | None,
     time_limit: int | None,
     working_limit: int | None,
+    cost_limit: float | None,
+    model_cost_config: str | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -1060,16 +1060,6 @@ def eval_exec(
     score = False if no_score else True
     score_display = False if no_score_display else None
 
-    # apply model cost config
-    if model_cost_config is not None:
-        from inspect_ai._util.config import resolve_args
-        from inspect_ai.model._model_data.model_data import ModelCost
-        from inspect_ai.model._model_info import set_model_cost
-
-        cost_data = resolve_args(model_cost_config)
-        for cost_model_name, pricing in cost_data["prices"].items():
-            set_model_cost(cost_model_name, ModelCost(**pricing))
-
     # build params
     params: dict[str, Any] = (
         dict(
@@ -1100,9 +1090,10 @@ def eval_exec(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
-            cost_limit=cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
+            cost_limit=cost_limit,
+            model_cost_config=model_cost_config,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,

@@ -1,3 +1,4 @@
+import tempfile
 from random import randint
 from typing import Generator
 
@@ -521,3 +522,106 @@ def test_two_models_both_with_cost_data_tracks_cost() -> None:
     # (3 * 2000 + 4 * 2000) / 1_000_000 = 0.014
     cost2 = list(logs[1].stats.model_usage.values())[0].total_cost
     assert cost2 == pytest.approx(0.014)
+
+
+def test_task_level_cost_limit_without_cost_data_errors() -> None:
+    with pytest.raises(PrerequisiteError, match="Missing cost data for"):
+        eval(
+            Task(
+                dataset=[Sample(input="hi")],
+                solver=[],
+                cost_limit=1.0,
+            ),
+            model="mockllm/model",
+        )
+
+
+def test_task_level_cost_limit() -> None:
+    set_model_info(
+        "model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        ),
+    )
+    # 3 input + 4 output = 7 total tokens per call
+    # Cost = (3 * 1000 + 4 * 1000) / 1M = $0.007 per call
+    # Cost limit of $0.01 allows 1 call ($0.007) but not 2 ($0.014)
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(output),
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        cost_limit=0.01,
+    )
+    log = eval(task, model=model)[0]
+    check_limit_event(log, "cost")
+
+
+def test_model_cost_config_file() -> None:
+    # register model info without cost, then use config file to add cost
+    set_model_info("model", ModelInfo())
+    config_yaml = (
+        "model:\n"
+        "    input: 1000.0\n"
+        "    output: 1000.0\n"
+        "    input_cache_write: 0.0\n"
+        "    input_cache_read: 0.0\n"
+    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(config_yaml)
+        config_path = f.name
+
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+        model_cost_config=config_path,
+    )[0]
+    assert log.status == "success"
+    usage = list(log.stats.model_usage.values())[0]
+    assert usage.total_cost == pytest.approx(0.007)
+
+
+def test_model_cost_config_dict() -> None:
+    # register model info without cost, then use dict to add cost
+    set_model_info("model", ModelInfo())
+    output = ModelOutput.from_content(model="mockllm/model", content="Hello")
+    output.usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[output])
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+    )
+    log = eval(
+        task,
+        model=model,
+        model_cost_config={
+            "model": ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_write=0.0,
+                input_cache_read=0.0,
+            )
+        },
+    )[0]
+    assert log.status == "success"
+    usage = list(log.stats.model_usage.values())[0]
+    assert usage.total_cost == pytest.approx(0.007)

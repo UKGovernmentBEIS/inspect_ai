@@ -8,7 +8,7 @@ from inspect_ai._util.dateutil import UtcDate
 
 
 class ModelCost(BaseModel):
-    """Pricing for a model in $/million tokens."""
+    """Model cost in $/million tokens."""
 
     input: float
     """Price per million input tokens."""

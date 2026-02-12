@@ -214,7 +214,7 @@ def intercode_ctf():
 ```
 
 ::: callout-important
-The `cost_limit` requires model cost data to be configured via `set_model_cost()` or `--model-cost-config`. Without cost data, cost cannot be computed and the limit will have no effect.
+The `cost_limit` requires model cost data to be configured via `set_model_cost()` or `--model-cost-config`. An error will be raised if a cost limit is set without cost data for all models used in the evaluation.
 :::
 
 #### Model Cost {#model-cost}
@@ -239,17 +239,16 @@ Each model needs a price set for `input`, `output`, `input_cache_write`, and `in
 Below is an example cost config file given in YAML:
 
 ``` yaml
-prices:
-  openai/gpt-4o:
-      input: 2.50
-      output: 10.00
-      input_cache_write: 0
-      input_cache_read: 1.25
-  anthropic/claude-sonnet-4-5-20250514:
-      input: 3.00
-      output: 15.00
-      input_cache_write: 3.75
-      input_cache_read: 0.30
+openai/gpt-4o:
+    input: 2.50
+    output: 10.00
+    input_cache_write: 0
+    input_cache_read: 1.25
+anthropic/claude-sonnet-4-5-20250514:
+    input: 3.00
+    output: 15.00
+    input_cache_write: 3.75
+    input_cache_read: 0.30
 ```
 
 (As of Feb 9 2026, all major model providers count reasoning tokens as output tokens, so no separate price needs to be provided for reasoning tokens. If your use case requires separate calculation of reasoning token prices, contact us.)
