@@ -1,9 +1,10 @@
-import json
-from typing import Sequence
+from functools import lru_cache
+from typing import Sequence, Set
 
 from shortuuid import uuid
 
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._compaction import (
@@ -35,7 +36,7 @@ class AgentBridge:
         self._compaction = compaction
         self._compaction_prefix = state.messages.copy()
         self._compact: Compact | None = None
-        self._message_ids: dict[str, list[str]] = {}
+        self._message_ids = {}
         self._last_message_count = 0
 
     state: AgentState
@@ -69,14 +70,16 @@ class AgentBridge:
         return self._compact
 
     def _id_for_message(
-        self, message: ChatMessage, index: int, conversation: list[ChatMessage]
+        self, message: ChatMessage, conversation: list[ChatMessage]
     ) -> str:
         # message_id we will return
         message_id: str | None = None
-        message_key = _message_key(message, index)
+
+        # turn message into a hash so it can be a dictionary key
+        message_key = message_json_hash(to_json_str_safe(message))
 
         # do we already have an id for this message that isn't in the conversation?
-        conversation_ids: set[str] = {m.id for m in conversation if m.id is not None}
+        conversation_ids: Set[str] = {m.id for m in conversation if m.id is not None}
         message_ids = self._message_ids.get(message_key, [])
         for id in message_ids:
             if id not in conversation_ids:
@@ -92,6 +95,8 @@ class AgentBridge:
         # return the id
         return message_id
 
+    _message_ids: dict[str, list[str]]
+
     def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
         # automatically track agent state based on observing generations made through
         # the bridge. we need to distinguish between the "main" thread of generation
@@ -103,68 +108,12 @@ class AgentBridge:
         # calls that tend to be shorter. finally, this should handle recovering from
         # history compaction, which will shorten the message history considerably
         messages = input + [output.message]
-
-        # Detect compaction: input significantly shorter but not a trivial side call.
-        min_main_thread_messages = 5
-        if (
-            len(input) >= min_main_thread_messages
-            and self._last_message_count > 0
-            and len(input) < self._last_message_count // 2
-        ):
-            self._last_message_count = 0
-
         if len(messages) > self._last_message_count:
             self.state.messages = messages
             self.state.output = output
-
-            # Record hash->ID mappings so future requests can reuse IDs for the
-            # same content (critical for stability across API format conversions).
-            for idx, msg in enumerate(messages):
-                if msg.id is not None:
-                    msg_key = _message_key(msg, idx)
-                    if msg_key not in self._message_ids:
-                        self._message_ids[msg_key] = []
-                    if msg.id not in self._message_ids[msg_key]:
-                        self._message_ids[msg_key].append(msg.id)
-
-            # Only update on state changes to maintain the high-water mark.
-            self._last_message_count = len(messages)
+        self._last_message_count = len(messages)
 
 
-def _message_key(message: ChatMessage, index: int) -> str:
-    """Positional key for message ID lookup/storage."""
-    return f"{index}:{_normalized_message_hash(message)}"
-
-
-def _normalized_message_hash(message: ChatMessage) -> str:
-    """Hash a message for content-based matching, ignoring fields that vary across API formats.
-
-    Strips `id`, `source`, `model`, `tool_calls[].id`, and reasoning blocks
-    before hashing, since these may differ between logically identical messages
-    when converted between API formats.
-    """
-    msg_dict = message.model_dump()
-
-    msg_dict.pop("id", None)
-    msg_dict.pop("source", None)
-    msg_dict.pop("model", None)
-
-    if msg_dict.get("tool_calls"):
-        msg_dict["tool_calls"] = [
-            {
-                "function": tc.get("function"),
-                "arguments": tc.get("arguments"),
-                "type": tc.get("type"),
-            }
-            for tc in msg_dict["tool_calls"]
-        ]
-
-    if isinstance(msg_dict.get("content"), list):
-        msg_dict["content"] = [
-            part
-            for part in msg_dict["content"]
-            if not (isinstance(part, dict) and part.get("type") == "reasoning")
-        ]
-
-    normalized_json = json.dumps(msg_dict, sort_keys=True, default=str)
-    return mm3_hash(normalized_json)
+@lru_cache(maxsize=100)
+def message_json_hash(message_json: str) -> str:
+    return mm3_hash(message_json)
