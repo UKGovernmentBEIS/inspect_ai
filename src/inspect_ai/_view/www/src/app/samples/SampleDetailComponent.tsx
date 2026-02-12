@@ -91,12 +91,13 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
   const sample = useMemo(() => {
     return sampleData.getSelectedSample();
   }, [sampleData]);
-  const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
   // Check if the loaded sample matches the requested sample from URL params
   // This prevents showing old sample data while a new sample is loading
   const sampleMatchesRequest = useMemo(() => {
-    if (!sample || !sampleId || !epoch) return false;
+    if (!sample || !sampleId || !epoch) {
+      return true;
+    }
     return (
       String(sample.id) === sampleId && sample.epoch === parseInt(epoch, 10)
     );
@@ -226,7 +227,7 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
           </div>
         </ApplicationNavbar>
 
-        {sampleStatus !== "loading" && sample && sampleMatchesRequest && (
+        {sampleMatchesRequest && (
           <InlineSampleComponent
             showActivity={false}
             className={styles.panel}

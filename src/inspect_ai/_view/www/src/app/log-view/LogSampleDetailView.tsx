@@ -34,6 +34,11 @@ export const LogSampleDetailView: FC = () => {
     sampleTabId,
     sampleUuid,
   } = useLogRouteParams();
+
+  // Load sample data (depends on selectedLogFile and selectedSampleHandle being set)
+  useLoadSample();
+  usePollSample();
+
   const navigate = useNavigate();
 
   // Get store state and actions for log loading
@@ -113,10 +118,6 @@ export const LogSampleDetailView: FC = () => {
       }
     }
   }, [logPath, sampleUuid, sampleSummaries, sampleTabId, navigate]);
-
-  // Load sample data (depends on selectedLogFile and selectedSampleHandle being set)
-  useLoadSample();
-  usePollSample();
 
   // Get navigation handlers from the hook
   const { onPrevious, onNext, hasPrevious, hasNext } = useLogSampleNavigation();
