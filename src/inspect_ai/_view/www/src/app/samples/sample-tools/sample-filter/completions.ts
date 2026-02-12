@@ -608,6 +608,9 @@ export function getCompletions(
     }
 
     // Handle sample variables specially
+    if (varName === "epoch") {
+      return continuousRelationCompletions();
+    }
     if (varName === kSampleIdVariable) {
       return discreteRelationCompletions();
     }
@@ -696,6 +699,19 @@ export function getCompletions(
       const sampleIdCompletions = filteredIds.map(makeSampleIdCompletion);
       return makeCompletions(sampleIdCompletions, {
         includeDefault: false,
+      });
+    }
+
+    // Epoch value completions (suggest actual epoch numbers from loaded samples)
+    if (varName === "epoch" && samples) {
+      const epochValues = Array.from(
+        new Set(samples.map((s) => s.epoch).filter((e) => e !== undefined)),
+      ).sort((a, b) => a - b);
+      const epochCompletions = epochValues.map((e) =>
+        makeLiteralCompletion(String(e)),
+      );
+      return makeCompletions(epochCompletions, {
+        includeDefault: epochCompletions.length === 0,
       });
     }
 

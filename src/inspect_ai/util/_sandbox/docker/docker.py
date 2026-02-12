@@ -6,7 +6,7 @@ import shlex
 import tempfile
 from logging import getLogger
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal, NamedTuple, Union, overload
+from typing import Literal, NamedTuple, Union, overload
 
 from typing_extensions import override
 
@@ -58,11 +58,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     def config_files(cls) -> list[str]:
         return COMPOSE_FILES + [DOCKERFILE]
-
-    @classmethod
-    def config_deserialize(cls, config: dict[str, Any]) -> ComposeConfig:
-        """Deserialize Docker Compose configuration from dict."""
-        return ComposeConfig.model_validate(config)
 
     @classmethod
     def is_docker_compatible(cls) -> bool:

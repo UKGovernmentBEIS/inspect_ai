@@ -2,8 +2,8 @@ import { ReactNode } from "react";
 import { Value2 } from "../../../@types/log";
 import { ScoreLabel } from "../../../app/types";
 import { BasicSampleData, SampleSummary } from "../../../client/api/types";
-import { arrayToString, inputString } from "../../../utils/format";
 import { errorType } from "../error/error";
+import { arrayToString, inputString } from "../../../utils/format";
 import { getScoreDescriptorForValues } from "./score/ScoreDescriptor";
 import {
   EvalDescriptor,
@@ -286,123 +286,59 @@ export const createSamplesDescriptor = (
   evalDescriptor: EvalDescriptor,
   selectedScores: ScoreLabel[],
 ): SamplesDescriptor | undefined => {
-  const sizes = samples.reduce(
-    (previous, current) => {
-      const text = inputString(current.input).join(" ");
-
-      let answerLength = 0;
-
-      if (selectedScores.length > 0) {
-        selectedScores.forEach((scoreLabel, index) => {
-          const score = evalDescriptor.score(current, scoreLabel);
-          const scoreValue = score?.value;
-          const scoreText = scoreValue
-            ? String(scoreValue)
-            : current.error
-              ? errorType(current.error)
-              : "";
-
-          const currentSize = Math.max(
-            scoreText.length,
-            scoreLabel.name.length,
-          );
-          previous.scores[index] = Math.max(
-            previous.scores[index] || 0,
-            currentSize,
-          );
-        });
-
-        answerLength =
-          evalDescriptor.scoreAnswer(current, selectedScores[0])?.length || 0;
-      } else {
-        previous.scores = [];
-      }
-
-      previous.input = Math.min(Math.max(previous.input, text.length), 200);
-      previous.target = Math.min(
-        Math.max(previous.target, arrayToString(current.target).length),
+  const messageShape = samples.reduce(
+    (shape: MessageShape, sample) => {
+      shape.inputSize = Math.min(
+        Math.max(shape.inputSize, inputString(sample.input).join(" ").length),
         300,
       );
-      previous.answer = Math.min(Math.max(previous.answer, answerLength), 300);
-      previous.limit = Math.min(
-        Math.max(previous.limit, current.limit ? current.limit.length : 0),
-        50,
+      shape.targetSize = Math.min(
+        Math.max(shape.targetSize, arrayToString(sample.target).length),
+        300,
       );
-      previous.retries = Math.min(
-        Math.max(
-          previous.retries,
-          current.retries ? String(current.retries).length : 0,
-        ),
-        50,
-      );
-      previous.id = Math.min(
-        Math.max(previous.id, String(current.id).length),
+      if (selectedScores.length > 0) {
+        shape.answerSize = Math.min(
+          Math.max(
+            shape.answerSize,
+            evalDescriptor.scoreAnswer(sample, selectedScores[0])?.length ?? 0,
+          ),
+          300,
+        );
+      }
+      shape.idSize = Math.min(
         10,
+        Math.max(shape.idSize, String(sample.id).length),
       );
-
-      return previous;
+      shape.limitSize = Math.min(
+        10,
+        Math.max(shape.limitSize, sample.limit ? sample.limit.length : 0),
+      );
+      shape.retriesSize = Math.min(
+        10,
+        Math.max(
+          shape.retriesSize,
+          sample.retries ? String(sample.retries).length : 0,
+        ),
+      );
+      shape.errorSize = Math.min(
+        10,
+        Math.max(
+          shape.errorSize,
+          sample.error ? errorType(sample.error).length : 0,
+        ),
+      );
+      return shape;
     },
     {
-      input: 0,
-      target: 0,
-      answer: 0,
-      limit: 0,
-      retries: 0,
-      id: 0,
-      scores: [] as number[],
+      idSize: 2,
+      inputSize: 0,
+      targetSize: 0,
+      answerSize: 0,
+      limitSize: 0,
+      retriesSize: 0,
+      errorSize: 0,
     },
   );
-  // normalize to base 1
-
-  const totalScoreSizes = sizes.scores.reduce((sum, size) => sum + size, 0);
-  const normalizedScoreSizes =
-    totalScoreSizes > 0
-      ? sizes.scores.map((size) => Math.round((size / totalScoreSizes) * 30))
-      : [];
-  const maxSizes = {
-    input: Math.min(sizes.input, 300),
-    target: Math.min(sizes.target, 300),
-    answer: Math.min(sizes.answer, 300),
-    limit: Math.min(sizes.limit, 50),
-    retries: Math.min(sizes.retries, 50),
-    id: Math.min(sizes.id, 10),
-    score: normalizedScoreSizes,
-  };
-  const base =
-    maxSizes.input +
-      maxSizes.target +
-      maxSizes.answer +
-      maxSizes.limit +
-      maxSizes.retries +
-      maxSizes.id +
-      maxSizes.score.reduce((sum, size) => {
-        return sum + size;
-      }, 0) || 1;
-
-  const inputNormalized = maxSizes.input / base;
-  const targetNormalized =
-    maxSizes.target / base > 0
-      ? Math.max(maxSizes.target / base, inputNormalized / 10)
-      : 0;
-  const answerNormalized =
-    maxSizes.answer / base > 0
-      ? Math.max(maxSizes.answer / base, inputNormalized / 10)
-      : 0;
-
-  const messageShape = {
-    raw: sizes,
-    normalized: {
-      input: inputNormalized,
-      target: targetNormalized,
-      answer: answerNormalized,
-      limit: maxSizes.limit / base,
-      retries: maxSizes.retries / base,
-      id: maxSizes.id / base,
-      scores: maxSizes.score.map((val) => {
-        return val / base;
-      }),
-    },
-  };
 
   const firstSelectedScore = selectedScores?.[0];
 

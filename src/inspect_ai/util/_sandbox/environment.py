@@ -445,6 +445,22 @@ def deserialize_sandbox_specific_config(
             "Ensure the plugin is installed in your environment.",
         )
         return config
+    # If the provider is docker compatible and the config is a valid
+    # ComposeConfig, deserialize it automatically so providers don't
+    # need to handle this case in config_deserialize.
+    is_docker_compatible_fn = cast(
+        Callable[..., bool], getattr(sandboxenv_type, "is_docker_compatible")
+    )
+    if is_docker_compatible_fn():
+        from pydantic import ValidationError
+
+        from inspect_ai.util._sandbox.compose import ComposeConfig
+
+        try:
+            return ComposeConfig.model_validate(config)
+        except ValidationError:
+            pass
+
     config_deserialize = cast(
         ConfigDeserialize, getattr(sandboxenv_type, "config_deserialize")
     )
