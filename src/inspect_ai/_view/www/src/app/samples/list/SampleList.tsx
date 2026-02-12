@@ -1,6 +1,13 @@
+import type {
+  ColumnResizedEvent,
+  IRowNode,
+  RowClickedEvent,
+} from "ag-grid-community";
+import { themeBalham } from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
+import clsx from "clsx";
 import {
   FC,
-  KeyboardEvent,
   memo,
   RefObject,
   useCallback,
@@ -8,45 +15,37 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { MessageBand } from "../../../components/MessageBand";
 import { formatNoDecimal } from "../../../utils/format";
-import { ListItem } from "../../log-view/tabs/types";
-import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
-import { SampleRow } from "./SampleRow";
-import { SampleSeparator } from "./SampleSeparator";
-
-import clsx from "clsx";
+import { SampleListItem } from "../../log-view/tabs/types";
 import { EarlyStoppingSummary } from "../../../@types/log";
-import { ScoreLabel } from "../../../app/types";
 import {
   useDocumentTitle,
-  useProperty,
   useSampleDescriptor,
   useScores,
   useSelectedScores,
 } from "../../../state/hooks";
-import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
 import { useSampleNavigation } from "../../routing/sampleNavigation";
-import { sampleIdsEqual } from "../../shared/sample";
+import "../../shared/agGrid";
+import { createGridKeyboardHandler } from "../../shared/gridKeyboardNavigation";
+import { buildColumnDefs } from "./columns";
 import { SampleFooter } from "./SampleFooter";
-import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
 
 const kSampleHeight = 88;
-const kSeparatorHeight = 24;
 
 interface SampleListProps {
-  items: ListItem[];
+  items: SampleListItem[];
   earlyStopping?: EarlyStoppingSummary | null;
   totalItemCount: number;
   running: boolean;
   className?: string | string[];
-  listHandle: RefObject<VirtuosoHandle | null>;
+  listHandle: RefObject<AgGridReact<SampleListItem> | null>;
 }
 
-export const kSampleFollowProp = "sample-list";
+const makeSampleRowId = (id: string | number, epoch: number) =>
+  `${id}-${epoch}`.replace(/\s+/g, "_");
 
 export const SampleList: FC<SampleListProps> = memo((props) => {
   const {
@@ -59,239 +58,215 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   } = props;
 
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-  const { getRestoreState, isScrolling } = useVirtuosoState(
-    listHandle,
-    `sample-list-${selectedLogFile}`,
-  );
-
   useEffect(() => {
-    listHandle.current?.scrollTo({ top: 0, behavior: "instant" });
+    listHandle.current?.api?.ensureIndexVisible(0, "top");
   }, [listHandle, selectedLogFile]);
 
-  // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();
-
   const selectedSampleHandle = useStore(
     (state) => state.log.selectedSampleHandle,
   );
-  const samplesDescriptor = useSampleDescriptor();
-  const [followOutput, setFollowOutput] = useProperty(
-    kSampleFollowProp,
-    "follow",
-    {
-      defaultValue: !!running,
-    },
-  );
 
-  const evalSpec = useStore((state) => state.log.selectedLogDetails?.eval);
+  const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
+  const evalSpec = selectedLogDetails?.eval;
+  const epochs = evalSpec?.config?.epochs || 1;
   const { setDocumentTitle } = useDocumentTitle();
   useEffect(() => {
     setDocumentTitle({ evalSpec });
   }, [setDocumentTitle, evalSpec]);
 
-  // Track whether we were previously running so we can
-  // decide whether to pop up to the top
-  const prevRunningRef = useRef(running);
+  // Follow output: auto-scroll to bottom as new items arrive while running
+  const followOutputRef = useRef(running);
+  const prevItemCountRef = useRef(items.length);
 
+  // When running starts, enable follow output
   useEffect(() => {
-    // When we finish running, if we are following output
-    // then scroll up to the top
+    if (running) {
+      followOutputRef.current = true;
+    }
+  }, [running]);
+
+  // When new items arrive while running and following, scroll to bottom
+  useEffect(() => {
     if (
-      !running &&
-      prevRunningRef.current &&
-      followOutput &&
-      listHandle.current
+      running &&
+      followOutputRef.current &&
+      items.length > prevItemCountRef.current &&
+      listHandle.current?.api
     ) {
-      setFollowOutput(false);
+      listHandle.current.api.ensureIndexVisible(items.length - 1, "bottom");
+    }
+    prevItemCountRef.current = items.length;
+  }, [items.length, running, listHandle]);
+
+  // Track whether user is at the bottom of the grid
+  const handleBodyScroll = useCallback(() => {
+    if (!running || !listHandle.current?.api) return;
+    const api = listHandle.current.api;
+    const vPixel = api.getVerticalPixelRange();
+    const totalHeight = api.getDisplayedRowCount() * kSampleHeight;
+    const viewportHeight = vPixel.bottom - vPixel.top;
+    const atBottom = vPixel.bottom >= totalHeight - viewportHeight * 0.1;
+    followOutputRef.current = atBottom;
+  }, [running, listHandle]);
+
+  // When eval finishes, scroll to top
+  const prevRunningRef = useRef(running);
+  useEffect(() => {
+    if (!running && prevRunningRef.current && listHandle.current?.api) {
+      followOutputRef.current = false;
       setTimeout(() => {
-        if (listHandle.current) {
-          listHandle.current.scrollTo({ top: 0, behavior: "instant" });
-        }
+        listHandle.current?.api?.ensureIndexVisible(0, "top");
       }, 100);
     }
     prevRunningRef.current = running;
-  }, [running, followOutput, listHandle, setFollowOutput]);
+  }, [running, listHandle]);
 
-  const loaded = useRef(false);
-  const handleAtBottomStateChange = useCallback(
-    (atBottom: boolean) => {
-      if (loaded.current && running) {
-        setFollowOutput(atBottom);
-      }
-      loaded.current = true;
-    },
-    [running, setFollowOutput],
-  );
-
-  const onkeydown = useCallback(
-    (e: KeyboardEvent<HTMLDivElement>) => {
-      switch (e.key) {
-        case "ArrowUp":
-          if (e.metaKey || e.ctrlKey) {
-            sampleNavigation.firstSample();
-            listHandle.current?.scrollToIndex({
-              index: 0,
-              align: "start",
-              behavior: "auto",
-            });
-          } else {
-            sampleNavigation.previousSample();
-          }
-
-          e.preventDefault();
-          e.stopPropagation();
-          break;
-        case "ArrowDown":
-          if (e.metaKey || e.ctrlKey) {
-            sampleNavigation.lastSample();
-            listHandle.current?.scrollToIndex({
-              index: items.length - 1,
-              align: "end",
-              behavior: "auto",
-            });
-          } else {
-            sampleNavigation.nextSample();
-          }
-
-          e.preventDefault();
-          e.stopPropagation();
-          break;
-        case "Enter": {
-          const item = items.find((item) => {
-            if (item.type === "sample") {
-              return (
-                sampleIdsEqual(item.sampleId, selectedSampleHandle?.id) &&
-                item.sampleEpoch === selectedSampleHandle?.epoch
-              );
-            }
-          });
-
-          if (item && item.type === "sample") {
-            sampleNavigation.showSample(item.data.id, item.data.epoch);
-            e.preventDefault();
-            e.stopPropagation();
-          }
-          break;
+  const handleRowClick = useCallback(
+    (e: RowClickedEvent<SampleListItem>) => {
+      if (e.data && e.node && listHandle.current?.api) {
+        listHandle.current.api.deselectAll();
+        e.node.setSelected(true);
+        const mouseEvent = e.event as MouseEvent | undefined;
+        const openInNewWindow =
+          mouseEvent?.metaKey ||
+          mouseEvent?.ctrlKey ||
+          mouseEvent?.shiftKey ||
+          mouseEvent?.button === 1;
+        if (openInNewWindow) {
+          const url = sampleNavigation.getSampleUrl(
+            e.data.data.id,
+            e.data.data.epoch,
+          );
+          if (url) window.open(url, "_blank");
+        } else {
+          sampleNavigation.showSample(e.data.data.id, e.data.data.epoch);
         }
       }
     },
-    [
-      sampleNavigation,
-      listHandle,
-      items,
-      selectedSampleHandle?.id,
-      selectedSampleHandle?.epoch,
-    ],
+    [sampleNavigation, listHandle],
   );
 
-  const selectedScores = useSelectedScores();
-
-  const scores = useScores();
-
-  const sampleCount = items?.reduce((prev, current) => {
-    if (current.type === "sample") {
-      return prev + 1;
-    } else {
-      return prev;
-    }
-  }, 0);
-
-  // Count any sample errors and display a bad alerting the user
-  // to any errors
-  const errorCount = items?.reduce((previous, item: ListItem) => {
-    if (typeof item.data === "object" && item.data.error) {
-      return previous + 1;
-    }
-    return previous;
-  }, 0);
-
-  const hasErrors = errorCount > 0;
-
-  const gridColumnsTemplate = useMemo(() => {
-    return gridColumnsValue(samplesDescriptor, hasErrors);
-  }, [samplesDescriptor, hasErrors]);
-
-  const renderRow = useCallback(
-    (_index: number, item: ListItem) => {
-      if (item.type === "sample") {
-        return (
-          <SampleRow
-            id={`${item.number}`}
-            sample={item.data}
-            height={kSampleHeight}
-            answer={item.answer}
-            completed={item.completed}
-            scoresRendered={item.scoresRendered}
-            gridColumnsTemplate={gridColumnsTemplate}
-            sampleUrl={sampleNavigation.getSampleUrl(
-              item.data.id,
-              item.data.epoch,
-            )}
-            selected={
-              sampleIdsEqual(selectedSampleHandle?.id, item.sampleId) &&
-              selectedSampleHandle?.epoch === item.sampleEpoch
-            }
-            showSample={() => {
-              sampleNavigation.showSample(item.data.id, item.data.epoch);
-            }}
-          />
+  const handleOpenRow = useCallback(
+    (rowNode: IRowNode<SampleListItem>, _e: globalThis.KeyboardEvent) => {
+      if (rowNode.data) {
+        sampleNavigation.showSample(
+          rowNode.data.data.id,
+          rowNode.data.data.epoch,
         );
-      } else if (item.type === "separator") {
-        return (
-          <SampleSeparator
-            id={`sample-group${item.number}`}
-            title={item.data}
-            height={kSeparatorHeight}
-          />
-        );
-      } else {
-        return null;
       }
     },
-    [
-      gridColumnsTemplate,
-      sampleNavigation,
-      selectedSampleHandle?.epoch,
-      selectedSampleHandle?.id,
-    ],
+    [sampleNavigation],
   );
 
-  const { input, limit, answer, target, retries } = gridColumns(
-    samplesDescriptor,
-    hasErrors,
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const handleKeyDown = useMemo(
+    () =>
+      createGridKeyboardHandler<SampleListItem>({
+        gridRef: listHandle,
+        onOpenRow: handleOpenRow,
+      }),
+    [listHandle, handleOpenRow],
   );
 
-  // Count limits
-  const limitCount = items?.reduce((previous, item) => {
-    if (typeof item.data === "object" && item.data.limit) {
-      return previous + 1;
-    } else {
-      return previous;
+  useEffect(() => {
+    const el = gridContainerRef.current;
+    if (!el) return;
+    const handler = handleKeyDown as (e: Event) => void;
+    el.addEventListener("keydown", handler);
+    return () => el.removeEventListener("keydown", handler);
+  }, [handleKeyDown]);
+
+  const selectCurrentSample = useCallback(() => {
+    if (!listHandle.current?.api || !selectedSampleHandle) {
+      return;
     }
-  }, 0);
+    const rowId = makeSampleRowId(
+      selectedSampleHandle.id,
+      selectedSampleHandle.epoch,
+    );
+    const node = listHandle.current.api.getRowNode(rowId);
+    if (node) {
+      listHandle.current.api.deselectAll();
+      node.setSelected(true);
+      listHandle.current.api.ensureNodeVisible(node, "middle");
+    }
+  }, [listHandle, selectedSampleHandle]);
 
-  const percentError = (errorCount / sampleCount) * 100;
-  const percentLimit = (limitCount / sampleCount) * 100;
+  useEffect(() => {
+    selectCurrentSample();
+  }, [selectedSampleHandle, selectCurrentSample]);
 
-  const warnings = [];
-  if (errorCount > 0) {
-    warnings.push({
-      type: "info",
-      msg: `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`,
-    });
-  }
-  if (limitCount > 0) {
-    warnings.push({
-      type: "info",
-      msg: `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`,
-    });
-  }
-  if (earlyStopping?.early_stops && earlyStopping?.early_stops?.length > 0) {
-    warnings.push({
-      type: "info",
-      msg: `Skipped ${earlyStopping.early_stops.length} samples due to early stopping (${earlyStopping.manager}). `,
-    });
-  }
+  const selectedScores = useSelectedScores();
+  const scores = useScores();
+  const samplesDescriptor = useSampleDescriptor();
+  const columnDefs = useMemo(
+    () => buildColumnDefs(samplesDescriptor, selectedScores, scores, epochs),
+    [samplesDescriptor, selectedScores, scores, epochs],
+  );
+
+  const getRowId = useCallback((params: { data: SampleListItem }) => {
+    return makeSampleRowId(params.data.data.id, params.data.data.epoch);
+  }, []);
+
+  const manuallyResized = useRef(new Set<string>());
+
+  const handleColumnResized = useCallback(
+    (event: ColumnResizedEvent<SampleListItem>) => {
+      if (
+        event.finished &&
+        event.source === "uiColumnResized" &&
+        event.column
+      ) {
+        manuallyResized.current.add(event.column.getColId());
+        const state = columnDefs
+          .filter(
+            (c) => c.colId && c.flex && !manuallyResized.current.has(c.colId),
+          )
+          .map((c) => ({ colId: c.colId!, flex: c.flex }));
+        if (state.length > 0) {
+          listHandle.current?.api?.applyColumnState({ state });
+        }
+      }
+    },
+    [listHandle, columnDefs],
+  );
+
+  const sampleCount = items.length;
+
+  const warnings = useMemo(() => {
+    const errorCount = items.reduce(
+      (prev, item) => (item.data.error ? prev + 1 : prev),
+      0,
+    );
+    const limitCount = items.reduce(
+      (prev, item) => (item.data.limit ? prev + 1 : prev),
+      0,
+    );
+    const percentError = sampleCount > 0 ? (errorCount / sampleCount) * 100 : 0;
+    const percentLimit = sampleCount > 0 ? (limitCount / sampleCount) * 100 : 0;
+
+    const result: { type: string; msg: string }[] = [];
+    if (errorCount > 0) {
+      result.push({
+        type: "info",
+        msg: `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`,
+      });
+    }
+    if (limitCount > 0) {
+      result.push({
+        type: "info",
+        msg: `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`,
+      });
+    }
+    if (earlyStopping?.early_stops && earlyStopping?.early_stops?.length > 0) {
+      result.push({
+        type: "info",
+        msg: `Skipped ${earlyStopping.early_stops.length} samples due to early stopping (${earlyStopping.manager}). `,
+      });
+    }
+    return result;
+  }, [items, sampleCount, earlyStopping]);
 
   return (
     <div className={styles.mainLayout}>
@@ -303,43 +278,50 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           key={`sample-warning-message-${index}`}
         />
       ))}
-      <SampleHeader
-        input={input !== "0"}
-        target={target !== "0"}
-        answer={answer !== "0"}
-        limit={limit !== "0"}
-        retries={retries !== "0em"}
-        errors={hasErrors}
-        scoreLabels={scoreHeaders(selectedScores, scores)}
-        gridColumnsTemplate={gridColumnsTemplate}
-      />
-      <Virtuoso
-        ref={listHandle}
-        style={{ height: "100%" }}
-        data={items}
-        defaultItemHeight={50}
-        itemContent={renderRow}
-        followOutput={
-          running
-            ? (_atBottom: boolean) => {
-                return followOutput;
-              }
-            : undefined
-        }
-        atBottomStateChange={handleAtBottomStateChange}
-        atBottomThreshold={30}
-        increaseViewportBy={{ top: 300, bottom: 300 }}
-        overscan={{
-          main: 10,
-          reverse: 10,
+      <div
+        ref={gridContainerRef}
+        className={clsx(className, styles.samplesListGrid, "samples-list")}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
         }}
-        className={clsx(className, "samples-list")}
-        onKeyDown={onkeydown}
-        skipAnimationFrameInResizeObserver={true}
-        isScrolling={isScrolling}
-        restoreStateFrom={getRestoreState()}
         tabIndex={0}
-      />
+      >
+        <AgGridReact<SampleListItem>
+          ref={listHandle}
+          rowData={items}
+          columnDefs={columnDefs}
+          defaultColDef={{
+            filter: false,
+            headerTooltipValueGetter: (params) => params.colDef?.headerName,
+          }}
+          tooltipShowMode="whenTruncated"
+          tooltipShowDelay={100}
+          animateRows={false}
+          rowHeight={kSampleHeight}
+          headerHeight={25}
+          getRowId={getRowId}
+          rowSelection={{ mode: "singleRow", checkboxes: false }}
+          onRowClicked={handleRowClick}
+          onColumnResized={handleColumnResized}
+          theme={themeBalham}
+          enableCellTextSelection={true}
+          suppressCellFocus={true}
+          domLayout="normal"
+          onBodyScroll={handleBodyScroll}
+          onFirstDataRendered={() => {
+            if (running && followOutputRef.current) {
+              listHandle.current?.api?.ensureIndexVisible(
+                items.length - 1,
+                "bottom",
+              );
+            }
+            selectCurrentSample();
+          }}
+        />
+      </div>
       <SampleFooter
         sampleCount={sampleCount}
         totalSampleCount={totalItemCount}
@@ -348,84 +330,3 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     </div>
   );
 });
-
-const gridColumnsValue = (
-  sampleDescriptor?: SamplesDescriptor,
-  hasErrors?: boolean,
-) => {
-  const { input, target, answer, limit, retries, id, scores, errors } =
-    gridColumns(sampleDescriptor, hasErrors);
-  const parts = [id, input, target, answer, limit, retries, ...scores, errors];
-  const result = parts.join(" ");
-  return result;
-};
-
-const gridColumns = (
-  sampleDescriptor?: SamplesDescriptor,
-  hasErrors?: boolean,
-) => {
-  const input =
-    sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
-      : 0;
-  const target =
-    sampleDescriptor && sampleDescriptor.messageShape.normalized.target > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
-      : 0;
-  const answer =
-    sampleDescriptor && sampleDescriptor.messageShape.normalized.answer > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
-      : 0;
-  const limit =
-    sampleDescriptor && sampleDescriptor.messageShape.normalized.limit > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
-      : 0;
-  const retries =
-    sampleDescriptor && sampleDescriptor.messageShape.normalized.retries > 0
-      ? 4
-      : 0;
-
-  const id = Math.max(
-    2,
-    Math.min(10, sampleDescriptor?.messageShape.raw.id || 0),
-  );
-
-  const scoresRaw = sampleDescriptor?.messageShape.raw.scores || [];
-  const scoreSizes = scoresRaw.map((size) => Math.max(3, size));
-  const scores =
-    scoreSizes.length > 0 ? scoreSizes.map((size) => `${size / 2}rem`) : [];
-
-  const frSize = (val: number) => {
-    if (val === 0) {
-      return "0";
-    } else {
-      return `${val}fr`;
-    }
-  };
-
-  const errors = hasErrors ? "fit-content(20em)" : "0";
-
-  return {
-    input: frSize(input),
-    target: frSize(target),
-    answer: frSize(answer),
-    limit: frSize(limit),
-    retries: `${retries}em`,
-    errors,
-    id: `${id}rem`,
-    scores,
-  };
-};
-
-const scoreHeaders = (
-  selectedScores?: ScoreLabel[],
-  availableScores?: ScoreLabel[],
-): string[] => {
-  if (!selectedScores || selectedScores.length === 0) {
-    return [];
-  }
-  if (availableScores && availableScores.length === 1) {
-    return ["Score"];
-  }
-  return selectedScores.map((s) => s.name);
-};
