@@ -4,6 +4,7 @@ import { ApplicationIcons } from "../../appearance/icons";
 import { EventRow } from "./event/EventRow";
 
 import { FC } from "react";
+import ExpandablePanel from "../../../components/ExpandablePanel";
 import { parsedJson as maybeParseJson } from "../../../utils/json";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import styles from "./LoggerEventView.module.css";
@@ -34,7 +35,13 @@ export const LoggerEventView: FC<LoggerEventViewProps> = ({
           {obj !== undefined && obj !== null ? (
             <MetaDataGrid entries={obj as Record<string, unknown>} />
           ) : (
-            event.message.message
+            <ExpandablePanel
+              id={`event-message-${event.uuid}`}
+              collapse={true}
+              className={clsx(styles.wrap)}
+            >
+              {event.message.message}
+            </ExpandablePanel>
           )}
         </div>
         <div className={clsx("text-size-smaller", "text-style-secondary")}>

@@ -10,8 +10,8 @@ from pydantic import (
     Field,
 )
 
-from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util._async import current_async_backend, run_coroutine
+from inspect_ai._util.asyncfiles import AsyncFilesystem, tg_collect_with_fs
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -360,23 +360,39 @@ async def read_eval_log_async(
     return log
 
 
+class ReadEvalLogsProgress:
+    def before_reading_logs(self, total_files: int) -> None:
+        pass
+
+    def after_read_log(self, log_file: str) -> None:
+        pass
+
+
 def read_eval_log_headers(
     log_files: list[str] | list[EvalLogInfo],
+    progress: ReadEvalLogsProgress | None = None,
 ) -> list[EvalLog]:
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return run_coroutine(read_eval_log_headers_async(log_files))
+    return run_coroutine(read_eval_log_headers_async(log_files, progress))
 
 
 async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
+    progress: ReadEvalLogsProgress | None = None,
 ) -> list[EvalLog]:
-    async with AsyncFilesystem() as fs:
+    if progress:
+        progress.before_reading_logs(len(log_files))
 
-        async def _read(lf: str | Path | EvalLogInfo) -> EvalLog:
-            return await read_eval_log_async(lf, header_only=True, async_fs=fs)
+    async def _read(lf: str | Path | EvalLogInfo, fs: AsyncFilesystem) -> EvalLog:
+        log = await read_eval_log_async(lf, header_only=True, async_fs=fs)
+        if progress:
+            progress.after_read_log(
+                lf.name if isinstance(lf, EvalLogInfo) else str(lf),
+            )
+        return log
 
-        return await tg_collect([partial(_read, lf) for lf in log_files])
+    return await tg_collect_with_fs([partial(_read, lf) for lf in log_files])
 
 
 def read_eval_log_sample(
@@ -513,6 +529,7 @@ def read_eval_log_sample_summaries(
 async def read_eval_log_sample_summaries_async(
     log_file: str | Path | EvalLogInfo,
     format: Literal["eval", "json", "auto"] = "auto",
+    async_fs: AsyncFilesystem | None = None,
 ) -> list[EvalSampleSummary]:
     """Read sample summaries from an eval log.
 
@@ -520,6 +537,7 @@ async def read_eval_log_sample_summaries_async(
        log_file (str | FileInfo): Log file to read.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       async_fs (AsyncFilesystem | None): Optional shared async filesystem.
 
     Returns:
        Sample summaries for eval log.
@@ -537,7 +555,7 @@ async def read_eval_log_sample_summaries_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    return await recorder_type.read_log_sample_summaries(log_file)
+    return await recorder_type.read_log_sample_summaries(log_file, async_fs)
 
 
 def read_eval_log_samples(

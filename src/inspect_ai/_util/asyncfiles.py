@@ -1,8 +1,8 @@
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from os import stat
+from functools import partial
 from types import TracebackType
-from typing import Any, cast
+from typing import Any, Awaitable, Callable, Iterable, TypeVar, cast
 from urllib.parse import urlparse
 
 import anyio.to_thread
@@ -14,8 +14,8 @@ from anyio.abc import ByteReceiveStream
 from botocore.config import Config
 from typing_extensions import override
 
-from inspect_ai._util._async import current_async_backend
-from inspect_ai._util.file import file, filesystem
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
+from inspect_ai._util.file import FileInfo, file, filesystem
 
 
 class _BytesByteReceiveStream(ByteReceiveStream):
@@ -135,18 +135,21 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     _s3_client_async: Any | None = None
 
     async def get_size(self, filename: str) -> int:
+        return (await self.info(filename)).size
+
+    async def info(self, filename: str) -> FileInfo:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
             if current_async_backend() == "asyncio":
                 response = await (await self.s3_client_async()).head_object(
                     Bucket=bucket, Key=key
                 )
-                return cast(int, response["ContentLength"])
+                return _s3_head_to_file_info(filename, response)
             return await anyio.to_thread.run_sync(
-                s3_get_size, self.s3_client(), bucket, key
+                s3_info, self.s3_client(), bucket, key, filename
             )
         else:
-            return stat(_local_path(filename)).st_size
+            return filesystem(filename).info(filename)
 
     async def read_file(self, filename: str) -> bytes:
         if is_s3_filename(filename):
@@ -296,9 +299,18 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         return self._s3_client_async
 
 
-def s3_get_size(s3: Any, bucket: str, key: str) -> int:
+def _s3_head_to_file_info(filename: str, response: dict[str, Any]) -> FileInfo:
+    size = cast(int, response["ContentLength"])
+    last_modified = response.get("LastModified")
+    mtime = last_modified.timestamp() * 1000 if last_modified else None
+    etag_raw = response.get("ETag")
+    etag = cast(str, etag_raw).strip('"') if etag_raw else None
+    return FileInfo(name=filename, type="file", size=size, mtime=mtime, etag=etag)
+
+
+def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
     response = s3.head_object(Bucket=bucket, Key=key)
-    return cast(int, response["ContentLength"])
+    return _s3_head_to_file_info(filename, response)
 
 
 def s3_read_file(s3: Any, bucket: str, key: str) -> bytes:
@@ -343,3 +355,42 @@ def _local_path(filename: str) -> str:
     if filename.startswith("file://"):
         return urlparse(filename).path
     return filename
+
+
+R = TypeVar("R")
+
+
+async def tg_collect_with_fs(
+    funcs: Iterable[Callable[[AsyncFilesystem], Awaitable[R]]],
+    exception_group: bool = False,
+) -> list[R]:
+    """Run funcs concurrently with a shared AsyncFilesystem.
+
+    Each func receives an AsyncFilesystem as its sole argument. A single
+    shared filesystem is created and used across all concurrent tasks.
+
+    Args:
+        funcs: Async callables that accept an AsyncFilesystem.
+        exception_group: ``True`` to raise an ExceptionGroup,
+            ``False`` (default) to raise only the first exception.
+
+    Returns:
+        List of results in the same order as input funcs.
+    """
+    async with AsyncFilesystem() as fs:
+        return await tg_collect(
+            [partial(fn, fs) for fn in funcs],
+            exception_group=exception_group,
+        )
+
+
+def run_tg_collect_with_fs(
+    funcs: Iterable[Callable[[AsyncFilesystem], Awaitable[R]]],
+    exception_group: bool = False,
+) -> list[R]:
+    """Sync wrapper for :func:`tg_collect_with_fs`.
+
+    Creates a shared AsyncFilesystem, runs all funcs concurrently,
+    and returns results via ``run_coroutine``.
+    """
+    return run_coroutine(tg_collect_with_fs(funcs, exception_group))

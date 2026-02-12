@@ -54,6 +54,7 @@ export function buildColumnDefs(
   selectedScores: ScoreLabel[],
   scores: ScoreLabel[],
   epochs: number,
+  hasErrors: boolean,
 ): ColDef<SampleListItem>[] {
   const shape = samplesDescriptor?.messageShape;
   const inputFlex = shape?.inputSize || 3;
@@ -242,13 +243,6 @@ export function buildColumnDefs(
         const { data, completed, scoresRendered } = params.data;
         const renderedScores = scoresRendered ?? [];
 
-        if (data.error) {
-          return (
-            <ScoreCellDiv>
-              <SampleErrorView message={data.error} />
-            </ScoreCellDiv>
-          );
-        }
         if (completed && renderedScores[i] !== undefined) {
           return <ScoreCellDiv>{renderedScores[i]}</ScoreCellDiv>;
         }
@@ -267,6 +261,24 @@ export function buildColumnDefs(
         return <ScoreCellDiv />;
       },
     });
+  });
+
+  // Standalone error column — only visible when at least one sample has an error
+  columns.push({
+    colId: "error",
+    headerName: "Error",
+    width: 120,
+    minWidth: 28,
+    hide: !hasErrors,
+    valueGetter: (params) => params.data?.data?.error ?? "",
+    cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
+      if (!params.data?.data?.error) return null;
+      return (
+        <div className={clsx("sample-error", "text-size-small", styles.cell)}>
+          <SampleErrorView message={params.data.data.error} />
+        </div>
+      );
+    },
   });
 
   return columns;

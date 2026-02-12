@@ -7,6 +7,22 @@ from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 from inspect_ai._util.dateutil import UtcDate
 
 
+class ModelCost(BaseModel):
+    """Model cost in $/million tokens."""
+
+    input: float
+    """Price per million input tokens."""
+
+    output: float
+    """Price per million output tokens."""
+
+    input_cache_write: float
+    """Price per million input tokens written to cache."""
+
+    input_cache_read: float
+    """Price per million input tokens read from cache."""
+
+
 class BaseModelDefinition(BaseModel):
     """Base model definition with common fields"""
 
@@ -99,6 +115,9 @@ class ModelInfo(BaseModel):
 
     reasoning: bool | None = Field(default=None)
     """Is this a reasoning model."""
+
+    cost: ModelCost | None = Field(default=None)
+    """Cost per million tokens for this model."""
 
     _input_tokens: int | None = PrivateAttr(default=None)
     """Private attribute for explicit input_tokens override from YAML."""

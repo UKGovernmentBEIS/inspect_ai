@@ -1,6 +1,21 @@
 ## Unreleased
 
+- Analysis: Async reading of logs/samples in `samples_df()`. Improves reading summary samples from ~114 minutes to ~15 seconds for ~600 files. 
+- Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
+- Limits: New `cost_limit()` context manager for scoped application of cost limits (can also be applied directly samples or agents).
 - Inspect View: Make samples in task detail sortable, inline epoch filter.
+
+## 0.3.178 (11 February 2026)
+
+- Google: Hard failure for quota exceeded errors with `limit: 0` (indicating the model or feature is fully restricted).
+- Compaction: Improve token counting by using input tokens reported from call to `generate()`.
+- Model API: for 400 errors, print the error after the request payload rather than before.
+- Eval Logs: Add progress callback interface for reading eval logs
+- Sandboxes: Added `http_proxy` example for intercepting and remapping HTTP requests from agents using mitmproxy.
+- Inspect View: Fix regression in log viewer navigation in VSCode.
+- Inspect View: Improve transcript display appearance in VSCode.
+- Inspect View: Improve log events display in transcripts.
+- Bugfix: Fix off-by-one in `_read_all_summaries` that skipped the last sample summary.
 
 ## 0.3.177 (10 February 2026)
 
@@ -73,6 +88,7 @@
 - Web Search: Use internal search providers by default when no external provider is defined (previously they required explicit enabling).
 - Web Search: Fallback to Google CSE provider only when Google CSE environment variables are defined (the CSE service has been deprecated by Google).
 - Eval Logs: Improve eval log loading performance with JSON cache key for messages.
+- Eval Logs: Support Zstd compression of eval logs for improved performance via `INSPECT_USE_ZSTD` environment variable.
 - Agent Bridge: Make sandbox_agent_bridge cleanup errors non-fatal when agent completes
 - Compaction: Add source="compaction" to InfoEvent created by compaction.
 

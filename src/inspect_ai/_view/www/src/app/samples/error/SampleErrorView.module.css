@@ -8,6 +8,10 @@
   max-width: 100%;
 }
 
+.body.safe {
+  color: var(--bs-secondary);
+}
+
 .iconSmall {
   font-size: var(--inspect-font-size-small);
   line-height: var(--inspect-font-size-small);
@@ -16,7 +20,8 @@
 
 .message {
   text-align: center;
-  max-width: 300px;
-  width: 100%;
-  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
