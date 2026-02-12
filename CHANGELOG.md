@@ -5,7 +5,11 @@
 - Sandboxes: Don't require Docker compatible sandboxes to implement `config_deserialize()`.
 - Limits: New `cost_limit()` context manager for scoped application of cost limits (can also be applied directly samples or agents).
 - Inspect View: Make samples in task detail sortable, inline epoch filter.
-- Bugfix: Fix shutdown hang by draining nest_asyncio event loop
+
+## 0.3.179 (12 February 2026)
+
+- Bugfix: Fix shutdown hang by draining nest_asyncio event loop.
+- Bugfix: Fix regression in live sample display in Inspect View.
 
 ## 0.3.178 (11 February 2026)
 
