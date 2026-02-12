@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 import warnings
+from unittest.mock import patch
 
 import boto3
 import pytest
@@ -113,6 +114,16 @@ def mock_s3():
             del os.environ[key]
         else:
             os.environ[key] = value
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _forbid_nest_asyncio():
+    """Forbid nest_asyncio from being initialized during tests, since it can cause issues with AnyIO worker threads hanging at process exit, which can cause future tests to hang indefinitely. If this assert is hit during tests it indicates that the code is likely nesting calls to runcoroutine and should be restructured to use async/await."""
+    with patch(
+        "inspect_ai._util._async.init_nest_asyncio",
+        side_effect=AssertionError("init_nest_asyncio must not be called during tests"),
+    ):
+        yield
 
 
 def pytest_sessionfinish(session, exitstatus):

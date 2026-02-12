@@ -133,6 +133,7 @@ export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
 export type WorkingLimit = number | null;
+export type CostLimit = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
@@ -224,6 +225,7 @@ export type TotalTokens = number;
 export type InputTokensCacheWrite = number | null;
 export type InputTokensCacheRead = number | null;
 export type ReasoningTokens1 = number | null;
+export type TotalCost = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
@@ -500,6 +502,7 @@ export type Type17 =
   | "time"
   | "working"
   | "token"
+  | "cost"
   | "operator"
   | "custom";
 export type Message2 = string;
@@ -803,6 +806,7 @@ export type Type23 =
   | "working"
   | "message"
   | "token"
+  | "cost"
   | "operator"
   | "custom";
 export type Limit2 = number;
@@ -1039,6 +1043,7 @@ export interface EvalConfig {
   token_limit: TokenLimit;
   time_limit: TimeLimit;
   working_limit: WorkingLimit;
+  cost_limit: CostLimit;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
@@ -1243,6 +1248,7 @@ export interface ModelUsage1 {
   input_tokens_cache_write: InputTokensCacheWrite;
   input_tokens_cache_read: InputTokensCacheRead;
   reasoning_tokens: ReasoningTokens1;
+  total_cost: TotalCost;
 }
 /**
  * Eval error details.

@@ -84,6 +84,7 @@ class Task:
         token_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
+        cost_limit: float | None = None,
         early_stopping: "EarlyStopping" | None = None,
         display_name: str | None = None,
         name: str | None = None,
@@ -122,6 +123,8 @@ class Task:
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
+            cost_limit: Limit on total cost (in dollars) for each sample.
+                Requires model cost data via set_model_cost() or --model-cost-config.
             early_stopping: Early stopping callbacks.
             name: Task name. If not specified is automatically
                 determined based on the registered name of the task.
@@ -175,6 +178,7 @@ class Task:
         self.token_limit = token_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
+        self.cost_limit = cost_limit
         self.early_stopping = early_stopping
         self.version = version
         self._display_name = display_name
@@ -244,6 +248,7 @@ def task_with(
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
+    cost_limit: float | None | NotGiven = NOT_GIVEN,
     early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
@@ -285,6 +290,8 @@ def task_with(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
         early_stopping: Early stopping callbacks.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
@@ -335,6 +342,8 @@ def task_with(
         task.time_limit = time_limit
     if not isinstance(working_limit, NotGiven):
         task.working_limit = working_limit
+    if not isinstance(cost_limit, NotGiven):
+        task.cost_limit = cost_limit
     if not isinstance(early_stopping, NotGiven):
         task.early_stopping = early_stopping
     if not isinstance(version, NotGiven):

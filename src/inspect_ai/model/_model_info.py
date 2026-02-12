@@ -10,7 +10,11 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from inspect_ai.model._model_data.model_data import ModelInfo, read_model_info
+from inspect_ai.model._model_data.model_data import (
+    ModelCost,
+    ModelInfo,
+    read_model_info,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import Model  # noqa: F401
@@ -335,6 +339,22 @@ def set_model_info(model: str, info: ModelInfo) -> None:
     _custom_models[model] = info
 
 
+def set_model_cost(model: str, cost: ModelCost) -> None:
+    """Set cost data for a model already in the database.
+
+    Looks up the model and updates its cost field. Raises if
+    the model is not found in the database or custom registry.
+
+    Args:
+        model: Model name (e.g. "openai/gpt-4o")
+        cost: ModelCost with pricing per million tokens.
+    """
+    info = get_model_info(model)
+    if info is None:
+        raise ValueError(f"Model '{model}' not found.")
+    _custom_models[model] = info.model_copy(update={"cost": cost})
+
+
 def clear_model_info_cache() -> None:
     """Clear the model info cache.
 
@@ -344,3 +364,4 @@ def clear_model_info_cache() -> None:
     global _model_info_cache, _lookup_index
     _model_info_cache = None
     _lookup_index = None
+    _custom_models.clear()

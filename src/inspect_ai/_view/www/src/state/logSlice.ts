@@ -2,7 +2,7 @@ import { sampleHandlesEqual } from "../app/shared/sample";
 import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { LogDetails, PendingSamples } from "../client/api/types";
 import { toLogPreview } from "../client/utils/type-utils";
-import { kDefaultSort, kLogViewInfoTabId } from "../constants";
+import { kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
 import { isUri, join } from "../utils/uri";
 import { createLogPolling } from "./logPolling";
@@ -39,12 +39,6 @@ export interface LogSlice {
     // Clear the filter error
     clearFilterError: () => void;
 
-    // Set epoch filter
-    setEpoch: (epoch: string) => void;
-
-    // Set sort order and update groupBy
-    setSort: (sort: string) => void;
-
     // Set score labels
     setSelectedScores: (scores: ScoreLabel[]) => void;
 
@@ -74,7 +68,7 @@ export interface LogSlice {
 // Initial state
 const initialState = {
   // Log state
-  șselectedSampleId: undefined,
+  selectedSampleId: undefined,
   selectedSampleEpoch: undefined,
   selectedLogDetails: undefined,
   pendingSampleSummaries: undefined,
@@ -84,8 +78,6 @@ const initialState = {
   filter: "",
   filterError: undefined,
 
-  epoch: "all",
-  sort: kDefaultSort,
   selectedScores: undefined,
   scores: undefined,
 };
@@ -173,14 +165,6 @@ export const createLogSlice = (
           state.log.filterError = undefined;
         });
       },
-      setEpoch: (epoch: string) =>
-        set((state) => {
-          state.log.epoch = epoch;
-        }),
-      setSort: (sort: string) =>
-        set((state) => {
-          state.log.sort = sort;
-        }),
       setSelectedScores: (scores: ScoreLabel[]) =>
         set((state) => {
           state.log.selectedScores = scores;
@@ -193,8 +177,6 @@ export const createLogSlice = (
         set((state) => {
           state.log.filter = "";
           state.log.filterError = undefined;
-          state.log.epoch = "all";
-          state.log.sort = kDefaultSort;
           state.log.selectedScores = state.log.scores?.slice(0, 1);
         }),
 

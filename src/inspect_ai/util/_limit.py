@@ -40,7 +40,9 @@ class LimitExceededError(Exception):
 
     def __init__(
         self,
-        type: Literal["message", "time", "working", "token", "operator", "custom"],
+        type: Literal[
+            "message", "time", "working", "token", "cost", "operator", "custom"
+        ],
         *,
         value: float,
         limit: float,
@@ -182,6 +184,9 @@ class SampleLimits:
     token: Limit
     """Token limit."""
 
+    cost: Limit
+    """Cost limit."""
+
     message: Limit
     """Message limit."""
 
@@ -211,6 +216,7 @@ def sample_limits() -> SampleLimits:
 
     return SampleLimits(
         token=get_root_node(token_limit_tree.get(), "token"),
+        cost=get_root_node(cost_limit_tree.get(), "cost"),
         message=get_root_node(message_limit_tree.get(), "message"),
         working=get_root_node(working_limit_tree.get(), "working"),
         time=get_root_node(time_limit_tree.get(), "time"),
@@ -222,6 +228,7 @@ def record_sample_limit_data(message_usage: float) -> None:
     _sample_limit_data.set(
         SampleLimits(
             token=_LimitData(current_limits.token),
+            cost=_LimitData(current_limits.cost),
             message=_LimitData(current_limits.message, usage=message_usage),
             working=_LimitData(current_limits.working),
             time=_LimitData(current_limits.time),
@@ -273,6 +280,49 @@ def check_token_limit() -> None:
     Note that all active token limits are checked, not just the most recent one.
     """
     node = token_limit_tree.get()
+    if node is None:
+        return
+    node.check()
+
+
+def cost_limit(limit: float | None) -> _CostLimit:
+    """Limits the total cost (in dollars) which can be used.
+
+    The counter starts when the context manager is opened and ends when it is closed.
+
+    These limits can be stacked.
+
+    This relies on "cooperative" checking - consumers must call `check_cost_limit()`
+    themselves whenever cost is recorded.
+
+    When a limit is exceeded, a `LimitExceededError` is raised.
+
+    Args:
+      limit: The maximum cost (in dollars) that can be used while the context manager is
+        open. A value of None means unlimited cost.
+    """
+    return _CostLimit(limit)
+
+
+def record_model_cost(cost: float) -> None:
+    """Record model cost against any active cost limits.
+
+    Does not check if the limit has been exceeded.
+    """
+    node = cost_limit_tree.get()
+    if node is None:
+        return
+    node.record(cost)
+
+
+def check_cost_limit() -> None:
+    """Check if the current cost exceeds _any_ of the cost limits.
+
+    Within the current execution context (e.g. async task) and its parent contexts only.
+
+    Note that all active cost limits are checked, not just the most recent one.
+    """
+    node = cost_limit_tree.get()
     if node is None:
         return
     node.check()
@@ -452,6 +502,7 @@ class _Tree(Generic[TNode]):
 
 
 token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
+cost_limit_tree: _Tree[_CostLimit] = _Tree("cost_limit_tree")
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
 working_limit_tree: _Tree[_WorkingLimit] = _Tree("working_limit_tree")
 time_limit_tree: _Tree[_TimeLimit] = _Tree("time_limit_tree")
@@ -554,6 +605,88 @@ class _TokenLimit(Limit, _Node):
             )
             raise LimitExceededError(
                 "token", value=total, limit=self.limit, message=message, source=self
+            )
+
+
+class _CostLimit(Limit, _Node):
+    def __init__(self, limit: float | None) -> None:
+        super().__init__()
+        self._validate_cost_limit(limit)
+        self._limit = limit
+        self._cost: float = 0.0
+
+    def __enter__(self) -> Limit:
+        super()._check_reuse()
+        cost_limit_tree.push(self)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._pop_and_check_identity(cost_limit_tree)
+
+    @property
+    def usage(self) -> float:
+        return self._cost
+
+    @property
+    def limit(self) -> float | None:
+        """Get the configured cost limit value."""
+        return self._limit
+
+    @limit.setter
+    def limit(self, value: float | None) -> None:
+        """Update the cost limit value.
+
+        This does not trigger a check of the cost limit (which could now have been
+        exceeded).
+        """
+        self._validate_cost_limit(value)
+        self._limit = value
+
+    def record(self, cost: float) -> None:
+        """Record cost for this node and its ancestor nodes."""
+        if self.parent is not None:
+            self.parent.record(cost)
+        self._cost += cost
+
+    def check(self) -> None:
+        """Check if this cost limit or any ancestor limits have been exceeded.
+
+        The checks occur from root to leaf. This is so that if multiple limits are
+        simultaneously exceeded, the outermost (closest to root) one raises the error,
+        preventing certain sub-agent architectures from ending up in an infinite loop.
+        """
+        if self.parent is not None:
+            self.parent.check()
+        self._check_self()
+
+    def _validate_cost_limit(self, value: float | None) -> None:
+        if value is not None and value < 0:
+            raise ValueError(
+                f"Cost limit value must be a non-negative float or None: {value}"
+            )
+
+    def _check_self(self) -> None:
+        from inspect_ai.event._sample_limit import SampleLimitEvent
+        from inspect_ai.log._transcript import transcript
+
+        if self.limit is None:
+            return
+        if self._cost > self.limit:
+            message = f"Cost limit exceeded. value: ${self._cost:,.4f}; limit: ${self.limit:,.4f}"
+            transcript()._event(
+                SampleLimitEvent(type="cost", limit=self.limit, message=message)
+            )
+            raise LimitExceededError(
+                "cost",
+                value=self._cost,
+                limit=self.limit,
+                message=message,
+                source=self,
             )
 
 

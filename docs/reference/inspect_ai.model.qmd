@@ -72,7 +72,9 @@ title: "inspect_ai.model"
 
 ### get_model_info
 ### set_model_info
+### set_model_cost
 ### ModelInfo
+### ModelCost
 
 ## Logprobs
 

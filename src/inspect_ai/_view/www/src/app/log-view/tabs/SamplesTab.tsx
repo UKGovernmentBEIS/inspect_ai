@@ -1,5 +1,5 @@
+import type { AgGridReact } from "ag-grid-react";
 import { FC, Fragment, useEffect, useMemo, useRef } from "react";
-import { VirtuosoHandle } from "react-virtuoso";
 import { Status } from "../../../@types/log";
 import { InlineSampleDisplay } from "../../../app/samples/InlineSampleDisplay.tsx";
 import {
@@ -12,18 +12,13 @@ import { ToolButton } from "../../../components/ToolButton.tsx";
 import { kLogViewSamplesTabId } from "../../../constants.ts";
 import {
   useFilteredSamples,
-  useGroupBy,
-  useGroupByOrder,
   useSampleDescriptor,
-  useSelectedScores,
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
 import { ApplicationIcons } from "../../appearance/icons.ts";
-import { sampleIdsEqual } from "../../shared/sample.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
-import { getSampleProcessor } from "./grouping.ts";
-import { ListItem } from "./types.ts";
+import { SampleListItem } from "./types.ts";
 
 // Individual hook for Samples tab
 export const useSamplesTabConfig = (
@@ -75,10 +70,6 @@ interface SamplesTabProps {
 }
 
 export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
-  const selectedSampleHandle = useStore(
-    (state) => state.log.selectedSampleHandle,
-  );
-
   const sampleSummaries = useFilteredSamples();
   const selectedLogDetails = useStore((state) => state.log.selectedLogDetails);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
@@ -106,72 +97,22 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const totalSampleCount = useTotalSampleCount();
 
   const samplesDescriptor = useSampleDescriptor();
-  const groupBy = useGroupBy();
-  const groupByOrder = useGroupByOrder();
-  const selectedScores = useSelectedScores();
   const selectSample = useStore((state) => state.logActions.selectSample);
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
-  const sampleListHandle = useRef<VirtuosoHandle | null>(null);
+  const sampleListHandle = useRef<AgGridReact<SampleListItem> | null>(null);
 
-  const sampleProcessor = useMemo(() => {
-    if (!samplesDescriptor) return undefined;
-
-    return getSampleProcessor(
-      sampleSummaries || [],
-      selectedLogDetails?.eval?.config?.epochs || 1,
-      groupBy,
-      groupByOrder,
-      samplesDescriptor,
-      selectedScores,
+  const items: SampleListItem[] = useMemo(() => {
+    if (!samplesDescriptor) return [];
+    return sampleSummaries.map(
+      (sample): SampleListItem => ({
+        data: sample,
+        answer:
+          samplesDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+        completed: sample.completed !== undefined ? sample.completed : true,
+      }),
     );
-  }, [
-    samplesDescriptor,
-    sampleSummaries,
-    selectedLogDetails?.eval?.config?.epochs,
-    groupBy,
-    groupByOrder,
-    selectedScores,
-  ]);
-
-  const items = useMemo(() => {
-    const resolvedSamples = sampleSummaries?.flatMap((sample, index) => {
-      const results: ListItem[] = [];
-      const previousSample =
-        index !== 0 ? sampleSummaries[index - 1] : undefined;
-      const items = sampleProcessor
-        ? sampleProcessor(sample, index, previousSample)
-        : [];
-
-      results.push(...items);
-      return results;
-    });
-
-    return resolvedSamples || [];
-  }, [sampleSummaries, sampleProcessor]);
-
-  const selectedItemIndex = useMemo(() => {
-    return items.findIndex((item) => {
-      if (item.type !== "sample") {
-        return false;
-      }
-      return (
-        sampleIdsEqual(item.sampleId, selectedSampleHandle?.id) &&
-        item.sampleEpoch === selectedSampleHandle?.epoch
-      );
-    });
-  }, [selectedSampleHandle, items]);
-
-  // Keep the selected item scrolled into view
-  useEffect(() => {
-    setTimeout(() => {
-      if (sampleListHandle.current && selectedItemIndex >= 0) {
-        sampleListHandle.current.scrollIntoView({
-          index: selectedItemIndex,
-        });
-      }
-    }, 0);
-  }, [selectedItemIndex]);
+  }, [sampleSummaries, samplesDescriptor]);
 
   useEffect(() => {
     if (sampleSummaries.length === 1 && selectedLogFile) {
