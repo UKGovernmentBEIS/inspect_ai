@@ -1,6 +1,7 @@
 ## 0.3.179 (12 February 2026)
 
 - Bugfix: Fix shutdown hang by draining nest_asyncio event loop.
+- Bugfix: Fix regression in live sample display in Inspect View.
 
 ## 0.3.178 (11 February 2026)
 
