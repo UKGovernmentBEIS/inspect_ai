@@ -1767,101 +1767,15 @@ async def model_proxy_server(
                 completion if isinstance(completion, dict) else json.loads(completion)
             )
 
-            # Check if response has function calls with thoughtSignature
-            # If so, return non-streaming to preserve thoughtSignature
-            # (Gemini CLI may not handle thoughtSignature correctly in streaming mode)
-            has_thought_signature = is_streaming and any(
-                "thoughtSignature" in part
-                for candidate in resp.get("candidates", [])
-                for part in candidate.get("content", {}).get("parts", [])
-            )
-
             if not is_streaming:
                 return {"status": 200, "body": resp}
 
-            if has_thought_signature:
-
-                async def single_chunk_stream() -> AsyncIterator[bytes]:
-                    yield f"data: {json.dumps(resp)}\n\n".encode("utf-8")
-
-                return {
-                    "status": 200,
-                    "body_iter": single_chunk_stream(),
-                    "headers": {
-                        "Content-Type": "text/event-stream; charset=utf-8",
-                        "Cache-Control": "no-cache",
-                    },
-                    "chunked": True,
-                }
-
-            async def stream_response() -> AsyncIterator[bytes]:
-                # For generateContent, we simulate streaming by chunking the response
-                candidates = resp.get("candidates", [])
-                for candidate in candidates:
-                    content = candidate.get("content", {})
-                    parts = content.get("parts", [])
-
-                    # Collect function calls to send together (they shouldn't be split)
-                    fc_parts: list[dict[str, Any]] = []
-
-                    for part in parts:
-                        if "text" in part:
-                            text = part["text"]
-                            for chunk in _iter_chunks(text):
-                                chunk_response = {
-                                    "candidates": [
-                                        {
-                                            "content": {
-                                                "parts": [{"text": chunk}],
-                                                "role": "model",
-                                            },
-                                            "finishReason": None,
-                                            "index": candidate.get("index", 0),
-                                        }
-                                    ]
-                                }
-                                yield f"data: {json.dumps(chunk_response)}\n\n".encode(
-                                    "utf-8"
-                                )
-
-                        elif "functionCall" in part:
-                            fc_part: dict[str, Any] = {
-                                "functionCall": part["functionCall"]
-                            }
-                            if "thoughtSignature" in part:
-                                fc_part["thoughtSignature"] = part["thoughtSignature"]
-                            fc_parts.append(fc_part)
-
-                    if fc_parts:
-                        fc_response = {
-                            "candidates": [
-                                {
-                                    "content": {
-                                        "parts": fc_parts,
-                                        "role": "model",
-                                    },
-                                    "finishReason": None,
-                                    "index": candidate.get("index", 0),
-                                }
-                            ]
-                        }
-                        yield f"data: {json.dumps(fc_response)}\n\n".encode("utf-8")
-
-                    final_response = {
-                        "candidates": [
-                            {
-                                "content": {"parts": [], "role": "model"},
-                                "finishReason": candidate.get("finishReason", "STOP"),
-                                "index": candidate.get("index", 0),
-                            }
-                        ],
-                        "usageMetadata": resp.get("usageMetadata", {}),
-                    }
-                    yield f"data: {json.dumps(final_response)}\n\n".encode("utf-8")
+            async def single_chunk_stream() -> AsyncIterator[bytes]:
+                yield f"data: {json.dumps(resp)}\n\n".encode("utf-8")
 
             return {
                 "status": 200,
-                "body_iter": stream_response(),
+                "body_iter": single_chunk_stream(),
                 "headers": {
                     "Content-Type": "text/event-stream; charset=utf-8",
                     "Cache-Control": "no-cache",
