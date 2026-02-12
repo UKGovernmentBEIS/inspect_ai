@@ -49,4 +49,5 @@ export interface MessageShape {
   answerSize: number;
   limitSize: number;
   retriesSize: number;
+  errorSize: number;
 }

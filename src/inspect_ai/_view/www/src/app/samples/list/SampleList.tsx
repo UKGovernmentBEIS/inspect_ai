@@ -200,20 +200,9 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   const selectedScores = useSelectedScores();
   const scores = useScores();
   const samplesDescriptor = useSampleDescriptor();
-  const hasErrors = useMemo(
-    () => items.some((item) => !!item.data.error),
-    [items],
-  );
   const columnDefs = useMemo(
-    () =>
-      buildColumnDefs(
-        samplesDescriptor,
-        selectedScores,
-        scores,
-        epochs,
-        hasErrors,
-      ),
-    [samplesDescriptor, selectedScores, scores, epochs, hasErrors],
+    () => buildColumnDefs(samplesDescriptor, selectedScores, scores, epochs),
+    [samplesDescriptor, selectedScores, scores, epochs],
   );
 
   const getRowId = useCallback((params: { data: SampleListItem }) => {

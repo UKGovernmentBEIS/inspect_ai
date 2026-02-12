@@ -316,6 +316,13 @@ export const createSamplesDescriptor = (
         ),
         300,
       );
+      shape.errorSize = Math.min(
+        Math.max(
+          shape.errorSize,
+          sample.error ? String(sample.error).length : 0,
+        ),
+        300,
+      );
       return shape;
     },
     {
@@ -325,6 +332,7 @@ export const createSamplesDescriptor = (
       answerSize: 0,
       limitSize: 0,
       retriesSize: 0,
+      errorSize: 0,
     },
   );
 

@@ -17186,27 +17186,25 @@ button._segment_mhb7y_9 {
 ._transcriptContainer_6o9gh_58 {
   padding-bottom: 1em;
 }
-._body_28q64_1 {
+._body_x9ww7_1 {
   color: var(--bs-danger);
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: 1fr;
   align-content: baseline;
   justify-items: center;
-  min-width: 0;
-  max-width: 100%;
 }
 
-._body_28q64_1._safe_28q64_11 {
+._body_x9ww7_1._safe_x9ww7_9 {
   color: var(--bs-secondary);
 }
 
-._iconSmall_28q64_15 {
+._iconSmall_x9ww7_13 {
   font-size: var(--inspect-font-size-small);
   line-height: var(--inspect-font-size-small);
   height: var(--inspect-font-size-small);
 }
 
-._message_28q64_21 {
+._message_x9ww7_19 {
   text-align: center;
   max-width: 100%;
   overflow: hidden;

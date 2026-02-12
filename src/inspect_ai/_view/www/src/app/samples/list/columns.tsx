@@ -54,7 +54,6 @@ export function buildColumnDefs(
   selectedScores: ScoreLabel[],
   scores: ScoreLabel[],
   epochs: number,
-  hasErrors: boolean,
 ): ColDef<SampleListItem>[] {
   const shape = samplesDescriptor?.messageShape;
   const inputFlex = shape?.inputSize || 3;
@@ -269,7 +268,7 @@ export function buildColumnDefs(
     headerName: "Error",
     width: 120,
     minWidth: 28,
-    hide: !hasErrors,
+    hide: !shape?.errorSize,
     valueGetter: (params) => params.data?.data?.error ?? "",
     cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
       if (!params.data?.data?.error) return null;
