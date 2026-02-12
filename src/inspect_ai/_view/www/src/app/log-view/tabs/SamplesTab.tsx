@@ -13,7 +13,6 @@ import { kLogViewSamplesTabId } from "../../../constants.ts";
 import {
   useFilteredSamples,
   useSampleDescriptor,
-  useSelectedScores,
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
@@ -98,7 +97,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const totalSampleCount = useTotalSampleCount();
 
   const samplesDescriptor = useSampleDescriptor();
-  const selectedScores = useSelectedScores();
   const selectSample = useStore((state) => state.logActions.selectSample);
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
@@ -106,19 +104,15 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
 
   const items: SampleListItem[] = useMemo(() => {
     if (!samplesDescriptor) return [];
-    const scores = selectedScores || [];
     return sampleSummaries.map(
       (sample): SampleListItem => ({
         data: sample,
         answer:
           samplesDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
-        scoresRendered: scores.map((sc) =>
-          samplesDescriptor.evalDescriptor.score(sample, sc)?.render(),
-        ),
         completed: sample.completed !== undefined ? sample.completed : true,
       }),
     );
-  }, [sampleSummaries, samplesDescriptor, selectedScores]);
+  }, [sampleSummaries, samplesDescriptor]);
 
   useEffect(() => {
     if (sampleSummaries.length === 1 && selectedLogFile) {

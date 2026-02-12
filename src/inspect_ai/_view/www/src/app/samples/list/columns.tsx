@@ -239,16 +239,18 @@ export function buildColumnDefs(
       },
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
         if (!params.data) return null;
-        const { data, completed, scoresRendered } = params.data;
-        const renderedScores = scoresRendered ?? [];
+        const { data, completed } = params.data;
+        const rendered = samplesDescriptor?.evalDescriptor
+          .score(data, selectedScores[i])
+          ?.render();
 
-        if (completed && renderedScores[i] !== undefined) {
-          return <ScoreCellDiv>{renderedScores[i]}</ScoreCellDiv>;
+        if (completed && rendered !== undefined) {
+          return <ScoreCellDiv>{rendered}</ScoreCellDiv>;
         }
         if (
           !completed &&
-          i === renderedScores.length - 1 &&
-          (renderedScores.length > 0 ||
+          i === (selectedScores?.length ?? 1) - 1 &&
+          ((selectedScores?.length ?? 0) > 0 ||
             Object.keys(data.scores || {}).length === 0)
         ) {
           return (
