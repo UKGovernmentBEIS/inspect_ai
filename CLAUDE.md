@@ -28,3 +28,8 @@ Additional files provide context when working in specific areas:
 
 - [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/CLAUDE.md)
 - [View UI (TypeScript): build/lint/test commands for the frontend](src/inspect_ai/_view/www/CLAUDE.md)
+
+## Design Documentation
+
+- [Model Proxy Lifecycle: startup, communication, and termination flow](design/model-proxy-lifecycle.md)
+- [Timezone Handling Architecture: principles and patterns for temporal data](design/temporal-data-handling.md)
