@@ -117,7 +117,9 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
 
     if running_in_notebook():
         init_nest_asyncio()
-        return asyncio.run(coroutine)
+        result = asyncio.run(coroutine)
+        _drain_nest_asyncio_callbacks()
+        return result
     else:
         try:
             # this will throw if there is no running loop
@@ -131,7 +133,28 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
             # and run it.
             pass
 
-        return asyncio.run(coroutine)
+        result = asyncio.run(coroutine)
+        _drain_nest_asyncio_callbacks()
+        return result
+
+
+def _drain_nest_asyncio_callbacks() -> None:
+    """Process pending callbacks left behind by nest_asyncio.
+
+    nest_asyncio's patched run_until_complete exits immediately when the
+    future completes, without processing task done callbacks that were just
+    scheduled via call_soon (e.g. AnyIO's worker.stop()). Running one more
+    event loop iteration drains these, preventing non-daemon thread leaks
+    that hang the interpreter at shutdown.
+    """
+    if not _initialised_nest_asyncio:
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        if not loop.is_closed():
+            loop.run_until_complete(asyncio.sleep(0))
+    except RuntimeError:
+        pass
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:
