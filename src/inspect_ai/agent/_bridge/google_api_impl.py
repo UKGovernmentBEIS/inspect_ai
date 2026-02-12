@@ -427,8 +427,10 @@ def _extract_model_parts(
 
         if "text" in part:
             text = part["text"]
-            _, capsule = parse_content_with_reasoning(text)
+            remaining_text, capsule = parse_content_with_reasoning(text)
             if capsule is not None:
+                if remaining_text:
+                    content_parts.append(ContentText(text=remaining_text))
                 continue
             if text == "(no content)":
                 continue
