@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Value2 } from "../../../@types/log";
 import { ScoreLabel } from "../../../app/types";
 import { BasicSampleData, SampleSummary } from "../../../client/api/types";
+import { errorType } from "../error/error";
 import { arrayToString, inputString } from "../../../utils/format";
 import { getScoreDescriptorForValues } from "./score/ScoreDescriptor";
 import {
@@ -323,7 +324,7 @@ export const createSamplesDescriptor = (
         10,
         Math.max(
           shape.errorSize,
-          sample.error ? String(sample.error).length : 0,
+          sample.error ? errorType(sample.error).length : 0,
         ),
       );
       return shape;
