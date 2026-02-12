@@ -125,16 +125,16 @@ def _download_adapter_config(adapter_path: str) -> Path | None:
     Returns:
         Path to downloaded config, or None if not found.
     """
-    from huggingface_hub import file_exists, hf_hub_download
-
-    if not file_exists(adapter_path, "adapter_config.json"):
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import EntryNotFoundError
+    try:
+        return Path(hf_hub_download(adapter_path, "adapter_config.json"))
+    except EntryNotFoundError:
         logger.warning(
-            f"No adapter_config.json found for {adapter_path} on HuggingFace Hub. "
+            f"Could not fetch adapter_config.json for {adapter_path}. "
             f"Skipping max_lora_rank auto-detection."
         )
         return None
-
-    return Path(hf_hub_download(adapter_path, "adapter_config.json"))
 
 
 # Pre-computed LoRA config from model list scanning.
