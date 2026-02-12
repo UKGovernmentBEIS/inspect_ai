@@ -4,6 +4,7 @@
 - Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
 - Limits: New `cost_limit()` context manager for scoped application of cost limits (can also be applied directly samples or agents).
 - Inspect View: Make samples in task detail sortable, inline epoch filter.
+- Bugfix: Fix non-deterministic test failures in `test_df.py` caused by platform-dependent ordering of `list_eval_logs()`.
 
 ## 0.3.178 (11 February 2026)
 

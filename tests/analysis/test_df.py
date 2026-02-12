@@ -23,6 +23,7 @@ from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
 
 LOGS_DIR = Path(__file__).parent / "test_logs"
+SECURITY_GUIDE_LOG = LOGS_DIR / "2025-05-12T20-28-26-04-00_security-guide.json"
 
 
 def test_evals_df():
@@ -147,8 +148,7 @@ def test_samples_df_message_count():
 
 
 def test_samples_df_eval_log():
-    logs = list_eval_logs(str(LOGS_DIR))
-    log = read_eval_log(logs[0])
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = samples_df(log)
     assert len(df) == 3
 
@@ -161,8 +161,7 @@ def test_samples_df_multiple_eval_logs():
 
 
 def test_evals_df_eval_log():
-    logs = list_eval_logs(str(LOGS_DIR))
-    log = read_eval_log(logs[0])
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = evals_df(log)
     assert len(df) == 1
 
@@ -175,8 +174,7 @@ def test_evals_df_multiple_eval_logs():
 
 
 def test_messages_df_eval_log():
-    logs = list_eval_logs(str(LOGS_DIR))
-    log = read_eval_log(logs[0])
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = messages_df(log)
     assert len(df) == 15
 
@@ -189,8 +187,7 @@ def test_messages_df_multiple_eval_logs():
 
 
 def test_events_df_eval_log():
-    logs = list_eval_logs(str(LOGS_DIR))
-    log = read_eval_log(logs[0])
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
     df = events_df(log)
     assert len(df) == 42
 
