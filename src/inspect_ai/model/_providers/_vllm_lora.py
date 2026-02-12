@@ -127,6 +127,7 @@ def _download_adapter_config(adapter_path: str) -> Path | None:
     """
     from huggingface_hub import hf_hub_download
     from huggingface_hub.errors import EntryNotFoundError
+
     try:
         return Path(hf_hub_download(adapter_path, "adapter_config.json"))
     except EntryNotFoundError:
