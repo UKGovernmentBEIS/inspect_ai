@@ -53,7 +53,7 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
       case "working":
         return ApplicationIcons.limits.execution;
       case "cost":
-        return ApplicationIcons.limits.cost
+        return ApplicationIcons.limits.cost;
     }
   };
 
