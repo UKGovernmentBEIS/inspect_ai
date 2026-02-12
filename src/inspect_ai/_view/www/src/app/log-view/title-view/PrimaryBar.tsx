@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { EvalResults, EvalSpec, Status } from "../../../@types/log";
+import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
 import { DownloadLogButton } from "../../../components/DownloadLogButton";
 import { kModelNone } from "../../../constants";
@@ -9,13 +10,14 @@ import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
 import { ModelRolesView } from "./ModelRolesView";
 import styles from "./PrimaryBar.module.css";
-import { ResultsPanel } from "./ResultsPanel";
+import { displayScorersFromRunningMetrics, ResultsPanel } from "./ResultsPanel";
 import { RunningStatusPanel } from "./RunningStatusPanel";
 import { CancelledPanel, ErroredPanel } from "./StatusPanel";
 
 interface PrimaryBarProps {
   status?: Status;
   evalResults?: EvalResults | null;
+  runningMetrics?: RunningMetric[];
   evalSpec?: EvalSpec;
   sampleCount?: number;
 }
@@ -23,13 +25,17 @@ interface PrimaryBarProps {
 export const PrimaryBar: FC<PrimaryBarProps> = ({
   status,
   evalResults,
+  runningMetrics,
   evalSpec,
   sampleCount,
 }) => {
+  const streamSamples = useStore((state) => state.capabilities.streamSamples);
   const downloadLogs = useStore((state) => state.capabilities.downloadLogs);
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
   const isEvalFile = selectedLogFile?.endsWith(".eval");
+
+  const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
 
   return (
     <div className={clsx(styles.wrapper)}>
@@ -86,13 +92,20 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
+        (status === "started" && streamSamples && hasRunningMetrics) ||
         (status === "error" && evalSpec?.config["continue_on_fail"]) ? (
-          <ResultsPanel scorers={toDisplayScorers(evalResults?.scores)} />
+          <ResultsPanel
+            scorers={
+              runningMetrics
+                ? displayScorersFromRunningMetrics(runningMetrics)
+                : toDisplayScorers(evalResults?.scores)
+            }
+          />
         ) : undefined}
         {status === "cancelled" ? (
           <CancelledPanel sampleCount={sampleCount || 0} />
         ) : undefined}
-        {status === "started" ? (
+        {status === "started" && (!streamSamples || !hasRunningMetrics) ? (
           <RunningStatusPanel sampleCount={sampleCount || 0} />
         ) : undefined}
         {status === "error" ? (

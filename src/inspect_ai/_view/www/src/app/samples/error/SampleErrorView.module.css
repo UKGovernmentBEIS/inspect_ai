@@ -1,11 +1,9 @@
 .body {
   color: var(--bs-danger);
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: 1fr;
   align-content: baseline;
   justify-items: center;
-  min-width: 0;
-  max-width: 100%;
 }
 
 .body.safe {

@@ -7,6 +7,7 @@ import {
   EvalStats,
   Status,
 } from "../../../@types/log";
+import { RunningMetric } from "../../../client/api/types";
 import { useTotalSampleCount } from "../../../state/hooks";
 import { PrimaryBar } from "./PrimaryBar";
 import { SecondaryBar } from "./SecondaryBar";
@@ -15,6 +16,7 @@ import styles from "./TitleView.module.css";
 interface TitleViewProps {
   evalSpec?: EvalSpec;
   evalResults?: EvalResults | null;
+  runningMetrics?: RunningMetric[];
   evalPlan?: EvalPlan;
   evalStats?: EvalStats;
   status?: Status;
@@ -29,6 +31,7 @@ export const TitleView: FC<TitleViewProps> = ({
   evalResults,
   evalStats,
   status,
+  runningMetrics,
 }) => {
   const totalSampleCount = useTotalSampleCount();
 
@@ -38,6 +41,7 @@ export const TitleView: FC<TitleViewProps> = ({
         evalSpec={evalSpec}
         evalResults={evalResults}
         status={status}
+        runningMetrics={runningMetrics}
         sampleCount={totalSampleCount}
       />
       <SecondaryBar
