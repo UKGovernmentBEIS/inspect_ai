@@ -43,7 +43,7 @@ export interface SelectedScore {
 }
 
 export interface MessageShape {
-  id: number;
+  idSize: number; /* Clamped 2–10 for column width in em */
   inputSize: number;
   targetSize: number;
   answerSize: number;

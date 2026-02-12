@@ -71,7 +71,7 @@ export function buildColumnDefs(
     {
       colId: "id",
       headerName: "Id",
-      flex: shape?.id || 1,
+      width: (shape?.idSize ?? 2) * 16, // 16 for 1em in pixels
       minWidth: 35,
       valueGetter: (params) => params.data?.data?.id,
       cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
@@ -176,7 +176,7 @@ export function buildColumnDefs(
     {
       colId: "limit",
       headerName: "Limit",
-      flex: shape?.limitSize || 0.5,
+      width: (shape?.limitSize ?? 1) * 16,
       minWidth: 28,
       hide: !shape?.limitSize,
       valueGetter: (params) => params.data?.data?.limit,
@@ -200,7 +200,7 @@ export function buildColumnDefs(
     {
       colId: "retries",
       headerName: "Retries",
-      width: 56,
+      width: (shape?.retriesSize ?? 1) * 16,
       minWidth: 28,
       hide: !shape?.retriesSize,
       valueGetter: (params) => params.data?.data?.retries,
@@ -263,7 +263,7 @@ export function buildColumnDefs(
   columns.push({
     colId: "error",
     headerName: "Error",
-    width: 120,
+    width: (shape?.errorSize ?? 1) * 16,
     minWidth: 28,
     hide: !shape?.errorSize,
     valueGetter: (params) => params.data?.data?.error ?? "",

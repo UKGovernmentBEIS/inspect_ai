@@ -110,9 +110,9 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   const fields = resolveSample(sample, sampleDescriptor);
 
   const shape = sampleDescriptor?.messageShape;
-  const limitSize = shape?.limitSize ? 1 : 0;
-  const retrySize = shape?.retriesSize ? 6 : 0;
-  const idSize = Math.min(Math.max(2, shape?.id ?? 2), 10);
+  const limitSize = shape?.limitSize ?? 0;
+  const retrySize = shape?.retriesSize ?? 0;
+  const idSize = shape?.idSize ?? 2;
 
   // The columns for the sample
   const columns: SummaryColumn[] = [];
@@ -186,7 +186,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Limit",
       value: fields.limit,
-      size: `fit-content(10rem)`,
+      size: `${limitSize}em`,
       center: true,
     });
   }
@@ -195,7 +195,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Retries",
       value: fields.retries,
-      size: `fit-content(${retrySize}rem)`,
+      size: `${retrySize}em`,
       center: true,
     });
   }
@@ -219,7 +219,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Error",
       value: <SampleErrorView message={fields.error} />,
-      size: "fit-content(20em)",
+      size: `${shape?.errorSize ?? 1}em`,
       center: true,
     });
   }

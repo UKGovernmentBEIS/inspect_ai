@@ -304,29 +304,32 @@ export const createSamplesDescriptor = (
           300,
         );
       }
-      shape.id = Math.min(Math.max(shape.id, String(sample.id).length), 300);
+      shape.idSize = Math.min(
+        10,
+        Math.max(shape.idSize, String(sample.id).length),
+      );
       shape.limitSize = Math.min(
+        10,
         Math.max(shape.limitSize, sample.limit ? sample.limit.length : 0),
-        300,
       );
       shape.retriesSize = Math.min(
+        10,
         Math.max(
           shape.retriesSize,
           sample.retries ? String(sample.retries).length : 0,
         ),
-        300,
       );
       shape.errorSize = Math.min(
+        10,
         Math.max(
           shape.errorSize,
           sample.error ? String(sample.error).length : 0,
         ),
-        300,
       );
       return shape;
     },
     {
-      id: 0,
+      idSize: 2,
       inputSize: 0,
       targetSize: 0,
       answerSize: 0,
