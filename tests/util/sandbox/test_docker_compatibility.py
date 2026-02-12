@@ -12,6 +12,7 @@ from inspect_ai.util._sandbox.compose import (
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentSpec,
+    deserialize_sandbox_specific_config,
 )
 from inspect_ai.util._sandbox.registry import sandboxenv
 
@@ -630,3 +631,49 @@ class TestResolveTaskSandboxDockerCompatibility:
         assert result.type == "mock_docker_compatible"
         assert result.config is not None
         assert "task-config.yaml" in result.config
+
+
+# --- Tests for deserialize_sandbox_specific_config() ---
+
+
+class TestDeserializeSandboxSpecificConfig:
+    """Test auto-deserialization of ComposeConfig for docker-compatible providers."""
+
+    def test_compose_config_auto_deserialized_for_docker_compatible(self):
+        """ComposeConfig dict should auto-deserialize for docker-compatible providers."""
+        config_dict = {
+            "services": {"default": {"image": "python:3.11"}},
+        }
+        result = deserialize_sandbox_specific_config(
+            "mock_docker_compatible", config_dict
+        )
+        assert isinstance(result, ComposeConfig)
+        assert "default" in result.services
+
+    def test_non_compose_config_falls_through_to_config_deserialize(self):
+        """Non-ComposeConfig dict should fall through to provider's config_deserialize."""
+        config_dict = {"not_services": "something"}
+        # MockDockerCompatibleSandbox doesn't implement config_deserialize,
+        # so this should raise NotImplementedError
+        with pytest.raises(NotImplementedError):
+            deserialize_sandbox_specific_config("mock_docker_compatible", config_dict)
+
+    def test_non_docker_compatible_uses_config_deserialize(self):
+        """Non-docker-compatible providers should use config_deserialize even for compose-like dicts."""
+        config_dict = {
+            "services": {"default": {"image": "python:3.11"}},
+        }
+        # MockNotDockerCompatibleSandbox doesn't implement config_deserialize
+        with pytest.raises(NotImplementedError):
+            deserialize_sandbox_specific_config(
+                "mock_not_docker_compatible", config_dict
+            )
+
+    def test_docker_provider_still_works(self):
+        """Built-in docker provider should still deserialize ComposeConfig correctly."""
+        config_dict = {
+            "services": {"default": {"image": "ubuntu:latest"}},
+        }
+        result = deserialize_sandbox_specific_config("docker", config_dict)
+        assert isinstance(result, ComposeConfig)
+        assert "default" in result.services
