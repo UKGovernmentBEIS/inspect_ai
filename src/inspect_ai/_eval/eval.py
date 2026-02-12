@@ -12,7 +12,9 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
-from inspect_ai.model._util import resolve_model_roles
+from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.model._model_info import set_model_cost
+from inspect_ai.model._util import resolve_model_costs, resolve_model_roles
 from inspect_ai.util._anyio import inner_exception
 
 if sys.version_info < (3, 11):
@@ -109,6 +111,8 @@ def eval(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    cost_limit: float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -182,6 +186,10 @@ def eval(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
@@ -251,6 +259,8 @@ def eval(
                 token_limit=token_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                cost_limit=cost_limit,
+                model_cost_config=model_cost_config,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
@@ -310,6 +320,8 @@ async def eval_async(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    cost_limit: float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -370,6 +382,10 @@ async def eval_async(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
             (defaults to number of models being evaluated)
@@ -429,6 +445,8 @@ async def eval_async(
                 token_limit=token_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                cost_limit=cost_limit,
+                model_cost_config=model_cost_config,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
@@ -493,6 +511,8 @@ async def _eval_async_inner(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    cost_limit: float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -530,6 +550,15 @@ async def _eval_async_inner(
     model_args = resolve_args(model_args)
     task_args = resolve_args(task_args)
 
+    # apply model cost config
+    if isinstance(model_cost_config, str):
+        cost_data = resolve_args(model_cost_config)
+        for cost_model_name, cost in cost_data.items():
+            set_model_cost(cost_model_name, ModelCost(**cost))
+    elif isinstance(model_cost_config, dict):
+        for k, v in model_cost_config.items():
+            set_model_cost(k, v)
+
     run_id = uuid()
 
     try:
@@ -562,6 +591,8 @@ async def _eval_async_inner(
             raise PrerequisiteError(
                 "Error: No inspect tasks were found at the specified paths."
             )
+
+        resolve_model_costs(resolved_tasks, cost_limit)
 
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
@@ -641,6 +672,7 @@ async def _eval_async_inner(
             retry_on_error=retry_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
+            cost_limit=cost_limit,
             time_limit=time_limit,
             working_limit=working_limit,
             max_samples=max_samples,

@@ -51,6 +51,7 @@ from inspect_ai.model import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_config import model_roles_to_model_roles_config
+from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
@@ -84,6 +85,7 @@ class EvalSetArgsInTaskIdentifier:
     token_limit: int | None = None
     time_limit: int | None = None
     working_limit: int | None = None
+    cost_limit: float | None = None
 
 
 def eval_set(
@@ -122,6 +124,8 @@ def eval_set(
     token_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
+    cost_limit: float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -204,6 +208,9 @@ def eval_set(
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
+        model_cost_config: YAML or JSON file with model prices for cost tracking.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
@@ -273,6 +280,8 @@ def eval_set(
             token_limit=token_limit,
             time_limit=time_limit,
             working_limit=working_limit,
+            cost_limit=cost_limit,
+            model_cost_config=model_cost_config,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -394,6 +403,7 @@ def eval_set(
             token_limit=token_limit,
             time_limit=time_limit,
             working_limit=working_limit,
+            cost_limit=cost_limit,
         )
         # validate that:
         #  (1) All tasks have a unique identifier
@@ -811,6 +821,7 @@ def task_identifier(
         token_limit: int | None
         time_limit: int | None
         working_limit: int | None
+        cost_limit: float | None
 
     if isinstance(task, ResolvedTask):
         assert eval_set_args is not None, (
@@ -843,6 +854,9 @@ def task_identifier(
             working_limit=task.task.working_limit
             if eval_set_args.working_limit is None
             else eval_set_args.working_limit,
+            cost_limit=task.task.cost_limit
+            if eval_set_args.cost_limit is None
+            else eval_set_args.cost_limit,
         )
     else:
         task_file = task.eval.task_file or ""
@@ -859,6 +873,7 @@ def task_identifier(
             token_limit=task.eval.config.token_limit,
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,
+            cost_limit=task.eval.config.cost_limit,
         )
 
     # strip args from eval_plan as we've changed the way this is serialized

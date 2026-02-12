@@ -1970,6 +1970,18 @@
           "default": null,
           "title": "Working Limit"
         },
+        "cost_limit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Limit"
+        },
         "max_samples": {
           "anyOf": [
             {
@@ -2119,6 +2131,7 @@
         "token_limit",
         "time_limit",
         "working_limit",
+        "cost_limit",
         "max_samples",
         "max_tasks",
         "max_subprocesses",
@@ -2918,6 +2931,7 @@
             "working",
             "message",
             "token",
+            "cost",
             "operator",
             "custom"
           ],
@@ -5247,6 +5261,18 @@
           ],
           "default": null,
           "title": "Reasoning Tokens"
+        },
+        "total_cost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Cost"
         }
       },
       "title": "ModelUsage",
@@ -5257,7 +5283,8 @@
         "total_tokens",
         "input_tokens_cache_write",
         "input_tokens_cache_read",
-        "reasoning_tokens"
+        "reasoning_tokens",
+        "total_cost"
       ],
       "additionalProperties": false
     },
@@ -5648,6 +5675,7 @@
             "time",
             "working",
             "token",
+            "cost",
             "operator",
             "custom"
           ],
