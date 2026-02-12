@@ -146,6 +146,8 @@ def _drain_nest_asyncio_callbacks() -> None:
     scheduled via call_soon (e.g. AnyIO's worker.stop()). Running one more
     event loop iteration drains these, preventing non-daemon thread leaks
     that hang the interpreter at shutdown.
+
+    See: https://github.com/Chaoses-Ib/nest-asyncio2/issues/3
     """
     if not _initialised_nest_asyncio:
         return
