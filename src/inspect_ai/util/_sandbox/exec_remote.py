@@ -87,6 +87,10 @@ class ExecRemoteCommonOptions:
     poll_interval: float | None = None
     """Interval between poll requests in seconds"""
 
+    concurrency: bool = True
+    """For sandboxes that run locally, request that the `concurrency()`
+    function be used to throttle concurrent subprocesses."""
+
 
 @dataclass
 class ExecRemoteStreamingOptions(ExecRemoteCommonOptions):
@@ -253,6 +257,7 @@ class ExecRemoteProcess:
             error_mapper=GenericJSONRPCErrorMapper,
             timeout=RPC_TIMEOUT,
             user=self._options.user,
+            concurrency=self._options.concurrency,
         )
 
     async def _start(self) -> None:

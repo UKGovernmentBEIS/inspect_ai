@@ -144,10 +144,11 @@ async def sandbox_agent_bridge(
             proxy = await sandbox_env.exec_remote(
                 cmd=[SANDBOX_CLI, "model_proxy"],
                 options=ExecRemoteStreamingOptions(
+                    concurrency=False,
                     env={
                         f"{MODEL_SERVICE.upper()}_PORT": str(port),
                         f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
-                    }
+                    },
                 ),
             )
 
