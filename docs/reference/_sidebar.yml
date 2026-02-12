@@ -378,8 +378,12 @@ website:
           href: reference/inspect_ai.model.qmd#get_model_info
         - text: set_model_info
           href: reference/inspect_ai.model.qmd#set_model_info
+        - text: set_model_cost
+          href: reference/inspect_ai.model.qmd#set_model_cost
         - text: ModelInfo
           href: reference/inspect_ai.model.qmd#modelinfo
+        - text: ModelCost
+          href: reference/inspect_ai.model.qmd#modelcost
         - text: Logprob
           href: reference/inspect_ai.model.qmd#logprob
         - text: Logprobs
@@ -686,6 +690,8 @@ website:
           href: reference/inspect_ai.util.qmd#message_limit
         - text: token_limit
           href: reference/inspect_ai.util.qmd#token_limit
+        - text: cost_limit
+          href: reference/inspect_ai.util.qmd#cost_limit
         - text: time_limit
           href: reference/inspect_ai.util.qmd#time_limit
         - text: working_limit
