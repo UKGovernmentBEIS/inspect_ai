@@ -64,3 +64,8 @@
   display: flex;
   justify-content: center;
 }
+
+.fullWidthHeight {
+  width: inherit;
+  height: inherit;
+}

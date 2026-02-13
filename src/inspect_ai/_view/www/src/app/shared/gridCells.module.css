@@ -20,6 +20,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 2px;
   width: 100%;
   font-size: 0.95rem;
   color: var(--bs-gray-600);

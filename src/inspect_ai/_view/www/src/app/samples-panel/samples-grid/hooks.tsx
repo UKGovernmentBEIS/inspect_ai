@@ -9,10 +9,17 @@ import { LogDetails } from "../../../client/api/types";
 import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
 import { comparators } from "../../shared/gridComparators";
+import columnStyles from "../../log-list/grid/columns/columns.module.css";
 import { getFieldKey } from "../../shared/gridUtils";
 import styles from "../../shared/gridCells.module.css";
 import { SampleRow } from "./types";
 import { formatDateTime } from "../../../utils/format";
+import {
+  sampleStatus,
+  SampleStatusIcon,
+  sampleStatusValue,
+} from "../../samples/status/sampleStatus";
+import { errorType } from "../../samples/error/error";
 
 export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
   const optionalColumnsHaveAnyData: Record<string, boolean> = useMemo(() => {
@@ -147,12 +154,42 @@ export const useSampleColumns = (logDetails: Record<string, LogDetails>) => {
       },
       {
         field: "status",
-        headerName: "Status",
-        initialWidth: 100,
-        minWidth: 80,
+        headerName: "",
+        headerTooltipValueGetter: () => "Status",
+        width: 47,
         sortable: true,
         resizable: true,
         filter: true,
+        valueGetter: (params: ValueGetterParams<SampleRow>) => {
+          const logStatus = params.data?.status ?? "success";
+          const sampleStat = sampleStatus(
+            params.data?.completed ?? true,
+            params.data?.error,
+          );
+          return `${sampleStatusValue(logStatus)} ${sampleStatusValue(sampleStat, params.data?.error)}`;
+        },
+        cellRenderer: (params: ICellRendererParams<SampleRow>) => {
+          if (!params.data) return null;
+          const logStatus = params.data.status ?? "success";
+          const sampleStat = sampleStatus(
+            params.data.completed ?? true,
+            params.data.error,
+          );
+          return (
+            <div className={columnStyles.statusCell}>
+              <SampleStatusIcon status={logStatus} />
+              <SampleStatusIcon status={sampleStat} />
+            </div>
+          );
+        },
+        tooltipValueGetter: (params) => {
+          const logStatus = params.data?.status ?? "success";
+          const sampleStat = sampleStatus(
+            params.data?.completed ?? true,
+            params.data?.error,
+          );
+          return `task: ${logStatus}, sample: ${params.data?.error ? errorType(params.data?.error) : sampleStat}`;
+        },
       },
       {
         field: "logFile",
