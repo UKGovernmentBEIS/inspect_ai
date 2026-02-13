@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 from email.utils import formatdate
@@ -1763,6 +1764,60 @@ async def model_proxy_server(
                 }
             else:
                 return {"status": 200, "body": completion}
+        except Exception as ex:
+            _handle_model_proxy_error(ex)
+            os._exit(1)
+
+    # ---------- Google Gemini API routes ----------
+    # Route patterns for Google's Gemini API using wildcard matching
+    # Supports: /v1beta/models/{model}:generateContent and /models/{model}:generateContent
+
+    def _extract_model_from_google_path(path: str) -> str:
+        """Extract model name from Google API path.
+
+        Examples:
+            /v1beta/models/gemini-2.5-pro:generateContent -> gemini-2.5-pro
+            /models/gemini-2.5-flash:streamGenerateContent -> gemini-2.5-flash
+        """
+        match = re.search(r"models/([^/:]+)", path)
+        return match.group(1) if match else "inspect"
+
+    @server.route("/v1beta/models/*", method="POST")
+    @server.route("/models/*", method="POST")
+    async def google_generate_content(request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            path = request.get("path", "")
+            json_body = request.get("json", {}) or {}
+
+            is_streaming = ":streamGenerateContent" in path
+
+            model_name = _extract_model_from_google_path(path)
+            json_body["model"] = model_name
+
+            completion = await call_bridge_model_service_async(
+                "generate_google", json_data=json_body
+            )
+
+            resp = (
+                completion if isinstance(completion, dict) else json.loads(completion)
+            )
+
+            if not is_streaming:
+                return {"status": 200, "body": resp}
+
+            async def single_chunk_stream() -> AsyncIterator[bytes]:
+                yield f"data: {json.dumps(resp)}\n\n".encode("utf-8")
+
+            return {
+                "status": 200,
+                "body_iter": single_chunk_stream(),
+                "headers": {
+                    "Content-Type": "text/event-stream; charset=utf-8",
+                    "Cache-Control": "no-cache",
+                },
+                "chunked": True,
+            }
+
         except Exception as ex:
             _handle_model_proxy_error(ex)
             os._exit(1)

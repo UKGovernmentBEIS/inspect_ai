@@ -4,9 +4,14 @@ from typing import Any, Literal, cast
 from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolChoiceAnyParam
+from google import genai
 from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
-from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
+from test_helpers.utils import (
+    skip_if_no_anthropic,
+    skip_if_no_google,
+    skip_if_no_openai,
+)
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.content import ContentToolUse
@@ -327,6 +332,120 @@ def anthropic_code_execution_agent() -> Agent:
     return execute
 
 
+@agent
+def google_agent(tools: bool) -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        def tools_param() -> Any:
+            if tools:
+                return [
+                    {
+                        "function_declarations": [
+                            {
+                                "name": "get_weather",
+                                "description": "Get the current weather in a given location",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "location": {
+                                            "type": "string",
+                                            "description": "The city and state, e.g. San Francisco, CA",
+                                        }
+                                    },
+                                    "required": ["location"],
+                                },
+                            }
+                        ]
+                    }
+                ]
+            else:
+                return None
+
+        async with agent_bridge(state) as bridge:
+            client = genai.Client(api_key="inspect")
+
+            generation_config: dict[str, Any] = {
+                "temperature": 0.8,
+                "top_p": 0.5,
+                "top_k": 2,
+                "max_output_tokens": 4096,
+            }
+
+            tool_config = None
+            if tools:
+                tool_config = {
+                    "function_calling_config": {
+                        "mode": "ANY",
+                    }
+                }
+
+            await client.aio.models.generate_content(
+                model="inspect",
+                contents=[  # type: ignore[arg-type]
+                    {
+                        "role": "user",
+                        "parts": [{"text": user_prompt(state.messages).text}],
+                    }
+                ],
+                config=genai.types.GenerateContentConfig(
+                    tools=tools_param(),
+                    tool_config=tool_config,  # type: ignore[arg-type]
+                    **generation_config,
+                ),
+            )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def google_web_search_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            client = genai.Client(api_key="inspect")
+
+            await client.aio.models.generate_content(
+                model="inspect",
+                contents=[  # type: ignore[arg-type]
+                    {
+                        "role": "user",
+                        "parts": [{"text": user_prompt(state.messages).text}],
+                    }
+                ],
+                config=genai.types.GenerateContentConfig(
+                    tools=[{"google_search": {}}],  # type: ignore[list-item]
+                ),
+            )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def google_code_execution_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            client = genai.Client(api_key="inspect")
+
+            await client.aio.models.generate_content(
+                model="inspect",
+                contents=[  # type: ignore[arg-type]
+                    {
+                        "role": "user",
+                        "parts": [{"text": user_prompt(state.messages).text}],
+                    }
+                ],
+                config=genai.types.GenerateContentConfig(
+                    tools=[{"code_execution": {}}],  # type: ignore[list-item]
+                ),
+            )
+
+            return bridge.state
+
+    return execute
+
+
 @task
 def bridged_task(agent: Agent):
     return Task(
@@ -596,6 +715,50 @@ def check_anthropic_bridge_log_json(log_json: str, tools: bool):
         assert r'"name": "get_weather"' in log_json
     else:
         assert r'"budget_tokens": 2048' in log_json
+
+
+def check_google_bridge_log_json(log_json: str, tools: bool):
+    assert r'"model": "google/gemini-2.0-flash"' in log_json
+    # Note: Google generation config params (temperature, top_p, top_k, max_tokens)
+    # are not logged the same way as OpenAI/Anthropic - they're set on the SDK client
+    if tools:
+        assert r'"name": "get_weather"' in log_json
+
+
+@skip_if_no_google
+def test_bridged_agent_google():
+    log_json = eval_bridged_task("google/gemini-2.0-flash", agent=google_agent(False))
+    check_google_bridge_log_json(log_json, tools=False)
+
+
+@skip_if_no_google
+def test_bridged_agent_google_tools():
+    log_json = eval_bridged_task("google/gemini-2.0-flash", agent=google_agent(True))
+    check_google_bridge_log_json(log_json, tools=True)
+
+
+@skip_if_no_google
+def test_bridged_web_search_tool_google():
+    log = eval(
+        web_search_task(google_web_search_agent()), model="google/gemini-2.0-flash"
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    # Google SDK uses camelCase field names in serialized output
+    assert '"googleSearch"' in log_json
+    # Note: Google's native search embeds results in text with grounding metadata,
+    # not ContentToolUse objects, so we don't call check_server_tool_use() here
+
+
+@skip_if_no_google
+def test_bridged_code_execution_tool_google():
+    log = eval(
+        code_execution_task(google_code_execution_agent()),
+        model="google/gemini-2.0-flash",
+    )[0]
+    log_json = log.model_dump_json(exclude_none=True, indent=2)
+    assert '"codeExecution"' in log_json
+    # Note: Google's code execution returns results inline in response parts,
+    # not ContentToolUse objects, so we don't call check_server_tool_use() here
 
 
 @skip_if_no_anthropic
