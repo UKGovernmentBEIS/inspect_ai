@@ -152,6 +152,9 @@ Documentation = "https://inspect.aisi.org.uk/"
 inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
+math = [
+  "math-verify[antlr4_13_2]>=0.9.0",
+]
 dev = [
   "adlfs>=2025.8.0",
   "anthropic>=0.78.0",
@@ -166,6 +169,7 @@ dev = [
   "ipython",
   "jsonpath-ng",
   "markdown",
+  "math-verify[antlr4_13_2]>=0.9.0",
   "mcp>=1.10.0",
   "mistralai>=1.9.11",
   "moto[server]",
