@@ -381,6 +381,39 @@ class TestKill:
 
         assert events == [StdoutChunk(data="last")]
 
+    @pytest.mark.asyncio
+    async def test_kill_suppresses_rpc_exception(self) -> None:
+        """kill() should not propagate exceptions from the RPC call.
+
+        Callers (e.g. bridge.py) rely on kill() being safe to call in finally
+        blocks without disrupting subsequent cleanup like cancel_scope.cancel().
+        """
+        sandbox = AsyncMock()
+        sandbox.default_polling_interval.return_value = 5
+
+        call_count = 0
+
+        async def failing_exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # Start succeeds
+                return ExecResult(
+                    success=True, returncode=0, stdout=_start_response(), stderr=""
+                )
+            # Kill RPC fails (e.g. sandbox transport error)
+            raise ConnectionError("sandbox connection lost")
+
+        sandbox.exec = AsyncMock(side_effect=failing_exec)
+
+        proc = await exec_remote_streaming(sandbox, ["cmd"], 5)
+
+        # Should not raise
+        await proc.kill()
+
+        # Should still be marked as killed
+        assert proc._killed is True
+
 
 # ============================================================================
 # Cancellation

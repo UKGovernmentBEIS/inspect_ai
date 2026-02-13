@@ -7,6 +7,7 @@ long-running commands in sandbox environments with streaming output.
 from __future__ import annotations
 
 import asyncio
+import logging
 import shlex
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, TypeVar
@@ -451,8 +452,15 @@ class ExecRemoteProcess:
             return
 
         self._killed = True
-        result = await self._rpc("exec_remote_kill", {"pid": self._pid}, _KillResult)
-        self._enqueue_output(result.stdout, result.stderr)
+        try:
+            result = await self._rpc(
+                "exec_remote_kill", {"pid": self._pid}, _KillResult
+            )
+            self._enqueue_output(result.stdout, result.stderr)
+        except Exception:
+            logging.debug(
+                f"exec_remote kill RPC failed for pid {self._pid}", exc_info=True
+            )
 
 
 # ============================================================================
