@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -62,7 +63,8 @@ def retry_error_summary(retry_state: RetryCallState) -> str:
             status = getattr(response, "status_code", None)
 
     # API error code (e.g. "rate_limit_exceeded", "server_error")
-    code: str | None = getattr(ex, "code", None)
+    raw_code = getattr(ex, "code", None)
+    code: str | None = str(raw_code) if raw_code is not None else None
 
     parts = [type_name]
     if status is not None:
@@ -70,3 +72,53 @@ def retry_error_summary(retry_state: RetryCallState) -> str:
     if code is not None:
         parts.append(code)
     return f" [{' '.join(parts)}]"
+
+
+class SampleContextFilter(logging.Filter):
+    """Logging filter that enriches log records with active sample context.
+
+    Prepends a compact prefix to record.msg for plain text formatters and
+    sets structured attributes on the record for JSON/structured formatters.
+    Passes records through unchanged when no active sample exists.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        from inspect_ai.log._samples import sample_active
+
+        active = sample_active()
+        if active is not None:
+            prefix = (
+                f"[{active.id} {active.task}/{active.sample.id}/{active.epoch} "
+                f"{active.model}] "
+            )
+            record.msg = f"{prefix}{record.getMessage()}"
+            record.args = None
+            record.sample_uuid = active.id  # type: ignore[attr-defined]
+            record.sample_task = active.task  # type: ignore[attr-defined]
+            record.sample_id = active.sample.id  # type: ignore[attr-defined]
+            record.sample_epoch = active.epoch  # type: ignore[attr-defined]
+            record.sample_model = active.model  # type: ignore[attr-defined]
+        return True
+
+
+_sample_context_logging_installed = False
+
+
+_SDK_LOGGERS = ("openai._base_client",)
+
+
+def install_sample_context_logging() -> None:
+    """Install SampleContextFilter on SDK loggers.
+
+    Attaches the filter to the actual emitting loggers (not parent loggers)
+    so that retry messages from the OpenAI SDK are enriched with active
+    sample context. Safe to call multiple times — installs at most once.
+    """
+    global _sample_context_logging_installed
+    if _sample_context_logging_installed:
+        return
+    _sample_context_logging_installed = True
+
+    sample_filter = SampleContextFilter()
+    for name in _SDK_LOGGERS:
+        logging.getLogger(name).addFilter(sample_filter)
