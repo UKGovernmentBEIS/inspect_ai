@@ -44,14 +44,18 @@ class JSONRecorder(FileRecorder):
         return first_bytes[:1] == b"{"
 
     @override
-    def default_log_buffer(self, sample_count: int) -> int:
-        # we write the entire file in one shot and the files can
-        # get fairly large (> 100MB) so we are a bit more sparing
-        # for remote filesystem writes
-        if self.is_local():
-            return 10
+    def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int:
+        if high_throughput:
+            # High-throughput: flush ~10 times over the run
+            return max(10, sample_count // 10)
         else:
-            return 100
+            # we write the entire file in one shot and the files can
+            # get fairly large (> 100MB) so we are a bit more sparing
+            # for remote filesystem writes
+            if self.is_local():
+                return 10
+            else:
+                return 100
 
     class JSONLogFile(BaseModel):
         file: str
