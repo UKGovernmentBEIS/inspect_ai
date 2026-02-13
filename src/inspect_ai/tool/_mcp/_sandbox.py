@@ -8,19 +8,17 @@ from mcp import JSONRPCRequest, StdioServerParameters
 from mcp.shared.message import SessionMessage
 from mcp.types import JSONRPCMessage, JSONRPCNotification
 
-from inspect_ai.tool._json_rpc_helpers import (
+from inspect_ai._util._json_rpc import (
     exec_model_request,
     exec_notification,
     exec_scalar_request,
 )
-from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
-    SandboxJSONRPCTransport,
-    SandboxToolsServerErrorMapper,
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
+    SandboxToolsErrorMapper,
 )
-from inspect_ai.tool._sandbox_tools_utils.sandbox import (
-    SANDBOX_TOOLS_CLI,
-    sandbox_with_injected_tools,
-)
+from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
 from ._context import MCPServerContext
 
@@ -42,8 +40,7 @@ async def sandbox_client(  # type: ignore
     sandbox_environment = await sandbox_with_injected_tools(sandbox_name=sandbox_name)
 
     # Create transport for all RPC calls
-    transport = SandboxJSONRPCTransport(sandbox_environment, SANDBOX_TOOLS_CLI)
-    server_error_mapper = SandboxToolsServerErrorMapper()
+    transport = SandboxJSONRPCTransport(sandbox_environment, SANDBOX_CLI)
 
     # read_stream is remote process's stdout
     read_stream: MemoryObjectReceiveStream[SessionMessage | Exception]
@@ -61,7 +58,7 @@ async def sandbox_client(  # type: ignore
         params={"server_params": server.model_dump()},
         result_type=int,
         transport=transport,
-        server_error_mapper=server_error_mapper,
+        error_mapper=SandboxToolsErrorMapper,
         timeout=timeout,
     )
 
@@ -87,7 +84,7 @@ async def sandbox_client(  # type: ignore
                                     },
                                     result_type=JSONRPCMessage,
                                     transport=transport,
-                                    server_error_mapper=server_error_mapper,
+                                    error_mapper=SandboxToolsErrorMapper,
                                     timeout=timeout,
                                 )
                             )
@@ -120,6 +117,6 @@ async def sandbox_client(  # type: ignore
                 params={"session_id": session_id},
                 result_type=type(None),
                 transport=transport,
-                server_error_mapper=server_error_mapper,
+                error_mapper=SandboxToolsErrorMapper,
                 timeout=timeout,
             )

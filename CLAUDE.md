@@ -21,3 +21,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Async Concurrency**: Use `inspect_ai._util._async.tg_collect()` instead of `asyncio.gather()` for running concurrent async tasks. Use `inspect_ai.util.collect()` only inside sample subtasks (it adds transcript span grouping).
 
 Respect existing code patterns when modifying files. Run linting before committing changes.
+
+## Subsystem Documentation
+
+Additional files provide context when working in specific areas:
+
+- [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/CLAUDE.md)
+- [View UI (TypeScript): build/lint/test commands for the frontend](src/inspect_ai/_view/www/CLAUDE.md)
+
+## Design Documentation
+
+- [Model Proxy Lifecycle: startup, communication, and termination flow](design/model-proxy-lifecycle.md)
+- [Timezone Handling Architecture: principles and patterns for temporal data](design/temporal-data-handling.md)

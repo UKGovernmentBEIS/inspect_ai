@@ -1,6 +1,6 @@
 [MASTER]
 ; Ignore .venv directories
-ignore-paths=.*/.venv/.*
+ignore-paths=.*/.venv/.*,.*node_modules/.*
 ; R - Refactorings
 ; C - Convention
 ; W - Warning
