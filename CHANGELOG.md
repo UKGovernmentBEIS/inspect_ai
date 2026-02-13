@@ -6,6 +6,7 @@
 - Sandboxes: Don't require Docker compatible sandboxes to implement `config_deserialize()`.
 - Limits: New `cost_limit()` context manager for scoped application of cost limits (can also be applied directly samples or agents).
 - Inspect View: Make samples in task detail sortable, inline epoch filter.
+- Sandboxes: New `exec_remote()` method on `SandboxEnvironment` for asynchronous execution of long-running commands with streaming output.
 
 ## 0.3.179 (12 February 2026)
 
