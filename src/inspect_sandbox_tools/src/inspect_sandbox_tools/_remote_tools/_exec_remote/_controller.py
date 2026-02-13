@@ -42,10 +42,11 @@ class Controller:
         job = self._get_job(pid)
         result = await job.poll()
 
-        # Auto-cleanup after terminal state
+        # Auto-cleanup after terminal state. Use pop to avoid KeyError if a
+        # concurrent kill() already removed the job between our await and here.
         if result.state in ("completed", "killed"):
-            del self._jobs[pid]
-            await job.cleanup()
+            if self._jobs.pop(pid, None) is not None:
+                await job.cleanup()
 
         return result
 
@@ -53,9 +54,10 @@ class Controller:
         """Terminate a running job and return any remaining buffered output."""
         job = self._get_job(pid)
         stdout, stderr = await job.kill()
-        # Clean up the job after killing
-        del self._jobs[pid]
-        await job.cleanup()
+        # Use pop to avoid KeyError if a concurrent poll() already removed the
+        # job between our await and here.
+        if self._jobs.pop(pid, None) is not None:
+            await job.cleanup()
         return KillResult(stdout=stdout, stderr=stderr)
 
     async def write_stdin(self, pid: int, data: str) -> WriteStdinResult:

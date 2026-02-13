@@ -256,7 +256,7 @@ class SandboxEnvironment(abc.ABC):
         1. Streaming (stream=True, default): iterate over events
            ```python
            proc = await sandbox.exec_remote(["pytest", "-v"])
-           async for event in proc.events:
+           async for event in proc:
                match event:
                    case StdoutChunk(data=data): print(data, end="")
                    case StderrChunk(data=data): print(data, end="", file=sys.stderr)
