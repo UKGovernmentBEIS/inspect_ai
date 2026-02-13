@@ -32,6 +32,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 
 from .anthropic_api import inspect_anthropic_api_request
 from .completions import inspect_completions_api_request
+from .google_api import inspect_google_api_request
 from .responses import inspect_responses_api_request
 from .util import (
     default_code_execution_providers,
@@ -179,6 +180,7 @@ def init_bridge_request_patch() -> None:
 
     init_openai_request_patch()
     init_anthropic_request_patch()
+    init_google_request_patch()
 
     _patch_initialised = True
 
@@ -328,6 +330,59 @@ def init_anthropic_request_patch() -> None:
         )
 
     setattr(AsyncAPIClient, "request", patched_request)
+
+
+def init_google_request_patch() -> None:
+    # don't patch if no google genai
+    if not importlib.util.find_spec("google.genai"):
+        return
+
+    from google.genai._api_client import BaseApiClient
+    from google.genai.types import HttpResponse as SdkHttpResponse
+
+    # get reference to original method
+    original_async_request = getattr(BaseApiClient, "async_request")
+    if original_async_request is None:
+        raise RuntimeError("Couldn't find 'async_request' method on BaseApiClient")
+
+    @wraps(original_async_request)
+    async def patched_async_request(
+        self: BaseApiClient,
+        http_method: str,
+        path: str,
+        request_dict: dict[str, object],
+        http_options: Any = None,
+    ) -> SdkHttpResponse:
+        config = _patch_config.get()
+        if config.enabled and ":generateContent" in path:
+            model_name = _google_api_model_name(path)
+            if model_name and targets_inspect_model({"model": model_name}):
+                if ":streamGenerateContent" in path:
+                    raise_stream_error()
+
+                response = await inspect_google_api_request(
+                    cast(dict[str, Any], request_dict),
+                    config.web_search,
+                    config.code_execution,
+                    config.bridge,
+                )
+                import json
+
+                return SdkHttpResponse(headers={}, body=json.dumps(response))
+
+        # otherwise just delegate
+        result: SdkHttpResponse = await original_async_request(
+            self, http_method, path, request_dict, http_options
+        )
+        return result
+
+    setattr(BaseApiClient, "async_request", patched_async_request)
+
+
+def _google_api_model_name(path: str) -> str | None:
+    """Extract model name from Google API path like 'models/inspect:generateContent'."""
+    match = re.search(r"models/([^/:]+)", path)
+    return match.group(1) if match else None
 
 
 def targets_inspect_model(json_data: dict[str, Any]) -> bool:
