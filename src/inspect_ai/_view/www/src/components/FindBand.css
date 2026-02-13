@@ -27,12 +27,19 @@
   background: var(--inspect-input-background);
 }
 
-#inspect-find-no-results {
-  font-size: 0.9em;
-  opacity: 0;
+.findBand-match-count {
+  font-size: 0.85em;
   margin-top: auto;
   margin-bottom: auto;
   margin-right: 0.5em;
+  white-space: nowrap;
+  color: var(--inspect-find-foreground);
+  opacity: 0.7;
+}
+
+.findBand-no-results {
+  opacity: 1;
+  color: var(--bs-danger, #dc3545);
 }
 
 .findBand .btn.next,
