@@ -117,13 +117,14 @@ async def sandboxenv_context(
         finally:
             # cleanup sandbox environment
             if environments and cleanup:
-                await cleanup_sandbox_environments_sample(
-                    type=sandbox.type,
-                    task_name=task_name,
-                    config=sandbox.config,
-                    environments=environments,
-                    interrupted=interrupted,
-                )
+                with anyio.CancelScope(shield=interrupted):
+                    await cleanup_sandbox_environments_sample(
+                        type=sandbox.type,
+                        task_name=task_name,
+                        config=sandbox.config,
+                        environments=environments,
+                        interrupted=interrupted,
+                    )
 
 
 def resolve_sample_files(files: dict[str, str]) -> dict[str, str]:
