@@ -69,7 +69,7 @@ async def sandbox_agent_bridge(
         web_search: Configuration for mapping model internal
             web_search tools to Inspect. By default, will map to the
             internal provider of the target model (supported for OpenAI,
-            Anthropic, Google, Grok, and Perplexity). Pass an alternate
+            Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
             configuration to use to use an external provider like
             Tavily or Exa for models that don't support internal search.
         code_execution: Configuration for mapping model internal
