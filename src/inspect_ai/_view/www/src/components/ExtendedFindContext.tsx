@@ -19,6 +19,9 @@ export type ExtendedFindFn = (
   onContentReady: () => void,
 ) => Promise<boolean>;
 
+// Count total matches across all data items
+export type ExtendedCountFn = (term: string) => number;
+
 // The context provides an extended search function and a way for the active
 // virtual lists to register themselves.
 interface ExtendedFindContextType {
@@ -26,7 +29,12 @@ interface ExtendedFindContextType {
     term: string,
     direction: "forward" | "backward",
   ) => Promise<boolean>;
-  registerVirtualList: (id: string, searchFn: ExtendedFindFn) => () => void;
+  registerVirtualList: (
+    id: string,
+    searchFn: ExtendedFindFn,
+    countFn?: ExtendedCountFn,
+  ) => () => void;
+  countAllMatches: (term: string) => number;
 }
 
 const ExtendedFindContext = createContext<ExtendedFindContextType | null>(null);
@@ -38,18 +46,14 @@ interface ExtendedFindProviderProps {
 export const ExtendedFindProvider = ({
   children,
 }: ExtendedFindProviderProps) => {
-  // The virtual lists that are currently active
   const virtualLists = useRef<Map<string, ExtendedFindFn>>(new Map());
+  const matchCounters = useRef<Map<string, ExtendedCountFn>>(new Map());
 
-  // Perform the extended search, then wait for the DOM to be ready
-  // (e.g. the item scrolled into view) before resolving/finishing the
-  // search.
   const extendedFindTerm = useCallback(
     async (
       term: string,
       direction: "forward" | "backward",
     ): Promise<boolean> => {
-      // Try each registered virtual list
       for (const [, searchFn] of virtualLists.current) {
         const found = await new Promise<boolean>((resolve) => {
           let callbackFired = false;
@@ -86,18 +90,35 @@ export const ExtendedFindProvider = ({
   );
 
   const registerVirtualList = useCallback(
-    (id: string, searchFn: ExtendedFindFn): (() => void) => {
+    (
+      id: string,
+      searchFn: ExtendedFindFn,
+      countFn?: ExtendedCountFn,
+    ): (() => void) => {
       virtualLists.current.set(id, searchFn);
+      if (countFn) {
+        matchCounters.current.set(id, countFn);
+      }
       return () => {
         virtualLists.current.delete(id);
+        matchCounters.current.delete(id);
       };
     },
     [],
   );
 
+  const countAllMatches = useCallback((term: string): number => {
+    let total = 0;
+    for (const [, countFn] of matchCounters.current) {
+      total += countFn(term);
+    }
+    return total;
+  }, []);
+
   const contextValue: ExtendedFindContextType = {
     extendedFindTerm,
     registerVirtualList,
+    countAllMatches,
   };
 
   return (

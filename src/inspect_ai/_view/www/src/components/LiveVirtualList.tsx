@@ -10,7 +10,11 @@ import {
 import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { usePrevious, useProperty } from "../state/hooks";
 import { useRafThrottle, useVirtuosoState } from "../state/scrolling";
-import { ExtendedFindFn, useExtendedFind } from "./ExtendedFindContext";
+import {
+  ExtendedFindFn,
+  ExtendedCountFn,
+  useExtendedFind,
+} from "./ExtendedFindContext";
 import { PulsingDots } from "./PulsingDots";
 
 import styles from "./LiveVirtualList.module.css";
@@ -71,7 +75,6 @@ export const LiveVirtualList = <T,>({
   const { getRestoreState, isScrolling, visibleRange, setVisibleRange } =
     useVirtuosoState(listHandle, `live-virtual-list-${id}`);
 
-  // Search functionality
   const { registerVirtualList } = useExtendedFind();
   const pendingSearchCallback = useRef<(() => void) | null>(null);
   const [isCurrentlyScrolling, setIsCurrentlyScrolling] = useState(false);
@@ -208,7 +211,26 @@ export const LiveVirtualList = <T,>({
     [itemSearchText, defaultItemSearchText, searchInText],
   );
 
-  // Search in data function
+  const scrollToMatch = useCallback(
+    (index: number, onContentReady: () => void) => {
+      pendingSearchCallback.current = onContentReady;
+
+      listHandle.current?.scrollToIndex({
+        index,
+        behavior: "auto",
+        align: "center",
+      });
+
+      setTimeout(() => {
+        if (pendingSearchCallback.current === onContentReady) {
+          pendingSearchCallback.current = null;
+          onContentReady();
+        }
+      }, 200);
+    },
+    [listHandle],
+  );
+
   const searchInData: ExtendedFindFn = useCallback(
     async (
       term: string,
@@ -217,35 +239,24 @@ export const LiveVirtualList = <T,>({
     ) => {
       if (!data.length || !term) return false;
 
-      const currentIndex =
-        direction === "forward"
-          ? visibleRange.endIndex
-          : visibleRange.startIndex;
-      const searchStart =
-        direction === "forward"
-          ? Math.max(0, currentIndex + 1)
-          : Math.min(data.length - 1, currentIndex - 1);
-      const step = direction === "forward" ? 1 : -1;
+      const isForward = direction === "forward";
+      const currentIndex = isForward
+        ? visibleRange.endIndex
+        : visibleRange.startIndex;
 
-      for (let i = searchStart; i >= 0 && i < data.length; i += step) {
+      // Search from current position to end, then wrap from beginning to current position
+      const len = data.length;
+      for (let offset = 1; offset < len; offset++) {
+        const i = isForward
+          ? (currentIndex + offset) % len
+          : (currentIndex - offset + len) % len;
+
+        // Skip items already in the visible range (window.find already checked them)
+        if (i >= visibleRange.startIndex && i <= visibleRange.endIndex)
+          continue;
+
         if (searchInItem(data[i], term)) {
-          // Found a match! Set up callback and scroll to it
-          pendingSearchCallback.current = onContentReady;
-
-          listHandle.current?.scrollToIndex({
-            index: i,
-            behavior: "auto",
-            align: "center",
-          });
-
-          // Fallback timeout if Virtuoso doesn't trigger scroll callbacks
-          setTimeout(() => {
-            if (pendingSearchCallback.current === onContentReady) {
-              pendingSearchCallback.current = null;
-              onContentReady();
-            }
-          }, 200);
-
+          scrollToMatch(i, onContentReady);
           return true;
         }
       }
@@ -257,15 +268,38 @@ export const LiveVirtualList = <T,>({
       searchInItem,
       visibleRange.endIndex,
       visibleRange.startIndex,
-      listHandle,
+      scrollToMatch,
     ],
   );
 
-  // Register with search context
+  const countMatchesInData: ExtendedCountFn = useCallback(
+    (term: string): number => {
+      if (!term || !data.length) return 0;
+      const prepared = prepareSearchTerm(term);
+      let total = 0;
+      const getSearchText = itemSearchText ?? defaultItemSearchText;
+
+      for (const item of data) {
+        const texts = getSearchText(item);
+        const textArray = Array.isArray(texts) ? texts : [texts];
+        for (const text of textArray) {
+          const lowerText = text.toLowerCase();
+          total += countSubstringMatches(lowerText, prepared);
+        }
+      }
+      return total;
+    },
+    [data, itemSearchText, defaultItemSearchText],
+  );
+
   useEffect(() => {
-    const unregister = registerVirtualList(id, searchInData);
+    const unregister = registerVirtualList(
+      id,
+      searchInData,
+      countMatchesInData,
+    );
     return unregister;
-  }, [id, registerVirtualList, searchInData]);
+  }, [id, registerVirtualList, searchInData, countMatchesInData]);
 
   const Footer = () => {
     return showProgress ? (
@@ -373,3 +407,36 @@ const prepareSearchTerm = (term: string): PreparedSearchTerms => {
     jsonEscaped: lower.replace(/"/g, '\\"'),
   };
 };
+
+function countInString(text: string, sub: string): number {
+  if (!sub) return 0;
+  let count = 0;
+  let pos = 0;
+  while ((pos = text.indexOf(sub, pos)) !== -1) {
+    count++;
+    pos += sub.length;
+  }
+  return count;
+}
+
+// Count substring matches using all prepared search variants.
+// Returns the count from the first matching variant (same priority as searchInText).
+function countSubstringMatches(
+  text: string,
+  prepared: PreparedSearchTerms,
+): number {
+  const simpleCount = countInString(text, prepared.simple);
+  if (simpleCount > 0) return simpleCount;
+
+  if (prepared.unquoted) {
+    const unquotedCount = countInString(text, prepared.unquoted);
+    if (unquotedCount > 0) return unquotedCount;
+  }
+
+  if (prepared.jsonEscaped) {
+    const jsonCount = countInString(text, prepared.jsonEscaped);
+    if (jsonCount > 0) return jsonCount;
+  }
+
+  return 0;
+}
