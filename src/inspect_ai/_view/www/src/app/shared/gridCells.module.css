@@ -52,3 +52,8 @@
   color: var(--bs-link-color);
   font-size: 12.8px;
 }
+
+.fullWidthHeight {
+  width: inherit;
+  height: inherit;
+}
