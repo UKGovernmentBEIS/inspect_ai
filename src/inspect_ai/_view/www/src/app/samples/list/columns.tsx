@@ -97,9 +97,7 @@ export function buildColumnDefs(
     {
       colId: "status",
       headerName: "",
-      headerComponent: () => (
-        <div title="Status" className={styles.fullWidthHeight} />
-      ),
+      headerTooltipValueGetter: () => "Status",
       width: 24,
       valueGetter: (params) => {
         if (!params.data) return "3:success";
@@ -111,7 +109,12 @@ export function buildColumnDefs(
         const s = sampleStatus(params.data.completed, params.data.data.error);
         return <SampleStatusIcon status={s} />;
       },
-      tooltipValueGetter: (params) => params.data?.data?.error ?? undefined,
+      tooltipValueGetter: (params) => {
+        if (!params.data) return null;
+        return params.data.data.error
+          ? params.data.data.error
+          : sampleStatus(params.data.completed, params.data.data.error);
+      },
     },
     {
       colId: "epoch",
