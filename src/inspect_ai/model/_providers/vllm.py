@@ -34,6 +34,14 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
+from ._vllm_lora import (
+    VLLMServerInfo,
+    ensure_adapter_loaded,
+    get_precomputed_lora_config,
+    get_server_for_model,
+    parse_vllm_model,
+    register_server,
+)
 from .openai_compatible import OpenAICompatibleAPI
 
 # Environment variable names
@@ -48,14 +56,24 @@ logger = logging.getLogger(__name__)
 
 class VLLMAPI(OpenAICompatibleAPI):
     """
-    Provider for using vLLM models.
+    Provider for using vLLM models with optional LoRA adapter support.
 
     This provider can either:
     1. Connect to an existing vLLM server (if base_url or port is provided)
     2. Start a new vLLM server for the specified model
 
+    LoRA Adapter Support:
+        Use the syntax "base-model:adapter" to specify a LoRA adapter.
+        Example: "meta-llama/Llama-3-8B:myorg/my-lora-adapter"
+
+        When an adapter is specified:
+        - The server is automatically started with --enable-lora
+        - The adapter is dynamically loaded on first request
+        - Multiple models can share the same server if they use the same base model
+
     Args:
-        model_name (str): Name or path of the model to use, e.g. "Devstral-Small-2505"
+        model_name (str): Name or path of the model to use. Optionally include
+            ":adapter" suffix to specify a LoRA adapter from HuggingFace or local path.
         base_url (str | None): Base URL of the vLLM server. If not provided, will use localhost.
         port (int | None): Port of the vLLM server. If not provided, will use a free port on localhost.
         api_key (str | None): API key for the vLLM server. If not provided, will use "inspectai" as default.
@@ -67,6 +85,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         host (str): Host to bind the server to (default: "0.0.0.0")
         configure_logging (bool): Enable fine-grained vLLM logging (default: False)
         device (str): Devices to run the server on. Can be a single device or a list of devices as used in CUDA_VISIBLE_DEVICES. If tensor_parallel_size is not provided, the server will use the number of devices as the tensor parallel size.
+        enable_lora (bool): Force LoRA mode even without :adapter syntax (default: auto-detected)
 
     Environment variables:
         VLLM_BASE_URL: Base URL for an existing vLLM server
@@ -86,6 +105,12 @@ class VLLMAPI(OpenAICompatibleAPI):
         retry_delay: int | None = None,
         **server_args: Any,
     ) -> None:
+        # Parse model name for LoRA adapter support
+        # Syntax: "base-model" or "base-model:adapter-path"
+        self.base_model, self.adapter_path, self.adapter_name = parse_vllm_model(
+            model_name
+        )
+
         # Validate inputs
         if base_url and port:
             raise ValueError("base_url and port cannot both be provided.")
@@ -103,21 +128,66 @@ class VLLMAPI(OpenAICompatibleAPI):
             VLLM_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
+        # Auto-configure LoRA from pre-computed config (covers all adapters
+        # sharing this base model) or from this instance's adapter alone.
+        precomputed = get_precomputed_lora_config(self.base_model)
+        if precomputed:
+            self.server_args.setdefault("enable_lora", precomputed["enable_lora"])
+            if "max_lora_rank" in precomputed:
+                self.server_args.setdefault(
+                    "max_lora_rank", precomputed["max_lora_rank"]
+                )
+        elif self.adapter_path and "enable_lora" not in self.server_args:
+            from ._vllm_lora import get_adapter_rank
+
+            self.server_args["enable_lora"] = True
+            rank = get_adapter_rank(self.adapter_path)
+            if rank is not None:
+                self.server_args.setdefault("max_lora_rank", rank)
+
+        # Track external base URL for server lookup
+        external_base_url = base_url
+
+        # Check for existing server for this base model
+        existing_server = get_server_for_model(self.base_model, external_base_url)
+        if existing_server is not None:
+            logger.info(
+                f"Reusing vLLM server for {self.base_model} at {existing_server.base_url}"
+            )
+            self.server_info = existing_server
+            super().__init__(
+                model_name=self.base_model,
+                base_url=existing_server.base_url,
+                api_key=existing_server.api_key,
+                config=config,
+                service="vLLM",
+                service_base_url=existing_server.base_url,
+            )
+            return
+
         self.server_found = True
         try:
             # Try to initialize with existing server
+            resolved_api_key = api_key or os.environ.get("VLLM_API_KEY", "dummy")
             super().__init__(
-                model_name=model_name,
+                model_name=self.base_model,
                 base_url=base_url,
-                api_key=api_key
-                or os.environ.get(
-                    "VLLM_API_KEY", "dummy"
-                ),  # we get the env var here so we can fallback to a non-none value
+                api_key=resolved_api_key,
                 config=config,
                 service="vLLM",
                 service_base_url=base_url,
             )
             logger.info(f"Using existing vLLM server at {self.base_url}")
+
+            # Register external server for reuse
+            assert self.base_url is not None
+            self.server_info = VLLMServerInfo(
+                base_url=self.base_url,
+                api_key=resolved_api_key,
+                lora_enabled=self.server_args.get("enable_lora", False),
+                is_external=True,
+            )
+            register_server(self.base_model, self.server_info, external_base_url)
             preq_err = None
         except PrerequisiteError as e:
             self.server_found = False
@@ -126,28 +196,44 @@ class VLLMAPI(OpenAICompatibleAPI):
         if not self.server_found:
             if preq_err:
                 logger.warning(
-                    f"vLLM server config has missing prerequisites {preq_err}. Starting new server for {model_name}."
+                    f"vLLM server config has missing prerequisites {preq_err}. "
+                    f"Starting new server for {self.base_model}."
                 )
             else:
                 logger.warning(
-                    f"Existing vLLM server not found. Starting new server for {model_name}."
+                    f"Existing vLLM server not found. Starting new server for {self.base_model}."
                 )
 
             # Extract and handle the configure_logging parameter
             configure_logging = self.server_args.pop("configure_logging", False)
             os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
 
+            # Set env var for runtime LoRA updating if LoRA is enabled
+            if self.server_args.get("enable_lora"):
+                os.environ["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] = "True"
+
             # Start the server
-            base_url, api_key = self._start_server(
-                model_name, api_key=api_key, port=self.port
+            base_url, resolved_api_key = self._start_server(
+                self.base_model, api_key=api_key, port=self.port
             )
             logger.warning(f"vLLM server started at {base_url}")
 
+            # Register spawned server for reuse
+            self.server_info = VLLMServerInfo(
+                base_url=base_url,
+                api_key=resolved_api_key,
+                port=self.port,
+                process=self.server_process,
+                lora_enabled=self.server_args.get("enable_lora", False),
+                is_external=False,
+            )
+            register_server(self.base_model, self.server_info, external_base_url)
+
             # Initialize with new server
             super().__init__(
-                model_name=model_name,
+                model_name=self.base_model,
                 base_url=base_url,
-                api_key=api_key,
+                api_key=resolved_api_key,
                 config=config,
                 service="vLLM",
                 service_base_url=base_url,
@@ -226,6 +312,17 @@ class VLLMAPI(OpenAICompatibleAPI):
     def retry_wait(self) -> WaitBaseT | None:
         return wait_fixed(self.retry_delay)
 
+    @override
+    def service_model_name(self) -> str:
+        """Return the model name to use in API requests.
+
+        vLLM's OpenAI-compatible API routes LoRA requests by the model field,
+        so we must send the adapter name instead of the base model.
+        """
+        if self.adapter_name:
+            return self.adapter_name
+        return self.base_model
+
     def _cleanup_server(self) -> None:
         """Cleanup method to terminate server process when Python exits."""
         if self.server_is_running and self.server_process is not None:
@@ -260,6 +357,16 @@ class VLLMAPI(OpenAICompatibleAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # Ensure LoRA adapter is loaded if needed (idempotent, async-safe)
+        if self.adapter_path:
+            # adapter_name is always set when adapter_path is set (from parse_vllm_model)
+            assert self.adapter_name is not None
+            await ensure_adapter_loaded(
+                self.server_info,
+                self.adapter_path,
+                self.adapter_name,
+            )
+
         # check if last message is an assistant message, in this case we want to
         # continue the final message instead of generating a new one
         if input[-1].role == "assistant":
