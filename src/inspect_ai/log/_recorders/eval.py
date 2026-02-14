@@ -74,12 +74,16 @@ class EvalRecorder(FileRecorder):
         return first_bytes == b"PK\x03\x04"  # ZIP local file header
 
     @override
-    def default_log_buffer(self, sample_count: int) -> int:
-        # .eval files are 5-8x smaller than .json files so we
-        # are much less worried about flushing frequently
-        # scale flushes in alignment with sample_count so small runs
-        # flush more often (sample by sample) and large runs less often
-        return max(1, min(math.floor(sample_count / 3), 10))
+    def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int:
+        if high_throughput:
+            # High-throughput: flush ~10 times over the run
+            return max(10, sample_count // 10)
+        else:
+            # .eval files are 5-8x smaller than .json files so we
+            # are much less worried about flushing frequently
+            # scale flushes in alignment with sample_count so small runs
+            # flush more often (sample by sample) and large runs less often
+            return max(1, min(math.floor(sample_count / 3), 10))
 
     def __init__(self, log_dir: str, fs_options: dict[str, Any] | None = None):
         super().__init__(log_dir, ".eval", fs_options)

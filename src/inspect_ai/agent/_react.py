@@ -70,8 +70,9 @@ def react(
     Use the `attempts` option to enable additional submissions if the initial
     submission(s) are incorrect (by default, no additional attempts are permitted).
 
-    By default, the model will be urged to continue if it fails to call
-    a tool. Customise this behavior using the `on_continue` option.
+    When using the `submit()` tool, the model will be urged to continue if it
+    fails to call a tool. When not using a `submit()` tool, the agent will terminate
+    if it fails to call a tool. Customise this behavior using the `on_continue` option.
 
     Args:
        name: Agent name (required when using with `handoff()` or `as_tool()`)
