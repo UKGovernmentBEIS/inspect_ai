@@ -7,15 +7,15 @@ from ._span import SpanBeginEvent, SpanEndEvent
 
 logger = getLogger(__name__)
 
-EventNode: TypeAlias = Union["SpanNode", Event]
+EventTreeNode: TypeAlias = Union["EventTreeSpan", Event]
 """Node in an event tree."""
 
-EventTree: TypeAlias = list[EventNode]
+EventTree: TypeAlias = list[EventTreeNode]
 """Tree of events (has invividual events and event spans)."""
 
 
 @dataclass
-class SpanNode:
+class EventTreeSpan:
     """Event tree node representing a span of events."""
 
     id: str
@@ -36,7 +36,7 @@ class SpanNode:
     end: SpanEndEvent | None = None
     """Span end event (if any)."""
 
-    children: list[EventNode] = field(default_factory=list)
+    children: list[EventTreeNode] = field(default_factory=list)
     """Children in the span."""
 
 
@@ -58,18 +58,18 @@ def event_tree(events: Sequence[Event]) -> EventTree:
     # arrive in the file. A single forward scan guarantees that the order of
     # `children` inside every span reflects the order in which things appeared
     # in the transcript.
-    nodes: dict[str, SpanNode] = {
-        ev.id: SpanNode(
+    nodes: dict[str, EventTreeSpan] = {
+        ev.id: EventTreeSpan(
             id=ev.id, parent_id=ev.parent_id, type=ev.type, name=ev.name, begin=ev
         )
         for ev in events
         if isinstance(ev, SpanBeginEvent)
     }
 
-    roots: list[EventNode] = []
+    roots: list[EventTreeNode] = []
 
     # Where should an event with `span_id` go?
-    def bucket(span_id: str | None) -> list[EventNode]:
+    def bucket(span_id: str | None) -> list[EventTreeNode]:
         if span_id and span_id in nodes:
             return nodes[span_id].children
         return roots  # root level
@@ -101,7 +101,7 @@ def event_sequence(tree: EventTree) -> Iterable[Event]:
         Sequence of events.
     """
     for item in tree:
-        if isinstance(item, SpanNode):
+        if isinstance(item, EventTreeSpan):
             yield item.begin
             yield from event_sequence(item.children)
             if item.end:
@@ -110,9 +110,9 @@ def event_sequence(tree: EventTree) -> Iterable[Event]:
             yield item
 
 
-def walk_node_spans(tree: EventTree) -> Iterable[SpanNode]:
+def walk_node_spans(tree: EventTree) -> Iterable[EventTreeSpan]:
     for item in tree:
-        if not isinstance(item, SpanNode):
+        if not isinstance(item, EventTreeSpan):
             continue
         yield item
         yield from walk_node_spans(item.children)
@@ -120,7 +120,7 @@ def walk_node_spans(tree: EventTree) -> Iterable[SpanNode]:
 
 def _print_event_tree(tree: EventTree, indent: str = "") -> None:
     for item in tree:
-        if isinstance(item, SpanNode):
+        if isinstance(item, EventTreeSpan):
             print(f"{indent}span ({item.type}): {item.name}")
             _print_event_tree(item.children, f"{indent}  ")
         else:

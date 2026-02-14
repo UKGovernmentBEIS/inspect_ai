@@ -1,3 +1,5 @@
+from inspect_ai._util.deprecation import relocated_module_attribute
+
 from ._approval import ApprovalEvent
 from ._compaction import CompactionEvent
 from ._error import ErrorEvent
@@ -17,7 +19,7 @@ from ._step import StepEvent
 from ._store import StoreEvent
 from ._subtask import SubtaskEvent
 from ._tool import ToolEvent
-from ._tree import EventNode, EventTree, SpanNode, event_sequence, event_tree
+from ._tree import EventTree, EventTreeNode, EventTreeSpan, event_sequence, event_tree
 
 __all__ = [
     "Event",
@@ -45,6 +47,23 @@ __all__ = [
     "event_tree",
     "event_sequence",
     "EventTree",
-    "EventNode",
-    "SpanNode",
+    "EventTreeSpan",
+    "EventTreeNode",
 ]
+
+_EVENT_TREE_VERSION_0_3_180 = "0.3.180"
+_REMOVED_IN = "0.4"
+
+relocated_module_attribute(
+    "EventNode",
+    "inspect_ai.event.EventTreeNode",
+    _EVENT_TREE_VERSION_0_3_180,
+    _REMOVED_IN,
+)
+
+relocated_module_attribute(
+    "SpanNode",
+    "inspect_ai.event.EventTreeSpan",
+    _EVENT_TREE_VERSION_0_3_180,
+    _REMOVED_IN,
+)

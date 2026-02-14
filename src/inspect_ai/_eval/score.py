@@ -29,7 +29,12 @@ from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.event._event import Event
 from inspect_ai.event._score import ScoreEvent
-from inspect_ai.event._tree import SpanNode, event_sequence, event_tree, walk_node_spans
+from inspect_ai.event._tree import (
+    EventTreeSpan,
+    event_sequence,
+    event_tree,
+    walk_node_spans,
+)
 from inspect_ai.log import (
     EvalLog,
 )
@@ -139,11 +144,11 @@ def _get_updated_events(
         return [*sample.events, *new_events]
 
     (new_scorers_tree,) = event_tree(new_events)
-    assert isinstance(new_scorers_tree, SpanNode)
+    assert isinstance(new_scorers_tree, EventTreeSpan)
     if action == "append":
         # Add the new score nodes to the existing scorer node's children
         for child in new_scorers_tree.children:
-            if isinstance(child, SpanNode):
+            if isinstance(child, EventTreeSpan):
                 child.parent_id = final_scorers_node.id
         final_scorers_node.children.extend(new_scorers_tree.children)
     else:
