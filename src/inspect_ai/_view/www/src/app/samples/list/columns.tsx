@@ -8,9 +8,10 @@ import { RenderedText } from "../../content/RenderedText";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { ScoreLabel } from "../../../app/types";
 import {
+  kDefaultSampleSortValue,
   sampleStatus,
   SampleStatusIcon,
-  sampleStatusValue,
+  sampleStatusSortValue,
 } from "../status/sampleStatus";
 import styles from "./SampleList.module.css";
 
@@ -72,6 +73,28 @@ export function buildColumnDefs(
 
   const columns: ColDef<SampleListItem>[] = [
     {
+      colId: "sampleStatus",
+      headerName: "",
+      headerTooltipValueGetter: () => "Sample Status",
+      width: 24,
+      valueGetter: (params) => {
+        if (!params.data) return kDefaultSampleSortValue;
+        const s = sampleStatus(params.data.completed, params.data.data.error);
+        return sampleStatusSortValue(s, params.data.data.error);
+      },
+      cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
+        if (!params.data) return null;
+        const s = sampleStatus(params.data.completed, params.data.data.error);
+        return <SampleStatusIcon status={s} />;
+      },
+      tooltipValueGetter: (params) => {
+        if (!params.data) return null;
+        return params.data.data.error
+          ? params.data.data.error
+          : sampleStatus(params.data.completed, params.data.data.error);
+      },
+    },
+    {
       colId: "id",
       headerName: "Id",
       width: (shape?.idSize ?? 2) * 16, // 16 for 1em in pixels
@@ -92,28 +115,6 @@ export function buildColumnDefs(
             {params.data.data.id}
           </div>
         );
-      },
-    },
-    {
-      colId: "status",
-      headerName: "",
-      headerTooltipValueGetter: () => "Status",
-      width: 24,
-      valueGetter: (params) => {
-        if (!params.data) return "3:success";
-        const s = sampleStatus(params.data.completed, params.data.data.error);
-        return sampleStatusValue(s, params.data.data.error);
-      },
-      cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
-        if (!params.data) return null;
-        const s = sampleStatus(params.data.completed, params.data.data.error);
-        return <SampleStatusIcon status={s} />;
-      },
-      tooltipValueGetter: (params) => {
-        if (!params.data) return null;
-        return params.data.data.error
-          ? params.data.data.error
-          : sampleStatus(params.data.completed, params.data.data.error);
       },
     },
     {

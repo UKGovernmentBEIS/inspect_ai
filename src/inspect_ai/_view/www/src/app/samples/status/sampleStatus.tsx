@@ -1,41 +1,46 @@
 import clsx from "clsx";
-import { FC } from "react";
-import { Status } from "../../../@types/log";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { ApplicationIcons } from "../../appearance/icons";
 import { errorType } from "../error/error";
 import styles from "./sampleStatus.module.css";
 
-/** Derive a `Status` from completed flag + error string. */
-export const sampleStatus = (completed: boolean, error?: string): Status => {
+type SampleStatus = "running" | "ok" | "error" | "cancelled";
+export const sampleStatus = (
+  completed?: boolean,
+  error?: string,
+): SampleStatus => {
   if (error) {
     return errorType(error) === "CancelledError" ? "cancelled" : "error";
   }
-  return completed ? "success" : "started";
+  return completed ? "ok" : "running";
 };
 
 /** Sortable string value for use as ag-grid valueGetter.
  *  Prefix gives desired sort order (started → error → cancelled → success);
  *  error rows additionally include the error type for sub-sorting. */
-export const sampleStatusValue = (status: Status, error?: string): string => {
+export const kDefaultSampleSortValue = "3:ok";
+export const sampleStatusSortValue = (
+  status: SampleStatus,
+  error?: string,
+): string => {
   switch (status) {
-    case "started":
-      return "0:started";
+    case "running":
+      return "0:running";
     case "error":
       return `1:error:${errorType(error)}`;
     case "cancelled":
       return "2:cancelled";
-    case "success":
-      return "3:success";
+    default:
+      return kDefaultSampleSortValue;
   }
 };
 
 interface SampleStatusIconProps {
-  status: Status;
+  status: SampleStatus;
 }
 
-export const SampleStatusIcon: FC<SampleStatusIconProps> = ({ status }) => {
-  if (status === "started") {
+export const SampleStatusIcon = ({ status }: SampleStatusIconProps) => {
+  if (status === "running") {
     return (
       <div className={styles.statusCell}>
         <PulsingDots subtle={false} />
