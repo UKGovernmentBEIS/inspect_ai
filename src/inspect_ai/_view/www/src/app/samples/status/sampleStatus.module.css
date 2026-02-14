@@ -1,0 +1,17 @@
+.statusCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.error {
+  color: var(--bs-danger);
+}
+
+.success {
+  color: var(--bs-success);
+}
+
+.cancelled {
+  color: var(--bs-secondary);
+}

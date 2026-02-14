@@ -224,6 +224,7 @@ export const SamplesGrid: FC<SamplesGridProps> = ({
             filter: true,
             resizable: true,
           }}
+          tooltipShowDelay={300}
           autoSizeStrategy={{ type: "fitGridWidth" }}
           headerHeight={25}
           rowSelection={{ mode: "singleRow", checkboxes: false }}

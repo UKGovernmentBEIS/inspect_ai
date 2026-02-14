@@ -7,7 +7,7 @@
 - Limits: New `cost_limit()` context manager for scoped application of cost limits (can also be applied directly samples or agents).
 - Performance: Disable expensive per-sample options (realtime log and score display, frequent log flushing) when running with high-throughput (max_samples >= 100 or samples>=1000).
 - Sandboxes: New `exec_remote()` method on `SandboxEnvironment` for asynchronous execution of long-running commands with streaming output.
-- Inspect View: Make samples in task detail sortable, inline epoch filter.
+- Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.
 - Bugfix: Shield sandbox cleanup after cancelled exception.
 
 

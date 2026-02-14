@@ -39,6 +39,5 @@ export const SampleErrorView: FC<SampleErrorViewProps> = ({
 };
 
 const isCanceledError = (type?: string) => {
-  console.log(type);
   return type === "CancelledError";
 };
