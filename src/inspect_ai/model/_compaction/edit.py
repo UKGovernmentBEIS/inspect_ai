@@ -67,7 +67,7 @@ class CompactionEdit(CompactionStrategy):
                 should never be cleared. Useful for preserving important
                 context.
         """
-        super().__init__(threshold, memory)
+        super().__init__(type="edit", threshold=threshold, memory=memory)
         self.keep_thinking_turns = keep_thinking_turns
         self.keep_tool_uses = keep_tool_uses
         self.keep_tool_inputs = keep_tool_inputs

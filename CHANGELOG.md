@@ -5,6 +5,7 @@
 - Analysis: Async reading of logs/samples in `samples_df()` (now 50x faster).
 - Sandboxes: Don't require Docker compatible sandboxes to implement `config_deserialize()`.
 - Sandboxes: New `exec_remote()` method for async execution of long-running commands.
+- Compaction: Add `type` field to `CompactionEvent` to record compaction type.
 - Limits: New `cost_limit()` context manager for scoped application of cost limits.
 - Performance: Disable expensive per-sample options when running high-throughput workloads.
 - Events: Rename `EventNode` to `EventTreeNode` and `SpanNode` to `EventTreeSpan` (old type names will still work at runtime with a deprecation warning).

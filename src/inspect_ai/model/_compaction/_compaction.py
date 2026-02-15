@@ -187,6 +187,7 @@ def compaction(
             compacted_tokens = await target_model.count_tokens(compacted_input)
             transcript()._event(
                 CompactionEvent(
+                    type=strategy.type,
                     source="inspect",
                     tokens_before=total_tokens,
                     tokens_after=compacted_tokens,

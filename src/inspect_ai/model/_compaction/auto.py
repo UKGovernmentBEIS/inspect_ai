@@ -43,7 +43,7 @@ class CompactionAuto(CompactionStrategy):
                 native compaction and enable it for summary compaction.
         """
         # Don't pass memory to base - we'll handle it via property
-        super().__init__(threshold=threshold, memory=False)
+        super().__init__(type="summary", threshold=threshold, memory=False)
         self._instructions = instructions
         self._memory_setting = memory
 

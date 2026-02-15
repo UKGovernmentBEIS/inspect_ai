@@ -41,7 +41,7 @@ class CompactionSummary(CompactionStrategy):
                 Include an `{addendums}` placeholder in your prompt to include custom
                 `instructions` and a prompt to use the `memory()` tool when its available.
         """
-        super().__init__(threshold=threshold, memory=memory)
+        super().__init__(type="summary", threshold=threshold, memory=memory)
         self.model = get_model(model) if model is not None else model
         self.instructions = instructions
         self.prompt = prompt or self.DEFAULT_SUMMARY_PROMPT

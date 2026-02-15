@@ -643,6 +643,7 @@ export type Metadata25 = {
 } | null;
 export type Pending8 = boolean | null;
 export type Event8 = "compaction";
+export type Type20 = "summary" | "edit" | "trim";
 export type TokensBefore = number | null;
 export type TokensAfter = number | null;
 export type Source4 = string | null;
@@ -735,7 +736,7 @@ export type Pending15 = boolean | null;
 export type Event15 = "span_begin";
 export type Id10 = string;
 export type ParentId = string | null;
-export type Type20 = string | null;
+export type Type21 = string | null;
 export type Name12 = string;
 export type Uuid16 = string | null;
 export type SpanId16 = string | null;
@@ -757,7 +758,7 @@ export type Metadata34 = {
 export type Pending17 = boolean | null;
 export type Event17 = "step";
 export type Action1 = "begin" | "end";
-export type Type21 = string | null;
+export type Type22 = string | null;
 export type Name13 = string;
 export type Uuid18 = string | null;
 export type SpanId18 = string | null;
@@ -769,7 +770,7 @@ export type Metadata35 = {
 export type Pending18 = boolean | null;
 export type Event18 = "subtask";
 export type Name14 = string;
-export type Type22 = string | null;
+export type Type23 = string | null;
 export type Events2 = unknown[];
 export type Completed3 = string | null;
 export type WorkingTime2 = number | null;
@@ -800,7 +801,7 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid19 = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type Type23 =
+export type Type24 =
   | "context"
   | "time"
   | "working"
@@ -1816,6 +1817,7 @@ export interface CompactionEvent {
   metadata: Metadata25;
   pending: Pending8;
   event: Event8;
+  type: Type20;
   tokens_before: TokensBefore;
   tokens_after: TokensAfter;
   source: Source4;
@@ -1932,7 +1934,7 @@ export interface SpanBeginEvent {
   event: Event15;
   id: Id10;
   parent_id: ParentId;
-  type: Type20;
+  type: Type21;
   name: Name12;
 }
 /**
@@ -1960,7 +1962,7 @@ export interface StepEvent {
   pending: Pending17;
   event: Event17;
   action: Action1;
-  type: Type21;
+  type: Type22;
   name: Name13;
 }
 /**
@@ -1975,7 +1977,7 @@ export interface SubtaskEvent {
   pending: Pending18;
   event: Event18;
   name: Name14;
-  type: Type22;
+  type: Type23;
   input: Input5;
   result: Result3;
   events: Events2;
@@ -1998,7 +2000,7 @@ export interface Attachments {
  * Limit encountered by sample.
  */
 export interface EvalSampleLimit {
-  type: Type23;
+  type: Type24;
   limit: Limit2;
 }
 /**
