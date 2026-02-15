@@ -20,8 +20,8 @@ title: "inspect_ai.event"
 ### event_tree
 ### event_sequence
 ### EventTree
-### EventNode
-### SpanNode
+### EventTreeSpan
+### EventTreeNode
 
 ## Eval Events
 
