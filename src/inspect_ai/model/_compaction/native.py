@@ -43,7 +43,7 @@ class CompactionNative(CompactionStrategy):
             memory: Whether to warn the model to save critical content to memory
                 prior to compaction. Default is False.
         """
-        super().__init__(threshold=threshold, memory=memory)
+        super().__init__(type="summary", threshold=threshold, memory=memory)
         self._instructions = instructions
 
     @property
