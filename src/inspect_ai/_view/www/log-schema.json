@@ -916,6 +916,16 @@
           "title": "Event",
           "type": "string"
         },
+        "type": {
+          "default": "summary",
+          "enum": [
+            "summary",
+            "edit",
+            "trim"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
         "tokens_before": {
           "anyOf": [
             {
@@ -963,6 +973,7 @@
         "metadata",
         "pending",
         "event",
+        "type",
         "tokens_before",
         "tokens_after",
         "source"

@@ -1,5 +1,5 @@
 import abc
-from typing import Protocol
+from typing import Literal, Protocol
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._model import Model
@@ -12,16 +12,20 @@ class CompactionStrategy(abc.ABC):
 
     def __init__(
         self,
+        *,
+        type: Literal["summary", "edit", "trim"],
         threshold: int | float = 0.9,
         memory: bool = True,
     ):
         """Compaction strategy.
 
         Args:
+            type: Type of compaction performed.
             threshold: Token count or percent of context window to trigger compaction.
             memory: Warn the model to save critical content to memory prior
                 to compaction when the memory tool is available.
         """
+        self.type = type
         self.threshold = threshold
         self._memory = memory
 
