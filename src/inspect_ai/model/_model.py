@@ -1362,7 +1362,7 @@ def get_model(
             model = model.split(",")[0]
         else:
             raise ValueError(
-                "No model specified (and no model environment varible defined)"
+                "No model specified (and no model environment variable defined)"
             )
 
     # see if we can return a memoized model instance

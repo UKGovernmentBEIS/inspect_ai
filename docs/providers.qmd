@@ -607,6 +607,26 @@ Or in a call to `get_model()`
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
+### Chat Templates
+
+For Hugging Face models, Inspect will use a tokenizer chat template when available. 
+Use the `chat_template` model arg to override the tokenizer template, and
+`use_chat_template=false` to bypass chat-template rendering entirely.
+
+For example:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base \
+  -M "chat_template={% for message in messages %}{{ message.content }}{% endfor %}" \
+  -M use_chat_template=true
+```
+
+Or to bypass templates:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
 ### Hidden States
 
 If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:

@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import traceback
+import unicodedata
 from types import TracebackType
 from typing import Any, Tuple, Type
 
@@ -14,6 +15,14 @@ from rich.traceback import Traceback
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.text import truncate_lines
+
+
+def tool_result_display(
+    text: str, max_lines: int = 100, style: str | Style = ""
+) -> list[RenderableType]:
+    return lines_display(
+        clean_control_characters(text), max_lines=max_lines, style=style
+    )
 
 
 def lines_display(
@@ -32,6 +41,14 @@ def lines_display(
         )
 
     return content
+
+
+# clean control characters sent by untrusted sources (e.g. tool output)
+# which can trigger rich text measurement bugs
+def clean_control_characters(text: str) -> str:
+    return "".join(
+        c for c in text if c in "\n\t" or unicodedata.category(c) not in ("Cc", "Cf")
+    )
 
 
 def rich_traceback(

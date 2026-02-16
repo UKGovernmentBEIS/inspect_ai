@@ -44,8 +44,6 @@ def model_with_stop_seqs():
         chat_template=DEFAULT_CHAT_TEMPLATE,
         tokenizer_call_args={"truncation": True, "max_length": 10},
     )
-    # Chat template is not propagated by default from get_model to the model's tokenizer.
-    model.api.tokenizer.chat_template = DEFAULT_CHAT_TEMPLATE
     return model
 
 
@@ -85,3 +83,21 @@ async def test_hf_api_fails(model) -> None:
             await model.generate(input=[message])
     finally:
         model.config.temperature = temp_before
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_disable_chat_template() -> None:
+    model = get_model(
+        "hf/EleutherAI/pythia-70m",
+        config=GenerateConfig(
+            max_tokens=1,
+            seed=42,
+            temperature=0.01,
+        ),
+        chat_template="{% for message in messages %}[{{ message.role }}] {{ message.content }}{% endfor %}",
+        use_chat_template=False,
+    )
+    message = ChatMessageUser(content="Lorem ipsum dolor")
+    chat = model.api.hf_chat([message], [])  # type: ignore[attr-defined]
+    assert chat == "user: Lorem ipsum dolor\n"
