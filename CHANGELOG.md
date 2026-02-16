@@ -3,6 +3,7 @@
 - Agent Bridge: Google Gemini API is now supported for in-process and sandbox bridges.
 - Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.\
 - Hugging Face: More flexible control over application of chat templates (enables support for generation from base models).
+- VLLM: Don't retry when the error indicates that the VLLM server has crashed.
 - Analysis: Async reading of logs/samples in `samples_df()` (now 50x faster).
 - Sandboxes: Don't require Docker compatible sandboxes to implement `config_deserialize()`.
 - Sandboxes: New `exec_remote()` method for async execution of long-running commands.
