@@ -1,14 +1,18 @@
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { PulsingDots } from "../../../components/PulsingDots";
 import { arrayToString, inputString } from "../../../utils/format";
 import { truncateMarkdown } from "../../../utils/markdown";
 import { SampleListItem } from "../../log-view/tabs/types";
 import { RenderedText } from "../../content/RenderedText";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
-import { SampleErrorView } from "../error/SampleErrorView";
 import { ScoreLabel } from "../../../app/types";
+import {
+  kDefaultSampleSortValue,
+  sampleStatus,
+  SampleStatusIcon,
+  sampleStatusSortValue,
+} from "../status/sampleStatus";
 import styles from "./SampleList.module.css";
 
 /** Wrapper for the score column cells (used in every branch of the score renderer). */
@@ -68,6 +72,28 @@ export function buildColumnDefs(
         : (selectedScores?.map((s) => s.name) ?? []);
 
   const columns: ColDef<SampleListItem>[] = [
+    {
+      colId: "sampleStatus",
+      headerName: "",
+      headerTooltipValueGetter: () => "Sample Status",
+      width: 24,
+      valueGetter: (params) => {
+        if (!params.data) return kDefaultSampleSortValue;
+        const s = sampleStatus(params.data.completed, params.data.data.error);
+        return sampleStatusSortValue(s, params.data.data.error);
+      },
+      cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
+        if (!params.data) return null;
+        const s = sampleStatus(params.data.completed, params.data.data.error);
+        return <SampleStatusIcon status={s} />;
+      },
+      tooltipValueGetter: (params) => {
+        if (!params.data) return null;
+        return params.data.data.error
+          ? params.data.data.error
+          : sampleStatus(params.data.completed, params.data.data.error);
+      },
+    },
     {
       colId: "id",
       headerName: "Id",
@@ -247,34 +273,9 @@ export function buildColumnDefs(
         if (completed && rendered !== undefined) {
           return <ScoreCellDiv>{rendered}</ScoreCellDiv>;
         }
-        if (!completed && i === selectedScores.length - 1) {
-          return (
-            <ScoreCellDiv>
-              <PulsingDots subtle={false} />
-            </ScoreCellDiv>
-          );
-        }
         return <ScoreCellDiv />;
       },
     });
-  });
-
-  // Standalone error column — only visible when at least one sample has an error
-  columns.push({
-    colId: "error",
-    headerName: "Error",
-    width: (shape?.errorSize ?? 1) * 16,
-    minWidth: 28,
-    hide: !shape?.errorSize,
-    valueGetter: (params) => params.data?.data?.error ?? "",
-    cellRenderer: (params: ICellRendererParams<SampleListItem>) => {
-      if (!params.data?.data?.error) return null;
-      return (
-        <div className={clsx("sample-error", "text-size-small", styles.cell)}>
-          <SampleErrorView message={params.data.data.error} />
-        </div>
-      );
-    },
   });
 
   return columns;
