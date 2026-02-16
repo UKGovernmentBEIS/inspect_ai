@@ -35,7 +35,7 @@ class CompactionTrim(CompactionStrategy):
                 to compaction when the memory tool is available.
             preserve: Ratio of conversation messages to preserve (defaults to 0.8).
         """
-        super().__init__(threshold=threshold, memory=memory)
+        super().__init__(type="trim", threshold=threshold, memory=memory)
         self.preserve = preserve
 
     @override

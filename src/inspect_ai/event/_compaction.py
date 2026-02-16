@@ -11,6 +11,9 @@ class CompactionEvent(BaseEvent):
     event: Literal["compaction"] = Field(default="compaction")
     """Event type."""
 
+    type: Literal["summary", "edit", "trim"] = Field(default="summary")
+    """Compaction type."""
+
     tokens_before: int | None = Field(default=None)
     """Tokens before compaction."""
 
