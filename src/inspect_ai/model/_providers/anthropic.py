@@ -777,7 +777,11 @@ class AnthropicAPI(ModelAPI):
                 max_tokens = max_tokens + config.reasoning_tokens
 
         # apply caps after bumping for reasoning
-        if self.is_claude_4_opus():
+        if self.is_claude_4_6():
+            max_tokens = min(max_tokens, 128000)
+        elif self.is_claude_4_5():
+            max_tokens = min(max_tokens, 64000)
+        elif self.is_claude_4_opus():
             max_tokens = min(max_tokens, 32000)
         elif self.is_claude_3_7():
             max_tokens = min(max_tokens, 128000)
