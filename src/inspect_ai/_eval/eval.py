@@ -2,6 +2,7 @@ import copy
 import logging
 import os
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -24,6 +25,7 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._cli.util import parse_cli_args
+from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
@@ -1227,7 +1229,9 @@ def eval_resolve_tasks(
     init_model_roles(resolved_model_roles or {})
 
     task_args = resolve_args(task_args)
-    with task_display().suspend_task_app():
+    # To support inspect-flow using this method directly, make sure not to create the display if it does not already exist.
+    active_display = active_task_display()
+    with active_display.suspend_task_app() if active_display else nullcontext():
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
             init_active_model(m, config)
