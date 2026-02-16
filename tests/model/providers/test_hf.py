@@ -99,5 +99,5 @@ def test_hf_disable_chat_template() -> None:
         use_chat_template=False,
     )
     message = ChatMessageUser(content="Lorem ipsum dolor")
-    chat = model.api.hf_chat([message], [])
+    chat = model.api.hf_chat([message], [])  # type: ignore[attr-defined]
     assert chat == "user: Lorem ipsum dolor\n"

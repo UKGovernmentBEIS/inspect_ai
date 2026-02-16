@@ -299,7 +299,7 @@ class HuggingFaceAPI(ModelAPI):
             for message in hf_messages:
                 chat += f"{message.role}: {message.content}\n"
         # return
-        return cast(str, chat)
+        return chat
 
     def _apply_chat_template(
         self,
