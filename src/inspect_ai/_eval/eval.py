@@ -860,6 +860,7 @@ def eval_retry(
             If true, will attempt to restart local vLLM instance.
         model_base_url:
             Optional override for the model API base URL used during retry.
+
     Returns:
         List of EvalLog (one for each task)
     """
@@ -975,6 +976,7 @@ async def eval_retry_async(
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         vllm_restart_local: If true, will attempt to restart local vLLM instance (defaults to False).
         model_base_url: Optional override for the model API base URL used during retry. If provided, this takes precedence over the base URL recorded in the original eval log.
+
     Returns:
         List of EvalLog (one for each task)
     """
