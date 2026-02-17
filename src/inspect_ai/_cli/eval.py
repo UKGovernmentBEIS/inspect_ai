@@ -1331,6 +1331,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
     help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
 )
+@click.option(
+    "--vllm-restart-local",
+    is_flag=True,
+    default=False,
+    help="If retrying vllm/* with a dead localhost endpoint, start a fresh local vLLM server.",
+)
+@click.option("--model-base-url", type=str, help="Base URL for model API")
 @common_options
 def eval_retry_command(
     log_files: tuple[str, ...],
@@ -1356,6 +1363,8 @@ def eval_retry_command(
     timeout: int | None,
     attempt_timeout: int | None,
     log_level_transcript: str,
+    vllm_restart_local: bool,
+    model_base_url: str | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
@@ -1412,4 +1421,6 @@ def eval_retry_command(
         timeout=timeout,
         attempt_timeout=attempt_timeout,
         max_connections=max_connections,
+        vllm_restart_local=vllm_restart_local,
+        model_base_url=model_base_url,
     )
