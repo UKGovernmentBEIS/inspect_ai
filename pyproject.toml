@@ -154,7 +154,7 @@ inspect = "inspect_ai._cli.main:main"
 [project.optional-dependencies]
 dev = [
   "adlfs>=2025.8.0",
-  "anthropic>=0.78.0",
+  "anthropic>=0.80.0",
   "azure-identity",
   "azure-ai-inference",
   "fastapi",
