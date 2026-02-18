@@ -14,6 +14,7 @@
 - Performance: Disable expensive per-sample options when running high-throughput workloads.
 - Events: Rename `EventNode` to `EventTreeNode` and `SpanNode` to `EventTreeSpan` (old type names will still work at runtime with a deprecation warning).
 - Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.
+- Bugfix: Correctly load registry objects from Python modules.
 - Bugfix: Shield sandbox cleanup after cancelled exception.
 - Bugfix: Protect against leading zero-width characters when printing tool output to the terminal.
 
