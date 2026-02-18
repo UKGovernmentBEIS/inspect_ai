@@ -144,21 +144,38 @@ def view_server_app(
         await _validate_read(request, file)
         mapped_file = await _map_file(request, file)
 
-        # Get actual file size to ensure Content-Length is accurate
+        # Get actual file size to clamp the requested range
         file_size = await get_log_size(mapped_file)
 
-        # Clamp end to actual file size to prevent Content-Length mismatch
+        if start >= file_size:
+            return Response(
+                status_code=416,
+                headers={"Content-Range": f"bytes */{file_size}"},
+            )
+
         actual_end = min(end, file_size - 1)
-        actual_content_length = actual_end - start + 1
 
         response = await stream_log_bytes(
             mapped_file, start, actual_end, log_file_size=file_size
         )
-        return StreamingResponse(
-            content=response,
-            headers={"Content-Length": str(actual_content_length)},
-            media_type="application/octet-stream",
-        )
+
+        if isinstance(response, BytesIO):
+            # For in-memory responses, Content-Length is known exactly
+            content_length = response.getbuffer().nbytes
+            return StreamingResponse(
+                content=response,
+                headers={"Content-Length": str(content_length)},
+                media_type="application/octet-stream",
+            )
+        else:
+            # For S3 streaming responses, omit Content-Length to use chunked
+            # transfer encoding. The file may change between get_log_size()
+            # and the actual S3 read (e.g. in-progress evals being rewritten),
+            # which would cause a Content-Length mismatch.
+            return StreamingResponse(
+                content=response,
+                media_type="application/octet-stream",
+            )
 
     @app.get("/log-download/{log:path}")
     async def api_log_download(
