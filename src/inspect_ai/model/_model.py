@@ -1801,9 +1801,14 @@ def combine_messages(
 
 
 def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+    from inspect_ai._util.retry import retry_error_summary, sample_context_prefix
+
+    prefix = sample_context_prefix()
+    error = retry_error_summary(retry_state)
     logger.log(
         HTTP,
-        f"-> {model_name} retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)",
+        f"{prefix}-> {model_name} retry {retry_state.attempt_number} "
+        f"(retrying in {retry_state.upcoming_sleep:,.0f} seconds){error}",
     )
 
 
