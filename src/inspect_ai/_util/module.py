@@ -1,4 +1,3 @@
-import sys
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
@@ -27,13 +26,12 @@ def load_module(
             if filter and not filter(file.read()):
                 return None
 
-        module_name = _derive_module_name(module_path) or module_path.as_posix()
+        module_name = module_path.as_posix()
         loader = SourceFileLoader(module_name, module_path.absolute().as_posix())
         spec = spec_from_loader(loader.name, loader)
         if not spec:
             raise ModuleNotFoundError(f"Module {module_name} not found")
         module = module_from_spec(spec)
-        sys.modules[module_name] = module
         loader.exec_module(module)
         return module
 
@@ -55,29 +53,3 @@ def load_module(
         raise ModuleNotFoundError(
             f"Invalid extension for task file: {module_path.suffix}"
         )
-
-
-def _derive_module_name(module_path: Path) -> str | None:
-    """Derive an importable dotted module name from a file path.
-
-    Finds the path relative to a sys.path entry and converts to a dotted name.
-    When multiple sys.path entries match, prefers the shortest module name
-    (fewest dots), which corresponds to the closest sys.path entry. This
-    ensures the derived name is importable from the most specific path entry,
-    which matters when multiprocess workers only receive a subset of sys.path.
-
-    Returns None if the file is not under any sys.path entry.
-    """
-    resolved = module_path.resolve().with_suffix("")
-    best: str | None = None
-    for path_entry in sys.path:
-        if not path_entry:
-            continue
-        try:
-            relative = resolved.relative_to(Path(path_entry).resolve())
-            candidate = ".".join(relative.parts)
-            if best is None or candidate.count(".") < best.count("."):
-                best = candidate
-        except ValueError:
-            continue
-    return best
