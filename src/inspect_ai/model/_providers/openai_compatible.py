@@ -287,11 +287,19 @@ class OpenAICompatibleAPI(ModelAPI):
         return False
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        return openai_completion_params(
+        params = openai_completion_params(
             model=self.service_model_name(),
             config=config,
             tools=tools,
         )
+        # GPT-5+ and o-series models require max_completion_tokens instead of max_tokens.
+        # The base OpenAIAPI handles this via is_gpt_5()/is_o_series(), but
+        # OpenAICompatibleAPI doesn't. Check the model name and translate.
+        name = self.service_model_name().lower()
+        if ("gpt-5" in name or name.startswith("o1") or name.startswith("o3")) and config.max_tokens is not None:
+            params["max_completion_tokens"] = config.max_tokens
+            params.pop("max_tokens", None)
+        return params
 
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""
