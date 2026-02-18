@@ -114,7 +114,7 @@ def _is_query_too_long_error(ex: httpx.HTTPStatusError) -> str | None:
         else:
             return None
         if _QUERY_TOO_LONG in message.lower():
-            return message
+            return str(message)
     except Exception:
         pass
     return None
