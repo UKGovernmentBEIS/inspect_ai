@@ -192,7 +192,16 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
             return object
         # unnamespaced objects can also be found in inspect_ai
         elif name.find("/") == -1:
-            return _registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
+            object = _registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
+            if object:
+                return object
+            # search all namespaces for bare names
+            suffix = f"/{name}"
+            prefix = f"{type}:"
+            for key, obj in _registry.items():
+                if key.startswith(prefix) and key.endswith(suffix):
+                    return obj
+            return None
         else:
             return None
 
