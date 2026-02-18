@@ -18,6 +18,12 @@ filters:
 website:
    title: "Inspect"
    favicon: favicon.svg
+   announcement: 
+      icon: megaphone
+      dismissable: true
+      content: "**Announcing Inspect Scout**, a tool for in-depth analysis of AI agent transcripts. [Learn more](https://meridianlabs-ai.github.io/inspect_scout/)"
+      type: secondary
+      position: below-navbar
    bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
