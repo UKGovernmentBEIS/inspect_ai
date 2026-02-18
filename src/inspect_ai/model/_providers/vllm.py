@@ -2,10 +2,12 @@ import atexit
 import functools
 import logging
 import os
+import socket
 from subprocess import Popen
 from typing import Any
+from urllib.parse import urlparse
 
-from openai import APIStatusError
+from openai import APIConnectionError, APIStatusError
 from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
 
@@ -226,6 +228,27 @@ class VLLMAPI(OpenAICompatibleAPI):
     def retry_wait(self) -> WaitBaseT | None:
         return wait_fixed(self.retry_delay)
 
+    @override
+    def should_retry(self, ex: BaseException) -> bool:
+        if _is_fatal_vllm_error(ex):
+            logger.error(
+                "Detected fatal vLLM error (OOM/illegal CUDA state); not retrying."
+            )
+            return False
+
+        if _is_dead_local_vllm_endpoint(ex, self.base_url):
+            logger.error(
+                "vLLM endpoint %s is unreachable. Failing fast.",
+                self.base_url,
+            )
+            return False
+
+        if self.server_process is not None and not self.server_is_running:
+            logger.error("Inspect-managed vLLM server process exited; not retrying.")
+            return False
+
+        return super().should_retry(ex)
+
     def _cleanup_server(self) -> None:
         """Cleanup method to terminate server process when Python exits."""
         if self.server_is_running and self.server_process is not None:
@@ -299,6 +322,55 @@ class VLLMAPI(OpenAICompatibleAPI):
                     self.model_name, content=content, stop_reason="model_length"
                 )
         return ex
+
+
+def _is_fatal_vllm_error(ex: BaseException) -> bool:
+    # Matches the vLLM startup OOM signature from server logs as well as
+    # common CUDA OOM variants that are not transient.
+    fatal_markers = (
+        "free memory on device",
+        "less than desired gpu memory utilization",
+        "cuda out of memory",
+        "torch.outofmemoryerror",
+        "cuda error: an illegal memory access was encountered",
+        "cudaerrorillegaladdress",
+        "torch.acceleratorerror",
+    )
+
+    seen: set[int] = set()
+    current: BaseException | None = ex
+    messages: list[str] = []
+
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        messages.append(str(current))
+        current = current.__cause__ or current.__context__
+
+    error_text = " ".join(messages).lower()
+    return any(marker in error_text for marker in fatal_markers)
+
+
+def _is_dead_local_vllm_endpoint(ex: BaseException, base_url: str | None) -> bool:
+    # Only short-circuit connection failures for localhost endpoints.
+    if not isinstance(ex, APIConnectionError):
+        return False
+    if not base_url:
+        return False
+
+    parsed = urlparse(base_url)
+    host = (parsed.hostname or "").lower()
+    if host not in {"localhost", "127.0.0.1", "::1"}:
+        return False
+
+    port = parsed.port
+    if port is None:
+        port = 443 if parsed.scheme == "https" else 80
+
+    try:
+        with socket.create_connection((host, port), timeout=0.2):
+            return False
+    except OSError:
+        return True
 
 
 def mistral_message_reducer(

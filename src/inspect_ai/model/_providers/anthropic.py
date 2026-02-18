@@ -105,7 +105,7 @@ from anthropic.types.document_block_param import Source
 from anthropic.types.web_search_tool_result_block_param_content_param import (
     WebSearchToolResultBlockParamContentParam,
 )
-from pydantic import JsonValue, TypeAdapter, ValidationError
+from pydantic import BaseModel, JsonValue, TypeAdapter, ValidationError
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
@@ -777,7 +777,11 @@ class AnthropicAPI(ModelAPI):
                 max_tokens = max_tokens + config.reasoning_tokens
 
         # apply caps after bumping for reasoning
-        if self.is_claude_4_opus():
+        if self.is_claude_4_6():
+            max_tokens = min(max_tokens, 128000)
+        elif self.is_claude_4_5():
+            max_tokens = min(max_tokens, 64000)
+        elif self.is_claude_4_opus():
             max_tokens = min(max_tokens, 32000)
         elif self.is_claude_3_7():
             max_tokens = min(max_tokens, 128000)
@@ -2053,7 +2057,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     id=pending_tool_use.id,
                     name="web_fetch",
                     arguments=to_json_str_safe(pending_tool_use.input),
-                    result=to_json_str_safe(content_block.content),
+                    result=to_json_tool_result_safe(content_block),
                 )
             )
 
@@ -2088,7 +2092,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     id=pending_tool_use.id,
                     name=pending_tool_use.name,
                     arguments=to_json_str_safe(pending_tool_use.input),
-                    result=to_json_str_safe(content_block.content),
+                    result=to_json_tool_result_safe(content_block),
                 )
             )
         elif content_block.type == "compaction":
@@ -2206,6 +2210,14 @@ def content_and_tool_calls_from_assistant_content_blocks(
             )
 
     return content, tool_calls
+
+
+# deal with tool results that may have been created with
+# model_construct b/c of the bridge
+def to_json_tool_result_safe(result: Any) -> str:
+    if isinstance(result, BaseModel):
+        result = result.model_dump(exclude_none=True)
+    return to_json_str_safe(result)
 
 
 EDITS = "edits"

@@ -16582,13 +16582,13 @@ button._segment_mhb7y_9 {
   cursor: pointer;
 }
 
-._gridWrapper_oveew_5 {
+._gridWrapper_anqm2_5 {
   height: 100%;
   width: 100%;
   position: relative;
 }
 
-._gridContainer_oveew_11 {
+._gridContainer_anqm2_11 {
   position: absolute;
   top: 0;
   left: 0;
@@ -16596,20 +16596,21 @@ button._segment_mhb7y_9 {
   bottom: 0;
 }
 
-._iconCell_oveew_19 {
+._iconCell_anqm2_19 {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 2px;
   width: 100%;
   font-size: 0.95rem;
   color: var(--bs-gray-600);
 }
 
-._iconCell_oveew_19 .ii:before {
+._iconCell_anqm2_19 .ii:before {
   background-color: var(--bs-gray-600);
 }
 
-._numberCell_oveew_32 {
+._numberCell_anqm2_33 {
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -16619,62 +16620,68 @@ button._segment_mhb7y_9 {
   overflow: visible;
 }
 
-._taskText_oveew_42 {
+._taskText_anqm2_43 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
 }
 
-._folder_oveew_49,
-._taskText_oveew_42 {
+._folder_anqm2_50,
+._taskText_anqm2_43 {
   color: var(--bs-link-color);
   font-size: 12.8px;
 }
-._nameCell_mdto2_1 {
+
+._fullWidthHeight_anqm2_56 {
+  width: inherit;
+  height: inherit;
+}
+._nameCell_1jtud_1 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCell_mdto2_8 {
+._modelCell_1jtud_8 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._scoreCell_mdto2_15 {
+._scoreCell_1jtud_15 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
 }
 
-._error_mdto2_22 {
+._error_1jtud_22 {
   color: var(--bs-danger);
 }
 
-._started_mdto2_26 {
+._started_1jtud_26 {
   color: var(--bs-secondary);
 }
 
-._success_mdto2_30 {
+._success_1jtud_30 {
   color: var(--bs-success);
 }
 
-._cancelled_mdto2_34 {
+._cancelled_1jtud_34 {
   color: var(--bs-secondary);
 }
 
-._statusCell_mdto2_38 {
+._statusCell_1jtud_38 {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 2px;
 }
 
-._dateCell_mdto2_44 {
+._dateCell_1jtud_45 {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -19161,6 +19168,23 @@ span.ap-marker-container:hover span.ap-marker {
 
 ._bodyColorButton_uvlpz_54 {
   background-color: var(--bs-body-bg);
+}
+._statusCell_hunte_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+._error_hunte_7 {
+  color: var(--bs-danger);
+}
+
+._success_hunte_11 {
+  color: var(--bs-success);
+}
+
+._cancelled_hunte_15 {
+  color: var(--bs-secondary);
 }
 ._mainLayout_1s8x3_1 {
   display: flex;

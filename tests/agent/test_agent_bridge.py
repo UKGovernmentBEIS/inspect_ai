@@ -323,7 +323,7 @@ def anthropic_code_execution_agent() -> Agent:
                         "content": user_prompt(state.messages).text,
                     }
                 ],
-                tools=[{"type": "code_execution_20250825", "name": "code_execution"}],  # type: ignore
+                tools=[{"type": "code_execution_20250825", "name": "code_execution"}],
                 extra_headers={"anthropic-beta": "code-execution-2025-08-25"},
             )
 
