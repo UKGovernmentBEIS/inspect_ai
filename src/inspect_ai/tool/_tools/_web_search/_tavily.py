@@ -1,9 +1,11 @@
 from typing import Any, Literal
 
+import httpx
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.citation import UrlCitation
 from inspect_ai._util.content import ContentText
+from inspect_ai.tool._tool import ToolError
 
 from ._base_http_provider import BaseHttpProvider
 from ._web_search_provider import SearchProvider
@@ -66,6 +68,17 @@ class TavilySearchProvider(BaseHttpProvider):
         new_options["include_answer"] = True
         return new_options
 
+    async def search(self, query: str) -> ContentText | None:
+        """Execute a search, converting query-too-long 400s to ToolError."""
+        try:
+            return await super().search(query)
+        except httpx.HTTPStatusError as ex:
+            if ex.response.status_code == 400:
+                detail = _is_query_too_long_error(ex)
+                if detail:
+                    raise ToolError(detail) from ex
+            raise
+
     def parse_response(self, response_data: dict[str, Any]) -> ContentText | None:
         tavily_search_response = TavilySearchResponse.model_validate(response_data)
 
@@ -81,6 +94,30 @@ class TavilySearchProvider(BaseHttpProvider):
                 for result in tavily_search_response.results
             ],
         )
+
+
+_QUERY_TOO_LONG = "query is too long"
+
+
+def _is_query_too_long_error(ex: httpx.HTTPStatusError) -> str | None:
+    """Check if a Tavily 400 is a query-too-long error.
+
+    Returns the error message if it matches, or None otherwise.
+    """
+    try:
+        body = ex.response.json()
+        detail = body.get("detail", {})
+        if isinstance(detail, dict):
+            message = detail.get("error", "")
+        elif isinstance(detail, str):
+            message = detail
+        else:
+            return None
+        if _QUERY_TOO_LONG in message.lower():
+            return message
+    except Exception:
+        pass
+    return None
 
 
 def tavily_search_provider(
