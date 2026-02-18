@@ -649,10 +649,10 @@ website:
           href: reference/inspect_ai.event.qmd#event_sequence
         - text: EventTree
           href: reference/inspect_ai.event.qmd#eventtree
-        - text: EventNode
-          href: reference/inspect_ai.event.qmd#eventnode
-        - text: SpanNode
-          href: reference/inspect_ai.event.qmd#spannode
+        - text: EventTreeSpan
+          href: reference/inspect_ai.event.qmd#eventtreespan
+        - text: EventTreeNode
+          href: reference/inspect_ai.event.qmd#eventtreenode
         - text: SampleInitEvent
           href: reference/inspect_ai.event.qmd#sampleinitevent
         - text: SampleLimitEvent
