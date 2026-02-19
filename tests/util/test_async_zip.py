@@ -360,13 +360,7 @@ async def test_read_member_fully_large_extra_field(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_false_zip64_locator_in_compressed_data(tmp_path: Path) -> None:
-    """Test that a PK\\x06\\x07 signature in compressed data doesn't cause a
-    false ZIP64 locator match.
-
-    Regression test: compressed entry data can randomly contain the 4-byte
-    ZIP64 EOCD Locator signature (PK\\x06\\x07). The parser must only look
-    for ZIP64 structures when the standard EOCD has overflow sentinel values.
-    """
+    """Test that a false ZIP64 locator signature in compressed data is ignored."""
     zip_path = tmp_path / "false_locator.zip"
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
