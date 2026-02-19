@@ -11,7 +11,7 @@ from textual.widget import Widget
 from textual.widgets import Static
 
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai._util.rich import lines_display
+from inspect_ai._util.rich import tool_result_display
 from inspect_ai._util.transcript import (
     set_transcript_markdown_options,
     transcript_function,
@@ -382,7 +382,7 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
 
         if result:
             result = str(result).strip()
-            content.extend(lines_display(result, 50))
+            content.extend(tool_result_display(result, 50))
         else:
             content.append("(no output)")
 

@@ -2,15 +2,21 @@
 
 - Agent Bridge: Google Gemini API is now supported for in-process and sandbox bridges.
 - Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
+- Anthropic: Increase max_tokens caps for Claude 4.5 and 4.6 models.
+- Anthropic: Update to new sdk types released with Sonnet 4.6 (v0.80.0 of `anthropic` package is now required).
+- Hugging Face: More flexible control over application of chat templates (enables support for generation from base models).
+- VLLM: Don't retry when the error indicates that the VLLM server has crashed.
 - Analysis: Async reading of logs/samples in `samples_df()` (now 50x faster).
 - Sandboxes: Don't require Docker compatible sandboxes to implement `config_deserialize()`.
 - Sandboxes: New `exec_remote()` method for async execution of long-running commands.
 - Compaction: Add `type` field to `CompactionEvent` to record compaction type.
+- Web Search: Treat Tavily query character limits as ToolErrors.
 - Limits: New `cost_limit()` context manager for scoped application of cost limits.
 - Performance: Disable expensive per-sample options when running high-throughput workloads.
 - Events: Rename `EventNode` to `EventTreeNode` and `SpanNode` to `EventTreeSpan` (old type names will still work at runtime with a deprecation warning).
-- Inspect View: Make samples in task detail sortable, inline epoch filter.
+- Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.
 - Bugfix: Shield sandbox cleanup after cancelled exception.
+- Bugfix: Protect against leading zero-width characters when printing tool output to the terminal.
 
 ## 0.3.179 (12 February 2026)
 

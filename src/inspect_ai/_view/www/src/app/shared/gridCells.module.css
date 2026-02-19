@@ -20,6 +20,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 2px;
   width: 100%;
   font-size: 0.95rem;
   color: var(--bs-gray-600);
@@ -50,4 +51,9 @@
 .taskText {
   color: var(--bs-link-color);
   font-size: 12.8px;
+}
+
+.fullWidthHeight {
+  width: inherit;
+  height: inherit;
 }

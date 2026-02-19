@@ -16,6 +16,7 @@ from anthropic.types import (
     SearchResultBlockParam,
     TextBlockParam,
     ToolChoiceParam,
+    ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
 )
@@ -420,7 +421,8 @@ def content_block_to_content(
     block: TextBlockParam
     | ImageBlockParam
     | DocumentBlockParam
-    | SearchResultBlockParam,
+    | SearchResultBlockParam
+    | ToolReferenceBlockParam,
 ) -> Content:
     if block["type"] == "text":
         text = block["text"]
