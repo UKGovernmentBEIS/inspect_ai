@@ -9,8 +9,10 @@ from google.genai.types import (
     FinishReason,
     FunctionCall,
     FunctionCallingConfigMode,
+    GenerateContentConfig,
     GenerateContentResponse,
     Part,
+    ThinkingConfig,
 )
 from test_helpers.utils import skip_if_no_google
 
@@ -890,26 +892,71 @@ def test_google_streaming_captures_reasoning_summaries():
     )
 
 
+def test_jsonl_line_transforms_config_to_rest_format():
+    """_jsonl_line_for_request must produce camelCase REST fields, not SDK snake_case."""
+    from google.genai import Client
+    from google.genai.types import GenerateContentResponse
+
+    from inspect_ai.model._providers._google_batch import GoogleBatcher
+    from inspect_ai.model._providers.util.batch import BatchRequest
+
+    client = Client(api_key="fake")
+    batcher = GoogleBatcher.__new__(GoogleBatcher)
+    batcher._client = client
+
+    config = GenerateContentConfig(
+        temperature=0.7,
+        top_p=0.9,
+        thinking_config=ThinkingConfig(thinking_budget=1024),
+    )
+    request_dict = {
+        "contents": [
+            Content(role="user", parts=[Part(text="hello")]).model_dump(
+                exclude_none=True
+            )
+        ],
+        **config.model_dump(exclude_none=True),
+    }
+    batch_request = BatchRequest[GenerateContentResponse](
+        request=request_dict,
+        result_stream=MagicMock(),
+    )
+
+    result = batcher._jsonl_line_for_request(batch_request, "test-id")
+
+    req = result["request"]
+    assert "generationConfig" in req, "config must be nested under generationConfig"
+    gen_config = req["generationConfig"]
+    assert gen_config["temperature"] == 0.7
+    assert gen_config["topP"] == 0.9
+    assert "thinkingConfig" in gen_config
+    # snake_case SDK fields must not leak into the REST payload
+    assert "thinking_config" not in req
+    assert "top_p" not in req
+    assert "temperature" not in req
+
+
+class _AlarmTimeout(Exception):
+    pass
+
+
+def _alarm_handler(signum: int, frame: object) -> None:
+    raise _AlarmTimeout
+
+
 @skip_if_no_google
 def test_google_batch_with_thinking_model():
     """Batch submission should not reject thinking_config (issue #3257).
 
-    Races eval() against a SIGALRM timeout. If the batch submission is
-    rejected (the bug), eval raises immediately. If accepted, it blocks
-    waiting for batch completion — SIGALRM fires and we declare success.
+    Bug: eval() raises immediately with 'no such field: thinking_config'.
+    Fixed: eval() blocks on batch completion, alarm fires after 4s, test passes.
     """
     import signal
 
     from inspect_ai.model._generate_config import BatchConfig
 
-    class _BatchSubmitSucceeded(Exception):
-        pass
-
-    def _alarm_handler(signum: int, frame: object) -> None:
-        raise _BatchSubmitSucceeded
-
     old_handler = signal.signal(signal.SIGALRM, _alarm_handler)
-    signal.alarm(5)
+    signal.alarm(4)
     try:
         eval(
             Task(
@@ -920,7 +967,7 @@ def test_google_batch_with_thinking_model():
             batch=BatchConfig(size=1, send_delay=0, tick=0.1),
             fail_on_error=True,
         )
-    except _BatchSubmitSucceeded:
+    except _AlarmTimeout:
         pass  # submission succeeded, batch just didn't complete
     finally:
         signal.alarm(0)
