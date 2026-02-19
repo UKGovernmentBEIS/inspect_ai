@@ -17,6 +17,7 @@
 - Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.
 - Bugfix: Shield sandbox cleanup after cancelled exception.
 - Bugfix: Protect against leading zero-width characters when printing tool output to the terminal.
+- Bugfix: Don't reuse eval_set logs when `sample_shuffle` changes and `limit` constrains sample selection.
 
 ## 0.3.179 (12 February 2026)
 
