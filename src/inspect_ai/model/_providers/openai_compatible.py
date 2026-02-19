@@ -39,6 +39,7 @@ from .._openai import (
     OpenAIAsyncHttpxClient,
     messages_to_openai,
     model_output_from_openai,
+    needs_max_completion_tokens,
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_completion_params,
@@ -292,13 +293,10 @@ class OpenAICompatibleAPI(ModelAPI):
             config=config,
             tools=tools,
         )
-        # GPT-5+ and o-series models require max_completion_tokens instead of max_tokens.
-        # The base OpenAIAPI handles this via is_gpt_5()/is_o_series(), but
-        # OpenAICompatibleAPI doesn't. Check the model name and translate.
-        name = self.service_model_name().lower()
-        if ("gpt-5" in name or name.startswith("o1") or name.startswith("o3")) and config.max_tokens is not None:
-            params["max_completion_tokens"] = config.max_tokens
-            params.pop("max_tokens", None)
+        
+        if needs_max_completion_tokens(self.service_model_name()) and "max_tokens" in params:
+            params["max_completion_tokens"] = params.pop("max_tokens")
+        
         return params
 
     def on_response(self, response: dict[str, Any]) -> None:
