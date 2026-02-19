@@ -17,6 +17,7 @@
 - Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.
 - Bugfix: Shield sandbox cleanup after cancelled exception.
 - Bugfix: Protect against leading zero-width characters when printing tool output to the terminal.
+- Bugfix: Fix `epochs_changed` false positives in `eval_set` caused by comparing reducer closure `__name__` instead of registry log name.
 
 ## 0.3.179 (12 February 2026)
 
