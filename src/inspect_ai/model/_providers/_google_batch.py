@@ -4,6 +4,7 @@ from typing import Any, TypeAlias
 
 import pydantic
 from google.genai import Client
+from google.genai.batches import _Content_to_mldev, _GenerateContentConfig_to_mldev
 from google.genai.types import (
     CreateBatchJobConfig,
     GenerateContentResponse,
@@ -48,16 +49,21 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
     def _jsonl_line_for_request(
         self, request: BatchRequest[GenerateContentResponse], custom_id: str
     ) -> dict[str, pydantic.JsonValue]:
-        return {
-            "key": custom_id,
-            "request": {
-                **{
-                    k: v
-                    for k, v in request.request.items()
-                    if k not in ("http_options")
-                }
-            },
-        }
+        raw = {k: v for k, v in request.request.items() if k not in ("http_options",)}
+        contents = raw.pop("contents", [])
+        # Transform config fields to REST API format (camelCase, nested generationConfig).
+        # _GenerateContentConfig_to_mldev returns the generationConfig dict and populates
+        # parent_request with top-level fields (systemInstruction, safetySettings, etc.).
+        parent_request: dict[str, Any] = {}
+        generation_config = _GenerateContentConfig_to_mldev(
+            self._client._api_client, raw, parent_request
+        )
+        parent_request["contents"] = [
+            _Content_to_mldev(c, parent_request) for c in contents
+        ]
+        if generation_config:
+            parent_request["generationConfig"] = generation_config
+        return {"key": custom_id, "request": parent_request}
 
     @override
     async def _upload_batch_file(
