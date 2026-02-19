@@ -7,7 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter
+from inspect_ai.model._model import GenerateFilter, Model
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
@@ -33,6 +33,7 @@ async def sandbox_agent_bridge(
     state: AgentState | None = None,
     *,
     model: str | None = None,
+    model_aliases: dict[str, str | Model] | None = None,
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
@@ -55,9 +56,12 @@ async def sandbox_agent_bridge(
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
             an updated state based on traffic over the bridge.
-        model: Model to use when the request does not use "inspect" or an "inspect/"
+        model: Fallback model for requests that don't use "inspect" or an "inspect/"
             prefixed model (defaults to "inspect", can also specify e.g.
             "inspect/openai/gpt-4o" to force another specific model).
+        model_aliases: Map of model name aliases. When a request uses a name
+            that appears here, the corresponding value (a ``Model`` instance
+            or model spec string) is used instead. Checked before the fallback ``model``.
         filter: Filter for bridge model generation.
         retry_refusals: Should refusals be retried? (pass number of times to retry)
         compaction: Compact the conversation when it it is close to overflowing
@@ -112,6 +116,7 @@ async def sandbox_agent_bridge(
                 compaction=compaction,
                 port=port,
                 model=model,
+                model_aliases=model_aliases,
             )
 
             # register bridged tools with the bridge

@@ -1,11 +1,17 @@
+import inspect
+import warnings
 from typing import Sequence, cast
+
+from typing_extensions import TypeIs
 
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
 from inspect_ai.model._model import (
+    GenerateFilter,
     GenerateInput,
     Model,
+    ModelGenerateFilter,
     active_model,
     get_model,
     model_roles,
@@ -19,6 +25,35 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
+
+_filter_type_cache: dict[int, bool] = {}
+
+
+def _is_model_filter(fn: GenerateFilter) -> TypeIs[ModelGenerateFilter]:
+    """True when *fn* accepts a ``Model`` as its first parameter (new-style).
+
+    Returns ``False`` for legacy filters whose first parameter is ``str``.
+    Caches per object id so ``inspect.signature`` is called at most once.
+    Emits a deprecation warning the first time a legacy filter is detected.
+    """
+    key = id(fn)
+    result = _filter_type_cache.get(key)
+    if result is None:
+        sig = inspect.signature(fn)  # type: ignore[arg-type]
+        first = next(iter(sig.parameters.values()), None)
+        if first is not None and first.annotation is str:
+            result = False
+            warnings.warn(
+                "GenerateFilter with 'str' as the first parameter is "
+                "deprecated. Update your filter to accept a 'Model' "
+                "instance instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        else:
+            result = True
+        _filter_type_cache[key] = result
+    return result
 
 
 async def bridge_generate(
@@ -66,9 +101,14 @@ async def bridge_generate(
                 parse_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
                 for tool in tools
             ]
-            result = await bridge.filter(
-                model.name, input_messages, tool_info, tool_choice, config
-            )
+            if _is_model_filter(bridge.filter):
+                result = await bridge.filter(
+                    model, input_messages, tool_info, tool_choice, config
+                )
+            else:
+                result = await bridge.filter(
+                    model.name, input_messages, tool_info, tool_choice, config
+                )
             if isinstance(result, ModelOutput):
                 output = result
             elif isinstance(result, GenerateInput):
@@ -115,16 +155,25 @@ def resolve_generate_config(
     return config
 
 
-def resolve_inspect_model(model_name: str) -> Model:
+def resolve_inspect_model(
+    model_name: str,
+    model_aliases: dict[str, str | Model] | None = None,
+    fallback_model: str | None = None,
+) -> Model:
+    if model_aliases and model_name in model_aliases:
+        return get_model(model_aliases[model_name])
+
+    if fallback_model is not None:
+        if model_name != "inspect" or not fallback_model.startswith("inspect/"):
+            model_name = fallback_model
+
     if model_name == "inspect":
-        model = get_model()
-    else:
-        model_name = model_name.removeprefix("inspect/")
-        if model_name in model_roles():
-            model = get_model(role=model_name)
-        else:
-            model = get_model(model_name)
-    return model
+        return get_model()
+
+    model_name = model_name.removeprefix("inspect/")
+    if model_name in model_roles():
+        return get_model(role=model_name)
+    return get_model(model_name)
 
 
 def resolve_web_search_providers(
