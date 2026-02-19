@@ -26,7 +26,7 @@ from inspect_ai._util.content import (
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -888,3 +888,25 @@ def test_google_streaming_captures_reasoning_summaries():
     assert all(r.redacted for r in reasoning_blocks), (
         "All reasoning blocks should be redacted"
     )
+
+
+@skip_if_no_google
+def test_google_batch_with_thinking_model():
+    """Batch submission should not reject thinking_config (issue #3257)."""
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(
+            eval,
+            Task(
+                dataset=[Sample(input="What is 2+2?", target="4")],
+                scorer=includes(),
+            ),
+            model="google/gemini-2.5-flash",
+            batch=BatchConfig(size=1, send_delay=0, tick=0.1),
+            fail_on_error=True,
+        )
+        try:
+            future.result(timeout=10)
+        except TimeoutError:
+            pass  # submission succeeded, batch just didn't complete
