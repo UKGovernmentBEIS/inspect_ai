@@ -4,6 +4,13 @@ from typing import Any, TypeAlias
 
 import pydantic
 from google.genai import Client
+
+# Private SDK helpers: FileBatcher bypasses the SDK's normal request path
+# (client.aio.models.generate_content) which handles snake_case → camelCase
+# transforms internally. Since we serialize JSONL directly for the batch API,
+# we must produce REST-format payloads ourselves. These private functions are
+# the SDK's own transforms — using them avoids reimplementing the mapping and
+# stays in sync with the SDK's serialization logic. May break on SDK upgrades.
 from google.genai.batches import _Content_to_mldev, _GenerateContentConfig_to_mldev
 from google.genai.types import (
     CreateBatchJobConfig,
