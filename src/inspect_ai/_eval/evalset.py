@@ -302,12 +302,6 @@ def eval_set(
         if evals_cancelled(results):
             raise KeyboardInterrupt
 
-        # if specified, bundle the output directory
-        if bundle_dir:
-            bundle_log_dir(
-                log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
-            )
-
         # return results
         return results
 
@@ -502,6 +496,12 @@ def eval_set(
     if retry_cleanup:
         task_ids = {result.eval.task_id for result in results}
         cleanup_older_eval_logs(log_dir, task_ids)
+
+    # if specified, bundle the output directory
+    if bundle_dir:
+        bundle_log_dir(
+            log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
+        )
 
     # report final status
     success = all_evals_succeeded(results)

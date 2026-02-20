@@ -5,7 +5,9 @@ event assembly, kill behavior, and awaitable mode without needing a real sandbox
 """
 
 import asyncio
+import contextlib
 import json
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -57,6 +59,12 @@ def _kill_response(stdout: str = "", stderr: str = "") -> str:
     return _rpc({"stdout": stdout, "stderr": stderr})
 
 
+@contextlib.contextmanager
+def _no_events_context() -> Iterator[None]:
+    """A no-op context manager to stand in for SandboxEnvironmentProxy.no_events()."""
+    yield
+
+
 def _make_sandbox_mock(responses: list[str]) -> AsyncMock:
     """Create a mock SandboxEnvironment whose exec() returns canned responses.
 
@@ -64,6 +72,7 @@ def _make_sandbox_mock(responses: list[str]) -> AsyncMock:
     """
     sandbox = AsyncMock()
     sandbox.default_polling_interval.return_value = 5
+    sandbox.no_events = _no_events_context
 
     response_iter = iter(responses)
 
@@ -85,6 +94,7 @@ def _make_never_completing_sandbox() -> AsyncMock:
     """
     sandbox = AsyncMock()
     sandbox.default_polling_interval.return_value = 5
+    sandbox.no_events = _no_events_context
 
     call_count = 0
 
@@ -555,6 +565,7 @@ class TestTimeout:
         """On timeout, the process should be killed."""
         sandbox = AsyncMock()
         sandbox.default_polling_interval.return_value = 5
+        sandbox.no_events = _no_events_context
 
         call_count = 0
         methods_called: list[str] = []
