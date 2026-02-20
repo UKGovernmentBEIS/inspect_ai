@@ -5,6 +5,7 @@ import sys
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Literal, cast
+from urllib.parse import urlparse
 
 import anyio
 from anyio.abc import TaskGroup
@@ -799,6 +800,8 @@ def eval_retry(
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
+    vllm_restart_local: bool = False,
+    model_base_url: str | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -853,6 +856,10 @@ def eval_retry(
             Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections:
             Maximum number of concurrent connections to Model API (default is per Model API)
+        vllm_restart_local:
+            If true, will attempt to restart local vLLM instance.
+        model_base_url:
+            Optional override for the model API base URL used during retry.
 
     Returns:
         List of EvalLog (one for each task)
@@ -890,6 +897,8 @@ def eval_retry(
             timeout=timeout,
             attempt_timeout=attempt_timeout,
             max_connections=max_connections,
+            vllm_restart_local=vllm_restart_local,
+            model_base_url=model_base_url,
         )
 
     return task_display().run_task_app(run_task_app)
@@ -921,6 +930,8 @@ async def eval_retry_async(
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
+    vllm_restart_local: bool = False,
+    model_base_url: str | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -963,6 +974,8 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
+        vllm_restart_local: If true, will attempt to restart local vLLM instance (defaults to False).
+        model_base_url: Optional override for the model API base URL used during retry. If provided, this takes precedence over the base URL recorded in the original eval log.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1028,12 +1041,34 @@ async def eval_retry_async(
         )
 
         # resolve the model
-        model = get_model(
-            model=eval_log.eval.model,
-            config=eval_log.eval.model_generate_config,
-            base_url=eval_log.eval.model_base_url,
-            **eval_log.eval.model_args,
+        resolved_base_url = (
+            model_base_url
+            if model_base_url is not None
+            else eval_log.eval.model_base_url
         )
+        restart_local_vllm = (
+            vllm_restart_local
+            and model_base_url is None
+            and eval_log.eval.model.startswith("vllm/")
+            and _is_localhost_base_url(eval_log.eval.model_base_url)
+        )
+        if restart_local_vllm:
+            # Force provider startup path instead of reusing stale localhost URL from retry log.
+            resolved_base_url = None
+
+        vllm_base_url_env = (
+            os.environ.pop("VLLM_BASE_URL", None) if restart_local_vllm else None
+        )
+        try:
+            model = get_model(
+                model=eval_log.eval.model,
+                config=eval_log.eval.model_generate_config,
+                base_url=resolved_base_url,
+                **eval_log.eval.model_args,
+            )
+        finally:
+            if vllm_base_url_env is not None:
+                os.environ["VLLM_BASE_URL"] = vllm_base_url_env
 
         # resolve model roles
         model_roles = model_roles_config_to_model_roles(eval_log.eval.model_roles)
@@ -1181,6 +1216,14 @@ async def eval_retry_async(
         eval_logs.append(log)
 
     return EvalLogs(eval_logs)
+
+
+def _is_localhost_base_url(base_url: str | None) -> bool:
+    if not base_url:
+        return False
+    parsed = urlparse(base_url)
+    host = (parsed.hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "::1"}
 
 
 def eval_init(
