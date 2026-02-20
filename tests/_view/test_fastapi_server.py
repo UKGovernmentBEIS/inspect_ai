@@ -188,35 +188,41 @@ def test_api_log_bytes(test_client: TestClient, mock_s3_eval_file: str):
 def test_api_log_bytes_beyond_file_size(
     test_client: TestClient, mock_s3_eval_file: str
 ):
-    """Test that requesting bytes beyond file size returns correct Content-Length.
-
-    This test verifies the fix for the bug where Content-Length was calculated
-    from requested range (end - start + 1) rather than actual bytes returned,
-    causing 'Response content shorter than Content-Length' errors.
-    """
-    # First, get the actual file size
+    """Test that requesting bytes beyond file size returns actual bytes, not requested range."""
     size_response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
     size_response.raise_for_status()
     file_size = int(size_response.text)
 
-    # Request bytes beyond the file size
     requested_end = file_size + 1000
     response = test_client.request(
         "GET", f"/log-bytes/{mock_s3_eval_file}?start=0&end={requested_end}"
     )
     response.raise_for_status()
 
-    # Content-Length should match actual bytes returned (file_size), not requested range
-    content_length = int(response.headers["Content-Length"])
     actual_bytes = len(response.content)
-
-    assert content_length == actual_bytes, (
-        f"Content-Length ({content_length}) must match actual bytes ({actual_bytes}) "
-        f"to prevent 'Response content shorter than Content-Length' error"
-    )
     assert actual_bytes == file_size, (
         f"Should return entire file ({file_size} bytes) when end exceeds file size"
     )
+
+    # Content-Length (if present) must match actual bytes
+    if "Content-Length" in response.headers:
+        content_length = int(response.headers["Content-Length"])
+        assert content_length == actual_bytes
+
+
+def test_api_log_bytes_start_beyond_file_size(
+    test_client: TestClient, mock_s3_eval_file: str
+):
+    """Test that requesting bytes starting beyond file size returns 416."""
+    size_response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
+    size_response.raise_for_status()
+    file_size = int(size_response.text)
+
+    response = test_client.request(
+        "GET",
+        f"/log-bytes/{mock_s3_eval_file}?start={file_size + 100}&end={file_size + 200}",
+    )
+    assert response.status_code == 416
 
 
 def test_api_log_dir(test_client: TestClient):

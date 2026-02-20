@@ -119,12 +119,11 @@ def view_server(
             return web.HTTPBadRequest(reason="No 'end' query param")
         start = int(start_param)
         end = int(end_param)
-        headers = {
-            "Content-Length": str(end - start + 1),
-        }
         body = await get_log_bytes(file, start, end)
         return web.Response(
-            body=body, headers=headers, content_type="application/octet-stream"
+            body=body,
+            headers={"Content-Length": str(len(body))},
+            content_type="application/octet-stream",
         )
 
     @routes.get("/api/log-download/{log}")
