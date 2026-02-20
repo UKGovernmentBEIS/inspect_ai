@@ -2,6 +2,7 @@
 
 - Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
 - OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
+- Bugfix: Create eval set bundle even when all logs are already complete.
 
 ## 0.3.180 (20 February 2026)
 
