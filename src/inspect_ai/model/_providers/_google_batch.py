@@ -66,15 +66,18 @@ class GoogleBatcher(Batcher[GoogleBatchRequest, GenerateContentResponse, BatchJo
     ) -> str:
         inline_requests: list[InlinedRequest] = []
         extra_headers: dict[str, str] = {}
+        last_request_id: str | None = None
 
         for request in batch:
             # Extract headers and request ID from config's http_options
             config = request.request.config
             if config.http_options and config.http_options.headers:
-                extra_headers = dict(config.http_options.headers)
-                request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
+                per_request_headers = dict(config.http_options.headers)
+                request_id = per_request_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
                 if request_id is not None:
                     request.custom_id = request_id
+                    last_request_id = request_id
+                extra_headers |= per_request_headers
 
             # Strip http_options before passing to InlinedRequest
             config_for_batch = config.model_copy(update={"http_options": None})
@@ -87,9 +90,10 @@ class GoogleBatcher(Batcher[GoogleBatchRequest, GenerateContentResponse, BatchJo
                 )
             )
 
-        request_id = extra_headers.get(HttpxHooks.REQUEST_ID_HEADER, "")
         display_name = (
-            f"batch_job_{request_id}" if request_id else f"batch_job_{int(time.time())}"
+            f"batch_job_{last_request_id}"
+            if last_request_id
+            else f"batch_job_{int(time.time())}"
         )
 
         batch_job = await self._client.aio.batches.create(
@@ -133,9 +137,17 @@ class GoogleBatcher(Batcher[GoogleBatchRequest, GenerateContentResponse, BatchJo
                 created_at=created_at,
                 completion_info=batch_job,
             )
+        elif batch_job.state == JobState.JOB_STATE_PARTIALLY_SUCCEEDED:
+            return BatchCheckResult(
+                completed_count=len(batch.requests),
+                failed_count=0,
+                created_at=created_at,
+                completion_info=batch_job,
+            )
         elif batch_job.state in (
             JobState.JOB_STATE_FAILED,
             JobState.JOB_STATE_CANCELLED,
+            JobState.JOB_STATE_EXPIRED,
         ):
             return BatchCheckResult(
                 completed_count=0,
@@ -144,6 +156,7 @@ class GoogleBatcher(Batcher[GoogleBatchRequest, GenerateContentResponse, BatchJo
                 completion_info=None,
             )
         else:
+            # Unknown/transitional state — keep polling
             return BatchCheckResult(
                 completed_count=0,
                 failed_count=0,
@@ -165,9 +178,10 @@ class GoogleBatcher(Batcher[GoogleBatchRequest, GenerateContentResponse, BatchJo
         # Python dicts preserve insertion order, so batch.requests.keys()
         # gives custom_ids in the same order as _create_batch input.
         custom_ids = list(batch.requests.keys())
-        assert len(custom_ids) == len(inlined_responses), (
-            f"expected {len(custom_ids)} responses, got {len(inlined_responses)}"
-        )
+        if len(custom_ids) != len(inlined_responses):
+            raise RuntimeError(
+                f"expected {len(custom_ids)} responses, got {len(inlined_responses)}"
+            )
 
         return {
             custom_id: _parse_inlined_response(response)
