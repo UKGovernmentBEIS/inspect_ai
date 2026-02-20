@@ -16,7 +16,7 @@ from inspect_ai.tool import ToolCall
 @skip_if_no_anthropic
 async def test_anthropic_api() -> None:
     model = get_model(
-        "anthropic/claude-3-7-sonnet-latest",
+        "anthropic/claude-sonnet-4-6",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -24,7 +24,6 @@ async def test_anthropic_api() -> None:
             presence_penalty=0.0,
             seed=None,
             temperature=0.0,
-            top_p=1.0,
         ),
     )
 
@@ -49,7 +48,7 @@ def test_anthropic_should_retry():
     from anthropic import APIStatusError
 
     # scaffold for should_retry
-    model = get_model("anthropic/claude-3-7-sonnet-latest")
+    model = get_model("anthropic/claude-sonnet-4-6")
     response = httpx.Response(
         status_code=405, request=httpx.Request("GET", "https://example.com")
     )
@@ -73,7 +72,7 @@ def test_anthropic_should_retry():
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_single_tool_call() -> None:
     """Test counting tokens for a single assistant message with one tool call."""
-    model = get_model("anthropic/claude-3-7-sonnet-latest")
+    model = get_model("anthropic/claude-sonnet-4-6")
 
     # Create an assistant message with a single tool call (no tool result)
     assistant_msg = ChatMessageAssistant(
@@ -96,7 +95,7 @@ async def test_anthropic_count_tokens_single_tool_call() -> None:
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_multiple_tool_calls() -> None:
     """Test counting tokens for a single assistant message with multiple tool calls."""
-    model = get_model("anthropic/claude-3-7-sonnet-latest")
+    model = get_model("anthropic/claude-sonnet-4-6")
 
     # Create an assistant message with multiple tool calls (no tool results)
     assistant_msg = ChatMessageAssistant(
@@ -129,7 +128,7 @@ async def test_anthropic_count_tokens_multiple_tool_calls() -> None:
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_single_tool_result() -> None:
     """Test counting tokens for a single tool result message (no preceding tool use)."""
-    model = get_model("anthropic/claude-3-7-sonnet-latest")
+    model = get_model("anthropic/claude-sonnet-4-6")
 
     # Create a tool result message without a preceding assistant message
     tool_msg = ChatMessageTool(

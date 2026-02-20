@@ -1,3 +1,4 @@
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     RegistryInfo,
     RegistryType,
@@ -123,6 +124,7 @@ __all__ = [
     "working_limit",
     "trace_action",
     "trace_message",
+    "warn_once",
     "RegistryInfo",
     "RegistryType",
     "registry_create",
