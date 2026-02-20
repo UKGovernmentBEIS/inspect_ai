@@ -23,7 +23,7 @@ def test_openai_remote_mcp() -> None:
 def test_anthropic_remote_mcp() -> None:
     # This test is flaky because, sometimes, the model gets confused and does not
     # make do a remote tool use.
-    check_remote_mcp("anthropic/claude-3-7-sonnet-latest")
+    check_remote_mcp("anthropic/claude-sonnet-4-6")
 
 
 @skip_if_no_google
