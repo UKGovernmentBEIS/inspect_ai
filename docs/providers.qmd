@@ -106,7 +106,7 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 | Variable | Description |
 |---------------------------|---------------------------------------------|
 | `AZUREAI_OPENAI_API_KEY` | API key credentials (optional). |
-| `AZUREAI_OPENAI_BASE_URL` | Base URL for requests (required) |
+| `AZUREAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
@@ -114,7 +114,7 @@ You can then use the normal `openai` provider with the `azure` qualifier and the
 
 ``` bash
 export AZUREAI_OPENAI_API_KEY=your-api-key
-export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
+export AZUREAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
 inspect eval math.py --model openai/azure/gpt-4o-mini
 ```
@@ -123,7 +123,7 @@ If using managed identity for authentication, install the `azure-identity` packa
 
 ``` bash
 pip install azure-identity
-export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
+export AZUREAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_AUDIENCE=https://cognitiveservices.azure.com/.default
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
 inspect eval math.py --model openai/azure/gpt-4o-mini
