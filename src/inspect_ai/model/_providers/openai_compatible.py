@@ -293,10 +293,13 @@ class OpenAICompatibleAPI(ModelAPI):
             config=config,
             tools=tools,
         )
-        
-        if needs_max_completion_tokens(self.service_model_name()) and "max_tokens" in params:
+
+        if (
+            needs_max_completion_tokens(self.service_model_name())
+            and "max_tokens" in params
+        ):
             params["max_completion_tokens"] = params.pop("max_tokens")
-        
+
         return params
 
     def on_response(self, response: dict[str, Any]) -> None:
