@@ -2,13 +2,12 @@ import dataclasses
 import json
 import time
 from datetime import datetime, timezone
-from typing import cast
 
 from google.genai import Client
 from google.genai.types import (
     BatchJob,
     Content,
-    ContentListUnion,
+    ContentUnion,
     CreateBatchJobConfig,
     GenerateContentConfig,
     GenerateContentResponse,
@@ -82,7 +81,8 @@ class GoogleBatcher(Batcher[GoogleBatchRequest, GenerateContentResponse, BatchJo
 
             inline_requests.append(
                 InlinedRequest(
-                    contents=cast(ContentListUnion, request.request.contents),
+                    # Copy to widen list[Content] → list[ContentUnion] (list invariance)
+                    contents=list[ContentUnion](request.request.contents),
                     config=config_for_batch,
                 )
             )
