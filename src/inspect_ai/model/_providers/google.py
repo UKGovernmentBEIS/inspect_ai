@@ -92,7 +92,7 @@ from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import normalized_batch_config
 from inspect_ai.model._model import log_model_retry
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._providers._google_batch import GoogleBatcher
+from inspect_ai.model._providers._google_batch import GoogleBatcher, GoogleBatchRequest
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
     get_candidate_citations,
@@ -344,13 +344,10 @@ class GoogleGenAIAPI(ModelAPI):
                 while tool_calling_attempts < 3:
                     if self._batcher:
                         response = await self._batcher.generate_for_request(
-                            {
-                                "contents": [
-                                    content.model_dump(exclude_none=True)
-                                    for content in gemini_contents
-                                ],
-                                **parameters.model_dump(exclude_none=True),
-                            }
+                            GoogleBatchRequest(
+                                contents=gemini_contents,
+                                config=parameters,
+                            )
                         )
                     elif self.streaming:
                         response = await self._stream_generate_content(

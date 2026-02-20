@@ -1,4 +1,4 @@
-from typing import TypeAlias, cast
+from typing import Any, TypeAlias, cast
 
 import httpx
 from anthropic import (
@@ -43,7 +43,10 @@ from .util.hooks import HttpxHooks
 CompletedBatchInfo: TypeAlias = bool
 
 
-class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
+# RequestT is dict[str, Any] because the call site builds a dict matching
+# MessageCreateParamsNonStreaming kwargs (also **-unpacked in the non-batch path).
+# TODO: consider passing MessageCreateParamsNonStreaming directly.
+class AnthropicBatcher(Batcher[dict[str, Any], Message, CompletedBatchInfo]):
     def __init__(
         self,
         client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
@@ -61,7 +64,9 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     # Batcher overrides
 
     @override
-    async def _create_batch(self, batch: list[BatchRequest[Message]]) -> str:
+    async def _create_batch(
+        self, batch: list[BatchRequest[dict[str, Any], Message]]
+    ) -> str:
         requests: list[AnthropicBatchRequest] = []
         extra_headers: dict[str, str] = {}
         for request in batch:
@@ -84,7 +89,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
 
     @override
     async def _check_batch(
-        self, batch: Batch[Message]
+        self, batch: Batch[dict[str, Any], Message]
     ) -> BatchCheckResult[CompletedBatchInfo]:
         batch_info = await self._client.messages.batches.retrieve(batch.id)
 
@@ -102,7 +107,7 @@ class AnthropicBatcher(Batcher[Message, CompletedBatchInfo]):
     @override
     async def _handle_batch_result(
         self,
-        batch: Batch[Message],
+        batch: Batch[dict[str, Any], Message],
         completion_info: CompletedBatchInfo,
     ) -> dict[str, Message | Exception]:
         return {

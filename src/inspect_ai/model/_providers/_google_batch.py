@@ -1,31 +1,40 @@
+import dataclasses
+import json
 import time
 from datetime import datetime, timezone
-from typing import Any, TypeAlias
+from typing import cast
 
-import pydantic
 from google.genai import Client
 from google.genai.types import (
+    BatchJob,
+    Content,
+    ContentListUnion,
     CreateBatchJobConfig,
+    GenerateContentConfig,
     GenerateContentResponse,
     HttpOptions,
-    JobError,
+    InlinedRequest,
+    InlinedResponse,
     JobState,
-    UploadFileConfig,
 )
 from typing_extensions import override
 
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._retry import ModelRetryConfig
 
-from .util.batch import Batch, BatchCheckResult, BatchRequest
-from .util.file_batcher import FileBatcher
+from .util.batch import Batch, BatchCheckResult, Batcher, BatchRequest
 from .util.hooks import HttpxHooks
 
-# Just the result URI
-CompletedBatchInfo: TypeAlias = str
+
+@dataclasses.dataclass
+class GoogleBatchRequest:
+    """Request payload for Google batch — carries SDK types directly."""
+
+    contents: list[Content]
+    config: GenerateContentConfig
 
 
-class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
+class GoogleBatcher(Batcher[GoogleBatchRequest, GenerateContentResponse, BatchJob]):
     def __init__(
         self,
         client: Client,
@@ -36,95 +45,67 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
         super().__init__(
             config=config,
             retry_config=retry_config,
-            max_batch_request_count=50000,  # Not actually specified in the doc afaik
-            max_batch_size_mb=2000,  # 2GB file size limit
+            max_batch_request_count=50000,
+            max_batch_size_mb=2000,
         )
         self._client = client
         self._model_name = model_name
 
-    # FileBatcher overrides
+    # Batcher overrides
 
     @override
-    def _jsonl_line_for_request(
-        self, request: BatchRequest[GenerateContentResponse], custom_id: str
-    ) -> dict[str, pydantic.JsonValue]:
-        return {
-            "key": custom_id,
-            "request": {
-                **{
-                    k: v
-                    for k, v in request.request.items()
-                    if k not in ("http_options")
-                }
-            },
+    def _estimate_request_size(self, request: GoogleBatchRequest) -> int:
+        dumped = {
+            "contents": [c.model_dump(exclude_none=True) for c in request.contents],
+            **request.config.model_dump(exclude_none=True),
         }
+        return len(json.dumps(dumped, separators=(",", ":")))
 
     @override
-    async def _upload_batch_file(
-        self, temp_file: Any, extra_headers: dict[str, str]
+    async def _create_batch(
+        self, batch: list[BatchRequest[GoogleBatchRequest, GenerateContentResponse]]
     ) -> str:
-        file_obj = await self._client.aio.files.upload(
-            file=temp_file.name,
-            config=UploadFileConfig(
-                display_name=f"batch_requests_{int(time.time())}",
-                mime_type="application/jsonl",
-            ),
-        )
-        return file_obj.name or ""
+        inline_requests: list[InlinedRequest] = []
+        extra_headers: dict[str, str] = {}
 
-    @override
-    async def _download_result_file(self, file_uri: str) -> bytes:
-        return await self._client.aio.files.download(file=file_uri)
+        for request in batch:
+            # Extract headers and request ID from config's http_options
+            config = request.request.config
+            if config.http_options and config.http_options.headers:
+                extra_headers = dict(config.http_options.headers)
+                request_id = extra_headers.pop(HttpxHooks.REQUEST_ID_HEADER, None)
+                if request_id is not None:
+                    request.custom_id = request_id
 
-    @override
-    def _parse_jsonl_line(
-        self, line_data: dict[str, pydantic.JsonValue]
-    ) -> tuple[str, GenerateContentResponse | Exception]:
-        key = line_data["key"]
-        assert isinstance(key, str), "key must be a string"
-        if "error" in line_data:
-            error_data = JobError.model_validate(line_data["error"])
-            return (
-                key,
-                RuntimeError(f"{error_data.message} (code: {error_data.code})"),
+            # Strip http_options before passing to InlinedRequest
+            config_for_batch = config.model_copy(update={"http_options": None})
+
+            inline_requests.append(
+                InlinedRequest(
+                    contents=cast(ContentListUnion, request.request.contents),
+                    config=config_for_batch,
+                )
             )
-        else:
-            return key, GenerateContentResponse.model_validate(line_data["response"])
 
-    @override
-    def _uris_from_completion_info(
-        self, completion_info: CompletedBatchInfo
-    ) -> list[str]:
-        return [completion_info]
-
-    @override
-    async def _submit_batch_for_file(
-        self, file_id: str, extra_headers: dict[str, str]
-    ) -> str:
-        # Extract request ID for batch job display name if available
         request_id = extra_headers.get(HttpxHooks.REQUEST_ID_HEADER, "")
         display_name = (
             f"batch_job_{request_id}" if request_id else f"batch_job_{int(time.time())}"
         )
 
-        config = CreateBatchJobConfig(
-            display_name=display_name,
-            http_options=HttpOptions(headers=extra_headers or None),
-        )
-
         batch_job = await self._client.aio.batches.create(
             model=self._model_name,
-            src=file_id,
-            config=config,
+            src=inline_requests,
+            config=CreateBatchJobConfig(
+                display_name=display_name,
+                http_options=HttpOptions(headers=extra_headers or None),
+            ),
         )
         return batch_job.name or ""
 
-    # Batcher overrides
-
     @override
     async def _check_batch(
-        self, batch: Batch[GenerateContentResponse]
-    ) -> BatchCheckResult[CompletedBatchInfo]:
+        self, batch: Batch[GoogleBatchRequest, GenerateContentResponse]
+    ) -> BatchCheckResult[BatchJob]:
         batch_job = await self._client.aio.batches.get(name=batch.id)
 
         created_at = int(
@@ -135,10 +116,9 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
             ).timestamp()
         )
 
-        # Handle different job states
-        if (
-            batch_job.state == JobState.JOB_STATE_PENDING
-            or batch_job.state == JobState.JOB_STATE_RUNNING
+        if batch_job.state in (
+            JobState.JOB_STATE_PENDING,
+            JobState.JOB_STATE_RUNNING,
         ):
             return BatchCheckResult(
                 completed_count=0,
@@ -147,20 +127,16 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
                 completion_info=None,
             )
         elif batch_job.state == JobState.JOB_STATE_SUCCEEDED:
-            assert batch_job.dest and batch_job.dest.file_name, "must find batch dest"
             return BatchCheckResult(
-                completed_count=len(
-                    batch.requests
-                ),  # Assume all completed if succeeded
-                failed_count=0,  # Failed count will be determined during result parsing
+                completed_count=len(batch.requests),
+                failed_count=0,
                 created_at=created_at,
-                completion_info=batch_job.dest.file_name,
+                completion_info=batch_job,
             )
-        elif batch_job.state in [
+        elif batch_job.state in (
             JobState.JOB_STATE_FAILED,
             JobState.JOB_STATE_CANCELLED,
-        ]:
-            # Job failed or was cancelled - all requests failed
+        ):
             return BatchCheckResult(
                 completed_count=0,
                 failed_count=len(batch.requests),
@@ -168,10 +144,42 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
                 completion_info=None,
             )
         else:
-            # Unknown state - treat as pending
             return BatchCheckResult(
                 completed_count=0,
                 failed_count=0,
                 created_at=created_at,
                 completion_info=None,
             )
+
+    @override
+    async def _handle_batch_result(
+        self,
+        batch: Batch[GoogleBatchRequest, GenerateContentResponse],
+        completion_info: BatchJob,
+    ) -> dict[str, GenerateContentResponse | Exception]:
+        assert completion_info.dest, "completed batch must have dest"
+        inlined_responses = completion_info.dest.inlined_responses
+        assert inlined_responses is not None, "inline batch must have inlined_responses"
+
+        # Responses are positionally ordered matching input requests.
+        # Python dicts preserve insertion order, so batch.requests.keys()
+        # gives custom_ids in the same order as _create_batch input.
+        custom_ids = list(batch.requests.keys())
+        assert len(custom_ids) == len(inlined_responses), (
+            f"expected {len(custom_ids)} responses, got {len(inlined_responses)}"
+        )
+
+        return {
+            custom_id: _parse_inlined_response(response)
+            for custom_id, response in zip(custom_ids, inlined_responses)
+        }
+
+
+def _parse_inlined_response(
+    response: InlinedResponse,
+) -> GenerateContentResponse | Exception:
+    if response.error:
+        error = response.error
+        return RuntimeError(f"{error.message} (code: {error.code})")
+    assert response.response is not None, "inlined response must have response or error"
+    return response.response

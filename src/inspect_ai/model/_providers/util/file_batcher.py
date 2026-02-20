@@ -2,7 +2,7 @@ import functools
 import json
 import tempfile
 from abc import abstractmethod
-from typing import IO, TypeVar
+from typing import IO, Any, TypeVar
 
 import pydantic
 from typing_extensions import override
@@ -13,11 +13,12 @@ from inspect_ai.model._retry import ModelRetryConfig
 
 from .batch import Batch, Batcher, BatchRequest
 
+RequestT = TypeVar("RequestT")
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
 
 
-class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
+class FileBatcher(Batcher[RequestT, ResponseT, CompletedBatchInfoT]):
     """Base class for batchers that use file-based batch processing.
 
     This class provides common functionality for batch implementations that:
@@ -50,7 +51,9 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
     # Batcher overrides
 
     @override
-    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _create_batch(
+        self, batch: list[BatchRequest[RequestT, ResponseT]]
+    ) -> str:
         """Create a batch by generating JSONL file and submitting to provider."""
         extra_headers: dict[str, str] = {}
 
@@ -79,7 +82,7 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
     @override
     async def _handle_batch_result(
         self,
-        batch: Batch[ResponseT],
+        batch: Batch[RequestT, ResponseT],
         completion_info: CompletedBatchInfoT,
     ) -> dict[str, ResponseT | Exception]:
         """Handle batch results by processing all result files."""
@@ -104,7 +107,7 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
 
     @abstractmethod
     def _jsonl_line_for_request(
-        self, request: BatchRequest[ResponseT], custom_id: str
+        self, request: BatchRequest[RequestT, ResponseT], custom_id: str
     ) -> dict[str, pydantic.JsonValue]:
         """Format a request as a provider-specific JSONL entry.
 
@@ -190,9 +193,11 @@ class FileBatcher(Batcher[ResponseT, CompletedBatchInfoT]):
     # Private gunk
 
     def _process_request_metadata(
-        self, request: BatchRequest[ResponseT], existing_headers: dict[str, str]
+        self,
+        request: BatchRequest[Any, ResponseT],
+        existing_headers: dict[str, str],
     ) -> tuple[dict[str, str], str]:
-        """Extract headers and custom_id from request, updating existing headers."""
+        """Extract headers and custom_id from request. Assumes request.request is a dict."""
         from .hooks import HttpxHooks
 
         extra_headers = request.request.pop("extra_headers", {})

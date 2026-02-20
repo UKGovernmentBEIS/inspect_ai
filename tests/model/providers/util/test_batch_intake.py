@@ -15,8 +15,8 @@ from inspect_ai.model._providers.util.batch import (
 class TestAssessIntakeQueue:
     def create_batch_request(
         self, request_data: dict, custom_id: str | None = None
-    ) -> BatchRequest[str]:
-        return BatchRequest[str](
+    ) -> BatchRequest[dict, str]:
+        return BatchRequest[dict, str](
             request=request_data,
             result_stream=MagicMock(),
             custom_id=custom_id or f"req-{id(request_data)}",

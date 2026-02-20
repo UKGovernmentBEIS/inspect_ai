@@ -5,6 +5,7 @@ import sys
 import time
 import uuid
 from abc import abstractmethod
+from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
 import anyio
@@ -25,6 +26,7 @@ DEFAULT_SEND_DELAY = DEFAULT_BATCH_TICK
 DEFAULT_MAX_BATCHES = 50
 DEFAULT_MAX_CONSECUTIVE_CHECK_FAILURES = 1000
 
+RequestT = TypeVar("RequestT")
 ResponseT = TypeVar("ResponseT")
 CompletedBatchInfoT = TypeVar("CompletedBatchInfoT")
 """
@@ -37,18 +39,18 @@ Not all model providers need this
 
 
 @dataclasses.dataclass
-class BatchRequest(Generic[ResponseT]):
+class BatchRequest(Generic[RequestT, ResponseT]):
     """This is a single request that is part of a batch."""
 
-    request: dict[str, Any]
+    request: RequestT
     result_stream: anyio.abc.ObjectSendStream[ResponseT | Exception]
     custom_id: str = dataclasses.field(default_factory=lambda: str(uuid.uuid4()))
 
 
 @dataclasses.dataclass
-class Batch(Generic[ResponseT]):
+class Batch(Generic[RequestT, ResponseT]):
     id: str
-    requests: dict[str, BatchRequest[ResponseT]]
+    requests: dict[str, BatchRequest[RequestT, ResponseT]]
     consecutive_check_failure_count: int = 0
     completed_count: int = 0
     failed_count: int = 0
@@ -56,10 +58,12 @@ class Batch(Generic[ResponseT]):
 
 
 @dataclasses.dataclass
-class PendingBatch(Generic[ResponseT]):
+class PendingBatch(Generic[RequestT, ResponseT]):
     timeout: float
     available_size: int
-    requests: list[BatchRequest[ResponseT]] = dataclasses.field(default_factory=list)
+    requests: list[BatchRequest[RequestT, ResponseT]] = dataclasses.field(
+        default_factory=list
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -73,7 +77,7 @@ class BatchCheckResult(Generic[CompletedBatchInfoT]):
     completion_info: CompletedBatchInfoT | None
 
 
-class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
+class Batcher(Generic[RequestT, ResponseT, CompletedBatchInfoT]):
     def __init__(
         self,
         config: BatchConfig,
@@ -94,19 +98,19 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             or DEFAULT_MAX_CONSECUTIVE_CHECK_FAILURES
         )
         self._retry_config = retry_config
-        self._intake_queue: list[BatchRequest[ResponseT]] = []
-        self._next_batch: PendingBatch[ResponseT] | None = None
-        self._inflight_batches: dict[str, Batch[ResponseT]] = {}
+        self._intake_queue: list[BatchRequest[RequestT, ResponseT]] = []
+        self._next_batch: PendingBatch[RequestT, ResponseT] | None = None
+        self._inflight_batches: dict[str, Batch[RequestT, ResponseT]] = {}
         self._is_batch_worker_running: bool = False
 
     async def generate_for_request(
         self,
-        request: dict[str, Any],
+        request: RequestT,
     ) -> ResponseT:
         send_stream, receive_stream = anyio.create_memory_object_stream[
             ResponseT | Exception
         ](1)
-        batch_request = BatchRequest[ResponseT](
+        batch_request = BatchRequest[RequestT, ResponseT](
             request=request, result_stream=send_stream
         )
         self._intake_queue.append(batch_request)
@@ -164,7 +168,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         )
         emit_batch_status(status)
 
-    async def _check_inflight_batch(self, batch: Batch[ResponseT]) -> None:
+    async def _check_inflight_batch(self, batch: Batch[RequestT, ResponseT]) -> None:
         check_result = await self._wrapped_check_batch(batch)
         if not check_result:
             return
@@ -178,7 +182,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     async def _fail_and_cleanup_inflight_batch(
         self,
         description: str,
-        batch: Batch[ResponseT],
+        batch: Batch[RequestT, ResponseT],
         error: Exception,
     ) -> None:
         await self._fail_all_requests(
@@ -191,7 +195,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     async def _fail_all_requests(
         self,
         message: str,
-        batch_requests: list[BatchRequest[ResponseT]],
+        batch_requests: list[BatchRequest[RequestT, ResponseT]],
         error: Exception,
     ) -> None:
         log_batch(message)
@@ -202,6 +206,10 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
                 # Stream closed (client disconnected/completed) - continue
                 # notifying remaining requests
                 pass
+
+    def _estimate_request_size(self, request: RequestT) -> int:
+        """Estimate serialized size in bytes. Override for non-dict request types."""
+        return _default_estimate_request_size(request)
 
     async def _process_intake_queue(self) -> bool:
         """Process intake queue and send next batch if conditions are met."""
@@ -216,6 +224,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             self._next_batch,
             self._min_batch_request_count,
             self._max_batch_request_count,
+            self._estimate_request_size,
         )
 
         if add_count:
@@ -245,7 +254,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     # allows the code above to not worry about try/catch'ing the abstract methods.
     # Any exception that escapes a _wrapped_* method will bring down the eval.
 
-    async def _wrapped_create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _wrapped_create_batch(
+        self, batch: list[BatchRequest[RequestT, ResponseT]]
+    ) -> str:
         @retry(**_with_retry_logging(self._retry_config, "_create_batch"))
         async def _create() -> str:
             return await self._create_batch(batch)
@@ -263,7 +274,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             raise
 
     async def _wrapped_check_batch(
-        self, batch: Batch[ResponseT]
+        self, batch: Batch[RequestT, ResponseT]
     ) -> BatchCheckResult[CompletedBatchInfoT] | None:
         try:
             result = await self._check_batch(batch)
@@ -287,7 +298,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     async def _wrapped_handle_batch_result(
         self,
-        batch: Batch[ResponseT],
+        batch: Batch[RequestT, ResponseT],
         completion_info: CompletedBatchInfoT,
     ) -> None:
         @retry(
@@ -305,7 +316,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             await self._fail_and_cleanup_inflight_batch("obtaining results", batch, e)
 
     async def _resolve_inflight_batch(
-        self, batch: Batch[ResponseT], results: dict[str, ResponseT | Exception]
+        self,
+        batch: Batch[RequestT, ResponseT],
+        results: dict[str, ResponseT | Exception],
     ) -> None:
         """
         Resolve a batch by sending results to each request and cleaning up inflight state.
@@ -344,7 +357,9 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
             del self._inflight_batches[batch.id]
 
     @abstractmethod
-    async def _create_batch(self, batch: list[BatchRequest[ResponseT]]) -> str:
+    async def _create_batch(
+        self, batch: list[BatchRequest[RequestT, ResponseT]]
+    ) -> str:
         """Create a new batch.
 
         This method should submit the batch requests to the model and return a
@@ -364,7 +379,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
 
     @abstractmethod
     async def _check_batch(
-        self, batch: Batch[ResponseT]
+        self, batch: Batch[RequestT, ResponseT]
     ) -> BatchCheckResult[CompletedBatchInfoT]:
         """Check the status of a batch.
 
@@ -387,7 +402,7 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
     @abstractmethod
     async def _handle_batch_result(
         self,
-        batch: Batch[ResponseT],
+        batch: Batch[RequestT, ResponseT],
         completion_info: CompletedBatchInfoT,
     ) -> dict[str, ResponseT | Exception]:
         """Process the results of a completed batch.
@@ -415,11 +430,17 @@ class Batcher(Generic[ResponseT, CompletedBatchInfoT]):
         pass
 
 
+def _default_estimate_request_size(request: Any) -> int:
+    """Estimate serialized size for dict-based requests."""
+    return len(json.dumps(sanitize_notgiven(request), separators=(",", ":")))
+
+
 def _assess_intake_queue(
-    intake_queue: list[BatchRequest[ResponseT]],
-    batch: PendingBatch[ResponseT],
+    intake_queue: list[BatchRequest[RequestT, ResponseT]],
+    batch: PendingBatch[RequestT, ResponseT],
     min_request_count: int,
     max_request_count: int,
+    estimate_request_size: Callable[[RequestT], int] = _default_estimate_request_size,
 ) -> tuple[int, int, bool]:
     """Assess the intake queue and determine what should be done with the current batch.
 
@@ -443,6 +464,7 @@ def _assess_intake_queue(
         batch: Current batch being assembled
         min_request_count: Minimum number of requests before sending
         max_request_count: Maximum number of requests allowed in a batch
+        estimate_request_size: Callable to estimate request size in bytes
 
     Returns:
         A tuple of (add_count, new_available_size, should_send) where:
@@ -460,9 +482,7 @@ def _assess_intake_queue(
         if batch_full:
             break
 
-        request_size = len(
-            json.dumps(sanitize_notgiven(request.request), separators=(",", ":"))
-        )
+        request_size = estimate_request_size(request.request)
 
         if request_size > available_size:
             if current_count + add_count == 0:
@@ -486,7 +506,7 @@ def _assess_intake_queue(
     return add_count, available_size, should_send
 
 
-def _batch_stats_reducer(acc: BatchStatus, batch: Batch[ResponseT]) -> BatchStatus:
+def _batch_stats_reducer(acc: BatchStatus, batch: Batch[Any, Any]) -> BatchStatus:
     oldest = (
         min(acc.oldest_created_at, batch.created_at)
         if acc.oldest_created_at

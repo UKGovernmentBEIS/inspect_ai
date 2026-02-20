@@ -13,6 +13,8 @@ if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
 
+from typing import Any
+
 from inspect_ai.model._generate_config import BatchConfig
 from inspect_ai.model._providers.util.batch import (
     BatchCheckResult,
@@ -28,7 +30,7 @@ class FakeCompletionInfo(TypedDict):
     result_uris: list[str]
 
 
-class FakeBatcher(Batcher[str, FakeCompletionInfo]):
+class FakeBatcher(Batcher[dict[str, Any], str, FakeCompletionInfo]):
     """Test implementation of Batcher that simulates realistic behavior."""
 
     def __init__(
@@ -416,7 +418,7 @@ class TestBatcher:
                 send_stream, receive_stream = anyio.create_memory_object_stream[
                     str | Exception
                 ](1)
-                request = BatchRequest[str](
+                request = BatchRequest[dict[str, Any], str](
                     request={"prompt": f"test-{i}"},
                     result_stream=send_stream,
                     custom_id=custom_id,

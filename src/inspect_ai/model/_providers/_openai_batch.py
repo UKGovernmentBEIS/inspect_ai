@@ -28,7 +28,11 @@ class CompletedBatchInfo(TypedDict):
 ResponseT = TypeVar("ResponseT", bound=BaseModel)
 
 
-class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[ResponseT]):
+# RequestT is dict[str, Any] — mirrors SDK kwargs, also **-unpacked in non-batch path.
+# TODO: consider passing typed SDK params directly.
+class OpenAIBatcher(
+    FileBatcher[dict[str, Any], ResponseT, CompletedBatchInfo], Generic[ResponseT]
+):
     def __init__(
         self,
         client: AsyncOpenAI,
@@ -54,7 +58,7 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
 
     @override
     def _jsonl_line_for_request(
-        self, request: BatchRequest[ResponseT], custom_id: str
+        self, request: BatchRequest[dict[str, Any], ResponseT], custom_id: str
     ) -> dict[str, pydantic.JsonValue]:
         """Format request as OpenAI JSONL entry."""
         return {
@@ -158,7 +162,7 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
 
     @override
     async def _check_batch(
-        self, batch: Batch[ResponseT]
+        self, batch: Batch[dict[str, Any], ResponseT]
     ) -> BatchCheckResult[CompletedBatchInfo]:
         batch_info = self._adapt_batch_info(
             await self._openai_client.batches.retrieve(batch.id)
@@ -220,7 +224,7 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
     # Private gunk
 
     def _results_from_rejection(
-        self, batch: Batch[ResponseT], errors: OpenAIErrors | None
+        self, batch: Batch[dict[str, Any], ResponseT], errors: OpenAIErrors | None
     ) -> dict[str, ResponseT | Exception]:
         """Create error results for a rejected batch.
 
