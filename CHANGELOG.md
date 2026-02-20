@@ -3,6 +3,7 @@
 - Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
 - OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
 - Sandboxes: Verify execute result size automatically for all sandbox exec calls.
+- Eval Set: Add `TASK_IDENTIFIER_VERSION` to support persistence of task identifiers in inspect_flow.
 - Inspect View: Display all non-undefined edited score values.
 - Bugfix: Create eval set bundle even when all logs are already complete.
 - Bugfix: Fix `epochs_changed` false positives in `eval_set` caused by comparing reducer closure `__name__` instead of registry log name.
