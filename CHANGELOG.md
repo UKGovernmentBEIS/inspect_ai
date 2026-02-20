@@ -1,3 +1,7 @@
+## Unreleased
+
+- Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
+
 ## 0.3.180 (20 February 2026)
 
 - Agent Bridge: Google Gemini API is now supported for in-process and sandbox bridges.
