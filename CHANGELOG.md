@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.180 (20 February 2026)
 
 - Agent Bridge: Google Gemini API is now supported for in-process and sandbox bridges.
 - Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
