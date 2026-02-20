@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
+- Bugfix: Create eval set bundle even when all logs are already complete.
 
 ## 0.3.180 (20 February 2026)
 
@@ -20,7 +21,6 @@
 - Performance: Disable expensive per-sample options when running high-throughput workloads.
 - Events: Rename `EventNode` to `EventTreeNode` and `SpanNode` to `EventTreeSpan` (old type names will still work at runtime with a deprecation warning).
 - Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.
-- Bugfix: Create eval set bundle even when all logs are already complete.
 - Bugfix: Shield sandbox cleanup after cancelled exception.
 - Bugfix: Protect against leading zero-width characters when printing tool output to the terminal.
 - Bugfix: Google batch JSONL serialization now correctly nests generation config fields (e.g. `thinking_config`) under `generation_config` in the REST schema.
