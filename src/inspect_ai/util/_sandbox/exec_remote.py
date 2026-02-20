@@ -6,7 +6,6 @@ long-running commands in sandbox environments with streaming output.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import shlex
 from dataclasses import dataclass
@@ -365,7 +364,7 @@ class ExecRemoteProcess:
                     raise StopAsyncIteration
 
                 # Still running with no output, wait before polling again
-                await asyncio.sleep(self._poll_interval)
+                await anyio.sleep(self._poll_interval)
 
         except anyio.get_cancelled_exc_class():
             # Kill the process on cancellation to avoid leaving orphaned processes.
