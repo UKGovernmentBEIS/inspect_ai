@@ -39,6 +39,7 @@ from .._openai import (
     OpenAIAsyncHttpxClient,
     messages_to_openai,
     model_output_from_openai,
+    needs_max_completion_tokens,
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_completion_params,
@@ -287,11 +288,19 @@ class OpenAICompatibleAPI(ModelAPI):
         return False
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        return openai_completion_params(
+        params = openai_completion_params(
             model=self.service_model_name(),
             config=config,
             tools=tools,
         )
+
+        if (
+            needs_max_completion_tokens(self.service_model_name())
+            and "max_tokens" in params
+        ):
+            params["max_completion_tokens"] = params.pop("max_tokens")
+
+        return params
 
     def on_response(self, response: dict[str, Any]) -> None:
         """Hook for subclasses to do custom response handling."""

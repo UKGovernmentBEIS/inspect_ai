@@ -29,10 +29,14 @@ class AgentBridge:
         filter: GenerateFilter | None = None,
         retry_refusals: int | None = None,
         compaction: CompactionStrategy | None = None,
+        model: str | None = None,
+        model_aliases: dict[str, str | Model] | None = None,
     ) -> None:
         self.state = state
         self.filter = filter
         self.retry_refusals = retry_refusals
+        self.model = model
+        self.model_aliases: dict[str, str | Model] = model_aliases or {}
         self._compaction = compaction
         self._compaction_prefix = state.messages.copy()
         self._compact: Compact | None = None
@@ -46,6 +50,18 @@ class AgentBridge:
     """Filter for bridge model generation.
 
     A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
+    """
+
+    model: str | None
+    """Fallback model for requests that don't use ``inspect`` or ``inspect/``
+    prefixed names.  ``None`` means no fallback (the request model name is
+    used as-is).
+    """
+
+    model_aliases: dict[str, str | Model]
+    """Map of model name aliases.  When a request uses a name that appears
+    here, the corresponding value (a ``Model`` instance or model spec string)
+    is used instead.  Checked before the fallback ``model``.
     """
 
     def compaction(

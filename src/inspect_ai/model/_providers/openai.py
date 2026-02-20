@@ -1,5 +1,4 @@
 import os
-import re
 from logging import getLogger
 from typing import Any
 
@@ -36,6 +35,8 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
+    is_gpt_5_model,
+    is_o_series_model,
     openai_should_retry,
 )
 from .._openai_responses import (
@@ -329,18 +330,13 @@ class OpenAIAPI(ModelAPI):
         )
 
     def is_o_series(self) -> bool:
-        name = self.service_model_name()
-        if bool(re.match(r"^o\d+", name)):
-            return True
-        else:
-            return not self.is_gpt() and bool(re.search(r"o\d+", name))
+        return is_o_series_model(self.service_model_name())
 
     def is_deep_research(self) -> bool:
         return "deep-research" in self.service_model_name()
 
     def is_gpt_5(self) -> bool:
-        name = self.service_model_name()
-        return "gpt-5" in name
+        return is_gpt_5_model(self.service_model_name())
 
     def is_gpt_5_plus(self) -> bool:
         name = self.service_model_name()

@@ -19,6 +19,7 @@ from test_helpers.utils import (
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
     EvalSetArgsInTaskIdentifier,
+    epochs_changed,
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
@@ -33,7 +34,7 @@ from inspect_ai._util.file import basename, size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
-from inspect_ai.log._log import EvalLog
+from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
@@ -928,6 +929,40 @@ def test_eval_set_limit_slices():
         verify_logs(logs, log_dir, samples=10)
 
 
+def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
+    """Test that bundle is created even when all logs are already complete."""
+    task1 = hello_world()
+    log_dir = str(tmp_path / "logs")
+    bundle_dir = str(tmp_path / "bundle")
+
+    # First run: complete all evals without bundle_dir
+    success, logs = eval_set(
+        tasks=[task1],
+        log_dir=log_dir,
+        model="mockllm/model",
+    )
+    assert success
+    assert logs[0].status == "success"
+
+    # Second run: same log_dir, all logs already complete, but now with bundle_dir
+    # bundle_log_dir should still be called to create the bundle
+    with patch("inspect_ai._eval.evalset.bundle_log_dir") as mock_bundle:
+        success, logs = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            bundle_dir=bundle_dir,
+            bundle_overwrite=True,
+        )
+        assert success
+        assert logs[0].status == "success"
+        mock_bundle.assert_called_once_with(
+            log_dir=log_dir,
+            output_dir=bundle_dir,
+            overwrite=True,
+        )
+
+
 def test_invalidation(tmp_path: Path):
     @task
     def task_for_invalidation():
@@ -989,3 +1024,63 @@ def test_invalidation(tmp_path: Path):
     assert new_sample_uuids != old_sample_uuids
     reused_sample_uuids = old_sample_uuids.intersection(new_sample_uuids)
     assert reused_sample_uuids == old_sample_uuids - {invalidated_sample}
+
+
+def test_epochs_changed_same_reducer():
+    """Test that epochs_changed returns False when the reducer is the same.
+
+    Reproduces a bug where reducer closures have __name__="reduce",
+    so comparing __name__ against the log name (e.g. "mean") always
+    returns True (changed), even when the reducers are identical.
+    """
+    from inspect_ai._eval.task.epochs import Epochs
+    from inspect_ai.scorer._reducer.reducer import mean_score
+
+    # Same epoch count, same "mean" reducer — should NOT be changed
+    epochs = Epochs(epochs=2, reducer="mean")
+    config = EvalConfig(epochs=2, epochs_reducer=["mean"])
+    assert not epochs_changed(epochs, config), (
+        "epochs_changed should return False when both use 'mean' reducer"
+    )
+
+    # Same epoch count, same "median" reducer — should NOT be changed
+    epochs = Epochs(epochs=3, reducer="median")
+    config = EvalConfig(epochs=3, epochs_reducer=["median"])
+    assert not epochs_changed(epochs, config), (
+        "epochs_changed should return False when both use 'median' reducer"
+    )
+
+    # Same epoch count, same "mode" reducer — should NOT be changed
+    epochs = Epochs(epochs=2, reducer="mode")
+    config = EvalConfig(epochs=2, epochs_reducer=["mode"])
+    assert not epochs_changed(epochs, config), (
+        "epochs_changed should return False when both use 'mode' reducer"
+    )
+
+    # Same epoch count, actually different reducers — SHOULD be changed
+    epochs = Epochs(epochs=2, reducer="mean")
+    config = EvalConfig(epochs=2, epochs_reducer=["median"])
+    assert epochs_changed(epochs, config), (
+        "epochs_changed should return True when reducers differ"
+    )
+
+    # Multiple reducers, same — should NOT be changed
+    epochs = Epochs(epochs=2, reducer=["mean", "median"])
+    config = EvalConfig(epochs=2, epochs_reducer=["mean", "median"])
+    assert not epochs_changed(epochs, config), (
+        "epochs_changed should return False when both use ['mean', 'median']"
+    )
+
+    # Default reducer (None → mean) vs explicit "mean" — should NOT be changed
+    epochs = Epochs(epochs=2)
+    config = EvalConfig(epochs=2, epochs_reducer=["mean"])
+    assert not epochs_changed(epochs, config), (
+        "epochs_changed should return False when default (None) matches 'mean'"
+    )
+
+    # Instantiated reducer objects should also work
+    epochs_obj = Epochs(epochs=2, reducer=mean_score())
+    config = EvalConfig(epochs=2, epochs_reducer=["mean"])
+    assert not epochs_changed(epochs_obj, config), (
+        "epochs_changed should return False when reducer object matches log name"
+    )
