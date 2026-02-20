@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
+- Bugfix: Fix async ZIP parser crash on valid `.eval` files whose compressed data contained a false ZIP64 EOCD Locator signature.
 
 ## 0.3.180 (20 February 2026)
 
