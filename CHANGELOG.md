@@ -4,6 +4,7 @@
 - OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
 - Bugfix: Create eval set bundle even when all logs are already complete.
 - Bugfix: Fix `epochs_changed` false positives in `eval_set` caused by comparing reducer closure `__name__` instead of registry log name.
+- Bugfix: Fix async ZIP parser crash on valid `.eval` files whose compressed data contained a false ZIP64 EOCD Locator signature.
 
 ## 0.3.180 (20 February 2026)
 
