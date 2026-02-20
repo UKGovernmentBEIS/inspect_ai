@@ -6,14 +6,20 @@ long-running commands in sandbox environments with streaming output.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import shlex
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar, cast
 
 import anyio
 from pydantic import BaseModel
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential_jitter,
+)
 
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 
@@ -326,9 +332,8 @@ class ExecRemoteProcess:
 
         try:
             while True:
-                result = await self._rpc(
-                    "exec_remote_poll", {"pid": self._pid}, _PollResult
-                )
+                # Perform the poll
+                result = await self._poll()
 
                 # Collect events from this poll
                 events: list[ExecRemoteEvent] = []
@@ -360,13 +365,30 @@ class ExecRemoteProcess:
                     raise StopAsyncIteration
 
                 # Still running with no output, wait before polling again
-                await asyncio.sleep(self._poll_interval)
+                await anyio.sleep(self._poll_interval)
 
         except anyio.get_cancelled_exc_class():
             # Kill the process on cancellation to avoid leaving orphaned processes.
             with anyio.CancelScope(shield=True):
                 await self.kill()
             raise
+
+    async def _poll(self) -> _PollResult:
+        @retry(
+            wait=wait_exponential_jitter(initial=2),
+            stop=(stop_after_attempt(5) | stop_after_delay(30)),
+            retry=retry_if_exception(lambda e: isinstance(e, RuntimeError)),
+        )
+        async def poll() -> _PollResult:
+            from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+
+            sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
+            with sandbox_proxy.no_events():
+                return await self._rpc(
+                    "exec_remote_poll", {"pid": self._pid}, _PollResult
+                )
+
+        return await poll()
 
     def _enqueue_output(self, stdout: str, stderr: str) -> None:
         """Enqueue any non-empty output as pending events for the iterator."""

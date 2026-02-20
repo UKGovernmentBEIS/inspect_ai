@@ -132,6 +132,14 @@ class ChatMessageBase(BaseModel):
             all_other = [content for content in self.content if content.type != "text"]
             self.content = all_other + [ContentText(text=text)]
 
+    @property
+    def content_list(self) -> list[Content]:
+        """Message content as a list of Content objects."""
+        if isinstance(self.content, list):
+            return self.content
+        else:
+            return [ContentText(text=self.content)]
+
 
 class ChatMessageSystem(ChatMessageBase):
     """System chat message."""
