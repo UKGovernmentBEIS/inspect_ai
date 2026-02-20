@@ -138,48 +138,69 @@ def _download_adapter_config(adapter_path: str) -> Path | None:
         return None
 
 
-# Pre-computed LoRA config from model list scanning.
-# Key: base_model, Value: {"enable_lora": bool, "max_lora_rank": int}
-_precomputed_lora_config: dict[str, dict[str, Any]] = {}
+# Registry of all created vLLM models (populated during __init__, read during
+# first generate). Enables lazy server startup with full adapter visibility.
+# Key: base_model, Value: list of (adapter_path, adapter_name)
+_vllm_model_registry: dict[str, list[tuple[str | None, str | None]]] = {}
+
+# Per-base-model locks for server initialization
+_server_init_locks: dict[str, asyncio.Lock] = {}
 
 
-def precompute_vllm_lora_config(model_names: list[str]) -> None:
-    """Pre-scan vLLM model names to compute LoRA server config.
+def register_vllm_model(
+    base_model: str, adapter_path: str | None, adapter_name: str | None
+) -> None:
+    """Register a vLLM model instance in the global registry.
 
-    Scans all vLLM model names for adapter syntax and computes the
-    max LoRA rank across all adapters sharing the same base model.
-    Results are stored in a module-level dict for VLLMProvider to read.
+    Called during VLLMAPI.__init__ so that by the time generate() runs,
+    the registry contains all models and their adapters.
 
     Args:
-        model_names: List of model name strings (may include non-vLLM models).
+        base_model: The base model identifier.
+        adapter_path: HuggingFace repo or local path (None if no adapter).
+        adapter_name: Sanitized name for vLLM API (None if no adapter).
     """
-    _precomputed_lora_config.clear()
+    if base_model not in _vllm_model_registry:
+        _vllm_model_registry[base_model] = []
+    _vllm_model_registry[base_model].append((adapter_path, adapter_name))
 
-    for name in model_names:
-        if not name.startswith("vllm/"):
-            continue
-        # Strip the "vllm/" prefix before parsing
-        base_model, adapter_path, _ = parse_vllm_model(name[len("vllm/") :])
-        if adapter_path is None:
-            continue
 
+def compute_lora_config_from_registry(base_model: str) -> dict[str, Any]:
+    """Compute LoRA server config from all registered models for a base model.
+
+    Scans all registered adapters for the given base model and computes
+    enable_lora and max_lora_rank across all of them.
+
+    Args:
+        base_model: The base model identifier.
+
+    Returns:
+        Dict with "enable_lora" and optionally "max_lora_rank", or empty dict
+        if no adapters are registered.
+    """
+    models = _vllm_model_registry.get(base_model, [])
+    adapters = [(path, name) for path, name in models if path is not None]
+    if not adapters:
+        return {}
+
+    config: dict[str, Any] = {"enable_lora": True}
+    max_rank: int | None = None
+    for adapter_path, _ in adapters:
         rank = get_adapter_rank(adapter_path)
-
-        if base_model not in _precomputed_lora_config:
-            _precomputed_lora_config[base_model] = {"enable_lora": True}
         if rank is not None:
-            prev = _precomputed_lora_config[base_model].get("max_lora_rank")
-            _precomputed_lora_config[base_model]["max_lora_rank"] = (
-                max(prev, rank) if prev is not None else rank
-            )
+            max_rank = max(max_rank, rank) if max_rank is not None else rank
+    if max_rank is not None:
+        config["max_lora_rank"] = max_rank
 
-    for base_model, config in _precomputed_lora_config.items():
-        logger.info(f"Pre-computed vLLM LoRA config for {base_model}: {config}")
+    logger.info(f"Computed vLLM LoRA config for {base_model}: {config}")
+    return config
 
 
-def get_precomputed_lora_config(base_model: str) -> dict[str, Any] | None:
-    """Get pre-computed LoRA config for a base model, if available."""
-    return _precomputed_lora_config.get(base_model)
+def get_server_init_lock(base_model: str) -> asyncio.Lock:
+    """Get or create a per-base-model lock for server initialization."""
+    if base_model not in _server_init_locks:
+        _server_init_locks[base_model] = asyncio.Lock()
+    return _server_init_locks[base_model]
 
 
 def get_server_for_model(

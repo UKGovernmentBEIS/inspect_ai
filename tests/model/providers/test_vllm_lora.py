@@ -141,8 +141,9 @@ async def test_vllm_base_and_lora_shared_server() -> None:
     """Test base model and two LoRA adapters sharing the same vLLM server.
 
     Verifies that:
-    - resolve_models pre-computes LoRA config so enable_lora is set even
-      when the base model (no adapter) appears first in the model list
+    - LoRA config is computed lazily on first generate() from the model
+      registry, so enable_lora is set correctly even when the base model
+      (no adapter) appears first in the model list
     - max_lora_rank is auto-detected as max(256, 16) = 256 across adapters
     - All three models produce output on the same server
     - Completions differ between base and each adapter at temp=0

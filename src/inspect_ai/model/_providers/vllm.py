@@ -1,3 +1,4 @@
+import asyncio
 import atexit
 import functools
 import logging
@@ -36,11 +37,13 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 from ._vllm_lora import (
     VLLMServerInfo,
+    compute_lora_config_from_registry,
     ensure_adapter_loaded,
-    get_precomputed_lora_config,
     get_server_for_model,
+    get_server_init_lock,
     parse_vllm_model,
     register_server,
+    register_vllm_model,
 )
 from .openai_compatible import OpenAICompatibleAPI
 
@@ -111,6 +114,10 @@ class VLLMAPI(OpenAICompatibleAPI):
             model_name
         )
 
+        # Register in global model registry so that by the time generate()
+        # runs, we have full visibility of all adapters for this base model.
+        register_vllm_model(self.base_model, self.adapter_path, self.adapter_name)
+
         # Validate inputs
         if base_url and port:
             raise ValueError("base_url and port cannot both be provided.")
@@ -128,25 +135,10 @@ class VLLMAPI(OpenAICompatibleAPI):
             VLLM_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
-        # Auto-configure LoRA from pre-computed config (covers all adapters
-        # sharing this base model) or from this instance's adapter alone.
-        precomputed = get_precomputed_lora_config(self.base_model)
-        if precomputed:
-            self.server_args.setdefault("enable_lora", precomputed["enable_lora"])
-            if "max_lora_rank" in precomputed:
-                self.server_args.setdefault(
-                    "max_lora_rank", precomputed["max_lora_rank"]
-                )
-        elif self.adapter_path and "enable_lora" not in self.server_args:
-            from ._vllm_lora import get_adapter_rank
-
-            self.server_args["enable_lora"] = True
-            rank = get_adapter_rank(self.adapter_path)
-            if rank is not None:
-                self.server_args.setdefault("max_lora_rank", rank)
-
         # Track external base URL for server lookup
         external_base_url = base_url
+        self._external_base_url = external_base_url
+        self._lazy_init_needed = False
 
         # Check for existing server for this base model
         existing_server = get_server_for_model(self.base_model, external_base_url)
@@ -188,55 +180,27 @@ class VLLMAPI(OpenAICompatibleAPI):
                 is_external=True,
             )
             register_server(self.base_model, self.server_info, external_base_url)
-            preq_err = None
-        except PrerequisiteError as e:
+        except PrerequisiteError:
             self.server_found = False
-            preq_err = e
 
         if not self.server_found:
-            if preq_err:
-                logger.warning(
-                    f"vLLM server config has missing prerequisites {preq_err}. "
-                    f"Starting new server for {self.base_model}."
-                )
-            else:
-                logger.warning(
-                    f"Existing vLLM server not found. Starting new server for {self.base_model}."
-                )
+            # No server found — defer startup to first generate() call.
+            # By then, all model __init__ calls will have completed and
+            # the registry will have full visibility of all adapters.
+            self._lazy_init_needed = True
+            self._deferred_api_key = api_key
+            self._deferred_config = config
 
-            # Extract and handle the configure_logging parameter
-            configure_logging = self.server_args.pop("configure_logging", False)
-            os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
-
-            # Set env var for runtime LoRA updating if LoRA is enabled
-            if self.server_args.get("enable_lora"):
-                os.environ["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] = "True"
-
-            # Start the server
-            base_url, resolved_api_key = self._start_server(
-                self.base_model, api_key=api_key, port=self.port
-            )
-            logger.warning(f"vLLM server started at {base_url}")
-
-            # Register spawned server for reuse
-            self.server_info = VLLMServerInfo(
-                base_url=base_url,
-                api_key=resolved_api_key,
-                port=self.port,
-                process=self.server_process,
-                lora_enabled=self.server_args.get("enable_lora", False),
-                is_external=False,
-            )
-            register_server(self.base_model, self.server_info, external_base_url)
-
-            # Initialize with new server
+            # Call super().__init__ with placeholder URL so the object
+            # is in a valid state (model_name, config, etc. are set).
+            resolved_api_key = api_key or os.environ.get("VLLM_API_KEY", "inspectai")
             super().__init__(
                 model_name=self.base_model,
-                base_url=base_url,
+                base_url="http://placeholder:0/v1",
                 api_key=resolved_api_key,
                 config=config,
                 service="vLLM",
-                service_base_url=base_url,
+                service_base_url="http://placeholder:0/v1",
             )
 
     def _start_server(
@@ -290,6 +254,69 @@ class VLLMAPI(OpenAICompatibleAPI):
         atexit.register(self._cleanup_server)
 
         return base_url, api_key
+
+    async def _ensure_server_started(self) -> None:
+        """Start vLLM server on first generate() call, with full adapter visibility.
+
+        By the time generate() is called, all model __init__ calls have completed
+        and the global registry contains every adapter for this base model.
+        This lets us compute the correct LoRA config (enable_lora, max_lora_rank)
+        across all adapters before starting the server.
+        """
+        if not self._lazy_init_needed:
+            return
+
+        lock = get_server_init_lock(self.base_model)
+        async with lock:
+            if not self._lazy_init_needed:
+                return
+
+            # Check if another instance already started the server
+            existing = get_server_for_model(self.base_model, self._external_base_url)
+            if existing is not None:
+                # If yes, we can use the existing server
+                self.server_info = existing
+            else:
+                # Compute LoRA config from registry (all models registered by now)
+                lora_config = compute_lora_config_from_registry(self.base_model)
+                for key, value in lora_config.items():
+                    self.server_args.setdefault(key, value)
+
+                # Extract and handle the configure_logging parameter
+                configure_logging = self.server_args.pop("configure_logging", False)
+                os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
+
+                # Set env var for runtime LoRA updating if LoRA is enabled
+                if self.server_args.get("enable_lora"):
+                    os.environ["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] = "True"
+
+                # Start server in thread to avoid blocking the event loop
+                base_url, resolved_api_key = await asyncio.to_thread(
+                    self._start_server,
+                    self.base_model,
+                    api_key=self._deferred_api_key,
+                    port=self.port,
+                )
+                logger.warning(f"vLLM server started at {base_url}")
+
+                # Register spawned server for reuse by other instances
+                self.server_info = VLLMServerInfo(
+                    base_url=base_url,
+                    api_key=resolved_api_key,
+                    port=self.port,
+                    process=self.server_process,
+                    lora_enabled=self.server_args.get("enable_lora", False),
+                    is_external=False,
+                )
+                register_server(
+                    self.base_model, self.server_info, self._external_base_url
+                )
+
+            # Update connection to actual server and recreate OpenAI client
+            self.base_url = self.server_info.base_url
+            self.api_key = self.server_info.api_key
+            self.initialize()
+            self._lazy_init_needed = False
 
     @property
     def server_is_running(self) -> bool:
@@ -357,6 +384,10 @@ class VLLMAPI(OpenAICompatibleAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # Lazy server startup: by now all models have been initialized and
+        # the registry has full visibility of all adapters for this base model.
+        await self._ensure_server_started()
+
         # Ensure LoRA adapter is loaded if needed (idempotent, async-safe)
         if self.adapter_path:
             # adapter_name is always set when adapter_path is set (from parse_vllm_model)
