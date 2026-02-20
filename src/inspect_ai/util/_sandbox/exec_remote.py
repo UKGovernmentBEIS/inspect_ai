@@ -319,7 +319,6 @@ class ExecRemoteProcess:
             StopAsyncIteration: When the process has completed or been killed.
             RuntimeError: If the process has not been submitted yet.
         """
-
         if self._pid is None:
             raise RuntimeError("Process has not been submitted yet")
 
@@ -333,12 +332,8 @@ class ExecRemoteProcess:
 
         try:
             while True:
-                # suppress events for polling
-                sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
-                with sandbox_proxy.no_events():
-                    result = await self._rpc(
-                        "exec_remote_poll", {"pid": self._pid}, _PollResult
-                    )
+                # Perform the poll
+                result = await self._poll()
 
                 # Collect events from this poll
                 events: list[ExecRemoteEvent] = []
