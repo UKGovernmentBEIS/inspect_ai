@@ -135,6 +135,7 @@ class TaskLogger:
         task_args: dict[str, Any],
         task_args_passed: dict[str, Any],
         model_args: dict[str, Any],
+        model_base_url: str | None,
         eval_config: EvalConfig,
         metadata: dict[str, Any] | None,
         recorder: Recorder,
@@ -215,7 +216,7 @@ class TaskLogger:
             solver_args_passed=solver.args_passed if solver else None,
             model=f"{ModelName(model).api}/{model.name}",
             model_generate_config=model.config,
-            model_base_url=model.api.base_url,
+            model_base_url=model_base_url,
             model_roles=model_roles_to_model_roles_config(model_roles),
             dataset=EvalDataset(
                 name=dataset.name,

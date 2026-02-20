@@ -4,6 +4,7 @@
 - OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
 - Sandboxes: Verify execute result size automatically for all sandbox exec calls.
 - Eval Set: Add `TASK_IDENTIFIER_VERSION` to support persistence of task identifiers in inspect_flow.
+- Eval Retry: Don't retry with `model_base_url` unless it was explicitly specified by the user.
 - Agent Bridge: Add model_aliases to agent bridge and pass Model to GenerateFilter.
 - Inspect View: Display all non-undefined edited score values.
 - Dependencies: Update to nest-asyncio2 v1.7.2 to address anyio threading issue.
