@@ -4,6 +4,7 @@
 - Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
 - Anthropic: Increase max_tokens caps for Claude 4.5 and 4.6 models.
 - Anthropic: Update to new sdk types released with Sonnet 4.6 (v0.80.0 of `anthropic` package is now required).
+- Anthropic: Remove uses of Sonnet 3.7 from tests (no longer available).
 - Hugging Face: More flexible control over application of chat templates (enables support for generation from base models).
 - VLLM: Don't retry when the error indicates that the VLLM server has crashed.
 - Analysis: Async reading of logs/samples in `samples_df()` (now 50x faster).
@@ -17,6 +18,8 @@
 - Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.
 - Bugfix: Shield sandbox cleanup after cancelled exception.
 - Bugfix: Protect against leading zero-width characters when printing tool output to the terminal.
+- Bugfix: Google batch JSONL serialization now correctly nests generation config fields (e.g. `thinking_config`) under `generation_config` in the REST schema.
+- Bugfix: Google batch polling no longer hangs forever when a batch job reaches `EXPIRED` or `PARTIALLY_SUCCEEDED` state.
 
 ## 0.3.179 (12 February 2026)
 
