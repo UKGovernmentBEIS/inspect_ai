@@ -888,3 +888,90 @@ def test_google_streaming_captures_reasoning_summaries():
     assert all(r.redacted for r in reasoning_blocks), (
         "All reasoning blocks should be redacted"
     )
+
+
+class TestGoogleBatcherCheckBatch:
+    """Test that _check_batch maps all terminal JobStates correctly."""
+
+    @staticmethod
+    def _make_batcher_and_batch(job_state: object) -> tuple:
+        from datetime import datetime, timezone
+
+        from google.genai.types import BatchJob
+
+        from inspect_ai.model._generate_config import BatchConfig
+        from inspect_ai.model._providers._google_batch import (
+            GoogleBatcher,
+            GoogleBatchRequest,
+        )
+        from inspect_ai.model._providers.util.batch import Batch, BatchRequest
+        from inspect_ai.model._retry import model_retry_config
+
+        client = MagicMock()
+        mock_batch_job = BatchJob(
+            name="batch-123",
+            state=job_state,
+            create_time=datetime.now(tz=timezone.utc),
+        )
+        client.aio.batches.get = AsyncMock(return_value=mock_batch_job)
+
+        batcher = GoogleBatcher(
+            client=client,
+            config=BatchConfig(),
+            retry_config=model_retry_config(
+                "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+            ),
+            model_name="gemini-2.0-flash",
+        )
+
+        send_stream = MagicMock()
+        req = BatchRequest(
+            request=GoogleBatchRequest(
+                contents=[],
+                config=MagicMock(),
+            ),
+            result_stream=send_stream,
+            custom_id="req-1",
+        )
+        batch = Batch(id="batch-123", requests={"req-1": req})
+        return batcher, batch
+
+    @pytest.mark.parametrize(
+        "state,expect_completed,expect_failed,expect_completion_info",
+        [
+            pytest.param("JOB_STATE_PENDING", False, False, False, id="pending"),
+            pytest.param("JOB_STATE_RUNNING", False, False, False, id="running"),
+            pytest.param("JOB_STATE_SUCCEEDED", True, False, True, id="succeeded"),
+            pytest.param(
+                "JOB_STATE_PARTIALLY_SUCCEEDED",
+                True,
+                False,
+                True,
+                id="partially-succeeded",
+            ),
+            pytest.param("JOB_STATE_FAILED", False, True, False, id="failed"),
+            pytest.param("JOB_STATE_CANCELLED", False, True, False, id="cancelled"),
+            pytest.param("JOB_STATE_EXPIRED", False, True, False, id="expired"),
+        ],
+    )
+    @pytest.mark.anyio
+    async def test_terminal_states(
+        self,
+        state: str,
+        expect_completed: bool,
+        expect_failed: bool,
+        expect_completion_info: bool,
+    ) -> None:
+        from google.genai.types import JobState
+
+        job_state = getattr(JobState, state)
+        batcher, batch = self._make_batcher_and_batch(job_state)
+        result = await batcher._check_batch(batch)
+
+        if expect_completed:
+            assert result.completed_count > 0, f"{state} should report completed"
+        if expect_failed:
+            assert result.failed_count > 0, f"{state} should report failed"
+        if not expect_completed and not expect_failed:
+            assert result.completed_count == 0 and result.failed_count == 0
+        assert (result.completion_info is not None) == expect_completion_info
