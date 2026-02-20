@@ -4,6 +4,7 @@
 - OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
 - Sandboxes: Verify execute result size automatically for all sandbox exec calls.
 - Inspect View: Display all non-undefined edited score values.
+- Dependencies: Update to nest-asyncio2 v1.7.2 to address anyio threading issue.
 - Bugfix: Create eval set bundle even when all logs are already complete.
 - Bugfix: Fix `epochs_changed` false positives in `eval_set` caused by comparing reducer closure `__name__` instead of registry log name.
 - Bugfix: Fix async ZIP parser crash on valid `.eval` files whose compressed data contained a false ZIP64 EOCD Locator signature.
