@@ -438,7 +438,7 @@ def eval_set(
         )
         if len(pending_tasks) == len(all_tasks):
             tasks_to_run = pending_tasks
-            success_logs = []
+            success_logs: list[Log] = []
         else:
             # look for retryable eval logs and cleave them into success/failed
             success_logs, failed_logs = list_latest_eval_logs(
