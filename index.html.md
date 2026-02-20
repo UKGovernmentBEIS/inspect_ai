@@ -22,7 +22,7 @@ understanding. Core features of Inspect include:
   computer tools.
 - Support for agent evaluations, including flexible built-in agents,
   multi-agent primitives, the ability to run arbitrary external agents
-  like Claude Code and Codex CLI.
+  like Claude Code, Codex CLI, and Gemini CLI.
 - A sandboxing system that supports running untrusted model code in
   Docker, Kubernetes, Modal, Proxmox, and other systems via an extension
   API.

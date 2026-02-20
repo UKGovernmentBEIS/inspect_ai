@@ -833,6 +833,7 @@ about creating skills at:
 - [Agent Skills Specification](https://agentskills.io/specification)
 - [Claude Code Agent Skills](https://code.claude.com/docs/en/skills)
 - [Codex CLI Agent Skills](https://developers.openai.com/codex/skills/)
+- [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/skills/)
 
 The `skill()` tool takes a list of paths that contain standard skill
 specifications, copies them into the sample’s sandbox, and provides a

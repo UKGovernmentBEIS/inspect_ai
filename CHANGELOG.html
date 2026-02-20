@@ -149,18 +149,18 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#february-2026" id="toc-february-2026" class="nav-link" data-scroll-target="#february-2026">0.3.179 (12 February 2026)</a></li>
-  <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.178 (11 February 2026)</a></li>
-  <li><a href="#february-2026-2" id="toc-february-2026-2" class="nav-link" data-scroll-target="#february-2026-2">0.3.177 (10 February 2026)</a></li>
-  <li><a href="#february-2026-3" id="toc-february-2026-3" class="nav-link" data-scroll-target="#february-2026-3">0.3.176 (10 February 2026)</a></li>
-  <li><a href="#february-2026-4" id="toc-february-2026-4" class="nav-link" data-scroll-target="#february-2026-4">0.3.175 (10 February 2026)</a></li>
-  <li><a href="#february-2026-5" id="toc-february-2026-5" class="nav-link" data-scroll-target="#february-2026-5">0.3.174 (09 February 2026)</a></li>
-  <li><a href="#february-2026-6" id="toc-february-2026-6" class="nav-link" data-scroll-target="#february-2026-6">0.3.173 (08 February 2026)</a></li>
-  <li><a href="#february-2026-7" id="toc-february-2026-7" class="nav-link" data-scroll-target="#february-2026-7">0.3.172 (06 February 2026)</a></li>
-  <li><a href="#february-2026-8" id="toc-february-2026-8" class="nav-link" data-scroll-target="#february-2026-8">0.3.171 (06 February 2026)</a></li>
-  <li><a href="#february-2026-9" id="toc-february-2026-9" class="nav-link" data-scroll-target="#february-2026-9">0.3.170 (03 February 2026)</a></li>
-  <li><a href="#february-2026-10" id="toc-february-2026-10" class="nav-link" data-scroll-target="#february-2026-10">0.3.169 (01 February 2026)</a></li>
+  <li><a href="#february-2026" id="toc-february-2026" class="nav-link active" data-scroll-target="#february-2026">0.3.180 (20 February 2026)</a></li>
+  <li><a href="#february-2026-1" id="toc-february-2026-1" class="nav-link" data-scroll-target="#february-2026-1">0.3.179 (12 February 2026)</a></li>
+  <li><a href="#february-2026-2" id="toc-february-2026-2" class="nav-link" data-scroll-target="#february-2026-2">0.3.178 (11 February 2026)</a></li>
+  <li><a href="#february-2026-3" id="toc-february-2026-3" class="nav-link" data-scroll-target="#february-2026-3">0.3.177 (10 February 2026)</a></li>
+  <li><a href="#february-2026-4" id="toc-february-2026-4" class="nav-link" data-scroll-target="#february-2026-4">0.3.176 (10 February 2026)</a></li>
+  <li><a href="#february-2026-5" id="toc-february-2026-5" class="nav-link" data-scroll-target="#february-2026-5">0.3.175 (10 February 2026)</a></li>
+  <li><a href="#february-2026-6" id="toc-february-2026-6" class="nav-link" data-scroll-target="#february-2026-6">0.3.174 (09 February 2026)</a></li>
+  <li><a href="#february-2026-7" id="toc-february-2026-7" class="nav-link" data-scroll-target="#february-2026-7">0.3.173 (08 February 2026)</a></li>
+  <li><a href="#february-2026-8" id="toc-february-2026-8" class="nav-link" data-scroll-target="#february-2026-8">0.3.172 (06 February 2026)</a></li>
+  <li><a href="#february-2026-9" id="toc-february-2026-9" class="nav-link" data-scroll-target="#february-2026-9">0.3.171 (06 February 2026)</a></li>
+  <li><a href="#february-2026-10" id="toc-february-2026-10" class="nav-link" data-scroll-target="#february-2026-10">0.3.170 (03 February 2026)</a></li>
+  <li><a href="#february-2026-11" id="toc-february-2026-11" class="nav-link" data-scroll-target="#february-2026-11">0.3.169 (01 February 2026)</a></li>
   <li><a href="#january-2026" id="toc-january-2026" class="nav-link" data-scroll-target="#january-2026">0.3.168 (31 January 2026)</a></li>
   <li><a href="#january-2026-1" id="toc-january-2026-1" class="nav-link" data-scroll-target="#january-2026-1">0.3.167 (29 January 2026)</a></li>
   <li><a href="#january-2026-2" id="toc-january-2026-2" class="nav-link" data-scroll-target="#january-2026-2">0.3.166 (29 January 2026)</a></li>
@@ -337,25 +337,40 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="february-2026" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026">0.3.180 (20 February 2026)</h2>
 <ul>
-<li>Analysis: Async reading of logs/samples in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span>. Improves reading summary samples from ~114 minutes to ~15 seconds for ~600 files.</li>
+<li>Agent Bridge: Google Gemini API is now supported for in-process and sandbox bridges.</li>
 <li>Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.</li>
+<li>Anthropic: Increase max_tokens caps for Claude 4.5 and 4.6 models.</li>
+<li>Anthropic: Update to new sdk types released with Sonnet 4.6 (v0.80.0 of <code>anthropic</code> package is now required).</li>
+<li>Anthropic: Remove uses of Sonnet 3.7 from tests (no longer available).</li>
+<li>Hugging Face: More flexible control over application of chat templates (enables support for generation from base models).</li>
+<li>VLLM: Don’t retry when the error indicates that the VLLM server has crashed.</li>
+<li>Analysis: Async reading of logs/samples in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> (now 50x faster).</li>
 <li>Sandboxes: Don’t require Docker compatible sandboxes to implement <code>config_deserialize()</code>.</li>
-<li>Limits: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#cost_limit">cost_limit()</a></span> context manager for scoped application of cost limits (can also be applied directly samples or agents).</li>
-<li>Inspect View: Make samples in task detail sortable, inline epoch filter.</li>
+<li>Sandboxes: New <code>exec_remote()</code> method for async execution of long-running commands.</li>
+<li>Compaction: Add <code>type</code> field to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#compactionevent">CompactionEvent</a></span> to record compaction type.</li>
+<li>Web Search: Treat Tavily query character limits as ToolErrors.</li>
+<li>Limits: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#cost_limit">cost_limit()</a></span> context manager for scoped application of cost limits.</li>
+<li>Performance: Disable expensive per-sample options when running high-throughput workloads.</li>
+<li>Events: Rename <code>EventNode</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#eventtreenode">EventTreeNode</a></span> and <code>SpanNode</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#eventtreespan">EventTreeSpan</a></span> (old type names will still work at runtime with a deprecation warning).</li>
+<li>Inspect View: Make samples in task detail sortable, inline epoch filter, show sample status.</li>
+<li>Bugfix: Shield sandbox cleanup after cancelled exception.</li>
+<li>Bugfix: Protect against leading zero-width characters when printing tool output to the terminal.</li>
+<li>Bugfix: Google batch JSONL serialization now correctly nests generation config fields (e.g.&nbsp;<code>thinking_config</code>) under <code>generation_config</code> in the REST schema.</li>
+<li>Bugfix: Google batch polling no longer hangs forever when a batch job reaches <code>EXPIRED</code> or <code>PARTIALLY_SUCCEEDED</code> state.</li>
 </ul>
 </section>
-<section id="february-2026" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026">0.3.179 (12 February 2026)</h2>
+<section id="february-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-1">0.3.179 (12 February 2026)</h2>
 <ul>
 <li>Bugfix: Fix shutdown hang by draining nest_asyncio event loop.</li>
 <li>Bugfix: Fix regression in live sample display in Inspect View.</li>
 </ul>
 </section>
-<section id="february-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-1">0.3.178 (11 February 2026)</h2>
+<section id="february-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-2">0.3.178 (11 February 2026)</h2>
 <ul>
 <li>Google: Hard failure for quota exceeded errors with <code>limit: 0</code> (indicating the model or feature is fully restricted).</li>
 <li>Compaction: Improve token counting by using input tokens reported from call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</li>
@@ -368,21 +383,21 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix off-by-one in <code>_read_all_summaries</code> that skipped the last sample summary.</li>
 </ul>
 </section>
-<section id="february-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-2">0.3.177 (10 February 2026)</h2>
+<section id="february-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-3">0.3.177 (10 February 2026)</h2>
 <ul>
 <li>Anthropic: Do not pass through unrecognized <code>extra_body</code> fields.</li>
 </ul>
 </section>
-<section id="february-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-3">0.3.176 (10 February 2026)</h2>
+<section id="february-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-4">0.3.176 (10 February 2026)</h2>
 <ul>
 <li>Eval Logs: Async parallel reading of eval log headers from S3, reducing time from 12+ minutes to ~12 seconds for ~600 files.</li>
 <li>Bugfix: Correct handling of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#composeconfig">ComposeConfig</a></span> for Docker sandbox provider.</li>
 </ul>
 </section>
-<section id="february-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-4">0.3.175 (10 February 2026)</h2>
+<section id="february-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-5">0.3.175 (10 February 2026)</h2>
 <ul>
 <li>OpenRouter: Retry 500 and 504 errors returned in request JSON body.</li>
 <li>Scoring: Allow customisation of grouped metric names.</li>
@@ -391,28 +406,28 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Improve scroll performance when viewing sample transcripts and messages.</li>
 </ul>
 </section>
-<section id="february-2026-5" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-5">0.3.174 (09 February 2026)</h2>
+<section id="february-2026-6" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-6">0.3.174 (09 February 2026)</h2>
 <ul>
 <li>Compaction: Remove reasoning blocks from <code>compact()</code> result for Anthropic provider.</li>
 </ul>
 </section>
-<section id="february-2026-6" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-6">0.3.173 (08 February 2026)</h2>
+<section id="february-2026-7" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-7">0.3.173 (08 February 2026)</h2>
 <ul>
 <li>Compaction: Correct capture of compaction results for Anthropic streaming mode.</li>
 <li>Compaction: Improved prefix handling (drop all by system messages) for native compaction.</li>
 <li>Compaction: Improved display of OpenAI and Anthropic compaction data in the viewer.</li>
 </ul>
 </section>
-<section id="february-2026-7" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-7">0.3.172 (06 February 2026)</h2>
+<section id="february-2026-8" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-8">0.3.172 (06 February 2026)</h2>
 <ul>
 <li>Inspect View: Fix a regression which affected the display of samples within VSCode.</li>
 </ul>
 </section>
-<section id="february-2026-8" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-8">0.3.171 (06 February 2026)</h2>
+<section id="february-2026-9" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-9">0.3.171 (06 February 2026)</h2>
 <ul>
 <li>Compaction: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> strategy which uses provider-native compaction (currently only available for OpenAI and Anthropic Claude 4.6).</li>
 <li>Compaction: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionauto">CompactionAuto</a></span> strategy which uses <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionnative">CompactionNative</a></span> if possible and falls back to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#compactionsummary">CompactionSummary</a></span>.</li>
@@ -432,8 +447,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Correctly handle optional <code>content</code> field in Anthropic agent bridge <code>tool_result</code>.</li>
 </ul>
 </section>
-<section id="february-2026-9" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-9">0.3.170 (03 February 2026)</h2>
+<section id="february-2026-10" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-10">0.3.170 (03 February 2026)</h2>
 <ul>
 <li>Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stable_message_ids">stable_message_ids()</a></span> function for yielding stable ids based on model content (but always unique within a given conversation).</li>
 <li>Model API: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#compactionevent">CompactionEvent</a></span> for model compactions.</li>
@@ -447,8 +462,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Submit to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#human_cli">human_cli()</a></span> with no answer now correctly completes task.</li>
 </ul>
 </section>
-<section id="february-2026-10" class="level2">
-<h2 class="anchored" data-anchor-id="february-2026-10">0.3.169 (01 February 2026)</h2>
+<section id="february-2026-11" class="level2">
+<h2 class="anchored" data-anchor-id="february-2026-11">0.3.169 (01 February 2026)</h2>
 <ul>
 <li>Anthropic: Correct handling of beta server tool use blocks for bridge clients that use the beta API (e.g.&nbsp;PydanticAI).</li>
 <li>OpenAI: Workaround for openai Python SDK inability to round trip ‘find_in_page’ web search actions.</li>
