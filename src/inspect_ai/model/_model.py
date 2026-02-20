@@ -434,6 +434,7 @@ class Model:
         self.config = config
         self.model_args = model_args if model_args is not None else {}
         self._role: str | None = None
+        self._explicit_base_url: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -478,6 +479,11 @@ class Model:
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return self.api.canonical_name()
+
+    @property
+    def explicit_base_url(self) -> str | None:
+        """Base URL explicitly provided by the user (not resolved from env/defaults)."""
+        return self._explicit_base_url
 
     @property
     def role(self) -> str | None:
@@ -1429,6 +1435,7 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config, model_args)
+        m._explicit_base_url = base_url
         if role is not None:
             m._set_role(role)
         if memoize:
