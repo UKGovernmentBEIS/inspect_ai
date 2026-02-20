@@ -5,6 +5,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import IO, Any, Callable, Generator, Literal, cast
 
+import yaml
 from pydantic import (
     BaseModel,
     Field,
@@ -779,3 +780,78 @@ def to_overview(header: EvalLog) -> LogOverview:
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,
     )
+
+
+def push_eval_result_to_model_repo(eval_log: EvalLog, log_location: str) -> None:
+    """Pushed an eval result file to a hugging face model repo.
+
+    more details: https://huggingface.co/docs/hub/eval-results
+
+    Args:
+        eval_log: The evaluation log
+        log_location: Path to the log file
+    """
+    import io
+
+    from huggingface_hub import CommitOperationAdd, HfApi
+
+    if (
+        hub_benchmark_metadata := eval_log.eval.metadata.get("hub_benchmark", None)
+    ) is None:
+        logger.warning("No hub benchmark metadata found, skipping result file")
+        return
+
+    # Get accuracy value from default scorer or first scorer
+    if default_scorer_key := hub_benchmark_metadata.get("default_scorer"):
+        default_scorer = eval_log.results.scores[default_scorer_key]
+        accuracy_value = default_scorer.metrics["accuracy"].value
+    else:
+        if len(eval_log.results.scores) > 1:
+            logger.warning(
+                "Multiple scorers found, but no default scorer specified, using the first scorer"
+            )
+        accuracy_value = eval_log.results.scores[0].metrics["accuracy"].value
+
+    # Build result dictionary
+    result: dict[str, Any] = {
+        "dataset": {"id": eval_log.eval.dataset.location},
+        "value": accuracy_value,
+        "date": eval_log.eval.created,
+    }
+
+    if task_id := hub_benchmark_metadata.get("id"):
+        result["dataset"]["task_id"] = task_id
+
+    if dataset_revision := hub_benchmark_metadata.get("dataset_revision"):
+        result["dataset"]["revision"] = dataset_revision
+
+    log_fs = filesystem(log_location)
+    log_dir = os.path.dirname(log_location) or "."
+    task_name = eval_log.eval.task.replace("/", "-")
+    filename = (
+        f"{eval_log.eval.created}-{task_name}_{eval_log.eval.task_id}-result.yaml"
+    )
+    yaml_path = f"{log_dir}{log_fs.sep}{filename}"
+    yaml_content = yaml.dump([result], default_flow_style=False, sort_keys=False)
+
+    model_name = eval_log.eval.model
+    model_repo = model_name.split("/", 1)[-1]
+    yaml_filename = os.path.basename(yaml_path)
+    result_file_path = f"result_files/{yaml_filename}"
+
+    api = HfApi()
+    try:
+        api.create_commit(
+            repo_id=model_repo,
+            repo_type="model",
+            commit_message=f"Add evaluation results for {eval_log.eval.task}",
+            operations=[
+                CommitOperationAdd(
+                    path_in_repo=result_file_path,
+                    path_or_fileobj=io.BytesIO(yaml_content.encode("utf-8")),
+                )
+            ],
+            create_pr=True,
+        )
+    except Exception as e:
+        logger.warning(f"Error pushing result to model repo: {e}")
