@@ -709,6 +709,82 @@ Similar to the Hugging Face provider, you can also use local models with the vLL
 $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 ```
 
+### LoRA Adapters
+
+vLLM supports [LoRA (Low-Rank Adaptation)](https://docs.vllm.ai/en/stable/features/lora.html) adapters, allowing you to use fine-tuned models without duplicating the base model weights. To use a LoRA adapter, append `:adapter-path` to the model name:
+
+``` bash
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
+```
+
+The adapter path can be a HuggingFace repository (e.g., `myorg/my-lora-adapter`) or a local path (e.g., `./adapters/my-adapter`).
+
+When using LoRA adapters:
+
+- The vLLM server is automatically started with `--enable-lora`
+- `max_lora_rank` is auto-detected from the adapter's `adapter_config.json` (supports both local paths and HuggingFace repos)
+- Adapters are dynamically loaded on first request via vLLM's `/v1/load_lora_adapter` endpoint
+- Multiple models sharing the same base model reuse a single vLLM server, even with different adapters
+
+For example, you can evaluate multiple LoRA fine-tunes on the same base model efficiently:
+
+``` python
+# These will share the same vLLM server
+# max_lora_rank is auto-detected as the max across all adapters
+eval(
+    "task.py",
+    model=["vllm/meta-llama/Llama-3-8B:adapter-a", "vllm/meta-llama/Llama-3-8B:adapter-b"],
+)
+```
+
+You can also compare a base model against its LoRA fine-tune --- LoRA will be auto-enabled for the shared server:
+
+``` python
+eval(
+    "task.py",
+    model=["vllm/meta-llama/Llama-3-8B", "vllm/meta-llama/Llama-3-8B:my-adapter"],
+)
+```
+
+If you need to override the auto-detected rank (e.g. when using `get_model()` directly with multiple adapters of different ranks), pass `max_lora_rank` explicitly:
+
+``` bash
+inspect eval task.py --model vllm/meta-llama/Llama-3-8B:my-adapter -M max_lora_rank=128
+```
+
+#### External vLLM Server with LoRA
+
+When using an external vLLM server (`VLLM_BASE_URL`), you have two options:
+
+**Option 1: Pre-load adapters manually**
+
+Load the adapters yourself when starting the server and reference them by name:
+
+``` bash
+# Start server with pre-loaded adapter
+vllm serve meta-llama/Llama-3-8B --enable-lora \
+    --lora-modules my-adapter=path/to/adapter
+
+# Use the adapter name directly (not the path)
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:my-adapter
+```
+
+**Option 2: Enable dynamic loading**
+
+Start the server with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True` to let Inspect load adapters dynamically:
+
+``` bash
+VLLM_ALLOW_RUNTIME_LORA_UPDATING=True vllm serve meta-llama/Llama-3-8B --enable-lora
+```
+
+Then use adapter paths as normal:
+
+``` bash
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
+```
+
+Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
+
 ### Tool Use and Reasoning
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
