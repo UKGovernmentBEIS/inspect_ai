@@ -1,7 +1,10 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import AsyncGenerator, Iterator, Literal
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
 from anyio.abc import TaskGroup
 from shortuuid import uuid
@@ -26,6 +29,7 @@ class ActiveSample:
         epoch: int,
         message_limit: int | None,
         token_limit: int | None,
+        cost_limit: float | None,
         time_limit: int | None,
         working_limit: int | None,
         fails_on_error: bool,
@@ -43,11 +47,13 @@ class ActiveSample:
         self.epoch = epoch
         self.message_limit = message_limit
         self.token_limit = token_limit
+        self.cost_limit = cost_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
         self.fails_on_error = fails_on_error
         self.total_messages = 0
         self.total_tokens = 0
+        self.total_cost: float | None = None
         self.transcript = transcript
         self.sandboxes = sandboxes
         self._interrupt_action: Literal["score", "error"] | None = None
@@ -111,6 +117,7 @@ async def active_sample(
     epoch: int,
     message_limit: int | None,
     token_limit: int | None,
+    cost_limit: float | None,
     time_limit: int | None,
     working_limit: int | None,
     fails_on_error: bool,
@@ -125,6 +132,7 @@ async def active_sample(
         epoch=epoch,
         message_limit=message_limit,
         token_limit=token_limit,
+        cost_limit=cost_limit,
         time_limit=time_limit,
         working_limit=working_limit,
         sandboxes=await sandbox_connections(),
@@ -156,6 +164,18 @@ def set_active_sample_total_tokens(total_tokens: int) -> None:
     active = sample_active()
     if active:
         active.total_tokens = total_tokens
+
+
+def set_active_sample_cost_limit(cost_limit: float | None) -> None:
+    active = sample_active()
+    if active:
+        active.cost_limit = cost_limit
+
+
+def set_active_sample_total_cost(total_cost: float | None) -> None:
+    active = sample_active()
+    if active:
+        active.total_cost = total_cost
 
 
 def active_sample_message_limit() -> int | None:
@@ -194,6 +214,24 @@ def track_active_model_event(event: ModelEvent) -> Iterator[None]:
 
 def has_active_model_event() -> bool:
     return _active_model_event.get() is not None
+
+
+def set_active_model_event_call(
+    request: Any,
+    filter: "ModelCallFilter | None" = None,
+) -> "ModelCall":
+    """Create a ModelCall and register it with the active model event."""
+    from inspect_ai.log._transcript import transcript
+    from inspect_ai.model._model_call import ModelCall
+
+    if request is None:
+        request = {}
+    model_call = ModelCall.create(request, None, filter)
+    event = _active_model_event.get()
+    if event is not None:
+        event.call = model_call
+        transcript()._event_updated(event)
+    return model_call
 
 
 def report_active_sample_retry() -> None:

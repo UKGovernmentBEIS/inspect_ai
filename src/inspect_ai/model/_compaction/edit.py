@@ -18,6 +18,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model import Model
 from inspect_ai.model._trim import strip_citations
 from inspect_ai.tool import ToolCall
+from inspect_ai.tool._tool_info import ToolInfo
 
 from .memory import clear_memory_content
 from .types import CompactionStrategy
@@ -66,7 +67,7 @@ class CompactionEdit(CompactionStrategy):
                 should never be cleared. Useful for preserving important
                 context.
         """
-        super().__init__(threshold, memory)
+        super().__init__(type="edit", threshold=threshold, memory=memory)
         self.keep_thinking_turns = keep_thinking_turns
         self.keep_tool_uses = keep_tool_uses
         self.keep_tool_inputs = keep_tool_inputs
@@ -74,7 +75,7 @@ class CompactionEdit(CompactionStrategy):
 
     @override
     async def compact(
-        self, messages: list[ChatMessage], model: Model
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         """Compact messages by editing the history.
 
@@ -82,8 +83,9 @@ class CompactionEdit(CompactionStrategy):
         Tool results receive placeholder to indicate they were removed.
 
         Args:
-            messages: Full message history
             model: Target model for compaction.
+            messages: Full message history
+            tools: Available tools
 
         Returns: Compacted messages and None (no summary message appended).
         """

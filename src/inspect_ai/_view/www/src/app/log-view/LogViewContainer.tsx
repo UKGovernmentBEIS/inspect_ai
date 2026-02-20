@@ -3,10 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
 import {
   useEvalSpec,
-  useFilteredSamples,
   usePrevious,
   useSampleSummaries,
-  useTotalSampleCount,
 } from "../../state/hooks";
 import { useUnloadLog } from "../../state/log";
 import { useStore } from "../../state/store";
@@ -14,24 +12,19 @@ import { baseUrl, logSamplesUrl, useLogRouteParams } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
 
 /**
- * LogContainer component that handles routing to specific logs, tabs, and samples
+ * LogContainer component that handles routing to specific logs and tabs.
+ * Sample detail URLs are now handled by LogSampleDetailView.
  */
 export const LogViewContainer: FC = () => {
-  const { logPath, tabId, sampleUuid, sampleId, epoch, sampleTabId } =
-    useLogRouteParams();
+  const { logPath, tabId, sampleUuid, sampleTabId } = useLogRouteParams();
 
   const initialState = useStore((state) => state.app.initialState);
   const clearInitialState = useStore(
     (state) => state.appActions.clearInitialState,
   );
   const evalSpec = useEvalSpec();
-  const setSampleTab = useStore((state) => state.appActions.setSampleTab);
-  const setShowingSampleDialog = useStore(
-    (state) => state.appActions.setShowingSampleDialog,
-  );
   const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
 
-  const selectSample = useStore((state) => state.logActions.selectSample);
   const setSelectedLogFile = useStore(
     (state) => state.logsActions.setSelectedLogFile,
   );
@@ -44,8 +37,6 @@ export const LogViewContainer: FC = () => {
     (state) => state.sampleActions.clearSelectedSample,
   );
 
-  const filteredSamples = useFilteredSamples();
-  const totalSampleCount = useTotalSampleCount();
   const navigate = useNavigate();
   const sampleSummaries = useSampleSummaries();
   const [searchParams] = useSearchParams();
@@ -140,41 +131,6 @@ export const LogViewContainer: FC = () => {
     prevLogPath,
     clearSelectedSample,
     clearSelectedLogSummary,
-  ]);
-
-  // Handle sample selection from URL params
-  useEffect(() => {
-    if (sampleId && filteredSamples && logPath) {
-      const targetEpoch = epoch ? parseInt(epoch, 10) : 1;
-      selectSample(sampleId, targetEpoch, logPath);
-
-      // Set the sample tab if specified in the URL
-      if (sampleTabId) {
-        setSampleTab(sampleTabId);
-      }
-
-      if (filteredSamples.length > 1) {
-        setShowingSampleDialog(true);
-      }
-    } else {
-      // If we don't have sample params in the URL but the dialog is showing, close it
-      // This handles the case when user navigates back from a sample
-      setShowingSampleDialog(false);
-      if (totalSampleCount > 1) {
-        clearSelectedSample();
-      }
-    }
-  }, [
-    sampleId,
-    epoch,
-    sampleTabId,
-    logPath,
-    filteredSamples,
-    totalSampleCount,
-    selectSample,
-    setSampleTab,
-    setShowingSampleDialog,
-    clearSelectedSample,
   ]);
 
   return <LogViewLayout />;

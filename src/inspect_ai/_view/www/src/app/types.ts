@@ -40,7 +40,6 @@ export interface AppState {
     sample: string;
   };
   dialogs: {
-    sample: boolean;
     transcriptFilter: boolean;
     options: boolean;
   };
@@ -118,8 +117,6 @@ export interface LogState {
   filter: string;
   filterError?: FilterError;
 
-  epoch: string;
-  sort: string;
   selectedScores?: ScoreLabel[];
   scores?: ScoreLabel[];
 

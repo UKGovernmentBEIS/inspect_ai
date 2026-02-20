@@ -1,9 +1,8 @@
 .stickyWrapper {
   position: sticky;
-  /* top needs to be in sync with a hardcoded rootMargin of IntersectionObserver, negative margins are combined from multiple parents */
-  top: 30px;
+  top: var(--inspect-event-panel-sticky-top);
   padding: 5px 10px 5px 0;
-  margin: -5px -10px -5px 0;
+  margin: var(--inspect-event-panel-sticky-margin);
   background-color: transparent;
   z-index: 1;
   border-bottom: solid 1px transparent;
@@ -13,10 +12,11 @@
 .stickyWrapper:global([data-useStickyObserver-stuck]) {
   background-color: var(--bs-light);
   padding-left: 10px;
-  margin-left: -22px;
-  margin-right: -10px;
+  margin-left: var(--inspect-event-panel-sticky-stuck-margin-left);
+  margin-right: var(--inspect-event-panel-sticky-stuck-margin-right);
   border-bottom-color: var(--bs-light-border-subtle);
   border-left-color: var(--bs-light-border-subtle);
+  border-right-color: var(--bs-light-border-subtle);
 }
 
 .label {

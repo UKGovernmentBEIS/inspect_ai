@@ -25,7 +25,7 @@ def test_document_openai_responses() -> None:
 
 @skip_if_no_anthropic
 def test_document_anthropic() -> None:
-    check_document("anthropic/claude-3-7-sonnet-latest")
+    check_document("anthropic/claude-sonnet-4-6")
 
 
 @skip_if_no_google

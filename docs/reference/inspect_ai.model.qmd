@@ -61,16 +61,20 @@ title: "inspect_ai.model"
 ### compaction
 ### Compact
 ### CompactionStrategy
+### CompactionAuto
+### CompactionNative
 ### CompactionEdit
 ### CompactionSummary
 ### CompactionTrim
-### CompactionNative
+
 
 ## Model Info
 
 ### get_model_info
 ### set_model_info
+### set_model_cost
 ### ModelInfo
+### ModelCost
 
 ## Logprobs
 

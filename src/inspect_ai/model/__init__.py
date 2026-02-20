@@ -40,6 +40,7 @@ from ._chat_message import (
 )
 from ._compaction import (
     Compact,
+    CompactionAuto,
     CompactionEdit,
     CompactionNative,
     CompactionStrategy,
@@ -66,8 +67,8 @@ from ._model import (
 )
 from ._model_call import ModelCall
 from ._model_config import ModelConfig
-from ._model_data.model_data import ModelInfo
-from ._model_info import get_model_info, set_model_info
+from ._model_data.model_data import ModelCost, ModelInfo
+from ._model_info import get_model_info, set_model_cost, set_model_info
 from ._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -125,11 +126,13 @@ __all__ = [
     "messages_to_openai",
     "stable_message_ids",
     "ModelCall",
+    "ModelCost",
     "ModelOutput",
     "ModelConversation",
     "compaction",
     "Compact",
     "CompactionStrategy",
+    "CompactionAuto",
     "CompactionEdit",
     "CompactionSummary",
     "CompactionTrim",
@@ -155,6 +158,7 @@ __all__ = [
     "cache_size",
     "get_model",
     "get_model_info",
+    "set_model_cost",
     "set_model_info",
     "ModelInfo",
     "modelapi",

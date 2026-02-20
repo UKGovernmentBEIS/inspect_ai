@@ -13,7 +13,7 @@ import {
   inputString,
 } from "../../utils/format";
 import { truncateMarkdown } from "../../utils/markdown";
-import { FlatSampleError } from "./error/FlatSampleErrorView";
+import { SampleErrorView } from "./error/SampleErrorView";
 
 import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../client/api/types";
@@ -109,16 +109,10 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   }
   const fields = resolveSample(sample, sampleDescriptor);
 
-  const limitSize =
-    sampleDescriptor?.messageShape.normalized.limit > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
-      : 0;
-  const retrySize =
-    sampleDescriptor?.messageShape.normalized.retries > 0 ? 6 : 0;
-  const idSize = Math.max(
-    2,
-    Math.min(10, sampleDescriptor?.messageShape.raw.id),
-  );
+  const shape = sampleDescriptor?.messageShape;
+  const limitSize = shape?.limitSize ?? 0;
+  const retrySize = shape?.retriesSize ?? 0;
+  const idSize = shape?.idSize ?? 2;
 
   // The columns for the sample
   const columns: SummaryColumn[] = [];
@@ -192,7 +186,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Limit",
       value: fields.limit,
-      size: `fit-content(10rem)`,
+      size: `${limitSize}em`,
       center: true,
     });
   }
@@ -201,31 +195,31 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Retries",
       value: fields.retries,
-      size: `fit-content(${retrySize}rem)`,
+      size: `${retrySize}em`,
       center: true,
     });
   }
 
   if (selectedScores && selectedScores.length > 0) {
-    selectedScores.forEach((scoreLabel) => {
-      columns.push({
+    const scoreColumns = selectedScores
+      .map((scoreLabel) => ({
         label: selectedScores.length === 1 ? "Score" : scoreLabel.name,
-        value: fields.error ? (
-          <FlatSampleError message={fields.error} />
-        ) : (
+        value:
           sampleDescriptor?.evalDescriptor
             .score(sample, scoreLabel)
-            ?.render() || ""
-        ),
+            ?.render() || "",
         size: "fit-content(15em)",
         center: true,
-      });
-    });
-  } else {
+      }))
+      .filter((col) => col.value !== "");
+    columns.push(...scoreColumns);
+  }
+
+  if (fields.error) {
     columns.push({
-      label: "Score",
-      value: fields.error ? <FlatSampleError message={fields.error} /> : "",
-      size: "fit-content(15em)",
+      label: "Error",
+      value: <SampleErrorView message={fields.error} />,
+      size: `${shape?.errorSize ?? 1}em`,
       center: true,
     });
   }

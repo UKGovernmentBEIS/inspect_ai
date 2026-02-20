@@ -4,6 +4,7 @@ import { SampleDisplay } from "./SampleDisplay";
 
 import clsx from "clsx";
 import { ActivityBar } from "../../components/ActivityBar";
+import { StickyScrollProvider } from "../../components/StickyScrollContext";
 import { useSampleData } from "../../state/hooks";
 import { useLoadSample } from "../../state/useLoadSample";
 import { usePollSample } from "../../state/usePollSample";
@@ -47,16 +48,21 @@ export const InlineSampleComponent: FC<InlineSampleDisplayProps> = ({
         />
       )}
       <div className={clsx(styles.scroller)} ref={scrollRef}>
-        <div className={styles.body}>
-          {sampleData.error ? (
-            <ErrorPanel
-              title="Unable to load sample"
-              error={sampleData.error}
-            />
-          ) : (
-            <SampleDisplay id={"inline-sample-display"} scrollRef={scrollRef} />
-          )}
-        </div>
+        <StickyScrollProvider value={scrollRef}>
+          <div className={styles.body}>
+            {sampleData.error ? (
+              <ErrorPanel
+                title="Unable to load sample"
+                error={sampleData.error}
+              />
+            ) : (
+              <SampleDisplay
+                id={"inline-sample-display"}
+                scrollRef={scrollRef}
+              />
+            )}
+          </div>
+        </StickyScrollProvider>
       </div>
     </div>
   );

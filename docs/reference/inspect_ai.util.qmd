@@ -15,6 +15,7 @@ title: "inspect_ai.util"
 
 ### message_limit
 ### token_limit
+### cost_limit
 ### time_limit
 ### working_limit
 ### apply_limits

@@ -3,16 +3,14 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, RootModel
 
+from inspect_ai._util._json_rpc import exec_scalar_request
 from inspect_ai.tool import ToolResult
-from inspect_ai.tool._json_rpc_helpers import exec_scalar_request
-from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
-    SandboxJSONRPCTransport,
-    SandboxToolsServerErrorMapper,
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
+    SandboxToolsErrorMapper,
 )
-from inspect_ai.tool._sandbox_tools_utils.sandbox import (
-    SANDBOX_TOOLS_CLI,
-    sandbox_with_injected_tools,
-)
+from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
 from .._tool import Tool, tool
 
@@ -120,8 +118,8 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
             method="text_editor",
             params=params,
             result_type=TextEditorResult,
-            transport=SandboxJSONRPCTransport(sandbox, SANDBOX_TOOLS_CLI),
-            server_error_mapper=SandboxToolsServerErrorMapper(),
+            transport=SandboxJSONRPCTransport(sandbox, SANDBOX_CLI),
+            error_mapper=SandboxToolsErrorMapper,
             timeout=timeout,
             user=user,
         )

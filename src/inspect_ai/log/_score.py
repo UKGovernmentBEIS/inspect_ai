@@ -1,7 +1,7 @@
 """Score editing functionality."""
 
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.event._tree import EventTree, SpanNode, event_tree, walk_node_spans
+from inspect_ai.event._tree import EventTree, EventTreeSpan, event_tree, walk_node_spans
 from inspect_ai.scorer._metric import Score, ScoreEdit
 
 from ._log import EvalLog
@@ -123,7 +123,7 @@ def edit_score(
         _recompute_metrics(log)
 
 
-def _find_scorers_span(tree: EventTree) -> SpanNode | None:
+def _find_scorers_span(tree: EventTree) -> EventTreeSpan | None:
     last_scorers_node = None
     for node in walk_node_spans(tree):
         if node.type == "scorers" and node.name == "scorers":

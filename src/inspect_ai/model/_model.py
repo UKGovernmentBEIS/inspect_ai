@@ -71,8 +71,10 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
+    check_cost_limit,
     check_message_limit,
     check_token_limit,
+    record_model_cost,
     record_model_usage,
 )
 
@@ -100,7 +102,8 @@ from ._generate_config import (
     active_generate_config,
     set_active_generate_config,
 )
-from ._model_call import ModelCall
+from ._model_call import ModelCall, as_error_response
+from ._model_data.model_data import ModelCost
 from ._model_output import ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
@@ -374,8 +377,10 @@ class ModelAPI(abc.ABC):
 
     async def compact(
         self,
-        messages: list[ChatMessage],
-        config: GenerateConfig | None = None,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
 
@@ -385,9 +390,11 @@ class ModelAPI(abc.ABC):
         context window limit.
 
         Args:
-            messages: List of chat messages to compact.
-            config: Optional generation config for provider-specific settings
-                (e.g., reasoning parameters for OpenAI models).
+            input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+            tools: Tools available for the model to call.
+            config: Model configuration.
+            instructions: Additional instructions to give the model about compaction
+                (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
         Returns:
             A tuple of (compacted_messages, usage) where compacted_messages is a
@@ -707,8 +714,9 @@ class Model:
 
     async def compact(
         self,
-        messages: list[ChatMessage],
-        config: GenerateConfig | None = None,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        instructions: str | None = None,
     ) -> tuple[list[ChatMessage], ModelUsage | None]:
         """Compact messages using provider-native compaction.
 
@@ -716,17 +724,27 @@ class Model:
         Automatically tracks token usage and enforces token limits.
 
         Args:
-            messages: List of chat messages to compact.
-            config: Optional generation config for provider-specific settings.
+          input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
+          tools: Tools available for the model to call.
+          config: Model configuration.
+          instructions: Additional instructions to give the model about compaction
+               (e.g. "Focus on preserving code snippets, variable names, and technical decisions.")
 
         Returns:
-            A tuple of (compacted_messages, usage) where compacted_messages is
-            a list of compacted messages and usage contains token counts.
+          A tuple of (compacted_messages, usage) where compacted_messages is
+          a list of compacted messages and usage contains token counts.
 
         Raises:
             NotImplementedError: For providers without native compaction support.
         """
-        config = self._resolve_config(config)
+        config = self._resolve_config(None)
+
+        # provide max_tokens from the model api if required (same as generate)
+        if config.max_tokens is None:
+            config.max_tokens = self.api.max_tokens_for_config(config)
+            if config.max_tokens is None:
+                config.max_tokens = self.api.max_tokens()
+
         model_name = ModelName(self)
         key = f"ModelCompact({self.api.connection_key()})"
 
@@ -745,12 +763,12 @@ class Model:
                 )
             )
             async def _compact(
-                messages: list[ChatMessage], config: GenerateConfig | None
+                messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
-                return await self.api.compact(messages, config)
+                return await self.api.compact(messages, tools, config, instructions)
 
             # Call compact with retry handling
-            compacted_messages, usage = await _compact(messages, config)
+            compacted_messages, usage = await _compact(input)
 
             # Record and check usage
             if usage:
@@ -959,7 +977,7 @@ class Model:
                 # request which caused the error
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
-                error_message = f"{error}\n\nRequest:\n{request}"
+                error_message = f"\nRequest:\n{request}\n\n{error}"
                 raise RuntimeError(error_message)
 
             # update output with time (call.time captures time spent
@@ -979,7 +997,6 @@ class Model:
 
             # record usage
             if output.usage:
-                # record usage
                 record_and_check_model_usage(f"{self}", output.usage)
 
                 # send telemetry to hooks
@@ -1127,7 +1144,10 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
-    ) -> tuple[Callable[[ModelOutput | Exception, ModelCall | None], None], BaseModel]:
+    ) -> tuple[
+        Callable[[ModelOutput | Exception, ModelCall | None], None],
+        BaseModel,
+    ]:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
@@ -1165,7 +1185,23 @@ class Model:
                 event.traceback = traceback_text
                 event.traceback_ansi = traceback_ansi
 
-            event.call = updated_call
+            if updated_call is not None:
+                event.call = updated_call
+
+            if (
+                isinstance(result, Exception)
+                and event.call is not None
+                and event.call.response is None
+            ):
+                # We try to set these in the individual providers' error handling, but we make a last
+                # ditch effort here to set them if we don't have a response.
+                if hasattr(result, "body"):
+                    event.call.response = as_error_response(result.body)
+                elif hasattr(result, "response"):
+                    event.call.response = as_error_response(result.response)
+                else:
+                    event.call.response = as_error_response(str(result))
+
             event.pending = None
             transcript()._event_updated(event)
 
@@ -1326,7 +1362,7 @@ def get_model(
             model = model.split(",")[0]
         else:
             raise ValueError(
-                "No model specified (and no model environment varible defined)"
+                "No model specified (and no model environment variable defined)"
             )
 
     # see if we can return a memoized model instance
@@ -1823,20 +1859,36 @@ def init_sample_model_usage() -> None:
 
 
 def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
-    from inspect_ai.log._samples import set_active_sample_total_tokens
+    from inspect_ai.log._samples import (
+        set_active_sample_total_cost,
+        set_active_sample_total_tokens,
+    )
+    from inspect_ai.model._model_info import get_model_info
+
+    # compute cost and set on usage before recording (so ModelUsage.__add__
+    # accumulates it in the per-model usage dicts)
+    info = get_model_info(model)
+    total_cost: float | None = None
+    # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
+    if info is not None and info.cost is not None:
+        total_cost = compute_model_cost(info.cost, usage)
+        usage.total_cost = total_cost
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
     record_model_usage(usage)
 
-    # compute total tokens
+    # compute total tokens and update active sample
     total_tokens = sample_total_tokens()
-
-    # update active sample
     set_active_sample_total_tokens(total_tokens)
-
     check_token_limit()
+
+    # record cost to limit tree and check
+    if total_cost is not None:
+        record_model_cost(total_cost)
+        set_active_sample_total_cost(sample_total_cost())
+        check_cost_limit()
 
 
 def set_model_usage(
@@ -1869,3 +1921,33 @@ def sample_total_tokens() -> int:
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
 )
+
+
+def compute_model_cost(cost_data: ModelCost, usage: ModelUsage) -> float:
+    """Compute cost for a model call based on usage and cost data.
+
+    Args:
+        cost_data: Per-token pricing for the model.
+        usage: Token counts for the call.
+
+    Returns:
+        Cost in dollars.
+    """
+    cost = usage.input_tokens * cost_data.input / 1_000_000
+    cost += usage.output_tokens * cost_data.output / 1_000_000
+
+    if usage.input_tokens_cache_write is not None:
+        cost += usage.input_tokens_cache_write * cost_data.input_cache_write / 1_000_000
+    if usage.input_tokens_cache_read is not None:
+        cost += usage.input_tokens_cache_read * cost_data.input_cache_read / 1_000_000
+
+    return cost
+
+
+def sample_total_cost() -> float:
+    """Get total cost across all models for the current sample."""
+    return sum(
+        usage.total_cost
+        for usage in sample_model_usage().values()
+        if usage.total_cost is not None
+    )

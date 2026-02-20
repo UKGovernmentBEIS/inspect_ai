@@ -12,12 +12,13 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput
 from .._openai import (
     chat_choices_from_openai,
@@ -53,18 +54,6 @@ async def generate_completions(
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
-
-    # setup request and response for ModelCall
-    request: dict[str, Any] = {}
-    response: dict[str, Any] = {}
-
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            filter=openai_media_filter,
-            time=http_hooks.end_request(request_id),
-        )
 
     # unlike text models, vision models require a max_tokens (and set it to a very low
     # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
@@ -104,6 +93,11 @@ async def generate_completions(
     if isinstance(safety_identifier, str):
         request["safety_identifier"] = safety_identifier
 
+    model_call = set_active_model_event_call(
+        request=request,
+        filter=openai_media_filter,
+    )
+
     try:
         completion = await (
             batcher.generate_for_request(request)
@@ -114,16 +108,18 @@ async def generate_completions(
         # threw up its hands because of the `**request`.
         assert isinstance(completion, ChatCompletion)
 
-        # save response for model_call
-        response = completion.model_dump()
+        model_call.set_response(
+            completion.model_dump(), http_hooks.end_request(request_id)
+        )
 
         # return output and call
         choices = chat_choices_from_openai(completion, tools)
-        return model_output_from_openai(completion, choices), model_call()
+        return model_output_from_openai(completion, choices), model_call
     except (BadRequestError, UnprocessableEntityError) as e:
-        return openai_handle_bad_request(
-            openai_api.service_model_name(), e
-        ), model_call()
+        model_call.set_response(
+            as_error_response(e.body), http_hooks.end_request(request_id)
+        )
+        return openai_handle_bad_request(openai_api.service_model_name(), e), model_call
 
 
 def completion_params_completions(

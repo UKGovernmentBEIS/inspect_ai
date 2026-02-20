@@ -154,7 +154,7 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. "mcp-client-2025-04-04", "computer-use-2025-01-24", etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 5 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 4.5 and Opus 4.6 models:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
@@ -605,6 +605,26 @@ Or in a call to `get_model()`
 
 ``` python
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
+```
+
+### Chat Templates
+
+For Hugging Face models, Inspect will use a tokenizer chat template when available. 
+Use the `chat_template` model arg to override the tokenizer template, and
+`use_chat_template=false` to bypass chat-template rendering entirely.
+
+For example:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base \
+  -M "chat_template={% for message in messages %}{{ message.content }}{% endfor %}" \
+  -M use_chat_template=true
+```
+
+Or to bypass templates:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
 ```
 
 ### Hidden States

@@ -116,6 +116,7 @@ const getNestedPropertyValue = (obj: any, path: string): any => {
 
 const sampleVariables = (sample: SampleSummary): Record<string, unknown> => {
   return {
+    epoch: sample.epoch,
     has_error: !!sample.error,
     has_retries: sample.retries !== undefined && sample.retries > 0,
     id: sample.id,

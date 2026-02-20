@@ -5,6 +5,9 @@ import { getSamplePolling } from "./samplePollingInstance";
 import { resolveSample } from "./sampleUtils";
 import { useStore } from "./store";
 
+// List of virtuoso list keys that should be cleared when sample changes
+const SAMPLE_LIST_KEYS = ["transcript-tree"];
+
 const log = createLogger("useSampleLoader");
 
 /**
@@ -18,6 +21,12 @@ export function useLoadSample() {
   // Get store state and actions
   const api = useStore((state) => state.api);
   const sampleActions = useStore((state) => state.sampleActions);
+  const clearListPosition = useStore(
+    (state) => state.appActions.clearListPosition,
+  );
+  const getSelectedSample = useStore(
+    (state) => state.sampleActions.getSelectedSample,
+  );
 
   // Extract sample properties to avoid object reference issues
   const sampleId = logSelection.sample?.id;
@@ -52,6 +61,13 @@ export function useLoadSample() {
 
       if (isSameSample && isLoading) {
         return;
+      }
+
+      // Clear scroll positions for sample-related virtuoso lists
+      // This ensures the new sample starts at the top instead of restoring
+      // the previous sample's scroll position
+      for (const key of SAMPLE_LIST_KEYS) {
+        clearListPosition(key);
       }
 
       // Set the identifier first
@@ -92,6 +108,7 @@ export function useLoadSample() {
           // Clear the previous sample so component uses runningEvents instead
           // of old sample.events. Polling will be started by useSamplePolling.
           sampleActions.clearSampleForPolling(logFile, id, epoch);
+          getSamplePolling().stopPolling();
         }
       } catch (e) {
         sampleActions.setSampleError(e as Error);
@@ -100,6 +117,7 @@ export function useLoadSample() {
     },
     [
       api,
+      clearListPosition,
       sampleActions,
       sampleData.selectedSampleIdentifier,
       sampleData.status,
@@ -113,10 +131,15 @@ export function useLoadSample() {
       sampleEpoch !== undefined
     ) {
       // Check if the current selection matches what's already loaded
-      const isCurrentSampleLoaded =
+      // AND that we actually have the sample data (not just the identifier).
+      // This is important for VSCode reloads where the identifier may be
+      // persisted but the actual sample data (stored in a ref) is lost.
+      const identifierMatches =
         sampleData.selectedSampleIdentifier?.id === sampleId &&
         sampleData.selectedSampleIdentifier?.epoch === sampleEpoch &&
         sampleData.selectedSampleIdentifier?.logFile === logSelection.logFile;
+      const hasSampleData = getSelectedSample() !== undefined;
+      const isCurrentSampleLoaded = identifierMatches && hasSampleData;
 
       // Check if we're currently loading
       const isLoading =
@@ -164,10 +187,12 @@ export function useLoadSample() {
     sampleData.selectedSampleIdentifier,
     sampleData.status,
     sampleData.sampleNeedsReload,
+    sampleData.getSelectedSample,
     prevLogFile,
     prevSampleId,
     prevCompleted,
     prevSampleNeedsReload,
     loadSample,
+    getSelectedSample,
   ]);
 }

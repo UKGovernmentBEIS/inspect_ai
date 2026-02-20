@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import functools
 from logging import getLogger
 from typing import Sequence
 
-from inspect_ai._util._async import tg_collect
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
 from .._chat_message import ChatMessage, ChatMessageUser
 from .._model import Model, get_model
 from .._model_info import get_model_info
+from .._model_output import ModelOutput
 from .memory import MEMORY_TOOL, memory_warning_message
 from .types import Compact, CompactionStrategy
 
@@ -25,7 +24,10 @@ def compaction(
 ) -> Compact:
     """Create a conversation compaction handler.
 
-    Call the `Compact` handler with the full conversation history before sending input to the model. Send the returned `input` and append the supplemental message returned (if any) to the full history.
+    Call `compact_input()` with the full conversation history before sending
+    input to the model. Send the returned `input` and append the supplemental
+    message returned (if any) to the full history. Call `record_output()` after
+    each generate call to calibrate token estimation.
 
     See the [Compaction](https://inspect.aisi.org.uk/compaction.html) for additional details on using compaction.
 
@@ -36,9 +38,7 @@ def compaction(
         model: Target model for compacted input (defaults to active model).
 
     Returns:
-        `Compact` function which takes a full message history and returns the
-        Input to present to the model and (optionally) a message to append to
-        the history (e.g. a summarization).
+        `Compact` handler with `compact_input()` and `record_output()` methods.
     """
     from inspect_ai.log._transcript import transcript
 
@@ -51,8 +51,13 @@ def compaction(
     # state: IDs of messages we've already processed (added to input)
     processed_message_ids: set[str] = set()
 
-    # state: cache of message_id -> token_count
-    token_count_cache: dict[str, int] = {}
+    # state: baseline token count from the last generate call
+    # This is the most accurate count since it comes directly from the API
+    # and includes all overhead (tools, system messages, thinking config, etc.)
+    baseline_tokens: int | None = None
+
+    # state: IDs of messages that were included in the baseline count
+    baseline_message_ids: set[str] = set()
 
     # snapshot the prefix in case it changes
     prefix = prefix.copy()
@@ -75,20 +80,24 @@ def compaction(
             raise RuntimeError("Message must have an ID")
         return message.id
 
-    # count tokens with caching
-    async def count_tokens(message: ChatMessage) -> int:
-        # check cache
-        id = message_id(message)
-        count = token_count_cache.get(id, None)
-        if count is not None:
-            return count
+    def record_output_fn(output: ModelOutput) -> None:
+        """Record output from generate call to calibrate token baseline."""
+        nonlocal baseline_tokens, baseline_message_ids
 
-        # count tokens and update cache
-        count = await target_model.count_tokens([message])
-        token_count_cache[id] = count
+        if output.usage is None:
+            return
 
-        # return count
-        return count
+        # Compute total input tokens including cached tokens
+        input_tokens = output.usage.input_tokens
+        if output.usage.input_tokens_cache_read:
+            input_tokens += output.usage.input_tokens_cache_read
+        if output.usage.input_tokens_cache_write:
+            input_tokens += output.usage.input_tokens_cache_write
+
+        # The baseline reflects the token count for messages currently in
+        # compacted_input (what was sent to generate)
+        baseline_tokens = input_tokens
+        baseline_message_ids = {message_id(m) for m in compacted_input}
 
     async def compact_fn(
         messages: list[ChatMessage],
@@ -97,6 +106,7 @@ def compaction(
 
         # state variables we modify
         nonlocal tool_tokens, tools_info, prefix_tokens, memory_warning_issued
+        nonlocal baseline_tokens, baseline_message_ids
 
         # one time resolution of tool_tokens and prefix_tokens
         # (must be done here b/c calls are async)
@@ -113,19 +123,36 @@ def compaction(
             m for m in messages if message_id(m) not in processed_message_ids
         ]
 
-        # check to see whether the tokens exceeds the compaction 'threshold'
+        # estimate total tokens using the most accurate method available
         target_messages = compacted_input + unprocessed
-        message_tokens = sum(
-            await tg_collect(
-                [functools.partial(count_tokens, m) for m in target_messages]
+        target_message_ids = {message_id(m) for m in target_messages}
+        if baseline_tokens is not None and baseline_message_ids.issubset(
+            target_message_ids
+        ):
+            # Use the baseline from the last generate call (most accurate).
+            # The baseline already includes tool definitions, system messages,
+            # and API-level overhead. We only need to count NEW messages
+            # added since the baseline was established.
+            new_since_baseline = [
+                m for m in target_messages if message_id(m) not in baseline_message_ids
+            ]
+            new_tokens = (
+                await target_model.count_tokens(new_since_baseline)
+                if new_since_baseline
+                else 0
             )
-        )
-        total_tokens = tool_tokens + message_tokens
+            total_tokens = baseline_tokens + new_tokens
+        else:
+            # No baseline yet (first call). Fall back to per-message counting.
+            message_tokens = await target_model.count_tokens(target_messages)
+            total_tokens = tool_tokens + message_tokens
+
         if total_tokens > threshold:
             # perform compaction (with iteration if needed)
             c_input, c_message = await _perform_compaction(
                 strategy=strategy,
                 messages=target_messages,
+                tools=tools_info,
                 model=target_model,
                 threshold=threshold,
                 tool_tokens=tool_tokens,
@@ -141,9 +168,15 @@ def compaction(
             if c_message is not None:
                 processed_message_ids.add(message_id(c_message))
 
-            # Preserve prefix messages not already in output
-            input_ids = {message_id(m) for m in c_input}
-            prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
+            # Preserve prefix messages based on strategy type
+            if strategy.preserve_prefix:
+                # Non-native strategies: prepend any prefix messages not in output
+                input_ids = {message_id(m) for m in c_input}
+                prepend_prefix = [m for m in prefix if message_id(m) not in input_ids]
+            else:
+                # Native compaction: only prepend system messages
+                # (user content is preserved by provider or in compaction block)
+                prepend_prefix = [m for m in prefix if m.role == "system"]
             c_input = prepend_prefix + c_input
 
             # update input
@@ -154,6 +187,7 @@ def compaction(
             compacted_tokens = await target_model.count_tokens(compacted_input)
             transcript()._event(
                 CompactionEvent(
+                    type=strategy.type,
                     source="inspect",
                     tokens_before=total_tokens,
                     tokens_after=compacted_tokens,
@@ -167,6 +201,10 @@ def compaction(
 
             # clear memory warning state
             memory_warning_issued = False
+
+            # invalidate baseline (compaction changed the messages)
+            baseline_tokens = None
+            baseline_message_ids = set()
 
             # return input and any extra message to append
             return list(c_input), c_message
@@ -194,7 +232,16 @@ def compaction(
             # return
             return list(compacted_input), None
 
-    return compact_fn
+    class _CompactHandler:
+        async def compact_input(
+            self, messages: list[ChatMessage]
+        ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+            return await compact_fn(messages)
+
+        def record_output(self, output: ModelOutput) -> None:
+            record_output_fn(output)
+
+    return _CompactHandler()
 
 
 DEFAULT_CONTEXT_WINDOW = 128_000
@@ -203,6 +250,7 @@ DEFAULT_CONTEXT_WINDOW = 128_000
 async def _perform_compaction(
     strategy: CompactionStrategy,
     messages: list[ChatMessage],
+    tools: list[ToolInfo],
     model: Model,
     threshold: int,
     tool_tokens: int,
@@ -213,6 +261,7 @@ async def _perform_compaction(
     Args:
         strategy: Compaction strategy to use.
         messages: Messages to compact.
+        tools: Available tools
         model: Target model for compaction.
         threshold: Token threshold to stay under.
         tool_tokens: Token count for tool definitions.
@@ -225,7 +274,7 @@ async def _perform_compaction(
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
     MAX_ITERATIONS = 3
-    c_input, c_message = await strategy.compact(messages, model)
+    c_input, c_message = await strategy.compact(model, messages, tools)
     compacted_tokens = await model.count_tokens(c_input)
     total_compacted = tool_tokens + compacted_tokens
 
@@ -236,7 +285,7 @@ async def _perform_compaction(
         prev_tokens = compacted_tokens
 
         # Try compacting again
-        c_input, c_message = await strategy.compact(list(c_input), model)
+        c_input, c_message = await strategy.compact(model, list(c_input), tools)
         compacted_tokens = await model.count_tokens(c_input)
         total_compacted = tool_tokens + compacted_tokens
 

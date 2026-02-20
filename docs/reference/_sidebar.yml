@@ -364,20 +364,26 @@ website:
           href: reference/inspect_ai.model.qmd#compact
         - text: CompactionStrategy
           href: reference/inspect_ai.model.qmd#compactionstrategy
+        - text: CompactionAuto
+          href: reference/inspect_ai.model.qmd#compactionauto
+        - text: CompactionNative
+          href: reference/inspect_ai.model.qmd#compactionnative
         - text: CompactionEdit
           href: reference/inspect_ai.model.qmd#compactionedit
         - text: CompactionSummary
           href: reference/inspect_ai.model.qmd#compactionsummary
         - text: CompactionTrim
           href: reference/inspect_ai.model.qmd#compactiontrim
-        - text: CompactionNative
-          href: reference/inspect_ai.model.qmd#compactionnative
         - text: get_model_info
           href: reference/inspect_ai.model.qmd#get_model_info
         - text: set_model_info
           href: reference/inspect_ai.model.qmd#set_model_info
+        - text: set_model_cost
+          href: reference/inspect_ai.model.qmd#set_model_cost
         - text: ModelInfo
           href: reference/inspect_ai.model.qmd#modelinfo
+        - text: ModelCost
+          href: reference/inspect_ai.model.qmd#modelcost
         - text: Logprob
           href: reference/inspect_ai.model.qmd#logprob
         - text: Logprobs
@@ -643,10 +649,10 @@ website:
           href: reference/inspect_ai.event.qmd#event_sequence
         - text: EventTree
           href: reference/inspect_ai.event.qmd#eventtree
-        - text: EventNode
-          href: reference/inspect_ai.event.qmd#eventnode
-        - text: SpanNode
-          href: reference/inspect_ai.event.qmd#spannode
+        - text: EventTreeSpan
+          href: reference/inspect_ai.event.qmd#eventtreespan
+        - text: EventTreeNode
+          href: reference/inspect_ai.event.qmd#eventtreenode
         - text: SampleInitEvent
           href: reference/inspect_ai.event.qmd#sampleinitevent
         - text: SampleLimitEvent
@@ -684,6 +690,8 @@ website:
           href: reference/inspect_ai.util.qmd#message_limit
         - text: token_limit
           href: reference/inspect_ai.util.qmd#token_limit
+        - text: cost_limit
+          href: reference/inspect_ai.util.qmd#cost_limit
         - text: time_limit
           href: reference/inspect_ai.util.qmd#time_limit
         - text: working_limit

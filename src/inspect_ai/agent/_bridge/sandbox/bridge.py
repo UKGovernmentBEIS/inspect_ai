@@ -10,17 +10,15 @@ from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
-from inspect_ai.tool._sandbox_tools_utils.sandbox import (
-    SANDBOX_TOOLS_CLI,
-    sandbox_with_injected_tools,
-)
+from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
 )
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._sandbox import SandboxEnvironment
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox.exec_remote import ExecRemoteStreamingOptions
 
 from ..._agent import AgentState
 from ..util import default_code_execution_providers, internal_web_search_providers
@@ -47,12 +45,12 @@ async def sandbox_agent_bridge(
     """Sandbox agent bridge.
 
     Provide Inspect integration for agents running inside sandboxes. Runs
-    a proxy server in the container that provides REST entpoints for the OpenAI Completions API, OpenAI Responses API, and Anthropic API. This proxy server
+    a proxy server in the container that provides REST endpoints for the OpenAI Completions API, OpenAI Responses API, Anthropic API, and Google API. This proxy server
     runs on port 13131 and routes requests to the current Inspect model provider.
 
-    You should set `OPENAI_BASE_URL=http://localhost:13131/v1` or `ANTHROPIC_BASE_URL=http://localhost:13131` when executing
+    You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131` when executing
     the agent within the container and ensure that your agent targets the
-    model name "inspect" when calling OpenAI or Anthropic. Use "inspect/<full-model-name>" to target other Inspect model providers.
+    model name "inspect" when calling OpenAI, Anthropic, or Google. Use "inspect/<full-model-name>" to target other Inspect model providers.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
@@ -69,9 +67,9 @@ async def sandbox_agent_bridge(
         web_search: Configuration for mapping model internal
             web_search tools to Inspect. By default, will map to the
             internal provider of the target model (supported for OpenAI,
-            Anthropic, Gemini, Grok, and Perplxity). Pass an alternate
+            Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
             configuration to use to use an external provider like
-            Tavili or Exa for models that don't support internal search.
+            Tavily or Exa for models that don't support internal search.
         code_execution: Configuration for mapping model internal
             code_execution tools to Inspect. By default, will map to the
             internal provider of the target model (supported for OpenAI,
@@ -139,17 +137,27 @@ async def sandbox_agent_bridge(
                 started,
             )
 
-            # proxy server that runs in container and forwards to sandbox service
-            tg.start_soon(run_model_proxy, sandbox_env, port, instance, started)
+            # wait for model service to start
+            await started.wait()
 
-            # ensure services are up
-            await anyio.sleep(0.1)
+            # proxy server that runs in container and forwards to sandbox service
+            proxy = await sandbox_env.exec_remote(
+                cmd=[SANDBOX_CLI, "model_proxy"],
+                options=ExecRemoteStreamingOptions(
+                    concurrency=False,
+                    env={
+                        f"{MODEL_SERVICE.upper()}_PORT": str(port),
+                        f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
+                    },
+                ),
+            )
 
             # main agent
             try:
                 yield bridge
                 agent_completed = True
             finally:
+                await proxy.kill()
                 tg.cancel_scope.cancel()
     except Exception as ex:
         # If the agent completed successfully but we got an error during cleanup,
@@ -161,27 +169,6 @@ async def sandbox_agent_bridge(
         else:
             # Error occurred before or during agent execution
             raise inner_exception(ex)
-
-
-async def run_model_proxy(
-    sandbox: SandboxEnvironment, port: int, instance: str, started: anyio.Event
-) -> None:
-    # wait for model service to be started up
-    await started.wait()
-
-    # run the model proxy script
-    result = await sandbox.exec(
-        cmd=[SANDBOX_TOOLS_CLI, "model_proxy"],
-        env={
-            f"{MODEL_SERVICE.upper()}_PORT": str(port),
-            f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
-        },
-        concurrency=False,
-    )
-    if not result.success:
-        raise RuntimeError(
-            f"Error running model proxy script for agent bridge: {result.stderr}"
-        )
 
 
 def _register_bridged_tools(
