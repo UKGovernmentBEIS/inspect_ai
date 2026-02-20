@@ -10,7 +10,7 @@ import asyncio
 import logging
 import shlex
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar, cast
 
 import anyio
 from pydantic import BaseModel
@@ -313,6 +313,8 @@ class ExecRemoteProcess:
             StopAsyncIteration: When the process has completed or been killed.
             RuntimeError: If the process has not been submitted yet.
         """
+        from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+
         if self._pid is None:
             raise RuntimeError("Process has not been submitted yet")
 
@@ -326,9 +328,12 @@ class ExecRemoteProcess:
 
         try:
             while True:
-                result = await self._rpc(
-                    "exec_remote_poll", {"pid": self._pid}, _PollResult
-                )
+                # suppress events for polling
+                sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
+                with sandbox_proxy.no_events():
+                    result = await self._rpc(
+                        "exec_remote_poll", {"pid": self._pid}, _PollResult
+                    )
 
                 # Collect events from this poll
                 events: list[ExecRemoteEvent] = []
