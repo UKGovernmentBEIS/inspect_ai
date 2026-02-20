@@ -929,6 +929,92 @@ def test_eval_set_limit_slices():
         verify_logs(logs, log_dir, samples=10)
 
 
+def test_eval_set_shuffle_not_reused_with_limit(tmp_path: Path):
+    """An unshuffled log should not be reused when sample_shuffle is specified and limit < dataset size."""
+    task1 = hello_world(samples=10)
+    log_dir = str(tmp_path)
+
+    # Run without shuffle, limit=5
+    [result, logs] = eval_set(
+        tasks=[task1],
+        log_dir=log_dir,
+        model="mockllm/model",
+        limit=5,
+    )
+    assert result
+    verify_logs(logs, log_dir, samples=5)
+    first_eval_id = logs[0].eval.eval_id
+
+    # Run with shuffle enabled and same limit - should NOT reuse the log
+    # because shuffling selects different samples when limit < dataset size
+    [result, logs] = eval_set(
+        tasks=[task1],
+        log_dir=log_dir,
+        model="mockllm/model",
+        limit=5,
+        sample_shuffle=42,
+    )
+    assert result
+    assert logs[0].eval.eval_id != first_eval_id
+
+
+def test_eval_set_shuffle_seed_changed_not_reused_with_limit(tmp_path: Path):
+    """A shuffled log should not be reused when the shuffle seed changes and limit < dataset size."""
+    task1 = hello_world(samples=10)
+    log_dir = str(tmp_path)
+
+    # Run with shuffle seed=42, limit=5
+    [result, logs] = eval_set(
+        tasks=[task1],
+        log_dir=log_dir,
+        model="mockllm/model",
+        limit=5,
+        sample_shuffle=42,
+    )
+    assert result
+    verify_logs(logs, log_dir, samples=5)
+    first_eval_id = logs[0].eval.eval_id
+
+    # Run with different shuffle seed and same limit - should NOT reuse the log
+    # because a different seed selects different samples when limit < dataset size
+    [result, logs] = eval_set(
+        tasks=[task1],
+        log_dir=log_dir,
+        model="mockllm/model",
+        limit=5,
+        sample_shuffle=123,
+    )
+    assert result
+    assert logs[0].eval.eval_id != first_eval_id
+
+
+def test_eval_set_shuffle_reused_without_limit(tmp_path: Path):
+    """A log should be reused when shuffle changes but limit covers the full dataset."""
+    task1 = hello_world(samples=5)
+    log_dir = str(tmp_path)
+
+    # Run without shuffle, no limit (all 5 samples)
+    [result, logs] = eval_set(
+        tasks=[task1],
+        log_dir=log_dir,
+        model="mockllm/model",
+    )
+    assert result
+    verify_logs(logs, log_dir, samples=5)
+    first_eval_id = logs[0].eval.eval_id
+
+    # Run with shuffle but no limit - should reuse the log because
+    # all samples are evaluated regardless of order
+    [result, logs] = eval_set(
+        tasks=[task1],
+        log_dir=log_dir,
+        model="mockllm/model",
+        sample_shuffle=42,
+    )
+    assert result
+    assert logs[0].eval.eval_id == first_eval_id
+
+
 def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
     """Test that bundle is created even when all logs are already complete."""
     task1 = hello_world()
