@@ -8,7 +8,7 @@ from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import Content
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
@@ -17,8 +17,13 @@ from inspect_ai.model._openai import chat_choices_from_openai, model_output_from
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_choice import ToolFunction
 
-from .._chat_message import (ChatMessage, ChatMessageAssistant,
-                             ChatMessageSystem, ChatMessageTool, ChatMessageUser)
+from .._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
@@ -81,10 +86,10 @@ class SagemakerAPI(ModelAPI):
 
         except ImportError:
             raise pip_dependency_error("Sagemaker API", ["aioboto3"])
-        
+
         self.request_content_type = 'application/json'
         self.request_accept_type = 'application/json'
-        
+
         # Extract streaming configuration (handle string "True"/"False" from CLI)
         stream_val = model_args.get('stream', False)
         self.stream = stream_val if isinstance(stream_val, bool) else str(stream_val).lower() == 'true'
@@ -92,7 +97,7 @@ class SagemakerAPI(ModelAPI):
     @override
     def connection_key(self) -> str:
         return self.endpoint_name
-    
+
     @override
     def max_tokens(self) -> int | None:
         return DEFAULT_MAX_TOKENS
@@ -102,7 +107,7 @@ class SagemakerAPI(ModelAPI):
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
             status_code = ex.response.get("OriginalStatusCode", -1)
-            
+
             should_retry_ = error_code == "ModelError" and status_code in SAGEMAKER_RETRY_ERROR_CODES
 
             return should_retry_
@@ -129,13 +134,13 @@ class SagemakerAPI(ModelAPI):
         config = self._prepare_vllm_config(input, config)
         tools_config = self._prepare_tools_config(tools)
         processed_messages = await self._prepare_messages(input)
-        
+
         # Build request body
         request_body = self._build_request_body(config, processed_messages, tools_config, tool_choice)
-        
+
         # Add stream parameter to request body
         request_body["stream"] = self.stream
-        
+
         # Make request
         async with self._create_client() as client:
             if self.stream:
@@ -143,18 +148,18 @@ class SagemakerAPI(ModelAPI):
             else:
                 body_bytes = await self._invoke_endpoint(client, request_body)
                 output = json.loads(body_bytes.decode('utf-8'))
-            
+
         # Process response
         model_output = model_output_from_response(output, tools)
         model_call = ModelCall.create(request=request_body, response=output, time=0)
-        
+
         return model_output, model_call
 
     def _prepare_vllm_config(self, input: list[ChatMessage], config: GenerateConfig) -> GenerateConfig:
         """Prepare vLLM-specific configuration for message continuation."""
         if not (input and isinstance(input[-1], ChatMessageAssistant)):
             return config
-            
+
         config = config.model_copy()
         if config.extra_body is None:
             config.extra_body = {}
@@ -197,10 +202,10 @@ class SagemakerAPI(ModelAPI):
         )
 
     def _build_request_body(
-        self, 
-        config: GenerateConfig, 
-        messages: list[dict[str, Any]], 
-        tools_config: list[dict[str, Any]] | None, 
+        self,
+        config: GenerateConfig,
+        messages: list[dict[str, Any]],
+        tools_config: list[dict[str, Any]] | None,
         tool_choice: ToolChoice
     ) -> dict[str, Any]:
         """Build OpenAI-compatible request body for vLLM."""
@@ -210,17 +215,17 @@ class SagemakerAPI(ModelAPI):
             "temperature": config.temperature,
             "top_p": config.top_p,
         }
-        
+
         # Add optional parameters
         self._add_optional_params(request_body, config)
-        
+
         # Add tools and tool choice
         if tools_config:
             request_body["tools"] = tools_config
             self._add_tool_choice(request_body, tool_choice)
             if config.parallel_tool_calls is not None:
                 request_body["parallel_tool_calls"] = config.parallel_tool_calls
-        
+
         # Add response schema
         if config.response_schema is not None:
             request_body["response_format"] = {
@@ -232,11 +237,11 @@ class SagemakerAPI(ModelAPI):
                     "strict": config.response_schema.strict,
                 },
             }
-        
+
         # Add extra body parameters
         if config.extra_body:
             request_body.update(config.extra_body)
-            
+
         return request_body
 
     def _add_optional_params(self, request_body: dict[str, Any], config: GenerateConfig) -> None:
@@ -254,7 +259,7 @@ class SagemakerAPI(ModelAPI):
             ("best_of", config.best_of),
             ("reasoning_effort", config.reasoning_effort),
         ]
-        
+
         for param_name, param_value in optional_params:
             if param_value is not None:
                 request_body[param_name] = param_value
@@ -282,7 +287,7 @@ class SagemakerAPI(ModelAPI):
 
     async def _invoke_endpoint_streaming(self, client: Any, request_body: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
         """Invoke SageMaker endpoint with streaming and return assembled response.
-        
+
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint_with_response_stream.html
         """
         response = await client.invoke_endpoint_with_response_stream(
@@ -291,15 +296,15 @@ class SagemakerAPI(ModelAPI):
             Accept=self.request_accept_type,
             Body=json.dumps(request_body)
         )
-        
+
         # Process streaming response
         event_stream = response['Body']
-        
+
         # Accumulate text and chunks
         accumulated_text = ""
         accumulated_chunks = []
         partial_content = ""  # Buffer for incomplete JSON
-        
+
         async for event in event_stream:
             # Check for error events first
             if 'ModelStreamError' in event:
@@ -308,44 +313,44 @@ class SagemakerAPI(ModelAPI):
                 error_message = error_info.get('Message', 'Model stream error occurred')
                 logger.error(f"ModelStreamError: {error_code} - {error_message}")
                 raise RuntimeError(f"ModelStreamError [{error_code}]: {error_message}")
-            
+
             if 'InternalStreamFailure' in event:
                 error_message = event['InternalStreamFailure'].get('Message', 'Internal stream failure occurred')
                 logger.error(f"InternalStreamFailure: {error_message}")
                 raise RuntimeError(f"InternalStreamFailure: {error_message}")
-            
+
             # Process payload chunks
             if 'PayloadPart' in event:
                 chunk = event['PayloadPart']['Bytes'].decode('utf-8')
-                
+
                 # Strip "data: " prefix if present
                 partial_content += chunk[6:] if chunk.startswith('data: ') else chunk
-                
+
                 try:
                     chunk_data = json.loads(partial_content)
-                    
+
                     partial_content = ""
                     accumulated_chunks.append(chunk_data)
-                    
+
                     if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
                         choice = chunk_data['choices'][0]
                         delta = choice.get('delta', {})
-                        
+
                         if 'content' in delta and delta['content']:
                             accumulated_text += delta['content']
-                            
+
                 except json.JSONDecodeError:
                     # Continue accumulating content until we have valid JSON
                     continue
-        
+
         # Build final response from accumulated chunks
         if accumulated_chunks:
             # Use the last chunk as base (contains final metadata)
             final_chunk = accumulated_chunks[-1]
-            
+
             # Debug logging
             logger.info(f"Streaming complete: {len(accumulated_chunks)} chunks, accumulated text length: {len(accumulated_text)}")
-            
+
             # Construct complete response in OpenAI format
             final_response = {
                 "id": final_chunk.get("id", ""),
@@ -388,7 +393,7 @@ class SagemakerAPI(ModelAPI):
                     "total_tokens": 0
                 }
             }
-        
+
         # Return both raw bytes (for logging) and parsed response
         response_bytes = json.dumps(final_response).encode('utf-8')
         return response_bytes, final_response
@@ -401,7 +406,7 @@ async def process_chat_message(message: ChatMessage):
     elif isinstance(message, ChatMessageAssistant):
         content = await process_content(message.content)
         result = {'role': message.role, 'content': content}
-        
+
         # Add tool calls for assistant messages
         if message.tool_calls:
             result['tool_calls'] = [
@@ -415,7 +420,7 @@ async def process_chat_message(message: ChatMessage):
                 }
                 for tool_call in message.tool_calls
             ]
-        
+
         return result
     elif isinstance(message, ChatMessageTool):
         # Handle tool message content with error support
@@ -432,7 +437,7 @@ async def process_chat_message(message: ChatMessage):
 async def process_content(content: list[Content] | str) -> str | list[dict[str, Any]]:
     if isinstance(content, str):
         return content
-    
+
     processed_content = []
     for item in content:
         if item.type == "text":
@@ -441,14 +446,14 @@ async def process_content(content: list[Content] | str) -> str | list[dict[str, 
             image_url = item.image
             if not is_http_url(image_url):
                 image_url = await file_as_data_uri(image_url)
-            
+
             processed_content.append({
                 "type": "image_url",
                 "image_url": {"url": image_url, "detail": getattr(item, 'detail', 'auto')}
             })
         elif item.type == "reasoning":
             processed_content.append({"type": "reasoning", "reasoning": item.reasoning})
-    
+
     # Return string if single text item, otherwise return list
     if len(processed_content) == 1 and processed_content[0]["type"] == "text":
         return processed_content[0]["text"]
@@ -464,13 +469,20 @@ def collapse_consecutive_messages(messages, collapse_user_messages, collapse_ass
     for message in messages[1:]:
         last_message = collapsed_messages[-1]
         if message.role == last_message.role and (
-            (isinstance(message, ChatMessageUser) and collapse_user_messages) or 
+            (isinstance(message, ChatMessageUser) and collapse_user_messages) or
             (isinstance(message, ChatMessageAssistant) and collapse_assistant_messages)
         ):
-            # Only merge user/assistant messages based on flags
-            last_message.content.extend(message.content)
+            # Merge content handling both str and list types
+            a, b = last_message.content, message.content
+            if isinstance(a, str) and isinstance(b, str):
+                last_message.content = f"{a}\n{b}"
+            elif isinstance(a, list) and isinstance(b, list):
+                last_message.content = a + b
+            elif isinstance(a, str) and isinstance(b, list):
+                last_message.content = [ContentText(text=a)] + b
+            elif isinstance(a, list) and isinstance(b, str):
+                last_message.content = a + [ContentText(text=b)]
         else:
-            # Don't merge tool messages or different roles
             collapsed_messages.append(message)
 
     return collapsed_messages
@@ -479,7 +491,7 @@ def collapse_consecutive_messages(messages, collapse_user_messages, collapse_ass
 def model_output_from_response(output, tools: list[ToolInfo]) -> ModelOutput:
     # Convert dict response to ChatCompletion object for reuse of OpenAI logic
     completion = ChatCompletion.model_validate(output)
-    
+
     # Use OpenAI's proven response processing logic
     choices = chat_choices_from_openai(completion, tools)
     return model_output_from_openai(completion, choices)
