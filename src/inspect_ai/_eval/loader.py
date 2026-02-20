@@ -181,7 +181,10 @@ def resolve_previous_task(
         sequence=sequence,
         id=previous_task.id,
         sample_source=eval_log_sample_source(
-            previous_task.log, previous_task.log_info, loaded_task.dataset
+            previous_task.log,
+            previous_task.log_info,
+            loaded_task.dataset,
+            previous_task.async_fs,
         ),
     )
 

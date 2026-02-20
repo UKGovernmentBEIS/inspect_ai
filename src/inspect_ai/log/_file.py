@@ -11,7 +11,12 @@ from pydantic import (
 )
 
 from inspect_ai._util._async import current_async_backend, run_coroutine
-from inspect_ai._util.asyncfiles import AsyncFilesystem, tg_collect_with_fs
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import (
+    AsyncFilesystem,
+    run_tg_collect_with_fs,
+    tg_collect_with_fs,
+)
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -403,6 +408,7 @@ def read_eval_log_sample(
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
     exclude_fields: set[str] | None = None,
+    reader: AsyncZipReader | None = None,
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -420,6 +426,7 @@ def read_eval_log_sample(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful for reducing memory usage when reading large samples
           with fields like 'store' or 'attachments' that aren't needed.
+       reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
        EvalSample object read from file.
@@ -433,13 +440,31 @@ def read_eval_log_sample(
             "read_eval_log_sample cannot be called from a trio async context (please use read_eval_log_sample_async instead)"
         )
 
+    # resolve to file path
+    log_file = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return run_coroutine(
-        read_eval_log_sample_async(
-            log_file, id, epoch, uuid, resolve_attachments, format, exclude_fields
+    async def do_read(async_fs: AsyncFilesystem) -> EvalSample:
+        reader = AsyncZipReader(async_fs, log_file)
+        return await read_eval_log_sample_async(
+            log_file,
+            id,
+            epoch,
+            uuid,
+            resolve_attachments,
+            format,
+            exclude_fields,
+            reader,
         )
-    )
+
+    return run_tg_collect_with_fs([do_read])[0]
 
 
 async def read_eval_log_sample_async(
@@ -450,6 +475,7 @@ async def read_eval_log_sample_async(
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
     exclude_fields: set[str] | None = None,
+    reader: AsyncZipReader | None = None,
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -465,6 +491,7 @@ async def read_eval_log_sample_async(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful for reducing memory usage when reading large samples
           with fields like 'store' or 'attachments' that aren't needed.
+       reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
        EvalSample object read from file.
@@ -492,7 +519,7 @@ async def read_eval_log_sample_async(
     else:
         recorder_type = recorder_type_for_format(format)
     sample = await recorder_type.read_log_sample(
-        log_file, id, epoch, uuid, exclude_fields
+        log_file, id, epoch, uuid, exclude_fields, reader
     )
 
     if resolve_attachments:

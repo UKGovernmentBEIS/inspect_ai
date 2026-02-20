@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Sequence, cast, overload
 
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.util._early_stopping import EarlyStopping
 
 if TYPE_CHECKING:
@@ -389,6 +390,8 @@ class PreviousTask:
     model_roles: dict[str, Model] | None
     log: EvalLog
     log_info: EvalLogInfo | None
+    async_fs: AsyncFilesystem
+    """async filesystem to use for loading previous logs"""
 
 
 def resolve_approval(

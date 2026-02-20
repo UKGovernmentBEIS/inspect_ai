@@ -21,6 +21,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
 from inspect_ai._util._async import run_coroutine
+from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import (
@@ -462,11 +463,18 @@ def eval_set(
                     if task_identifier(task, eval_set_args) in failed_task_identifiers
                 ]
 
-                # run previous tasks (no models passed b/c previous task already carries its model)
-                retried_logs = run_eval(
-                    eval_set_id=eval_set_id,
-                    tasks=as_previous_tasks(failed_tasks, failed_logs, eval_set_args),
-                )
+                async def run_eval_with_previous_tasks(
+                    async_fs: AsyncFilesystem,
+                ) -> list[EvalLog]:
+                    # run previous tasks (no models passed b/c previous task already carries its model)
+                    return run_eval(
+                        eval_set_id=eval_set_id,
+                        tasks=as_previous_tasks(
+                            failed_tasks, failed_logs, eval_set_args, async_fs
+                        ),
+                    )
+
+                retried_logs = run_tg_collect_with_fs([run_eval_with_previous_tasks])[0]
 
                 # return success
                 return [log.header for log in success_logs] + retried_logs
@@ -546,6 +554,7 @@ def as_previous_tasks(
     tasks: list[ResolvedTask],
     failed_logs: list[Log],
     eval_set_args: EvalSetArgsInTaskIdentifier,
+    async_fs: AsyncFilesystem,
 ) -> list[PreviousTask]:
     def task_to_failed_log(task: ResolvedTask) -> Log:
         resolved_task_identifier = task_identifier(task, eval_set_args)
@@ -566,6 +575,7 @@ def as_previous_tasks(
                 model_roles=task.model_roles,
                 log=log.header,
                 log_info=log.info,
+                async_fs=async_fs,
             )
         )
 

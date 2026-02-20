@@ -270,67 +270,87 @@ class EvalRecorder(FileRecorder):
         epoch: int = 1,
         uuid: str | None = None,
         exclude_fields: set[str] | None = None,
+        reader: AsyncZipReader | None = None,
     ) -> EvalSample:
-        with file(location, "rb") as z:
-            with ZipFile(z, mode="r") as zip:
+        if reader:
+            return await cls.read_log_sample_impl(
+                location, reader, id, epoch, uuid, exclude_fields
+            )
+        async with AsyncFilesystem() as async_fs:
+            reader = AsyncZipReader(async_fs, location)
+            return await cls.read_log_sample_impl(
+                location, reader, id, epoch, uuid, exclude_fields
+            )
+
+    @classmethod
+    async def read_log_sample_impl(
+        cls,
+        location: str,
+        reader: AsyncZipReader,
+        id: str | int | None = None,
+        epoch: int = 1,
+        uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
+    ) -> EvalSample:
+        try:
+            # if a uuid was specified then read the summaries and find the matching sample
+            if id is None:
+                if uuid is None:
+                    raise ValueError("You must specify an 'id' or 'uuid' to read")
+                summaries = await _read_sample_summaries(reader)
+                sample = next(
+                    (summary for summary in summaries if summary.uuid == uuid),
+                    None,
+                )
+                if sample is None:
+                    raise ValueError(f"Sample with uuid '{uuid}' not found in log.")
+                id = sample.id
+                epoch = sample.epoch
+
+            if exclude_fields:
+                # Use streaming JSON parser to skip large fields
+                # This significantly reduces memory usage for large samples
+                import ijson  # type: ignore
+                from ijson import IncompleteJSONError
+                from ijson.backends.python import (  # type: ignore[import-untyped]
+                    UnexpectedSymbol,
+                )
+
                 try:
-                    # if a uuid was specified then read the summaries and find the matching sample
-                    if id is None:
-                        if uuid is None:
-                            raise ValueError(
-                                "You must specify an 'id' or 'uuid' to read"
-                            )
-                        summaries = _read_sample_summaries(zip)
-                        sample = next(
-                            (summary for summary in summaries if summary.uuid == uuid),
-                            None,
+                    data: dict[str, Any] = {}
+                    async with await reader.open_member(
+                        _sample_filename(id, epoch)
+                    ) as f:
+                        async for key, value in ijson.kvitems_async(
+                            f, "", use_float=True
+                        ):
+                            if key not in exclude_fields:
+                                data[key] = value
+                except (
+                    ValueError,
+                    IncompleteJSONError,
+                    UnexpectedSymbol,
+                ) as ex:
+                    # ijson doesn't support NaN/Inf which are valid in
+                    # Python's JSON. Fall back to standard json.load
+                    # and manually remove excluded fields.
+                    if is_ijson_nan_inf_error(ex):
+                        data = json.loads(
+                            await reader.read_member_fully(_sample_filename(id, epoch))
                         )
-                        if sample is None:
-                            raise ValueError(
-                                f"Sample with uuid '{uuid}' not found in log."
-                            )
-                        id = sample.id
-                        epoch = sample.epoch
-
-                    with zip.open(_sample_filename(id, epoch), "r") as f:
-                        if exclude_fields:
-                            # Use streaming JSON parser to skip large fields
-                            # This significantly reduces memory usage for large samples
-                            import ijson  # type: ignore
-                            from ijson import IncompleteJSONError
-                            from ijson.backends.python import (  # type: ignore[import-untyped]
-                                UnexpectedSymbol,
-                            )
-
-                            try:
-                                data: dict[str, Any] = {}
-                                for key, value in ijson.kvitems(f, "", use_float=True):
-                                    if key not in exclude_fields:
-                                        data[key] = value
-                            except (
-                                ValueError,
-                                IncompleteJSONError,
-                                UnexpectedSymbol,
-                            ) as ex:
-                                # ijson doesn't support NaN/Inf which are valid in
-                                # Python's JSON. Fall back to standard json.load
-                                # and manually remove excluded fields.
-                                if is_ijson_nan_inf_error(ex):
-                                    f.seek(0)
-                                    data = json.load(f)
-                                    for field in exclude_fields:
-                                        data.pop(field, None)
-                                else:
-                                    raise
-                        else:
-                            data = json.load(f)
-                        return EvalSample.model_validate(
-                            data, context=get_deserializing_context()
-                        )
-                except KeyError:
-                    raise IndexError(
-                        f"Sample id {id} for epoch {epoch} not found in log {location}"
-                    )
+                        for field in exclude_fields:
+                            data.pop(field, None)
+                    else:
+                        raise
+            else:
+                data = json.loads(
+                    await reader.read_member_fully(_sample_filename(id, epoch))
+                )
+            return EvalSample.model_validate(data, context=get_deserializing_context())
+        except KeyError:
+            raise IndexError(
+                f"Sample id {id} for epoch {epoch} not found in log {location}"
+            )
 
     @classmethod
     @override
@@ -722,9 +742,10 @@ def _read_start(zip: ZipFile) -> LogStart | None:
         return None
 
 
-def _read_sample_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
-    summary_counter = _read_summary_counter(zip.namelist())
-    summaries = _read_all_summaries(zip, summary_counter)
+async def _read_sample_summaries(reader: AsyncZipReader) -> list[EvalSampleSummary]:
+    directory = await reader.entries()
+    summary_counter = _read_summary_counter([e.filename for e in directory.entries])
+    summaries = await _read_all_summaries_async(reader, summary_counter)
     return summaries
 
 
