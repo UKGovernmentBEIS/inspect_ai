@@ -9,7 +9,6 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
@@ -990,206 +989,196 @@ async def eval_retry_async(
 
     # eval them in turn
     eval_logs: list[EvalLog] = []
-    async with AsyncFilesystem() as async_fs:
-        for eval_log in retry_eval_logs:
-            # the task needs to be either filesystem or registry
-            # based in order to do a retry (we don't have enough
-            # context to reconstruct ephemeral Task instances)
-            task: str | None
-            task_id = eval_log.eval.task_id
-            task_name = eval_log.eval.task_registry_name or eval_log.eval.task
-            task_file = eval_log.eval.task_file
-            if task_file:
-                if not Path(task_file).exists():
-                    raise FileNotFoundError(f"Task file '{task_file}' not found")
-                task = f"{task_file}@{task_name}"
-            else:
-                if registry_lookup(
-                    "task", task_name
-                ) is None and not task_name.startswith("hf/"):
-                    # if this object is in a package then let the user know
-                    # that they need to register it to work with eval-retry
-                    package_name = registry_package_name(task_name)
-                    if package_name is not None:
-                        raise FileNotFoundError(
-                            f"Task '{task_name}' is located in package '{package_name}' but has not been registered so cannot be retried. See https://inspect.aisi.org.uk/tasks.html#packaging for additional details on registering tasks in packages."
-                        )
-                    else:
-                        raise FileNotFoundError(f"Task '{task_name}' not found.")
-                task = task_name
+    for eval_log in retry_eval_logs:
+        # the task needs to be either filesystem or registry
+        # based in order to do a retry (we don't have enough
+        # context to reconstruct ephemeral Task instances)
+        task: str | None
+        task_id = eval_log.eval.task_id
+        task_name = eval_log.eval.task_registry_name or eval_log.eval.task
+        task_file = eval_log.eval.task_file
+        if task_file:
+            if not Path(task_file).exists():
+                raise FileNotFoundError(f"Task file '{task_file}' not found")
+            task = f"{task_file}@{task_name}"
+        else:
+            if registry_lookup("task", task_name) is None and not task_name.startswith(
+                "hf/"
+            ):
+                # if this object is in a package then let the user know
+                # that they need to register it to work with eval-retry
+                package_name = registry_package_name(task_name)
+                if package_name is not None:
+                    raise FileNotFoundError(
+                        f"Task '{task_name}' is located in package '{package_name}' but has not been registered so cannot be retried. See https://inspect.aisi.org.uk/tasks.html#packaging for additional details on registering tasks in packages."
+                    )
+                else:
+                    raise FileNotFoundError(f"Task '{task_name}' not found.")
+            task = task_name
 
-            # see if there is solver spec in the eval log
-            solver = (
-                SolverSpec(
-                    eval_log.eval.solver,
-                    eval_log.eval.solver_args or {},
-                    eval_log.eval.solver_args_passed or {},
-                )
-                if eval_log.eval.solver
-                else None
+        # see if there is solver spec in the eval log
+        solver = (
+            SolverSpec(
+                eval_log.eval.solver,
+                eval_log.eval.solver_args or {},
+                eval_log.eval.solver_args_passed or {},
             )
+            if eval_log.eval.solver
+            else None
+        )
 
-            # resolve the model
-            model = get_model(
-                model=eval_log.eval.model,
-                config=eval_log.eval.model_generate_config,
-                base_url=eval_log.eval.model_base_url,
-                **eval_log.eval.model_args,
-            )
+        # resolve the model
+        model = get_model(
+            model=eval_log.eval.model,
+            config=eval_log.eval.model_generate_config,
+            base_url=eval_log.eval.model_base_url,
+            **eval_log.eval.model_args,
+        )
 
-            # resolve model roles
-            model_roles = model_roles_config_to_model_roles(eval_log.eval.model_roles)
+        # resolve model roles
+        model_roles = model_roles_config_to_model_roles(eval_log.eval.model_roles)
 
-            # collect the rest of the params we need for the eval
-            task_args = eval_log.eval.task_args_passed
-            tags = eval_log.eval.tags
-            metadata = eval_log.eval.metadata
-            limit = eval_log.eval.config.limit
-            # try to match log format of retried log
-            if log_format is None and eval_log.location:
-                ext = os.path.splitext(eval_log.location)[1]
-                match ext:
-                    case ".eval":
-                        log_format = "eval"
-                    case ".json":
-                        log_format = "json"
-            sample_id = eval_log.eval.config.sample_id
-            sample_shuffle = eval_log.eval.config.sample_shuffle
-            epochs = (
-                Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
-                if eval_log.eval.config.epochs
-                else None
-            )
-            approval = eval_log.eval.config.approval
-            message_limit = eval_log.eval.config.message_limit
-            token_limit = eval_log.eval.config.token_limit
-            time_limit = eval_log.eval.config.time_limit
-            working_limit = eval_log.eval.config.working_limit
-            max_samples = max_samples or eval_log.eval.config.max_samples
-            max_tasks = max_tasks or eval_log.eval.config.max_tasks
-            max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
-            max_sandboxes = max_sandboxes or eval_log.eval.config.max_sandboxes
-            sandbox_cleanup = (
-                sandbox_cleanup
-                if sandbox_cleanup is not None
-                else eval_log.eval.config.sandbox_cleanup
-            )
-            fail_on_error = (
-                fail_on_error
-                if fail_on_error is not None
-                else eval_log.eval.config.fail_on_error
-            )
-            continue_on_fail = (
-                continue_on_fail
-                if continue_on_fail is not None
-                else eval_log.eval.config.continue_on_fail
-            )
-            retry_on_error = (
-                retry_on_error
-                if retry_on_error is not None
-                else eval_log.eval.config.retry_on_error
-            )
-            log_samples = (
-                log_samples
-                if log_samples is not None
-                else eval_log.eval.config.log_samples
-            )
-            log_realtime = (
-                log_realtime
-                if log_realtime is not None
-                else eval_log.eval.config.log_realtime
-            )
-            log_images = (
-                log_images
-                if log_images is not None
-                else eval_log.eval.config.log_images
-            )
-            log_buffer = (
-                log_buffer
-                if log_buffer is not None
-                else eval_log.eval.config.log_buffer
-            )
-            log_shared = (
-                log_shared
-                if log_shared is not None
-                else eval_log.eval.config.log_shared
-            )
-            score_display = (
-                score_display
-                if score_display is not None
-                else eval_log.eval.config.score_display
-            )
+        # collect the rest of the params we need for the eval
+        task_args = eval_log.eval.task_args_passed
+        tags = eval_log.eval.tags
+        metadata = eval_log.eval.metadata
+        limit = eval_log.eval.config.limit
+        # try to match log format of retried log
+        if log_format is None and eval_log.location:
+            ext = os.path.splitext(eval_log.location)[1]
+            match ext:
+                case ".eval":
+                    log_format = "eval"
+                case ".json":
+                    log_format = "json"
+        sample_id = eval_log.eval.config.sample_id
+        sample_shuffle = eval_log.eval.config.sample_shuffle
+        epochs = (
+            Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
+            if eval_log.eval.config.epochs
+            else None
+        )
+        approval = eval_log.eval.config.approval
+        message_limit = eval_log.eval.config.message_limit
+        token_limit = eval_log.eval.config.token_limit
+        time_limit = eval_log.eval.config.time_limit
+        working_limit = eval_log.eval.config.working_limit
+        max_samples = max_samples or eval_log.eval.config.max_samples
+        max_tasks = max_tasks or eval_log.eval.config.max_tasks
+        max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
+        max_sandboxes = max_sandboxes or eval_log.eval.config.max_sandboxes
+        sandbox_cleanup = (
+            sandbox_cleanup
+            if sandbox_cleanup is not None
+            else eval_log.eval.config.sandbox_cleanup
+        )
+        fail_on_error = (
+            fail_on_error
+            if fail_on_error is not None
+            else eval_log.eval.config.fail_on_error
+        )
+        continue_on_fail = (
+            continue_on_fail
+            if continue_on_fail is not None
+            else eval_log.eval.config.continue_on_fail
+        )
+        retry_on_error = (
+            retry_on_error
+            if retry_on_error is not None
+            else eval_log.eval.config.retry_on_error
+        )
+        log_samples = (
+            log_samples if log_samples is not None else eval_log.eval.config.log_samples
+        )
+        log_realtime = (
+            log_realtime
+            if log_realtime is not None
+            else eval_log.eval.config.log_realtime
+        )
+        log_images = (
+            log_images if log_images is not None else eval_log.eval.config.log_images
+        )
+        log_buffer = (
+            log_buffer if log_buffer is not None else eval_log.eval.config.log_buffer
+        )
+        log_shared = (
+            log_shared if log_shared is not None else eval_log.eval.config.log_shared
+        )
+        score_display = (
+            score_display
+            if score_display is not None
+            else eval_log.eval.config.score_display
+        )
 
-            config = eval_log.plan.config
-            config.max_retries = max_retries or config.max_retries
-            config.timeout = timeout or config.timeout
-            config.attempt_timeout = attempt_timeout or config.attempt_timeout
-            config.max_connections = max_connections or config.max_connections
+        config = eval_log.plan.config
+        config.max_retries = max_retries or config.max_retries
+        config.timeout = timeout or config.timeout
+        config.attempt_timeout = attempt_timeout or config.attempt_timeout
+        config.max_connections = max_connections or config.max_connections
 
-            # extract previous model usage to continue token counting (make a deep copy to avoid modifying the original log)
-            initial_model_usage = (
-                copy.deepcopy(eval_log.stats.model_usage)
-                if eval_log.stats.model_usage
-                else None
-            )
-            if initial_model_usage:
-                init_model_usage(initial_model_usage)
+        # extract previous model usage to continue token counting (make a deep copy to avoid modifying the original log)
+        initial_model_usage = (
+            copy.deepcopy(eval_log.stats.model_usage)
+            if eval_log.stats.model_usage
+            else None
+        )
+        if initial_model_usage:
+            init_model_usage(initial_model_usage)
 
-            # run the eval
-            log = (
-                await eval_async(
-                    tasks=PreviousTask(
-                        id=task_id,
-                        task=task,
-                        task_args=task_args,
-                        model=None,
-                        model_roles=None,
-                        log=eval_log,
-                        log_info=None,
-                        async_fs=async_fs,
-                    ),
-                    model=model,
-                    model_roles=cast(dict[str, str | Model], model_roles),
+        # run the eval
+        log = (
+            await eval_async(
+                tasks=PreviousTask(
+                    id=task_id,
+                    task=task,
                     task_args=task_args,
-                    sandbox=eval_log.eval.sandbox,
-                    sandbox_cleanup=sandbox_cleanup,
-                    solver=solver,
-                    tags=tags,
-                    metadata=metadata,
-                    approval=approval,
-                    log_level=log_level,
-                    log_level_transcript=log_level_transcript,
-                    log_dir=log_dir,
-                    log_format=log_format,
-                    limit=limit,
-                    sample_id=sample_id,
-                    sample_shuffle=sample_shuffle,
-                    epochs=epochs,
-                    fail_on_error=fail_on_error,
-                    continue_on_fail=continue_on_fail,
-                    retry_on_error=retry_on_error,
-                    debug_errors=debug_errors,
-                    message_limit=message_limit,
-                    token_limit=token_limit,
-                    time_limit=time_limit,
-                    working_limit=working_limit,
-                    max_samples=max_samples,
-                    max_tasks=max_tasks,
-                    max_subprocesses=max_subprocesses,
-                    max_sandboxes=max_sandboxes,
-                    log_samples=log_samples,
-                    log_realtime=log_realtime,
-                    log_images=log_images,
-                    log_buffer=log_buffer,
-                    log_shared=log_shared,
-                    score=score,
-                    score_display=score_display,
-                    **dict(config),
-                )
-            )[0]
+                    model=None,
+                    model_roles=None,
+                    log=eval_log,
+                    log_info=None,
+                ),
+                model=model,
+                model_roles=cast(dict[str, str | Model], model_roles),
+                task_args=task_args,
+                sandbox=eval_log.eval.sandbox,
+                sandbox_cleanup=sandbox_cleanup,
+                solver=solver,
+                tags=tags,
+                metadata=metadata,
+                approval=approval,
+                log_level=log_level,
+                log_level_transcript=log_level_transcript,
+                log_dir=log_dir,
+                log_format=log_format,
+                limit=limit,
+                sample_id=sample_id,
+                sample_shuffle=sample_shuffle,
+                epochs=epochs,
+                fail_on_error=fail_on_error,
+                continue_on_fail=continue_on_fail,
+                retry_on_error=retry_on_error,
+                debug_errors=debug_errors,
+                message_limit=message_limit,
+                token_limit=token_limit,
+                time_limit=time_limit,
+                working_limit=working_limit,
+                max_samples=max_samples,
+                max_tasks=max_tasks,
+                max_subprocesses=max_subprocesses,
+                max_sandboxes=max_sandboxes,
+                log_samples=log_samples,
+                log_realtime=log_realtime,
+                log_images=log_images,
+                log_buffer=log_buffer,
+                log_shared=log_shared,
+                score=score,
+                score_display=score_display,
+                **dict(config),
+            )
+        )[0]
 
-            # add it to our results
-            eval_logs.append(log)
+        # add it to our results
+        eval_logs.append(log)
 
     return EvalLogs(eval_logs)
 

@@ -5,6 +5,7 @@ from typing import Any, Awaitable, Callable, Set, cast
 
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
@@ -114,155 +115,159 @@ async def eval_run(
         eval_solver_spec = None
 
     try:
-        # create run tasks
-        task_run_options: list[TaskRunOptions] = []
-        for resolved_task in tasks:
-            with chdir(task_run_dir(resolved_task.task)):
-                # tasks can provide their epochs, message_limit,
-                # token_limit, time_limit, and fail_on_error so broadcast these
-                # into the eval config (so long as they aren't overriding a
-                # value specified from eval() or the CLI)
-                task = resolved_task.task
-                task_eval_config = eval_config.model_copy()
+        async with AsyncFilesystem() as async_fs:
+            # create run tasks
+            task_run_options: list[TaskRunOptions] = []
+            for resolved_task in tasks:
+                with chdir(task_run_dir(resolved_task.task)):
+                    # tasks can provide their epochs, message_limit,
+                    # token_limit, time_limit, and fail_on_error so broadcast these
+                    # into the eval config (so long as they aren't overriding a
+                    # value specified from eval() or the CLI)
+                    task = resolved_task.task
+                    task_eval_config = eval_config.model_copy()
 
-                # sample_ids can be specified per task
-                task_eval_config.sample_id = resolve_task_sample_ids(
-                    resolved_task.task.name, task_eval_config.sample_id
-                )
-
-                # resolve the task scorers
-                eval_scorer_specs = (
-                    [as_scorer_spec(scorer) for scorer in task.scorer]
-                    if task.scorer is not None
-                    else None
-                )
-
-                # resolve task metrics
-                eval_metrics = (
-                    to_metric_specs(task.metrics) if task.metrics is not None else None
-                )
-
-                # epochs
-                if task_eval_config.epochs is None:
-                    task_eval_config.epochs = task.epochs
-                else:
-                    task.epochs = task_eval_config.epochs
-
-                # epochs reducer
-                if epochs_reducer is not None:
-                    # override task (eval_config already reflects epochs_reducer)
-                    task.epochs_reducer = epochs_reducer
-                else:
-                    # use task (eval_config needs to be updated to reflect task reducer)
-                    task_eval_config.epochs_reducer = reducer_log_names(
-                        task.epochs_reducer
+                    # sample_ids can be specified per task
+                    task_eval_config.sample_id = resolve_task_sample_ids(
+                        resolved_task.task.name, task_eval_config.sample_id
                     )
 
-                # validate task epochs
-                if task.epochs and task.epochs_reducer:
-                    for reducer in task.epochs_reducer:
-                        validate_reducer(task.epochs, reducer)
+                    # resolve the task scorers
+                    eval_scorer_specs = (
+                        [as_scorer_spec(scorer) for scorer in task.scorer]
+                        if task.scorer is not None
+                        else None
+                    )
 
-                # sample message limit
-                if task_eval_config.message_limit is None:
-                    task_eval_config.message_limit = task.message_limit
-                else:
-                    task.message_limit = task_eval_config.message_limit
+                    # resolve task metrics
+                    eval_metrics = (
+                        to_metric_specs(task.metrics)
+                        if task.metrics is not None
+                        else None
+                    )
 
-                # sample token limit
-                if task_eval_config.token_limit is None:
-                    task_eval_config.token_limit = task.token_limit
-                else:
-                    task.token_limit = task_eval_config.token_limit
+                    # epochs
+                    if task_eval_config.epochs is None:
+                        task_eval_config.epochs = task.epochs
+                    else:
+                        task.epochs = task_eval_config.epochs
 
-                # sample time limit
-                if task_eval_config.time_limit is None:
-                    task_eval_config.time_limit = task.time_limit
-                else:
-                    task.time_limit = task_eval_config.time_limit
+                    # epochs reducer
+                    if epochs_reducer is not None:
+                        # override task (eval_config already reflects epochs_reducer)
+                        task.epochs_reducer = epochs_reducer
+                    else:
+                        # use task (eval_config needs to be updated to reflect task reducer)
+                        task_eval_config.epochs_reducer = reducer_log_names(
+                            task.epochs_reducer
+                        )
 
-                # sample execution limit
-                if task_eval_config.working_limit is None:
-                    task_eval_config.working_limit = task.working_limit
-                else:
-                    task.working_limit = task_eval_config.working_limit
+                    # validate task epochs
+                    if task.epochs and task.epochs_reducer:
+                        for reducer in task.epochs_reducer:
+                            validate_reducer(task.epochs, reducer)
 
-                # sample cost limit
-                if task_eval_config.cost_limit is None:
-                    task_eval_config.cost_limit = task.cost_limit
-                else:
-                    task.cost_limit = task_eval_config.cost_limit
+                    # sample message limit
+                    if task_eval_config.message_limit is None:
+                        task_eval_config.message_limit = task.message_limit
+                    else:
+                        task.message_limit = task_eval_config.message_limit
 
-                # fail_on_error
-                if task_eval_config.fail_on_error is None:
-                    task_eval_config.fail_on_error = task.fail_on_error
-                else:
-                    task.fail_on_error = task_eval_config.fail_on_error
+                    # sample token limit
+                    if task_eval_config.token_limit is None:
+                        task_eval_config.token_limit = task.token_limit
+                    else:
+                        task.token_limit = task_eval_config.token_limit
 
-                # continue_on_fail
-                if task_eval_config.continue_on_fail is None:
-                    task_eval_config.continue_on_fail = task.continue_on_fail
-                else:
-                    task.continue_on_fail = task_eval_config.continue_on_fail
+                    # sample time limit
+                    if task_eval_config.time_limit is None:
+                        task_eval_config.time_limit = task.time_limit
+                    else:
+                        task.time_limit = task_eval_config.time_limit
 
-                # create and track the logger
-                logger = TaskLogger(
-                    task_name=task.name,
-                    task_version=task.version,
-                    task_file=resolved_task.task_file,
-                    task_registry_name=resolved_task.task.registry_name,
-                    task_display_name=resolved_task.task.display_name,
-                    task_id=resolved_task.id,
-                    eval_set_id=eval_set_id,
-                    run_id=run_id,
-                    solver=eval_solver_spec,
-                    tags=tags,
-                    model=resolved_task.model,
-                    model_roles=resolved_task.model_roles,
-                    dataset=task.dataset,
-                    scorer=eval_scorer_specs,
-                    metrics=eval_metrics,
-                    sandbox=resolved_task.sandbox,
-                    task_attribs=task.attribs,
-                    task_args=getattr(
-                        task, TASK_ALL_PARAMS_ATTR, resolved_task.task_args
-                    ),
-                    task_args_passed=resolved_task.task_args,
-                    model_args=resolved_task.model.model_args,
-                    eval_config=task_eval_config,
-                    metadata=((metadata or {}) | (task.metadata or {})) or None,
-                    recorder=recorder,
-                    header_only=header_only,
-                )
-                await logger.init()
+                    # sample execution limit
+                    if task_eval_config.working_limit is None:
+                        task_eval_config.working_limit = task.working_limit
+                    else:
+                        task.working_limit = task_eval_config.working_limit
 
-                # append task
-                task_run_options.append(
-                    TaskRunOptions(
-                        task=task,
+                    # sample cost limit
+                    if task_eval_config.cost_limit is None:
+                        task_eval_config.cost_limit = task.cost_limit
+                    else:
+                        task.cost_limit = task_eval_config.cost_limit
+
+                    # fail_on_error
+                    if task_eval_config.fail_on_error is None:
+                        task_eval_config.fail_on_error = task.fail_on_error
+                    else:
+                        task.fail_on_error = task_eval_config.fail_on_error
+
+                    # continue_on_fail
+                    if task_eval_config.continue_on_fail is None:
+                        task_eval_config.continue_on_fail = task.continue_on_fail
+                    else:
+                        task.continue_on_fail = task_eval_config.continue_on_fail
+
+                    # create and track the logger
+                    logger = TaskLogger(
+                        task_name=task.name,
+                        task_version=task.version,
+                        task_file=resolved_task.task_file,
+                        task_registry_name=resolved_task.task.registry_name,
+                        task_display_name=resolved_task.task.display_name,
+                        task_id=resolved_task.id,
+                        eval_set_id=eval_set_id,
+                        run_id=run_id,
+                        solver=eval_solver_spec,
+                        tags=tags,
                         model=resolved_task.model,
                         model_roles=resolved_task.model_roles,
+                        dataset=task.dataset,
+                        scorer=eval_scorer_specs,
+                        metrics=eval_metrics,
                         sandbox=resolved_task.sandbox,
-                        logger=logger,
-                        eval_wd=eval_wd,
-                        config=task_eval_config,
-                        solver=eval_solver,
-                        tags=tags,
-                        run_samples=run_samples,
-                        score=score,
-                        debug_errors=debug_errors,
-                        sample_source=resolved_task.sample_source,
-                        kwargs=kwargs,
+                        task_attribs=task.attribs,
+                        task_args=getattr(
+                            task, TASK_ALL_PARAMS_ATTR, resolved_task.task_args
+                        ),
+                        task_args_passed=resolved_task.task_args,
+                        model_args=resolved_task.model.model_args,
+                        eval_config=task_eval_config,
+                        metadata=((metadata or {}) | (task.metadata or {})) or None,
+                        recorder=recorder,
+                        header_only=header_only,
                     )
-                )
+                    await logger.init()
 
-        # multiple mode is for running/displaying multiple
-        # task definitions, which requires some smart scheduling
-        # to ensure that we spread work among models
-        if parallel > 1:
-            return await run_multiple(task_run_options, parallel)
-        else:
-            return await run_single(task_run_options, debug_errors)
+                    # append task
+                    task_run_options.append(
+                        TaskRunOptions(
+                            task=task,
+                            model=resolved_task.model,
+                            model_roles=resolved_task.model_roles,
+                            sandbox=resolved_task.sandbox,
+                            logger=logger,
+                            eval_wd=eval_wd,
+                            config=task_eval_config,
+                            solver=eval_solver,
+                            tags=tags,
+                            run_samples=run_samples,
+                            score=score,
+                            debug_errors=debug_errors,
+                            sample_source=resolved_task.sample_source,
+                            kwargs=kwargs,
+                            async_fs=async_fs,
+                        )
+                    )
+
+            # multiple mode is for running/displaying multiple
+            # task definitions, which requires some smart scheduling
+            # to ensure that we spread work among models
+            if parallel > 1:
+                return await run_multiple(task_run_options, parallel)
+            else:
+                return await run_single(task_run_options, debug_errors)
 
     finally:
         # shutdown sandbox environments
