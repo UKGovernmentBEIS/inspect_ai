@@ -52,6 +52,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_config import model_roles_to_model_roles_config
 from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
@@ -689,7 +690,7 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     if epochs.reducer is None and config.epochs_reducer == ["mean"]:
         return False
     # different reducer list (changed)
-    elif [r.__name__ for r in (epochs.reducer or [])] != [
+    elif [reducer_log_name(r) for r in (epochs.reducer or [])] != [
         r for r in (config.epochs_reducer or [])
     ]:
         return True
