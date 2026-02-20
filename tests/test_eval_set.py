@@ -1013,7 +1013,7 @@ def test_eval_set_shuffle_reused_without_limit(tmp_path: Path):
     )
     assert result
     assert logs[0].eval.eval_id == first_eval_id
-    
+
 
 def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
     """Test that bundle is created even when all logs are already complete."""
