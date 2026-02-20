@@ -928,6 +928,40 @@ def test_eval_set_limit_slices():
         verify_logs(logs, log_dir, samples=10)
 
 
+def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
+    """Test that bundle is created even when all logs are already complete."""
+    task1 = hello_world()
+    log_dir = str(tmp_path / "logs")
+    bundle_dir = str(tmp_path / "bundle")
+
+    # First run: complete all evals without bundle_dir
+    success, logs = eval_set(
+        tasks=[task1],
+        log_dir=log_dir,
+        model="mockllm/model",
+    )
+    assert success
+    assert logs[0].status == "success"
+
+    # Second run: same log_dir, all logs already complete, but now with bundle_dir
+    # bundle_log_dir should still be called to create the bundle
+    with patch("inspect_ai._eval.evalset.bundle_log_dir") as mock_bundle:
+        success, logs = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            bundle_dir=bundle_dir,
+            bundle_overwrite=True,
+        )
+        assert success
+        assert logs[0].status == "success"
+        mock_bundle.assert_called_once_with(
+            log_dir=log_dir,
+            output_dir=bundle_dir,
+            overwrite=True,
+        )
+
+
 def test_invalidation(tmp_path: Path):
     @task
     def task_for_invalidation():
