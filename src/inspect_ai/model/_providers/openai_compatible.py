@@ -1,4 +1,5 @@
 import os
+import subprocess
 from logging import getLogger
 from typing import Any, cast
 
@@ -53,6 +54,9 @@ logger = getLogger(__name__)
 
 
 class OpenAICompatibleAPI(ModelAPI):
+    MAX_AUTH_REFRESH_ATTEMPTS = 2
+    MAX_API_KEY_CMD_FAILURES = 2
+
     def __init__(
         self,
         model_name: str,
@@ -81,6 +85,14 @@ class OpenAICompatibleAPI(ModelAPI):
         # compute api key
         service_env_name = self.service.upper().replace("-", "_")
         api_key_var = f"{service_env_name}_API_KEY"
+        self._api_key_var = api_key_var
+        self._api_key_cmd_var = f"{service_env_name}_API_KEY_CMD"
+        # Command-sourced keys only apply when callers have not explicitly provided api_key.
+        self._use_api_key_cmd = api_key is None and bool(
+            os.environ.get(self._api_key_cmd_var)
+        )
+        # Count consecutive *_API_KEY_CMD failures across refresh attempts.
+        self._api_key_cmd_failures = 0
 
         super().__init__(
             model_name=model_name,
@@ -92,12 +104,13 @@ class OpenAICompatibleAPI(ModelAPI):
 
         # use service prefix to lookup api_key
         if not self.api_key:
-            self.api_key = os.environ.get(api_key_var, None)
+            # *_API_KEY_CMD takes precedence over *_API_KEY for openai-api providers.
+            if self._use_api_key_cmd:
+                self.api_key = self._run_api_key_command(required=True)
+            else:
+                self.api_key = os.environ.get(self._api_key_var, None)
             if not self.api_key:
-                raise environment_prerequisite_error(
-                    self.service,
-                    [api_key_var],
-                )
+                raise environment_prerequisite_error(self.service, [self._api_key_var])
 
         # use service prefix to lookup base_url
         if not self.base_url:
@@ -151,7 +164,32 @@ class OpenAICompatibleAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         tools, tool_choice, config = self.resolve_tools(tools, tool_choice, config)
+        auth_refresh_attempts = 0
 
+        # For command-based credentials, retry 401s by refreshing key material on-demand.
+        while True:
+            try:
+                return await self._generate_once(input, tools, tool_choice, config)
+            except APIStatusError as ex:
+                if (
+                    not self._use_api_key_cmd
+                    or not self.is_auth_failure(ex)
+                    or auth_refresh_attempts >= self.MAX_AUTH_REFRESH_ATTEMPTS
+                ):
+                    raise
+                refreshed = await self._refresh_api_key_from_command()
+                if not refreshed:
+                    raise
+                # Cap auth-triggered refresh retries so errors still surface promptly.
+                auth_refresh_attempts += 1
+
+    async def _generate_once(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         if self.responses_api:
             return await generate_responses(
                 client=self.client,
@@ -172,74 +210,115 @@ class OpenAICompatibleAPI(ModelAPI):
                 handle_bad_request=self.handle_bad_request,
             )
 
+        # tool emulation if requested
+        if self.emulate_tools:
+            handler: ChatAPIHandler | None = OpenAICompatibleHandler(self.model_name)
         else:
-            # tool emulation if requested
-            if self.emulate_tools:
-                handler: ChatAPIHandler | None = OpenAICompatibleHandler(
-                    self.model_name
-                )
-            else:
-                handler = None
+            handler = None
 
-            # resolve input
+        # resolve input
+        if handler:
+            input = chat_api_messages_for_handler(input, tools, handler)
+
+        # allocate request_id (so we can see it from ModelCall)
+        request_id = self._http_hooks.start_request()
+
+        # get completion params (slice off service from model name)
+        completion_params = self.completion_params(
+            config=config,
+            tools=len(tools) > 0,
+        )
+
+        # prepare request (we do this so we can log the ModelCall)
+        have_tools = (len(tools) > 0) and not self.emulate_tools
+        request = dict(
+            messages=await self.messages_to_openai(input),
+            tools=self.tools_to_openai(tools) if have_tools else NOT_GIVEN,
+            tool_choice=openai_chat_tool_choice(tool_choice)
+            if have_tools
+            else NOT_GIVEN,
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+            | (config.extra_headers or {}),
+            **completion_params,
+        )
+
+        model_call = set_active_model_event_call(request, openai_media_filter)
+
+        try:
+            # generate completion and save response for model call
+            completion = await self._generate_completion(request, config)
+            response = completion.model_dump()
+            model_call.set_response(response, self._http_hooks.end_request(request_id))
+            self.on_response(response)
+
+            # get choices
+            choices = self.chat_choices_from_completion(completion, tools)
+
+            # if we have a handler, see if there are embedded tool calls we need to resolve
             if handler:
-                input = chat_api_messages_for_handler(input, tools, handler)
+                choices = [
+                    _resolve_chat_choice(choice, tools, handler) for choice in choices
+                ]
 
-            # allocate request_id (so we can see it from ModelCall)
-            request_id = self._http_hooks.start_request()
+            # return output
+            return model_output_from_openai(completion, choices), model_call
 
-            # get completion params (slice off service from model name)
-            completion_params = self.completion_params(
-                config=config,
-                tools=len(tools) > 0,
+        except (
+            BadRequestError,
+            UnprocessableEntityError,
+            PermissionDeniedError,
+        ) as ex:
+            model_call.set_response(
+                as_error_response(ex.body), self._http_hooks.end_request(request_id)
             )
+            return self.handle_bad_request(ex), model_call
 
-            # prepare request (we do this so we can log the ModelCall)
-            have_tools = (len(tools) > 0) and not self.emulate_tools
-            request = dict(
-                messages=await self.messages_to_openai(input),
-                tools=self.tools_to_openai(tools) if have_tools else NOT_GIVEN,
-                tool_choice=openai_chat_tool_choice(tool_choice)
-                if have_tools
-                else NOT_GIVEN,
-                extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
-                | (config.extra_headers or {}),
-                **completion_params,
+    async def _refresh_api_key_from_command(self) -> bool:
+        # Honor the "fail twice in a row" contract for command execution failures.
+        attempts = max(0, self.MAX_API_KEY_CMD_FAILURES - self._api_key_cmd_failures)
+        for _ in range(attempts):
+            api_key = self._run_api_key_command(required=False)
+            if api_key is not None:
+                self.api_key = api_key
+                # Recreate the OpenAI client so subsequent requests use the refreshed key.
+                await self.client.close()
+                self.initialize()
+                return True
+            if self._api_key_cmd_failures >= self.MAX_API_KEY_CMD_FAILURES:
+                break
+        return False
+
+    def _run_api_key_command(self, required: bool) -> str | None:
+        command = os.environ.get(self._api_key_cmd_var)
+        if not command:
+            return None
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                check=True,
+                capture_output=True,
+                text=True,
             )
+            api_key = self._command_api_key_output(result.stdout)
+            self._api_key_cmd_failures = 0
+            return api_key
+        except (subprocess.CalledProcessError, OSError, ValueError) as ex:
+            self._api_key_cmd_failures += 1
+            message = f"Failed to resolve API key from {self._api_key_cmd_var}: {ex}"
+            # Required mode is used during startup, where missing credentials are fatal.
+            if required:
+                raise RuntimeError(message) from ex
+            logger.warning(message)
+            return None
 
-            model_call = set_active_model_event_call(request, openai_media_filter)
-
-            try:
-                # generate completion and save response for model call
-                completion = await self._generate_completion(request, config)
-                response = completion.model_dump()
-                model_call.set_response(
-                    response, self._http_hooks.end_request(request_id)
-                )
-                self.on_response(response)
-
-                # get choices
-                choices = self.chat_choices_from_completion(completion, tools)
-
-                # if we have a handler, see if there are embedded tool calls we need to resolve
-                if handler:
-                    choices = [
-                        _resolve_chat_choice(choice, tools, handler)
-                        for choice in choices
-                    ]
-
-                # return output
-                return model_output_from_openai(completion, choices), model_call
-
-            except (
-                BadRequestError,
-                UnprocessableEntityError,
-                PermissionDeniedError,
-            ) as ex:
-                model_call.set_response(
-                    as_error_response(ex.body), self._http_hooks.end_request(request_id)
-                )
-                return self.handle_bad_request(ex), model_call
+    @staticmethod
+    def _command_api_key_output(stdout: str) -> str:
+        # Commands must emit exactly one key line so parsing is deterministic.
+        lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+        if len(lines) != 1:
+            raise ValueError("command output must contain exactly one non-empty line")
+        return lines[0]
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
