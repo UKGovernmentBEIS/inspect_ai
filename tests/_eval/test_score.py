@@ -7,6 +7,7 @@ import pydantic
 import pytest
 from test_helpers.utils import skip_if_no_openai
 
+from inspect_ai import score
 from inspect_ai._eval.score import (
     ScoreAction,
     _get_updated_events,
@@ -24,7 +25,7 @@ from inspect_ai.log import (
     EvalSample,
     Transcript,
 )
-from inspect_ai.log._file import read_eval_log_async
+from inspect_ai.log._file import read_eval_log, read_eval_log_async
 from inspect_ai.log._transcript import init_transcript
 from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
 from inspect_ai.model._chat_message import (
@@ -434,6 +435,36 @@ async def test_score(
                     }
                 )
             assert scores_passed_to_scorer == expected_scores_passed_to_scorer
+
+
+def test_score_append_with_unavailable_metrics():
+    """Test that score_async(action="append") works with unavailable metrics.
+
+    Regression test for https://github.com/UKGovernmentBEIS/inspect_ai/issues/3238.
+    When the original eval's metrics come from external packages that are not
+    installed, append should still succeed because it doesn't recreate them.
+    """
+    from inspect_ai.log._log import EvalMetricDefinition
+
+    log = read_eval_log(LOG_SCORED)
+
+    # Inject a metric that would fail registry_create (simulating an external package)
+    log.eval.metrics = [
+        EvalMetricDefinition(name="fake_package/nonexistent_metric"),
+    ]
+
+    # Resolve an f1 scorer to append
+    f1_scorers = resolve_scorers(log, "f1", {})
+
+    # This should succeed — append should not try to recreate original metrics
+    scored_log = score(log=log, scorers=f1_scorers, action="append")
+
+    assert scored_log.results is not None
+    scores = {score.name: score for score in scored_log.results.scores}
+    # Original "match" scores should be preserved from log.results.scores
+    assert "match" in scores
+    # New "f1" scores should be appended
+    assert "f1" in scores
 
 
 @pytest.mark.anyio
