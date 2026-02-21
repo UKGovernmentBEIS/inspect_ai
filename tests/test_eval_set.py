@@ -992,6 +992,7 @@ def test_eval_set_pending_and_incomplete_with_complete() -> None:
             dataset_size = int(log.eval.task_args_passed.get("samples", 1))
             assert len(full_log.samples) == dataset_size
 
+
 def test_eval_set_shuffle_not_reused_with_limit(tmp_path: Path):
     """An unshuffled log should not be reused when sample_shuffle is specified and limit < dataset size."""
     task1 = hello_world(samples=10)
