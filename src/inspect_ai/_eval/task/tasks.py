@@ -14,6 +14,7 @@ Tasks: TypeAlias = (
     | list[str]
     | list[PreviousTask]
     | list[ResolvedTask]
+    | list[PreviousTask | ResolvedTask]
     | list[TaskInfo]
     | list[Task]
     | list[Callable[..., Task]]

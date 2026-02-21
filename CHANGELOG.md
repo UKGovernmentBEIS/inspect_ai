@@ -10,6 +10,7 @@
 - Inspect View: Display all non-undefined edited score values.
 - Dependencies: Update to nest-asyncio2 v1.7.2 to address anyio threading issue.
 - Bugfix: Don't reuse eval_set logs when `sample_shuffle` changes and `limit` constrains sample selection.
+- Bugfix: `eval_set` now correctly handles pending tasks and incomplete tasks (e.g. limit/epoch changes) in a single pass, instead of skipping incomplete tasks when new tasks were present.
 - Bugfix: Reuse S3 clients in log recorders to fix session leak.
 - Bugfix: Create eval set bundle even when all logs are already complete.
 - Bugfix: Fix `epochs_changed` false positives in `eval_set` caused by comparing reducer closure `__name__` instead of registry log name.

@@ -929,6 +929,70 @@ def test_eval_set_limit_slices():
         verify_logs(logs, log_dir, samples=10)
 
 
+def test_eval_set_limit_with_multiple_tasks():
+    task1 = hello_world(arg="task1", samples=2)
+    task2 = hello_world(arg="task2", samples=2)
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # First call: only task1 with limit=1
+        [result, logs] = eval_set(
+            tasks=[task1],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=1,
+        )
+        assert result
+        verify_logs(logs, log_dir, tasks=1, samples=1)
+
+        # Second call: both tasks with limit=2
+        [result, logs] = eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=2,
+        )
+        assert result
+        verify_logs(logs, log_dir, tasks=2, samples=2)
+
+
+def test_eval_set_pending_and_incomplete_with_complete() -> None:
+    task1 = hello_world(arg="task1", samples=1)  # 1 sample dataset
+    task2 = hello_world(arg="task2", samples=2)  # 2 sample dataset
+    task3 = hello_world(arg="task3", samples=2)  # 2 sample dataset
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # First call: task1 and task2 with limit=1
+        [result, logs] = eval_set(
+            tasks=[task1, task2],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=1,
+        )
+        assert result
+        verify_logs(logs, log_dir, tasks=2, samples=1)
+
+        # Second call: all three tasks with limit=2
+        # task1: complete (dataset has only 1 sample, min(2,1)=1 already met)
+        # task2: incomplete (needs 2 samples, has only 1)
+        # task3: pending (new task, no log)
+        [result, logs] = eval_set(
+            tasks=[task1, task2, task3],
+            log_dir=log_dir,
+            model="mockllm/model",
+            limit=2,
+        )
+        assert result
+        assert len(logs) == 3
+        all_logs = list_all_eval_logs(log_dir)
+        assert len(all_logs) == 3
+        for log in logs:
+            assert log.status == "success"
+            full_log = read_eval_log(log.location)
+            assert full_log.samples is not None
+            dataset_size = int(log.eval.task_args_passed.get("samples", 1))
+            assert len(full_log.samples) == dataset_size
+
+
 def test_eval_set_shuffle_not_reused_with_limit(tmp_path: Path):
     """An unshuffled log should not be reused when sample_shuffle is specified and limit < dataset size."""
     task1 = hello_world(samples=10)

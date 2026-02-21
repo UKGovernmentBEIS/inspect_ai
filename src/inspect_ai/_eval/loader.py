@@ -2,6 +2,7 @@ import ast
 import contextlib
 import inspect
 import os
+from dataclasses import replace
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Callable, Tuple, cast
@@ -84,8 +85,16 @@ def resolve_tasks(
     # reflect resolved tasks right back
     if isinstance(tasks, ResolvedTask):
         return [tasks]
-    elif isinstance(tasks, list) and isinstance(tasks[0], ResolvedTask):
-        return cast(list[ResolvedTask], tasks)
+    if isinstance(tasks, PreviousTask):
+        tasks = [tasks]
+    if isinstance(tasks, list) and isinstance(tasks[0], (ResolvedTask, PreviousTask)):
+        tasks = cast(
+            list[PreviousTask] | list[ResolvedTask] | list[ResolvedTask | PreviousTask],
+            tasks,
+        )
+        return resolve_previous_tasks(
+            tasks, sample_shuffle=sample_shuffle, model=model, model_roles=model_roles
+        )
 
     # take empty lists out of play
     if isinstance(tasks, list) and len(tasks) == 0:
@@ -96,48 +105,6 @@ def resolve_tasks(
         return as_resolved_tasks([tasks])
     elif isinstance(tasks, list) and isinstance(tasks[0], Task):
         return as_resolved_tasks(cast(list[Task], tasks))
-
-    # simple case of passing us PreviousTask
-    if isinstance(tasks, PreviousTask):
-        tasks = [tasks]
-    if isinstance(tasks, list) and isinstance(tasks[0], PreviousTask):
-        # for previous tasks, prefer recreating from the registry (so we have
-        # a fresh instance) but also allow recycling of task instances for
-        # fully dynamic tasks
-        previous_tasks = cast(list[PreviousTask], tasks)
-        loaded_tasks: list[Task] = []
-        loaded_tasks_args: list[dict[str, Any]] = []
-        for previous_task in previous_tasks:
-            if isinstance(previous_task.task, Task):
-                loaded_task_args = previous_task.task_args
-                loaded_task = previous_task.task
-            else:
-                loaded_task_args = previous_task.task_args
-                loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
-            if sample_shuffle is not None:
-                if not loaded_task.dataset.shuffled:
-                    loaded_task.dataset.shuffle(
-                        None if sample_shuffle is True else sample_shuffle
-                    )
-            loaded_tasks.append(loaded_task)
-            loaded_tasks_args.append(loaded_task_args)
-
-        return [
-            resolve_previous_task(
-                loaded_task,
-                loaded_task_args,
-                model,
-                model_roles,
-                previous_task,
-                sequence,
-            )
-            for sequence, loaded_task, loaded_task_args, previous_task in zip(
-                range(0, len(loaded_tasks)),
-                loaded_tasks,
-                loaded_tasks_args,
-                previous_tasks,
-            )
-        ]
 
     # convert TaskInfo to str
     if isinstance(tasks, TaskInfo):
@@ -157,6 +124,46 @@ def resolve_tasks(
 
     # done! let's load the tasks
     return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
+
+
+def resolve_previous_tasks(
+    tasks: list[ResolvedTask] | list[PreviousTask] | list[ResolvedTask | PreviousTask],
+    sample_shuffle: bool | int | None,
+    model: Model,
+    model_roles: dict[str, Model] | None,
+) -> list[ResolvedTask]:
+    result = []
+    for sequence, task in enumerate(tasks):
+        if isinstance(task, ResolvedTask):
+            sequenced_task = replace(task, sequence=sequence)
+            result.append(sequenced_task)
+        else:
+            # for previous tasks, prefer recreating from the registry (so we have
+            # a fresh instance) but also allow recycling of task instances for
+            # fully dynamic tasks
+            previous_task = task
+            if isinstance(previous_task.task, Task):
+                loaded_task_args = previous_task.task_args
+                loaded_task = previous_task.task
+            else:
+                loaded_task_args = previous_task.task_args
+                loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
+            if sample_shuffle is not None:
+                if not loaded_task.dataset.shuffled:
+                    loaded_task.dataset.shuffle(
+                        None if sample_shuffle is True else sample_shuffle
+                    )
+            result.append(
+                resolve_previous_task(
+                    loaded_task,
+                    loaded_task_args,
+                    model,
+                    model_roles,
+                    previous_task,
+                    sequence,
+                )
+            )
+    return result
 
 
 def resolve_previous_task(
