@@ -437,6 +437,7 @@ async def test_score(
             assert scores_passed_to_scorer == expected_scores_passed_to_scorer
 
 
+@skip_if_no_openai
 def test_score_append_with_unavailable_metrics():
     """Test that score_async(action="append") works with unavailable metrics.
 
