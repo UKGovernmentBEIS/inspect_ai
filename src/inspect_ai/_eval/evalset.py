@@ -52,6 +52,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_config import model_roles_to_model_roles_config
 from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
@@ -304,12 +305,6 @@ def eval_set(
         if evals_cancelled(results):
             raise KeyboardInterrupt
 
-        # if specified, bundle the output directory
-        if bundle_dir:
-            bundle_log_dir(
-                log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
-            )
-
         # return results
         return results
 
@@ -426,7 +421,14 @@ def eval_set(
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         # for those that haven't run, schedule them into models => tasks groups
-        log_task_identifiers = [log.task_identifier for log in all_logs]
+        # (exclude logs where sample_shuffle changed with a limit -- a different
+        # shuffle selects a different subset of samples so the log can't be reused)
+        reusable_logs = [
+            log
+            for log in all_logs
+            if not shuffle_changed(sample_shuffle, log.header.eval.config, limit)
+        ]
+        log_task_identifiers = [log.task_identifier for log in reusable_logs]
         all_tasks = [
             (task_identifier(task, eval_set_args), task) for task in resolved_tasks
         ]
@@ -496,6 +498,12 @@ def eval_set(
     if retry_cleanup:
         task_ids = {result.eval.task_id for result in results}
         cleanup_older_eval_logs(log_dir, task_ids)
+
+    # if specified, bundle the output directory
+    if bundle_dir:
+        bundle_log_dir(
+            log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
+        )
 
     # report final status
     success = all_evals_succeeded(results)
@@ -670,6 +678,17 @@ def log_samples_complete(
     return True
 
 
+def shuffle_changed(
+    sample_shuffle: bool | int | None,
+    config: EvalConfig,
+    limit: int | tuple[int, int] | None,
+) -> bool:
+    # shuffle only matters when there's a limit constraining which samples run
+    if limit is None:
+        return False
+    return sample_shuffle != config.sample_shuffle
+
+
 def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     # user didn't say anything about epochs on subsequent call (not changed)
     if epochs is None:
@@ -684,7 +703,7 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     if epochs.reducer is None and config.epochs_reducer == ["mean"]:
         return False
     # different reducer list (changed)
-    elif [r.__name__ for r in (epochs.reducer or [])] != [
+    elif [reducer_log_name(r) for r in (epochs.reducer or [])] != [
         r for r in (config.epochs_reducer or [])
     ]:
         return True
@@ -801,6 +820,12 @@ def resolve_solver(
         return solver_from_spec(solver)
     else:
         return cast(Solver | None, solver)
+
+
+# Version of the task_identifier computation. Bump this when the task_identifier
+# logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
+# recomputed.
+TASK_IDENTIFIER_VERSION = 1
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)

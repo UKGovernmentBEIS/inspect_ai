@@ -126,17 +126,6 @@ class GenerateInput(NamedTuple):
     """Model configuration."""
 
 
-GenerateFilter: TypeAlias = Callable[
-    [str, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
-    Awaitable[ModelOutput | GenerateInput | None],
-]
-"""Filter a model generation.
-
-A filter may substitute for the default model generation by returning a
-`ModelOutput`, modify the input parameters by returning a `GenerateInput`, or return `None` to allow default processing to continue.
-"""
-
-
 class ModelAPI(abc.ABC):
     """Model API provider.
 
@@ -445,6 +434,7 @@ class Model:
         self.config = config
         self.model_args = model_args if model_args is not None else {}
         self._role: str | None = None
+        self._explicit_base_url: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -489,6 +479,11 @@ class Model:
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return self.api.canonical_name()
+
+    @property
+    def explicit_base_url(self) -> str | None:
+        """Base URL explicitly provided by the user (not resolved from env/defaults)."""
+        return self._explicit_base_url
 
     @property
     def role(self) -> str | None:
@@ -1212,6 +1207,31 @@ class Model:
         return complete, event
 
 
+ModelGenerateFilter: TypeAlias = Callable[
+    [Model, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
+    Awaitable[ModelOutput | GenerateInput | None],
+]
+"""Filter that receives the resolved ``Model`` instance as its first argument."""
+
+StrGenerateFilter: TypeAlias = Callable[
+    [str, list[ChatMessage], list[ToolInfo], ToolChoice | None, GenerateConfig],
+    Awaitable[ModelOutput | GenerateInput | None],
+]
+"""Deprecated filter that receives a model name ``str`` as its first argument."""
+
+GenerateFilter: TypeAlias = ModelGenerateFilter | StrGenerateFilter
+"""Filter a model generation.
+
+The first argument is the resolved ``Model`` instance.  Filters that
+accept a ``str`` as the first argument are still supported but
+deprecated and will receive ``model.name`` instead.
+
+A filter may substitute for the default model generation by returning a
+``ModelOutput``, modify the input parameters by returning a ``GenerateInput``,
+or return ``None`` to allow default processing to continue.
+"""
+
+
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
@@ -1415,6 +1435,7 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config, model_args)
+        m._explicit_base_url = base_url
         if role is not None:
             m._set_role(role)
         if memoize:

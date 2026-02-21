@@ -11,7 +11,7 @@ from typing_extensions import override
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
+from inspect_ai._util.file import absolute_file_path, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
@@ -171,7 +171,11 @@ class JSONRecorder(FileRecorder):
         # full reads (and fallback to streaming reads if they encounter invalid json characters)
         if fs.is_s3():
             # read content and get ETag such that they always match
-            content, etag = await _s3_read_with_etag(location, fs)
+            if async_fs is not None:
+                content, etag = await _s3_read_with_etag(location, async_fs)
+            else:
+                async with AsyncFilesystem() as owned_fs:
+                    content, etag = await _s3_read_with_etag(location, owned_fs)
             raw_data = from_json(content)
         else:
             with file(location, "r") as f:
@@ -206,7 +210,7 @@ class JSONRecorder(FileRecorder):
         fs = filesystem(location)
         if fs.is_s3() and if_match_etag:
             # Use S3 conditional write
-            await cls._write_log_s3_conditional(location, log, if_match_etag, fs)
+            await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write
             # get log as bytes
@@ -218,7 +222,7 @@ class JSONRecorder(FileRecorder):
 
     @classmethod
     async def _write_log_s3_conditional(
-        cls, location: str, log: EvalLog, etag: str, fs: FileSystem
+        cls, location: str, log: EvalLog, etag: str
     ) -> None:
         """Perform S3 conditional write using aioboto3."""
         from inspect_ai.log._file import eval_log_json
@@ -228,7 +232,10 @@ class JSONRecorder(FileRecorder):
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        await _write_s3_conditional(fs, bucket, key, log_bytes, etag, location, logger)
+        async with AsyncFilesystem() as async_fs:
+            await _write_s3_conditional(
+                async_fs, bucket, key, log_bytes, etag, location, logger
+            )
 
 
 def _validate_version(ver: int) -> None:
@@ -259,27 +266,22 @@ def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
     return log
 
 
-async def _s3_read_with_etag(location: str, fs: FileSystem) -> tuple[str, str]:
+async def _s3_read_with_etag(
+    location: str, async_fs: AsyncFilesystem
+) -> tuple[str, str]:
     """
     Read S3 file content and get ETag in a single operation.
 
     Returns:
         (content, etag) - etag is guaranteed to match content
     """
-    import aioboto3
-
     bucket, key = _s3_bucket_and_key(location)
 
-    session = aioboto3.Session()
-    async with session.client(
-        "s3",
-        endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-        region_name=fs.fs.client_kwargs.get("region_name"),
-    ) as s3_client:
-        response = await s3_client.get_object(Bucket=bucket, Key=key)
-        content = await response["Body"].read()
-        content = content.decode("utf-8")
-        etag = response["ETag"].strip('"')  # S3 returns ETag with quotes
+    s3_client = await async_fs.s3_client_async()
+    response = await s3_client.get_object(Bucket=bucket, Key=key)
+    content = await response["Body"].read()
+    content = content.decode("utf-8")
+    etag = response["ETag"].strip('"')  # S3 returns ETag with quotes
 
     return content, etag
 

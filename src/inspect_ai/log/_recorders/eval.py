@@ -231,7 +231,7 @@ class EvalRecorder(FileRecorder):
                 temp_log = temp.name
                 if fs.is_s3():
                     # download file and get ETag so it matches the content
-                    etag = await _s3_download_with_etag(location, temp_log, fs)
+                    etag = await _s3_download_with_etag(location, temp_log, async_fs)
                 else:
                     fs.get_file(location, temp_log)
 
@@ -358,17 +358,16 @@ class EvalRecorder(FileRecorder):
     async def write_log(
         cls, location: str, log: EvalLog, if_match_etag: str | None = None
     ) -> None:
-        fs = filesystem(location)
-        if fs.is_s3() and if_match_etag:
+        if filesystem(location).is_s3() and if_match_etag:
             # Use S3 conditional write
-            await cls._write_log_s3_conditional(location, log, if_match_etag, fs)
+            await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write using the recorder (so we get all of the extra streams)
             await _write_eval_log_with_recorder(log, dirname(location), location)
 
     @classmethod
     async def _write_log_s3_conditional(
-        cls, location: str, log: EvalLog, etag: str, fs: FileSystem
+        cls, location: str, log: EvalLog, etag: str
     ) -> None:
         """Perform S3 conditional write for .eval format using boto3."""
         import tempfile
@@ -389,7 +388,10 @@ class EvalRecorder(FileRecorder):
             with open(temp_eval_file, "rb") as f:
                 log_bytes = f.read()
 
-        await _write_s3_conditional(fs, bucket, key, log_bytes, etag, location, logger)
+        async with AsyncFilesystem() as async_fs:
+            await _write_s3_conditional(
+                async_fs, bucket, key, log_bytes, etag, location, logger
+            )
 
 
 async def _write_eval_log_with_recorder(
@@ -423,56 +425,42 @@ def _s3_bucket_and_key(location: str) -> tuple[str, str]:
 
 
 async def _s3_conditional_put_object(
-    fs: FileSystem, bucket: str, key: str, body: bytes, etag: str
+    async_fs: AsyncFilesystem, bucket: str, key: str, body: bytes, etag: str
 ) -> None:
     """Helper function to perform S3 conditional write with aioboto3."""
-    import aioboto3
-
-    session = aioboto3.Session()
-    async with session.client(
-        "s3",
-        endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-        region_name=fs.fs.client_kwargs.get("region_name"),
-    ) as s3_client:
-        await s3_client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=body,
-            IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
-        )
+    s3_client = await async_fs.s3_client_async()
+    await s3_client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=body,
+        IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
+    )
 
 
 async def _s3_download_with_etag(
-    location: str, local_path: str, fs: FileSystem
-) -> str | None:
+    location: str, local_path: str, async_fs: AsyncFilesystem
+) -> str:
     """
     Download S3 file and get its ETag in a single operation.
 
     Returns:
         ETag of the downloaded file (guaranteed to match the downloaded content)
     """
-    import aioboto3
-
     bucket, key = _s3_bucket_and_key(location)
 
-    session = aioboto3.Session()
-    async with session.client(
-        "s3",
-        endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-        region_name=fs.fs.client_kwargs.get("region_name"),
-    ) as s3_client:
-        response = await s3_client.get_object(Bucket=bucket, Key=key)
+    s3_client = await async_fs.s3_client_async()
+    response = await s3_client.get_object(Bucket=bucket, Key=key)
 
-        content = await response["Body"].read()
-        with open(local_path, "wb") as f:
-            f.write(content)
+    content = await response["Body"].read()
+    with open(local_path, "wb") as f:
+        f.write(content)
 
-        etag: str = response["ETag"]
-        return etag.strip('"')  # S3 returns ETag with quotes
+    etag: str = response["ETag"]
+    return etag.strip('"')  # S3 returns ETag with quotes
 
 
 async def _write_s3_conditional(
-    fs: FileSystem,
+    async_fs: AsyncFilesystem,
     bucket: str,
     key: str,
     body: bytes,
@@ -487,7 +475,7 @@ async def _write_s3_conditional(
 
     with trace_action(logger, "Log Conditional Write", location):
         try:
-            await _s3_conditional_put_object(fs, bucket, key, body, etag)
+            await _s3_conditional_put_object(async_fs, bucket, key, body, etag)
         except ClientError as e:
             if e.response["Error"]["Code"] == "PreconditionFailed":
                 raise WriteConflictError(
