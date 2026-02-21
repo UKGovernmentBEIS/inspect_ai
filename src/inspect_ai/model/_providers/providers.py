@@ -249,6 +249,13 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
+@modelapi(name="sagemaker")
+def sagemaker() -> type[ModelAPI]:
+    from .sagemaker import SagemakerAPI
+
+    return SagemakerAPI
+
+
 @modelapi(name="sglang")
 def sglang() -> type[ModelAPI]:
     # Only validate OpenAI compatibility (needed for the API interface)
