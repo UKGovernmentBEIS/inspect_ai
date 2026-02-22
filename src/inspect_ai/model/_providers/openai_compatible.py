@@ -56,6 +56,7 @@ logger = getLogger(__name__)
 class OpenAICompatibleAPI(ModelAPI):
     MAX_AUTH_REFRESH_ATTEMPTS = 2
     MAX_API_KEY_CMD_FAILURES = 2
+    NO_AUTH_API_KEY_PLACEHOLDER = "openai-api"
 
     def __init__(
         self,
@@ -103,14 +104,16 @@ class OpenAICompatibleAPI(ModelAPI):
         )
 
         # use service prefix to lookup api_key
-        if not self.api_key:
+        if self.api_key is None:
             # *_API_KEY_CMD takes precedence over *_API_KEY for openai-api providers.
             if self._use_api_key_cmd:
                 self.api_key = self._run_api_key_command(required=True)
             else:
                 self.api_key = os.environ.get(self._api_key_var, None)
-            if not self.api_key:
-                raise environment_prerequisite_error(self.service, [self._api_key_var])
+
+        # Treat empty API key env vars as omitted; openai-api supports no-key mode.
+        if self.api_key == "":
+            self.api_key = None
 
         # use service prefix to lookup base_url
         if not self.base_url:
@@ -140,8 +143,10 @@ class OpenAICompatibleAPI(ModelAPI):
         self.initialize()
 
     def _create_client(self) -> AsyncOpenAI:
+        # OpenAI SDK requires an api_key value; provide a local placeholder for no-key endpoints.
+        api_key = self.api_key or self.NO_AUTH_API_KEY_PLACEHOLDER
         return AsyncOpenAI(
-            api_key=self.api_key,
+            api_key=api_key,
             base_url=self.base_url,
             http_client=self.http_client,
             **self.model_args,

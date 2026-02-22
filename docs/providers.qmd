@@ -917,6 +917,8 @@ Note that hyphens within provider names will be converted to underscores so they
 
 If `<PROVIDER_NAME>_API_KEY_CMD` is defined, Inspect executes that command and uses its single-line stdout as the API key. In this mode, `<PROVIDER_NAME>_API_KEY` is ignored.
 
+`<PROVIDER_NAME>_API_KEY` is optional for the `openai-api` provider and may be omitted (or set to an empty value). This is useful for OpenAI-compatible endpoints that do not require authentication.
+
 When a request returns an unauthorized response, Inspect re-runs `<PROVIDER_NAME>_API_KEY_CMD` and retries with the refreshed key. If command execution fails twice in a row, Inspect stops retrying and returns the same access-control error behavior as before.
 
 Warning: Inspect may re-run `<PROVIDER_NAME>_API_KEY_CMD` repeatedly during an eval session (for example, during auth refresh), so you should only use commands that are trustworthy and non-destructive.

@@ -105,6 +105,32 @@ def test_handle_bad_request(
         assert isinstance(response, APIStatusError)
 
 
+def test_openai_compatible_allows_missing_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY_CMD", raising=False)
+
+    api = OpenAICompatibleAPI(
+        model_name="deepseek/deepseek-reasoner",
+        base_url="https://example.com",
+    )
+    assert api.api_key is None
+
+
+def test_openai_compatible_allows_empty_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "")
+    monkeypatch.delenv("DEEPSEEK_API_KEY_CMD", raising=False)
+
+    api = OpenAICompatibleAPI(
+        model_name="deepseek/deepseek-reasoner",
+        base_url="https://example.com",
+    )
+    assert api.api_key is None
+
+
 def test_api_key_cmd_takes_precedence_over_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
