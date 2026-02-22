@@ -221,9 +221,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
   const api = useStore((state) => state.api);
-  const downloadFiles = useStore(
-    (state) => state.capabilities.downloadFiles,
-  );
+  const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
 
   const tools = [];
   const [icon, setIcon] = useState(ApplicationIcons.copy);
