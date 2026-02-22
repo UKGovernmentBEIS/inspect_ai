@@ -1,3 +1,5 @@
+import subprocess
+
 import httpx
 import pytest
 from openai import APIStatusError
@@ -16,6 +18,18 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+
+
+def auth_error(status_code: int = 401, message: str = "Unauthorized") -> APIStatusError:
+    return APIStatusError(
+        message=message,
+        response=httpx.Response(
+            request=httpx.Request(method="POST", url="https://example.com"),
+            status_code=status_code,
+            json={"message": message},
+        ),
+        body={"message": message},
+    )
 
 
 @pytest.mark.asyncio
@@ -89,3 +103,138 @@ def test_handle_bad_request(
         assert response.stop_reason == stop_reason
     else:
         assert isinstance(response, APIStatusError)
+
+
+def test_api_key_cmd_takes_precedence_over_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "env-key")
+    monkeypatch.setenv("DEEPSEEK_API_KEY_CMD", "refresh-cmd")
+    calls: list[str] = []
+
+    def mock_run(
+        command: str,
+        *,
+        shell: bool,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        assert shell is True
+        assert check is True
+        assert capture_output is True
+        assert text is True
+        return subprocess.CompletedProcess(command, 0, stdout="cmd-key\n")
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai_compatible.subprocess.run", mock_run
+    )
+
+    api = OpenAICompatibleAPI(
+        model_name="deepseek/deepseek-reasoner",
+        base_url="https://example.com",
+    )
+    assert api.api_key == "cmd-key"
+    assert calls == ["refresh-cmd"]
+
+
+@pytest.mark.asyncio
+async def test_api_key_cmd_refreshes_on_auth_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY_CMD", "refresh-cmd")
+    outputs = iter(["initial-key\n", "refreshed-key\n"])
+    command_calls = 0
+
+    def mock_run(
+        command: str,
+        *,
+        shell: bool,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal command_calls
+        command_calls += 1
+        assert command == "refresh-cmd"
+        return subprocess.CompletedProcess(command, 0, stdout=next(outputs))
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai_compatible.subprocess.run", mock_run
+    )
+
+    api = OpenAICompatibleAPI(
+        model_name="deepseek/deepseek-reasoner",
+        base_url="https://example.com",
+    )
+
+    calls = 0
+
+    async def mock_generate_once(*args: object, **kwargs: object) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise auth_error()
+        return ModelOutput.from_content("deepseek/deepseek-reasoner", content="ok")
+
+    monkeypatch.setattr(api, "_generate_once", mock_generate_once)
+
+    result = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+    )
+    assert isinstance(result, ModelOutput)
+    assert result.completion == "ok"
+    assert api.api_key == "refreshed-key"
+    assert calls == 2
+    assert command_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_api_key_cmd_fails_after_two_command_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY_CMD", "refresh-cmd")
+    command_calls = 0
+
+    def mock_run(
+        command: str,
+        *,
+        shell: bool,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal command_calls
+        command_calls += 1
+        if command_calls == 1:
+            return subprocess.CompletedProcess(command, 0, stdout="initial-key\n")
+        raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai_compatible.subprocess.run", mock_run
+    )
+
+    api = OpenAICompatibleAPI(
+        model_name="deepseek/deepseek-reasoner",
+        base_url="https://example.com",
+    )
+
+    async def mock_generate_once(*args: object, **kwargs: object) -> ModelOutput:
+        raise auth_error()
+
+    monkeypatch.setattr(api, "_generate_once", mock_generate_once)
+
+    with pytest.raises(APIStatusError):
+        await api.generate(
+            input=[ChatMessageUser(content="hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(),
+        )
+
+    assert api.api_key == "initial-key"
+    assert command_calls == 3

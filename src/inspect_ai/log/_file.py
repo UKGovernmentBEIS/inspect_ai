@@ -645,7 +645,7 @@ def log_files_from_ls(
         for file in (
             sorted(
                 ls,
-                key=lambda file: (file.mtime if file.mtime else 0),
+                key=lambda file: file.mtime if file.mtime else 0,
                 reverse=descending,
             )
             if sort
