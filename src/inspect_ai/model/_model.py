@@ -163,7 +163,7 @@ class ModelAPI(abc.ABC):
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
-        from inspect_ai.hooks._hooks import override_api_key
+        from inspect_ai.hooks._hooks import has_api_key_override, override_api_key
 
         # apply api key override
         api_key = self.api_key
@@ -182,6 +182,13 @@ class ModelAPI(abc.ABC):
                     override = override_api_key(key, value)
                     if override is not None:
                         os.environ[key] = override
+                # When a hook is registered but no API key exists anywhere,
+                # still call the hook so it can provide credentials from its
+                # own source (e.g. OAuth tokens, vault, etc.)
+                elif has_api_key_override():
+                    override = override_api_key(key, "")
+                    if override is not None:
+                        api_key = override
 
         # set any explicitly specified api key
         self.api_key = api_key

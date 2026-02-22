@@ -302,12 +302,27 @@ class AnthropicAPI(ModelAPI):
                 **self.model_args,
             )
         else:
+            base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
+            # Support OAuth Bearer auth via ANTHROPIC_AUTH_TOKEN. When set,
+            # create the client with auth_token= (sends Authorization: Bearer)
+            # instead of api_key= (sends X-Api-Key). The Anthropic API rejects
+            # requests that have both headers if the X-Api-Key is invalid, so
+            # we must use one or the other — not both.
+            auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+            if auth_token:
+                return AsyncAnthropic(
+                    base_url=base_url,
+                    auth_token=auth_token,
+                    default_headers={
+                        "anthropic-beta": "oauth-2025-04-20",
+                    },
+                    **self.model_args,
+                )
             # resolve api_key
             if not self.api_key:
                 self.api_key = os.environ.get(ANTHROPIC_API_KEY, None)
             if self.api_key is None:
                 raise environment_prerequisite_error("Anthropic", ANTHROPIC_API_KEY)
-            base_url = model_base_url(self.base_url, "ANTHROPIC_BASE_URL")
             return AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
