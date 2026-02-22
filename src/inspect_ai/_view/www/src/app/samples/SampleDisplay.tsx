@@ -220,6 +220,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   const { isDebugFilter, isDefaultFilter } = useTranscriptFilter();
 
+  const api = useStore((state) => state.api);
+  const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
+
   const tools = [];
   const [icon, setIcon] = useState(ApplicationIcons.copy);
 
@@ -250,6 +253,31 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
       }}
     />,
   );
+
+  if (downloadFiles && sample && api?.download_file) {
+    const sampleId = sample.id ?? "sample";
+    tools.push(
+      <ToolDropdownButton
+        key="sample-download"
+        label="Download"
+        icon={ApplicationIcons.downloadLog}
+        items={{
+          "Sample JSON": () => {
+            api.download_file(
+              `${sampleId}.json`,
+              JSON.stringify(sample, null, 2),
+            );
+          },
+          Transcript: () => {
+            api.download_file(
+              `${sampleId}-transcript.txt`,
+              messagesToStr(sample.messages ?? []),
+            );
+          },
+        }}
+      />,
+    );
+  }
 
   if (selectedTab === kSampleTranscriptTabId) {
     const label = isDebugFilter
