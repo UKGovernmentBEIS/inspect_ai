@@ -182,9 +182,9 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
                 # If mixed types (not all str/bytes), convert to string
                 if len(types) > 1 and not types.issubset({"str", "bytes"}):
                     df[col] = df[col].apply(
-                        lambda x: str(x)
-                        if x is not None and not isinstance(x, str)
-                        else x
+                        lambda x: (
+                            str(x) if x is not None and not isinstance(x, str) else x
+                        )
                     )
 
     table = pa.Table.from_pandas(df)
