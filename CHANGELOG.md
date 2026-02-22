@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Hooks: New `on_sample_init()` hook that fires before sandbox environments are created, enabling hooks to gate sandbox resource provisioning.
 - Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
 - OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
 - Anthropic: Use `output_config` directly (rather than via `extra_body`) which is compatible with batch mode.

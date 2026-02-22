@@ -65,6 +65,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_api: bool | None = None,
         responses_store: bool | None = None,
         stream: bool | None = None,
+        strict_tools: bool = True,
         **model_args: Any,
     ) -> None:
         # extract service prefix from model name if not specified
@@ -118,6 +119,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 "emulate_tools is not compatible with using the responses_api"
             )
         self.stream = False if stream is None else stream
+        self.strict_tools = strict_tools
 
         # store http_client and model_args for reinitialization
         self.http_client = model_args.pop("http_client", OpenAIAsyncHttpxClient())
@@ -313,7 +315,7 @@ class OpenAICompatibleAPI(ModelAPI):
         # some inference platforms (e.g. hf-inference) require strict=True
         openai_tools = openai_chat_tools(tools)
         for tool in openai_tools:
-            tool["function"]["strict"] = True
+            tool["function"]["strict"] = self.strict_tools
         return openai_tools
 
     async def messages_to_openai(
