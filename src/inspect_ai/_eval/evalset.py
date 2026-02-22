@@ -742,7 +742,7 @@ def latest_completed_task_eval_logs(
 
         # sort by last file write time
         id_logs.sort(
-            key=lambda id_log: (id_log[0].mtime if id_log[0].mtime else 0), reverse=True
+            key=lambda id_log: id_log[0].mtime if id_log[0].mtime else 0, reverse=True
         )
 
         # take the most recent
