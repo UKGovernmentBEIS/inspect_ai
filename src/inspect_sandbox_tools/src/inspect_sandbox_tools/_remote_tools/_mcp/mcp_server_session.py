@@ -1,4 +1,5 @@
 import asyncio
+import json
 import sys
 from asyncio.subprocess import Process
 from typing import Literal, TextIO
@@ -156,10 +157,13 @@ class MCPServerSession:
                 buffer = lines.pop()
 
                 for line in lines:
+                    if not line.strip():
+                        continue
                     try:
                         message = JSONRPCMessage.model_validate_json(line)
-                    except pydantic.ValidationError as exc:
-                        self._send_exception_somewhere(exc)
+                    except (pydantic.ValidationError, json.JSONDecodeError):
+                        # Skip non-JSON lines (e.g. debug output, shell traces).
+                        # This matches the MCP SDK's stdio_client behavior.
                         continue
 
                     assert isinstance(message.root, JSONRPCResponse | JSONRPCError), (
