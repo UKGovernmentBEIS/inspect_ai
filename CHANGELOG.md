@@ -19,6 +19,7 @@
 - Bugfix: Fix async ZIP parser crash on valid `.eval` files whose compressed data contained a false ZIP64 EOCD Locator signature.
 - Bugfix: Skip non-JSON lines in MCP server stdout parsing,
 - Bugfix: Remove doubled MIME prefix in MCP content conversion.
+- Bugfix: Ensure that `eval()` specified `model_roles` override task-level roles.
 
 ## 0.3.180 (20 February 2026)
 
