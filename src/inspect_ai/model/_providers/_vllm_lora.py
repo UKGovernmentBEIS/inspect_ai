@@ -8,7 +8,6 @@ This module provides utilities for:
 
 from __future__ import annotations
 
-import asyncio
 import atexit
 import json
 import logging
@@ -17,6 +16,7 @@ from pathlib import Path
 from subprocess import Popen
 from typing import Any
 
+import anyio
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -33,12 +33,12 @@ class VLLMServerInfo:
     lora_enabled: bool = False
     is_external: bool = False
     loaded_adapters: set[str] = field(default_factory=set)
-    _adapter_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
+    _adapter_locks: dict[str, anyio.Lock] = field(default_factory=dict)
 
-    def get_adapter_lock(self, adapter_path: str) -> asyncio.Lock:
+    def get_adapter_lock(self, adapter_path: str) -> anyio.Lock:
         """Get or create a lock for the given adapter path."""
         if adapter_path not in self._adapter_locks:
-            self._adapter_locks[adapter_path] = asyncio.Lock()
+            self._adapter_locks[adapter_path] = anyio.Lock()
         return self._adapter_locks[adapter_path]
 
 
@@ -144,7 +144,7 @@ def _download_adapter_config(adapter_path: str) -> Path | None:
 _vllm_model_registry: dict[str, list[tuple[str | None, str | None]]] = {}
 
 # Per-base-model locks for server initialization
-_server_init_locks: dict[str, asyncio.Lock] = {}
+_server_init_locks: dict[str, anyio.Lock] = {}
 
 
 def register_vllm_model(
@@ -196,10 +196,10 @@ def compute_lora_config_from_registry(base_model: str) -> dict[str, Any]:
     return config
 
 
-def get_server_init_lock(base_model: str) -> asyncio.Lock:
+def get_server_init_lock(base_model: str) -> anyio.Lock:
     """Get or create a per-base-model lock for server initialization."""
     if base_model not in _server_init_locks:
-        _server_init_locks[base_model] = asyncio.Lock()
+        _server_init_locks[base_model] = anyio.Lock()
     return _server_init_locks[base_model]
 
 

@@ -1,4 +1,3 @@
-import asyncio
 import atexit
 import functools
 import logging
@@ -8,6 +7,7 @@ from subprocess import Popen
 from typing import Any
 from urllib.parse import urlparse
 
+import anyio
 from openai import APIConnectionError, APIStatusError
 from tenacity.wait import WaitBaseT, wait_fixed
 from typing_extensions import override
@@ -191,7 +191,6 @@ class VLLMAPI(OpenAICompatibleAPI):
             # the registry will have full visibility of all adapters.
             self._lazy_init_needed = True
             self._deferred_api_key = api_key
-            self._deferred_config = config
 
             # Call super().__init__ with placeholder URL so the object
             # is in a valid state (model_name, config, etc. are set).
@@ -293,11 +292,12 @@ class VLLMAPI(OpenAICompatibleAPI):
                     os.environ["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] = "True"
 
                 # Start server in thread to avoid blocking the event loop
-                base_url, resolved_api_key = await asyncio.to_thread(
-                    self._start_server,
-                    self.base_model,
-                    api_key=self._deferred_api_key,
-                    port=self.port,
+                base_url, resolved_api_key = await anyio.to_thread.run_sync(
+                    lambda: self._start_server(
+                        self.base_model,
+                        api_key=self._deferred_api_key,
+                        port=self.port,
+                    )
                 )
                 logger.warning(f"vLLM server started at {base_url}")
 
