@@ -16,6 +16,7 @@ title: "inspect_ai.hooks"
 ### RunEnd
 ### RunStart
 ### SampleEnd
+### SampleInit
 ### SampleStart
 ### TaskEnd
 ### TaskStart

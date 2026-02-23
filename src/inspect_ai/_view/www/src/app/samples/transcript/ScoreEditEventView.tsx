@@ -53,7 +53,7 @@ export const ScoreEditEventView: FC<ScoreEditEventViewProps> = ({
           Updated Values
         </div>
         <div className={clsx(styles.container)}>
-          {event.edit.value ? (
+          {event.edit.value !== undefined ? (
             <Fragment>
               <div className={clsx(styles.separator)}></div>
               <div className={"text-style-label"}>Value</div>

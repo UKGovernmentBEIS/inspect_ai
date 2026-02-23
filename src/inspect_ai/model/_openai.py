@@ -1,5 +1,6 @@
 import functools
 import json
+import re
 from copy import copy
 from dataclasses import dataclass
 from typing import Any, Callable, Literal, TypeAlias, cast
@@ -90,6 +91,19 @@ class OpenAIResponseError(OpenAIError):
 
 # is_o_series etc. have been moved to the OpenAIAPI class
 # in _providers/openai.py to enable proper overriding by subclasses
+def is_gpt_5_model(model_name: str) -> bool:
+    return "gpt-5" in model_name.lower()
+
+
+def is_o_series_model(model_name: str) -> bool:
+    name = model_name.lower()
+    if bool(re.match(r"^o\d+", name)):
+        return True
+    return "gpt" not in name and bool(re.search(r"o\d+", name))
+
+
+def needs_max_completion_tokens(model_name: str) -> bool:
+    return is_gpt_5_model(model_name) or is_o_series_model(model_name)
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:

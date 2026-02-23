@@ -16,6 +16,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+from inspect_ai.tool import ToolInfo
 
 
 @pytest.mark.asyncio
@@ -39,6 +40,30 @@ async def test_openai_compatible() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@pytest.mark.parametrize("strict_tools", [True, False])
+def test_strict_tools_model_arg(strict_tools: bool) -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        strict_tools=strict_tools,
+    )
+
+    tools = api.tools_to_openai([ToolInfo(name="test_tool", description="Test tool")])
+    assert tools[0]["function"]["strict"] is strict_tools
+
+
+def test_strict_tools_default_true() -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+    )
+
+    tools = api.tools_to_openai([ToolInfo(name="test_tool", description="Test tool")])
+    assert tools[0]["function"]["strict"] is True
 
 
 @pytest.mark.asyncio

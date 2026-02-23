@@ -1,5 +1,29 @@
 ## Unreleased
 
+- Hooks: New `on_sample_init()` hook that fires before sandbox environments are created, enabling hooks to gate sandbox resource provisioning.
+- Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
+- OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
+- Anthropic: Use `output_config` directly (rather than via `extra_body`) which is compatible with batch mode.
+- Google: Add latest Gemini models to model info database.
+- Sandboxes: Verify execute result size automatically for all sandbox exec calls.
+- Sandboxes: Export `exec_remote()` types from root namespace and add docs.
+- Eval Set: Add `TASK_IDENTIFIER_VERSION` to support persistence of task identifiers in inspect_flow.
+- Eval Retry: Don't retry with `model_base_url` unless it was explicitly specified by the user.
+- Agent Bridge: Add model_aliases to agent bridge and pass Model to GenerateFilter.
+- Inspect View: Display all non-undefined edited score values.
+- Dependencies: Update to nest-asyncio2 v1.7.2 to address anyio threading issue.
+- Bugfix: Don't reuse eval_set logs when `sample_shuffle` changes and `limit` constrains sample selection.
+- Bugfix: `eval_set` now correctly handles pending tasks and incomplete tasks (e.g. limit/epoch changes) in a single pass, instead of skipping incomplete tasks when new tasks were present.
+- Bugfix: Reuse S3 clients in log recorders to fix session leak.
+- Bugfix: Create eval set bundle even when all logs are already complete.
+- Bugfix: Fix `epochs_changed` false positives in `eval_set` caused by comparing reducer closure `__name__` instead of registry log name.
+- Bugfix: Fix async ZIP parser crash on valid `.eval` files whose compressed data contained a false ZIP64 EOCD Locator signature.
+- Bugfix: Skip non-JSON lines in MCP server stdout parsing,
+- Bugfix: Remove doubled MIME prefix in MCP content conversion.
+- Bugfix: Ensure that `eval()` specified `model_roles` override task-level roles.
+
+## 0.3.180 (20 February 2026)
+
 - Agent Bridge: Google Gemini API is now supported for in-process and sandbox bridges.
 - Task Execution: Cancelled samples are now logged in the same fashion as samples with errors.
 - Anthropic: Increase max_tokens caps for Claude 4.5 and 4.6 models.
