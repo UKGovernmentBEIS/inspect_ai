@@ -1,3 +1,7 @@
+## Unreleased
+
+- Performance: Share a single `AsyncFilesystem` via ContextVar within each async context, eliminating redundant S3 client creation and connection pool fragmentation.
+
 ## 0.3.181 (23 February 2026)
 
 - Hooks: New `on_sample_init()` hook that fires before sandbox environments are created, enabling hooks to gate sandbox resource provisioning.
@@ -15,7 +19,6 @@
 - Bugfix: Don't reuse eval_set logs when `sample_shuffle` changes and `limit` constrains sample selection.
 - Bugfix: `eval_set` now correctly handles pending tasks and incomplete tasks (e.g. limit/epoch changes) in a single pass, instead of skipping incomplete tasks when new tasks were present.
 - Bugfix: Reuse S3 clients in log recorders to fix session leak.
-- Performance: Share a single `AsyncFilesystem` via ContextVar within each async context, eliminating redundant S3 client creation and connection pool fragmentation.
 - Bugfix: Create eval set bundle even when all logs are already complete.
 - Bugfix: Fix `epochs_changed` false positives in `eval_set` caused by comparing reducer closure `__name__` instead of registry log name.
 - Bugfix: Fix async ZIP parser crash on valid `.eval` files whose compressed data contained a false ZIP64 EOCD Locator signature.
