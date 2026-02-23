@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -136,6 +137,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     _s3_client: Any | None = None
     _s3_client_async: Any | None = None
+    _s3_client_async_lock: asyncio.Lock | None = None
     _owns_context: bool = False
 
     async def get_size(self, filename: str) -> int:
@@ -301,16 +303,20 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     async def s3_client_async(self) -> Any:
         if self._s3_client_async is None:
-            import aioboto3
+            if self._s3_client_async_lock is None:
+                self._s3_client_async_lock = asyncio.Lock()
+            async with self._s3_client_async_lock:
+                if self._s3_client_async is None:
+                    import aioboto3
 
-            session = aioboto3.Session()
-            config = AioConfig(
-                max_pool_connections=50,
-                retries={"max_attempts": 10, "mode": "adaptive"},
-            )
-            self._s3_client_async = await session.client(
-                "s3", config=config
-            ).__aenter__()
+                    session = aioboto3.Session()
+                    config = AioConfig(
+                        max_pool_connections=50,
+                        retries={"max_attempts": 10, "mode": "adaptive"},
+                    )
+                    self._s3_client_async = await session.client(
+                        "s3", config=config
+                    ).__aenter__()
 
         return self._s3_client_async
 
