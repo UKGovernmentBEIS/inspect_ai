@@ -131,7 +131,7 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
             if name in clz.members:
                 continue
             try:
-                member = alias.final_target
+                member: Object | Alias = alias.final_target
             except (AliasResolutionError, CyclicAliasError):
                 continue
             if member.docstring is None:
