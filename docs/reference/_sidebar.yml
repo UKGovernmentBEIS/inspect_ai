@@ -748,6 +748,14 @@ website:
           href: reference/inspect_ai.util.qmd#sandboxenv
         - text: sandbox_service
           href: reference/inspect_ai.util.qmd#sandbox_service
+        - text: ExecRemoteProcess
+          href: reference/inspect_ai.util.qmd#execremoteprocess
+        - text: ExecRemoteStreamingOptions
+          href: reference/inspect_ai.util.qmd#execremotestreamingoptions
+        - text: ExecRemoteAwaitableOptions
+          href: reference/inspect_ai.util.qmd#execremoteawaitableoptions
+        - text: ExecRemoteEvent
+          href: reference/inspect_ai.util.qmd#execremoteevent
         - text: registry_info
           href: reference/inspect_ai.util.qmd#registry_info
         - text: registry_create
@@ -803,6 +811,8 @@ website:
           href: reference/inspect_ai.hooks.qmd#runstart
         - text: SampleEnd
           href: reference/inspect_ai.hooks.qmd#sampleend
+        - text: SampleInit
+          href: reference/inspect_ai.hooks.qmd#sampleinit
         - text: SampleStart
           href: reference/inspect_ai.hooks.qmd#samplestart
         - text: TaskEnd

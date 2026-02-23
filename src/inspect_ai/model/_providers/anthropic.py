@@ -38,6 +38,7 @@ from anthropic.types import (
     ImageBlockParam,
     Message,
     MessageParam,
+    OutputConfigParam,
     PlainTextSourceParam,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
@@ -702,15 +703,15 @@ class AnthropicAPI(ModelAPI):
             # max is claude 4.6 only
             if effort == "max" and not self.is_claude_4_6():
                 effort = "high"
-            extra_body["output_config"] = {"effort": effort}
+            params["output_config"] = OutputConfigParam(effort=effort)
 
         # some thinking-only stuff
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
                 params["thinking"] = dict(type="adaptive")
-                extra_body.setdefault("output_config", {})
-                extra_body["output_config"]["effort"] = reasoning_effort
+                # reasoning_effort takes precedence over effort
+                params["output_config"] = OutputConfigParam(effort=reasoning_effort)
             else:
                 params["thinking"] = dict(
                     type="enabled", budget_tokens=config.reasoning_tokens

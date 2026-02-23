@@ -247,7 +247,10 @@ def eval_set(
 
     # helper function to run a set of evals
     def run_eval(
-        eval_set_id: str, tasks: list[ResolvedTask] | list[PreviousTask]
+        eval_set_id: str,
+        tasks: list[ResolvedTask]
+        | list[PreviousTask]
+        | list[ResolvedTask | PreviousTask],
     ) -> list[EvalLog]:
         # run evals
         results = eval(
@@ -418,30 +421,26 @@ def eval_set(
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         # for those that haven't run, schedule them into models => tasks groups
-        log_task_identifiers = [log.task_identifier for log in all_logs]
+        # (exclude logs where sample_shuffle changed with a limit -- a different
+        # shuffle selects a different subset of samples so the log can't be reused)
+        reusable_logs = [
+            log
+            for log in all_logs
+            if not shuffle_changed(sample_shuffle, log.header.eval.config, limit)
+        ]
+        log_task_identifiers = [log.task_identifier for log in reusable_logs]
         all_tasks = [
             (task_identifier(task, eval_set_args), task) for task in resolved_tasks
         ]
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
-
-        # we have some pending tasks yet to run, run them
-        if len(pending_tasks) > 0:
-            # run the tasks
-            run_logs = run_eval(eval_set_id, pending_tasks)
-
-            # if this was the entire list of resolved tasks, return results
-            if len(pending_tasks) == len(all_tasks):
-                return run_logs
-            # otherwise query the filesystem
-            else:
-                latest_logs = latest_completed_task_eval_logs(
-                    logs=list_all_eval_logs(log_dir), cleanup_older=False
-                )
-                return [log.header for log in latest_logs]
-
-        # all tasks have had an initial run, perform retries
+        tasks_to_run: (
+            list[ResolvedTask | PreviousTask] | list[ResolvedTask] | list[PreviousTask]
+        )
+        if len(pending_tasks) == len(all_tasks):
+            tasks_to_run = pending_tasks
+            success_logs: list[Log] = []
         else:
             # look for retryable eval logs and cleave them into success/failed
             success_logs, failed_logs = list_latest_eval_logs(
@@ -451,29 +450,32 @@ def eval_set(
                 limit=limit,
                 cleanup_older=retry_cleanup,
             )
-
-            # retry the failed logs (look them up in resolved_tasks)
-            if len(failed_logs) > 0:
-                # schedule the re-execution of the failed tasks
+            if not failed_logs:
+                failed_tasks = []
+            else:
                 failed_task_identifiers = [log.task_identifier for log in failed_logs]
-                failed_tasks = [
+                failed_resolved_tasks = [
                     task
                     for task in resolved_tasks
                     if task_identifier(task, eval_set_args) in failed_task_identifiers
                 ]
-
-                # run previous tasks (no models passed b/c previous task already carries its model)
-                retried_logs = run_eval(
-                    eval_set_id=eval_set_id,
-                    tasks=as_previous_tasks(failed_tasks, failed_logs, eval_set_args),
+                failed_tasks = as_previous_tasks(
+                    failed_resolved_tasks, failed_logs, eval_set_args
                 )
-
-                # return success
-                return [log.header for log in success_logs] + retried_logs
-
-            # no failed logs to retry, just return sucesss logs
-            else:
+            tasks_to_run = pending_tasks + failed_tasks
+            if not tasks_to_run:
+                # no new tasks and no failed logs to retry, just return success logs
                 return [log.header for log in success_logs]
+
+        # run the tasks
+        run_logs = run_eval(eval_set_id, tasks_to_run)
+
+        # if this was the entire list of resolved tasks, return results
+        if len(tasks_to_run) == len(all_tasks):
+            return run_logs
+        # otherwise combine the successful logs with the newly run logs
+        else:
+            return [log.header for log in success_logs] + run_logs
 
     # create retry policy
     retry = Retrying(
@@ -676,6 +678,17 @@ def log_samples_complete(
     return True
 
 
+def shuffle_changed(
+    sample_shuffle: bool | int | None,
+    config: EvalConfig,
+    limit: int | tuple[int, int] | None,
+) -> bool:
+    # shuffle only matters when there's a limit constraining which samples run
+    if limit is None:
+        return False
+    return sample_shuffle != config.sample_shuffle
+
+
 def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     # user didn't say anything about epochs on subsequent call (not changed)
     if epochs is None:
@@ -807,6 +820,12 @@ def resolve_solver(
         return solver_from_spec(solver)
     else:
         return cast(Solver | None, solver)
+
+
+# Version of the task_identifier computation. Bump this when the task_identifier
+# logic changes, so that persisted identifiers (e.g. in inspect_flow) can be
+# recomputed.
+TASK_IDENTIFIER_VERSION = 1
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)

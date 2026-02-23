@@ -3,10 +3,13 @@ from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
 from typing import Any, NamedTuple, cast
+
 from griffe import (
     Alias,
+    AliasResolutionError,
     Attribute,
     Class,
+    CyclicAliasError,
     DocstringSection,
     DocstringSectionExamples,
     DocstringSectionParameters,
@@ -122,6 +125,35 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
         # read attributes and methods
         attributes: list[DocAttribute] = []
         methods: list[DocFunction] = []
+
+        # inherited members (base class fields appear first)
+        for name, alias in clz.inherited_members.items():
+            if name in clz.members:
+                continue
+            try:
+                member: Object | Alias = alias.final_target
+            except (AliasResolutionError, CyclicAliasError):
+                continue
+            if member.docstring is None:
+                continue
+            if isinstance(member, Attribute):
+                if not isinstance(member.annotation, Expr):
+                    continue
+                if member.name.startswith("_"):
+                    continue
+                if "deprecated" in member.docstring.value.lower():
+                    continue
+                attributes.append(
+                    DocAttribute(
+                        name=member.name,
+                        type=str(member.annotation.modernize()),
+                        description=member.docstring.value,
+                    )
+                )
+            elif isinstance(member, Function) and include_function(member):
+                methods.append(parse_function_docs(member, options))
+
+        # direct members (derived class fields)
         for member in clz.members.values():
             if member.docstring is None:
                 continue

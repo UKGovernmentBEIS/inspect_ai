@@ -147,3 +147,65 @@ def test_model_role_memoize() -> None:
     # check with default role
     log = eval(Task(solver=check_memoize_solver()))[0]
     assert log.status == "success"
+
+
+# -- Merge tests (mockllm, no API keys needed) --
+
+GRADER = "grader"
+REVIEWER = "reviewer"
+MOCK_A = "mockllm/model_a"
+MOCK_B = "mockllm/model_b"
+MOCK_C = "mockllm/model_c"
+
+
+@solver
+def grader_role_solver():
+    async def solve(state, generate):
+        model = get_model(role=GRADER)
+        state.output = await model.generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+
+    return solve
+
+
+@solver
+def multi_role_solver():
+    async def solve(state, generate):
+        grader = get_model(role=GRADER)
+        reviewer = get_model(role=REVIEWER)
+        state.output = await grader.generate(state.messages)
+        state.messages.append(state.output.message)
+        state.output = await reviewer.generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+
+    return solve
+
+
+def test_model_role_merge_eval_overrides_task() -> None:
+    """Eval-level model_roles should override task-level for the same role."""
+    t = Task(
+        solver=grader_role_solver(),
+        model_roles={GRADER: MOCK_A},
+    )
+    log = eval(t, model_roles={GRADER: MOCK_B})[0]
+    assert log.status == "success"
+    check_model_role(log, GRADER, MOCK_B)
+
+
+def test_model_role_merge_preserves_unspecified() -> None:
+    """Eval-level override for one role preserves task-level defaults for others."""
+    t = Task(
+        solver=multi_role_solver(),
+        model_roles={GRADER: MOCK_A, REVIEWER: MOCK_B},
+    )
+    log = eval(t, model_roles={GRADER: MOCK_C})[0]
+    assert log.status == "success"
+    # grader should be overridden to MOCK_C
+    check_model_role(log, GRADER, MOCK_C)
+    # reviewer should be preserved as MOCK_B from the task
+    assert log.samples
+    model_events = [e for e in log.samples[0].events if e.event == "model"]
+    reviewer_event = next(e for e in model_events if e.role == REVIEWER)
+    assert reviewer_event.model == MOCK_B
