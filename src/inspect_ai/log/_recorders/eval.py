@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, get_or_create_async_filesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
@@ -204,21 +204,8 @@ class EvalRecorder(FileRecorder):
         cls,
         location: str,
         header_only: bool = False,
-        async_fs: AsyncFilesystem | None = None,
     ) -> EvalLog:
-        if async_fs is not None:
-            return await cls._read_log_impl(location, header_only, async_fs)
-        else:
-            async with AsyncFilesystem() as owned_fs:
-                return await cls._read_log_impl(location, header_only, owned_fs)
-
-    @classmethod
-    async def _read_log_impl(
-        cls,
-        location: str,
-        header_only: bool,
-        async_fs: AsyncFilesystem,
-    ) -> EvalLog:
+        async_fs = get_or_create_async_filesystem()
         # if the log is not stored in the local filesystem then download it first,
         # and then read it from a temp file (eliminates the possiblity of hundreds
         # of small fetches from the zip file streams)
@@ -272,26 +259,8 @@ class EvalRecorder(FileRecorder):
         exclude_fields: set[str] | None = None,
         reader: AsyncZipReader | None = None,
     ) -> EvalSample:
-        if reader:
-            return await cls.read_log_sample_impl(
-                location, reader, id, epoch, uuid, exclude_fields
-            )
-        async with AsyncFilesystem() as async_fs:
-            reader = AsyncZipReader(async_fs, location)
-            return await cls.read_log_sample_impl(
-                location, reader, id, epoch, uuid, exclude_fields
-            )
-
-    @classmethod
-    async def read_log_sample_impl(
-        cls,
-        location: str,
-        reader: AsyncZipReader,
-        id: str | int | None = None,
-        epoch: int = 1,
-        uuid: str | None = None,
-        exclude_fields: set[str] | None = None,
-    ) -> EvalSample:
+        if not reader:
+            reader = AsyncZipReader(get_or_create_async_filesystem(), location)
         try:
             # if a uuid was specified then read the summaries and find the matching sample
             if id is None:
@@ -354,20 +323,8 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
-    async def read_log_sample_summaries(
-        cls, location: str, async_fs: AsyncFilesystem | None = None
-    ) -> list[EvalSampleSummary]:
-        if async_fs is not None:
-            return await cls._read_log_sample_summaries_impl(location, async_fs)
-        else:
-            async with AsyncFilesystem() as owned_fs:
-                return await cls._read_log_sample_summaries_impl(location, owned_fs)
-
-    @classmethod
-    async def _read_log_sample_summaries_impl(
-        cls, location: str, async_fs: AsyncFilesystem
-    ) -> list[EvalSampleSummary]:
-        reader = AsyncZipReader(async_fs, location)
+    async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
+        reader = AsyncZipReader(get_or_create_async_filesystem(), location)
         cd = await reader.entries()
         entry_names = [e.filename for e in cd.entries]
         summary_counter = _read_summary_counter(entry_names)
@@ -408,10 +365,15 @@ class EvalRecorder(FileRecorder):
             with open(temp_eval_file, "rb") as f:
                 log_bytes = f.read()
 
-        async with AsyncFilesystem() as async_fs:
-            await _write_s3_conditional(
-                async_fs, bucket, key, log_bytes, etag, location, logger
-            )
+        await _write_s3_conditional(
+            get_or_create_async_filesystem(),
+            bucket,
+            key,
+            log_bytes,
+            etag,
+            location,
+            logger,
+        )
 
 
 async def _write_eval_log_with_recorder(

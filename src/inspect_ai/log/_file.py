@@ -10,13 +10,9 @@ from pydantic import (
     Field,
 )
 
-from inspect_ai._util._async import current_async_backend, run_coroutine
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import (
-    AsyncFilesystem,
-    run_tg_collect_with_fs,
-    tg_collect_with_fs,
-)
+from inspect_ai._util.asyncfiles import get_or_create_async_filesystem
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -296,7 +292,6 @@ async def read_eval_log_async(
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
-    async_fs: AsyncFilesystem | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -310,8 +305,6 @@ async def read_eval_log_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension).
-       async_fs (AsyncFilesystem | None): Optional shared async filesystem
-          for connection reuse across multiple reads.
 
     Returns:
        EvalLog object read from file.
@@ -342,7 +335,7 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_location(log_file)
         else:
             recorder_type = recorder_type_for_format(format)
-        log = await recorder_type.read_log(log_file, header_only, async_fs)
+        log = await recorder_type.read_log(log_file, header_only)
 
     # resolve attachement if requested
     if resolve_attachments and log.samples:
@@ -389,15 +382,15 @@ async def read_eval_log_headers_async(
     if progress:
         progress.before_reading_logs(len(log_files))
 
-    async def _read(lf: str | Path | EvalLogInfo, fs: AsyncFilesystem) -> EvalLog:
-        log = await read_eval_log_async(lf, header_only=True, async_fs=fs)
+    async def _read(lf: str | Path | EvalLogInfo) -> EvalLog:
+        log = await read_eval_log_async(lf, header_only=True)
         if progress:
             progress.after_read_log(
                 lf.name if isinstance(lf, EvalLogInfo) else str(lf),
             )
         return log
 
-    return await tg_collect_with_fs([partial(_read, lf) for lf in log_files])
+    return await tg_collect([partial(_read, lf) for lf in log_files])
 
 
 def read_eval_log_sample(
@@ -449,8 +442,8 @@ def read_eval_log_sample(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    async def do_read(async_fs: AsyncFilesystem) -> EvalSample:
-        reader = AsyncZipReader(async_fs, log_file)
+    async def do_read() -> EvalSample:
+        reader = AsyncZipReader(get_or_create_async_filesystem(), log_file)
         return await read_eval_log_sample_async(
             log_file,
             id,
@@ -462,7 +455,7 @@ def read_eval_log_sample(
             reader,
         )
 
-    return run_tg_collect_with_fs([do_read])[0]
+    return run_coroutine(do_read())
 
 
 async def read_eval_log_sample_async(
@@ -554,7 +547,6 @@ def read_eval_log_sample_summaries(
 async def read_eval_log_sample_summaries_async(
     log_file: str | Path | EvalLogInfo,
     format: Literal["eval", "json", "auto"] = "auto",
-    async_fs: AsyncFilesystem | None = None,
 ) -> list[EvalSampleSummary]:
     """Read sample summaries from an eval log.
 
@@ -562,7 +554,6 @@ async def read_eval_log_sample_summaries_async(
        log_file (str | FileInfo): Log file to read.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
-       async_fs (AsyncFilesystem | None): Optional shared async filesystem.
 
     Returns:
        Sample summaries for eval log.
@@ -580,7 +571,7 @@ async def read_eval_log_sample_summaries_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    return await recorder_type.read_log_sample_summaries(log_file, async_fs)
+    return await recorder_type.read_log_sample_summaries(log_file)
 
 
 def read_eval_log_samples(

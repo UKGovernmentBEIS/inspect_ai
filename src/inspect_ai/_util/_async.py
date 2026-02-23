@@ -110,14 +110,29 @@ def init_nest_asyncio() -> None:
 
 
 def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
+    from inspect_ai._util.asyncfiles import (
+        cleanup_async_filesystem,
+        has_async_filesystem,
+    )
     from inspect_ai._util.platform import running_in_notebook
 
     if current_async_backend() == "trio":
         raise RuntimeError("run_coroutine cannot be used with trio")
 
+    async def _run_with_cleanup() -> T:
+        # Check if a filesystem already exists (inherited from an outer
+        # context via nest_asyncio). Only clean up if we didn't inherit one,
+        # to avoid closing a filesystem the outer context is still using.
+        inherited_fs = has_async_filesystem()
+        try:
+            return await coroutine
+        finally:
+            if not inherited_fs:
+                await cleanup_async_filesystem()
+
     if running_in_notebook():
         init_nest_asyncio()
-        result = asyncio.run(coroutine)
+        result = asyncio.run(_run_with_cleanup())
         return result
     else:
         try:
@@ -132,7 +147,7 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
             # and run it.
             pass
 
-        result = asyncio.run(coroutine)
+        result = asyncio.run(_run_with_cleanup())
         return result
 
 

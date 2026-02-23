@@ -2,7 +2,6 @@ import abc
 from typing import IO
 
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import EvalError
 from inspect_ai.log._log import (
     EvalLog,
@@ -63,7 +62,6 @@ class Recorder(abc.ABC):
         cls,
         location: str,
         header_only: bool = False,
-        async_fs: AsyncFilesystem | None = None,
     ) -> EvalLog: ...
 
     @classmethod
@@ -87,7 +85,7 @@ class Recorder(abc.ABC):
     @classmethod
     @abc.abstractmethod
     async def read_log_sample_summaries(
-        cls, location: str, async_fs: AsyncFilesystem | None = None
+        cls, location: str
     ) -> list[EvalSampleSummary]: ...
 
     @classmethod

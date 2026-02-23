@@ -1,8 +1,8 @@
 from contextlib import AbstractAsyncContextManager
+from contextvars import ContextVar
 from dataclasses import dataclass
-from functools import partial
 from types import TracebackType
-from typing import Any, Awaitable, Callable, Iterable, TypeVar, cast
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import anyio.to_thread
@@ -14,7 +14,7 @@ from anyio.abc import ByteReceiveStream
 from botocore.config import Config
 from typing_extensions import override
 
-from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.file import FileInfo, file, filesystem
 
 
@@ -128,11 +128,15 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     2. Use boto3 with anyio.to_thread when using s3 under the trio backend
     3. Use fsspec when using any other filesystem
 
-    Call close() when finished with the filesystem (or use it as a context manager)
+    When used as a context manager, the filesystem is registered in a ContextVar
+    so that it is shared with all downstream code within the same async context.
+    If a shared filesystem already exists, the context manager reuses it and does
+    not close it on exit (the original owner handles cleanup).
     """
 
     _s3_client: Any | None = None
     _s3_client_async: Any | None = None
+    _owns_context: bool = False
 
     async def get_size(self, filename: str) -> int:
         return (await self.info(filename)).size
@@ -258,13 +262,25 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 f.write(content)
 
     @override
+    async def __aenter__(self) -> "AsyncFilesystem":
+        existing = _current_async_fs.get()
+        if existing is not None:
+            self._owns_context = False
+            return existing
+        self._owns_context = True
+        _current_async_fs.set(self)
+        return self
+
+    @override
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        await self.close()
+        if self._owns_context:
+            _current_async_fs.set(None)
+            await self.close()
 
     async def close(
         self,
@@ -357,40 +373,39 @@ def _local_path(filename: str) -> str:
     return filename
 
 
-R = TypeVar("R")
+_current_async_fs: ContextVar[AsyncFilesystem | None] = ContextVar(
+    "_current_async_fs", default=None
+)
 
 
-async def tg_collect_with_fs(
-    funcs: Iterable[Callable[[AsyncFilesystem], Awaitable[R]]],
-    exception_group: bool = False,
-) -> list[R]:
-    """Run funcs concurrently with a shared AsyncFilesystem.
+def get_or_create_async_filesystem() -> AsyncFilesystem:
+    """Get the current shared AsyncFilesystem, creating one if needed.
 
-    Each func receives an AsyncFilesystem as its sole argument. A single
-    shared filesystem is created and used across all concurrent tasks.
+    The filesystem is stored in a ContextVar and shared within the current
+    async context. Cleanup is handled automatically by run_coroutine() for
+    sync-to-async entry points.
 
-    Args:
-        funcs: Async callables that accept an AsyncFilesystem.
-        exception_group: ``True`` to raise an ExceptionGroup,
-            ``False`` (default) to raise only the first exception.
-
-    Returns:
-        List of results in the same order as input funcs.
+    For callers already in an async context (not entered via run_coroutine),
+    the aioboto3 session will not be explicitly closed and the OS will close
+    the underlying connections when the event loop shuts down. To avoid this
+    resource leak, use ``async with AsyncFilesystem()`` at the async entry
+    point which will set the ContextVar and handle cleanup on exit.
     """
-    async with AsyncFilesystem() as fs:
-        return await tg_collect(
-            [partial(fn, fs) for fn in funcs],
-            exception_group=exception_group,
-        )
+    fs = _current_async_fs.get()
+    if fs is None:
+        fs = AsyncFilesystem()
+        _current_async_fs.set(fs)
+    return fs
 
 
-def run_tg_collect_with_fs(
-    funcs: Iterable[Callable[[AsyncFilesystem], Awaitable[R]]],
-    exception_group: bool = False,
-) -> list[R]:
-    """Sync wrapper for :func:`tg_collect_with_fs`.
+def has_async_filesystem() -> bool:
+    """Check if a shared AsyncFilesystem currently exists in the ContextVar."""
+    return _current_async_fs.get() is not None
 
-    Creates a shared AsyncFilesystem, runs all funcs concurrently,
-    and returns results via ``run_coroutine``.
-    """
-    return run_coroutine(tg_collect_with_fs(funcs, exception_group))
+
+async def cleanup_async_filesystem() -> None:
+    """Close and remove the current shared AsyncFilesystem if one exists."""
+    fs = _current_async_fs.get()
+    if fs is not None:
+        await fs.close()
+        _current_async_fs.set(None)

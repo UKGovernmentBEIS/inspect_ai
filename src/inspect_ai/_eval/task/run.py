@@ -24,7 +24,7 @@ from inspect_ai._display import (
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import get_or_create_async_filesystem
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -133,9 +133,7 @@ from .util import sample_messages, slice_dataset
 py_logger = getLogger(__name__)
 
 
-EvalSampleSource = Callable[
-    [int | str, int, AsyncFilesystem], Awaitable[EvalSample | None]
-]
+EvalSampleSource = Callable[[int | str, int], Awaitable[EvalSample | None]]
 
 # Units allocated for sample progress - the total units
 # represents the total units of progress for an individual sample
@@ -152,7 +150,6 @@ class TaskRunOptions:
     sandbox: SandboxEnvironmentSpec | None
     logger: TaskLogger
     eval_wd: str
-    async_fs: AsyncFilesystem
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
     tags: list[str] | None = field(default=None)
@@ -415,7 +412,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
-                        async_fs=options.async_fs,
                     )
 
                 sample_results = await tg_collect(
@@ -639,7 +635,6 @@ async def task_run_sample(
     eval_set_id: str | None,
     run_id: str,
     task_id: str,
-    async_fs: AsyncFilesystem,
 ) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.hooks._hooks import (
         emit_sample_end,
@@ -650,7 +645,7 @@ async def task_run_sample(
 
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
-        previous_sample = await sample_source(sample.id, state.epoch, async_fs)
+        previous_sample = await sample_source(sample.id, state.epoch)
         if previous_sample:
             # tick off progress for this sample
             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
@@ -1146,7 +1141,6 @@ async def task_run_sample(
             eval_set_id=eval_set_id,
             run_id=run_id,
             task_id=task_id,
-            async_fs=async_fs,
         )
 
     # re-raise cancellation after logging to preserve structured concurrency
@@ -1286,9 +1280,7 @@ def eval_log_sample_source(
     dataset: Dataset,
 ) -> EvalSampleSource:
     # return dummy function for no sample source
-    async def no_sample_source(
-        id: int | str, epoch: int, async_fs: AsyncFilesystem
-    ) -> None:
+    async def no_sample_source(id: int | str, epoch: int) -> None:
         return None
 
     # take care of no log or no samples in log
@@ -1320,12 +1312,12 @@ def eval_log_sample_source(
     elif eval_log_info:
         reader: AsyncZipReader | None = None
 
-        async def read_from_file(
-            id: int | str, epoch: int, async_fs: AsyncFilesystem
-        ) -> EvalSample | None:
+        async def read_from_file(id: int | str, epoch: int) -> EvalSample | None:
             nonlocal reader
             if not reader:
-                reader = AsyncZipReader(async_fs, eval_log_info.name)
+                reader = AsyncZipReader(
+                    get_or_create_async_filesystem(), eval_log_info.name
+                )
             try:
                 sample = await read_eval_log_sample_async(
                     eval_log_info, id, epoch, reader=reader
@@ -1339,9 +1331,7 @@ def eval_log_sample_source(
         return read_from_file
     else:
 
-        async def read_from_memory(
-            id: int | str, epoch: int, async_fs: AsyncFilesystem
-        ) -> EvalSample | None:
+        async def read_from_memory(id: int | str, epoch: int) -> EvalSample | None:
             return next(
                 (
                     sample
