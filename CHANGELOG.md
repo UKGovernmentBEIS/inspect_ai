@@ -6,6 +6,7 @@
 - Anthropic: Use `output_config` directly (rather than via `extra_body`) which is compatible with batch mode.
 - Google: Add latest Gemini models to model info database.
 - Sandboxes: Verify execute result size automatically for all sandbox exec calls.
+- Sandboxes: Export `exec_remote()` types from root namespace and add docs.
 - Eval Set: Add `TASK_IDENTIFIER_VERSION` to support persistence of task identifiers in inspect_flow.
 - Eval Retry: Don't retry with `model_base_url` unless it was explicitly specified by the user.
 - Agent Bridge: Add model_aliases to agent bridge and pass Model to GenerateFilter.

@@ -23,6 +23,25 @@ class SandboxEnvironment:
         """
         ...
 
+    async def exec_remote(
+        self,
+        cmd: list[str],
+        options: (
+          ExecRemoteStreamingOptions
+          | ExecRemoteAwaitableOptions
+          | None
+      ) = None,
+        *,
+        stream: bool = True,
+    ) -> ExecRemoteProcess | ExecResult[str]:
+        """
+        Raises:
+          TimeoutError: If `timeout` is specified in
+            ExecRemoteAwaitableOptions and the command
+            exceeds it (only applicable when `stream=False`).
+        """
+        ...
+
     async def write_file(
         self, file: str, contents: str | bytes
     ) -> None:
