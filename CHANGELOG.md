@@ -21,6 +21,7 @@
 - Bugfix: Skip non-JSON lines in MCP server stdout parsing,
 - Bugfix: Remove doubled MIME prefix in MCP content conversion.
 - Bugfix: Ensure that `eval()` specified `model_roles` override task-level roles.
+- Bugfix: Improve max sample size error.
 
 ## 0.3.180 (20 February 2026)
 
