@@ -2,7 +2,7 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai._util.rich import lines_display
+from inspect_ai._util.rich import tool_result_display
 from inspect_ai._util.transcript import transcript_markdown, transcript_reasoning
 from inspect_ai.util._conversation import conversation_panel
 from inspect_ai.util._display import display_type
@@ -33,7 +33,7 @@ def display_conversation_tool_message(message: ChatMessageTool) -> None:
             message.error.message.strip() if message.error else message.text.strip()
         )
         if output:
-            content = lines_display(output, 50)
+            content = tool_result_display(output, 50)
 
             conversation_panel(
                 title=f"Tool Output: {message.function}",

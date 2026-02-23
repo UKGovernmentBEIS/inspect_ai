@@ -607,6 +607,26 @@ Or in a call to `get_model()`
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
+### Chat Templates
+
+For Hugging Face models, Inspect will use a tokenizer chat template when available. 
+Use the `chat_template` model arg to override the tokenizer template, and
+`use_chat_template=false` to bypass chat-template rendering entirely.
+
+For example:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base \
+  -M "chat_template={% for message in messages %}{{ message.content }}{% endfor %}" \
+  -M use_chat_template=true
+```
+
+Or to bypass templates:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
 ### Hidden States
 
 If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:
@@ -927,6 +947,20 @@ inspect eval ctf.py --model openai-api/<provider>/<model> -M emulate_tools=true
 ```
 
 Tool calling emulation works by encoding tool JSON schema in an XML tag and asking the model to make tool calls using another XML tag. This works with varying degrees of efficacy depending on the model and the complexity of the tool schema. Before using tool emulation you should always check if your provider implements native support for tool calling on the model you are using, as that will generally work better.
+
+### Strict Tool Schemas
+
+By default, Inspect sets `"strict": true` on tool function schemas for the `openai-api` provider. This preserves compatibility with providers that require strict tool schemas. You can override this using the `strict_tools` model arg:
+
+``` bash
+inspect eval arc.py --model openai-api/<provider>/<model> -M strict_tools=false
+```
+
+Or using the `eval()` function:
+
+``` python
+eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_tools=False))
+```
 
 ### Streaming {#streaming-openai-compatible}
 

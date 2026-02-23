@@ -297,8 +297,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
             filter: false,
             headerTooltipValueGetter: (params) => params.colDef?.headerName,
           }}
-          tooltipShowMode="whenTruncated"
-          tooltipShowDelay={100}
+          tooltipShowDelay={300}
           animateRows={false}
           rowHeight={kSampleHeight}
           headerHeight={25}

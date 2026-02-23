@@ -93,6 +93,7 @@ class HuggingFaceAPI(ModelAPI):
         tokenizer_path = collect_model_arg("tokenizer_path")
         self.batch_size = collect_model_arg("batch_size")
         self.chat_template = collect_model_arg("chat_template")
+        self.use_chat_template = collect_model_arg("use_chat_template")
         self.tokenizer_call_args = collect_model_arg("tokenizer_call_args")
         self.enable_thinking = collect_model_arg("enable_thinking")
         if self.tokenizer_call_args is None:
@@ -278,21 +279,73 @@ class HuggingFaceAPI(ModelAPI):
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         hf_messages = message_content_to_string(hf_messages)
+        chat_template = (
+            self.chat_template
+            if isinstance(self.chat_template, str)
+            else self.tokenizer.chat_template
+        )
+        if self.use_chat_template is False:
+            chat_template = None
+
         # apply chat template
-        if self.tokenizer.chat_template is not None:
-            chat = self.tokenizer.apply_chat_template(
-                hf_messages,
-                add_generation_prompt=True,
-                tokenize=False,
-                tools=tools_list if len(tools_list) > 0 else None,
-                enable_thinking=self.enable_thinking,  # not all models use this, check if it is supported
+        if chat_template is not None:
+            chat = self._apply_chat_template(
+                hf_messages=hf_messages,
+                tools_list=tools_list,
+                chat_template=chat_template,
             )
         else:
             chat = ""
             for message in hf_messages:
                 chat += f"{message.role}: {message.content}\n"
         # return
-        return cast(str, chat)
+        return chat
+
+    def _apply_chat_template(
+        self,
+        hf_messages: list[ChatMessage],
+        tools_list: list[dict[str, Any]],
+        chat_template: str | None,
+    ) -> str:
+        template_args: dict[str, Any] = dict(
+            add_generation_prompt=True,
+            tokenize=False,
+            tools=tools_list if len(tools_list) > 0 else None,
+            enable_thinking=self.enable_thinking,
+        )
+
+        if chat_template is not None:
+            try:
+                return cast(
+                    str,
+                    self.tokenizer.apply_chat_template(
+                        hf_messages,
+                        chat_template=chat_template,
+                        **template_args,
+                    ),
+                )
+            except TypeError:
+                # Back-compat for tokenizers that don't accept `chat_template=` kwarg.
+                original_template = self.tokenizer.chat_template
+                try:
+                    self.tokenizer.chat_template = chat_template
+                    return cast(
+                        str,
+                        self.tokenizer.apply_chat_template(
+                            hf_messages,
+                            **template_args,
+                        ),
+                    )
+                finally:
+                    self.tokenizer.chat_template = original_template
+
+        return cast(
+            str,
+            self.tokenizer.apply_chat_template(
+                hf_messages,
+                **template_args,
+            ),
+        )
 
 
 def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:

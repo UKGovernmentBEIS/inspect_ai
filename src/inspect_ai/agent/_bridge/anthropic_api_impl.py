@@ -16,6 +16,7 @@ from anthropic.types import (
     SearchResultBlockParam,
     TextBlockParam,
     ToolChoiceParam,
+    ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
 )
@@ -92,7 +93,7 @@ async def inspect_anthropic_api_request_impl(
 ) -> Message | BetaMessage:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name)
+    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
 
     # tools
     anthropic_tools: list[ToolParamDef] | None = json_data.get("tools", None)
@@ -420,7 +421,8 @@ def content_block_to_content(
     block: TextBlockParam
     | ImageBlockParam
     | DocumentBlockParam
-    | SearchResultBlockParam,
+    | SearchResultBlockParam
+    | ToolReferenceBlockParam,
 ) -> Content:
     if block["type"] == "text":
         text = block["text"]

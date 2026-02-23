@@ -14,7 +14,7 @@ from .test_reasoning_content import check_reasoning_content
 @pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_reasoning_claude():
-    await check_reasoning_content("anthropic/claude-3-7-sonnet-20250219")
+    await check_reasoning_content("anthropic/claude-sonnet-4-6")
 
 
 @pytest.mark.anyio
@@ -38,7 +38,7 @@ async def test_reasoning_claude_ignore_unsupported():
         return execute
 
     await check_reasoning_content(
-        "anthropic/claude-3-7-sonnet-20250219",
+        "anthropic/claude-sonnet-4-6",
         config=GenerateConfig(temperature=0.9, top_p=3, top_k=3),
         tools=[addition()],
         tool_choice=ToolFunction("addition"),
@@ -49,7 +49,7 @@ async def test_reasoning_claude_ignore_unsupported():
 @skip_if_no_anthropic
 async def test_reasoning_claude_force_history():
     await check_reasoning_content(
-        "anthropic/claude-3-7-sonnet-20250219",
+        "anthropic/claude-sonnet-4-6",
         config=GenerateConfig(reasoning_history="none"),
     )
 
@@ -59,7 +59,7 @@ def check_max_tokens(max_tokens: int | None, reasoning_tokens: int, check_tokens
     log = eval(
         task,
         log_format="json",
-        model="anthropic/claude-3-7-sonnet-20250219",
+        model="anthropic/claude-sonnet-4-6",
         max_tokens=max_tokens,
         reasoning_tokens=reasoning_tokens,
     )[0]
@@ -95,7 +95,7 @@ def test_reasoning_claude_redacted():
     )
     log = eval(
         task,
-        model="anthropic/claude-3-7-sonnet-20250219",
+        model="anthropic/claude-sonnet-4-6",
         reasoning_tokens=1024,
     )[0]
 
@@ -112,7 +112,7 @@ def test_reasoning_claude_token_count():
     task = Task(dataset=[Sample(input="Please say 'hello, world'")])
     log = eval(
         task,
-        model="anthropic/claude-3-7-sonnet-20250219",
+        model="anthropic/claude-sonnet-4-6",
         reasoning_tokens=1024,
     )[0]
 

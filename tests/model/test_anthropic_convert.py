@@ -106,7 +106,7 @@ async def test_model_output_from_anthropic_with_thinking() -> None:
     """Test Message with thinking blocks (reasoning) conversion."""
     message = Message(
         id="msg_789",
-        model="claude-3-7-sonnet-20250219",
+        model="claude-sonnet-4-6",
         role="assistant",
         content=[
             ThinkingBlock(
@@ -223,7 +223,7 @@ async def test_model_output_from_anthropic_multiple_thinking_blocks() -> None:
     """Test Message with multiple thinking blocks."""
     message = Message(
         id="msg_multi_think",
-        model="claude-3-7-sonnet-20250219",
+        model="claude-sonnet-4-6",
         role="assistant",
         content=[
             ThinkingBlock(
