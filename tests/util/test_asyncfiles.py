@@ -12,6 +12,8 @@ from inspect_ai._util.asyncfiles import (
     get_async_filesystem,
 )
 
+S3_BUCKET = "s3://test-bucket"
+
 # =============================================================================
 # Tests for read_file_bytes() with local files
 # Code path: LocalFileStream (uses AnyIO async file operations)
@@ -500,3 +502,51 @@ def test_concurrent_tasks_in_run_coroutine_share_filesystem() -> None:
     assert len(seen_filesystems) == 3
     assert seen_filesystems[0] is seen_filesystems[1]
     assert seen_filesystems[1] is seen_filesystems[2]
+
+
+# =============================================================================
+# Tests for nest_asyncio with mock S3
+# =============================================================================
+
+
+def test_nest_asyncio_with_s3_requests(mock_s3: None) -> None:
+    """Nested run_coroutine shares filesystem and both S3 requests succeed.
+
+    Outer loop: creates AsyncFilesystem, writes/reads file1 from mock S3.
+    Inner loop: run_coroutine() triggers nest_asyncio, writes/reads file2.
+    Both requests complete correctly, and the outer filesystem survives.
+    """
+    file1 = f"{S3_BUCKET}/nest_test/file1.txt"
+    file2 = f"{S3_BUCKET}/nest_test/file2.txt"
+    data1 = b"outer context data"
+    data2 = b"inner context data"
+
+    async def outer() -> None:
+        async with AsyncFilesystem() as outer_fs:
+            # Write and read file1 in the outer context
+            await outer_fs.write_file(file1, data1)
+            result1 = await outer_fs.read_file(file1)
+            assert result1 == data1
+            future1 = outer_fs.read_file(file1)
+
+            # Inner loop via run_coroutine (triggers nest_asyncio)
+            async def inner() -> bytes:
+                # The inner context should reuse the outer filesystem
+                async with AsyncFilesystem() as inner_fs:
+                    assert inner_fs is outer_fs
+                    await inner_fs.write_file(file2, data2)
+                    result1 = await future1
+                    assert result1 == data1
+                    return await inner_fs.read_file(file2)
+
+            inner_result = run_coroutine(inner())
+            assert inner_result == data2
+
+            # Outer filesystem should still be active after inner exits
+            assert _current_async_fs.get() is outer_fs
+
+            # Outer can still read both files
+            assert await outer_fs.read_file(file1) == data1
+            assert await outer_fs.read_file(file2) == data2
+
+    asyncio.run(outer())
