@@ -394,7 +394,12 @@ def get_or_create_async_filesystem() -> AsyncFilesystem:
     fs = _current_async_fs.get()
     if fs is None:
         fs = AsyncFilesystem()
-        _current_async_fs.set(fs)
+        # Only cache in the ContextVar when running inside an async context.
+        # If called from sync code, return a fresh instance without caching
+        # to prevent it from being inherited by a subsequent run_coroutine()
+        # call (which copies the context and would skip cleanup).
+        if current_async_backend() is not None:
+            _current_async_fs.set(fs)
     return fs
 
 

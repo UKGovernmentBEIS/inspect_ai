@@ -513,3 +513,14 @@ async def test_concurrent_tasks_share_filesystem() -> None:
     assert len(seen_filesystems) == 3
     for seen_fs in seen_filesystems:
         assert seen_fs is fs
+
+
+def test_get_or_create_does_not_cache_in_sync_context() -> None:
+    """get_or_create_async_filesystem() does not set ContextVar from sync code."""
+    fs = get_or_create_async_filesystem()
+    assert fs is not None
+    # Should not be cached since we're not in an async context
+    assert not has_async_filesystem()
+    # Subsequent call returns a different instance
+    fs2 = get_or_create_async_filesystem()
+    assert fs2 is not fs
