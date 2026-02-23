@@ -359,6 +359,35 @@ async def test_read_member_fully_large_extra_field(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_false_zip64_locator_in_compressed_data(tmp_path: Path) -> None:
+    """Test that a false ZIP64 locator signature in compressed data is ignored."""
+    zip_path = tmp_path / "false_locator.zip"
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("data.json", json.dumps({"key": "value"}))
+
+    # Inject the PK\x06\x07 signature into the compressed data region so it
+    # falls within the last-65KB tail that _find_central_directory reads.
+    data = zip_path.read_bytes()
+    eocd_pos = data.rfind(b"PK\x05\x06")
+
+    # Find the compressed data region (between local header and central dir)
+    # and inject the false signature there.
+    cd_offset = struct.unpack_from("<I", data, eocd_pos + 16)[0]
+    # Place the false signature midway through the file, before the CD
+    inject_pos = cd_offset // 2
+    patched = data[:inject_pos] + b"PK\x06\x07" + data[inject_pos + 4 :]
+    assert len(patched) == len(data)
+    zip_path.write_bytes(patched)
+
+    # This should NOT raise ValueError("Corrupt ZIP64 structure")
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        cd = await reader.entries()
+        assert len(cd.entries) > 0
+
+
+@pytest.mark.asyncio
 async def test_deflate_compress_stream() -> None:
     """Test that _DeflateCompressStream correctly deflate-compresses data."""
     original_data = b"The quick brown fox jumps over the lazy dog. " * 100
