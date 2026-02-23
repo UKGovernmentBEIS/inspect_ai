@@ -349,6 +349,25 @@ class SandboxEnvironment:
         """
         ...
 
+    async def exec_remote(
+        self,
+        cmd: list[str],
+        options: (
+          ExecRemoteStreamingOptions
+          | ExecRemoteAwaitableOptions
+          | None
+      ) = None,
+        *,
+        stream: bool = True,
+    ) -> ExecRemoteProcess | ExecResult[str]:
+        """
+        Raises:
+          TimeoutError: If `timeout` is specified in
+            ExecRemoteAwaitableOptions and the command
+            exceeds it (only applicable when `stream=False`).
+        """
+        ...
+
     async def write_file(
         self, file: str, contents: str | bytes
     ) -> None:
@@ -419,6 +438,10 @@ to propagate in which case they will be reported to the model for
 potential recovery. In addition, *unexpected* errors may occur (e.g. a
 networking error connecting to a remote container): these errors are not
 reported to the model and fail the `Sample` with an error state.
+
+Note that the `exec_remote()` method is implemented directly in the
+`SandboxEnvironment` base class so should not be implemented by
+subclasses.
 
 The best way to learn about writing sandbox environments is to look at
 the source code for the built in environments,

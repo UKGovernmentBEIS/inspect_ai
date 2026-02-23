@@ -1240,6 +1240,23 @@ complexity of the tool schema. Before using tool emulation you should
 always check if your provider implements native support for tool calling
 on the model you are using, as that will generally work better.
 
+### Strict Tool Schemas
+
+By default, Inspect sets `"strict": true` on tool function schemas for
+the `openai-api` provider. This preserves compatibility with providers
+that require strict tool schemas. You can override this using the
+`strict_tools` model arg:
+
+``` bash
+inspect eval arc.py --model openai-api/<provider>/<model> -M strict_tools=false
+```
+
+Or using the `eval()` function:
+
+``` python
+eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_tools=False))
+```
+
 ### Streaming
 
 You can enable the use of the streaming with the `openai-api` provider

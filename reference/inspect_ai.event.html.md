@@ -7,13 +7,31 @@
 
 Call to a language model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_model.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_model.py#L17)
 
 ``` python
 class ModelEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['model'\]  
 Event type.
@@ -67,13 +85,31 @@ working time for model call that succeeded (i.e. was not retried).
 
 Call to a tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_tool.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tool.py#L13)
 
 ``` python
 class ToolEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['tool'\]  
 Event type.
@@ -124,13 +160,31 @@ Was the task cancelled?
 
 Compaction of conversation history.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_compaction.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_compaction.py#L8)
 
 ``` python
 class CompactionEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['compaction'\]  
 Event type.
@@ -151,13 +205,31 @@ Compaction source (e.g. ‘inspect’, ‘claude_code’, etc.)
 
 Tool approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_approval.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_approval.py#L9)
 
 ``` python
 class ApprovalEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['approval'\]  
 Event type
@@ -187,13 +259,31 @@ Explanation for decision.
 
 Sandbox execution or I/O
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_sandbox.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_sandbox.py#L10)
 
 ``` python
 class SandboxEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['sandbox'\]  
 Event type
@@ -226,13 +316,31 @@ Time that sandbox action completed (see `timestamp` for started)
 
 Event with custom info/data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_info.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_info.py#L8)
 
 ``` python
 class InfoEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['info'\]  
 Event type.
@@ -247,13 +355,31 @@ Data provided with event.
 
 Log message recorded with Python logger.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_logger.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_logger.py#L77)
 
 ``` python
 class LoggerEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['logger'\]  
 Event type.
@@ -265,13 +391,31 @@ Logging message
 
 Event with sample error.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_error.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_error.py#L9)
 
 ``` python
 class ErrorEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['error'\]  
 Event type.
@@ -283,13 +427,31 @@ Sample error
 
 Mark the beginning of a transcript span.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_span.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_span.py#L8)
 
 ``` python
 class SpanBeginEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['span_begin'\]  
 Event type.
@@ -310,13 +472,31 @@ Span name.
 
 Mark the end of a transcript span.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_span.py#L27)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_span.py#L27)
 
 ``` python
 class SpanEndEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['span_end'\]  
 Event type.
@@ -332,7 +512,7 @@ Build a tree representation of a sequence of events.
 
 Organize events heirarchially into event spans.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_tree.py#L43)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L43)
 
 ``` python
 def event_tree(events: Sequence[Event]) -> EventTree
@@ -345,7 +525,7 @@ Sequence of `Event`.
 
 Flatten a span forest back into a properly ordered seqeunce.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_tree.py#L94)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L94)
 
 ``` python
 def event_sequence(tree: EventTree) -> Iterable[Event]
@@ -358,7 +538,7 @@ Event tree
 
 Tree of events (has invividual events and event spans).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_tree.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L13)
 
 ``` python
 EventTree: TypeAlias = list[EventTreeNode]
@@ -368,7 +548,7 @@ EventTree: TypeAlias = list[EventTreeNode]
 
 Event tree node representing a span of events.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_tree.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L17)
 
 ``` python
 @dataclass
@@ -402,7 +582,7 @@ Children in the span.
 
 Node in an event tree.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_tree.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L10)
 
 ``` python
 EventTreeNode: TypeAlias = Union["EventTreeSpan", Event]
@@ -414,13 +594,31 @@ EventTreeNode: TypeAlias = Union["EventTreeSpan", Event]
 
 Beginning of processing a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_sample_init.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_sample_init.py#L9)
 
 ``` python
 class SampleInitEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['sample_init'\]  
 Event type.
@@ -435,13 +633,31 @@ Initial state.
 
 The sample was unable to finish processing due to a limit
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_sample_limit.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_sample_limit.py#L8)
 
 ``` python
 class SampleLimitEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['sample_limit'\]  
 Event type.
@@ -459,13 +675,31 @@ The limit value (if any)
 
 Change to the current `TaskState`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_state.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_state.py#L9)
 
 ``` python
 class StateEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['state'\]  
 Event type.
@@ -477,13 +711,31 @@ List of changes to the `TaskState`
 
 Change to data within the current `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_store.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_store.py#L10)
 
 ``` python
 class StoreEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['store'\]  
 Event type.
@@ -495,13 +747,31 @@ List of changes to the `Store`.
 
 Input screen interaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_input.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_input.py#L8)
 
 ``` python
 class InputEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['input'\]  
 Event type.
@@ -519,13 +789,31 @@ Event with score.
 Can be the final score for a `Sample`, or can be an intermediate score
 resulting from a call to `score`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_score.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_score.py#L10)
 
 ``` python
 class ScoreEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['score'\]  
 Event type.
@@ -546,13 +834,31 @@ Cumulative model usage at the time of this score.
 
 Event recorded when a score is edited.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_score_edit.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_score_edit.py#L9)
 
 ``` python
 class ScoreEditEvent(BaseEvent)
 ```
 
 #### Attributes
+
+`uuid` str \| None  
+Unique identifer for event.
+
+`span_id` str \| None  
+Span the event occurred within.
+
+`timestamp` UtcDatetime  
+Clock time at which event occurred.
+
+`working_start` float  
+Working time (within sample) at which the event occurred.
+
+`metadata` dict\[str, Any\] \| None  
+Additional event metadata.
+
+`pending` bool \| None  
+Is this event pending?
 
 `event` Literal\['score_edit'\]  
 Event type.
@@ -569,7 +875,7 @@ The edit being applied to the score.
 
 Logging level.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_logger.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_logger.py#L9)
 
 ``` python
 LoggingLevel = Literal[
@@ -581,7 +887,7 @@ LoggingLevel = Literal[
 
 Message written to Python log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/beb6bcb343028816578ab19f3695a9cb817ade3e/src/inspect_ai/event/_logger.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_logger.py#L15)
 
 ``` python
 class LoggingMessage(BaseModel)
