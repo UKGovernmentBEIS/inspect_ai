@@ -1,9 +1,9 @@
 """LoRA adapter support for vLLM provider.
 
-This module provides utilities for:
+Provides:
 - Parsing vLLM model names with LoRA adapter syntax (base:adapter)
-- Tracking vLLM servers by base model to enable server reuse
-- Dynamically loading LoRA adapters via vLLM's API
+- Shared server state tracking to enable server reuse across models
+- Dynamic LoRA adapter loading via vLLM's HTTP API
 """
 
 from __future__ import annotations
@@ -11,10 +11,10 @@ from __future__ import annotations
 import atexit
 import json
 import logging
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from subprocess import Popen
-from typing import Any
 
 import anyio
 import httpx
@@ -23,77 +23,80 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class VLLMServerInfo:
-    """Information about a running vLLM server."""
+class VLLMServer:
+    """Shared state for a vLLM server serving a given base model.
 
-    base_url: str
-    api_key: str
+    Created during __init__ (synchronous). LoRA fields are incrementally
+    updated as each VLLMAPI instance registers its adapter. Connection
+    fields are set once on first generate() when the server is resolved
+    or started.
+    """
+
+    # LoRA config — incrementally updated during __init__
+    enable_lora: bool = False
+    max_lora_rank: int | None = None
+
+    # Connection — set when server is resolved/started
+    base_url: str | None = None
+    api_key: str | None = None
     port: int | None = None
     process: Popen[str] | None = None
-    lora_enabled: bool = False
-    is_external: bool = False
+
+    # Adapter loading
     loaded_adapters: set[str] = field(default_factory=set)
-    _adapter_locks: dict[str, anyio.Lock] = field(default_factory=dict)
 
-    def get_adapter_lock(self, adapter_path: str) -> anyio.Lock:
-        """Get or create a lock for the given adapter path."""
-        if adapter_path not in self._adapter_locks:
-            self._adapter_locks[adapter_path] = anyio.Lock()
-        return self._adapter_locks[adapter_path]
+    # Lock for server startup (protects base_url check → start → assign)
+    _init_lock: anyio.Lock = field(default_factory=anyio.Lock)
+    # Lock for adapter loading (protects loaded check → HTTP load → add)
+    _load_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
-# Global tracking for vLLM servers by base model
-# Key: (base_model, external_base_url or None)
-# Value: VLLMServerInfo
-_vllm_servers: dict[tuple[str, str | None], VLLMServerInfo] = {}
+# base_model → server state
+_vllm_servers: dict[str, VLLMServer] = {}
 
 
 def parse_vllm_model(model_name: str) -> tuple[str, str | None, str | None]:
     """Parse vLLM model name into base model and optional LoRA adapter.
 
-    Supports syntax: "base-model" or "base-model:adapter-path"
+    Supports syntax: ``"base-model"`` or ``"base-model:adapter-path"``.
+    Splits on the first colon only (the adapter path may itself contain
+    colons, e.g. for URLs).
 
     Args:
-        model_name: Model name, optionally with :adapter suffix
+        model_name: Model name, optionally with ``:adapter`` suffix.
 
     Returns:
-        Tuple of (base_model, adapter_path, adapter_name) where:
-        - base_model: The base model identifier
-        - adapter_path: HuggingFace repo or local path (None if no adapter)
-        - adapter_name: Sanitized name for vLLM API (None if no adapter)
+        Tuple of (base_model, adapter_path, adapter_name) where
+        adapter_path is the HuggingFace repo or local path (``None``
+        if no adapter) and adapter_name is a ``/``-sanitized identifier
+        for the vLLM API (``None`` if no adapter).
 
     Examples:
         >>> parse_vllm_model("meta-llama/Llama-3-8B")
-        ("meta-llama/Llama-3-8B", None, None)
+        ('meta-llama/Llama-3-8B', None, None)
         >>> parse_vllm_model("meta-llama/Llama-3-8B:org/my-adapter")
-        ("meta-llama/Llama-3-8B", "org/my-adapter", "org_my-adapter")
-        >>> parse_vllm_model("llama:./local/path/adapter")
-        ("llama", "./local/path/adapter", "._local_path_adapter")
+        ('meta-llama/Llama-3-8B', 'org/my-adapter', 'org_my-adapter')
     """
     if ":" not in model_name:
         return (model_name, None, None)
-
     # Split on first colon only (adapter path may contain colons for URLs)
     base, adapter_path = model_name.split(":", 1)
-
-    # Sanitize adapter path to create valid vLLM adapter name
-    # Replace / with _ to create a flat identifier
+    # Replace / with _ to create a flat vLLM adapter identifier
     adapter_name = adapter_path.replace("/", "_")
-
     return (base, adapter_path, adapter_name)
 
 
 def get_adapter_rank(adapter_path: str) -> int | None:
     """Get the LoRA rank from an adapter's configuration.
 
-    Supports both local paths and HuggingFace repo IDs. Returns None if
-    the rank cannot be determined (missing config, missing field, etc.).
+    Reads the ``r`` field from ``adapter_config.json``, looking first
+    for a local file and falling back to downloading from HuggingFace.
 
     Args:
         adapter_path: Local path or HuggingFace repo ID for the adapter.
 
     Returns:
-        The LoRA rank (r) value from adapter_config.json, or None on failure.
+        The LoRA rank (``r``) value, or ``None`` if it cannot be determined.
     """
     local_path = Path(adapter_path) / "adapter_config.json"
     if local_path.exists():
@@ -123,7 +126,7 @@ def _download_adapter_config(adapter_path: str) -> Path | None:
     """Download adapter_config.json from HuggingFace Hub.
 
     Returns:
-        Path to downloaded config, or None if not found.
+        Path to the downloaded config file, or ``None`` if not found.
     """
     from huggingface_hub import hf_hub_download
     from huggingface_hub.errors import EntryNotFoundError
@@ -138,251 +141,136 @@ def _download_adapter_config(adapter_path: str) -> Path | None:
         return None
 
 
-# Registry of all created vLLM models (populated during __init__, read during
-# first generate). Enables lazy server startup with full adapter visibility.
-# Key: base_model, Value: list of (adapter_path, adapter_name)
-_vllm_model_registry: dict[str, list[tuple[str | None, str | None]]] = {}
-
-# Per-base-model locks for server initialization
-_server_init_locks: dict[str, anyio.Lock] = {}
-
-
-def register_vllm_model(
-    base_model: str, adapter_path: str | None, adapter_name: str | None
-) -> None:
-    """Register a vLLM model instance in the global registry.
-
-    Called during VLLMAPI.__init__ so that by the time generate() runs,
-    the registry contains all models and their adapters.
-
-    Args:
-        base_model: The base model identifier.
-        adapter_path: HuggingFace repo or local path (None if no adapter).
-        adapter_name: Sanitized name for vLLM API (None if no adapter).
-    """
-    if base_model not in _vllm_model_registry:
-        _vllm_model_registry[base_model] = []
-    _vllm_model_registry[base_model].append((adapter_path, adapter_name))
+def _normalize_api_base(base_url: str) -> str:
+    """Strip trailing ``/v1`` and slash to get the root server URL."""
+    url = base_url.rstrip("/")
+    if url.endswith("/v1"):
+        url = url[:-3]
+    return url
 
 
-def compute_lora_config_from_registry(base_model: str) -> dict[str, Any]:
-    """Compute LoRA server config from all registered models for a base model.
-
-    Scans all registered adapters for the given base model and computes
-    enable_lora and max_lora_rank across all of them.
-
-    Args:
-        base_model: The base model identifier.
-
-    Returns:
-        Dict with "enable_lora" and optionally "max_lora_rank", or empty dict
-        if no adapters are registered.
-    """
-    models = _vllm_model_registry.get(base_model, [])
-    adapters = [(path, name) for path, name in models if path is not None]
-    if not adapters:
-        return {}
-
-    config: dict[str, Any] = {"enable_lora": True}
-    max_rank: int | None = None
-    for adapter_path, _ in adapters:
-        rank = get_adapter_rank(adapter_path)
-        if rank is not None:
-            max_rank = max(max_rank, rank) if max_rank is not None else rank
-    if max_rank is not None:
-        config["max_lora_rank"] = max_rank
-
-    logger.info(f"Computed vLLM LoRA config for {base_model}: {config}")
-    return config
-
-
-def get_server_init_lock(base_model: str) -> anyio.Lock:
-    """Get or create a per-base-model lock for server initialization."""
-    if base_model not in _server_init_locks:
-        _server_init_locks[base_model] = anyio.Lock()
-    return _server_init_locks[base_model]
-
-
-def get_server_for_model(
-    base_model: str, external_base_url: str | None = None
-) -> VLLMServerInfo | None:
-    """Get existing server info for a base model if available.
-
-    Args:
-        base_model: The base model identifier
-        external_base_url: External server URL if using VLLM_BASE_URL
-
-    Returns:
-        VLLMServerInfo if server exists, None otherwise
-    """
-    return _vllm_servers.get((base_model, external_base_url))
-
-
-def register_server(
-    base_model: str,
-    server_info: VLLMServerInfo,
-    external_base_url: str | None = None,
-) -> None:
-    """Register a vLLM server for a base model.
-
-    Args:
-        base_model: The base model identifier
-        server_info: Server information to register
-        external_base_url: External server URL if using VLLM_BASE_URL
-    """
-    _vllm_servers[(base_model, external_base_url)] = server_info
-
-
-async def check_adapter_available(
-    base_url: str, adapter_name: str, api_key: str
-) -> bool:
-    """Check if a LoRA adapter is available on the vLLM server.
-
-    Args:
-        base_url: vLLM server base URL (with /v1 suffix)
-        adapter_name: Name of the adapter to check
-        api_key: API key for authentication
-
-    Returns:
-        True if adapter is listed in /v1/models, False otherwise
-    """
-    # Normalize URL - remove trailing /v1 if present for consistent handling
-    api_base = base_url.rstrip("/")
-    if api_base.endswith("/v1"):
-        api_base = api_base[:-3]
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{api_base}/v1/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=10.0,
-        )
-        response.raise_for_status()
-        data = response.json()
-
-        model_ids = [m.get("id") for m in data.get("data", [])]
-        return adapter_name in model_ids
-
-
-async def load_adapter(
+def _load_adapter(
     base_url: str,
     adapter_name: str,
     adapter_path: str,
     api_key: str,
 ) -> None:
-    """Load a LoRA adapter on the vLLM server.
+    """Load a LoRA adapter on the vLLM server via its HTTP API.
 
     Args:
-        base_url: vLLM server base URL (with /v1 suffix)
-        adapter_name: Name to register the adapter under
-        adapter_path: HuggingFace repo or local path to adapter
-        api_key: API key for authentication
+        base_url: vLLM server base URL (may include ``/v1`` suffix).
+        adapter_name: Name to register the adapter under.
+        adapter_path: HuggingFace repo or local path to adapter weights.
+        api_key: API key for authentication.
 
     Raises:
-        RuntimeError: If adapter loading fails with actionable error message
+        RuntimeError: If the adapter endpoint is missing (404) or the
+            adapter fails to load (400).
     """
-    # Normalize URL
-    api_base = base_url.rstrip("/")
-    if api_base.endswith("/v1"):
-        api_base = api_base[:-3]
+    api_base = _normalize_api_base(base_url)
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
+    with httpx.Client() as client:
+        response = client.post(
             f"{api_base}/v1/load_lora_adapter",
             json={"lora_name": adapter_name, "lora_path": adapter_path},
             headers={"Authorization": f"Bearer {api_key}"},
-            timeout=120.0,  # Loading can take time for large adapters
+            timeout=120.0,
         )
 
         if response.status_code == 404:
             raise RuntimeError(
-                "LoRA adapter endpoint not found. The vLLM server may not have been "
-                "started with --enable-lora flag. If using external server "
+                "LoRA adapter endpoint not found. The vLLM server may not have "
+                "been started with --enable-lora. If using an external server "
                 "(VLLM_BASE_URL), restart with: vllm serve MODEL --enable-lora"
             )
 
         if response.status_code == 400:
-            error_text = response.text
             raise RuntimeError(
-                f"Failed to load LoRA adapter '{adapter_path}': {error_text}\n"
+                f"Failed to load LoRA adapter '{adapter_path}': {response.text}\n"
                 f"Common causes:\n"
                 f"  - Adapter not found (check HuggingFace repo or local path)\n"
                 f"  - Adapter incompatible with base model\n"
-                f"  - Adapter configuration issues"
+                f"  - Adapter rank exceeds server's max_lora_rank"
             )
 
         response.raise_for_status()
-        logger.info(f"Successfully loaded LoRA adapter: {adapter_name}")
+        logger.info(f"Loaded LoRA adapter: {adapter_name}")
 
 
-async def ensure_adapter_loaded(
-    server_info: VLLMServerInfo,
+def _adapter_on_server(base_url: str, adapter_name: str, api_key: str) -> bool:
+    """Check whether the vLLM server already lists *adapter_name*."""
+    api_base = _normalize_api_base(base_url)
+    with httpx.Client() as client:
+        response = client.get(
+            f"{api_base}/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10.0,
+        )
+        response.raise_for_status()
+        model_ids = [m.get("id") for m in response.json().get("data", [])]
+        return adapter_name in model_ids
+
+
+def ensure_adapter_loaded(
+    server: VLLMServer,
     adapter_path: str,
     adapter_name: str,
 ) -> None:
-    """Ensure a LoRA adapter is loaded on the vLLM server.
+    """Ensure a LoRA adapter is loaded on the server.
 
-    This function is idempotent and thread-safe. It checks if the adapter
-    is already loaded before attempting to load it.
+    Idempotent and thread-safe.  Checks the local ``loaded_adapters`` set
+    first, then queries the server's ``/v1/models`` endpoint (the adapter
+    may have been loaded externally), and finally loads via
+    ``/v1/load_lora_adapter`` if needed.
+
+    Called from ``_resolve_server`` (sync).  In the async path this runs
+    inside ``anyio.to_thread.run_sync``, matching the existing pattern
+    for ``_resolve_server`` / ``_ensure_server_started``.
 
     Args:
-        server_info: Server information including URL and loaded adapters
-        adapter_path: HuggingFace repo or local path to adapter
-        adapter_name: Name to register/use the adapter under
+        server: Shared server state (must have ``base_url`` set).
+        adapter_path: HuggingFace repo or local path to adapter weights.
+        adapter_name: Name to register/query the adapter under.
 
     Raises:
-        RuntimeError: If adapter loading fails
+        RuntimeError: If adapter loading fails.
     """
-    # Fast path: already loaded in our tracking
-    if adapter_path in server_info.loaded_adapters:
+    if adapter_path in server.loaded_adapters:
         return
 
-    # Acquire per-adapter lock to prevent duplicate loading
-    lock = server_info.get_adapter_lock(adapter_path)
-    async with lock:
-        # Double-check after acquiring lock
-        if adapter_path in server_info.loaded_adapters:
+    with server._load_lock:
+        if adapter_path in server.loaded_adapters:
             return
 
-        # Check if adapter is already available on server
-        # (may have been loaded externally or in previous session)
+        if server.base_url is None or server.api_key is None:
+            raise RuntimeError("Server must be resolved before loading adapters")
+
         try:
-            if await check_adapter_available(
-                server_info.base_url, adapter_name, server_info.api_key
-            ):
+            if _adapter_on_server(server.base_url, adapter_name, server.api_key):
                 logger.info(
                     f"LoRA adapter '{adapter_name}' already available on server"
                 )
-                server_info.loaded_adapters.add(adapter_path)
+                server.loaded_adapters.add(adapter_path)
                 return
         except httpx.HTTPStatusError as e:
             logger.warning(f"Failed to check adapter availability: {e}")
-            # Continue to try loading
+            raise
 
-        # Load the adapter
         logger.info(f"Loading LoRA adapter: {adapter_path} as {adapter_name}")
-        await load_adapter(
-            server_info.base_url,
-            adapter_name,
-            adapter_path,
-            server_info.api_key,
-        )
-        server_info.loaded_adapters.add(adapter_path)
+        _load_adapter(server.base_url, adapter_name, adapter_path, server.api_key)
+        server.loaded_adapters.add(adapter_path)
 
 
 def cleanup_servers() -> None:
-    """Cleanup all tracked vLLM servers.
-
-    Called during process exit to terminate spawned servers.
-    """
+    """Terminate all spawned vLLM servers. Called at process exit."""
     from inspect_ai._util.local_server import terminate_process
 
-    for key, server_info in list(_vllm_servers.items()):
-        if server_info.process is not None and not server_info.is_external:
-            logger.info(f"Cleaning up vLLM server for {key[0]}")
-            terminate_process(server_info.process)
+    for base_model, server in list(_vllm_servers.items()):
+        if server.process is not None:
+            logger.info(f"Cleaning up vLLM server for {base_model}")
+            terminate_process(server.process)
+            server.process = None
     _vllm_servers.clear()
 
 
-# Register cleanup handler for process exit
 atexit.register(cleanup_servers)

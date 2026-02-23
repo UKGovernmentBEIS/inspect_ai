@@ -1,29 +1,46 @@
 """Tests for vLLM LoRA adapter support."""
 
+from unittest.mock import patch
+
 import pytest
 from test_helpers.utils import skip_if_github_action, skip_if_no_vllm
 
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageUser, GenerateConfig, get_model
 from inspect_ai.model._providers._vllm_lora import (
-    VLLMServerInfo,
+    VLLMServer,
+    _normalize_api_base,
+    _vllm_servers,
+    ensure_adapter_loaded,
     parse_vllm_model,
 )
+from inspect_ai.model._providers.vllm import VLLMAPI
 from inspect_ai.solver import solver
+
+
+@pytest.fixture(autouse=True)
+def _clean_vllm_servers():
+    """Reset global server registry between tests."""
+    _vllm_servers.clear()
+    yield
+    _vllm_servers.clear()
+
+
+# =============================================================================
+# parse_vllm_model
+# =============================================================================
 
 
 class TestParseVLLMModel:
     """Tests for parse_vllm_model function."""
 
     def test_base_model_only(self) -> None:
-        """Test parsing a model name without adapter."""
         base, adapter_path, adapter_name = parse_vllm_model("meta-llama/Llama-3-8B")
         assert base == "meta-llama/Llama-3-8B"
         assert adapter_path is None
         assert adapter_name is None
 
     def test_with_hf_adapter(self) -> None:
-        """Test parsing a model name with HuggingFace adapter."""
         base, adapter_path, adapter_name = parse_vllm_model(
             "meta-llama/Llama-3-8B:myorg/my-lora-adapter"
         )
@@ -32,7 +49,6 @@ class TestParseVLLMModel:
         assert adapter_name == "myorg_my-lora-adapter"
 
     def test_with_local_adapter(self) -> None:
-        """Test parsing a model name with local path adapter."""
         base, adapter_path, adapter_name = parse_vllm_model(
             "meta-llama/Llama-3-8B:/path/to/adapter"
         )
@@ -41,21 +57,18 @@ class TestParseVLLMModel:
         assert adapter_name == "_path_to_adapter"
 
     def test_with_relative_path_adapter(self) -> None:
-        """Test parsing a model name with relative path adapter."""
         base, adapter_path, adapter_name = parse_vllm_model("llama:./local/adapter")
         assert base == "llama"
         assert adapter_path == "./local/adapter"
         assert adapter_name == "._local_adapter"
 
     def test_simple_model_name(self) -> None:
-        """Test parsing a simple model name without slashes."""
         base, adapter_path, adapter_name = parse_vllm_model("gpt2")
         assert base == "gpt2"
         assert adapter_path is None
         assert adapter_name is None
 
     def test_nested_hf_path(self) -> None:
-        """Test parsing with deeply nested HF paths."""
         base, adapter_path, adapter_name = parse_vllm_model(
             "org/model:other-org/sub/adapter"
         )
@@ -64,56 +77,203 @@ class TestParseVLLMModel:
         assert adapter_name == "other-org_sub_adapter"
 
 
-class TestVLLMServerInfo:
-    """Tests for VLLMServerInfo dataclass."""
+# =============================================================================
+# _normalize_api_base
+# =============================================================================
 
-    def test_get_adapter_lock_creates_new(self) -> None:
-        """Test that get_adapter_lock creates new locks."""
-        server_info = VLLMServerInfo(
-            base_url="http://localhost:8000/v1",
-            api_key="test-key",
-        )
-        lock1 = server_info.get_adapter_lock("adapter1")
-        lock2 = server_info.get_adapter_lock("adapter2")
 
-        assert lock1 is not lock2
-        assert "adapter1" in server_info._adapter_locks
-        assert "adapter2" in server_info._adapter_locks
-
-    def test_get_adapter_lock_returns_same(self) -> None:
-        """Test that get_adapter_lock returns same lock for same adapter."""
-        server_info = VLLMServerInfo(
-            base_url="http://localhost:8000/v1",
-            api_key="test-key",
-        )
-        lock1 = server_info.get_adapter_lock("adapter1")
-        lock2 = server_info.get_adapter_lock("adapter1")
-
-        assert lock1 is lock2
-
-    def test_loaded_adapters_tracking(self) -> None:
-        """Test that loaded_adapters set works correctly."""
-        server_info = VLLMServerInfo(
-            base_url="http://localhost:8000/v1",
-            api_key="test-key",
+class TestNormalizeApiBase:
+    def test_strips_v1_suffix(self) -> None:
+        assert (
+            _normalize_api_base("http://localhost:8000/v1") == "http://localhost:8000"
         )
 
-        assert len(server_info.loaded_adapters) == 0
+    def test_strips_trailing_slash_then_v1(self) -> None:
+        assert (
+            _normalize_api_base("http://localhost:8000/v1/") == "http://localhost:8000"
+        )
 
-        server_info.loaded_adapters.add("adapter1")
-        server_info.loaded_adapters.add("adapter2")
+    def test_leaves_bare_url_alone(self) -> None:
+        assert _normalize_api_base("http://localhost:8000") == "http://localhost:8000"
 
-        assert "adapter1" in server_info.loaded_adapters
-        assert "adapter2" in server_info.loaded_adapters
-        assert "adapter3" not in server_info.loaded_adapters
+    def test_strips_only_trailing_slash(self) -> None:
+        assert _normalize_api_base("http://localhost:8000/") == "http://localhost:8000"
+
+    def test_does_not_strip_v1_in_middle(self) -> None:
+        assert (
+            _normalize_api_base("http://localhost:8000/v1/models")
+            == "http://localhost:8000/v1/models"
+        )
+
+
+# =============================================================================
+# VLLMServer dataclass
+# =============================================================================
+
+
+class TestVLLMServer:
+    def test_defaults(self) -> None:
+        server = VLLMServer()
+        assert server.enable_lora is False
+        assert server.max_lora_rank is None
+        assert server.base_url is None
+        assert server.api_key is None
+        assert server.process is None
+        assert len(server.loaded_adapters) == 0
+
+
+# =============================================================================
+# VLLMAPI.__init__ — lazy init, shared server, LoRA accumulation
+# =============================================================================
+
+
+class TestVLLMAPIInit:
+    """Test the __init__ path without starting a real server."""
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_half_init_state(self, _mock_rank: object) -> None:
+        """model_name and base_url exist immediately (before _resolve_server)."""
+        api = VLLMAPI("base-model:some-adapter")
+
+        assert api.model_name == "base-model"
+        assert api.base_url is None
+        assert api._server_resolved is False
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_shared_server_across_instances(self, _mock_rank: object) -> None:
+        """Two instances for the same base model share one VLLMServer."""
+        api1 = VLLMAPI("base-model:adapter-a")
+        api2 = VLLMAPI("base-model:adapter-b")
+
+        assert api1._server is api2._server
+        assert "base-model" in _vllm_servers
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_different_base_models_get_separate_servers(
+        self, _mock_rank: object
+    ) -> None:
+        api1 = VLLMAPI("model-a:adapter")
+        api2 = VLLMAPI("model-b:adapter")
+
+        assert api1._server is not api2._server
+
+    def test_lora_accumulation_across_adapters(self) -> None:
+        """max_lora_rank is the max across all adapters for a base model."""
+        rank_map = {"adapter-a": 16, "adapter-b": 256}
+        with patch(
+            "inspect_ai.model._providers.vllm.get_adapter_rank",
+            side_effect=lambda p: rank_map.get(p),
+        ):
+            api1 = VLLMAPI("base-model:adapter-a")
+            api2 = VLLMAPI("base-model:adapter-b")
+
+        assert api1._server.enable_lora is True
+        assert api1._server.max_lora_rank == 256
+        assert api2._server is api1._server
+
+    def test_lora_accumulation_none_rank_ignored(self) -> None:
+        """Adapter whose rank can't be detected doesn't clobber existing rank."""
+        with patch(
+            "inspect_ai.model._providers.vllm.get_adapter_rank",
+            side_effect=[64, None],
+        ):
+            VLLMAPI("base-model:adapter-known")
+            VLLMAPI("base-model:adapter-unknown")
+
+        server = _vllm_servers["base-model"]
+        assert server.enable_lora is True
+        assert server.max_lora_rank == 64
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_base_model_without_adapter_does_not_enable_lora(
+        self, _mock_rank: object
+    ) -> None:
+        VLLMAPI("base-model")
+
+        server = _vllm_servers["base-model"]
+        assert server.enable_lora is False
+        assert server.max_lora_rank is None
+
+    @patch("inspect_ai.model._providers.vllm.get_adapter_rank", return_value=None)
+    def test_base_url_and_port_raises(self, _mock_rank: object) -> None:
+        with pytest.raises(ValueError, match="cannot both be provided"):
+            VLLMAPI("model", base_url="http://x", port=8000)
+
+
+# =============================================================================
+# ensure_adapter_loaded
+# =============================================================================
+
+
+class TestEnsureAdapterLoaded:
+    def _make_server(self) -> VLLMServer:
+        server = VLLMServer()
+        server.base_url = "http://localhost:8000/v1"
+        server.api_key = "test-key"
+        return server
+
+    def test_already_loaded_skips_http(self) -> None:
+        """Fast path: adapter already in loaded_adapters → no HTTP calls."""
+        server = self._make_server()
+        server.loaded_adapters.add("org/adapter")
+
+        with (
+            patch(
+                "inspect_ai.model._providers._vllm_lora._adapter_on_server"
+            ) as mock_check,
+            patch("inspect_ai.model._providers._vllm_lora._load_adapter") as mock_load,
+        ):
+            ensure_adapter_loaded(server, "org/adapter", "org_adapter")
+
+        mock_check.assert_not_called()
+        mock_load.assert_not_called()
+
+    def test_on_server_skips_load(self) -> None:
+        """Adapter already on server → mark loaded, don't POST."""
+        server = self._make_server()
+
+        with (
+            patch(
+                "inspect_ai.model._providers._vllm_lora._adapter_on_server",
+                return_value=True,
+            ),
+            patch("inspect_ai.model._providers._vllm_lora._load_adapter") as mock_load,
+        ):
+            ensure_adapter_loaded(server, "org/adapter", "org_adapter")
+
+        mock_load.assert_not_called()
+        assert "org/adapter" in server.loaded_adapters
+
+    def test_not_on_server_loads_adapter(self) -> None:
+        """Adapter not on server → load via HTTP POST."""
+        server = self._make_server()
+
+        with (
+            patch(
+                "inspect_ai.model._providers._vllm_lora._adapter_on_server",
+                return_value=False,
+            ),
+            patch("inspect_ai.model._providers._vllm_lora._load_adapter") as mock_load,
+        ):
+            ensure_adapter_loaded(server, "org/adapter", "org_adapter")
+
+        mock_load.assert_called_once_with(
+            "http://localhost:8000/v1", "org_adapter", "org/adapter", "test-key"
+        )
+        assert "org/adapter" in server.loaded_adapters
+
+    def test_unresolved_server_raises(self) -> None:
+        """Calling before server is resolved raises RuntimeError."""
+        server = VLLMServer()
+
+        with pytest.raises(RuntimeError, match="Server must be resolved"):
+            ensure_adapter_loaded(server, "org/adapter", "org_adapter")
 
 
 # =============================================================================
 # Integration tests - require GPU and vLLM installed
 # =============================================================================
 
-# Base model and LoRA adapter for integration tests
-# Using small models to keep tests fast
 SMOL_BASE = "HuggingFaceTB/SmolLM2-135M-Instruct"
 SMOL_LORA_SWEDISH = "jekunz/smollm-135m-lora-fineweb-swedish"  # r=256
 SMOL_LORA_DIGEST = "soumitsr/SmolLM2-135M-Instruct-article-digestor-lora"  # r=16
@@ -163,7 +323,6 @@ async def test_vllm_base_and_lora_shared_server() -> None:
     assert len(models) == 3
     base_model, swedish_model, digest_model = models
 
-    # Same prompt, temperature=0 -> deterministic but different outputs
     message = ChatMessageUser(content="Tell me about the weather today")
     base_response = await base_model.generate(input=[message])
     swedish_response = await swedish_model.generate(input=[message])
