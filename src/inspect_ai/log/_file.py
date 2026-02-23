@@ -12,7 +12,7 @@ from pydantic import (
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import get_or_create_async_filesystem
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -443,7 +443,7 @@ def read_eval_log_sample(
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
     async def do_read() -> EvalSample:
-        reader = AsyncZipReader(get_or_create_async_filesystem(), log_file)
+        reader = AsyncZipReader(get_async_filesystem(), log_file)
         return await read_eval_log_sample_async(
             log_file,
             id,

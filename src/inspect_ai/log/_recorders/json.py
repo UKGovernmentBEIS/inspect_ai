@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from pydantic_core import from_json
 from typing_extensions import override
 
-from inspect_ai._util.asyncfiles import get_or_create_async_filesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file, filesystem
@@ -227,15 +227,16 @@ class JSONRecorder(FileRecorder):
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        await _write_s3_conditional(
-            get_or_create_async_filesystem(),
-            bucket,
-            key,
-            log_bytes,
-            etag,
-            location,
-            logger,
-        )
+        async with AsyncFilesystem() as async_fs:
+            await _write_s3_conditional(
+                async_fs,
+                bucket,
+                key,
+                log_bytes,
+                etag,
+                location,
+                logger,
+            )
 
 
 def _validate_version(ver: int) -> None:
@@ -277,13 +278,14 @@ async def _s3_read_with_etag(
     """
     bucket, key = _s3_bucket_and_key(location)
 
-    s3_client = await get_or_create_async_filesystem().s3_client_async()
-    response = await s3_client.get_object(Bucket=bucket, Key=key)
-    content = await response["Body"].read()
-    content = content.decode("utf-8")
-    etag = response["ETag"].strip('"')  # S3 returns ETag with quotes
+    async with AsyncFilesystem() as async_fs:
+        s3_client = await async_fs.s3_client_async()
+        response = await s3_client.get_object(Bucket=bucket, Key=key)
+        content = await response["Body"].read()
+        content = content.decode("utf-8")
+        etag = response["ETag"].strip('"')  # S3 returns ETag with quotes
 
-    return content, etag
+        return content, etag
 
 
 def _read_header_streaming(log_file: str) -> EvalLog:

@@ -9,7 +9,7 @@ from re import Pattern
 from typing import TYPE_CHECKING, Sequence, TypeAlias, cast
 
 from inspect_ai._util._async import run_coroutine, tg_collect
-from inspect_ai._util.asyncfiles import get_or_create_async_filesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
@@ -82,7 +82,8 @@ def resolve_logs(
 
     # expand directories
     async def expand_log(log_str: str) -> list[FileInfo]:
-        info = await get_or_create_async_filesystem().info(log_str)
+        async with AsyncFilesystem() as fs:
+            info = await fs.info(log_str)
         if info.type == "directory":
             fs = filesystem(log_str)
             return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]

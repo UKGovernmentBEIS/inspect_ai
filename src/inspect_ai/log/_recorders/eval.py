@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import AsyncFilesystem, get_or_create_async_filesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
@@ -205,41 +205,43 @@ class EvalRecorder(FileRecorder):
         location: str,
         header_only: bool = False,
     ) -> EvalLog:
-        async_fs = get_or_create_async_filesystem()
-        # if the log is not stored in the local filesystem then download it first,
-        # and then read it from a temp file (eliminates the possiblity of hundreds
-        # of small fetches from the zip file streams)
-        temp_log: str | None = None
-        etag: str | None = None
-        fs = filesystem(location)
+        async with AsyncFilesystem() as async_fs:
+            # if the log is not stored in the local filesystem then download it
+            # first, and then read it from a temp file (eliminates the possiblity
+            # of hundreds of small fetches from the zip file streams)
+            temp_log: str | None = None
+            etag: str | None = None
+            fs = filesystem(location)
 
-        if not fs.is_local() and header_only is False:
-            with tempfile.NamedTemporaryFile(delete=False) as temp:
-                temp_log = temp.name
-                if fs.is_s3():
-                    # download file and get ETag so it matches the content
-                    etag = await _s3_download_with_etag(location, temp_log, async_fs)
-                else:
-                    fs.get_file(location, temp_log)
+            if not fs.is_local() and header_only is False:
+                with tempfile.NamedTemporaryFile(delete=False) as temp:
+                    temp_log = temp.name
+                    if fs.is_s3():
+                        # download file and get ETag so it matches the content
+                        etag = await _s3_download_with_etag(
+                            location, temp_log, async_fs
+                        )
+                    else:
+                        fs.get_file(location, temp_log)
 
-        # read log (use temp_log if we have it)
-        try:
-            read_location = temp_log or location
-            reader = AsyncZipReader(async_fs, read_location)
-            cd = await reader.entries()
-            log = await _read_log(reader, cd.entries, location, header_only)
+            # read log (use temp_log if we have it)
+            try:
+                read_location = temp_log or location
+                reader = AsyncZipReader(async_fs, read_location)
+                cd = await reader.entries()
+                log = await _read_log(reader, cd.entries, location, header_only)
 
-            if etag is not None:
-                log.etag = etag
-            elif fs.is_s3() and header_only:
-                # ETag is captured from the S3 response used to read the
-                # central directory, so no extra request is needed.
-                log.etag = reader.etag
+                if etag is not None:
+                    log.etag = etag
+                elif fs.is_s3() and header_only:
+                    # ETag is captured from the S3 response used to read the
+                    # central directory, so no extra request is needed.
+                    log.etag = reader.etag
 
-            return log
-        finally:
-            if temp_log:
-                os.unlink(temp_log)
+                return log
+            finally:
+                if temp_log:
+                    os.unlink(temp_log)
 
     @override
     @classmethod
@@ -260,7 +262,25 @@ class EvalRecorder(FileRecorder):
         reader: AsyncZipReader | None = None,
     ) -> EvalSample:
         if not reader:
-            reader = AsyncZipReader(get_or_create_async_filesystem(), location)
+            async with AsyncFilesystem() as fs:
+                reader = AsyncZipReader(fs, location)
+                return await cls._read_log_sample_impl(
+                    reader, location, id, epoch, uuid, exclude_fields
+                )
+        return await cls._read_log_sample_impl(
+            reader, location, id, epoch, uuid, exclude_fields
+        )
+
+    @classmethod
+    async def _read_log_sample_impl(
+        cls,
+        reader: AsyncZipReader,
+        location: str,
+        id: str | int | None = None,
+        epoch: int = 1,
+        uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
+    ) -> EvalSample:
         try:
             # if a uuid was specified then read the summaries and find the matching sample
             if id is None:
@@ -324,11 +344,12 @@ class EvalRecorder(FileRecorder):
     @classmethod
     @override
     async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
-        reader = AsyncZipReader(get_or_create_async_filesystem(), location)
-        cd = await reader.entries()
-        entry_names = [e.filename for e in cd.entries]
-        summary_counter = _read_summary_counter(entry_names)
-        return await _read_all_summaries_async(reader, summary_counter)
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, location)
+            cd = await reader.entries()
+            entry_names = [e.filename for e in cd.entries]
+            summary_counter = _read_summary_counter(entry_names)
+            return await _read_all_summaries_async(reader, summary_counter)
 
     @classmethod
     @override
@@ -365,15 +386,16 @@ class EvalRecorder(FileRecorder):
             with open(temp_eval_file, "rb") as f:
                 log_bytes = f.read()
 
-        await _write_s3_conditional(
-            get_or_create_async_filesystem(),
-            bucket,
-            key,
-            log_bytes,
-            etag,
-            location,
-            logger,
-        )
+        async with AsyncFilesystem() as async_fs:
+            await _write_s3_conditional(
+                async_fs,
+                bucket,
+                key,
+                log_bytes,
+                etag,
+                location,
+                logger,
+            )
 
 
 async def _write_eval_log_with_recorder(

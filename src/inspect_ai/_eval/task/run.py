@@ -24,7 +24,7 @@ from inspect_ai._display import (
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import get_or_create_async_filesystem
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -1315,9 +1315,7 @@ def eval_log_sample_source(
         async def read_from_file(id: int | str, epoch: int) -> EvalSample | None:
             nonlocal reader
             if not reader:
-                reader = AsyncZipReader(
-                    get_or_create_async_filesystem(), eval_log_info.name
-                )
+                reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
             try:
                 sample = await read_eval_log_sample_async(
                     eval_log_info, id, epoch, reader=reader

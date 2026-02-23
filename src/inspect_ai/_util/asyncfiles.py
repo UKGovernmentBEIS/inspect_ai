@@ -378,39 +378,17 @@ _current_async_fs: ContextVar[AsyncFilesystem | None] = ContextVar(
 )
 
 
-def get_or_create_async_filesystem() -> AsyncFilesystem:
-    """Get the current shared AsyncFilesystem, creating one if needed.
+def get_async_filesystem() -> AsyncFilesystem:
+    """Get the current shared AsyncFilesystem from the ContextVar.
 
-    The filesystem is stored in a ContextVar and shared within the current
-    async context. Cleanup is handled automatically by run_coroutine() for
-    sync-to-async entry points.
-
-    For callers already in an async context (not entered via run_coroutine),
-    the aioboto3 session will not be explicitly closed and the OS will close
-    the underlying connections when the event loop shuts down. To avoid this
-    resource leak, use ``async with AsyncFilesystem()`` at the async entry
-    point which will set the ContextVar and handle cleanup on exit.
+    Raises:
+        RuntimeError: If no AsyncFilesystem has been established via
+            ``async with AsyncFilesystem()``.
     """
     fs = _current_async_fs.get()
     if fs is None:
-        fs = AsyncFilesystem()
-        # Only cache in the ContextVar when running inside an async context.
-        # If called from sync code, return a fresh instance without caching
-        # to prevent it from being inherited by a subsequent run_coroutine()
-        # call (which copies the context and would skip cleanup).
-        if current_async_backend() is not None:
-            _current_async_fs.set(fs)
+        raise RuntimeError(
+            "No AsyncFilesystem is available. "
+            "Use 'async with AsyncFilesystem()' to establish one."
+        )
     return fs
-
-
-def has_async_filesystem() -> bool:
-    """Check if a shared AsyncFilesystem currently exists in the ContextVar."""
-    return _current_async_fs.get() is not None
-
-
-async def cleanup_async_filesystem() -> None:
-    """Close and remove the current shared AsyncFilesystem if one exists."""
-    fs = _current_async_fs.get()
-    if fs is not None:
-        await fs.close()
-        _current_async_fs.set(None)

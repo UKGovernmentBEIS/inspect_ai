@@ -9,9 +9,7 @@ from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
-    cleanup_async_filesystem,
-    get_or_create_async_filesystem,
-    has_async_filesystem,
+    get_async_filesystem,
 )
 
 # =============================================================================
@@ -386,55 +384,19 @@ def _reset_async_fs_contextvar() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_or_create_creates_on_first_call() -> None:
-    """get_or_create_async_filesystem() creates a new instance when none exists."""
-    assert not has_async_filesystem()
-    fs = get_or_create_async_filesystem()
-    assert fs is not None
-    assert isinstance(fs, AsyncFilesystem)
-    assert has_async_filesystem()
-
-
-@pytest.mark.asyncio
-async def test_get_or_create_returns_same_instance() -> None:
-    """get_or_create_async_filesystem() returns the same instance on subsequent calls."""
-    fs1 = get_or_create_async_filesystem()
-    fs2 = get_or_create_async_filesystem()
-    assert fs1 is fs2
-
-
-@pytest.mark.asyncio
-async def test_cleanup_closes_and_clears() -> None:
-    """cleanup_async_filesystem() closes the filesystem and clears the ContextVar."""
-    get_or_create_async_filesystem()
-    assert has_async_filesystem()
-    await cleanup_async_filesystem()
-    assert not has_async_filesystem()
-
-
-@pytest.mark.asyncio
-async def test_cleanup_noop_when_none() -> None:
-    """cleanup_async_filesystem() is a no-op when no filesystem exists."""
-    assert not has_async_filesystem()
-    await cleanup_async_filesystem()
-    assert not has_async_filesystem()
-
-
-@pytest.mark.asyncio
 async def test_context_manager_sets_contextvar() -> None:
     """Async with AsyncFilesystem() sets the ContextVar."""
-    assert not has_async_filesystem()
+    assert _current_async_fs.get() is None
     async with AsyncFilesystem() as fs:
-        assert has_async_filesystem()
-        assert get_or_create_async_filesystem() is fs
+        assert _current_async_fs.get() is fs
 
 
 @pytest.mark.asyncio
 async def test_context_manager_cleans_up_on_exit() -> None:
     """Async with AsyncFilesystem() clears the ContextVar on exit."""
     async with AsyncFilesystem():
-        assert has_async_filesystem()
-    assert not has_async_filesystem()
+        assert _current_async_fs.get() is not None
+    assert _current_async_fs.get() is None
 
 
 @pytest.mark.asyncio
@@ -443,7 +405,6 @@ async def test_nested_context_manager_reuses_outer() -> None:
     async with AsyncFilesystem() as outer_fs:
         async with AsyncFilesystem() as inner_fs:
             assert inner_fs is outer_fs
-            assert get_or_create_async_filesystem() is outer_fs
 
 
 @pytest.mark.asyncio
@@ -453,47 +414,50 @@ async def test_nested_context_manager_does_not_clean_up() -> None:
         async with AsyncFilesystem():
             pass
         # Outer should still be active after inner exits
-        assert has_async_filesystem()
-        assert get_or_create_async_filesystem() is outer_fs
+        assert _current_async_fs.get() is outer_fs
     # Only cleaned up after outer exits
-    assert not has_async_filesystem()
+    assert _current_async_fs.get() is None
+
+
+@pytest.mark.asyncio
+async def test_get_async_filesystem_returns_current() -> None:
+    """get_async_filesystem() returns the current shared instance."""
+    async with AsyncFilesystem() as fs:
+        assert get_async_filesystem() is fs
+
+
+@pytest.mark.asyncio
+async def test_get_async_filesystem_raises_when_none() -> None:
+    """get_async_filesystem() raises RuntimeError when no filesystem exists."""
+    with pytest.raises(RuntimeError, match="No AsyncFilesystem is available"):
+        get_async_filesystem()
 
 
 def test_run_coroutine_cleans_up_filesystem() -> None:
     """run_coroutine() cleans up the filesystem created during execution."""
 
-    async def use_filesystem() -> AsyncFilesystem:
-        fs = get_or_create_async_filesystem()
-        assert has_async_filesystem()
-        return fs
+    async def use_filesystem() -> None:
+        assert _current_async_fs.get() is not None
 
     run_coroutine(use_filesystem())
-    # After run_coroutine returns, the ContextVar should be cleared.
-    # Note: asyncio.run() creates a new context copy, so the outer
-    # context was never modified. Verify by checking our thread-level state.
-    assert not has_async_filesystem()
+    assert _current_async_fs.get() is None
 
 
 def test_run_coroutine_with_nest_asyncio_preserves_outer_filesystem() -> None:
     """run_coroutine() under nest_asyncio doesn't close inherited filesystem."""
 
     async def outer() -> None:
-        outer_fs = get_or_create_async_filesystem()
+        async with AsyncFilesystem() as outer_fs:
 
-        # Simulate what happens when sync code calls run_coroutine()
-        # while an async context with a filesystem is already running.
-        # run_coroutine will detect the running loop, apply nest_asyncio,
-        # and call asyncio.run() which inherits the context.
-        async def inner() -> None:
-            # The inner context should see the inherited filesystem
-            inner_fs = get_or_create_async_filesystem()
-            assert inner_fs is outer_fs
+            async def inner() -> None:
+                # The inner context should see the inherited filesystem
+                async with AsyncFilesystem() as inner_fs:
+                    assert inner_fs is outer_fs
 
-        run_coroutine(inner())
+            run_coroutine(inner())
 
-        # The outer filesystem should still be active
-        assert has_async_filesystem()
-        assert get_or_create_async_filesystem() is outer_fs
+            # The outer filesystem should still be active
+            assert _current_async_fs.get() is outer_fs
 
     asyncio.run(outer())
 
@@ -501,34 +465,32 @@ def test_run_coroutine_with_nest_asyncio_preserves_outer_filesystem() -> None:
 @pytest.mark.asyncio
 async def test_concurrent_tasks_share_filesystem() -> None:
     """Concurrent tasks via tg_collect share the same filesystem."""
-    fs = get_or_create_async_filesystem()
-    seen_filesystems: list[AsyncFilesystem] = []
+    async with AsyncFilesystem() as fs:
+        seen_filesystems: list[AsyncFilesystem] = []
 
-    async def task() -> None:
-        task_fs = get_or_create_async_filesystem()
-        seen_filesystems.append(task_fs)
+        async def task() -> None:
+            async with AsyncFilesystem() as task_fs:
+                seen_filesystems.append(task_fs)
 
-    await tg_collect([task, task, task])
+        await tg_collect([task, task, task])
 
-    assert len(seen_filesystems) == 3
-    for seen_fs in seen_filesystems:
-        assert seen_fs is fs
+        assert len(seen_filesystems) == 3
+        for seen_fs in seen_filesystems:
+            assert seen_fs is fs
 
 
 def test_concurrent_tasks_in_run_coroutine_share_filesystem() -> None:
     """Child tasks spawned by tg_collect inside run_coroutine share one filesystem.
 
-    When run_coroutine calls asyncio.run(), and the coroutine spawns concurrent
-    tasks via tg_collect/start_soon, each child task gets a copy of the parent
-    context. If the filesystem is only created lazily inside a child task, the
-    ContextVar write is invisible to sibling tasks and each creates its own
-    instance. The filesystem must be set in the parent context before spawning.
+    run_coroutine wraps the coroutine in async with AsyncFilesystem(), so the
+    ContextVar is set in the parent context before tg_collect/start_soon copies
+    it for child tasks.
     """
     seen_filesystems: list[AsyncFilesystem] = []
 
     async def task() -> None:
-        fs = get_or_create_async_filesystem()
-        seen_filesystems.append(fs)
+        async with AsyncFilesystem() as fs:
+            seen_filesystems.append(fs)
 
     async def run_concurrent() -> None:
         await tg_collect([task, task, task])
@@ -536,17 +498,5 @@ def test_concurrent_tasks_in_run_coroutine_share_filesystem() -> None:
     run_coroutine(run_concurrent())
 
     assert len(seen_filesystems) == 3
-    # All three tasks must have seen the same instance
     assert seen_filesystems[0] is seen_filesystems[1]
     assert seen_filesystems[1] is seen_filesystems[2]
-
-
-def test_get_or_create_does_not_cache_in_sync_context() -> None:
-    """get_or_create_async_filesystem() does not set ContextVar from sync code."""
-    fs = get_or_create_async_filesystem()
-    assert fs is not None
-    # Should not be cached since we're not in an async context
-    assert not has_async_filesystem()
-    # Subsequent call returns a different instance
-    fs2 = get_or_create_async_filesystem()
-    assert fs2 is not fs
