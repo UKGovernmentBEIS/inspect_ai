@@ -515,6 +515,32 @@ async def test_concurrent_tasks_share_filesystem() -> None:
         assert seen_fs is fs
 
 
+def test_concurrent_tasks_in_run_coroutine_share_filesystem() -> None:
+    """Child tasks spawned by tg_collect inside run_coroutine share one filesystem.
+
+    When run_coroutine calls asyncio.run(), and the coroutine spawns concurrent
+    tasks via tg_collect/start_soon, each child task gets a copy of the parent
+    context. If the filesystem is only created lazily inside a child task, the
+    ContextVar write is invisible to sibling tasks and each creates its own
+    instance. The filesystem must be set in the parent context before spawning.
+    """
+    seen_filesystems: list[AsyncFilesystem] = []
+
+    async def task() -> None:
+        fs = get_or_create_async_filesystem()
+        seen_filesystems.append(fs)
+
+    async def run_concurrent() -> None:
+        await tg_collect([task, task, task])
+
+    run_coroutine(run_concurrent())
+
+    assert len(seen_filesystems) == 3
+    # All three tasks must have seen the same instance
+    assert seen_filesystems[0] is seen_filesystems[1]
+    assert seen_filesystems[1] is seen_filesystems[2]
+
+
 def test_get_or_create_does_not_cache_in_sync_context() -> None:
     """get_or_create_async_filesystem() does not set ContextVar from sync code."""
     fs = get_or_create_async_filesystem()
