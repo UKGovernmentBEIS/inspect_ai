@@ -1,6 +1,6 @@
 import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../../@types/log";
-import { asyncJsonParse } from "../../utils/json-worker";
 import { clearLargeEventsArray } from "../../utils/clear-events-preprocessor";
+import { asyncJsonParse } from "../../utils/json-worker";
 import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
@@ -17,6 +17,11 @@ import {
 } from "./remoteZipFile";
 
 const OPEN_RETRY_LIMIT = 5;
+
+// Maximum uncompressed sample size (512MB). Files larger than this will
+// fail to allocate memory in the browser, so we reject them early with a
+// clear error rather than crashing with "Array buffer allocation failed".
+const MAX_SAMPLE_SIZE_BYTES = 2048 * 1024 * 1024;
 
 interface SampleEntry {
   sampleId: string;
@@ -165,6 +170,13 @@ export const openRemoteLogFile = async (
       throw new SampleNotFoundError(
         `Unable to read sample file ${sampleFile} - it is not present in the manifest.`,
       );
+    }
+
+    // Check the uncompressed size before attempting to read – this avoids
+    // crashing the browser with "Array buffer allocation failed".
+    const entry = remoteZipFile.centralDirectory.get(sampleFile)!;
+    if (entry.uncompressedSize > MAX_SAMPLE_SIZE_BYTES) {
+      throw new FileSizeLimitError(sampleFile, MAX_SAMPLE_SIZE_BYTES);
     }
 
     // Use a preprocessor to clear large events arrays
