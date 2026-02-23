@@ -82,8 +82,8 @@ def resolve_logs(
 
     # expand directories
     async def expand_log(log_str: str) -> list[FileInfo]:
-        async with AsyncFilesystem() as fs:
-            info = await fs.info(log_str)
+        async with AsyncFilesystem() as async_fs:
+            info = await async_fs.info(log_str)
         if info.type == "directory":
             fs = filesystem(log_str)
             return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
