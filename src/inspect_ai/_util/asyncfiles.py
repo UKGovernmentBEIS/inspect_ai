@@ -2,7 +2,7 @@ from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, cast
+from typing import Any, Callable, Coroutine, TypeVar, cast
 from urllib.parse import urlparse
 
 import anyio.to_thread
@@ -376,6 +376,21 @@ def _local_path(filename: str) -> str:
 _current_async_fs: ContextVar[AsyncFilesystem | None] = ContextVar(
     "_current_async_fs", default=None
 )
+
+
+_T = TypeVar("_T")
+
+
+def with_async_fs(
+    main: Callable[[], Coroutine[Any, Any, _T]],
+) -> Callable[[], Coroutine[Any, Any, _T]]:
+    """Wrap an async callable so it runs with a shared AsyncFilesystem."""
+
+    async def wrapper() -> _T:
+        async with AsyncFilesystem():
+            return await main()
+
+    return wrapper
 
 
 def get_async_filesystem() -> AsyncFilesystem:
