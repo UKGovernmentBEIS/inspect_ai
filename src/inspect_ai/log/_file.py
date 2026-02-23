@@ -425,7 +425,6 @@ def read_eval_log_sample(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful for reducing memory usage when reading large samples
           with fields like 'store' or 'attachments' that aren't needed.
-       reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
        EvalSample object read from file.
