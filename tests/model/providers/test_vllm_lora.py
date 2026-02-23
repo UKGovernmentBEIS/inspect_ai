@@ -216,3 +216,36 @@ async def test_vllm_lora_in_solver() -> None:
 
     assert log.status == "success"
     assert log.samples
+
+
+@pytest.mark.anyio
+@skip_if_github_action
+@skip_if_no_vllm
+async def test_vllm_lora_as_eval_model() -> None:
+    """Test using a LoRA model as the main eval model.
+
+    This exercises the full eval_async path where TaskLogger/EvalSpec
+    access model attributes (name, config, base_url) before generate()
+    is called. Ensures lazy server init works when the vLLM model is
+    the primary model, not just a solver-internal model.
+    """
+    from inspect_ai import Task, eval_async
+    from inspect_ai.solver import generate
+
+    task = Task(
+        dataset=[Sample(input="Hej! Berätta om Sverige", target="Sverige")],
+        solver=generate(),
+    )
+
+    log = (
+        await eval_async(
+            task,
+            model=f"vllm/{SMOL_BASE}:{SMOL_LORA_SWEDISH}",
+            model_args={"gpu_memory_utilization": 0.5},
+            config=GenerateConfig(max_tokens=20, seed=42),
+        )
+    )[0]
+
+    assert log.status == "success"
+    assert log.samples
+    assert len(log.samples[0].output.completion) >= 1

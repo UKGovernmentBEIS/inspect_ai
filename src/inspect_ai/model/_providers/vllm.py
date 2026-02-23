@@ -162,7 +162,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         self.server_found = True
         try:
             # Try to initialize with existing server
-            resolved_api_key = api_key or os.environ.get("VLLM_API_KEY", "dummy")
+            resolved_api_key = api_key or os.environ.get("VLLM_API_KEY", "inspectai")
             super().__init__(
                 model_name=self.base_model,
                 base_url=base_url,
@@ -189,20 +189,12 @@ class VLLMAPI(OpenAICompatibleAPI):
             # No server found — defer startup to first generate() call.
             # By then, all model __init__ calls will have completed and
             # the registry will have full visibility of all adapters.
+            # Note: ModelAPI.__init__ already ran (before the PrerequisiteError),
+            # so self.model_name etc. are set. We just need to complete
+            # OpenAICompatibleAPI init once the server is ready.
+            # config is NOT stored by ModelAPI, so we save it for later.
             self._lazy_init_needed = True
-            self._deferred_api_key = api_key
-
-            # Call super().__init__ with placeholder URL so the object
-            # is in a valid state (model_name, config, etc. are set).
-            resolved_api_key = api_key or os.environ.get("VLLM_API_KEY", "inspectai")
-            super().__init__(
-                model_name=self.base_model,
-                base_url="http://placeholder:0/v1",
-                api_key=resolved_api_key,
-                config=config,
-                service="vLLM",
-                service_base_url="http://placeholder:0/v1",
-            )
+            self._deferred_config = config
 
     def _start_server(
         self,
@@ -295,7 +287,7 @@ class VLLMAPI(OpenAICompatibleAPI):
                 base_url, resolved_api_key = await anyio.to_thread.run_sync(
                     lambda: self._start_server(
                         self.base_model,
-                        api_key=self._deferred_api_key,
+                        api_key=self.api_key,
                         port=self.port,
                     )
                 )
@@ -314,10 +306,18 @@ class VLLMAPI(OpenAICompatibleAPI):
                     self.base_model, self.server_info, self._external_base_url
                 )
 
-            # Update connection to actual server and recreate OpenAI client
-            self.base_url = self.server_info.base_url
-            self.api_key = self.server_info.api_key
-            self.initialize()
+            # Complete the OpenAICompatibleAPI init with the real server URL.
+            # Note: model_base_url in EvalSpec will be None since it was
+            # captured before this lazy init. This is acceptable — the field
+            # defaults to None and downstream code handles it.
+            super(VLLMAPI, self).__init__(
+                model_name=self.base_model,
+                base_url=self.server_info.base_url,
+                api_key=self.server_info.api_key,
+                config=self._deferred_config,
+                service="vLLM",
+                service_base_url=self.server_info.base_url,
+            )
             self._lazy_init_needed = False
 
     @property
