@@ -68,30 +68,45 @@ class VLLMAPI(OpenAICompatibleAPI):
     ``max_lora_rank`` are computed correctly across all adapters.
 
     Args:
-        model_name: Name or path of the model to use. Optionally include
-            ``:adapter`` suffix to specify a LoRA adapter from HuggingFace
-            or a local path.
-        base_url: Base URL of an existing vLLM server.
-        port: Port of an existing vLLM server on localhost.
-        api_key: API key for the vLLM server (default ``"inspectai"``).
-        config: Generation configuration.
-        is_mistral: If ``True``, fold user messages into tool messages
-            (Mistral does not support a user message immediately after a
-            tool message).
-        retry_delay: Seconds to wait between retries (default 5).
-        lazy_init: If ``True`` (default), defer server startup to the
-            first ``generate()`` call.  This ensures ``enable_lora`` and
-            ``max_lora_rank`` are computed correctly when multiple models
-            share a base.  Set to ``False`` to start the server immediately
-            in ``__init__`` (useful for single-model setups where you want
-            fast failure on misconfiguration).
-        **server_args: Additional arguments forwarded to the ``vllm serve``
-            command.  Notable keys: ``timeout`` (server startup timeout,
-            default 10 min), ``host`` (default ``"0.0.0.0"``),
-            ``configure_logging`` (enable fine-grained vLLM logging),
-            ``device`` / ``devices`` (GPU selection; auto-sets
-            ``tensor_parallel_size``), ``enable_lora`` (force LoRA mode
-            even without ``:adapter`` syntax).
+        model_name (str): Name or path of the model to use. Optionally
+            include ``:adapter`` suffix to specify a LoRA adapter from
+            HuggingFace or a local path.
+        base_url (str | None): Base URL of an existing vLLM server. If
+            not provided, a new server will be started on localhost.
+        port (int | None): Port of an existing vLLM server on localhost.
+            If not provided, a free port is chosen automatically.
+        api_key (str | None): API key for the vLLM server. Defaults to
+            the ``VLLM_API_KEY`` env var, or ``"inspectai"`` if unset.
+        config (GenerateConfig): Configuration for generation. Defaults
+            to ``GenerateConfig()``.
+        is_mistral (bool): Whether the model is a Mistral model. If
+            ``True``, user messages immediately following tool messages
+            are folded together (Mistral does not support this sequence).
+            Defaults to ``False``.
+        retry_delay (int | None): Seconds to wait between retries
+            (default 5).
+        lazy_init (bool): If ``True`` (default), defer server startup to
+            the first ``generate()`` call.  This ensures ``enable_lora``
+            and ``max_lora_rank`` are computed correctly when multiple
+            models share a base.  Set to ``False`` to start the server
+            immediately in ``__init__`` (useful for single-model setups
+            where you want fast failure on misconfiguration).
+        **server_args: Additional arguments forwarded to the ``vllm
+            serve`` command.  Notable keys:
+
+            - ``timeout`` (int): Server startup timeout in seconds
+              (default: 10 minutes).
+            - ``host`` (str): Host to bind the server to (default:
+              ``"0.0.0.0"``).
+            - ``configure_logging`` (bool): Enable fine-grained vLLM
+              logging (default: ``False``).
+            - ``device`` / ``devices`` (str): GPU device(s) to run the
+              server on, as used in ``CUDA_VISIBLE_DEVICES``. If
+              ``tensor_parallel_size`` is not provided, it is set to the
+              number of devices automatically.
+            - ``enable_lora`` (bool): Force LoRA mode even without
+              ``:adapter`` syntax (default: auto-detected from model
+              name).
 
     Environment variables:
         VLLM_BASE_URL: Base URL for an existing vLLM server.
