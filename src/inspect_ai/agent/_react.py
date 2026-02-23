@@ -222,6 +222,7 @@ def react(
                     answer = submission(messages)
                     if answer is not None:
                         # set the output to the answer for scoring
+                        state.output = state.output.model_copy(deep=True)
                         if submit.answer_only:
                             state.output.completion = answer
                         else:
