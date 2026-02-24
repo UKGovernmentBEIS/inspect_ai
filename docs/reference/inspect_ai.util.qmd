@@ -60,7 +60,10 @@ title: "inspect_ai.util"
 ### ExecRemoteProcess
 ### ExecRemoteStreamingOptions
 ### ExecRemoteAwaitableOptions
-### ExecRemoteEvent
+### ExecOutput
+### ExecStdout
+### ExecStderr
+### ExecCompleted
 
 ## Registry
 
