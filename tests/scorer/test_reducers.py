@@ -319,7 +319,7 @@ def test_score_reducer():
     log = score(eval_with_reducer(), match())
     assert log.eval.config.epochs_reducer == ["max"]
 
-    log = score(eval_with_reducer(), match(), [mode_score(), mean_score()])
+    log = score(eval_with_reducer(), match(), epochs_reducer=[mode_score(), mean_score()])
     assert log.eval.config.epochs_reducer == ["mode", "mean"]
 
 
