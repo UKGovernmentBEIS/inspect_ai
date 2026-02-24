@@ -1,3 +1,15 @@
+## 0.3.183 (24 February 2026)
+
+- Improved naming and typeinfo for `exec_remote()` output stream events.
+- Scoring: Don't use task level metric overrides when appending scores to an existing log.
+- Inspect View: Add support for downloading sample JSON.
+- Inspect View: Server returns correct content length for responses.
+
+## 0.3.182 (24 February 2026)
+
+- AzureAI: Pass `max_completion_tokens` to gpt-5 and o-series models.
+- Events: Add timeline functions for providing additional structure for event viewing and traversal.
+
 ## 0.3.181 (23 February 2026)
 
 - Hooks: New `on_sample_init()` hook that fires before sandbox environments are created, enabling hooks to gate sandbox resource provisioning.
