@@ -12,6 +12,7 @@ import {
 import { toLogPreview } from "../utils/type-utils";
 import {
   CentralDirectoryEntry,
+  fetchRange,
   FileSizeLimitError,
   openRemoteZipFile,
 } from "./remoteZipFile";
@@ -59,6 +60,23 @@ export const openRemoteLogFile = async (
 ): Promise<RemoteLogFile> => {
   const queue = new AsyncQueue(concurrency);
 
+  const logInfo = await api.get_log_info(url);
+  const fetchContentLength = async (_url: string) => logInfo.size;
+
+  let fetchBytes: (url: string, start: number, end: number) => Promise<Uint8Array>;
+  if (logInfo.direct_url) {
+    fetchBytes = async (_url: string, start: number, end: number) => {
+      try {
+        return await fetchRange(logInfo.direct_url!, start, end);
+      } catch {
+        return api.get_log_bytes(url, start, end);
+      }
+    };
+  } else {
+    fetchBytes = async (_url: string, start: number, end: number) =>
+      api.get_log_bytes(url, start, end);
+  }
+
   let remoteZipFile:
     | {
         centralDirectory: Map<string, CentralDirectoryEntry>;
@@ -71,8 +89,8 @@ export const openRemoteLogFile = async (
     try {
       remoteZipFile = await openRemoteZipFile(
         url,
-        api.get_log_size,
-        api.get_log_bytes,
+        fetchContentLength,
+        fetchBytes,
       );
     } catch {
       retryCount++;
