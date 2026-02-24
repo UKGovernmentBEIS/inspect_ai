@@ -19,6 +19,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._store import StoreEvent
+from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
     WalkContext,
     events_attachment_fn,
@@ -49,6 +50,7 @@ class Transcript:
         self._context = WalkContext(message_cache={}, only_core=False)
         self._events: list[Event] = events if events is not None else []
         self._attachments: dict[str, str] = {}
+        self._timelines: list[Timeline] = []
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -85,6 +87,26 @@ class Transcript:
     @property
     def attachments(self) -> dict[str, str]:
         return self._attachments
+
+    @property
+    def timelines(self) -> Sequence[Timeline]:
+        return self._timelines
+
+    def add_timeline(self, timeline: Timeline) -> None:
+        """Add a named timeline to the transcript.
+
+        Args:
+            timeline: Timeline to add.
+
+        Raises:
+            ValueError: If a timeline with the same name already exists.
+        """
+        for existing in self._timelines:
+            if existing.name == timeline.name:
+                raise ValueError(
+                    f"A timeline with the name '{timeline.name}' already exists."
+                )
+        self._timelines.append(timeline)
 
     def _event(self, event: Event) -> None:
         if self._event_logger:
