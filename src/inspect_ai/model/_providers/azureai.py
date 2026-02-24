@@ -62,7 +62,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._openai import openai_media_filter
+from .._openai import needs_max_completion_tokens, openai_media_filter
 from .util import (
     environment_prerequisite_error,
     model_base_url,
@@ -254,7 +254,10 @@ class AzureAIAPI(ModelAPI):
         if config.top_p is not None:
             params["top_p"] = config.top_p
         if config.max_tokens is not None:
-            params["max_tokens"] = config.max_tokens
+            if needs_max_completion_tokens(self.model_name.lower()):
+                params["max_completion_tokens"] = config.max_tokens
+            else:
+                params["max_tokens"] = config.max_tokens
         if config.stop_seqs is not None:
             params["stop"] = config.stop_seqs
         if config.seed is not None:

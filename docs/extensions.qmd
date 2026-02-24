@@ -237,6 +237,8 @@ The `SandboxEnvironment` instance methods provide access to process execution an
 
 {{< include _sandboxenv-interface.md >}}
 
+Note that the `exec_remote()` method is implemented directly in the `SandboxEnvironment` base class so should not be implemented by subclasses.
+
 The best way to learn about writing sandbox environments is to look at the source code for the built in environments, [LocalSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/local.py) and [DockerSandboxEnvironment](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/util/_sandbox/docker/docker.py).
 
 ### Docker Compatibility

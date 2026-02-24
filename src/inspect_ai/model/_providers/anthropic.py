@@ -38,6 +38,7 @@ from anthropic.types import (
     ImageBlockParam,
     Message,
     MessageParam,
+    OutputConfigParam,
     PlainTextSourceParam,
     RedactedThinkingBlock,
     RedactedThinkingBlockParam,
@@ -702,15 +703,15 @@ class AnthropicAPI(ModelAPI):
             # max is claude 4.6 only
             if effort == "max" and not self.is_claude_4_6():
                 effort = "high"
-            extra_body["output_config"] = {"effort": effort}
+            params["output_config"] = OutputConfigParam(effort=effort)
 
         # some thinking-only stuff
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
                 params["thinking"] = dict(type="adaptive")
-                extra_body.setdefault("output_config", {})
-                extra_body["output_config"]["effort"] = reasoning_effort
+                # reasoning_effort takes precedence over effort
+                params["output_config"] = OutputConfigParam(effort=reasoning_effort)
             else:
                 params["thinking"] = dict(
                     type="enabled", budget_tokens=config.reasoning_tokens
@@ -777,9 +778,11 @@ class AnthropicAPI(ModelAPI):
                 max_tokens = max_tokens + config.reasoning_tokens
 
         # apply caps after bumping for reasoning
-        if self.is_claude_4_6():
+        if self.is_claude_4_6() and self.is_claude_4_opus():
+            # Opus 4.6 only
             max_tokens = min(max_tokens, 128000)
-        elif self.is_claude_4_5():
+        elif self.is_claude_4_5() or self.is_claude_4_6():
+            # All other 4.5 and 4.6 models
             max_tokens = min(max_tokens, 64000)
         elif self.is_claude_4_opus():
             max_tokens = min(max_tokens, 32000)

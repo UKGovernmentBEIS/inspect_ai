@@ -6,14 +6,20 @@ long-running commands in sandbox environments with streaming output.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import shlex
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypeVar, cast
 
 import anyio
 from pydantic import BaseModel
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential_jitter,
+)
 
 from inspect_ai._util._json_rpc import GenericJSONRPCErrorMapper, exec_model_request
 
@@ -30,21 +36,54 @@ if TYPE_CHECKING:
 # ============================================================================
 
 
-@dataclass
-class StdoutChunk:
-    data: str
+class ExecRemoteEvent:
+    """Base class for all events yielded by ExecRemoteProcess."""
+
+    Stdout: ClassVar[type[Stdout]]
     """A chunk of stdout data from the running process."""
 
-
-@dataclass
-class StderrChunk:
-    data: str
+    Stderr: ClassVar[type[Stderr]]
     """A chunk of stderr data from the running process."""
 
+    Completed: ClassVar[type[Completed]]
+    """Process completed (successfully or with error)."""
+
+    type: ClassVar[str]
+    """Event type discriminator ("stdout", "stderr", or "completed")."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        setattr(ExecRemoteEvent, cls.__name__, cls)
+
 
 @dataclass
-class Completed:
+class Stdout(ExecRemoteEvent):
+    """A chunk of stdout data from the running process."""
+
+    type: ClassVar[str] = "stdout"
+    """Event type discriminator."""
+
+    data: str
+    """The stdout data."""
+
+
+@dataclass
+class Stderr(ExecRemoteEvent):
+    """A chunk of stderr data from the running process."""
+
+    type: ClassVar[str] = "stderr"
+    """Event type discriminator."""
+
+    data: str
+    """The stderr data."""
+
+
+@dataclass
+class Completed(ExecRemoteEvent):
     """Process completed (successfully or with error)."""
+
+    type: ClassVar[str] = "completed"
+    """Event type discriminator."""
 
     exit_code: int
     """The process exit code (0 = success)"""
@@ -53,10 +92,6 @@ class Completed:
     def success(self) -> bool:
         """True if the process exited successfully (exit code 0)."""
         return self.exit_code == 0
-
-
-ExecRemoteEvent = StdoutChunk | StderrChunk | Completed
-"""Union type for all events that can be yielded by ExecRemoteProcess.events."""
 
 
 # ============================================================================
@@ -183,8 +218,8 @@ class ExecRemoteProcess:
        proc = await sandbox.exec_remote(["cmd"])
        async for event in proc:
            match event:
-               case StdoutChunk(data=data): print(data)
-               case Completed(exit_code=code): print(f"Done: {code}")
+               case ExecRemoteEvent.Stdout(data=data): print(data)
+               case ExecRemoteEvent.Completed(exit_code=code): print(f"Done: {code}")
        ```
 
     2. Fire-and-forget with explicit kill:
@@ -301,7 +336,7 @@ class ExecRemoteProcess:
     async def __anext__(self) -> ExecRemoteEvent:
         """Return the next event from the process.
 
-        Yields StdoutChunk and StderrChunk events as output becomes available,
+        Yields Stdout and Stderr events as output becomes available,
         then yields a final Completed event when the process terminates.
 
         Note: After the Completed event is yielded, the job is automatically
@@ -326,16 +361,15 @@ class ExecRemoteProcess:
 
         try:
             while True:
-                result = await self._rpc(
-                    "exec_remote_poll", {"pid": self._pid}, _PollResult
-                )
+                # Perform the poll
+                result = await self._poll()
 
                 # Collect events from this poll
                 events: list[ExecRemoteEvent] = []
                 if result.stdout:
-                    events.append(StdoutChunk(data=result.stdout))
+                    events.append(Stdout(data=result.stdout))
                 if result.stderr:
-                    events.append(StderrChunk(data=result.stderr))
+                    events.append(Stderr(data=result.stderr))
 
                 # Check for terminal state
                 if result.state == "completed":
@@ -360,7 +394,7 @@ class ExecRemoteProcess:
                     raise StopAsyncIteration
 
                 # Still running with no output, wait before polling again
-                await asyncio.sleep(self._poll_interval)
+                await anyio.sleep(self._poll_interval)
 
         except anyio.get_cancelled_exc_class():
             # Kill the process on cancellation to avoid leaving orphaned processes.
@@ -368,12 +402,29 @@ class ExecRemoteProcess:
                 await self.kill()
             raise
 
+    async def _poll(self) -> _PollResult:
+        @retry(
+            wait=wait_exponential_jitter(initial=2),
+            stop=(stop_after_attempt(5) | stop_after_delay(30)),
+            retry=retry_if_exception(lambda e: isinstance(e, RuntimeError)),
+        )
+        async def poll() -> _PollResult:
+            from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+
+            sandbox_proxy = cast(SandboxEnvironmentProxy, self._transport.sandbox)
+            with sandbox_proxy.no_events():
+                return await self._rpc(
+                    "exec_remote_poll", {"pid": self._pid}, _PollResult
+                )
+
+        return await poll()
+
     def _enqueue_output(self, stdout: str, stderr: str) -> None:
         """Enqueue any non-empty output as pending events for the iterator."""
         if stdout:
-            self._pending_events.append(StdoutChunk(data=stdout))
+            self._pending_events.append(Stdout(data=stdout))
         if stderr:
-            self._pending_events.append(StderrChunk(data=stderr))
+            self._pending_events.append(Stderr(data=stderr))
 
     async def write_stdin(self, data: str | bytes) -> None:
         """Write data to the process's stdin.
@@ -547,9 +598,9 @@ async def exec_remote_awaitable(
     try:
         with anyio.fail_after(timeout):
             async for event in proc:
-                if isinstance(event, StdoutChunk):
+                if isinstance(event, Stdout):
                     stdout_buffer.write(event.data.encode("utf-8"))
-                elif isinstance(event, StderrChunk):
+                elif isinstance(event, Stderr):
                     stderr_buffer.write(event.data.encode("utf-8"))
                 elif isinstance(event, Completed):
                     return ExecResultClass[str](

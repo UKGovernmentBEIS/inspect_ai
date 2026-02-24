@@ -1,8 +1,5 @@
 from pathlib import Path
 
-from inspect_ai._util.text import truncate_string_to_bytes
-from inspect_ai.util._subprocess import ExecResult
-
 
 class SandboxEnvironmentLimits:
     """Encapsulates limits for sandbox environments."""
@@ -23,25 +20,6 @@ class OutputLimitExceededError(Exception):
         super().__init__(
             f"The sandbox output stream limit of {self.limit_str} was exceeded."
         )
-
-
-def verify_exec_result_size(exec_result: ExecResult[str]) -> None:
-    """Verify the size of the output streams in an `ExecResult`.
-
-    Raises:
-      OutputLimitExceededError: If an output stream exceeds the limit.
-    """
-    limit = SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
-    stdout_truncated = truncate_string_to_bytes(exec_result.stdout, limit)
-    stderr_truncated = truncate_string_to_bytes(exec_result.stderr, limit)
-    if not stdout_truncated and not stderr_truncated:
-        return
-    stdout = stdout_truncated.output if stdout_truncated else exec_result.stdout
-    stderr = stderr_truncated.output if stderr_truncated else exec_result.stderr
-    raise OutputLimitExceededError(
-        limit_str=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE_STR,
-        truncated_output=f"{stdout}{stderr}",
-    )
 
 
 def verify_read_file_size(file: str) -> None:
