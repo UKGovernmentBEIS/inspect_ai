@@ -3,6 +3,7 @@
 - AzureAI: Pass `max_completion_tokens` to gpt-5 and o-series models.
 - Events: Add timeline functions for providing additional structure for event viewing and traversal.
 - Inspect View: Add support for downloading sample JSON.
+- Inspect View: Server returns correct content length for responses.
 
 ## 0.3.181 (23 February 2026)
 
