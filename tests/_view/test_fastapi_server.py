@@ -159,6 +159,16 @@ def test_api_log_size(test_client: TestClient, mock_s3_eval_file: str):
     assert int(api_log_size) >= 100
 
 
+def test_api_log_info(test_client: TestClient, mock_s3_eval_file: str):
+    response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
+    response.raise_for_status()
+    log_info = response.json()
+    assert "size" in log_info
+    assert log_info["size"] >= 100
+    # No direct_url when generate_direct_urls is False (default)
+    assert "direct_url" not in log_info
+
+
 def test_api_log_delete(test_client: TestClient, mock_s3_eval_file: str):
     response = test_client.request("GET", f"/log-delete/{mock_s3_eval_file}")
     response.raise_for_status()
