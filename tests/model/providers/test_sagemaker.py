@@ -4,7 +4,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+from botocore.exceptions import ClientError
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, GenerateConfig
 from inspect_ai.model._chat_message import (
