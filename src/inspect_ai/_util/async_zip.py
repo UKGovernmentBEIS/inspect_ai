@@ -4,8 +4,6 @@ Supports reading individual members from large ZIP archives (including ZIP64)
 stored locally or remotely (e.g., S3) using async range requests.
 """
 
-from __future__ import annotations
-
 import struct
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -41,12 +39,6 @@ class CentralDirectory:
 
     entries: list[ZipEntry]
     etag: str | None = None
-
-
-async def _get_central_directory(
-    filesystem: AsyncFilesystem, filename: str
-) -> CentralDirectory:
-    return await _parse_central_directory(filesystem, filename)
 
 
 async def _find_central_directory(
@@ -345,7 +337,7 @@ class AsyncZipReader:
         if self._central_directory is None:
             async with self._lock:
                 if self._central_directory is None:
-                    self._central_directory = await _get_central_directory(
+                    self._central_directory = await _parse_central_directory(
                         self._filesystem, self._filename
                     )
         return self._central_directory
