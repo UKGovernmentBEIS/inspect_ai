@@ -169,6 +169,29 @@ def test_api_log_info(test_client: TestClient, mock_s3_eval_file: str):
     assert "direct_url" not in log_info
 
 
+def test_api_log_info_no_direct_url_for_non_s3(mock_s3_eval_file: str):
+    """generate_direct_urls=True doesn't add direct_url for non-S3 files."""
+
+    class mapping_policy(FileMappingPolicy):
+        async def map(self, request: Request, file: str) -> str:
+            return f"memory://{file}"
+
+        async def unmap(self, request: Request, file: str) -> str:
+            return file.removeprefix("memory://")
+
+    with fastapi.testclient.TestClient(
+        fastapi_server.view_server_app(
+            mapping_policy=mapping_policy(),
+            generate_direct_urls=True,
+        )
+    ) as client:
+        response = client.request("GET", f"/log-info/{mock_s3_eval_file}")
+        response.raise_for_status()
+        log_info = response.json()
+        assert "size" in log_info
+        assert "direct_url" not in log_info
+
+
 def test_api_log_delete(test_client: TestClient, mock_s3_eval_file: str):
     response = test_client.request("GET", f"/log-delete/{mock_s3_eval_file}")
     response.raise_for_status()
