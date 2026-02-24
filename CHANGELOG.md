@@ -12,6 +12,7 @@
 
 ## 0.3.181 (23 February 2026)
 
+- Model API: Add SageMaker provider for invoking models hosted on AWS SageMaker endpoints.
 - Hooks: New `on_sample_init()` hook that fires before sandbox environments are created, enabling hooks to gate sandbox resource provisioning.
 - Model API: Add `content_list` property to `ChatMessage` for consistent access to content as a list.
 - OpenAI Compatible: Send `max_completion_tokens` when interacting with gpt-5 or o-series models.
