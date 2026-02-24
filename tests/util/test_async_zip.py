@@ -10,6 +10,7 @@ from pathlib import Path
 import ijson  # type: ignore
 import pytest
 
+from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.compression_transcoding import _DeflateCompressStream
@@ -445,7 +446,9 @@ async def test_ijson_kvitems_async_with_zip_member(tmp_path: Path) -> None:
         reader = AsyncZipReader(fs, str(zip_path))
         data: dict[str, object] = {}
         async with await reader.open_member("samples/1_epoch_1.json") as f:
-            async for key, value in ijson.kvitems_async(f, "", use_float=True):
+            async for key, value in ijson.kvitems_async(
+                adapt_to_reader(f), "", use_float=True
+            ):
                 if key not in exclude_fields:
                     data[key] = value
 

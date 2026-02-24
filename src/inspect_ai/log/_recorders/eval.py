@@ -11,6 +11,7 @@ import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
@@ -311,7 +312,7 @@ class EvalRecorder(FileRecorder):
                         _sample_filename(id, epoch)
                     ) as f:
                         async for key, value in ijson.kvitems_async(
-                            f, "", use_float=True
+                            adapt_to_reader(f), "", use_float=True
                         ):
                             if key not in exclude_fields:
                                 data[key] = value
