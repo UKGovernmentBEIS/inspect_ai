@@ -795,13 +795,51 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
+export type Timelines = Timeline[] | null;
+export type Name15 = string;
+export type Description3 = string;
+export type Type24 = "span";
+export type Id12 = string;
+export type Name16 = string;
+export type SpanType = string | null;
+export type Type25 = "event";
+export type Event19 =
+  | SampleInitEvent
+  | SampleLimitEvent
+  | SandboxEvent
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ToolEvent
+  | ApprovalEvent
+  | CompactionEvent
+  | InputEvent
+  | ScoreEvent
+  | ScoreEditEvent
+  | ErrorEvent
+  | LoggerEvent
+  | InfoEvent
+  | SpanBeginEvent
+  | SpanEndEvent
+  | StepEvent
+  | SubtaskEvent;
+export type Content6 = (TimelineEvent | TimelineSpan)[];
+export type Type26 = "branch";
+export type ForkedAt = string;
+export type Content7 = (TimelineEvent | TimelineSpan)[];
+export type Branches = TimelineBranch[];
+export type Description4 = string | null;
+export type Utility = boolean;
+export type Event20 = string;
+export type Children = OutlineNode[];
+export type Nodes = OutlineNode[];
 export type StartedAt1 = string | null;
 export type CompletedAt1 = string | null;
 export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid19 = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type Type24 =
+export type Type27 =
   | "context"
   | "time"
   | "working"
@@ -833,7 +871,7 @@ export type Samples2 = EvalSampleScore[];
 export type Location1 = string;
 export type Etag = string | null;
 export type EvalSetId1 = string;
-export type Name15 = string | null;
+export type Name17 = string | null;
 export type TaskId1 = string;
 export type TaskFile1 = string | null;
 export type Model5 = string;
@@ -1277,6 +1315,7 @@ export interface EvalSample {
   metadata: Metadata15;
   store: Store;
   events: Events;
+  timelines: Timelines;
   model_usage: ModelUsage3;
   started_at: StartedAt1;
   completed_at: CompletedAt1;
@@ -1990,6 +2029,60 @@ export interface Input5 {
 export interface Result3 {
   [k: string]: unknown;
 }
+/**
+ * A named timeline view over a transcript.
+ *
+ * Multiple timelines allow different interpretations of the same event
+ * stream — e.g. a default agent-centric view alongside an alternative
+ * grouping or filtered view.
+ */
+export interface Timeline {
+  name: Name15;
+  description: Description3;
+  root: TimelineSpan;
+}
+/**
+ * A span of execution — agent, scorer, tool, or root.
+ */
+export interface TimelineSpan {
+  type: Type24;
+  id: Id12;
+  name: Name16;
+  span_type: SpanType;
+  content: Content6;
+  branches: Branches;
+  description: Description4;
+  utility: Utility;
+  outline: Outline | null;
+}
+/**
+ * Wraps a single Event.
+ */
+export interface TimelineEvent {
+  type: Type25;
+  event: Event19;
+}
+/**
+ * A discarded alternative path from a branch point.
+ */
+export interface TimelineBranch {
+  type: Type26;
+  forked_at: ForkedAt;
+  content: Content7;
+}
+/**
+ * Hierarchical outline of events for an agent.
+ */
+export interface Outline {
+  nodes: Nodes;
+}
+/**
+ * A node in an agent's outline, referencing an event by UUID.
+ */
+export interface OutlineNode {
+  event: Event20;
+  children: Children;
+}
 export interface ModelUsage3 {
   [k: string]: ModelUsage1;
 }
@@ -2000,7 +2093,7 @@ export interface Attachments {
  * Limit encountered by sample.
  */
 export interface EvalSampleLimit {
-  type: Type24;
+  type: Type27;
   limit: Limit2;
 }
 /**
@@ -2027,7 +2120,7 @@ export interface EvalSet {
   tasks: Tasks;
 }
 export interface EvalSetTask {
-  name: Name15;
+  name: Name17;
   task_id: TaskId1;
   task_file: TaskFile1;
   task_args: TaskArgs1;
