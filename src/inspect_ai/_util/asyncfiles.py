@@ -136,8 +136,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     """
 
     _s3_client: Any | None = None
-    _s3_client_async: Any | None = None
-    _s3_client_async_lock: asyncio.Lock | None = None
+    _s3_client_async_task: asyncio.Task[Any] | None = None
     _owns_context: bool = False
 
     async def get_size(self, filename: str) -> int:
@@ -287,9 +286,10 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def close(
         self,
     ) -> None:
-        if self._s3_client_async is not None:
-            await self._s3_client_async.__aexit__(None, None, None)
-            self._s3_client_async = None
+        if self._s3_client_async_task is not None:
+            client = await self._s3_client_async_task
+            self._s3_client_async_task = None
+            await client.__aexit__(None, None, None)
 
     def s3_client(self) -> Any:
         if self._s3_client is None:
@@ -302,23 +302,22 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         return self._s3_client
 
     async def s3_client_async(self) -> Any:
-        if self._s3_client_async is None:
-            if self._s3_client_async_lock is None:
-                self._s3_client_async_lock = asyncio.Lock()
-            async with self._s3_client_async_lock:
-                if self._s3_client_async is None:
-                    import aioboto3
+        if self._s3_client_async_task is None:
+            self._s3_client_async_task = asyncio.create_task(
+                self._create_s3_client_async()
+            )
+        return await self._s3_client_async_task
 
-                    session = aioboto3.Session()
-                    config = AioConfig(
-                        max_pool_connections=50,
-                        retries={"max_attempts": 10, "mode": "adaptive"},
-                    )
-                    self._s3_client_async = await session.client(
-                        "s3", config=config
-                    ).__aenter__()
+    @staticmethod
+    async def _create_s3_client_async() -> Any:
+        import aioboto3
 
-        return self._s3_client_async
+        session = aioboto3.Session()
+        config = AioConfig(
+            max_pool_connections=50,
+            retries={"max_attempts": 10, "mode": "adaptive"},
+        )
+        return await session.client("s3", config=config).__aenter__()
 
 
 def _s3_head_to_file_info(filename: str, response: dict[str, Any]) -> FileInfo:

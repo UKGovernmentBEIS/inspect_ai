@@ -6,6 +6,7 @@ stored locally or remotely (e.g., S3) using async range requests.
 
 from __future__ import annotations
 
+import asyncio
 import struct
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -330,20 +331,21 @@ class AsyncZipReader:
         self._filesystem = filesystem
         self._filename = filename
         self._chunk_size = chunk_size
-        self._central_directory: CentralDirectory | None = None
+        self._central_directory_task: asyncio.Task[CentralDirectory] | None = None
 
     @property
     def etag(self) -> str | None:
         """ETag from the S3 response used to read the central directory."""
-        return self._central_directory.etag if self._central_directory else None
+        cd = self._central_directory_task
+        return cd.result().etag if cd is not None and cd.done() else None
 
     async def entries(self) -> CentralDirectory:
         """Load and cache the central directory."""
-        if self._central_directory is None:
-            self._central_directory = await _get_central_directory(
-                self._filesystem, self._filename
+        if self._central_directory_task is None:
+            self._central_directory_task = asyncio.create_task(
+                _get_central_directory(self._filesystem, self._filename)
             )
-        return self._central_directory
+        return await self._central_directory_task
 
     async def get_member_entry(self, member_name: str) -> ZipEntry:
         cd = await self.entries()

@@ -7,6 +7,7 @@ import zlib
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+import ijson  # type: ignore
 import pytest
 
 from inspect_ai._util.async_zip import AsyncZipReader
@@ -416,3 +417,39 @@ async def test_deflate_compress_stream() -> None:
     decompressor = zlib.decompressobj(-15)
     decompressed = decompressor.decompress(compressed_data) + decompressor.flush()
     assert decompressed == original_data
+
+
+@pytest.mark.asyncio
+async def test_ijson_kvitems_async_with_zip_member(tmp_path: Path) -> None:
+    """Test that ijson.kvitems_async works with _ZipMemberBytes from open_member().
+
+    This exercises the code path used by EvalRecorder._read_log_sample_impl
+    when exclude_fields is set: it passes the _ZipMemberBytes async context
+    manager result directly to ijson.kvitems_async, which expects an async
+    file-like object with a read() method.
+    """
+    sample_data = {
+        "id": 1,
+        "epoch": 1,
+        "input": "test input",
+        "messages": [{"role": "user", "content": "hello"}],
+        "store": {"big_data": "x" * 1000},
+    }
+
+    zip_path = tmp_path / "test.eval"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("samples/1_epoch_1.json", json.dumps(sample_data))
+
+    exclude_fields = {"store"}
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        data: dict[str, object] = {}
+        async with await reader.open_member("samples/1_epoch_1.json") as f:
+            async for key, value in ijson.kvitems_async(f, "", use_float=True):
+                if key not in exclude_fields:
+                    data[key] = value
+
+    assert "store" not in data
+    assert data["id"] == 1
+    assert data["input"] == "test input"
+    assert data["messages"] == [{"role": "user", "content": "hello"}]
