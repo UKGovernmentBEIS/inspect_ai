@@ -23,7 +23,7 @@ For example, here is a simple `ctf_agent()`:
 ``` python
 from textwrap import dedent
 from inspect_ai.agent import Agent, agent, react
-from inspect_ai.tool import bash_session, text_editor
+from inspect_ai.tool import bash, text_editor
 
 @agent
 def ctf_agent(attempts=3) -> Agent:
@@ -37,7 +37,7 @@ def ctf_agent(attempts=3) -> Agent:
     return react(
         description="Expert at completing cybersecurity challenges.",
         prompt=PROMPT,
-        tools=[bash_session(), text_editor()],
+        tools=[bash(), text_editor()],
         attempts=attempts,
     )
 ```
@@ -87,7 +87,7 @@ react(
         instructions=PROMPT,
         assistant_prompt="<custom assistant prompt>"
     ),
-    tools=[bash_session(), text_editor()],
+    tools=[bash(), text_editor()],
     attempts=attempts,
 )
 ```
@@ -103,7 +103,7 @@ react(
         assistant_prompt=None,
         submit_prompt=None
     ),
-    tools=[bash_session(), text_editor()],
+    tools=[bash(), text_editor()],
     attempts=attempts,
 )
 ```

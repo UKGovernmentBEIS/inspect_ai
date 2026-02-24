@@ -51,6 +51,17 @@ from .task.tasks import Tasks
 logger = getLogger(__name__)
 
 
+def _merge_model_roles(
+    *roles_dicts: dict[str, Model] | None,
+) -> dict[str, Model] | None:
+    """Merge model_roles dicts with later dicts taking priority."""
+    merged: dict[str, Model] = {}
+    for d in roles_dicts:
+        if d:
+            merged.update(d)
+    return merged or None
+
+
 def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
@@ -75,7 +86,7 @@ def resolve_tasks(
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
                 model=task.model or model,
-                model_roles=task.model_roles or model_roles,
+                model_roles=_merge_model_roles(task.model_roles, model_roles),
                 sandbox=resolve_task_sandbox(task, sandbox),
                 sequence=sequence,
             )
@@ -179,8 +190,8 @@ def resolve_previous_task(
         task_args=loaded_task_args,
         task_file=previous_task.log.eval.task_file,
         model=previous_task.model or loaded_task.model or model,
-        model_roles=(
-            previous_task.model_roles or loaded_task.model_roles or model_roles
+        model_roles=_merge_model_roles(
+            model_roles, loaded_task.model_roles, previous_task.model_roles
         ),
         sandbox=resolve_task_file_sandbox(
             previous_task.log.eval.task_file, previous_task.log.eval.sandbox

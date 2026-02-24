@@ -636,6 +636,7 @@ async def task_run_sample(
 ) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.hooks._hooks import (
         emit_sample_end,
+        emit_sample_init,
         emit_sample_scoring,
         emit_sample_start,
     )
@@ -771,6 +772,27 @@ async def task_run_sample(
                 SampleInitEvent(sample=event_sample, state=state_jsonable(state))
             )
 
+            # construct sample summary, used by both emit_sample_init and emit_sample_start
+            sample_summary = EvalSampleSummary(
+                id=sample_id,
+                epoch=state.epoch,
+                input=sample.input,
+                choices=sample.choices,
+                target=sample.target,
+                metadata=sample.metadata or {},
+            )
+
+            # emit sample init before sandbox creation
+            # (only on the first attempt; not re-emitted when the sample is retried after an error)
+            if not error_retries:
+                await emit_sample_init(
+                    eval_set_id,
+                    run_id,
+                    task_id,
+                    state.uuid,
+                    sample_summary,
+                )
+
             async with sandboxenv_cm:
                 try:
                     # update active sample wth sandboxes now that we are initialised
@@ -864,14 +886,6 @@ async def task_run_sample(
 
                         try:
                             # emit/log sample start
-                            sample_summary = EvalSampleSummary(
-                                id=sample_id,
-                                epoch=state.epoch,
-                                input=sample.input,
-                                choices=sample.choices,
-                                target=sample.target,
-                                metadata=sample.metadata or {},
-                            )
                             if logger is not None:
                                 await logger.start_sample(sample_summary)
 
