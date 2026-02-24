@@ -16,6 +16,7 @@ from inspect_ai._display import display
 from inspect_ai._display.core.results import task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
+from inspect_ai._eval.loader import metric_from_spec
 from inspect_ai._eval.score import (
     ScoreAction,
     resolve_scorers,
@@ -26,6 +27,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.platform import platform_init
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders import create_recorder_for_location
+from inspect_ai.scorer._metric import Metric, MetricSpec
 
 from .common import CommonOptions, common_options, process_common_options
 
@@ -44,6 +46,13 @@ from .common import CommonOptions, common_options, process_common_options
     type=str,
     envvar="INSPECT_SCORE_SCORER_ARGS",
     help="One or more scorer arguments (e.g. -S arg=value)",
+)
+@click.option(
+    "--metric",
+    multiple=True,
+    type=str,
+    envvar="INSPECT_SCORE_METRIC",
+    help="Metric to use for scoring (overrides metrics in the log).",
 )
 @click.option(
     "--action",
@@ -81,6 +90,7 @@ def score_command(
     output_file: str | None,
     scorer: str | None,
     s: tuple[str, ...] | None,
+    metric: tuple[str, ...] | None,
     action: ScoreAction | None,
     stream: int | bool = False,
     **common: Unpack[CommonOptions],
@@ -95,6 +105,7 @@ def score_command(
             output_file=output_file,
             scorer=scorer,
             s=s,
+            metric=metric,
             overwrite=False if overwrite is None else overwrite,
             action=action,
             log_level=common["log_level"],
@@ -109,6 +120,7 @@ async def score(
     log_file: str,
     scorer: str | None,
     s: tuple[str, ...] | None,
+    metric: tuple[str, ...] | None,
     overwrite: bool,
     action: ScoreAction | None,
     log_level: str | None,
@@ -139,6 +151,9 @@ async def score(
         raise ValueError(
             "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
         )
+
+    metrics = resolve_metrics(metric)
+
     action = resolve_action(eval_log, action)
     output_file = _resolve_output_file(
         log_file, output_file=output_file, overwrite=overwrite
@@ -167,6 +182,7 @@ async def score(
     eval_log = await score_async(
         log=eval_log,
         scorers=scorers,
+        metrics=metrics,
         action=action,
         copy=False,
         samples=read_sample,
