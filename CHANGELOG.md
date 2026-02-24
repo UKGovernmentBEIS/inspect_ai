@@ -1,3 +1,7 @@
+## Unreleased
+
+- vLLM: Support for LoRA (Low-Rank Adaptation) via `--enable-lora` server option and LoRA-tuned server startup logic.
+
 ## 0.3.181 (23 February 2026)
 
 - Hooks: New `on_sample_init()` hook that fires before sandbox environments are created, enabling hooks to gate sandbox resource provisioning.
