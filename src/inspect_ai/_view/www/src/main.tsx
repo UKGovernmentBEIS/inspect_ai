@@ -30,8 +30,8 @@ if (vscode) {
     ? extensionVersionEl.getAttribute("content")
     : undefined;
 
+  capabilities.downloadFiles = false;
   if (!extensionVersion) {
-    capabilities.downloadFiles = false;
     capabilities.webWorkers = false;
   }
 }
