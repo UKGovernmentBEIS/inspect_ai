@@ -145,8 +145,9 @@ function staticHttpApiForLog(logInfo: {
         throw new Error(`"Unable to load eval log ${log_file}`);
       }
     },
-    get_log_size: async (log_file: string) => {
-      return await fetchSize(log_file);
+    get_log_info: async (log_file: string) => {
+      const size = await fetchSize(log_file);
+      return { size };
     },
     get_log_bytes: async (log_file: string, start: number, end: number) => {
       return await fetchRange(log_file, start, end);
