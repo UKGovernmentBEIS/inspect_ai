@@ -1,6 +1,7 @@
 ## Unreleased
 
 - AzureAI: Pass `max_completion_tokens` to gpt-5 and o-series models.
+- Inspect View: Add support for downloading sample JSON.
 
 ## 0.3.181 (23 February 2026)
 
