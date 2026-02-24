@@ -2,6 +2,7 @@
 
 - Agent Bridge: Ensure that sandbox model proxy errors end the sample with a clear runtime error.
 - Inspect View: Improve reliability of scrolling to bottom of long transcripts.
+- Inspect View: Improve viewer loading performance for large samples.
 
 ## 0.3.199 (17 March 2026)
 
