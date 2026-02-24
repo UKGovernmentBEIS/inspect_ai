@@ -7,7 +7,7 @@
 
 Call to a language model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_model.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_model.py#L17)
 
 ``` python
 class ModelEvent(BaseEvent)
@@ -85,7 +85,7 @@ working time for model call that succeeded (i.e. was not retried).
 
 Call to a tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tool.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_tool.py#L13)
 
 ``` python
 class ToolEvent(BaseEvent)
@@ -160,7 +160,7 @@ Was the task cancelled?
 
 Compaction of conversation history.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_compaction.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_compaction.py#L8)
 
 ``` python
 class CompactionEvent(BaseEvent)
@@ -205,7 +205,7 @@ Compaction source (e.g. ‘inspect’, ‘claude_code’, etc.)
 
 Tool approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_approval.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_approval.py#L9)
 
 ``` python
 class ApprovalEvent(BaseEvent)
@@ -259,7 +259,7 @@ Explanation for decision.
 
 Sandbox execution or I/O
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_sandbox.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_sandbox.py#L10)
 
 ``` python
 class SandboxEvent(BaseEvent)
@@ -316,7 +316,7 @@ Time that sandbox action completed (see `timestamp` for started)
 
 Event with custom info/data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_info.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_info.py#L8)
 
 ``` python
 class InfoEvent(BaseEvent)
@@ -355,7 +355,7 @@ Data provided with event.
 
 Log message recorded with Python logger.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_logger.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_logger.py#L77)
 
 ``` python
 class LoggerEvent(BaseEvent)
@@ -391,7 +391,7 @@ Logging message
 
 Event with sample error.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_error.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_error.py#L9)
 
 ``` python
 class ErrorEvent(BaseEvent)
@@ -427,7 +427,7 @@ Sample error
 
 Mark the beginning of a transcript span.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_span.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_span.py#L8)
 
 ``` python
 class SpanBeginEvent(BaseEvent)
@@ -472,7 +472,7 @@ Span name.
 
 Mark the end of a transcript span.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_span.py#L27)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_span.py#L27)
 
 ``` python
 class SpanEndEvent(BaseEvent)
@@ -512,7 +512,7 @@ Build a tree representation of a sequence of events.
 
 Organize events heirarchially into event spans.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L43)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_tree.py#L43)
 
 ``` python
 def event_tree(events: Sequence[Event]) -> EventTree
@@ -525,7 +525,7 @@ Sequence of `Event`.
 
 Flatten a span forest back into a properly ordered seqeunce.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L94)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_tree.py#L94)
 
 ``` python
 def event_sequence(tree: EventTree) -> Iterable[Event]
@@ -538,7 +538,7 @@ Event tree
 
 Tree of events (has invividual events and event spans).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_tree.py#L13)
 
 ``` python
 EventTree: TypeAlias = list[EventTreeNode]
@@ -548,7 +548,7 @@ EventTree: TypeAlias = list[EventTreeNode]
 
 Event tree node representing a span of events.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_tree.py#L17)
 
 ``` python
 @dataclass
@@ -582,7 +582,7 @@ Children in the span.
 
 Node in an event tree.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_tree.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_tree.py#L10)
 
 ``` python
 EventTreeNode: TypeAlias = Union["EventTreeSpan", Event]
@@ -594,7 +594,7 @@ EventTreeNode: TypeAlias = Union["EventTreeSpan", Event]
 
 Beginning of processing a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_sample_init.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_sample_init.py#L9)
 
 ``` python
 class SampleInitEvent(BaseEvent)
@@ -633,7 +633,7 @@ Initial state.
 
 The sample was unable to finish processing due to a limit
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_sample_limit.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_sample_limit.py#L8)
 
 ``` python
 class SampleLimitEvent(BaseEvent)
@@ -675,7 +675,7 @@ The limit value (if any)
 
 Change to the current `TaskState`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_state.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_state.py#L9)
 
 ``` python
 class StateEvent(BaseEvent)
@@ -711,7 +711,7 @@ List of changes to the `TaskState`
 
 Change to data within the current `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_store.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_store.py#L10)
 
 ``` python
 class StoreEvent(BaseEvent)
@@ -747,7 +747,7 @@ List of changes to the `Store`.
 
 Input screen interaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_input.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_input.py#L8)
 
 ``` python
 class InputEvent(BaseEvent)
@@ -789,7 +789,7 @@ Event with score.
 Can be the final score for a `Sample`, or can be an intermediate score
 resulting from a call to `score`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_score.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_score.py#L10)
 
 ``` python
 class ScoreEvent(BaseEvent)
@@ -834,7 +834,7 @@ Cumulative model usage at the time of this score.
 
 Event recorded when a score is edited.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_score_edit.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_score_edit.py#L9)
 
 ``` python
 class ScoreEditEvent(BaseEvent)
@@ -875,7 +875,7 @@ The edit being applied to the score.
 
 Logging level.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_logger.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_logger.py#L9)
 
 ``` python
 LoggingLevel = Literal[
@@ -887,7 +887,7 @@ LoggingLevel = Literal[
 
 Message written to Python log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/27171bfa1809635ebfc00dac2741627737a4c429/src/inspect_ai/event/_logger.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/d30b29ab96e7b0135bcc72e74060596b518dba84/src/inspect_ai/event/_logger.py#L15)
 
 ``` python
 class LoggingMessage(BaseModel)
