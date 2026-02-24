@@ -25,16 +25,17 @@ LOG_UNSCORED = (
     ],
 )
 @pytest.mark.parametrize(
-    ("log_file", "action", "scorer", "expected_scores"),
+    ("log_file", "action", "scorer", "expected_scores", "metric"),
     [
         pytest.param(
-            LOG_UNSCORED, None, None, {"match": {"num_metrics": 2}}, id="unscored"
+            LOG_UNSCORED, None, None, {"match": {"num_metrics": 2}}, None, id="unscored"
         ),
         pytest.param(
             LOG_UNSCORED,
             "overwrite",
             None,
             {"match": {"num_metrics": 2}},
+            None,
             id="unscored-overwrite",
         ),
         pytest.param(
@@ -42,6 +43,7 @@ LOG_UNSCORED = (
             "append",
             ("f1", ("stop_words=[roasted]",)),
             {"f1": {"num_metrics": 2, "stop_words": ["roasted"]}},
+            None,
             id="unscored-append",
         ),
         pytest.param(
@@ -52,6 +54,7 @@ LOG_UNSCORED = (
                 "match": {"num_metrics": 2},
                 "f1": {"num_metrics": 2, "stop_words": ["woah"]},
             },
+            None,
             id="scored-append",
         ),
         pytest.param(
@@ -59,7 +62,16 @@ LOG_UNSCORED = (
             "overwrite",
             ("f1", ("stop_words=[clowns]",)),
             {"f1": {"num_metrics": 2, "stop_words": ["clowns"]}},
+            None,
             id="scored-overwrite",
+        ),
+        pytest.param(
+            LOG_UNSCORED,
+            None,
+            None,
+            {"match": {"num_metrics": 1}},
+            ("accuracy",),
+            id="unscored-metric",
         ),
     ],
 )
@@ -71,6 +83,7 @@ async def test_score(
     scorer: tuple[str, tuple[str, ...]] | None,
     expected_scores: dict[str, dict[str, int]],
     stream: bool,
+    metric: tuple[str, ...] | None,
 ):
     output_file = tmp_path / "scored.eval"
     await score(
@@ -82,6 +95,7 @@ async def test_score(
         overwrite=True,
         scorer=scorer[0] if scorer else None,
         s=scorer[1] if scorer else None,
+        metric=metric,
         stream=stream,
     )
     scored_log = await read_eval_log_async(output_file)
