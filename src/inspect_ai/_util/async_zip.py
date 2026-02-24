@@ -6,12 +6,12 @@ stored locally or remotely (e.g., S3) using async range requests.
 
 from __future__ import annotations
 
-import asyncio
 import struct
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
+import anyio
 from typing_extensions import Self
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -331,22 +331,24 @@ class AsyncZipReader:
         self._filesystem = filesystem
         self._filename = filename
         self._chunk_size = chunk_size
-        # Task to support concurrent coroutine initialization
-        self._central_directory_task: asyncio.Task[CentralDirectory] | None = None
+        self._central_directory: CentralDirectory | None = None
+        self._lock = anyio.Lock()
 
     @property
     def etag(self) -> str | None:
         """ETag from the S3 response used to read the central directory."""
-        cd = self._central_directory_task
-        return cd.result().etag if cd is not None and cd.done() else None
+        cd = self._central_directory
+        return cd.etag if cd is not None else None
 
     async def entries(self) -> CentralDirectory:
         """Load and cache the central directory."""
-        if self._central_directory_task is None:
-            self._central_directory_task = asyncio.create_task(
-                _get_central_directory(self._filesystem, self._filename)
-            )
-        return await self._central_directory_task
+        if self._central_directory is None:
+            async with self._lock:
+                if self._central_directory is None:
+                    self._central_directory = await _get_central_directory(
+                        self._filesystem, self._filename
+                    )
+        return self._central_directory
 
     async def get_member_entry(self, member_name: str) -> ZipEntry:
         cd = await self.entries()

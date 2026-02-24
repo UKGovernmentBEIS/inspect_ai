@@ -1,4 +1,3 @@
-import asyncio
 from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -6,6 +5,7 @@ from types import TracebackType
 from typing import Any, Callable, Coroutine, TypeVar, cast
 from urllib.parse import urlparse
 
+import anyio
 import anyio.to_thread
 import boto3
 from aiobotocore.config import AioConfig
@@ -135,10 +135,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     not close it on exit (the original owner handles cleanup).
     """
 
-    _s3_client: Any | None = None
-    # Task to support concurrent coroutine initialization
-    _s3_client_async_task: asyncio.Task[Any] | None = None
-    _owns_context: bool = False
+    def __init__(self) -> None:
+        self._s3_client: Any | None = None
+        self._s3_client_async: Any | None = None
+        self._s3_lock = anyio.Lock()
+        self._owns_context: bool = False
 
     async def get_size(self, filename: str) -> int:
         return (await self.info(filename)).size
@@ -287,9 +288,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     async def close(
         self,
     ) -> None:
-        if self._s3_client_async_task is not None:
-            client = await self._s3_client_async_task
-            self._s3_client_async_task = None
+        if self._s3_client_async is not None:
+            client = self._s3_client_async
+            self._s3_client_async = None
             await client.__aexit__(None, None, None)
 
     def s3_client(self) -> Any:
@@ -303,11 +304,11 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         return self._s3_client
 
     async def s3_client_async(self) -> Any:
-        if self._s3_client_async_task is None:
-            self._s3_client_async_task = asyncio.create_task(
-                self._create_s3_client_async()
-            )
-        return await self._s3_client_async_task
+        if self._s3_client_async is None:
+            async with self._s3_lock:
+                if self._s3_client_async is None:
+                    self._s3_client_async = await self._create_s3_client_async()
+        return self._s3_client_async
 
     @staticmethod
     async def _create_s3_client_async() -> Any:

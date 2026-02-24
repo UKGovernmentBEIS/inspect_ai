@@ -456,3 +456,77 @@ async def test_ijson_kvitems_async_with_zip_member(tmp_path: Path) -> None:
     assert data["id"] == 1
     assert data["input"] == "test input"
     assert data["messages"] == [{"role": "user", "content": "hello"}]
+
+
+# =============================================================================
+# Tests that verify AsyncZipReader works under the Trio backend.
+#
+# NOTE: We use anyio.run(backend="trio") directly rather than
+# @pytest.mark.anyio because pytest-asyncio's asyncio_mode=auto
+# intercepts the [trio] variant and runs it under asyncio, masking
+# any asyncio-specific code paths that would fail under real Trio.
+# =============================================================================
+
+
+def test_read_local_zip_member_trio(test_zip_file: Path) -> None:
+    """Test reading a ZIP member works under the Trio backend."""
+    import anyio
+
+    zip_path = str(test_zip_file)
+
+    async def main() -> None:
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, zip_path)
+
+            chunks = []
+            async with await reader.open_member("test.json") as stream:
+                async for chunk in stream:
+                    chunks.append(chunk)
+
+            data = b"".join(chunks)
+            parsed = json.loads(data.decode("utf-8"))
+            assert parsed["message"] == "hello world"
+
+    anyio.run(main, backend="trio")
+
+
+def test_read_member_fully_trio(test_zip_file: Path) -> None:
+    """Test read_member_fully works under the Trio backend."""
+    import anyio
+
+    zip_path = str(test_zip_file)
+
+    async def main() -> None:
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, zip_path)
+
+            data = await reader.read_member_fully("test.json")
+            parsed = json.loads(data.decode("utf-8"))
+            assert parsed["message"] == "hello world"
+
+            data = await reader.read_member_fully("nested/data.txt")
+            assert data == b"This is nested data"
+
+    anyio.run(main, backend="trio")
+
+
+def test_entries_caching_trio(test_zip_file: Path) -> None:
+    """Test that entries() caching works under the Trio backend."""
+    import anyio
+
+    zip_path = str(test_zip_file)
+
+    async def main() -> None:
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, zip_path)
+
+            # Call entries() twice - should return the same result
+            cd1 = await reader.entries()
+            cd2 = await reader.entries()
+
+            assert len(cd1.entries) == len(cd2.entries)
+            assert {e.filename for e in cd1.entries} == {
+                e.filename for e in cd2.entries
+            }
+
+    anyio.run(main, backend="trio")

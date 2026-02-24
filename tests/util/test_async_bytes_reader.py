@@ -2,7 +2,8 @@ from io import BytesIO
 from typing import AsyncIterator
 
 import pytest
-from inspect_scout._util.async_bytes_reader import adapt_to_reader
+
+from inspect_ai._util.async_bytes_reader import adapt_to_reader
 
 
 async def bytes_iterator(data: bytes, chunk_size: int) -> AsyncIterator[bytes]:
