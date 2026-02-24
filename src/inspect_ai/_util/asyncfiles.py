@@ -136,6 +136,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     """
 
     _s3_client: Any | None = None
+    # Task to support concurrent coroutine initialization
     _s3_client_async_task: asyncio.Task[Any] | None = None
     _owns_context: bool = False
 

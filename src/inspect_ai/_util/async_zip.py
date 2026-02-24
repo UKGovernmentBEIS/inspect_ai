@@ -331,6 +331,7 @@ class AsyncZipReader:
         self._filesystem = filesystem
         self._filename = filename
         self._chunk_size = chunk_size
+        # Task to support concurrent coroutine initialization
         self._central_directory_task: asyncio.Task[CentralDirectory] | None = None
 
     @property
