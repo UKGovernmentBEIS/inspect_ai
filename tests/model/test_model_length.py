@@ -24,7 +24,7 @@ GATSBY_TOKENS = 69062
 # from: https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json
 GPT_4O = "openai/gpt-4o"
 GPT_4O_MINI_AZURE = "openai/azure/gpt-4o-mini"
-CLAUDE_3_5_HAIKU = "anthropic/claude-3-5-haiku-latest"
+CLAUDE_4_6_SONNET = "anthropic/claude-sonnet-4-6"
 GEMINI_2_0_FLASH = "google/gemini-2.0-flash"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
 GROK_3_MINI = "grok/grok-3-mini"
@@ -36,7 +36,7 @@ BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
 MODELS = {
     GPT_4O: 128000,
     GPT_4O_MINI_AZURE: 128000,
-    CLAUDE_3_5_HAIKU: 200000,
+    CLAUDE_4_6_SONNET: 200000,
     GEMINI_2_0_FLASH: 1000000,
     MISTRAL_LARGE_2411: 131000,
     GROK_3_MINI: 131072,
@@ -99,7 +99,7 @@ async def test_model_length_openai_responses_azure():
 @pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_model_length_anthropic():
-    await check_model_length(CLAUDE_3_5_HAIKU)
+    await check_model_length(CLAUDE_4_6_SONNET)
 
 
 # TODO: Anthropic Bedrock

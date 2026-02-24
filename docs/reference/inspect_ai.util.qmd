@@ -57,6 +57,10 @@ title: "inspect_ai.util"
 ### SandboxConnection
 ### sandboxenv
 ### sandbox_service
+### ExecRemoteProcess
+### ExecRemoteStreamingOptions
+### ExecRemoteAwaitableOptions
+### ExecRemoteEvent
 
 ## Registry
 

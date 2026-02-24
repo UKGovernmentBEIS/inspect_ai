@@ -101,6 +101,22 @@ class TaskEnd:
 
 
 @dataclass(frozen=True)
+class SampleInit:
+    """Sample init hook event data."""
+
+    eval_set_id: str | None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str
+    """The globally unique identifier for the run."""
+    eval_id: str
+    """The globally unique identifier for the task execution."""
+    sample_id: str
+    """The globally unique identifier for the sample execution."""
+    summary: EvalSampleSummary
+    """Summary of the sample to be initialized."""
+
+
+@dataclass(frozen=True)
 class SampleStart:
     """Sample start hook event data."""
 
@@ -257,6 +273,22 @@ class Hooks:
 
         Args:
            data: Task end data.
+        """
+        pass
+
+    async def on_sample_init(self, data: SampleInit) -> None:
+        """On sample init.
+
+        Called when a sample has been scheduled and is about to begin
+        initialization, before sandbox environments are created. This hook can
+        be used to gate sandbox resource provisioning.
+
+        If the sample errors and retries, this will not be called again.
+
+        If a sample is run for multiple epochs, this will be called once per epoch.
+
+        Args:
+           data: Sample init data.
         """
         pass
 
@@ -419,6 +451,23 @@ async def emit_task_end(logger: TaskLogger, log: EvalLog) -> None:
         log=log,
     )
     await _emit_to_all(lambda hook: hook.on_task_end(data))
+
+
+async def emit_sample_init(
+    eval_set_id: str | None,
+    run_id: str,
+    eval_id: str,
+    sample_id: str,
+    summary: EvalSampleSummary,
+) -> None:
+    data = SampleInit(
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        summary=summary,
+    )
+    await _emit_to_all(lambda hook: hook.on_sample_init(data))
 
 
 async def emit_sample_start(

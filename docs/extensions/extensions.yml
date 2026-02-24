@@ -99,3 +99,9 @@
     over command execution and file I/O without modifying core sandbox backends.
   author: "[Arnab Mitra](https://github.com/Dedulus)"
   categories: ["Sandbox"]
+
+- name: "[Inspect Harbor](https://github.com/meridianlabs-ai/inspect_harbor)"
+  description: |
+    Run Harbor RL tasks with Inspect AI, with access to 40+ registry datasets including terminal-bench, replicationbench, and compilebench.
+  author: "[Meridian](https://github.com/meridianlabs-ai/inspect_harbor)"
+  categories: ["Framework"]

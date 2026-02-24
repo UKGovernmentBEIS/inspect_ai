@@ -1,3 +1,4 @@
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     RegistryInfo,
     RegistryType,
@@ -37,6 +38,10 @@ from ._sandbox import (
     ComposeConfig,
     ComposeHealthcheck,
     ComposeService,
+    ExecRemoteAwaitableOptions,
+    ExecRemoteEvent,
+    ExecRemoteProcess,
+    ExecRemoteStreamingOptions,
     OutputLimitExceededError,
     SandboxConnection,
     SandboxEnvironment,
@@ -123,6 +128,7 @@ __all__ = [
     "working_limit",
     "trace_action",
     "trace_message",
+    "warn_once",
     "RegistryInfo",
     "RegistryType",
     "registry_create",
@@ -130,4 +136,8 @@ __all__ = [
     "EarlyStopping",
     "EarlyStop",
     "EarlyStoppingSummary",
+    "ExecRemoteAwaitableOptions",
+    "ExecRemoteEvent",
+    "ExecRemoteProcess",
+    "ExecRemoteStreamingOptions",
 ]

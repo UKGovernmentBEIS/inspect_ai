@@ -5,7 +5,9 @@ from typing import Any, TypeAlias
 import pydantic
 from google.genai import Client
 from google.genai.types import (
+    Content,
     CreateBatchJobConfig,
+    GenerateContentConfig,
     GenerateContentResponse,
     HttpOptions,
     JobError,
@@ -23,6 +25,51 @@ from .util.hooks import HttpxHooks
 
 # Just the result URI
 CompletedBatchInfo: TypeAlias = str
+
+# Fields that belong at the top level of GenerateContentRequest (not under generationConfig).
+# Everything else from GenerateContentConfig is nested under generationConfig in the
+# REST schema.
+_REQUEST_TOP_LEVEL_FIELDS = {
+    "safety_settings",
+    "tools",
+    "tool_config",
+    "system_instruction",
+    "cached_content",
+}
+
+# SDK-only fields that don't appear in the REST schema at all.
+_SDK_ONLY_FIELDS = {
+    "http_options",
+    "automatic_function_calling",
+    "should_return_http_response",
+    "labels",
+}
+
+
+def batch_request_dict(
+    config: GenerateContentConfig, contents: list[Content]
+) -> dict[str, Any]:
+    """Build a dict matching the REST GenerateContentRequest schema.
+
+    The SDK's GenerateContentConfig flattens everything, but the batch JSONL
+    format expects the REST shape where generation params (temperature, thinking_config,
+    etc.) are nested under "generation_config".
+    """
+    # Route each field to its correct location in the REST schema. Unlisted fields
+    # (thinking_config, temperature, etc.) go into generation_config
+    # see _REQUEST_TOP_LEVEL_FIELDS.
+    params = config.model_dump(exclude_none=True)
+    top_level = {k: v for k, v in params.items() if k in _REQUEST_TOP_LEVEL_FIELDS}
+    generation_config = {
+        k: v
+        for k, v in params.items()
+        if k not in _REQUEST_TOP_LEVEL_FIELDS and k not in _SDK_ONLY_FIELDS
+    }
+    return {
+        "contents": [c.model_dump(exclude_none=True) for c in contents],
+        **top_level,
+        **({"generation_config": generation_config} if generation_config else {}),
+    }
 
 
 class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
@@ -50,13 +97,7 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
     ) -> dict[str, pydantic.JsonValue]:
         return {
             "key": custom_id,
-            "request": {
-                **{
-                    k: v
-                    for k, v in request.request.items()
-                    if k not in ("http_options")
-                }
-            },
+            "request": dict(request.request),
         }
 
     @override
@@ -146,21 +187,22 @@ class GoogleBatcher(FileBatcher[GenerateContentResponse, CompletedBatchInfo]):
                 created_at=created_at,
                 completion_info=None,
             )
-        elif batch_job.state == JobState.JOB_STATE_SUCCEEDED:
+        elif batch_job.state in (
+            JobState.JOB_STATE_SUCCEEDED,
+            JobState.JOB_STATE_PARTIALLY_SUCCEEDED,
+        ):
             assert batch_job.dest and batch_job.dest.file_name, "must find batch dest"
             return BatchCheckResult(
-                completed_count=len(
-                    batch.requests
-                ),  # Assume all completed if succeeded
+                completed_count=len(batch.requests),
                 failed_count=0,  # Failed count will be determined during result parsing
                 created_at=created_at,
                 completion_info=batch_job.dest.file_name,
             )
-        elif batch_job.state in [
+        elif batch_job.state in (
             JobState.JOB_STATE_FAILED,
             JobState.JOB_STATE_CANCELLED,
-        ]:
-            # Job failed or was cancelled - all requests failed
+            JobState.JOB_STATE_EXPIRED,
+        ):
             return BatchCheckResult(
                 completed_count=0,
                 failed_count=len(batch.requests),
