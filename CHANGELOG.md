@@ -1,3 +1,7 @@
+## Unreleased
+
+- Sandbox Tools: Increase server startup timeout from 20 seconds to 120 seconds.
+
 ## 0.3.183 (24 February 2026)
 
 - Improved naming and typeinfo for `exec_remote()` output stream events.
