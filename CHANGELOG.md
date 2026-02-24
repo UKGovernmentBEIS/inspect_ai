@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
+
 ## 0.3.183 (24 February 2026)
 
 - Improved naming and typeinfo for `exec_remote()` output stream events.
