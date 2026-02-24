@@ -18,6 +18,7 @@ from ._metric import (
     Value,
     ValueToFloat,
     metric,
+    metric_create,
     value_to_float,
 )
 from ._metrics.accuracy import accuracy
@@ -66,6 +67,7 @@ __all__ = [
     "Metric",
     "MetricProtocol",
     "metric",
+    "metric_create",
     "Score",
     "SampleScore",
     "score",

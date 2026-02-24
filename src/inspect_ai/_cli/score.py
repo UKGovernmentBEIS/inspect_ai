@@ -256,6 +256,15 @@ def _resolve_output_file(
     return user_file
 
 
+def resolve_metrics(
+    metric: tuple[str, ...] | None,
+) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None:
+    if metric is not None:
+        return [metric_from_spec(MetricSpec(m)) for m in metric]
+    else:
+        return None
+
+
 def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction:
     if action is not None:
         return action
