@@ -120,13 +120,6 @@ def view_server_app(
         body = await get_log_file(await _map_file(request, file), header_only)
         return Response(content=body, media_type="application/json")
 
-    @app.get("/log-size/{log:path}")
-    async def api_log_size(request: Request, log: str) -> Response:
-        file = normalize_uri(log)
-        await _validate_read(request, file)
-        size = await get_log_size(await _map_file(request, file))
-        return InspectJsonResponse(content=size)
-
     @app.get("/log-info/{log:path}")
     async def api_log_info(request: Request, log: str) -> Response:
         file = normalize_uri(log)

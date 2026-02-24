@@ -152,13 +152,6 @@ def test_api_log(test_client: TestClient, mock_s3_eval_file: str):
     assert api_log["eval"]["task"] == "task"
 
 
-def test_api_log_size(test_client: TestClient, mock_s3_eval_file: str):
-    response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
-    response.raise_for_status()
-    api_log_size = response.text
-    assert int(api_log_size) >= 100
-
-
 def test_api_log_info(test_client: TestClient, mock_s3_eval_file: str):
     response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
     response.raise_for_status()
@@ -221,10 +214,16 @@ def test_api_log_bytes(test_client: TestClient, mock_s3_eval_file: str):
 def test_api_log_bytes_beyond_file_size(
     test_client: TestClient, mock_s3_eval_file: str
 ):
-    """Test that requesting bytes beyond file size returns actual bytes, not requested range."""
-    size_response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
+    """Test that requesting bytes beyond file size returns correct Content-Length.
+
+    This test verifies the fix for the bug where Content-Length was calculated
+    from requested range (end - start + 1) rather than actual bytes returned,
+    causing 'Response content shorter than Content-Length' errors.
+    """
+    # First, get the actual file size
+    size_response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
     size_response.raise_for_status()
-    file_size = int(size_response.text)
+    file_size = size_response.json()["size"]
 
     requested_end = file_size + 1000
     response = test_client.request(
