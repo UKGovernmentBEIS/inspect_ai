@@ -4,7 +4,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, GenerateConfig
 from inspect_ai.model._chat_message import (
@@ -19,7 +19,6 @@ from inspect_ai.model._providers.sagemaker import (
 )
 from inspect_ai.tool import ToolInfo
 from inspect_ai.tool._tool_choice import ToolFunction
-
 
 # -- Fixtures ----------------------------------------------------------------
 
@@ -422,9 +421,7 @@ class TestGenerate:
         mock_body.read = AsyncMock(
             return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
         )
-        mock_client.invoke_endpoint = AsyncMock(
-            return_value={"Body": mock_body}
-        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
 
         mock_ctx = AsyncMock()
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
