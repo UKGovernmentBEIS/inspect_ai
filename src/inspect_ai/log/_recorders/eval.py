@@ -4,7 +4,7 @@ import math
 import os
 import tempfile
 from logging import getLogger
-from typing import IO, Any, BinaryIO, Iterable, cast
+from typing import IO, Any, BinaryIO, cast
 from zipfile import ZipFile
 
 import anyio
@@ -99,11 +99,10 @@ class EvalRecorder(FileRecorder):
     ) -> str:
         # if the file exists then read summaries
         if not clean and location is not None and self.fs.exists(location):
-            with file(location, "rb") as f:
-                with ZipFile(f, "r") as zip:
-                    log_start = _read_start(zip)
-                    summary_counter = _read_summary_counter(zip.namelist())
-                    summaries = _read_all_summaries(zip, summary_counter)
+            async with AsyncFilesystem() as fs:
+                reader = AsyncZipReader(fs, location)
+                log_start = await _read_start_async(reader)
+                summaries, summary_counter = await _read_all_summaries_async(reader)
         else:
             log_start = None
             summary_counter = 0
@@ -287,7 +286,7 @@ class EvalRecorder(FileRecorder):
             if id is None:
                 if uuid is None:
                     raise ValueError("You must specify an 'id' or 'uuid' to read")
-                summaries = await _read_sample_summaries(reader)
+                summaries, _ = await _read_all_summaries_async(reader)
                 sample = next(
                     (summary for summary in summaries if summary.uuid == uuid),
                     None,
@@ -347,10 +346,8 @@ class EvalRecorder(FileRecorder):
     async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
         async with AsyncFilesystem() as fs:
             reader = AsyncZipReader(fs, location)
-            cd = await reader.entries()
-            entry_names = [e.filename for e in cd.entries]
-            summary_counter = _read_summary_counter(entry_names)
-            return await _read_all_summaries_async(reader, summary_counter)
+            summaries, _ = await _read_all_summaries_async(reader)
+            return summaries
 
     @classmethod
     @override
@@ -487,12 +484,6 @@ async def _write_s3_conditional(
                     f"Log file was modified by another process. Expected ETag: {etag}"
                 )
             raise
-
-
-def read_sample_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
-    summary_counter = _read_summary_counter(zip.namelist())
-    summaries = _read_all_summaries(zip, summary_counter)
-    return summaries
 
 
 class ZipLogFile:
@@ -707,27 +698,24 @@ async def _read_header_async(
         )
 
 
-def _read_start(zip: ZipFile) -> LogStart | None:
+async def _read_start_async(reader: AsyncZipReader) -> LogStart | None:
+    cd = await reader.entries()
     start_path = _journal_path(START_JSON)
-    if start_path in zip.namelist():
-        return cast(LogStart, _read_json(zip, start_path))
+    if any(e.filename == start_path for e in cd.entries):
+        return cast(LogStart, await _read_member_json(reader, start_path))
     else:
         return None
 
 
-async def _read_sample_summaries(reader: AsyncZipReader) -> list[EvalSampleSummary]:
-    directory = await reader.entries()
-    summary_counter = _read_summary_counter([e.filename for e in directory.entries])
-    summaries = await _read_all_summaries_async(reader, summary_counter)
-    return summaries
-
-
-def _read_summary_counter(names: Iterable[str]) -> int:
+async def _read_summary_counter(reader: AsyncZipReader) -> int:
+    cd = await reader.entries()
     current_count = 0
     summary_prefix = _journal_summary_path()
-    for name in names:
-        if name.startswith(summary_prefix) and name.endswith(".json"):
-            this_count = int(name.split("/")[-1].split(".")[0])
+    for entry in cd.entries:
+        if entry.filename.startswith(summary_prefix) and entry.filename.endswith(
+            ".json"
+        ):
+            this_count = int(entry.filename.split("/")[-1].split(".")[0])
             current_count = max(this_count, current_count)
     return current_count
 
@@ -742,29 +730,16 @@ def _parse_summaries(data: Any, source: str) -> list[EvalSampleSummary]:
         raise ValueError(f"Expected a list of summaries when reading {source}")
 
 
-def _read_all_summaries(zip: ZipFile, count: int) -> list[EvalSampleSummary]:
-    if SUMMARIES_JSON in zip.namelist():
-        return _parse_summaries(_read_json(zip, SUMMARIES_JSON), SUMMARIES_JSON)
-    else:
-        summaries: list[EvalSampleSummary] = []
-        for i in range(1, count):
-            summary_file = _journal_summary_file(i)
-            summary_path = _journal_summary_path(summary_file)
-            summaries.extend(
-                _parse_summaries(_read_json(zip, summary_path), summary_file)
-            )
-        return summaries
-
-
 async def _read_all_summaries_async(
-    reader: AsyncZipReader, count: int
-) -> list[EvalSampleSummary]:
+    reader: AsyncZipReader,
+) -> tuple[list[EvalSampleSummary], int]:
     cd = await reader.entries()
     entry_names = {e.filename for e in cd.entries}
+    count = await _read_summary_counter(reader)
     if SUMMARIES_JSON in entry_names:
         return _parse_summaries(
             await _read_member_json(reader, SUMMARIES_JSON), SUMMARIES_JSON
-        )
+        ), count
     else:
         summaries: list[EvalSampleSummary] = []
         for i in range(1, count + 1):
@@ -775,7 +750,7 @@ async def _read_all_summaries_async(
                     await _read_member_json(reader, summary_path), summary_file
                 )
             )
-        return summaries
+        return summaries, count
 
 
 def _read_header(zip: ZipFile, location: str) -> EvalLog:
@@ -799,11 +774,6 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
 
 def _sample_filename(id: str | int, epoch: int) -> str:
     return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
-
-
-def _read_json(zip: ZipFile, filename: str) -> Any:
-    with zip.open(filename) as f:
-        return json.load(f)
 
 
 def _journal_path(file: str) -> str:
