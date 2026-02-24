@@ -258,9 +258,9 @@ class SandboxEnvironment(abc.ABC):
            proc = await sandbox.exec_remote(["pytest", "-v"])
            async for event in proc:
                match event:
-                   case ExecRemoteEvent.Stdout(data=data): print(data, end="")
-                   case ExecRemoteEvent.Stderr(data=data): print(data, end="", file=sys.stderr)
-                   case ExecRemoteEvent.Completed(exit_code=code): print(f"Done: {code}")
+                   case ExecStdout(data=data): print(data, end="")
+                   case ExecStderr(data=data): print(data, end="", file=sys.stderr)
+                   case ExecCompleted(exit_code=code): print(f"Done: {code}")
            ```
 
         2. Fire-and-forget with explicit kill:

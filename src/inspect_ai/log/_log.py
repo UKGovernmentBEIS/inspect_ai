@@ -20,6 +20,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
+from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.model import (
     ChatMessage,
@@ -364,6 +365,9 @@ class EvalSample(BaseModel):
 
     events: list[Event] = Field(default_factory=list)
     """Events that occurred during sample execution."""
+
+    timelines: list[Timeline] | None = Field(default=None)
+    """Custom timelines for this sample."""
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
