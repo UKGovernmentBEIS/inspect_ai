@@ -1,3 +1,7 @@
+## Unreleased
+
+- Improved naming and typeinfo for `exec_remote()` output stream events.
+
 ## 0.3.182 (24 February 2026)
 
 - AzureAI: Pass `max_completion_tokens` to gpt-5 and o-series models.
