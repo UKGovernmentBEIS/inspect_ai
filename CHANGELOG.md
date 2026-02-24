@@ -1,13 +1,14 @@
 ## Unreleased
 
 - Improved naming and typeinfo for `exec_remote()` output stream events.
+- Scoring: Don't use task level metric overrides when appending scores to an existing log.
+- Inspect View: Add support for downloading sample JSON.
+- Inspect View: Server returns correct content length for responses.
 
 ## 0.3.182 (24 February 2026)
 
 - AzureAI: Pass `max_completion_tokens` to gpt-5 and o-series models.
 - Events: Add timeline functions for providing additional structure for event viewing and traversal.
-- Inspect View: Add support for downloading sample JSON.
-- Inspect View: Server returns correct content length for responses.
 
 ## 0.3.181 (23 February 2026)
 
@@ -20,7 +21,6 @@
 - Sandboxes: Export `exec_remote()` types from root namespace and add docs.
 - Eval Set: Add `TASK_IDENTIFIER_VERSION` to support persistence of task identifiers in inspect_flow.
 - Eval Retry: Don't retry with `model_base_url` unless it was explicitly specified by the user.
-- Scoring: Don't use task level metric overrides when appending scores to an existing log.
 - Agent Bridge: Add model_aliases to agent bridge and pass Model to GenerateFilter.
 - Dependencies: Update to nest-asyncio2 v1.7.2 to address anyio threading issue.
 - Inspect View: Display all non-undefined edited score values.
