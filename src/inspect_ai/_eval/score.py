@@ -70,6 +70,9 @@ ScoreAction = Literal["append", "overwrite"]
 def score(
     log: EvalLog,
     scorers: "Scorers",
+    metrics: list[Metric | dict[str, list[Metric]]]
+    | dict[str, list[Metric]]
+    | None = None,
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
@@ -80,6 +83,9 @@ def score(
     Args:
        log (EvalLog): Evaluation log.
        scorers (Scorer): List of Scorers to apply to log
+       metrics (list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None):
+           Alternative metrics (overrides the metrics provided by the
+           specified scorer and log).
        epochs_reducer (ScoreReducers | None):
            Reducer function(s) for aggregating scores in each sample.
            Defaults to previously used reducer(s).
@@ -101,13 +107,14 @@ def score(
 
     if running_in_notebook():
         return run_coroutine(
-            score_async(log, scorers, epochs_reducer, action, copy=copy)
+            score_async(log, scorers, metrics, epochs_reducer, action, copy=copy)
         )
     else:
         return anyio.run(
             functools.partial(score_async, copy=copy),
             log,
             scorers,
+            metrics,
             epochs_reducer,
             action,
             backend=configured_async_backend(),
@@ -175,6 +182,9 @@ def _get_updated_events(
 async def score_async(
     log: EvalLog,
     scorers: "Scorers",
+    metrics: list[Metric | dict[str, list[Metric]]]
+    | dict[str, list[Metric]]
+    | None = None,
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
@@ -188,6 +198,9 @@ async def score_async(
          Evaluation log. Only the headers are needed if `samples`
          is passed as well.
        scorers (list[Scorer]): Scorers to apply to log
+       metrics (list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None):
+         Alternative metrics (overrides the metrics provided by the
+         specified scorer and log).
        epochs_reducer (ScoreReducers  | None):
          Reducer function(s) for aggregating scores in each sample.
          Defaults to previously used reducer(s).
@@ -271,7 +284,7 @@ async def score_async(
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
-        log_metrics = metrics_from_log_header(log)
+        log_metrics = metrics or metrics_from_log_header(log)
 
         # resolve the scorer metrics onto the scorers
         resolved_scorers = resolve_scorer_metrics(resolved_scorers, log_metrics) or []
