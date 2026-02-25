@@ -38,6 +38,7 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
     hideRoleForRoles,
   }) => {
     const messageUrl = useSampleMessageUrl(message.id);
+    const [mouseOver, setMouseOver] = useState(false);
 
     const collapse = message.role === "system" || message.role === "user";
     const hideRole = hideRoleForRoles?.includes(message.role) ?? false;
@@ -55,8 +56,6 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
         return null;
       }
     }
-
-    const [mouseOver, setMouseOver] = useState(false);
 
     return (
       <div
