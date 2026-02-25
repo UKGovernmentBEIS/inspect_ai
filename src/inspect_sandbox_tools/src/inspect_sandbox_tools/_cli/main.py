@@ -78,8 +78,11 @@ async def _dispatch_remote_method(request_json_str: str) -> JSONRPCResponseJSON:
     return await json_rpc_unix_call(str(SOCKET_PATH), request_json_str)
 
 
+_SERVER_STDOUT_LOG = "/tmp/sandbox-tools-server-stdout.log"
+_SERVER_STDERR_LOG = "/tmp/sandbox-tools-server-stderr.log"
+
+
 def _ensure_server_is_running() -> None:
-    # TODO: Pipe stdout and stderr to proc 1
     if _can_connect_to_socket():
         return  # Server already running and responsive
 
@@ -96,18 +99,40 @@ def _ensure_server_is_running() -> None:
             # Dev/test mode: use Python interpreter with module invocation
             else [sys.executable, "-m", "inspect_sandbox_tools._cli.main", "server"]
         ),
-        stdout=open("/tmp/sandbox-tools-server-stdout.log", "a"),
-        stderr=open("/tmp/sandbox-tools-server-stderr.log", "a"),
+        stdout=open(_SERVER_STDOUT_LOG, "a"),
+        stderr=open(_SERVER_STDERR_LOG, "a"),
     )
 
     # Wait for socket to become available
-    for _ in range(200):  # Wait up to 20 seconds
+    for _ in range(1200):  # Wait up to 120 seconds
         if _can_connect_to_socket():
             return
+        # Detect early crash — no point waiting 20s if the process already exited
+        if process.poll() is not None:
+            raise RuntimeError(
+                f"Server process exited immediately (exit code {process.returncode}). "
+                f"Logs:\n{_read_server_logs()}"
+            )
         time.sleep(0.1)
 
     process.kill()
-    raise RuntimeError(f"Server ({process.pid}) failed to start within 20 seconds")
+    raise RuntimeError(
+        f"Server ({process.pid}) failed to start within 120 seconds. "
+        f"Logs:\n{_read_server_logs()}"
+    )
+
+
+def _read_server_logs() -> str:
+    """Read the last 2000 chars of server stdout and stderr logs."""
+    parts = []
+    for label, path in [("stdout", _SERVER_STDOUT_LOG), ("stderr", _SERVER_STDERR_LOG)]:
+        try:
+            content = open(path).read()[-2000:]
+            if content.strip():
+                parts.append(f"  [{label}] {content}")
+        except FileNotFoundError:
+            pass
+    return "\n".join(parts) if parts else "  (no log output)"
 
 
 def _can_connect_to_socket() -> bool:

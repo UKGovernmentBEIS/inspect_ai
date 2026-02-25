@@ -114,3 +114,16 @@ def test_handle_bad_request(
         assert response.stop_reason == stop_reason
     else:
         assert isinstance(response, APIStatusError)
+
+
+@pytest.mark.asyncio
+async def test_initialize_recreates_closed_http_client() -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+    )
+    await api.http_client.aclose()
+    assert api.http_client.is_closed
+    api.initialize()
+    assert not api.http_client.is_closed
