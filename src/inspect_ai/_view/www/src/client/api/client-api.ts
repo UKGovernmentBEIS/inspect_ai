@@ -6,7 +6,10 @@ import {
   RemoteLogFile,
   SampleNotFoundError,
 } from "../remote/remoteLogFile";
-import { FileSizeLimitError } from "../remote/remoteZipFile";
+import {
+  FileSizeLimitError,
+  ProgressCallback,
+} from "../remote/remoteZipFile";
 import {
   ClientAPI,
   LogContents,
@@ -175,6 +178,7 @@ export const clientApi = (
     log_file: string,
     id: string | number,
     epoch: number,
+    onProgress?: ProgressCallback,
   ): Promise<EvalSample | undefined> => {
     if (isEvalFile(log_file)) {
       async function fetchSample(useCache: boolean) {
@@ -182,7 +186,7 @@ export const clientApi = (
         if (!remoteLogFile) {
           throw new Error(`Unable to read remote eval file ${log_file}`);
         }
-        return await remoteLogFile.readSample(String(id), epoch);
+        return await remoteLogFile.readSample(String(id), epoch, onProgress);
       }
 
       function handleError(error: unknown) {

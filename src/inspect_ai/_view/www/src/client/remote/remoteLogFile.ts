@@ -15,6 +15,7 @@ import {
   fetchRange,
   FileSizeLimitError,
   openRemoteZipFile,
+  ProgressCallback,
 } from "./remoteZipFile";
 
 const OPEN_RETRY_LIMIT = 5;
@@ -40,7 +41,11 @@ export class SampleNotFoundError extends Error {
 export interface RemoteLogFile {
   readEvalBasicInfo: () => Promise<LogPreview>;
   readLogSummary: () => Promise<LogDetails>;
-  readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
+  readSample: (
+    sampleId: string,
+    epoch: number,
+    onProgress?: ProgressCallback,
+  ) => Promise<EvalSample>;
   readCompleteLog: () => Promise<EvalLog>;
 }
 
@@ -80,7 +85,11 @@ export const openRemoteLogFile = async (
   let remoteZipFile:
     | {
         centralDirectory: Map<string, CentralDirectoryEntry>;
-        readFile: (file: string, maxBytes?: number) => Promise<Uint8Array>;
+        readFile: (
+          file: string,
+          maxBytes?: number,
+          onProgress?: ProgressCallback,
+        ) => Promise<Uint8Array>;
       }
     | undefined = undefined;
 
@@ -121,9 +130,10 @@ export const openRemoteLogFile = async (
     file: string,
     maxBytes?: number,
     preprocessor?: JSONPreprocessor,
+    onProgress?: ProgressCallback,
   ): Promise<Object> => {
     try {
-      let data = await remoteZipFile.readFile(file, maxBytes);
+      let data = await remoteZipFile.readFile(file, maxBytes, onProgress);
 
       // Apply preprocessor if provided
       if (preprocessor) {
@@ -172,6 +182,7 @@ export const openRemoteLogFile = async (
   const readSample = async (
     sampleId: string,
     epoch: number,
+    onProgress?: ProgressCallback,
   ): Promise<EvalSample> => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
 
@@ -196,6 +207,7 @@ export const openRemoteLogFile = async (
       sampleFile,
       undefined,
       eventsPreprocessor,
+      onProgress,
     )) as EvalSample;
   };
 
