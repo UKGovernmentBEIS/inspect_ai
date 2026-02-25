@@ -175,9 +175,15 @@ async def get_log_info(
     if generate_direct_url:
         fs = filesystem(log_file)
         if fs.is_s3():
-            connection = async_connection(log_file)
-            url: str = await connection._url(log_file, expires=3600)
-            result["direct_url"] = url
+            try:
+                connection = async_connection(log_file)
+                url: str = await connection._url(log_file, expires=3600)
+                result["direct_url"] = url
+            except Exception:
+                logger.warning(
+                    f"Failed to generate presigned URL for {log_file}",
+                    exc_info=True,
+                )
 
     return result
 

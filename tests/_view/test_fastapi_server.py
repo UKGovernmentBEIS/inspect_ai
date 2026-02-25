@@ -246,9 +246,9 @@ def test_api_log_bytes_start_beyond_file_size(
     test_client: TestClient, mock_s3_eval_file: str
 ):
     """Test that requesting bytes starting beyond file size returns 416."""
-    size_response = test_client.request("GET", f"/log-size/{mock_s3_eval_file}")
+    size_response = test_client.request("GET", f"/log-info/{mock_s3_eval_file}")
     size_response.raise_for_status()
-    file_size = int(size_response.text)
+    file_size = size_response.json()["size"]
 
     response = test_client.request(
         "GET",

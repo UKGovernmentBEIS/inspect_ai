@@ -37,7 +37,7 @@ export const InlineSampleComponent: FC<InlineSampleDisplayProps> = ({
   const sampleData = useSampleData();
 
   const sampleProgress =
-    sampleData.status === "loading" && sampleData.downloadProgress
+    sampleData.status === "loading" && sampleData.downloadProgress && sampleData.downloadProgress.bytesTotal > 0
       ? sampleData.downloadProgress.bytesLoaded /
         sampleData.downloadProgress.bytesTotal
       : undefined;

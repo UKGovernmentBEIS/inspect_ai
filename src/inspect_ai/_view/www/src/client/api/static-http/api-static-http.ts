@@ -1,5 +1,6 @@
 import { EvalSet } from "../../../@types/log";
-import { fetchRange, fetchSize } from "../../remote/remoteZipFile";
+import { fetchRange } from "../../../utils/http";
+import { fetchSize } from "../../remote/remoteZipFile";
 import { download_file } from "../shared/api-shared";
 import { Capabilities, LogPreview, LogRoot, LogViewAPI } from "../types";
 import {

@@ -36,7 +36,10 @@ import {
   ToolEvent,
   Version,
 } from "../../@types/log";
-import { ProgressCallback } from "../remote/remoteZipFile";
+export type ProgressCallback = (
+  bytesLoaded: number,
+  bytesTotal: number,
+) => void;
 
 export interface LogDetails {
   version?: Version;
