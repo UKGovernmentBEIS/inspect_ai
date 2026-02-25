@@ -241,8 +241,7 @@ export const openRemoteZipFile = async (
       if (fileData.length < headerSize) {
         throw new Error(`File entry header is truncated for ${file}`);
       }
-      const actualExtraFieldLength =
-        fileData[28] + (fileData[29] << 8);
+      const actualExtraFieldLength = fileData[28] + (fileData[29] << 8);
       const actualTotal =
         headerSize +
         entry.filenameLength +

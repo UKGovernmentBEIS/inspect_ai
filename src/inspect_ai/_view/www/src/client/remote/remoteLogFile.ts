@@ -69,7 +69,11 @@ export const openRemoteLogFile = async (
   const fetchContentLength = async (_url: string) => logInfo.size;
 
   const directUrl = logInfo.direct_url;
-  const fetchBytes = async (_url: string, start: number, end: number): Promise<Uint8Array> => {
+  const fetchBytes = async (
+    _url: string,
+    start: number,
+    end: number,
+  ): Promise<Uint8Array> => {
     if (directUrl) {
       try {
         return await fetchRange(directUrl, start, end);
