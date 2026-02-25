@@ -15,6 +15,7 @@ interface ChatViewProps {
   numbered?: boolean;
   className?: string | string[];
   allowLinking?: boolean;
+  hideRoleForRoles?: string[];
 }
 
 /**
@@ -29,6 +30,7 @@ export const ChatView: FC<ChatViewProps> = ({
   numbered = true,
   className,
   allowLinking = true,
+  hideRoleForRoles,
 }) => {
   const collapsedMessages = resolveToolCallsIntoPreviousMessage
     ? resolveMessages(messages)
@@ -53,6 +55,7 @@ export const ChatView: FC<ChatViewProps> = ({
             toolCallStyle={toolCallStyle}
             allowLinking={allowLinking}
             highlightUserMessage={true}
+            hideRoleForRoles={hideRoleForRoles}
           />
         );
       })}

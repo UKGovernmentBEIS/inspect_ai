@@ -13,8 +13,12 @@
   white-space: pre-wrap;
   margin-bottom: 0;
   font-size: 0.9em !important;
+  background-color: #1e1e2e;
+  color: #cdd6f4;
+  border-radius: var(--bs-border-radius);
 }
 
 .textCode {
   word-wrap: anywhere;
+  color: inherit;
 }

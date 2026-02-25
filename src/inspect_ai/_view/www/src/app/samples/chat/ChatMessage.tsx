@@ -24,6 +24,7 @@ interface ChatMessageProps {
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
   allowLinking?: boolean;
+  hideRoleForRoles?: string[];
 }
 
 export const ChatMessage: FC<ChatMessageProps> = memo(
@@ -34,10 +35,12 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
     indented,
     toolCallStyle,
     allowLinking = true,
+    hideRoleForRoles,
   }) => {
     const messageUrl = useSampleMessageUrl(message.id);
 
     const collapse = message.role === "system" || message.role === "user";
+    const hideRole = hideRoleForRoles?.includes(message.role) ?? false;
 
     const [mouseOver, setMouseOver] = useState(false);
 
@@ -54,32 +57,34 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
         onMouseEnter={() => setMouseOver(true)}
         onMouseLeave={() => setMouseOver(false)}
       >
-        <div
-          className={clsx(
-            styles.messageGrid,
-            message.role === "tool" ? styles.toolMessageGrid : undefined,
-            "text-style-label",
-          )}
-        >
-          <div>
-            {message.role}
-            {message.role === "tool" ? `: ${message.function}` : ""}
-            {supportsLinking() && messageUrl && allowLinking ? (
-              <CopyButton
-                icon={ApplicationIcons.link}
-                value={toFullUrl(messageUrl)}
-                className={clsx(styles.copyLink)}
-              />
-            ) : (
-              ""
+        {!hideRole && (
+          <div
+            className={clsx(
+              styles.messageGrid,
+              message.role === "tool" ? styles.toolMessageGrid : undefined,
+              "text-style-label",
+            )}
+          >
+            <div>
+              {message.role}
+              {message.role === "tool" ? `: ${message.function}` : ""}
+              {supportsLinking() && messageUrl && allowLinking ? (
+                <CopyButton
+                  icon={ApplicationIcons.link}
+                  value={toFullUrl(messageUrl)}
+                  className={clsx(styles.copyLink)}
+                />
+              ) : (
+                ""
+              )}
+            </div>
+            {message.timestamp && (
+              <span className={styles.timestamp} title={message.timestamp}>
+                {formatDateTime(new Date(message.timestamp))}
+              </span>
             )}
           </div>
-          {message.timestamp && (
-            <span className={styles.timestamp} title={message.timestamp}>
-              {formatDateTime(new Date(message.timestamp))}
-            </span>
-          )}
-        </div>
+        )}
         <div
           className={clsx(
             styles.messageContents,
