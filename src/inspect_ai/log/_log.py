@@ -220,6 +220,9 @@ class EvalSampleSummary(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
 
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for sample."""
+
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
 
@@ -371,6 +374,9 @@ class EvalSample(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for sample."""
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -918,6 +924,9 @@ class EvalStats(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for evaluation."""
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())

@@ -19077,7 +19077,7 @@ span.ap-marker-container:hover span.ap-marker {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
-._wrapper_14r3b_1 {
+._wrapper_qdns2_1 {
   padding-top: 0;
   padding-bottom: 1em;
   margin-left: 0.5em;
@@ -19086,16 +19086,24 @@ span.ap-marker-container:hover span.ap-marker {
   gap: 1em;
 }
 
-._col1_14r3b_10 {
+._col1_qdns2_10 {
   flex: 0 1 auto;
   min-width: 200px;
   width: fit-content;
 }
 
-._col2_14r3b_16 {
+._col2_qdns2_16 {
   flex: 1 1 auto;
   min-width: 300px;
   width: fit-content;
+}
+
+._sectionTitle_qdns2_22 {
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--bs-body-color);
 }
 ._label_jbrqc_1 {
   align-self: center;

@@ -377,6 +377,7 @@ async def _run_score_task(
                             score=score_result,
                             target=target.target,
                             model_usage=sample.model_usage or None,
+                            role_usage=sample.role_usage or None,
                         )
                     )
 

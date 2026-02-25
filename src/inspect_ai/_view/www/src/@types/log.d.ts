@@ -672,6 +672,9 @@ export type Intermediate = boolean;
 export type ModelUsage2 = {
   [k: string]: ModelUsage1;
 } | null;
+export type RoleUsage1 = {
+  [k: string]: ModelUsage1;
+} | null;
 export type Uuid11 = string | null;
 export type SpanId11 = string | null;
 export type Timestamp12 = string;
@@ -1273,6 +1276,7 @@ export interface EvalStats {
   started_at: StartedAt;
   completed_at: CompletedAt;
   model_usage: ModelUsage;
+  role_usage: RoleUsage;
 }
 export interface ModelUsage {
   [k: string]: ModelUsage1;
@@ -1288,6 +1292,9 @@ export interface ModelUsage1 {
   input_tokens_cache_read: InputTokensCacheRead;
   reasoning_tokens: ReasoningTokens1;
   total_cost: TotalCost;
+}
+export interface RoleUsage {
+  [k: string]: ModelUsage1;
 }
 /**
  * Eval error details.
@@ -1317,6 +1324,7 @@ export interface EvalSample {
   events: Events;
   timelines: Timelines;
   model_usage: ModelUsage3;
+  role_usage: RoleUsage2;
   started_at: StartedAt1;
   completed_at: CompletedAt1;
   total_time: TotalTime;
@@ -1893,6 +1901,7 @@ export interface ScoreEvent {
   target: Target2;
   intermediate: Intermediate;
   model_usage: ModelUsage2;
+  role_usage: RoleUsage1;
 }
 /**
  * Event recorded when a score is edited.
@@ -2084,6 +2093,9 @@ export interface OutlineNode {
   children: Children;
 }
 export interface ModelUsage3 {
+  [k: string]: ModelUsage1;
+}
+export interface RoleUsage2 {
   [k: string]: ModelUsage1;
 }
 export interface Attachments {
