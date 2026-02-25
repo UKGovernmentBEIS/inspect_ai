@@ -104,7 +104,7 @@ def _ensure_server_is_running() -> None:
     )
 
     # Wait for socket to become available
-    for _ in range(200):  # 20 seconds max
+    for _ in range(1200):  # Wait up to 120 seconds
         if _can_connect_to_socket():
             return
         # Detect early crash — no point waiting 20s if the process already exited
@@ -117,7 +117,7 @@ def _ensure_server_is_running() -> None:
 
     process.kill()
     raise RuntimeError(
-        f"Server ({process.pid}) failed to start within 20 seconds. "
+        f"Server ({process.pid}) failed to start within 120 seconds. "
         f"Logs:\n{_read_server_logs()}"
     )
 
