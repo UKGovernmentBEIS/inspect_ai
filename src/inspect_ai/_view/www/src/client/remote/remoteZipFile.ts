@@ -1,9 +1,8 @@
+import { fetchRange } from "../../utils/http";
+import { ProgressCallback } from "../api/types";
 import { decompressData } from "./decompression";
 
-export type ProgressCallback = (
-  bytesLoaded: number,
-  bytesTotal: number,
-) => void;
+export type { ProgressCallback };
 
 export interface ZipFileEntry {
   versionNeeded: number;
@@ -239,6 +238,9 @@ export const openRemoteZipFile = async (
       );
 
       // Parse actual extraFieldLength from the fetched header
+      if (fileData.length < headerSize) {
+        throw new Error(`File entry header is truncated for ${file}`);
+      }
       const actualExtraFieldLength =
         fileData[28] + (fileData[29] << 8);
       const actualTotal =
@@ -252,14 +254,14 @@ export const openRemoteZipFile = async (
         throw new FileSizeLimitError(file, maxBytes);
       }
 
-      // Re-fetch only if actual size exceeds our estimate (rare)
+      // Re-fetch only if actual size exceeds our estimate (rare).
+      // Pass undefined for onProgress to avoid double-counting.
       if (actualTotal > estimatedSize) {
         fileData = await fetchBytesParallel(
           fetchBytes,
           url,
           entry.fileOffset,
           entry.fileOffset + actualTotal - 1,
-          onProgress,
         );
       }
 
@@ -310,20 +312,7 @@ export const fetchSize = async (url: string): Promise<number> => {
   throw new Error(`Could not determine content length for ${url}`);
 };
 
-/**
- * Fetches a range of bytes from a remote resource and returns it as a `Uint8Array`.
- */
-export const fetchRange = async (
-  url: string,
-  start: number,
-  end: number,
-): Promise<Uint8Array> => {
-  const response = await fetch(`${url}`, {
-    headers: { Range: `bytes=${start}-${end}` },
-  });
-  const arrayBuffer = await response.arrayBuffer();
-  return new Uint8Array(arrayBuffer);
-};
+export { fetchRange };
 
 /**
  * Extracts and parses the header and data of a compressed ZIP entry from raw binary data.
