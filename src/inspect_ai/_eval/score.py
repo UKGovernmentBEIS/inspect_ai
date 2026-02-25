@@ -270,8 +270,10 @@ async def score_async(
         )
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
-        # that will be taken care of in eval_results)
-        log_metrics = metrics_from_log_header(log)
+        # that will be taken care of in eval_results). For append, the new scorer
+        # uses its own metrics -- the original eval's metrics are already baked
+        # into log.results.scores and don't need to be recreated.
+        log_metrics = metrics_from_log_header(log) if action != "append" else None
 
         # resolve the scorer metrics onto the scorers
         resolved_scorers = resolve_scorer_metrics(resolved_scorers, log_metrics) or []

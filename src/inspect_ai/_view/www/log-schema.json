@@ -2778,6 +2778,21 @@
           "title": "Events",
           "type": "array"
         },
+        "timelines": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Timeline"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timelines"
+        },
         "model_usage": {
           "additionalProperties": {
             "$ref": "#/$defs/ModelUsage"
@@ -2916,6 +2931,7 @@
         "metadata",
         "store",
         "events",
+        "timelines",
         "model_usage",
         "started_at",
         "completed_at",
@@ -5299,6 +5315,47 @@
       ],
       "additionalProperties": false
     },
+    "Outline": {
+      "description": "Hierarchical outline of events for an agent.",
+      "properties": {
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/OutlineNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        }
+      },
+      "title": "Outline",
+      "type": "object",
+      "required": [
+        "nodes"
+      ],
+      "additionalProperties": false
+    },
+    "OutlineNode": {
+      "description": "A node in an agent's outline, referencing an event by UUID.",
+      "properties": {
+        "event": {
+          "title": "Event",
+          "type": "string"
+        },
+        "children": {
+          "items": {
+            "$ref": "#/$defs/OutlineNode"
+          },
+          "title": "Children",
+          "type": "array"
+        }
+      },
+      "required": [
+        "event",
+        "children"
+      ],
+      "title": "OutlineNode",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ProvenanceData": {
       "description": "Metadata about who made an edit and why.",
       "properties": {
@@ -7029,6 +7086,240 @@
         "working_time"
       ],
       "title": "SubtaskEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "Timeline": {
+      "description": "A named timeline view over a transcript.\n\nMultiple timelines allow different interpretations of the same event\nstream \u2014 e.g. a default agent-centric view alongside an alternative\ngrouping or filtered view.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "root": {
+          "$ref": "#/$defs/TimelineSpan"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "root"
+      ],
+      "title": "Timeline",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "TimelineBranch": {
+      "description": "A discarded alternative path from a branch point.",
+      "properties": {
+        "type": {
+          "const": "branch",
+          "default": "branch",
+          "title": "Type",
+          "type": "string"
+        },
+        "forked_at": {
+          "title": "Forked At",
+          "type": "string"
+        },
+        "content": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TimelineEvent"
+              },
+              {
+                "$ref": "#/$defs/TimelineSpan"
+              }
+            ]
+          },
+          "title": "Content",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "forked_at",
+        "content"
+      ],
+      "title": "TimelineBranch",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "TimelineEvent": {
+      "description": "Wraps a single Event.",
+      "properties": {
+        "type": {
+          "const": "event",
+          "default": "event",
+          "title": "Type",
+          "type": "string"
+        },
+        "event": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SampleInitEvent"
+            },
+            {
+              "$ref": "#/$defs/SampleLimitEvent"
+            },
+            {
+              "$ref": "#/$defs/SandboxEvent"
+            },
+            {
+              "$ref": "#/$defs/StateEvent"
+            },
+            {
+              "$ref": "#/$defs/StoreEvent"
+            },
+            {
+              "$ref": "#/$defs/ModelEvent"
+            },
+            {
+              "$ref": "#/$defs/ToolEvent"
+            },
+            {
+              "$ref": "#/$defs/ApprovalEvent"
+            },
+            {
+              "$ref": "#/$defs/CompactionEvent"
+            },
+            {
+              "$ref": "#/$defs/InputEvent"
+            },
+            {
+              "$ref": "#/$defs/ScoreEvent"
+            },
+            {
+              "$ref": "#/$defs/ScoreEditEvent"
+            },
+            {
+              "$ref": "#/$defs/ErrorEvent"
+            },
+            {
+              "$ref": "#/$defs/LoggerEvent"
+            },
+            {
+              "$ref": "#/$defs/InfoEvent"
+            },
+            {
+              "$ref": "#/$defs/SpanBeginEvent"
+            },
+            {
+              "$ref": "#/$defs/SpanEndEvent"
+            },
+            {
+              "$ref": "#/$defs/StepEvent"
+            },
+            {
+              "$ref": "#/$defs/SubtaskEvent"
+            }
+          ],
+          "title": "Event"
+        }
+      },
+      "required": [
+        "type",
+        "event"
+      ],
+      "title": "TimelineEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "TimelineSpan": {
+      "description": "A span of execution \u2014 agent, scorer, tool, or root.",
+      "properties": {
+        "type": {
+          "const": "span",
+          "default": "span",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "span_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Span Type"
+        },
+        "content": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TimelineEvent"
+              },
+              {
+                "$ref": "#/$defs/TimelineSpan"
+              }
+            ]
+          },
+          "title": "Content",
+          "type": "array"
+        },
+        "branches": {
+          "items": {
+            "$ref": "#/$defs/TimelineBranch"
+          },
+          "title": "Branches",
+          "type": "array"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "utility": {
+          "default": false,
+          "title": "Utility",
+          "type": "boolean"
+        },
+        "outline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Outline"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name",
+        "span_type",
+        "content",
+        "branches",
+        "description",
+        "utility",
+        "outline"
+      ],
+      "title": "TimelineSpan",
       "type": "object",
       "additionalProperties": false
     },
