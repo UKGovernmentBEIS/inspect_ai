@@ -221,7 +221,8 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 )
                 content_range: str = response["ContentRange"]
                 total_size = int(content_range.split("/")[-1])
-                etag = cast(str | None, response.get("ETag"))
+                etag_raw = response.get("ETag")
+                etag = cast(str, etag_raw).strip('"') if etag_raw else None
                 body = response["Body"]
                 try:
                     data = cast(bytes, await body.read())
@@ -330,7 +331,8 @@ def s3_read_file_suffix(
     response = s3.get_object(Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}")
     content_range: str = response["ContentRange"]
     total_size = int(content_range.split("/")[-1])
-    etag = cast(str | None, response.get("ETag"))
+    etag_raw = response.get("ETag")
+    etag = cast(str, etag_raw).strip('"') if etag_raw else None
     data = cast(bytes, response["Body"].read())
     return SuffixResult(data, total_size, etag)
 
