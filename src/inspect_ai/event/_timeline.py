@@ -178,6 +178,11 @@ class TimelineSpan(BaseModel):
     utility: bool = False
     outline: "Outline | None" = None
 
+    @model_validator(mode="after")
+    def _lowercase_name(self) -> "TimelineSpan":
+        self.name = self.name.lower()
+        return self
+
     @property
     def start_time(self) -> datetime:
         """Earliest start time among content."""
@@ -283,20 +288,54 @@ def timeline_load(data: dict[str, Any], events: list[Event]) -> Timeline:
 def timeline_build(events: list[Event]) -> Timeline:
     """Build a Timeline from a flat event list.
 
-    Uses inspect_ai's event_tree() to parse span structure, then:
-    1. Look for top-level spans: "init", "solvers", "scorers"
-    2. If present, use them to partition events into sections
-    3. If not present, treat the entire event stream as the agent
+    Transforms a flat event stream into a hierarchical ``Timeline`` tree
+    with agent-centric interpretation. The pipeline has two phases:
 
-    Agent detection within the solvers section (or entire stream):
-    - Explicit agent spans (type='agent') -> span_type="agent"
-    - Tool spans/calls with model events -> span_type=None (tool-spawned)
+    **Phase 1 — Structure extraction:**
+
+    Uses ``event_tree()`` to parse span_begin/span_end events into a tree,
+    then looks for top-level phase spans ("init", "solvers", "scorers"):
+
+    - If present, partitions events into init (setup), agent (solvers),
+      and scoring sections.
+    - If absent, treats the entire event stream as the agent.
+
+    **Phase 2 — Agent classification:**
+
+    Within the agent section, spans are classified as agents or unrolled:
+
+    ==============================  =======================================
+    Span type                       Result
+    ==============================  =======================================
+    ``type="agent"``                ``TimelineSpan(span_type="agent")``
+    ``type="solver"``               ``TimelineSpan(span_type="agent")``
+    ``type="tool"`` + ModelEvents   ``TimelineSpan(span_type="agent")``
+    ToolEvent with ``agent`` field  ``TimelineSpan(span_type="agent")``
+    ``type="tool"`` (no models)     Unrolled into parent
+    Any other span type             Unrolled into parent
+    ==============================  =======================================
+
+    "Unrolled" means the span wrapper is removed and its child events
+    dissolve into the parent's content list.
+
+    **Phase 3 — Post-processing passes:**
+
+    - Auto-branch detection (re-rolled ModelEvents with identical inputs)
+    - Utility agent classification (single-turn agents with different
+      system prompts)
+    - Recursive branch classification
+
+    Args:
+        events: Flat list of Events from a transcript.
+
+    Returns:
+        A Timeline with a hierarchical root TimelineSpan.
     """
     if not events:
         return Timeline(
             name="Default",
             description="",
-            root=TimelineSpan(id="root", name="root", span_type=None),
+            root=TimelineSpan(id="root", name="main", span_type=None),
         )
 
     # Detect explicit branches globally
@@ -338,7 +377,7 @@ def timeline_build(events: list[Event]) -> Timeline:
             if init_content:
                 init_span_obj = TimelineSpan(
                     id=init_span.id,
-                    name="Init",
+                    name="init",
                     span_type="init",
                     content=init_content,
                 )
@@ -360,7 +399,7 @@ def timeline_build(events: list[Event]) -> Timeline:
             if scoring_content:
                 scoring_span = TimelineSpan(
                     id=scorers_span.id,
-                    name="Scoring",
+                    name="scoring",
                     span_type="scorers",
                     content=scoring_content,
                 )
@@ -387,7 +426,7 @@ def timeline_build(events: list[Event]) -> Timeline:
                 root_content.append(scoring_span)
             root = TimelineSpan(
                 id="root",
-                name="root",
+                name="main",
                 span_type=None,
                 content=root_content,
             )
@@ -403,11 +442,10 @@ def _classify_spans(root: TimelineSpan, has_explicit_branches: bool) -> None:
     """Run all span classification passes on a root span.
 
     Detects auto-branches (unless explicit branches exist), classifies
-    auto-spawned spans, utility agents, and branch structure.
+    utility agents, and branch structure.
     """
     if not has_explicit_branches:
         _detect_auto_branches(root)
-    _classify_auto_spans(root)
     _classify_utility_agents(root)
     _classify_branches(root, has_explicit_branches)
 
@@ -436,7 +474,7 @@ def _build_agent_from_solvers_span(
     other_items: list[TreeItem] = []
 
     for child in solvers_span.children:
-        if isinstance(child, EventTreeSpan) and child.type == "agent":
+        if isinstance(child, EventTreeSpan) and _is_agent_span(child):
             agent_spans.append(child)
         else:
             other_items.append(child)
@@ -455,10 +493,16 @@ def _build_agent_from_solvers_span(
             ]
             # Add any orphan events
             for item in other_items:
-                children.insert(0, _tree_item_to_node(item, has_explicit_branches))
+                if isinstance(item, EventTreeSpan) and not _is_agent_span(item):
+                    orphan_content: list[TimelineEvent | TimelineSpan] = []
+                    _unroll_span(item, orphan_content, has_explicit_branches)
+                    for orphan in reversed(orphan_content):
+                        children.insert(0, orphan)
+                else:
+                    children.insert(0, _tree_item_to_node(item, has_explicit_branches))
             return TimelineSpan(
                 id="root",
-                name="root",
+                name="main",
                 span_type="agent",
                 content=children,
             )
@@ -498,7 +542,10 @@ def _build_span_from_agent_span(
     # Add any extra items first (orphan events)
     if extra_items:
         for item in extra_items:
-            content.append(_tree_item_to_node(item, has_explicit_branches))
+            if isinstance(item, EventTreeSpan) and not _is_agent_span(item):
+                _unroll_span(item, content, has_explicit_branches)
+            else:
+                content.append(_tree_item_to_node(item, has_explicit_branches))
 
     # Process span children with branch awareness
     child_content, branches = _process_children(span.children, has_explicit_branches)
@@ -516,14 +563,35 @@ def _build_span_from_agent_span(
     )
 
 
+def _is_agent_span(span: EventTreeSpan) -> bool:
+    """Check if an EventTreeSpan represents an agent trajectory.
+
+    Agent spans are:
+    - Explicit agent spans (type="agent")
+    - Solver spans (type="solver")
+    - Tool spans containing model events (tool-spawned agents)
+
+    Args:
+        span: The EventTreeSpan to check.
+
+    Returns:
+        True if the span represents an agent trajectory.
+    """
+    if span.type in ("agent", "solver"):
+        return True
+    if span.type == "tool" and _contains_model_events(span):
+        return True
+    return False
+
+
 def _tree_item_to_node(
     item: TreeItem, has_explicit_branches: bool
 ) -> TimelineEvent | TimelineSpan:
     """Convert a tree item (EventTreeSpan or Event) to a TimelineEvent or TimelineSpan.
 
     Dispatches to the appropriate builder based on item type:
-    - EventTreeSpan with type='agent' -> _build_span_from_agent_span
-    - Other EventTreeSpan -> _build_span_from_generic_span
+    - EventTreeSpan with type='agent' or 'solver' -> _build_span_from_agent_span
+    - Other EventTreeSpan (e.g., tool span with models) -> _build_span_from_generic_span
     - Event -> _event_to_node
 
     Args:
@@ -534,7 +602,7 @@ def _tree_item_to_node(
         A TimelineEvent or TimelineSpan representing the item.
     """
     if isinstance(item, EventTreeSpan):
-        if item.type == "agent":
+        if item.type in ("agent", "solver"):
             return _build_span_from_agent_span(item, has_explicit_branches)
         else:
             return _build_span_from_generic_span(item, has_explicit_branches)
@@ -559,7 +627,7 @@ def _event_to_node(event: Event) -> TimelineEvent | TimelineSpan:
             return TimelineSpan(
                 id=f"tool-agent-{event.id}",
                 name=agent_name,
-                span_type=None,
+                span_type="agent",
                 content=nested_content,
             )
     return TimelineEvent(event=event)
@@ -571,14 +639,14 @@ def _build_span_from_generic_span(
     """Build a TimelineSpan from a non-agent EventTreeSpan.
 
     If the span is a tool span (type="tool") containing model events,
-    we treat it as a tool-spawned agent (span_type=None).
+    we treat it as a tool-spawned agent (span_type="agent").
     """
     content, branches = _process_children(span.children, has_explicit_branches)
 
     # Determine the span_type based on span type and content
     span_type: str | None
     if span.type == "tool" and _contains_model_events(span):
-        span_type = None
+        span_type = "agent"
     else:
         span_type = span.type
 
@@ -639,6 +707,43 @@ def _build_agent_from_tree(
 # =============================================================================
 
 
+def _unroll_span(
+    span: EventTreeSpan,
+    into: list[TimelineEvent | TimelineSpan],
+    has_explicit_branches: bool,
+) -> None:
+    """Dissolve a non-agent span, emitting its begin/end as regular events.
+
+    Recursively unrolls nested non-agent spans while preserving any
+    nested agent spans as TimelineSpan nodes.
+
+    Args:
+        span: The non-agent EventTreeSpan to unroll.
+        into: The content list to append results to.
+        has_explicit_branches: Whether explicit branch spans exist globally.
+    """
+    # Emit span begin event
+    into.append(TimelineEvent(event=span.begin))
+
+    # Process children: recurse into non-agent spans, keep agent spans
+    for child in span.children:
+        if isinstance(child, EventTreeSpan):
+            if _is_agent_span(child):
+                node = _tree_item_to_node(child, has_explicit_branches)
+                if isinstance(node, TimelineSpan) and not node.content:
+                    pass  # skip empty agent spans
+                else:
+                    into.append(node)
+            else:
+                _unroll_span(child, into, has_explicit_branches)
+        else:
+            into.append(_event_to_node(child))
+
+    # Emit span end event
+    if span.end:
+        into.append(TimelineEvent(event=span.end))
+
+
 def _process_children(
     children: list[TreeItem], has_explicit_branches: bool
 ) -> tuple[list[TimelineEvent | TimelineSpan], list[TimelineBranch]]:
@@ -658,10 +763,17 @@ def _process_children(
         # Standard processing - no branch detection at build time
         content: list[TimelineEvent | TimelineSpan] = []
         for item in children:
-            node = _tree_item_to_node(item, has_explicit_branches)
-            if isinstance(node, TimelineSpan) and not node.content:
-                continue
-            content.append(node)
+            if isinstance(item, EventTreeSpan) and not _is_agent_span(item):
+                # Unroll: dissolve non-agent span wrapper into parent.
+                # Emits span begin/end as regular events and recursively
+                # unrolls nested non-agent spans, but preserves any nested
+                # agent spans as TimelineSpan nodes.
+                _unroll_span(item, content, has_explicit_branches)
+            else:
+                node = _tree_item_to_node(item, has_explicit_branches)
+                if isinstance(node, TimelineSpan) and not node.content:
+                    continue
+                content.append(node)
         return content, []
 
     # Explicit branch mode: collect branch spans and build TimelineBranch objects
@@ -678,10 +790,13 @@ def _process_children(
         for span in branch_run:
             branch_content: list[TimelineEvent | TimelineSpan] = []
             for child in span.children:
-                node = _tree_item_to_node(child, has_explicit_branches)
-                if isinstance(node, TimelineSpan) and not node.content:
-                    continue
-                branch_content.append(node)
+                if isinstance(child, EventTreeSpan) and not _is_agent_span(child):
+                    _unroll_span(child, branch_content, has_explicit_branches)
+                else:
+                    node = _tree_item_to_node(child, has_explicit_branches)
+                    if isinstance(node, TimelineSpan) and not node.content:
+                        continue
+                    branch_content.append(node)
             branch_input = _get_branch_input(branch_content)
             forked_at = (
                 _find_forked_at(parent_content, branch_input)
@@ -698,10 +813,14 @@ def _process_children(
             if branch_run:
                 branches.extend(_flush_branch_run(branch_run, content))
                 branch_run = []
-            node = _tree_item_to_node(item, has_explicit_branches)
-            if isinstance(node, TimelineSpan) and not node.content:
-                continue
-            content.append(node)
+            if isinstance(item, EventTreeSpan) and not _is_agent_span(item):
+                # Unroll: dissolve non-agent span wrapper into parent
+                _unroll_span(item, content, has_explicit_branches)
+            else:
+                node = _tree_item_to_node(item, has_explicit_branches)
+                if isinstance(node, TimelineSpan) and not node.content:
+                    continue
+                content.append(node)
 
     if branch_run:
         branches.extend(_flush_branch_run(branch_run, content))
@@ -945,7 +1064,7 @@ def _classify_branches(
         agent: The span node to process.
         has_explicit_branches: Whether explicit branch spans exist globally.
         _is_root: Internal flag — skips root since _classify_spans already
-            ran _detect_auto_branches on it before auto-span detection.
+            ran _detect_auto_branches on it.
     """
     if not has_explicit_branches and not _is_root:
         _detect_auto_branches(agent)
@@ -960,201 +1079,6 @@ def _classify_branches(
         for item in branch.content:
             if isinstance(item, TimelineSpan):
                 _classify_branches(item, has_explicit_branches, _is_root=False)
-
-
-# =============================================================================
-# Auto-Span Detection (Conversation Threading)
-# =============================================================================
-
-
-def _get_last_assistant_message(
-    input_msgs: list[ChatMessage],
-) -> ChatMessageAssistant | None:
-    """Extract the last assistant message from a ModelEvent's input.
-
-    Args:
-        input_msgs: The input message list.
-
-    Returns:
-        The last assistant message, or None if not found.
-    """
-    for msg in reversed(input_msgs):
-        if isinstance(msg, ChatMessageAssistant):
-            return msg
-    return None
-
-
-def _get_output_fingerprint(event: ModelEvent) -> str | None:
-    """Fingerprint a ModelEvent's output message.
-
-    Python output: event.output.choices[0].message (a ChatMessage).
-
-    Args:
-        event: The ModelEvent to fingerprint.
-
-    Returns:
-        The fingerprint string, or None if no output message.
-    """
-    output = event.output
-    if not output.choices:
-        return None
-    return _message_fingerprint(output.choices[0].message)
-
-
-def _system_prompt_fingerprint(input_msgs: list[ChatMessage]) -> str:
-    """Fingerprint just the system prompt from a ModelEvent's input messages.
-
-    Args:
-        input_msgs: The input message list.
-
-    Returns:
-        Fingerprint of the system message, or empty string if none.
-    """
-    for msg in input_msgs:
-        if isinstance(msg, ChatMessageSystem):
-            return _message_fingerprint(msg)
-    return ""
-
-
-def _detect_auto_spans_for_span(span: TimelineSpan) -> None:
-    """Detect conversation threads in a single flat span and create child spans.
-
-    Uses conversation threading: tracks which ModelEvent inputs continue a prior
-    ModelEvent's output via fingerprinting. Mutates span in-place.
-
-    Args:
-        span: The span node to process.
-    """
-    # Guard: only flat content (no child TimelineSpans)
-    for item in span.content:
-        if isinstance(item, TimelineSpan):
-            return
-
-    # Guard: need at least 2 ModelEvents with output fingerprints
-    # (without output messages, threading detection cannot work)
-    model_with_output_count = sum(
-        1
-        for item in span.content
-        if isinstance(item, TimelineEvent)
-        and isinstance(item.event, ModelEvent)
-        and _get_output_fingerprint(item.event) is not None
-    )
-    if model_with_output_count < 2:
-        return
-
-    # Thread detection
-    threads: list[
-        dict[str, Any]
-    ] = []  # Each: {"items": [...], "system_prompt_fp": str}
-    output_fp_to_thread: dict[str, int] = {}  # output fingerprint → thread index
-    compaction_continue_thread: int | None = None  # thread to continue after compaction
-    preamble: list[TimelineEvent | TimelineSpan] = []
-
-    for item in span.content:
-        if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            input_msgs = list(item.event.input)
-            if input_msgs:
-                last_assistant = _get_last_assistant_message(input_msgs)
-                if last_assistant is not None:
-                    fp = _message_fingerprint(last_assistant)
-                    thread_idx = output_fp_to_thread.get(fp)
-                    if thread_idx is not None:
-                        # Match — append to existing thread
-                        threads[thread_idx]["items"].append(item)
-                        # Update output tracking
-                        del output_fp_to_thread[fp]
-                        new_output_fp = _get_output_fingerprint(item.event)
-                        if new_output_fp:
-                            output_fp_to_thread[new_output_fp] = thread_idx
-                        continue
-
-            # Check compaction continuation: same system prompt → same agent
-            sys_fp = _system_prompt_fingerprint(input_msgs)
-            if compaction_continue_thread is not None:
-                cont_fp = threads[compaction_continue_thread]["system_prompt_fp"]
-                if sys_fp == cont_fp:
-                    threads[compaction_continue_thread]["items"].append(item)
-                    new_output_fp = _get_output_fingerprint(item.event)
-                    if new_output_fp:
-                        output_fp_to_thread[new_output_fp] = compaction_continue_thread
-                    compaction_continue_thread = None
-                    continue
-                compaction_continue_thread = None
-
-            # New thread
-            threads.append({"items": [item], "system_prompt_fp": sys_fp})
-            output_fp = _get_output_fingerprint(item.event)
-            if output_fp:
-                output_fp_to_thread[output_fp] = len(threads) - 1
-        elif isinstance(item, TimelineEvent) and item.event.event == "compaction":
-            # Hard boundary: reset fingerprint tracking but preserve continuity
-            output_fp_to_thread.clear()
-            if threads:
-                threads[-1]["items"].append(item)
-                compaction_continue_thread = len(threads) - 1
-            else:
-                preamble.append(item)
-        else:
-            # Non-model event
-            if threads:
-                threads[-1]["items"].append(item)
-            else:
-                preamble.append(item)
-
-    # Only create structure if multiple threads found
-    if len(threads) <= 1:
-        return
-
-    # Name threads by prompt group (ordered by first occurrence)
-    prompt_group_order: list[str] = []
-    prompt_group_threads: dict[str, list[int]] = {}
-    for i, thread in enumerate(threads):
-        fp = thread["system_prompt_fp"]
-        if fp in prompt_group_threads:
-            prompt_group_threads[fp].append(i)
-        else:
-            prompt_group_order.append(fp)
-            prompt_group_threads[fp] = [i]
-
-    name_map: dict[int, str] = {}
-    group_num = 1
-    for fp in prompt_group_order:
-        thread_indices = prompt_group_threads[fp]
-        base_name = "Agent" if len(prompt_group_order) == 1 else f"Agent {group_num}"
-        for idx in thread_indices:
-            name_map[idx] = base_name
-        group_num += 1
-
-    # Build child spans
-    new_content: list[TimelineEvent | TimelineSpan] = list(preamble)
-    for i, thread in enumerate(threads):
-        child_span = TimelineSpan(
-            id=f"auto-span-{i}",
-            name=name_map[i],
-            span_type=None,
-            content=thread["items"],
-        )
-        new_content.append(child_span)
-
-    span.content = new_content
-
-
-def _classify_auto_spans(span: TimelineSpan) -> None:
-    """Recursively detect auto-spans via conversation threading.
-
-    Skips spans that already have child spans, recurses into children
-    (including newly created ones).
-
-    Args:
-        span: The span node to process.
-    """
-    # Try detection on this span (only works if flat)
-    _detect_auto_spans_for_span(span)
-
-    # Recurse into any child spans (including newly created ones)
-    for item in span.content:
-        if isinstance(item, TimelineSpan):
-            _classify_auto_spans(item)
 
 
 # =============================================================================
