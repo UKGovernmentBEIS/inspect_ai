@@ -403,7 +403,6 @@ async def test_deflate_compress_stream() -> None:
     assert decompressed == original_data
 
 
-@pytest.mark.asyncio
 async def test_ijson_kvitems_async_with_zip_member(tmp_path: Path) -> None:
     """Test that ijson.kvitems_async works with _ZipMemberBytes from open_member().
 

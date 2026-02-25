@@ -363,7 +363,6 @@ def _reset_async_fs_contextvar() -> None:
     _current_async_fs.set(None)
 
 
-@pytest.mark.asyncio
 async def test_context_manager_sets_contextvar() -> None:
     """Async with AsyncFilesystem() sets the ContextVar."""
     assert _current_async_fs.get() is None
@@ -371,7 +370,6 @@ async def test_context_manager_sets_contextvar() -> None:
         assert _current_async_fs.get() is fs
 
 
-@pytest.mark.asyncio
 async def test_context_manager_cleans_up_on_exit() -> None:
     """Async with AsyncFilesystem() clears the ContextVar on exit."""
     async with AsyncFilesystem():
@@ -379,7 +377,6 @@ async def test_context_manager_cleans_up_on_exit() -> None:
     assert _current_async_fs.get() is None
 
 
-@pytest.mark.asyncio
 async def test_nested_context_manager_reuses_outer() -> None:
     """Nested async with AsyncFilesystem() reuses the outer instance."""
     async with AsyncFilesystem() as outer_fs:
@@ -387,7 +384,6 @@ async def test_nested_context_manager_reuses_outer() -> None:
             assert inner_fs is outer_fs
 
 
-@pytest.mark.asyncio
 async def test_nested_context_manager_does_not_clean_up() -> None:
     """Inner async with AsyncFilesystem() does not clean up on exit."""
     async with AsyncFilesystem() as outer_fs:
@@ -399,14 +395,12 @@ async def test_nested_context_manager_does_not_clean_up() -> None:
     assert _current_async_fs.get() is None
 
 
-@pytest.mark.asyncio
 async def test_get_async_filesystem_returns_current() -> None:
     """get_async_filesystem() returns the current shared instance."""
     async with AsyncFilesystem() as fs:
         assert get_async_filesystem() is fs
 
 
-@pytest.mark.asyncio
 async def test_get_async_filesystem_raises_when_none() -> None:
     """get_async_filesystem() raises RuntimeError when no filesystem exists."""
     with pytest.raises(RuntimeError, match="No AsyncFilesystem is available"):
@@ -442,7 +436,6 @@ def test_run_coroutine_with_nest_asyncio_preserves_outer_filesystem() -> None:
     asyncio.run(outer())
 
 
-@pytest.mark.asyncio
 async def test_concurrent_tasks_share_filesystem() -> None:
     """Concurrent tasks via tg_collect share the same filesystem."""
     async with AsyncFilesystem() as fs:
