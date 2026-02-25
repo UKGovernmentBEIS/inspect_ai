@@ -129,7 +129,7 @@ export const clientApi = (
    */
   const get_log_details = async (log_file: string): Promise<LogDetails> => {
     if (isEvalFile(log_file)) {
-      const remoteLogFile = await remoteEvalFile(log_file);
+      const remoteLogFile = await remoteEvalFile(log_file, true);
       if (remoteLogFile) {
         return await remoteLogFile.readLogSummary();
       } else {
