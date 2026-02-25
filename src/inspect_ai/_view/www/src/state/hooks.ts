@@ -207,9 +207,7 @@ export const useSampleData = () => {
   const runningEvents = useStore(
     (state) => state.sample.runningEvents,
   ) as Events;
-  const downloadProgress = useStore(
-    (state) => state.sample.downloadProgress,
-  );
+  const downloadProgress = useStore((state) => state.sample.downloadProgress);
   return useMemo(() => {
     return {
       selectedSampleIdentifier,
