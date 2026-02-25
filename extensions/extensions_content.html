@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.25">
+<meta name="generator" content="quarto-1.7.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -33,15 +33,14 @@ ul.task-list li input[type="checkbox"] {
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-6776297b1bcdc1ce3e71101c0074be7c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-39d090da0106b0ca2b5dc0a7762175a2.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -93,8 +92,7 @@ ul.task-list li input[type="checkbox"] {
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../index.html" class="navbar-brand navbar-brand-logo">
-    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo light-content">
-    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo dark-content">
+    <img src="../images/aisi-logo.svg" alt="" class="navbar-logo">
     </a>
     <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Inspect AI</span>
@@ -149,11 +147,11 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#sec-tooling" id="toc-sec-tooling" class="nav-link active" data-scroll-target="#sec-tooling">Tooling</a></li>
-  <li><a href="#sec-frameworks" id="toc-sec-frameworks" class="nav-link" data-scroll-target="#sec-frameworks">Frameworks</a></li>
-  <li><a href="#sec-suites" id="toc-sec-suites" class="nav-link" data-scroll-target="#sec-suites">Suites &amp; Agents</a></li>
+  <li><a href="#sec-sandboxes" id="toc-sec-sandboxes" class="nav-link active" data-scroll-target="#sec-sandboxes">Sandboxes</a></li>
   <li><a href="#sec-analysis" id="toc-sec-analysis" class="nav-link" data-scroll-target="#sec-analysis">Analysis</a></li>
-  <li><a href="#sec-sandboxes" id="toc-sec-sandboxes" class="nav-link" data-scroll-target="#sec-sandboxes">Sandboxes</a></li>
+  <li><a href="#sec-frameworks" id="toc-sec-frameworks" class="nav-link" data-scroll-target="#sec-frameworks">Frameworks</a></li>
+  <li><a href="#sec-tooling" id="toc-sec-tooling" class="nav-link" data-scroll-target="#sec-tooling">Tooling</a></li>
+  <li><a href="#sec-evals" id="toc-sec-evals" class="nav-link" data-scroll-target="#sec-evals">Evals</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -163,175 +161,110 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="sec-tooling" class="level2">
-<h2 class="anchored" data-anchor-id="sec-tooling">Tooling</h2>
-<p>Extensions that support the development and execution of Inspect evaluations.</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Name</th>
-<th>Description</th>
-<th>Author</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><a href="https://meridianlabs-ai.github.io/inspect_flow/">Inspect Flow</a></td>
-<td>Workflow orchestration for running Inspect evaluations at scale with repeatability and maintainability.</td>
-<td><a href="https://github.com/meridianlabs-ai/inspect_flow">Meridian</a></td>
-</tr>
-<tr class="even">
-<td><a href="https://github.com/dvsrepo/evaljobs">Evaljobs</a></td>
-<td>Run evals on Hugging Face GPUs and share results and code on the Hugging Face Hub.</td>
-<td><a href="https://github.com/dvsrepo/evaljobs">Hugging Face</a></td>
-</tr>
-<tr class="odd">
-<td><a href="https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai">Inspect VS Code</a></td>
-<td>VS Code extension that assists with developing and debugging Inspect evaluations.</td>
-<td><a href="https://github.com/meridianlabs-ai/inspect-vscode">Meridian</a></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="sec-frameworks" class="level2">
-<h2 class="anchored" data-anchor-id="sec-frameworks">Frameworks</h2>
-<p>Domain-specific frameworks for building and running evaluations in areas such as cybersecurity, AI safety, and alignment.</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Name</th>
-<th>Description</th>
-<th>Author</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><a href="https://ukgovernmentbeis.github.io/inspect_cyber/">Inspect Cyber</a></td>
-<td>Python package that streamlines the process of creating agentic cyber evaluations in Inspect.</td>
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_cyber">UK AISI</a></td>
-</tr>
-<tr class="even">
-<td><a href="https://safety-research.github.io/petri/">Petri</a></td>
-<td>Framework for rapidly testing concrete alignment hypotheses end‑to‑end, including automatic generation of realistic audit scenarios.</td>
-<td><a href="https://www.anthropic.com/research/petri-open-source-auditing">Anthropic</a></td>
-</tr>
-<tr class="odd">
-<td><a href="https://github.com/UKGovernmentBEIS/control-arena">Control Arena</a></td>
-<td>Framework for running experiments on AI Control and Monitoring.</td>
-<td><a href="https://github.com/UKGovernmentBEIS/control-arena">UK AISI</a></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="sec-suites" class="level2">
-<h2 class="anchored" data-anchor-id="sec-suites">Suites &amp; Agents</h2>
-<p>Pre-built benchmark suites and agent scaffolds for running standardized evaluations.</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Name</th>
-<th>Description</th>
-<th>Author</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><a href="https://meridianlabs-ai.github.io/inspect_swe/">Inspect SWE</a></td>
-<td>Software engineering agents (Claude Code and Codex CLI) for Inspect.</td>
-<td><a href="https://github.com/meridianlabs-ai/inspect_swe">Meridian</a></td>
-</tr>
-<tr class="even">
-<td><a href="https://github.com/groq/openbench">OpenBench</a></td>
-<td>Standardized, reproducible benchmarking for LLMs across 30+ evals.</td>
-<td><a href="https://github.com/groq">Groq</a></td>
-</tr>
-<tr class="odd">
-<td><a href="https://github.com/meridianlabs-ai/inspect_harbor">Inspect Harbor</a></td>
-<td>Run Harbor RL tasks with Inspect AI, with access to 40+ registry datasets including terminal-bench, replicationbench, and compilebench.</td>
-<td><a href="https://github.com/meridianlabs-ai/inspect_harbor">Meridian</a></td>
-</tr>
-</tbody>
-</table>
+<section id="sec-sandboxes" class="level2">
+<h2 class="anchored" data-anchor-id="sec-sandboxes">Sandboxes</h2>
+<dl>
+<dt><a href="https://k8s-sandbox.aisi.org.uk/">k8s Sandbox</a> — <small><a href="https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox" style="text-decoration:none">UK AISI</a></small></dt>
+<dd>
+Python package that provides a Kubernetes sandbox environment for Inspect.
+</dd>
+<dt><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox">EC2 Sandbox</a> — <small><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox" style="text-decoration:none">UK AISI</a></small></dt>
+<dd>
+Python package that provides a EC2 virtual machine sandbox environment for Inspect.
+</dd>
+<dt><a href="https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal">Modal Sandbox</a> — <small><a href="https://github.com/meridianlabs-ai/inspect_sandboxes" style="text-decoration:none">Meridian</a></small></dt>
+<dd>
+Serverless container sandbox for Inspect using Modal’s cloud infrastructure.
+</dd>
+<dt><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">Proxmox Sandbox</a> — <small><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox" style="text-decoration:none">UK AISI</a></small></dt>
+<dd>
+Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
+</dd>
+<dt><a href="https://github.com/Dedulus/inspect-policy-sandbox">Inspect Policy Sandbox</a> — <small><a href="https://github.com/Dedulus" style="text-decoration:none">Arnab Mitra</a></small></dt>
+<dd>
+Sandbox wrapper that allows fine grained control over command execution and file I/O.
+</dd>
+</dl>
 </section>
 <section id="sec-analysis" class="level2">
 <h2 class="anchored" data-anchor-id="sec-analysis">Analysis</h2>
-<p>Tools for analyzing evaluation transcripts, visualizing results, and integrating with experiment tracking platforms.</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Name</th>
-<th>Description</th>
-<th>Author</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><a href="https://meridianlabs-ai.github.io/inspect_scout/">Inspect Scout</a></td>
-<td>Transcript analysis for Inspect evalutions.</td>
-<td><a href="https://github.com/meridianlabs-ai/inspect_scout">Meridian</a></td>
-</tr>
-<tr class="even">
-<td><a href="https://meridianlabs-ai.github.io/inspect_viz/">Inspect Viz</a></td>
-<td>Interactive data visualization for Inspect evalutions.</td>
-<td><a href="https://github.com/meridianlabs-ai/inspect_viz">Meridian</a></td>
-</tr>
-<tr class="odd">
-<td><a href="https://docs.transluce.org/">Docent</a></td>
-<td>Tools to summarize, cluster, and search over agent transcripts.</td>
-<td><a href="https://transluce.org/introducing-docent">Transluce</a></td>
-</tr>
-<tr class="even">
-<td><a href="https://docs.lunette.dev">Lunette</a></td>
-<td>Platform for understanding and improving agents.</td>
-<td><a href="https://fulcrumresearch.ai">Fulcrum Research</a></td>
-</tr>
-<tr class="odd">
-<td><a href="https://github.com/DanielPolatajko/inspect_wandb">Inspect WandB</a></td>
-<td>Integration with Weights and Biases platform.</td>
-<td><a href="https://www.arcadiaimpact.org/">Arcadia</a></td>
-</tr>
-</tbody>
-</table>
+<dl>
+<dt><a href="https://meridianlabs-ai.github.io/inspect_scout/">Inspect Scout</a> — <small><a href="https://github.com/meridianlabs-ai/inspect_scout" style="text-decoration:none">Meridian</a></small></dt>
+<dd>
+Transcript analysis for Inspect evaluations.
+</dd>
+<dt><a href="https://meridianlabs-ai.github.io/inspect_viz/">Inspect Viz</a> — <small><a href="https://github.com/meridianlabs-ai/inspect_viz" style="text-decoration:none">Meridian</a></small></dt>
+<dd>
+Interactive data visualization for Inspect evaluations.
+</dd>
+<dt><a href="https://docs.transluce.org/">Docent</a> — <small><a href="https://transluce.org/introducing-docent" style="text-decoration:none">Transluce</a></small></dt>
+<dd>
+Tools to summarize, cluster, and search over agent transcripts.
+</dd>
+<dt><a href="https://docs.lunette.dev">Lunette</a> — <small><a href="https://fulcrumresearch.ai" style="text-decoration:none">Fulcrum Research</a></small></dt>
+<dd>
+Platform for understanding and improving agents.
+</dd>
+<dt><a href="https://github.com/DanielPolatajko/inspect_wandb">Inspect WandB</a> — <small><a href="https://www.arcadiaimpact.org/" style="text-decoration:none">Arcadia</a></small></dt>
+<dd>
+Integration with Weights and Biases platform.
+</dd>
+</dl>
 </section>
-<section id="sec-sandboxes" class="level2">
-<h2 class="anchored" data-anchor-id="sec-sandboxes">Sandboxes</h2>
-<p>Alternative sandbox backends for running evaluation tool calls in cloud and on-premises infrastructure.</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Name</th>
-<th>Description</th>
-<th>Author</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><a href="https://k8s-sandbox.aisi.org.uk/">k8s Sandbox</a></td>
-<td>Python package that provides a Kubernetes sandbox environment for Inspect.</td>
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_k8s_sandbox">UK AISI</a></td>
-</tr>
-<tr class="even">
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox">EC2 Sandbox</a></td>
-<td>Python package that provides a EC2 virtual machine sandbox environment for Inspect.</td>
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox">UK AISI</a></td>
-</tr>
-<tr class="odd">
-<td><a href="https://github.com/meridianlabs-ai/inspect_sandboxes/tree/main/src/inspect_sandboxes/modal">Modal Sandbox</a></td>
-<td>Serverless container sandbox for Inspect using Modal’s cloud infrastructure.</td>
-<td><a href="https://github.com/meridianlabs-ai/inspect_sandboxes">Meridian</a></td>
-</tr>
-<tr class="even">
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">Proxmox Sandbox</a></td>
-<td>Use virtual machines, running within a <a href="https://www.proxmox.com/en/products/proxmox-virtual-environment/overview">Proxmox</a> instance, as Inspect sandboxes.</td>
-<td><a href="https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox">UK AISI</a></td>
-</tr>
-<tr class="odd">
-<td><a href="https://github.com/Dedulus/inspect-policy-sandbox">Inspect Policy Sandbox</a></td>
-<td>Policy enforced sandbox wrapper for Inspect AI that allows fine grained control over command execution and file I/O without modifying core sandbox backends.</td>
-<td><a href="https://github.com/Dedulus">Arnab Mitra</a></td>
-</tr>
-</tbody>
-</table>
+<section id="sec-frameworks" class="level2">
+<h2 class="anchored" data-anchor-id="sec-frameworks">Frameworks</h2>
+<dl>
+<dt><a href="https://meridianlabs-ai.github.io/inspect_swe/">Inspect SWE</a> — <small><a href="https://github.com/meridianlabs-ai/inspect_swe" style="text-decoration:none">Meridian</a></small></dt>
+<dd>
+Software engineering agents (Claude Code and Codex CLI) for Inspect.
+</dd>
+<dt><a href="https://ukgovernmentbeis.github.io/inspect_cyber/">Inspect Cyber</a> — <small><a href="https://github.com/UKGovernmentBEIS/inspect_cyber" style="text-decoration:none">UK AISI</a></small></dt>
+<dd>
+Python package that streamlines the process of creating agentic cyber evaluations in Inspect.
+</dd>
+<dt><a href="https://safety-research.github.io/petri/">Petri</a> — <small><a href="https://www.anthropic.com/research/petri-open-source-auditing" style="text-decoration:none">Anthropic</a></small></dt>
+<dd>
+Framework testing alignment hypotheses end‑to‑end, including automatic scenario generation.
+</dd>
+<dt><a href="https://github.com/UKGovernmentBEIS/control-arena">Control Arena</a> — <small><a href="https://github.com/UKGovernmentBEIS/control-arena" style="text-decoration:none">UK AISI</a></small></dt>
+<dd>
+Framework for running experiments on AI Control and Monitoring.
+</dd>
+</dl>
+</section>
+<section id="sec-tooling" class="level2">
+<h2 class="anchored" data-anchor-id="sec-tooling">Tooling</h2>
+<dl>
+<dt><a href="https://meridianlabs-ai.github.io/inspect_flow/">Inspect Flow</a> — <small><a href="https://github.com/meridianlabs-ai/inspect_flow" style="text-decoration:none">Meridian</a></small></dt>
+<dd>
+Workflow orchestration for reprocibly running evals at scale.
+</dd>
+<dt><a href="https://github.com/dvsrepo/evaljobs">Evaljobs</a> — <small><a href="https://github.com/dvsrepo/evaljobs" style="text-decoration:none">Hugging Face</a></small></dt>
+<dd>
+Run evals on Hugging Face GPUs and share results and code on the Hugging Face Hub.
+</dd>
+<dt><a href="https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai">Inspect VS Code</a> — <small><a href="https://github.com/meridianlabs-ai/inspect-vscode" style="text-decoration:none">Meridian</a></small></dt>
+<dd>
+VS Code extension that assists with developing and debugging Inspect evaluations.
+</dd>
+</dl>
+</section>
+<section id="sec-evals" class="level2">
+<h2 class="anchored" data-anchor-id="sec-evals">Evals</h2>
+<dl>
+<dt><a href="https://ukgovernmentbeis.github.io/inspect_evals/">Inspect Evals</a> — <small><a href="https://github.com/UKGovernmentBEIS/inspect_evals" style="text-decoration:none">UK AISI</a></small></dt>
+<dd>
+Over 1000 LLM evaluations covering safety, coding, reasoning, knowledge, and agent capabilities.
+</dd>
+<dt><a href="https://github.com/groq/openbench">OpenBench</a> — <small><a href="https://github.com/groq" style="text-decoration:none">Groq</a></small></dt>
+<dd>
+Standardized, reproducible benchmarking for LLMs across 30+ evals.
+</dd>
+<dt><a href="https://github.com/meridianlabs-ai/inspect_harbor">Inspect Harbor</a> — <small><a href="https://github.com/meridianlabs-ai/inspect_harbor" style="text-decoration:none">Meridian</a></small></dt>
+<dd>
+Evals from Harbor framework including terminal-bench, replicationbench, and compilebench.
+</dd>
+</dl>
 
 
 </section>
@@ -388,14 +321,13 @@ ul.task-list li input[type="checkbox"] {
       e.clearSelection();
     }
     const getTextToCopy = function(trigger) {
-      const outerScaffold = trigger.parentElement.cloneNode(true);
-      const codeEl = outerScaffold.querySelector('code');
-      for (const childEl of codeEl.children) {
-        if (isCodeAnnotation(childEl)) {
-          childEl.remove();
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
         }
-      }
-      return codeEl.innerText;
+        return codeEl.innerText;
     }
     const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
       text: getTextToCopy

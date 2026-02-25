@@ -89,100 +89,104 @@
     <lastmod>2025-10-22T23:18:40.691Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/parallelism.html</loc>
-    <lastmod>2025-12-01T02:33:10.653Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/extensions/index.html</loc>
+    <lastmod>2026-02-25T15:36:38.239Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/reasoning.html</loc>
-    <lastmod>2026-02-05T20:55:58.917Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/human-agent.html</loc>
-    <lastmod>2025-10-22T23:18:40.692Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/compaction.html</loc>
-    <lastmod>2026-02-06T19:41:28.051Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/tools-mcp.html</loc>
-    <lastmod>2025-10-22T23:18:40.711Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/multimodal.html</loc>
-    <lastmod>2025-12-13T13:11:58.546Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/agent-custom.html</loc>
-    <lastmod>2026-02-11T21:15:46.533Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/CHANGELOG.html</loc>
-    <lastmod>2026-02-23T22:34:14.672Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/tools.html</loc>
-    <lastmod>2025-10-22T23:18:40.711Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/tutorial.html</loc>
-    <lastmod>2025-12-27T12:54:16.109Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/evals/index.html</loc>
-    <lastmod>2025-12-31T12:55:51.211Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/tasks.html</loc>
-    <lastmod>2026-01-16T12:32:24.664Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/solvers.html</loc>
-    <lastmod>2025-10-22T23:18:40.711Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/vscode.html</loc>
-    <lastmod>2025-10-22T23:18:40.711Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/agents.html</loc>
-    <lastmod>2026-02-13T22:38:08.881Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/approval.html</loc>
-    <lastmod>2025-10-22T23:18:40.690Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/sandboxing.html</loc>
-    <lastmod>2026-02-23T21:32:40.180Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/log-viewer.html</loc>
-    <lastmod>2025-12-24T12:12:23.403Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/models.html</loc>
-    <lastmod>2025-12-29T20:52:46.497Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/agent-bridge.html</loc>
-    <lastmod>2026-02-13T22:38:08.881Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/scorers.html</loc>
-    <lastmod>2026-02-21T10:19:34.063Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/index.html</loc>
+    <lastmod>2026-02-25T15:28:24.195Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/typing.html</loc>
     <lastmod>2025-10-22T23:18:40.711Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/index.html</loc>
-    <lastmod>2026-02-18T10:25:23.417Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/scorers.html</loc>
+    <lastmod>2026-02-24T17:52:27.884Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/extensions/index.html</loc>
-    <lastmod>2026-02-23T21:32:40.180Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/agent-bridge.html</loc>
+    <lastmod>2026-02-13T22:38:08.881Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/models.html</loc>
+    <lastmod>2025-12-29T20:52:46.497Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/log-viewer.html</loc>
+    <lastmod>2025-12-24T12:12:23.403Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/sandboxing.html</loc>
+    <lastmod>2026-02-25T15:10:41.210Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/approval.html</loc>
+    <lastmod>2025-10-22T23:18:40.690Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/agents.html</loc>
+    <lastmod>2026-02-13T22:38:08.881Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/vscode.html</loc>
+    <lastmod>2025-10-22T23:18:40.711Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/solvers.html</loc>
+    <lastmod>2025-10-22T23:18:40.711Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tasks.html</loc>
+    <lastmod>2026-01-16T12:32:24.664Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/evals/index.html</loc>
+    <lastmod>2025-12-31T12:55:51.211Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tutorial.html</loc>
+    <lastmod>2025-12-27T12:54:16.109Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tools.html</loc>
+    <lastmod>2025-10-22T23:18:40.711Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/CHANGELOG.html</loc>
+    <lastmod>2026-02-25T15:10:34.513Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/agent-custom.html</loc>
+    <lastmod>2026-02-11T21:15:46.533Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/multimodal.html</loc>
+    <lastmod>2025-12-13T13:11:58.546Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tools-mcp.html</loc>
+    <lastmod>2025-10-22T23:18:40.711Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/compaction.html</loc>
+    <lastmod>2026-02-06T19:41:28.051Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/human-agent.html</loc>
+    <lastmod>2025-10-22T23:18:40.692Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/reasoning.html</loc>
+    <lastmod>2026-02-05T20:55:58.917Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/parallelism.html</loc>
+    <lastmod>2025-12-01T02:33:10.653Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/extensions/extensions_content.html</loc>
+    <lastmod>2026-02-25T15:40:00.555Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/caching.html</loc>
@@ -190,7 +194,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/providers.html</loc>
-    <lastmod>2026-02-22T22:56:41.225Z</lastmod>
+    <lastmod>2026-02-25T15:10:34.514Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/tools-custom.html</loc>
@@ -250,7 +254,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.event.html</loc>
-    <lastmod>2026-02-15T00:01:14.129Z</lastmod>
+    <lastmod>2026-02-24T14:13:25.186Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.agent.html</loc>
@@ -262,7 +266,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.util.html</loc>
-    <lastmod>2026-02-23T12:33:32.292Z</lastmod>
+    <lastmod>2026-02-24T17:52:27.884Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/early-stopping.html</loc>

@@ -1000,8 +1000,17 @@ When rescoring a previously scored log file you have two options:
     the log file, removing the old results.
 
 You can choose which mode to use based on whether you want to preserve
-or discard the previous scoring data. To control this, use the
-`--action` arg:
+or discard the previous scoring data.
+
+> [!NOTE]
+>
+> When using append mode, the new scorer uses its own metrics
+> independently—the original eval’s metric configuration is not applied
+> to the appended scorer. This means append works even when the original
+> eval used metrics from packages that are not available in the current
+> environment.
+
+To control this, use the `--action` arg:
 
 ``` bash
 # append scores from custom scorer
