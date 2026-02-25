@@ -45,7 +45,11 @@ export const ApplicationNavbar: FC<ApplicationNavbarProps> = ({
   }, [showActivity, loading, sampleStatus]);
 
   const sampleProgress = useMemo(() => {
-    if (sampleStatus === "loading" && downloadProgress && downloadProgress.bytesTotal > 0) {
+    if (
+      sampleStatus === "loading" &&
+      downloadProgress &&
+      downloadProgress.bytesTotal > 0
+    ) {
       return downloadProgress.bytesLoaded / downloadProgress.bytesTotal;
     }
     return undefined;
