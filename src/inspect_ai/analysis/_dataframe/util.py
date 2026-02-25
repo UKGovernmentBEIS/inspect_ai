@@ -8,7 +8,8 @@ from pathlib import Path
 from re import Pattern
 from typing import TYPE_CHECKING, Sequence, TypeAlias, cast
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem, run_tg_collect_with_fs
+from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
@@ -80,8 +81,9 @@ def resolve_logs(
     ]
 
     # expand directories
-    async def expand_log(log_str: str, async_fs: AsyncFilesystem) -> list[FileInfo]:
-        info = await async_fs.info(log_str)
+    async def expand_log(log_str: str) -> list[FileInfo]:
+        async with AsyncFilesystem() as async_fs:
+            info = await async_fs.info(log_str)
         if info.type == "directory":
             fs = filesystem(log_str)
             return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
@@ -90,7 +92,7 @@ def resolve_logs(
 
     log_paths = list(
         chain.from_iterable(
-            run_tg_collect_with_fs([partial(expand_log, s) for s in logs_str])
+            run_coroutine(tg_collect([partial(expand_log, s) for s in logs_str]))
         )
     )
 

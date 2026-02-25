@@ -127,6 +127,20 @@ def test_read_sample_by_uuid():
         assert sampleA.input == sampleB.input
 
 
+def test_read_sample_with_exclude_fields():
+    eval_log_file = os.path.join(
+        "tests", "log", "test_eval_log", "log_read_sample.eval"
+    )
+    sample = read_eval_log_sample(
+        eval_log_file, id=1, epoch=1, exclude_fields={"store", "events"}
+    )
+    assert sample.id == 1
+    assert sample.epoch == 1
+    assert sample.input is not None
+    assert not sample.store
+    assert not sample.events
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)
@@ -410,3 +424,73 @@ def test_progress_called_with_read_eval_log_headers():
     assert progress.total == len(log_files)
     assert len(progress.read_files) == len(log_files)
     assert len(headers) == len(log_files)
+
+
+# =============================================================================
+# Tests that verify eval log reading works under the Trio backend.
+#
+# NOTE: We use anyio.run(backend="trio") directly rather than
+# @pytest.mark.anyio because pytest-asyncio's asyncio_mode=auto
+# intercepts the [trio] variant and runs it under asyncio, masking the bug.
+# =============================================================================
+
+
+def test_read_eval_log_header_trio():
+    """Test reading .eval log header works under the Trio backend."""
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_async
+
+    eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            log = await read_eval_log_async(eval_log_file, header_only=True)
+
+        assert log.eval is not None
+        assert log.status is not None
+        assert log.samples is None  # header_only
+
+    anyio.run(main, backend="trio")
+
+
+def test_read_eval_log_full_trio():
+    """Test reading full .eval log works under the Trio backend."""
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_async
+
+    eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            log = await read_eval_log_async(eval_log_file)
+
+        assert log.eval is not None
+        assert log.samples is not None
+        assert len(log.samples) > 0
+
+    anyio.run(main, backend="trio")
+
+
+def test_read_eval_log_sample_trio():
+    """Test reading a sample from .eval log works under the Trio backend."""
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_sample_async
+
+    eval_log_file = os.path.join(
+        "tests", "log", "test_eval_log", "log_read_sample.eval"
+    )
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            sample = await read_eval_log_sample_async(eval_log_file, id=1, epoch=1)
+
+        assert sample.id == 1
+        assert sample.epoch == 1
+
+    anyio.run(main, backend="trio")

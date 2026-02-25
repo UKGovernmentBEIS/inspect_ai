@@ -1749,6 +1749,7 @@ doc = [
     { name = "griffe" },
     { name = "jupyter" },
     { name = "markdown" },
+    { name = "nbclient" },
     { name = "panflute" },
     { name = "quarto-cli" },
 ]
@@ -1798,6 +1799,7 @@ requires-dist = [
     { name = "mmh3", specifier = ">3.1.0" },
     { name = "moto", extras = ["server"], marker = "extra == 'dev'" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.0" },
+    { name = "nbclient", marker = "extra == 'doc'" },
     { name = "nbformat", marker = "extra == 'dev'" },
     { name = "nest-asyncio2", specifier = ">=1.7.2" },
     { name = "numpy" },

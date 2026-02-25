@@ -27,6 +27,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
+from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     DEFAULT_LOG_FORMAT,
@@ -286,7 +287,7 @@ def eval(
             else:
                 raise
 
-    return task_display().run_task_app(run_task_app)
+    return task_display().run_task_app(with_async_fs(run_task_app))
 
 
 # single call to eval_async at a time
@@ -892,7 +893,7 @@ def eval_retry(
             max_connections=max_connections,
         )
 
-    return task_display().run_task_app(run_task_app)
+    return task_display().run_task_app(with_async_fs(run_task_app))
 
 
 async def eval_retry_async(
