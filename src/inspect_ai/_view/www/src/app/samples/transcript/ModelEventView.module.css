@@ -1,10 +1,11 @@
 .modelCard {
   background-color: #f5f6fc;
   border-color: #e0e2f0;
+  padding-bottom: 0.2rem;
 }
 
 .container {
-  margin: 0.5em 0 0 0;
+  margin: 0;
   width: 100%;
 }
 
