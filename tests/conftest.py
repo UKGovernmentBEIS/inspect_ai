@@ -78,7 +78,7 @@ def pytest_collection_modifyitems(config, items):
                 f"{item.nodeid}: Use @pytest.mark.anyio instead of @pytest.mark.asyncio"
             )
 
-    if not config.getoption("--runtrio"):
+    if not config.getoption("--runtrio") and not config.getoption("--runslow"):
         skip_trio = pytest.mark.skip(reason="need --runtrio option to run")
         for item in items:
             if "[trio]" in item.nodeid:

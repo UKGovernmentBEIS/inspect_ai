@@ -287,10 +287,17 @@ def skip_if_async_backend(backend):
     This is a runtime check using sniffio so it works correctly with anyio's
     parametrised [asyncio]/[trio] variants (unlike pytest.mark.skipif which
     evaluates at collection time before the backend is known).
+
+    For sync functions this is a no-op — they never run under an async backend.
     """
+    import inspect
+
     import sniffio
 
     def decorator(func):
+        if not inspect.iscoroutinefunction(func):
+            return func
+
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             if sniffio.current_async_library() == backend:
