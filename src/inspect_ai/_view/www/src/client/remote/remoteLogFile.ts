@@ -1,5 +1,6 @@
 import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../../@types/log";
 import { clearLargeEventsArray } from "../../utils/clear-events-preprocessor";
+import { fetchRange } from "../../utils/http";
 import { asyncJsonParseBytes } from "../../utils/json-worker";
 import { AsyncQueue } from "../../utils/queue";
 import {
@@ -7,15 +8,14 @@ import {
   LogDetails,
   LogPreview,
   LogViewAPI,
+  ProgressCallback,
   SampleSummary,
 } from "../api/types";
 import { toLogPreview } from "../utils/type-utils";
 import {
   CentralDirectoryEntry,
-  fetchRange,
   FileSizeLimitError,
   openRemoteZipFile,
-  ProgressCallback,
 } from "./remoteZipFile";
 
 const OPEN_RETRY_LIMIT = 5;
@@ -68,19 +68,17 @@ export const openRemoteLogFile = async (
   const logInfo = await api.get_log_info(url);
   const fetchContentLength = async (_url: string) => logInfo.size;
 
-  let fetchBytes: (url: string, start: number, end: number) => Promise<Uint8Array>;
-  if (logInfo.direct_url) {
-    fetchBytes = async (_url: string, start: number, end: number) => {
+  const directUrl = logInfo.direct_url;
+  const fetchBytes = async (_url: string, start: number, end: number): Promise<Uint8Array> => {
+    if (directUrl) {
       try {
-        return await fetchRange(logInfo.direct_url!, start, end);
-      } catch {
-        return api.get_log_bytes(url, start, end);
+        return await fetchRange(directUrl, start, end);
+      } catch (e) {
+        console.warn("Direct URL fetch failed, falling back to proxy", e);
       }
-    };
-  } else {
-    fetchBytes = async (_url: string, start: number, end: number) =>
-      api.get_log_bytes(url, start, end);
-  }
+    }
+    return api.get_log_bytes(url, start, end);
+  };
 
   let remoteZipFile:
     | {

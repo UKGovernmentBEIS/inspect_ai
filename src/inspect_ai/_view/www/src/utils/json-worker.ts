@@ -152,11 +152,7 @@ export const asyncJsonParse = async <T>(text: string): Promise<T> => {
 export const asyncJsonParseBytes = async <T>(data: Uint8Array): Promise<T> => {
   if (data.length < 50000) {
     const text = new TextDecoder("utf-8").decode(data);
-    try {
-      return JSON.parse(text);
-    } catch {
-      return JSON5.parse(text);
-    }
+    return jsonParse<T>(text);
   } else {
     return workerPool.parseBytes(data);
   }

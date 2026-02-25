@@ -6,10 +6,7 @@ import {
   RemoteLogFile,
   SampleNotFoundError,
 } from "../remote/remoteLogFile";
-import {
-  FileSizeLimitError,
-  ProgressCallback,
-} from "../remote/remoteZipFile";
+import { FileSizeLimitError } from "../remote/remoteZipFile";
 import {
   ClientAPI,
   LogContents,
@@ -19,6 +16,7 @@ import {
   LogRoot,
   LogViewAPI,
   PendingSampleResponse,
+  ProgressCallback,
   SampleDataResponse,
 } from "./types";
 
