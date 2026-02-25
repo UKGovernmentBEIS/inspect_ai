@@ -1,6 +1,7 @@
 ## Unreleased
 
 - vLLM: Support for LoRA (Low-Rank Adaptation) via `--enable-lora` server option and LoRA-tuned server startup logic.
+- Sandbox Tools: Increase server startup timeout from 20 seconds to 120 seconds.
 
 ## 0.3.183 (24 February 2026)
 
