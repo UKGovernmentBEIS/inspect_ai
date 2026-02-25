@@ -42,6 +42,20 @@ export const ChatMessage: FC<ChatMessageProps> = memo(
     const collapse = message.role === "system" || message.role === "user";
     const hideRole = hideRoleForRoles?.includes(message.role) ?? false;
 
+    // When the role header is hidden, skip rendering if there's no visible
+    // text content (e.g. assistant messages with only tool_calls).
+    if (hideRole) {
+      const content = message.content;
+      const hasVisibleContent =
+        typeof content === "string"
+          ? content.trim().length > 0
+          : Array.isArray(content) &&
+            content.some((c) => c.type !== "tool_use");
+      if (!hasVisibleContent) {
+        return null;
+      }
+    }
+
     const [mouseOver, setMouseOver] = useState(false);
 
     return (
