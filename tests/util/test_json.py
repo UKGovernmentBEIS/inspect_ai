@@ -1,6 +1,16 @@
+import io
 import json
+import math
 
-from inspect_ai._util.json import json_changes, to_json_str_safe
+import pytest
+
+from inspect_ai._util.json import (
+    _abuild_json_value,
+    _askip_json_value,
+    aload_json_exclude,
+    json_changes,
+    to_json_str_safe,
+)
 from inspect_ai.dataset._sources.json import (
     json_dataset_reader,
     jsonlines_dataset_reader,
@@ -308,3 +318,100 @@ def test_json_dataset_reader_kwargs(tmp_path):
     assert result == [
         {"x": None, "y": float("inf"), "z": float("-inf"), "a": "5", "b": 5}
     ]
+
+
+class _AsyncBytesIO:
+    """Minimal async reader wrapping BytesIO, for testing."""
+
+    def __init__(self, data: bytes) -> None:
+        self._buf = io.BytesIO(data)
+
+    async def read(self, size: int) -> bytes:
+        return self._buf.read(size)
+
+
+@pytest.mark.parametrize(
+    "json_str,expected",
+    [
+        ("42", 42),
+        ('"hello"', "hello"),
+        ("null", None),
+        ("true", True),
+        ("[]", []),
+        ("{}", {}),
+        ("[1, 2, 3]", [1, 2, 3]),
+        ('{"a": 1, "b": [2, 3]}', {"a": 1, "b": [2, 3]}),
+        ('{"nested": {"deep": [{"x": 1}]}}', {"nested": {"deep": [{"x": 1}]}}),
+    ],
+)
+@pytest.mark.anyio
+async def test_build_json_value(json_str: str, expected: object) -> None:
+    import ijson  # type: ignore
+
+    events = ijson.parse_async(_AsyncBytesIO(json_str.encode()), use_float=True)
+    it = events.__aiter__()
+    _, event, value = await it.__anext__()
+    result = await _abuild_json_value(event, value, it)
+    assert result == expected
+
+
+@pytest.mark.anyio
+async def test_skip_json_value() -> None:
+    import ijson
+
+    data = b'{"skip": {"nested": [1,2,3]}, "keep": 42}'
+    events = ijson.parse_async(_AsyncBytesIO(data), use_float=True)
+    it = events.__aiter__()
+    _, ev, _ = await it.__anext__()
+    assert ev == "start_map"
+    _, ev, key1 = await it.__anext__()
+    assert key1 == "skip"
+    await _askip_json_value(it)
+    _, ev, key2 = await it.__anext__()
+    assert key2 == "keep"
+    _, ev2, val2 = await it.__anext__()
+    result = await _abuild_json_value(ev2, val2, it)
+    assert result == 42
+
+
+@pytest.mark.parametrize(
+    "json_bytes,exclude,expected",
+    [
+        (b'{"a": 1, "b": [2, 3], "c": "hello"}', {"b"}, {"a": 1, "c": "hello"}),
+        (b'{"a": 1, "b": 2, "c": 3, "d": 4}', {"b", "d"}, {"a": 1, "c": 3}),
+        (
+            b'{"keep": "yes", "skip": {"deep": {"nested": [1, 2, {"x": true}]}}}',
+            {"skip"},
+            {"keep": "yes"},
+        ),
+        (b'{"a": 1, "b": 2}', set(), {"a": 1, "b": 2}),
+        (b'{"a": 1, "b": 2}', {"a", "b"}, {}),
+        (b'{"a": 1}', {"nonexistent"}, {"a": 1}),
+    ],
+)
+@pytest.mark.anyio
+async def test_load_json_exclude(
+    json_bytes: bytes, exclude: set[str], expected: dict[str, object]
+) -> None:
+    result = await aload_json_exclude(_AsyncBytesIO(json_bytes), exclude)
+    assert result == expected
+
+
+@pytest.mark.anyio
+async def test_load_json_exclude_nan_inf_fallback():
+    data = b'{"a": NaN, "b": 2, "skip": [1, 2, 3]}'
+
+    async def fallback() -> bytes:
+        return data
+
+    result = await aload_json_exclude(_AsyncBytesIO(data), {"skip"}, fallback)
+    assert math.isnan(result["a"])
+    assert result["b"] == 2
+    assert "skip" not in result
+
+
+@pytest.mark.anyio
+async def test_load_json_exclude_non_object_root():
+    data = b"[1, 2, 3]"
+    with pytest.raises(ValueError, match="Expected start_map"):
+        await aload_json_exclude(_AsyncBytesIO(data), {"x"})

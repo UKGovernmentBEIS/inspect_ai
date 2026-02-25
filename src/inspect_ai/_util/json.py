@@ -1,4 +1,6 @@
+import json
 import re
+from collections.abc import AsyncIterator
 from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
@@ -46,6 +48,110 @@ def is_ijson_nan_inf_error(
         or "invalid char in json text" in error_msg
         or "unexpected symbol" in error_msg
     )
+
+
+async def aload_json_exclude(
+    async_reader: Any, exclude_fields: set[str], full_content_fallback: Any = None
+) -> dict[str, Any]:
+    """Async-load a JSON object, skipping excluded top-level fields.
+
+    Uses ``ijson.parse_async`` for streaming parse so excluded fields
+    (e.g. large ``events`` arrays) are never materialised.
+
+    Falls back to ``json.loads`` on the full content when ijson encounters
+    NaN/Inf values it cannot handle.
+
+    Args:
+        async_reader: Async file-like object with ``read(size)`` method
+            (e.g. from ``adapt_to_reader``).
+        exclude_fields: Top-level keys whose values should be skipped.
+        full_content_fallback: An async callable returning ``bytes`` of the
+            full member content for the NaN/Inf fallback path.  If ``None``
+            the NaN/Inf error is re-raised.
+    """
+    import ijson  # type: ignore
+    from ijson import IncompleteJSONError
+    from ijson.backends.python import (  # type: ignore[import-untyped]
+        UnexpectedSymbol,
+    )
+
+    try:
+        parser = ijson.parse_async(async_reader, use_float=True)
+        events = parser.__aiter__()
+        _, event, _ = await events.__anext__()
+        if event != "start_map":
+            raise ValueError(f"Expected start_map event at root, got: {event}")
+
+        data: dict[str, Any] = {}
+        async for _, event, value in events:
+            if event == "end_map":
+                break
+            if event != "map_key":
+                raise ValueError(f"Expected map_key event, got: {event}")
+            key = value
+            if key in exclude_fields:
+                await _askip_json_value(events)
+            else:
+                _, next_event, next_value = await events.__anext__()
+                data[key] = await _abuild_json_value(next_event, next_value, events)
+    except (
+        ValueError,
+        IncompleteJSONError,
+        UnexpectedSymbol,
+    ) as ex:
+        if is_ijson_nan_inf_error(ex) and full_content_fallback is not None:
+            raw = await full_content_fallback()
+            data = json.loads(raw)
+            for field in exclude_fields:
+                data.pop(field, None)
+        else:
+            raise
+    return data
+
+
+async def _askip_json_value(
+    events: AsyncIterator[tuple[str, str, Any]],
+) -> None:
+    """Skip the next JSON value from an async ijson parse stream."""
+    _, event, _ = await events.__anext__()
+    if event in ("null", "boolean", "number", "string"):
+        return
+    depth = 1
+    async for _, event, _ in events:
+        if event in ("start_map", "start_array"):
+            depth += 1
+        elif event in ("end_map", "end_array"):
+            depth -= 1
+            if depth == 0:
+                return
+    raise ValueError("Truncated JSON: unexpected end of stream while skipping value")
+
+
+async def _abuild_json_value(
+    event: str, value: Any, events: AsyncIterator[tuple[str, str, Any]]
+) -> Any:
+    """Build a Python value from an async ijson parse stream."""
+    if event in ("null", "boolean", "number", "string"):
+        return value
+    elif event == "start_array":
+        arr: list[Any] = []
+        async for _, ev, val in events:
+            if ev == "end_array":
+                return arr
+            arr.append(await _abuild_json_value(ev, val, events))
+        raise ValueError("Unterminated JSON array")
+    elif event == "start_map":
+        obj: dict[str, Any] = {}
+        async for _, ev, val in events:
+            if ev == "end_map":
+                return obj
+            if ev != "map_key":
+                raise ValueError(f"Expected map_key event, got: {ev}")
+            key = val
+            _, next_ev, next_val = await events.__anext__()
+            obj[key] = await _abuild_json_value(next_ev, next_val, events)
+        raise ValueError("Unterminated JSON object")
+    raise ValueError(f"Unexpected ijson event: {event}")
 
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]

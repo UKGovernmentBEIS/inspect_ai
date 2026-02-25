@@ -10,6 +10,7 @@
 - Timelines: Improve agent detection logic in `timeline_build()`.
 - Performance: Share a single `AsyncFilesystem` via ContextVar within each async context, eliminating redundant S3 client creation and connection pool fragmentation.
 - Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
+- Eval Logs: Extract reusable `aload_json_exclude()` async streaming JSON utility for efficient partial log reads.
 
 ## 0.3.183 (24 February 2026)
 
