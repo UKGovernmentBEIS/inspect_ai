@@ -6,13 +6,11 @@ from anyio import EndOfStream
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 
+
 # =============================================================================
 # Tests for read_file_bytes() with local files
 # Code path: LocalFileStream (uses AnyIO async file operations)
 # =============================================================================
-
-
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_basic_chunking():
     """Test read_file_bytes with local files and basic chunked reading."""
     test_data = b"Hello, World!"
@@ -42,7 +40,6 @@ async def test_local_read_file_bytes_basic_chunking():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_read_all_at_once():
     """Test reading entire range at once from local file."""
     test_data = b"0123456789"
@@ -66,7 +63,6 @@ async def test_local_read_file_bytes_read_all_at_once():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_empty_range():
     """Test reading empty byte range from local file."""
     test_data = b"0123456789"
@@ -87,7 +83,6 @@ async def test_local_read_file_bytes_empty_range():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_with_offset():
     """Test read_file_bytes with start/end offsets on local file."""
     test_data = b"0123456789ABCDEFGHIJ"
@@ -114,7 +109,6 @@ async def test_local_read_file_bytes_with_offset():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_small_chunks():
     """Test read_file_bytes with very small chunk sizes on local file."""
     test_data = b"0123456789"
@@ -141,7 +135,6 @@ async def test_local_read_file_bytes_small_chunks():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_large_file():
     """Test read_file_bytes with larger local file and multiple chunks."""
     test_data = b"0123456789" * 100  # 1000 bytes
@@ -174,9 +167,6 @@ async def test_local_read_file_bytes_large_file():
 # Tests for read_file_bytes_fully() with local files
 # This function reads a byte range and consumes it fully into bytes
 # =============================================================================
-
-
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_fully_basic():
     """Test read_file_bytes_fully with basic byte range."""
     test_data = b"Hello, World!"
@@ -193,7 +183,6 @@ async def test_local_read_file_bytes_fully_basic():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_fully_with_offset():
     """Test read_file_bytes_fully with start/end offsets."""
     test_data = b"0123456789ABCDEFGHIJ"
@@ -210,7 +199,6 @@ async def test_local_read_file_bytes_fully_with_offset():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_fully_empty_range():
     """Test read_file_bytes_fully with empty byte range."""
     test_data = b"0123456789"
@@ -227,7 +215,6 @@ async def test_local_read_file_bytes_fully_empty_range():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_fully_large_file():
     """Test read_file_bytes_fully with larger file."""
     test_data = b"0123456789" * 1000  # 10,000 bytes
@@ -245,7 +232,6 @@ async def test_local_read_file_bytes_fully_large_file():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file_bytes_fully_entire_file():
     """Test read_file_bytes_fully reading entire file."""
     test_data = b"Test content for full file read"
@@ -265,9 +251,6 @@ async def test_local_read_file_bytes_fully_entire_file():
 # =============================================================================
 # Tests for info() with local files
 # =============================================================================
-
-
-@pytest.mark.asyncio
 async def test_local_info_file():
     """Test info() returns correct FileInfo for a local file."""
     test_data = b"Hello, World!"
@@ -287,7 +270,6 @@ async def test_local_info_file():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_info_directory():
     """Test info() returns correct FileInfo for a local directory."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -297,7 +279,6 @@ async def test_local_info_directory():
             assert info.name.endswith(Path(temp_dir).name)
 
 
-@pytest.mark.asyncio
 async def test_local_info_size_matches_get_size():
     """Test that info().size matches get_size() for local files."""
     test_data = b"0123456789" * 50  # 500 bytes
@@ -315,7 +296,6 @@ async def test_local_info_size_matches_get_size():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_get_size():
     """Test AsyncFilesystem.get_size with local files."""
     test_data = b"0123456789" * 50  # 500 bytes
@@ -332,7 +312,6 @@ async def test_local_get_size():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_local_read_file():
     """Test AsyncFilesystem.read_file with local files."""
     test_data = b"Hello, World!"
@@ -349,7 +328,6 @@ async def test_local_read_file():
         Path(temp_path).unlink()
 
 
-@pytest.mark.asyncio
 async def test_write_file_local():
     """Test AsyncFilesystem.write_file with local files."""
     test_data = b"Test write data"

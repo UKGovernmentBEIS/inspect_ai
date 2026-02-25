@@ -1,6 +1,5 @@
 """Tests for OpenAI model API conversion functions."""
 
-import pytest
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessage,
@@ -32,7 +31,6 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model_output import ModelOutput
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_basic() -> None:
     """Test basic ChatCompletion conversion to ModelOutput."""
     completion = ChatCompletion(
@@ -72,7 +70,6 @@ async def test_model_output_from_openai_basic() -> None:
     assert result.usage.total_tokens == 30
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_with_tool_calls() -> None:
     """Test ChatCompletion with tool calls conversion."""
     from openai.types.chat.chat_completion_message_function_tool_call import (
@@ -125,7 +122,6 @@ async def test_model_output_from_openai_with_tool_calls() -> None:
     assert message.tool_calls[0].function == "get_weather"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_dict_input() -> None:
     """Test conversion from dict representation of ChatCompletion."""
     completion_dict = {
@@ -155,7 +151,6 @@ async def test_model_output_from_openai_dict_input() -> None:
     assert result.choices[0].message.content == "Test response"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_basic() -> None:
     """Test basic Response conversion to ModelOutput."""
     response = Response.model_construct(
@@ -205,7 +200,6 @@ async def test_model_output_from_openai_responses_basic() -> None:
     assert result.usage.total_tokens == 300
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_with_reasoning() -> None:
     """Test Response with reasoning blocks conversion."""
     response = Response.model_construct(
@@ -266,7 +260,6 @@ async def test_model_output_from_openai_responses_with_reasoning() -> None:
     assert result.usage.input_tokens_cache_read == 10
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_dict_input() -> None:
     """Test conversion from dict representation of Response."""
     response_dict = {
@@ -309,7 +302,6 @@ async def test_model_output_from_openai_responses_dict_input() -> None:
     assert result.usage.input_tokens == 20
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_with_refusal() -> None:
     """Test Response with refusal content."""
     response = Response.model_construct(
@@ -348,7 +340,6 @@ async def test_model_output_from_openai_responses_with_refusal() -> None:
     assert result.choices[0].stop_reason == "stop"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_multiple_choices() -> None:
     """Test ChatCompletion with multiple choices (n > 1)."""
     completion = ChatCompletion(
@@ -391,7 +382,6 @@ async def test_model_output_from_openai_multiple_choices() -> None:
     assert result.choices[1].message.content == "Second response"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_length_stop_reason() -> None:
     """Test ChatCompletion with length finish reason."""
     completion = ChatCompletion(

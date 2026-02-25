@@ -75,8 +75,6 @@ norecursedirs = [
   "tests/test_package",
   "tests/test_task_list",
 ]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
 log_level = "WARNING"
 
 [tool.mypy]
@@ -179,7 +177,6 @@ dev = [
   "pyarrow>=10.0.1",
   "pylint",
   "pytest",
-  "pytest-asyncio",
   "pytest-cov",
   "pytest-dotenv",
   "pytest-mock",

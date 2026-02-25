@@ -1,4 +1,3 @@
-import pytest
 from test_helpers.utils import skip_if_no_grok
 
 from inspect_ai.model import (
@@ -8,7 +7,6 @@ from inspect_ai.model import (
 )
 
 
-@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_grok_api() -> None:
     model = get_model(

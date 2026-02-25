@@ -15,7 +15,6 @@ class DummyMessage(dict):
             self["tool_call_id"] = tool_call_id
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "tool_content,expected",
     [
@@ -45,7 +44,6 @@ async def test_tool_message_smuggled_variants(tool_content, expected):
     assert msg.content == expected
 
 
-@pytest.mark.asyncio
 async def test_assistant_message_with_smuggled_tags():
     # Assistant message with smuggled <think> and <internal> tags
     asst_content = '<think signature="sig">reasoning here</think>assistant output'
@@ -67,7 +65,6 @@ async def test_assistant_message_with_smuggled_tags():
             assert "<think" not in c.text
 
 
-@pytest.mark.asyncio
 async def test_user_message_passthrough():
     # User message should be passed through unchanged
     user_content = "user says hello"
