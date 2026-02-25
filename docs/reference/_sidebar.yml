@@ -635,6 +635,8 @@ website:
           href: reference/inspect_ai.event.qmd#sandboxevent
         - text: InfoEvent
           href: reference/inspect_ai.event.qmd#infoevent
+        - text: ScoreEvent
+          href: reference/inspect_ai.event.qmd#scoreevent
         - text: LoggerEvent
           href: reference/inspect_ai.event.qmd#loggerevent
         - text: ErrorEvent
@@ -653,6 +655,26 @@ website:
           href: reference/inspect_ai.event.qmd#eventtreespan
         - text: EventTreeNode
           href: reference/inspect_ai.event.qmd#eventtreenode
+        - text: timeline_build
+          href: reference/inspect_ai.event.qmd#timeline_build
+        - text: timeline_dump
+          href: reference/inspect_ai.event.qmd#timeline_dump
+        - text: timeline_filter
+          href: reference/inspect_ai.event.qmd#timeline_filter
+        - text: timeline_load
+          href: reference/inspect_ai.event.qmd#timeline_load
+        - text: Timeline
+          href: reference/inspect_ai.event.qmd#timeline
+        - text: TimelineBranch
+          href: reference/inspect_ai.event.qmd#timelinebranch
+        - text: TimelineEvent
+          href: reference/inspect_ai.event.qmd#timelineevent
+        - text: TimelineSpan
+          href: reference/inspect_ai.event.qmd#timelinespan
+        - text: Outline
+          href: reference/inspect_ai.event.qmd#outline
+        - text: OutlineNode
+          href: reference/inspect_ai.event.qmd#outlinenode
         - text: SampleInitEvent
           href: reference/inspect_ai.event.qmd#sampleinitevent
         - text: SampleLimitEvent
@@ -663,8 +685,6 @@ website:
           href: reference/inspect_ai.event.qmd#storeevent
         - text: InputEvent
           href: reference/inspect_ai.event.qmd#inputevent
-        - text: ScoreEvent
-          href: reference/inspect_ai.event.qmd#scoreevent
         - text: ScoreEditEvent
           href: reference/inspect_ai.event.qmd#scoreeditevent
         - text: LoggingLevel
@@ -754,8 +774,14 @@ website:
           href: reference/inspect_ai.util.qmd#execremotestreamingoptions
         - text: ExecRemoteAwaitableOptions
           href: reference/inspect_ai.util.qmd#execremoteawaitableoptions
-        - text: ExecRemoteEvent
-          href: reference/inspect_ai.util.qmd#execremoteevent
+        - text: ExecOutput
+          href: reference/inspect_ai.util.qmd#execoutput
+        - text: ExecStdout
+          href: reference/inspect_ai.util.qmd#execstdout
+        - text: ExecStderr
+          href: reference/inspect_ai.util.qmd#execstderr
+        - text: ExecCompleted
+          href: reference/inspect_ai.util.qmd#execcompleted
         - text: registry_info
           href: reference/inspect_ai.util.qmd#registry_info
         - text: registry_create
