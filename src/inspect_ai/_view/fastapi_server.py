@@ -331,12 +331,17 @@ def view_server_app(
         request: Request, file: list[str] = Query([])
     ) -> Response:
         files = [normalize_uri(f) for f in file]
+        mapped_files: list[str] = [""] * len(files)
+
+        async def _validate_and_map(idx: int, f: str) -> None:
+            await _validate_read(request, f)
+            mapped_files[idx] = await _map_file(request, f)
+
         async with anyio.create_task_group() as tg:
-            for f in files:
-                tg.start_soon(_validate_read, request, f)
-        headers = await read_eval_log_headers_async(
-            [await _map_file(request, file) for file in files]
-        )
+            for i, f in enumerate(files):
+                tg.start_soon(_validate_and_map, i, f)
+
+        headers = await read_eval_log_headers_async(mapped_files)
         return InspectJsonResponse(to_jsonable_python(headers, exclude_none=True))
 
     @app.get("/events")
