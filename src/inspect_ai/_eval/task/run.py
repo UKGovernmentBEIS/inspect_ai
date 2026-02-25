@@ -23,6 +23,8 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -1274,7 +1276,9 @@ async def resolve_dataset(
 #   - The datasets have not been shuffled OR the samples in the dataset have unique ids
 #   - The datasets have the exact same length
 def eval_log_sample_source(
-    eval_log: EvalLog | None, eval_log_info: EvalLogInfo | None, dataset: Dataset
+    eval_log: EvalLog | None,
+    eval_log_info: EvalLogInfo | None,
+    dataset: Dataset,
 ) -> EvalSampleSource:
     # return dummy function for no sample source
     async def no_sample_source(id: int | str, epoch: int) -> None:
@@ -1306,17 +1310,27 @@ def eval_log_sample_source(
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
         return no_sample_source
+    elif eval_log_info:
+        reader: AsyncZipReader | None = None
+
+        async def read_from_file(id: int | str, epoch: int) -> EvalSample | None:
+            nonlocal reader
+            if not reader:
+                reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
+            try:
+                sample = await read_eval_log_sample_async(
+                    eval_log_info, id, epoch, reader=reader
+                )
+                if sample.error is not None or sample.invalidation is not None:
+                    return None
+                return sample
+            except IndexError:
+                return None
+
+        return read_from_file
     else:
 
-        async def previous(id: int | str, epoch: int) -> EvalSample | None:
-            if eval_log_info:
-                try:
-                    sample = await read_eval_log_sample_async(eval_log_info, id, epoch)
-                    if sample.error is not None or sample.invalidation is not None:
-                        return None
-                    return sample
-                except IndexError:
-                    return None
+        async def read_from_memory(id: int | str, epoch: int) -> EvalSample | None:
             return next(
                 (
                     sample
@@ -1329,7 +1343,7 @@ def eval_log_sample_source(
                 None,
             )
 
-        return previous
+        return read_from_memory
 
 
 # semaphore to limit concurrency. default max_samples to
