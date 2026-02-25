@@ -1,3 +1,7 @@
+## Unreleased
+
+- Testing: Migrate async tests from pytest-asyncio to anyio, enabling dual-backend (asyncio/trio) test execution via `--runtrio` flag.
+
 ## 0.3.183 (24 February 2026)
 
 - Improved naming and typeinfo for `exec_remote()` output stream events.
