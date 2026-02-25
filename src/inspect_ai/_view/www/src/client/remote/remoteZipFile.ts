@@ -1,5 +1,10 @@
 import { decompressData } from "./decompression";
 
+export type ProgressCallback = (
+  bytesLoaded: number,
+  bytesTotal: number,
+) => void;
+
 export interface ZipFileEntry {
   versionNeeded: number;
   bitFlag: number;
@@ -41,7 +46,7 @@ export class FileSizeLimitError extends Error {
 }
 
 const PARALLEL_CHUNK_THRESHOLD = 20 * 1024 * 1024; // 20MB
-const PARALLEL_CHUNK_SIZE = 20 * 1024 * 1024; // 20MB per chunk
+const PARALLEL_CHUNK_SIZE = 8 * 1024 * 1024; // 8MB per chunk
 const MAX_PARALLEL_CHUNKS = 6;
 
 const fetchBytesParallel = async (
@@ -49,6 +54,7 @@ const fetchBytesParallel = async (
   url: string,
   start: number,
   end: number,
+  onProgress?: ProgressCallback,
 ): Promise<Uint8Array> => {
   const totalSize = end - start + 1;
 
@@ -71,12 +77,21 @@ const fetchBytesParallel = async (
   // Fetch chunks with bounded concurrency
   const results = new Array<Uint8Array>(chunks.length);
   let nextChunk = 0;
+  let bytesLoaded = 0;
+
+  if (onProgress) {
+    onProgress(0, totalSize);
+  }
 
   const worker = async () => {
     while (nextChunk < chunks.length) {
       const idx = nextChunk++;
       const chunk = chunks[idx];
       results[idx] = await fetchFn(url, chunk.start, chunk.end);
+      if (onProgress) {
+        bytesLoaded += results[idx].length;
+        onProgress(bytesLoaded, totalSize);
+      }
     }
   };
 
@@ -106,7 +121,11 @@ export const openRemoteZipFile = async (
   ) => Promise<Uint8Array> = fetchRange,
 ): Promise<{
   centralDirectory: Map<string, CentralDirectoryEntry>;
-  readFile: (file: string, maxBytes?: number) => Promise<Uint8Array>;
+  readFile: (
+    file: string,
+    maxBytes?: number,
+    onProgress?: ProgressCallback,
+  ) => Promise<Uint8Array>;
 }> => {
   const contentLength = await fetchContentLength(url);
 
@@ -186,7 +205,7 @@ export const openRemoteZipFile = async (
 
   return {
     centralDirectory: centralDirectory,
-    readFile: async (file, maxBytes): Promise<Uint8Array> => {
+    readFile: async (file, maxBytes, onProgress?): Promise<Uint8Array> => {
       const entry = centralDirectory.get(file);
       if (!entry) {
         throw new Error(`File not found: ${file}`);
@@ -216,6 +235,7 @@ export const openRemoteZipFile = async (
         url,
         entry.fileOffset,
         entry.fileOffset + estimatedSize - 1,
+        onProgress,
       );
 
       // Parse actual extraFieldLength from the fetched header
@@ -239,6 +259,7 @@ export const openRemoteZipFile = async (
           url,
           entry.fileOffset,
           entry.fileOffset + actualTotal - 1,
+          onProgress,
         );
       }
 

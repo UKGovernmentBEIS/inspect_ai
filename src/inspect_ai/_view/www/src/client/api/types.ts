@@ -37,6 +37,7 @@ import {
   ToolEvent,
   Version,
 } from "../../@types/log";
+import { ProgressCallback } from "../remote/remoteZipFile";
 
 export interface LogDetails {
   version?: Version;
@@ -228,6 +229,7 @@ export interface ClientAPI {
     log_file: string,
     id: string | number,
     epoch: number,
+    onProgress?: ProgressCallback,
   ) => Promise<EvalSample | undefined>;
   get_log_pending_samples?: (
     log_file: string,

@@ -1,5 +1,5 @@
 import { EvalSample } from "../@types/log";
-import { Event, SampleState, SampleStatus } from "../app/types";
+import { DownloadProgress, Event, SampleState, SampleStatus } from "../app/types";
 import { kSampleMessagesTabId } from "../constants";
 import {
   cleanupSamplePolling,
@@ -36,6 +36,7 @@ export interface SampleSlice {
 
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
+    setDownloadProgress: (progress: DownloadProgress | undefined) => void;
 
     setCollapsedEvents: (
       scope: string,
@@ -86,6 +87,7 @@ const initialState: SampleState = {
   sampleStatus: "ok",
   sampleError: undefined,
   eventsCleared: false,
+  downloadProgress: undefined,
 
   visiblePopover: undefined,
 
@@ -165,6 +167,7 @@ export const createSampleSlice = (
           state.sample.sampleInState = false;
           state.sample.runningEvents = [];
           state.sample.sampleStatus = "ok";
+          state.sample.downloadProgress = undefined;
           state.log.selectedSampleHandle = undefined;
         });
       },
@@ -191,6 +194,10 @@ export const createSampleSlice = (
       setSampleError: (error: Error | undefined) =>
         set((state) => {
           state.sample.sampleError = error;
+        }),
+      setDownloadProgress: (progress: DownloadProgress | undefined) =>
+        set((state) => {
+          state.sample.downloadProgress = progress;
         }),
       setCollapsedEvents: (
         scope: string,
