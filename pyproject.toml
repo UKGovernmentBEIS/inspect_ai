@@ -212,6 +212,7 @@ dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = [
   "quarto-cli==1.7.32",
   "jupyter",
+  "nbclient",
   "panflute",
   "markdown",
   "griffe<=1.14.0",

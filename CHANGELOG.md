@@ -1,6 +1,11 @@
 ## Unreleased
 
+- Model API: Add SageMaker provider for invoking models hosted on AWS SageMaker endpoints.
+- OpenAI Compatible: Re-create closed httpx client after disconnect.
 - vLLM: Support for LoRA (Low-Rank Adaptation) via `--enable-lora` server option and LoRA-tuned server startup logic.
+- Sandbox Tools: Increase server startup timeout from 20 seconds to 120 seconds.
+- Timelines: Improve agent detection logic in `timeline_build()`.
+- Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
 
 ## 0.3.183 (24 February 2026)
 
