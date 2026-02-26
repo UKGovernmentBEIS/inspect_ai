@@ -59,7 +59,7 @@ def check_max_tokens(max_tokens: int | None, reasoning_tokens: int, check_tokens
     log = eval(
         task,
         log_format="json",
-        model="anthropic/claude-sonnet-4-6",
+        model="anthropic/claude-sonnet-4-5",
         max_tokens=max_tokens,
         reasoning_tokens=reasoning_tokens,
     )[0]
@@ -80,7 +80,7 @@ def test_reasoning_claude_max_tokens():
 
 @skip_if_no_anthropic
 def test_reasoning_claude_streaming():
-    reasoning_tokens = 32 * 1024
+    reasoning_tokens = 16 * 1024
     check_max_tokens(None, reasoning_tokens, DEFAULT_MAX_TOKENS + reasoning_tokens)
 
 

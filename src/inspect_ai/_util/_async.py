@@ -110,14 +110,19 @@ def init_nest_asyncio() -> None:
 
 
 def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
     from inspect_ai._util.platform import running_in_notebook
 
     if current_async_backend() == "trio":
         raise RuntimeError("run_coroutine cannot be used with trio")
 
+    async def _run_with_async_filesystem() -> T:
+        async with AsyncFilesystem():
+            return await coroutine
+
     if running_in_notebook():
         init_nest_asyncio()
-        result = asyncio.run(coroutine)
+        result = asyncio.run(_run_with_async_filesystem())
         return result
     else:
         try:
@@ -132,7 +137,7 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
             # and run it.
             pass
 
-        result = asyncio.run(coroutine)
+        result = asyncio.run(_run_with_async_filesystem())
         return result
 
 

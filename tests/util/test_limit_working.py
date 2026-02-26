@@ -24,7 +24,7 @@ from inspect_ai.util._limit import (
 @pytest.fixture
 def mock_time() -> Generator[_MockTime, None, None]:
     mock = _MockTime()
-    with patch("time.monotonic", side_effect=mock.get_time):
+    with patch("anyio.current_time", side_effect=mock.get_time):
         yield mock
 
 

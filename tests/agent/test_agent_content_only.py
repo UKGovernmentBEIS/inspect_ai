@@ -1,5 +1,3 @@
-import pytest
-
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -18,7 +16,6 @@ from inspect_ai.model import (
 from inspect_ai.tool import ToolCall
 
 
-@pytest.mark.asyncio
 async def test_removes_system_messages() -> None:
     messages: list[ChatMessage] = [
         ChatMessageSystem(content="System prompt"),
@@ -34,7 +31,6 @@ async def test_removes_system_messages() -> None:
     assert isinstance(filtered[1], ChatMessageAssistant)
 
 
-@pytest.mark.asyncio
 async def test_passes_through_user_messages() -> None:
     user_msg = ChatMessageUser(id="user-123", content="Test user message")
     messages: list[ChatMessage] = [user_msg]
@@ -47,7 +43,6 @@ async def test_passes_through_user_messages() -> None:
     assert filtered[0].content == "Test user message"
 
 
-@pytest.mark.asyncio
 async def test_converts_tool_messages_to_user() -> None:
     tool_msg = ChatMessageTool(
         id="tool-456",
@@ -65,7 +60,6 @@ async def test_converts_tool_messages_to_user() -> None:
     assert filtered[0].content == "Tool result"
 
 
-@pytest.mark.asyncio
 async def test_removes_reasoning_content() -> None:
     content: list[Content] = [
         ContentReasoning(reasoning="Internal thinking process"),
@@ -90,7 +84,6 @@ async def test_removes_reasoning_content() -> None:
     assert filtered_content[1].text == "More visible content"
 
 
-@pytest.mark.asyncio
 async def test_removes_internal_metadata() -> None:
     content: list[Content] = [
         ContentText(text="Text with internal", internal={"key": "value"}),
@@ -107,7 +100,6 @@ async def test_removes_internal_metadata() -> None:
     assert all(c.internal is None for c in filtered_content)
 
 
-@pytest.mark.asyncio
 async def test_converts_tool_calls_to_text():
     tool_call = ToolCall(
         id="call-001", function="calculate", arguments={"x": 5, "y": 10}
@@ -129,7 +121,6 @@ async def test_converts_tool_calls_to_text():
     assert "x=5" in filtered_content[1].text or "x: 5" in filtered_content[1].text
 
 
-@pytest.mark.asyncio
 async def test_converts_multiple_tool_calls():
     tool_calls = [
         ToolCall(id="call-001", function="func1", arguments={"a": 1}),
@@ -154,7 +145,6 @@ async def test_converts_multiple_tool_calls():
     assert "func3" in tool_text
 
 
-@pytest.mark.asyncio
 async def test_converts_server_tool_use_to_text() -> None:
     content: list[Content] = [
         ContentText(text="Using web search:"),
@@ -185,7 +175,6 @@ async def test_converts_server_tool_use_to_text() -> None:
     assert "Found 10 results" in filtered_content[1].text
 
 
-@pytest.mark.asyncio
 async def test_handles_string_content() -> None:
     assistant_msg = ChatMessageAssistant(content="Simple string content")
     messages: list[ChatMessage] = [assistant_msg]
@@ -200,7 +189,6 @@ async def test_handles_string_content() -> None:
     assert filtered_content[0].text == "Simple string content"
 
 
-@pytest.mark.asyncio
 async def test_handles_empty_tool_calls() -> None:
     assistant_msg = ChatMessageAssistant(content="No tool calls", tool_calls=[])
     messages: list[ChatMessage] = [assistant_msg]
@@ -217,7 +205,6 @@ async def test_handles_empty_tool_calls() -> None:
     assert filtered_content[0].text == "No tool calls"
 
 
-@pytest.mark.asyncio
 async def test_complex_message_sequence() -> None:
     messages: list[ChatMessage] = [
         ChatMessageSystem(content="System instructions"),
@@ -288,7 +275,6 @@ async def test_complex_message_sequence() -> None:
     assert "7-day forecast" in content3[1].text
 
 
-@pytest.mark.asyncio
 async def test_preserves_message_ids() -> None:
     messages: list[ChatMessage] = [
         ChatMessageUser(id="user-001", content="Question"),
@@ -304,7 +290,6 @@ async def test_preserves_message_ids() -> None:
     assert filtered[2].id == "tool-003"
 
 
-@pytest.mark.asyncio
 async def test_handles_tool_use_with_error() -> None:
     content: list[Content] = [
         ContentToolUse(

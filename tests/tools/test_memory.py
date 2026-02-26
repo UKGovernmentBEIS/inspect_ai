@@ -13,7 +13,6 @@ def reset_store() -> None:
     init_subtask_store(Store())
 
 
-@pytest.mark.asyncio
 async def test_create_file() -> None:
     """Test basic file creation."""
     tool = memory()
@@ -22,7 +21,6 @@ async def test_create_file() -> None:
     assert "created" in result.lower() or "test.txt" in result
 
 
-@pytest.mark.asyncio
 async def test_view_nonexistent_path() -> None:
     """Test viewing a path that doesn't exist."""
     tool = memory()
@@ -30,7 +28,6 @@ async def test_view_nonexistent_path() -> None:
         await tool(command="view", path="/memories/nonexistent.txt")
 
 
-@pytest.mark.asyncio
 async def test_view_file_basic() -> None:
     """Test viewing a created file."""
     tool = memory()
@@ -44,7 +41,6 @@ async def test_view_file_basic() -> None:
     assert "line3" in result
 
 
-@pytest.mark.asyncio
 async def test_view_file_with_range() -> None:
     """Test viewing file with line range."""
     tool = memory()
@@ -61,7 +57,6 @@ async def test_view_file_with_range() -> None:
     assert "line4" not in result
 
 
-@pytest.mark.asyncio
 async def test_str_replace_basic() -> None:
     """Test basic string replacement."""
     tool = memory()
@@ -88,7 +83,6 @@ async def test_str_replace_basic() -> None:
         ("hello hello", "hello", "Multiple occurrences"),
     ],
 )
-@pytest.mark.asyncio
 async def test_str_replace_errors(file_text: str, old_str: str, match: str) -> None:
     """Test str_replace error cases."""
     tool = memory()
@@ -102,7 +96,6 @@ async def test_str_replace_errors(file_text: str, old_str: str, match: str) -> N
         )
 
 
-@pytest.mark.asyncio
 async def test_insert_basic() -> None:
     """Test inserting text at line number."""
     tool = memory()
@@ -123,7 +116,6 @@ async def test_insert_basic() -> None:
     assert content.index("line1") < content.index("inserted") < content.index("line2")
 
 
-@pytest.mark.asyncio
 async def test_delete_file() -> None:
     """Test deleting a file."""
     tool = memory()
@@ -136,7 +128,6 @@ async def test_delete_file() -> None:
         await tool(command="view", path="/memories/test.txt")
 
 
-@pytest.mark.asyncio
 async def test_rename_file() -> None:
     """Test renaming a file."""
     tool = memory()
@@ -154,7 +145,6 @@ async def test_rename_file() -> None:
     assert "content" in content
 
 
-@pytest.mark.asyncio
 async def test_view_directory() -> None:
     """Test viewing directory contents."""
     tool = memory()
@@ -171,7 +161,6 @@ async def test_view_directory() -> None:
         ("/memories/../etc/passwd", "Invalid path|traversal"),
     ],
 )
-@pytest.mark.asyncio
 async def test_path_validation(path: str, match: str) -> None:
     """Test path validation."""
     tool = memory()
@@ -179,7 +168,6 @@ async def test_path_validation(path: str, match: str) -> None:
         await tool(command="create", path=path, file_text="bad")
 
 
-@pytest.mark.asyncio
 async def test_create_with_parent_dirs() -> None:
     """Test that parent directories are created automatically."""
     tool = memory()
@@ -194,7 +182,6 @@ async def test_create_with_parent_dirs() -> None:
     assert "nested" in content
 
 
-@pytest.mark.asyncio
 async def test_delete_directory_recursive() -> None:
     """Test recursive directory deletion."""
     tool = memory()
@@ -207,7 +194,6 @@ async def test_delete_directory_recursive() -> None:
         await tool(command="view", path="/memories/dir")
 
 
-@pytest.mark.asyncio
 async def test_initial_data_single_file() -> None:
     """Test seeding with a single file."""
     tool = memory(initial_data={"/memories/seeded.txt": "initial content"})
@@ -216,7 +202,6 @@ async def test_initial_data_single_file() -> None:
     assert "initial content" in content
 
 
-@pytest.mark.asyncio
 async def test_initial_data_multiple_files() -> None:
     """Test seeding with multiple files."""
     tool = memory(
@@ -236,7 +221,6 @@ async def test_initial_data_multiple_files() -> None:
         assert expected in content
 
 
-@pytest.mark.asyncio
 async def test_initial_data_nested_paths() -> None:
     """Test seeding with nested paths creates parent dirs."""
     tool = memory(
@@ -254,7 +238,6 @@ async def test_initial_data_nested_paths() -> None:
         assert expected in content
 
 
-@pytest.mark.asyncio
 async def test_initial_data_empty_dict() -> None:
     """Test empty initial_data works."""
     tool = memory(initial_data={})
@@ -266,7 +249,6 @@ async def test_initial_data_empty_dict() -> None:
     assert "created" in result.lower()
 
 
-@pytest.mark.asyncio
 async def test_initial_data_seeding_once() -> None:
     """Test that seeding only happens on first call."""
     tool = memory(initial_data={"/memories/seed.txt": "original"})
@@ -286,7 +268,6 @@ async def test_initial_data_seeding_once() -> None:
     assert "original" not in content
 
 
-@pytest.mark.asyncio
 async def test_initial_data_none() -> None:
     """Test default case with initial_data=None."""
     tool = memory(initial_data=None)
@@ -302,7 +283,6 @@ async def test_initial_data_none() -> None:
     assert "normal create" in content
 
 
-@pytest.mark.asyncio
 async def test_initial_data_then_modify() -> None:
     """Test modifying seeded files with str_replace."""
     tool = memory(initial_data={"/memories/modify.txt": "line1\nline2\nline3"})
@@ -322,7 +302,6 @@ async def test_initial_data_then_modify() -> None:
     assert "line2" not in content
 
 
-@pytest.mark.asyncio
 async def test_initial_data_view_with_range() -> None:
     """Test viewing seeded files with line range."""
     tool = memory(initial_data={"/memories/lines.txt": "line1\nline2\nline3\nline4"})
@@ -342,7 +321,6 @@ async def test_initial_data_view_with_range() -> None:
         ("/memories/../etc/passwd", "Invalid path|outside"),
     ],
 )
-@pytest.mark.asyncio
 async def test_initial_data_invalid_paths(invalid_path: str, match: str) -> None:
     """Test that invalid paths in initial_data raise errors."""
     tool = memory(initial_data={invalid_path: "content"})

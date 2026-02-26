@@ -535,8 +535,9 @@ def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs |
 
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
+    cached = usage.cached_prompt_text_tokens or 0
     return ModelUsage(
-        input_tokens=usage.prompt_tokens,
+        input_tokens=usage.prompt_tokens - cached,
         output_tokens=usage.completion_tokens,
         total_tokens=usage.total_tokens,
         input_tokens_cache_read=usage.cached_prompt_text_tokens,

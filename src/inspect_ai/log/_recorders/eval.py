@@ -4,13 +4,14 @@ import math
 import os
 import tempfile
 from logging import getLogger
-from typing import IO, Any, BinaryIO, Iterable, cast
+from typing import IO, Any, BinaryIO, cast
 from zipfile import ZipFile
 
 import anyio
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
@@ -98,11 +99,10 @@ class EvalRecorder(FileRecorder):
     ) -> str:
         # if the file exists then read summaries
         if not clean and location is not None and self.fs.exists(location):
-            with file(location, "rb") as f:
-                with ZipFile(f, "r") as zip:
-                    log_start = _read_start(zip)
-                    summary_counter = _read_summary_counter(zip.namelist())
-                    summaries = _read_all_summaries(zip, summary_counter)
+            async with AsyncFilesystem() as fs:
+                reader = AsyncZipReader(fs, location)
+                log_start = await _read_start_async(reader)
+                summaries, summary_counter = await _read_all_summaries_async(reader)
         else:
             log_start = None
             summary_counter = 0
@@ -204,55 +204,44 @@ class EvalRecorder(FileRecorder):
         cls,
         location: str,
         header_only: bool = False,
-        async_fs: AsyncFilesystem | None = None,
     ) -> EvalLog:
-        if async_fs is not None:
-            return await cls._read_log_impl(location, header_only, async_fs)
-        else:
-            async with AsyncFilesystem() as owned_fs:
-                return await cls._read_log_impl(location, header_only, owned_fs)
+        async with AsyncFilesystem() as async_fs:
+            # if the log is not stored in the local filesystem then download it
+            # first, and then read it from a temp file (eliminates the possiblity
+            # of hundreds of small fetches from the zip file streams)
+            temp_log: str | None = None
+            etag: str | None = None
+            fs = filesystem(location)
 
-    @classmethod
-    async def _read_log_impl(
-        cls,
-        location: str,
-        header_only: bool,
-        async_fs: AsyncFilesystem,
-    ) -> EvalLog:
-        # if the log is not stored in the local filesystem then download it first,
-        # and then read it from a temp file (eliminates the possiblity of hundreds
-        # of small fetches from the zip file streams)
-        temp_log: str | None = None
-        etag: str | None = None
-        fs = filesystem(location)
+            if not fs.is_local() and header_only is False:
+                with tempfile.NamedTemporaryFile(delete=False) as temp:
+                    temp_log = temp.name
+                    if fs.is_s3():
+                        # download file and get ETag so it matches the content
+                        etag = await _s3_download_with_etag(
+                            location, temp_log, async_fs
+                        )
+                    else:
+                        fs.get_file(location, temp_log)
 
-        if not fs.is_local() and header_only is False:
-            with tempfile.NamedTemporaryFile(delete=False) as temp:
-                temp_log = temp.name
-                if fs.is_s3():
-                    # download file and get ETag so it matches the content
-                    etag = await _s3_download_with_etag(location, temp_log, async_fs)
-                else:
-                    fs.get_file(location, temp_log)
+            # read log (use temp_log if we have it)
+            try:
+                read_location = temp_log or location
+                reader = AsyncZipReader(async_fs, read_location)
+                cd = await reader.entries()
+                log = await _read_log(reader, cd.entries, location, header_only)
 
-        # read log (use temp_log if we have it)
-        try:
-            read_location = temp_log or location
-            reader = AsyncZipReader(async_fs, read_location)
-            cd = await reader.entries()
-            log = await _read_log(reader, cd.entries, location, header_only)
+                if etag is not None:
+                    log.etag = etag
+                elif fs.is_s3() and header_only:
+                    # ETag is captured from the S3 response used to read the
+                    # central directory, so no extra request is needed.
+                    log.etag = reader.etag
 
-            if etag is not None:
-                log.etag = etag
-            elif fs.is_s3() and header_only:
-                # ETag is captured from the S3 response used to read the
-                # central directory, so no extra request is needed.
-                log.etag = reader.etag
-
-            return log
-        finally:
-            if temp_log:
-                os.unlink(temp_log)
+                return log
+            finally:
+                if temp_log:
+                    os.unlink(temp_log)
 
     @override
     @classmethod
@@ -270,88 +259,95 @@ class EvalRecorder(FileRecorder):
         epoch: int = 1,
         uuid: str | None = None,
         exclude_fields: set[str] | None = None,
+        reader: AsyncZipReader | None = None,
     ) -> EvalSample:
-        with file(location, "rb") as z:
-            with ZipFile(z, mode="r") as zip:
+        if not reader:
+            async with AsyncFilesystem() as fs:
+                reader = AsyncZipReader(fs, location)
+                return await cls._read_log_sample_impl(
+                    reader, location, id, epoch, uuid, exclude_fields
+                )
+        return await cls._read_log_sample_impl(
+            reader, location, id, epoch, uuid, exclude_fields
+        )
+
+    @classmethod
+    async def _read_log_sample_impl(
+        cls,
+        reader: AsyncZipReader,
+        location: str,
+        id: str | int | None = None,
+        epoch: int = 1,
+        uuid: str | None = None,
+        exclude_fields: set[str] | None = None,
+    ) -> EvalSample:
+        try:
+            # if a uuid was specified then read the summaries and find the matching sample
+            if id is None:
+                if uuid is None:
+                    raise ValueError("You must specify an 'id' or 'uuid' to read")
+                summaries, _ = await _read_all_summaries_async(reader)
+                sample = next(
+                    (summary for summary in summaries if summary.uuid == uuid),
+                    None,
+                )
+                if sample is None:
+                    raise ValueError(f"Sample with uuid '{uuid}' not found in log.")
+                id = sample.id
+                epoch = sample.epoch
+
+            if exclude_fields:
+                # Use streaming JSON parser to skip large fields
+                # This significantly reduces memory usage for large samples
+                import ijson  # type: ignore
+                from ijson import IncompleteJSONError
+                from ijson.backends.python import (  # type: ignore[import-untyped]
+                    UnexpectedSymbol,
+                )
+
                 try:
-                    # if a uuid was specified then read the summaries and find the matching sample
-                    if id is None:
-                        if uuid is None:
-                            raise ValueError(
-                                "You must specify an 'id' or 'uuid' to read"
-                            )
-                        summaries = _read_sample_summaries(zip)
-                        sample = next(
-                            (summary for summary in summaries if summary.uuid == uuid),
-                            None,
+                    data: dict[str, Any] = {}
+                    async with await reader.open_member(
+                        _sample_filename(id, epoch)
+                    ) as f:
+                        async for key, value in ijson.kvitems_async(
+                            adapt_to_reader(f), "", use_float=True
+                        ):
+                            if key not in exclude_fields:
+                                data[key] = value
+                except (
+                    ValueError,
+                    IncompleteJSONError,
+                    UnexpectedSymbol,
+                ) as ex:
+                    # ijson doesn't support NaN/Inf which are valid in
+                    # Python's JSON. Fall back to standard json.load
+                    # and manually remove excluded fields.
+                    if is_ijson_nan_inf_error(ex):
+                        data = json.loads(
+                            await reader.read_member_fully(_sample_filename(id, epoch))
                         )
-                        if sample is None:
-                            raise ValueError(
-                                f"Sample with uuid '{uuid}' not found in log."
-                            )
-                        id = sample.id
-                        epoch = sample.epoch
-
-                    with zip.open(_sample_filename(id, epoch), "r") as f:
-                        if exclude_fields:
-                            # Use streaming JSON parser to skip large fields
-                            # This significantly reduces memory usage for large samples
-                            import ijson  # type: ignore
-                            from ijson import IncompleteJSONError
-                            from ijson.backends.python import (  # type: ignore[import-untyped]
-                                UnexpectedSymbol,
-                            )
-
-                            try:
-                                data: dict[str, Any] = {}
-                                for key, value in ijson.kvitems(f, "", use_float=True):
-                                    if key not in exclude_fields:
-                                        data[key] = value
-                            except (
-                                ValueError,
-                                IncompleteJSONError,
-                                UnexpectedSymbol,
-                            ) as ex:
-                                # ijson doesn't support NaN/Inf which are valid in
-                                # Python's JSON. Fall back to standard json.load
-                                # and manually remove excluded fields.
-                                if is_ijson_nan_inf_error(ex):
-                                    f.seek(0)
-                                    data = json.load(f)
-                                    for field in exclude_fields:
-                                        data.pop(field, None)
-                                else:
-                                    raise
-                        else:
-                            data = json.load(f)
-                        return EvalSample.model_validate(
-                            data, context=get_deserializing_context()
-                        )
-                except KeyError:
-                    raise IndexError(
-                        f"Sample id {id} for epoch {epoch} not found in log {location}"
-                    )
+                        for field in exclude_fields:
+                            data.pop(field, None)
+                    else:
+                        raise
+            else:
+                data = json.loads(
+                    await reader.read_member_fully(_sample_filename(id, epoch))
+                )
+            return EvalSample.model_validate(data, context=get_deserializing_context())
+        except KeyError:
+            raise IndexError(
+                f"Sample id {id} for epoch {epoch} not found in log {location}"
+            )
 
     @classmethod
     @override
-    async def read_log_sample_summaries(
-        cls, location: str, async_fs: AsyncFilesystem | None = None
-    ) -> list[EvalSampleSummary]:
-        if async_fs is not None:
-            return await cls._read_log_sample_summaries_impl(location, async_fs)
-        else:
-            async with AsyncFilesystem() as owned_fs:
-                return await cls._read_log_sample_summaries_impl(location, owned_fs)
-
-    @classmethod
-    async def _read_log_sample_summaries_impl(
-        cls, location: str, async_fs: AsyncFilesystem
-    ) -> list[EvalSampleSummary]:
-        reader = AsyncZipReader(async_fs, location)
-        cd = await reader.entries()
-        entry_names = [e.filename for e in cd.entries]
-        summary_counter = _read_summary_counter(entry_names)
-        return await _read_all_summaries_async(reader, summary_counter)
+    async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
+        async with AsyncFilesystem() as fs:
+            reader = AsyncZipReader(fs, location)
+            summaries, _ = await _read_all_summaries_async(reader)
+            return summaries
 
     @classmethod
     @override
@@ -390,7 +386,13 @@ class EvalRecorder(FileRecorder):
 
         async with AsyncFilesystem() as async_fs:
             await _write_s3_conditional(
-                async_fs, bucket, key, log_bytes, etag, location, logger
+                async_fs,
+                bucket,
+                key,
+                log_bytes,
+                etag,
+                location,
+                logger,
             )
 
 
@@ -482,12 +484,6 @@ async def _write_s3_conditional(
                     f"Log file was modified by another process. Expected ETag: {etag}"
                 )
             raise
-
-
-def read_sample_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
-    summary_counter = _read_summary_counter(zip.namelist())
-    summaries = _read_all_summaries(zip, summary_counter)
-    return summaries
 
 
 class ZipLogFile:
@@ -702,26 +698,24 @@ async def _read_header_async(
         )
 
 
-def _read_start(zip: ZipFile) -> LogStart | None:
+async def _read_start_async(reader: AsyncZipReader) -> LogStart | None:
+    cd = await reader.entries()
     start_path = _journal_path(START_JSON)
-    if start_path in zip.namelist():
-        return cast(LogStart, _read_json(zip, start_path))
+    if any(e.filename == start_path for e in cd.entries):
+        return cast(LogStart, await _read_member_json(reader, start_path))
     else:
         return None
 
 
-def _read_sample_summaries(zip: ZipFile) -> list[EvalSampleSummary]:
-    summary_counter = _read_summary_counter(zip.namelist())
-    summaries = _read_all_summaries(zip, summary_counter)
-    return summaries
-
-
-def _read_summary_counter(names: Iterable[str]) -> int:
+async def _read_summary_counter(reader: AsyncZipReader) -> int:
+    cd = await reader.entries()
     current_count = 0
     summary_prefix = _journal_summary_path()
-    for name in names:
-        if name.startswith(summary_prefix) and name.endswith(".json"):
-            this_count = int(name.split("/")[-1].split(".")[0])
+    for entry in cd.entries:
+        if entry.filename.startswith(summary_prefix) and entry.filename.endswith(
+            ".json"
+        ):
+            this_count = int(entry.filename.split("/")[-1].split(".")[0])
             current_count = max(this_count, current_count)
     return current_count
 
@@ -736,29 +730,16 @@ def _parse_summaries(data: Any, source: str) -> list[EvalSampleSummary]:
         raise ValueError(f"Expected a list of summaries when reading {source}")
 
 
-def _read_all_summaries(zip: ZipFile, count: int) -> list[EvalSampleSummary]:
-    if SUMMARIES_JSON in zip.namelist():
-        return _parse_summaries(_read_json(zip, SUMMARIES_JSON), SUMMARIES_JSON)
-    else:
-        summaries: list[EvalSampleSummary] = []
-        for i in range(1, count):
-            summary_file = _journal_summary_file(i)
-            summary_path = _journal_summary_path(summary_file)
-            summaries.extend(
-                _parse_summaries(_read_json(zip, summary_path), summary_file)
-            )
-        return summaries
-
-
 async def _read_all_summaries_async(
-    reader: AsyncZipReader, count: int
-) -> list[EvalSampleSummary]:
+    reader: AsyncZipReader,
+) -> tuple[list[EvalSampleSummary], int]:
     cd = await reader.entries()
     entry_names = {e.filename for e in cd.entries}
+    count = await _read_summary_counter(reader)
     if SUMMARIES_JSON in entry_names:
         return _parse_summaries(
             await _read_member_json(reader, SUMMARIES_JSON), SUMMARIES_JSON
-        )
+        ), count
     else:
         summaries: list[EvalSampleSummary] = []
         for i in range(1, count + 1):
@@ -769,7 +750,7 @@ async def _read_all_summaries_async(
                     await _read_member_json(reader, summary_path), summary_file
                 )
             )
-        return summaries
+        return summaries, count
 
 
 def _read_header(zip: ZipFile, location: str) -> EvalLog:
@@ -793,11 +774,6 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
 
 def _sample_filename(id: str | int, epoch: int) -> str:
     return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
-
-
-def _read_json(zip: ZipFile, filename: str) -> Any:
-    with zip.open(filename) as f:
-        return json.load(f)
 
 
 def _journal_path(file: str) -> str:

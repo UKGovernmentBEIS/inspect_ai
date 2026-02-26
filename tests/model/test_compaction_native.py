@@ -63,7 +63,6 @@ def test_add_edit_compaction_sets_high_trigger_1m_context() -> None:
     assert edits[0]["trigger"]["value"] == 990_000
 
 
-@pytest.mark.asyncio
 async def test_native_raises_not_implemented() -> None:
     """CompactionNative raises NotImplementedError on unsupported providers."""
     strategy = CompactionNative()
@@ -75,7 +74,6 @@ async def test_native_raises_not_implemented() -> None:
 
 
 @skip_if_no_openai
-@pytest.mark.asyncio
 async def test_native_compaction_with_supported_model() -> None:
     """CompactionNative succeeds with a provider that supports native compaction."""
     strategy = CompactionNative()
@@ -93,7 +91,6 @@ async def test_native_compaction_with_supported_model() -> None:
 
 
 @skip_if_no_openai
-@pytest.mark.asyncio
 async def test_native_compaction_dynamically_supported() -> None:
     strategy = CompactionNative()
     model = get_model("openai/gpt-5")
@@ -113,7 +110,6 @@ async def test_native_compaction_dynamically_supported() -> None:
 
 
 @skip_if_no_anthropic
-@pytest.mark.asyncio
 async def test_anthropic_unsupported_model_raises_not_implemented() -> None:
     """Anthropic models that don't support compaction raise NotImplementedError."""
     # Use an older model that doesn't support compaction
