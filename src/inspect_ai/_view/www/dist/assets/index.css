@@ -19077,33 +19077,16 @@ span.ap-marker-container:hover span.ap-marker {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
-._wrapper_qdns2_1 {
-  padding-top: 0;
-  padding-bottom: 1em;
-  margin-left: 0.5em;
+._cardsContainer_d0qjo_1 {
   display: flex;
   flex-wrap: wrap;
   gap: 1em;
+  width: 100%;
 }
 
-._col1_qdns2_10 {
-  flex: 0 1 auto;
-  min-width: 200px;
-  width: fit-content;
-}
-
-._col2_qdns2_16 {
-  flex: 1 1 auto;
+._cardsContainer_d0qjo_1 > * {
+  flex: 1 1 300px;
   min-width: 300px;
-  width: fit-content;
-}
-
-._sectionTitle_qdns2_22 {
-  margin-top: 0;
-  margin-bottom: 0.5em;
-  font-size: 0.9em;
-  font-weight: 600;
-  color: var(--bs-body-color);
 }
 ._label_jbrqc_1 {
   align-self: center;
