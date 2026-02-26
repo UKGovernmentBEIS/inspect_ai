@@ -275,3 +275,55 @@ def test_eval_retry_token_usage_multi_retry():
     assert log3.status == "success"
     tokens3 = get_tokens(log3)
     assert tokens3 > tokens2
+
+
+def test_eval_retry_preserves_environment_variables():
+    import os
+    import tempfile
+
+    @solver
+    def env_dependent_solver():
+        async def solve(state: TaskState, generate) -> TaskState:
+            custom_value = os.environ.get("TEST_EVAL_RETRY_VAR")
+            state.metadata["env_var_value"] = custom_value
+            if custom_value:
+                state.output.completion = f"Value: {custom_value}"
+            else:
+                state.output.completion = "Value: NOT_FOUND"
+            return state
+
+        return solve
+
+    @task
+    def env_task():
+        return Task(
+            dataset=[Sample(input="Test", target="Value: test123")],
+            solver=[env_dependent_solver()],
+            scorer=exact(),
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        os.environ["TEST_EVAL_RETRY_VAR"] = "test123"
+
+        log1 = eval(
+            env_task(),
+            model="mockllm/model",
+            log_dir=log_dir,
+            environment={"TEST_EVAL_RETRY_VAR": os.environ["TEST_EVAL_RETRY_VAR"]},
+        )[0]
+
+        assert log1.status == "success"
+        assert log1.eval.environment == {"TEST_EVAL_RETRY_VAR": "test123"}
+        assert log1.samples[0].metadata["env_var_value"] == "test123"
+
+        del os.environ["TEST_EVAL_RETRY_VAR"]
+        assert os.environ.get("TEST_EVAL_RETRY_VAR") is None
+
+        log2 = eval_retry(log1)[0]
+
+        assert log2.status == "success"
+        assert log2.samples[0].metadata["env_var_value"] == "test123"
+        assert os.environ.get("TEST_EVAL_RETRY_VAR") == "test123"
+
+        if "TEST_EVAL_RETRY_VAR" in os.environ:
+            del os.environ["TEST_EVAL_RETRY_VAR"]
