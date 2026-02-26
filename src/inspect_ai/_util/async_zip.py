@@ -4,13 +4,12 @@ Supports reading individual members from large ZIP archives (including ZIP64)
 stored locally or remotely (e.g., S3) using async range requests.
 """
 
-from __future__ import annotations
-
 import struct
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
+import anyio
 from typing_extensions import Self
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -40,12 +39,6 @@ class CentralDirectory:
 
     entries: list[ZipEntry]
     etag: str | None = None
-
-
-async def _get_central_directory(
-    filesystem: AsyncFilesystem, filename: str
-) -> CentralDirectory:
-    return await _parse_central_directory(filesystem, filename)
 
 
 async def _find_central_directory(
@@ -331,18 +324,22 @@ class AsyncZipReader:
         self._filename = filename
         self._chunk_size = chunk_size
         self._central_directory: CentralDirectory | None = None
+        self._lock = anyio.Lock()
 
     @property
     def etag(self) -> str | None:
         """ETag from the S3 response used to read the central directory."""
-        return self._central_directory.etag if self._central_directory else None
+        cd = self._central_directory
+        return cd.etag if cd is not None else None
 
     async def entries(self) -> CentralDirectory:
         """Load and cache the central directory."""
         if self._central_directory is None:
-            self._central_directory = await _get_central_directory(
-                self._filesystem, self._filename
-            )
+            async with self._lock:
+                if self._central_directory is None:
+                    self._central_directory = await _parse_central_directory(
+                        self._filesystem, self._filename
+                    )
         return self._central_directory
 
     async def get_member_entry(self, member_name: str) -> ZipEntry:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import shlex
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypeVar, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, TypeVar, Union, cast
 
 import anyio
 from pydantic import BaseModel
@@ -37,20 +37,33 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class StdoutChunk:
-    data: str
+class ExecStdout:
     """A chunk of stdout data from the running process."""
 
+    type: ClassVar[str] = "stdout"
+    """Event type discriminator."""
+
+    data: str
+    """The stdout data."""
+
 
 @dataclass
-class StderrChunk:
-    data: str
+class ExecStderr:
     """A chunk of stderr data from the running process."""
 
+    type: ClassVar[str] = "stderr"
+    """Event type discriminator."""
+
+    data: str
+    """The stderr data."""
+
 
 @dataclass
-class Completed:
+class ExecCompleted:
     """Process completed (successfully or with error)."""
+
+    type: ClassVar[str] = "completed"
+    """Event type discriminator."""
 
     exit_code: int
     """The process exit code (0 = success)"""
@@ -61,7 +74,7 @@ class Completed:
         return self.exit_code == 0
 
 
-ExecRemoteEvent = StdoutChunk | StderrChunk | Completed
+ExecOutput = Union[ExecStdout, ExecStderr, ExecCompleted]
 """Union type for all events that can be yielded by ExecRemoteProcess.events."""
 
 
@@ -189,8 +202,8 @@ class ExecRemoteProcess:
        proc = await sandbox.exec_remote(["cmd"])
        async for event in proc:
            match event:
-               case StdoutChunk(data=data): print(data)
-               case Completed(exit_code=code): print(f"Done: {code}")
+               case ExecStdout(data=data): print(data)
+               case ExecCompleted(exit_code=code): print(f"Done: {code}")
        ```
 
     2. Fire-and-forget with explicit kill:
@@ -238,7 +251,7 @@ class ExecRemoteProcess:
         self._killed = False
         self._completed = False
         self._iteration_started = False
-        self._pending_events: list[ExecRemoteEvent] = []
+        self._pending_events: list[ExecOutput] = []
         self._transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
 
     @property
@@ -304,13 +317,13 @@ class ExecRemoteProcess:
         self._iteration_started = True
         return self
 
-    async def __anext__(self) -> ExecRemoteEvent:
+    async def __anext__(self) -> ExecOutput:
         """Return the next event from the process.
 
-        Yields StdoutChunk and StderrChunk events as output becomes available,
-        then yields a final Completed event when the process terminates.
+        Yields ExecStdout and ExecStderr events as output becomes available,
+        then yields a final ExecCompleted event when the process terminates.
 
-        Note: After the Completed event is yielded, the job is automatically
+        Note: After the ExecCompleted event is yielded, the job is automatically
         cleaned up on the server side.
 
         If cancelled, the process will be killed before re-raising the exception.
@@ -336,11 +349,11 @@ class ExecRemoteProcess:
                 result = await self._poll()
 
                 # Collect events from this poll
-                events: list[ExecRemoteEvent] = []
+                events: list[ExecOutput] = []
                 if result.stdout:
-                    events.append(StdoutChunk(data=result.stdout))
+                    events.append(ExecStdout(data=result.stdout))
                 if result.stderr:
-                    events.append(StderrChunk(data=result.stderr))
+                    events.append(ExecStderr(data=result.stderr))
 
                 # Check for terminal state
                 if result.state == "completed":
@@ -349,11 +362,11 @@ class ExecRemoteProcess:
                         raise RuntimeError(
                             "Server returned completed state without exit_code"
                         )
-                    events.append(Completed(exit_code=result.exit_code))
+                    events.append(ExecCompleted(exit_code=result.exit_code))
                 elif result.state == "killed":
                     # Process was killed (possibly by another call to kill())
                     self._killed = True
-                    # Don't yield Completed for killed processes - kill() discards output
+                    # Don't yield ExecCompleted for killed processes - kill() discards output
 
                 # If we have events, return the first and queue the rest
                 if events:
@@ -393,9 +406,9 @@ class ExecRemoteProcess:
     def _enqueue_output(self, stdout: str, stderr: str) -> None:
         """Enqueue any non-empty output as pending events for the iterator."""
         if stdout:
-            self._pending_events.append(StdoutChunk(data=stdout))
+            self._pending_events.append(ExecStdout(data=stdout))
         if stderr:
-            self._pending_events.append(StderrChunk(data=stderr))
+            self._pending_events.append(ExecStderr(data=stderr))
 
     async def write_stdin(self, data: str | bytes) -> None:
         """Write data to the process's stdin.
@@ -569,11 +582,11 @@ async def exec_remote_awaitable(
     try:
         with anyio.fail_after(timeout):
             async for event in proc:
-                if isinstance(event, StdoutChunk):
+                if isinstance(event, ExecStdout):
                     stdout_buffer.write(event.data.encode("utf-8"))
-                elif isinstance(event, StderrChunk):
+                elif isinstance(event, ExecStderr):
                     stderr_buffer.write(event.data.encode("utf-8"))
-                elif isinstance(event, Completed):
+                elif isinstance(event, ExecCompleted):
                     return ExecResultClass[str](
                         success=event.success,
                         returncode=event.exit_code,

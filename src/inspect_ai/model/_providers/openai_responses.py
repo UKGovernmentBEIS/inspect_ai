@@ -343,14 +343,19 @@ def completion_params_responses(
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
-    if model_info.has_reasoning_options():
-        reasoning: dict[str, str] = {}
-        if config.reasoning_effort is not None:
-            reasoning["effort"] = config.reasoning_effort
-        if config.reasoning_summary != "none":
-            reasoning["summary"] = config.reasoning_summary or "auto"
-        if len(reasoning) > 0:
+    reasoning: dict[str, str] = {}
+    if config.reasoning_effort is not None:
+        reasoning["effort"] = config.reasoning_effort
+    if config.reasoning_summary != "none":
+        reasoning["summary"] = config.reasoning_summary or "auto"
+    if len(reasoning) > 0:
+        if model_info.has_reasoning_options():
             params["reasoning"] = reasoning
+        else:
+            warn_once(
+                logger,
+                f"reasoning options ignored for non-reasoning model {model_name}",
+            )
     if config.response_schema is not None:
         params["text"] = dict(
             format=ResponseFormatTextJSONSchemaConfigParam(

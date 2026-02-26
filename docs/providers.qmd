@@ -413,6 +413,45 @@ You should be also sure that you have the appropriate AWS credentials before acc
 
 If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access.
 
+## AWS SageMaker {#aws-sagemaker}
+
+To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, install the `aioboto3` package, set your credentials, and specify a SageMaker endpoint name using the `--model` option:
+
+``` bash
+pip install aioboto3
+export AWS_ACCESS_KEY_ID=access-key-id
+export AWS_SECRET_ACCESS_KEY=secret-access-key
+inspect eval arc.py --model sagemaker/my-endpoint-name \
+  -M region_name=us-west-2
+```
+
+Deploy your preferred model via Sagemaker studio jumpstart UI/SDK/CLI ([link](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-jumpstart-model.html)). The model name after `sagemaker/` is the SageMaker endpoint name. 
+
+### Model Args
+
+The following model args are supported:
+
+| Model Arg | Description |
+|--------------------------|----------------------------------------------|
+| `region_name` | AWS region where the endpoint is deployed (default: `us-east-1`). |
+| `endpoint_url` | Custom SageMaker runtime endpoint URL (required). |
+| `read_timeout` | Read timeout in seconds (default: `600`). |
+| `connect_timeout` | Connection timeout in seconds (default: `60`). |
+| `stream` | Enable streaming responses (default: `false`). |
+
+: {tbl-colwidths=\[35,65\]}
+
+For example:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2 \
+  -M read_timeout=300 \
+  -M stream=true
+```
+
+Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.
+
 ## Azure AI {#azure-ai}
 
 The `azureai` provider supports models deployed on the [Azure AI Foundry](https://ai.azure.com/).
@@ -708,6 +747,82 @@ Similar to the Hugging Face provider, you can also use local models with the vLL
 ``` bash
 $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 ```
+
+### LoRA Adapters
+
+vLLM supports [LoRA (Low-Rank Adaptation)](https://docs.vllm.ai/en/stable/features/lora.html) adapters, allowing you to use fine-tuned models without duplicating the base model weights. To use a LoRA adapter, append `:adapter-path` to the model name:
+
+``` bash
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
+```
+
+The adapter path can be a HuggingFace repository (e.g., `myorg/my-lora-adapter`) or a local path (e.g., `./adapters/my-adapter`).
+
+When using LoRA adapters:
+
+- The vLLM server is automatically started with `--enable-lora`
+- `max_lora_rank` is auto-detected from the adapter's `adapter_config.json` (supports both local paths and HuggingFace repos)
+- Adapters are dynamically loaded on first request via vLLM's `/v1/load_lora_adapter` endpoint
+- Multiple models sharing the same base model reuse a single vLLM server, even with different adapters
+
+For example, you can evaluate multiple LoRA fine-tunes on the same base model efficiently:
+
+``` python
+# These will share the same vLLM server
+# max_lora_rank is auto-detected as the max across all adapters
+eval(
+    "task.py",
+    model=["vllm/meta-llama/Llama-3-8B:adapter-a", "vllm/meta-llama/Llama-3-8B:adapter-b"],
+)
+```
+
+You can also compare a base model against its LoRA fine-tune --- LoRA will be auto-enabled for the shared server:
+
+``` python
+eval(
+    "task.py",
+    model=["vllm/meta-llama/Llama-3-8B", "vllm/meta-llama/Llama-3-8B:my-adapter"],
+)
+```
+
+If you need to override the auto-detected rank (e.g. when using `get_model()` directly with multiple adapters of different ranks), pass `max_lora_rank` explicitly:
+
+``` bash
+inspect eval task.py --model vllm/meta-llama/Llama-3-8B:my-adapter -M max_lora_rank=128
+```
+
+#### External vLLM Server with LoRA
+
+When using an external vLLM server (`VLLM_BASE_URL`), you have two options:
+
+**Option 1: Pre-load adapters manually**
+
+Load the adapters yourself when starting the server and reference them by name:
+
+``` bash
+# Start server with pre-loaded adapter
+vllm serve meta-llama/Llama-3-8B --enable-lora \
+    --lora-modules my-adapter=path/to/adapter
+
+# Use the adapter name directly (not the path)
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:my-adapter
+```
+
+**Option 2: Enable dynamic loading**
+
+Start the server with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True` to let Inspect load adapters dynamically:
+
+``` bash
+VLLM_ALLOW_RUNTIME_LORA_UPDATING=True vllm serve meta-llama/Llama-3-8B --enable-lora
+```
+
+Then use adapter paths as normal:
+
+``` bash
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
+```
+
+Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
 
 ### Tool Use and Reasoning
 

@@ -17,7 +17,7 @@ def check_think_tool(description: str | None = None):
         ],
         solver=[use_tools(think(description=description)), generate()],
     )
-    log = eval(task, model="anthropic/claude-3-5-haiku-latest")[0]
+    log = eval(task, model="anthropic/claude-sonnet-4-6")[0]
     assert log.status == "success"
     tool_event = get_tool_event(log)
     assert tool_event

@@ -1,10 +1,18 @@
+import asyncio
 import tempfile
 from pathlib import Path
 
 import pytest
 from anyio import EndOfStream
 
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util.asyncfiles import (
+    AsyncFilesystem,
+    _current_async_fs,
+    get_async_filesystem,
+)
+
+S3_BUCKET = "s3://test-bucket"
 
 # =============================================================================
 # Tests for read_file_bytes() with local files
@@ -364,3 +372,181 @@ async def test_write_file_local():
         with open(temp_path, "rb") as f:
             content = f.read()
             assert content == test_data
+
+
+# =============================================================================
+# Tests for AsyncFilesystem sharing via ContextVar
+# =============================================================================
+
+
+@pytest.fixture(autouse=True)
+def _reset_async_fs_contextvar() -> None:
+    """Reset the ContextVar before each test to ensure isolation."""
+    _current_async_fs.set(None)
+
+
+@pytest.mark.asyncio
+async def test_context_manager_sets_contextvar() -> None:
+    """Async with AsyncFilesystem() sets the ContextVar."""
+    assert _current_async_fs.get() is None
+    async with AsyncFilesystem() as fs:
+        assert _current_async_fs.get() is fs
+
+
+@pytest.mark.asyncio
+async def test_context_manager_cleans_up_on_exit() -> None:
+    """Async with AsyncFilesystem() clears the ContextVar on exit."""
+    async with AsyncFilesystem():
+        assert _current_async_fs.get() is not None
+    assert _current_async_fs.get() is None
+
+
+@pytest.mark.asyncio
+async def test_nested_context_manager_reuses_outer() -> None:
+    """Nested async with AsyncFilesystem() reuses the outer instance."""
+    async with AsyncFilesystem() as outer_fs:
+        async with AsyncFilesystem() as inner_fs:
+            assert inner_fs is outer_fs
+
+
+@pytest.mark.asyncio
+async def test_nested_context_manager_does_not_clean_up() -> None:
+    """Inner async with AsyncFilesystem() does not clean up on exit."""
+    async with AsyncFilesystem() as outer_fs:
+        async with AsyncFilesystem():
+            pass
+        # Outer should still be active after inner exits
+        assert _current_async_fs.get() is outer_fs
+    # Only cleaned up after outer exits
+    assert _current_async_fs.get() is None
+
+
+@pytest.mark.asyncio
+async def test_get_async_filesystem_returns_current() -> None:
+    """get_async_filesystem() returns the current shared instance."""
+    async with AsyncFilesystem() as fs:
+        assert get_async_filesystem() is fs
+
+
+@pytest.mark.asyncio
+async def test_get_async_filesystem_raises_when_none() -> None:
+    """get_async_filesystem() raises RuntimeError when no filesystem exists."""
+    with pytest.raises(RuntimeError, match="No AsyncFilesystem is available"):
+        get_async_filesystem()
+
+
+def test_run_coroutine_cleans_up_filesystem() -> None:
+    """run_coroutine() cleans up the filesystem created during execution."""
+
+    async def use_filesystem() -> None:
+        assert _current_async_fs.get() is not None
+
+    run_coroutine(use_filesystem())
+    assert _current_async_fs.get() is None
+
+
+def test_run_coroutine_with_nest_asyncio_preserves_outer_filesystem() -> None:
+    """run_coroutine() under nest_asyncio doesn't close inherited filesystem."""
+
+    async def outer() -> None:
+        async with AsyncFilesystem() as outer_fs:
+
+            async def inner() -> None:
+                # The inner context should see the inherited filesystem
+                async with AsyncFilesystem() as inner_fs:
+                    assert inner_fs is outer_fs
+
+            run_coroutine(inner())
+
+            # The outer filesystem should still be active
+            assert _current_async_fs.get() is outer_fs
+
+    asyncio.run(outer())
+
+
+@pytest.mark.asyncio
+async def test_concurrent_tasks_share_filesystem() -> None:
+    """Concurrent tasks via tg_collect share the same filesystem."""
+    async with AsyncFilesystem() as fs:
+        seen_filesystems: list[AsyncFilesystem] = []
+
+        async def task() -> None:
+            async with AsyncFilesystem() as task_fs:
+                seen_filesystems.append(task_fs)
+
+        await tg_collect([task, task, task])
+
+        assert len(seen_filesystems) == 3
+        for seen_fs in seen_filesystems:
+            assert seen_fs is fs
+
+
+def test_concurrent_tasks_in_run_coroutine_share_filesystem() -> None:
+    """Child tasks spawned by tg_collect inside run_coroutine share one filesystem.
+
+    run_coroutine wraps the coroutine in async with AsyncFilesystem(), so the
+    ContextVar is set in the parent context before tg_collect/start_soon copies
+    it for child tasks.
+    """
+    seen_filesystems: list[AsyncFilesystem] = []
+
+    async def task() -> None:
+        async with AsyncFilesystem() as fs:
+            seen_filesystems.append(fs)
+
+    async def run_concurrent() -> None:
+        await tg_collect([task, task, task])
+
+    run_coroutine(run_concurrent())
+
+    assert len(seen_filesystems) == 3
+    assert seen_filesystems[0] is seen_filesystems[1]
+    assert seen_filesystems[1] is seen_filesystems[2]
+
+
+# =============================================================================
+# Tests for nest_asyncio with mock S3
+# =============================================================================
+
+
+def test_nest_asyncio_with_s3_requests(mock_s3: None) -> None:
+    """Nested run_coroutine shares filesystem and both S3 requests succeed.
+
+    Outer loop: creates AsyncFilesystem, writes/reads file1 from mock S3.
+    Inner loop: run_coroutine() triggers nest_asyncio, writes/reads file2.
+    Both requests complete correctly, and the outer filesystem survives.
+    """
+    file1 = f"{S3_BUCKET}/nest_test/file1.txt"
+    file2 = f"{S3_BUCKET}/nest_test/file2.txt"
+    data1 = b"outer context data"
+    data2 = b"inner context data"
+
+    async def outer() -> None:
+        async with AsyncFilesystem() as outer_fs:
+            # Write and read file1 in the outer context
+            await outer_fs.write_file(file1, data1)
+            result1 = await outer_fs.read_file(file1)
+            assert result1 == data1
+            future1 = outer_fs.read_file(file1)
+
+            # Inner loop via run_coroutine (triggers nest_asyncio)
+            async def inner() -> bytes:
+                # The inner context should reuse the outer filesystem
+                async with AsyncFilesystem() as inner_fs:
+                    assert inner_fs is outer_fs
+                    await inner_fs.write_file(file2, data2)
+                    result1 = await future1
+                    assert result1 == data1
+                    return await inner_fs.read_file(file2)
+
+            inner_result = run_coroutine(inner())
+            assert inner_result == data2
+
+            # Outer filesystem should still be active after inner exits
+            assert _current_async_fs.get() is outer_fs
+
+            # Outer can still read both files
+            assert await outer_fs.read_file(file1) == data1
+            assert await outer_fs.read_file(file2) == data2
+
+    asyncio.run(outer())
