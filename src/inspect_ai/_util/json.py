@@ -1,6 +1,6 @@
 import json
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
@@ -15,6 +15,8 @@ import jsonpatch
 if TYPE_CHECKING:
     from ijson import IncompleteJSONError  # type: ignore[import-untyped]
     from ijson.backends.python import UnexpectedSymbol  # type: ignore[import-untyped]
+
+    from inspect_ai._util.async_bytes_reader import AsyncBytesReader
 from jsonpointer import (  # type: ignore  # jsonpointer is already a dependency of jsonpatch
     JsonPointerException,
     resolve_pointer,
@@ -51,7 +53,9 @@ def is_ijson_nan_inf_error(
 
 
 async def aload_json_exclude(
-    async_reader: Any, exclude_fields: set[str], full_content_fallback: Any = None
+    async_reader: "AsyncBytesReader",
+    exclude_fields: set[str],
+    full_content_fallback: Callable[[], Awaitable[bytes]] | None = None,
 ) -> dict[str, Any]:
     """Async-load a JSON object, skipping excluded top-level fields.
 
