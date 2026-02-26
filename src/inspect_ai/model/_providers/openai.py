@@ -597,9 +597,6 @@ class OpenAIAPI(ModelAPI):
         self, config: GenerateConfig | None
     ) -> Reasoning | None:
         """Get reasoning parameters from config for compact/count_tokens calls."""
-        if not self.has_reasoning_options():
-            return None
-
         if config is None:
             return None
 
@@ -608,5 +605,12 @@ class OpenAIAPI(ModelAPI):
             reasoning["effort"] = config.reasoning_effort
         if config.reasoning_summary is not None and config.reasoning_summary != "none":
             reasoning["summary"] = config.reasoning_summary
+
+        if reasoning and not self.has_reasoning_options():
+            warn_once(
+                logger,
+                f"reasoning options ignored for non-reasoning model {self.service_model_name()}",
+            )
+            return None
 
         return reasoning if reasoning else None

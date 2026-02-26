@@ -760,7 +760,13 @@ def model_output_from_openai(
         choices=choices,
         usage=(
             ModelUsage(
-                input_tokens=completion.usage.prompt_tokens,
+                input_tokens=completion.usage.prompt_tokens
+                - (
+                    completion.usage.prompt_tokens_details.cached_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    and completion.usage.prompt_tokens_details.cached_tokens is not None
+                    else 0
+                ),
                 output_tokens=completion.usage.completion_tokens,
                 input_tokens_cache_read=(
                     completion.usage.prompt_tokens_details.cached_tokens

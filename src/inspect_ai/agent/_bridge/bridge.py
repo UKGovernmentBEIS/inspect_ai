@@ -186,6 +186,9 @@ def init_bridge_request_patch() -> None:
 
 
 def init_openai_request_patch() -> None:
+    # don't patch if no openai
+    if not importlib.util.find_spec("openai"):
+        return
     validate_openai_client("agent bridge")
 
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
