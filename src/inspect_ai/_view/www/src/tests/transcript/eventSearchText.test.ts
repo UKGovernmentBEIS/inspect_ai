@@ -212,7 +212,11 @@ describe("eventSearchText", () => {
     const texts = eventSearchText(
       makeNode({
         event: "logger",
-        message: { level: "WARNING", message: "disk space low", filename: "main.py" },
+        message: {
+          level: "WARNING",
+          message: "disk space low",
+          filename: "main.py",
+        },
         timestamp: "2024-01-01T00:00:00Z",
       }),
     );

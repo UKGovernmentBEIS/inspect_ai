@@ -164,9 +164,7 @@ export const eventSearchText = (node: EventNode): string[] => {
 
     case "score": {
       const scoreEvent = event as ScoreEvent;
-      texts.push(
-        (scoreEvent.intermediate ? "Intermediate " : "") + "Score",
-      );
+      texts.push((scoreEvent.intermediate ? "Intermediate " : "") + "Score");
       if (scoreEvent.score.answer) {
         texts.push(scoreEvent.score.answer);
       }
@@ -232,9 +230,7 @@ export const eventSearchText = (node: EventNode): string[] => {
         working: "Execution Time Limit Exceeded",
         cost: "Cost Limit Exceeded",
       };
-      texts.push(
-        limitTitles[sampleLimitEvent.type] ?? sampleLimitEvent.type,
-      );
+      texts.push(limitTitles[sampleLimitEvent.type] ?? sampleLimitEvent.type);
       if (sampleLimitEvent.message) {
         texts.push(sampleLimitEvent.message);
       }
