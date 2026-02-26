@@ -1,6 +1,5 @@
 """Tests for OpenAI model API conversion functions."""
 
-import pytest
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessage,
