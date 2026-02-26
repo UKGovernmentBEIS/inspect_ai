@@ -238,7 +238,6 @@ class TestPadToolMessagesForTokenCounting:
 class TestPerMessageTokenCounting:
     """Integration tests for per-message token counting with OpenAI."""
 
-    @pytest.mark.asyncio
     async def test_user_message_counts_correctly(self, openai_model):
         """User message should count tokens correctly."""
         from inspect_ai.model._chat_message import ChatMessageUser
@@ -250,7 +249,6 @@ class TestPerMessageTokenCounting:
         assert count > 0
         assert count < 100  # Simple message shouldn't be too long
 
-    @pytest.mark.asyncio
     async def test_assistant_message_with_tool_call_counts(self, openai_model):
         """Assistant message with tool call should count via padding."""
         from inspect_ai.model._chat_message import ChatMessageAssistant
@@ -273,7 +271,6 @@ class TestPerMessageTokenCounting:
         assert count > 0
         assert count < 500
 
-    @pytest.mark.asyncio
     async def test_tool_result_message_counts(self, openai_model):
         """Tool result message should count via padding."""
         from inspect_ai.model._chat_message import ChatMessageTool
@@ -289,7 +286,6 @@ class TestPerMessageTokenCounting:
         assert count > 0
         assert count < 500
 
-    @pytest.mark.asyncio
     async def test_string_input_uses_text_counting(self, openai_model):
         """String input should use text token counting."""
         text = "This is a simple text string for token counting."
@@ -305,7 +301,6 @@ class TestPerMessageTokenCounting:
 class TestBatchCountingSumsPerMessage:
     """Tests verifying count_tokens(list) produces similar results to summing individual counts."""
 
-    @pytest.mark.asyncio
     async def test_batch_count_approximately_matches_sum(self, openai_model):
         """Batch count should approximately match sum of individual counts."""
         from inspect_ai.model._chat_message import (
@@ -335,7 +330,6 @@ class TestBatchCountingSumsPerMessage:
         # Allow some variance due to message boundary tokens
         assert abs(batch_count - sum_of_individual) <= sum_of_individual * 0.125
 
-    @pytest.mark.asyncio
     async def test_batch_count_with_tool_calls(self, openai_model):
         """Batch count with tool calls should work correctly."""
         from inspect_ai.model._chat_message import (
@@ -381,7 +375,6 @@ class TestBatchCountingSumsPerMessage:
 class TestNativeTokenCountingFallback:
     """Tests for native token counting with fallback behavior."""
 
-    @pytest.mark.asyncio
     async def test_native_counting_returns_reasonable_values(self, openai_model):
         """Native token counting should return reasonable values."""
         from inspect_ai.model._chat_message import ChatMessageUser

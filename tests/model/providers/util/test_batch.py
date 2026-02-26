@@ -134,7 +134,6 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         return results
 
 
-@pytest.mark.asyncio
 class TestBatcher:
     """Integration tests for Batcher that test end-to-end behavior."""
 

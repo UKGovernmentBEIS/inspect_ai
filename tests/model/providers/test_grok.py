@@ -2,7 +2,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import grpc
-import pytest
 from test_helpers.utils import skip_if_no_grok
 
 from inspect_ai import Task, eval
@@ -19,7 +18,6 @@ from inspect_ai.model._retry import model_retry_config
 from inspect_ai.scorer import includes
 
 
-@pytest.mark.asyncio
 @skip_if_no_grok
 async def test_grok_api() -> None:
     """Smoke test a basic Grok completion request."""
@@ -118,7 +116,6 @@ def _make_grok_batcher_and_batch(
         pytest.param(0, 1, 2, 3, 1, 5, True, id="terminal-mixed"),
     ],
 )
-@pytest.mark.anyio
 async def test_grok_check_batch_terminal_states(
     num_pending: int,
     num_success: int,
@@ -142,7 +139,6 @@ async def test_grok_check_batch_terminal_states(
     assert (result.completion_info is not None) == expect_completion
 
 
-@pytest.mark.anyio
 async def test_grok_failed_batch_items_preserve_grpc_error_semantics() -> None:
     """Preserve grpc status codes when batch items fail."""
     client = MagicMock()
@@ -186,7 +182,6 @@ async def test_grok_failed_batch_items_preserve_grpc_error_semantics() -> None:
     assert error.code() == grpc.StatusCode.PERMISSION_DENIED
 
 
-@pytest.mark.anyio
 async def test_grok_create_batch_parses_json_schema_response_format() -> None:
     """Rehydrate dict response_format into protobuf before chat.create."""
     schema = '{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}'

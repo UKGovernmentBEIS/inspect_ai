@@ -1,4 +1,5 @@
 import importlib.util
+import inspect
 import os
 import shutil
 import subprocess
@@ -13,6 +14,26 @@ from moto.server import ThreadedMotoServer
 sys.path.append(os.path.join(os.path.dirname(__file__), "helpers"))
 
 
+# ---------------------------------------------------------------------------
+# Automatically mark every async test function with @pytest.mark.anyio so
+# it runs under both asyncio and trio backends.  We use a hookwrapper
+# because its setup phase executes *before* the anyio plugin's tryfirst
+# pytest_pycollect_makeitem hook, which is the point where anyio looks for
+# the marker.  A conftest-level ``pytestmark`` would be too late (applied
+# after collection).
+#
+# Trio variants are skipped by default; use --runtrio to enable them.
+# Use @skip_if_trio (from test_helpers.utils) for tests that can never
+# run under trio (e.g. they hit asyncio-only production code paths).
+# ---------------------------------------------------------------------------
+@pytest.hookimpl(hookwrapper=True)
+def pytest_pycollect_makeitem(collector, name, obj):
+    """Auto-apply @pytest.mark.anyio to every async test function."""
+    if inspect.iscoroutinefunction(obj) or inspect.isasyncgenfunction(obj):
+        pytest.mark.anyio(obj)
+    yield
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--runslow", action="store_true", default=False, help="run slow tests"
@@ -22,6 +43,12 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--runflaky", action="store_true", default=False, help="run flaky tests"
+    )
+    parser.addoption(
+        "--runtrio",
+        action="store_true",
+        default=False,
+        help="run trio backend variants of async tests",
     )
     parser.addoption(
         "--local-inspect-tools",
@@ -43,6 +70,19 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
+    # Block @pytest.mark.asyncio — use @pytest.mark.anyio instead
+    for item in items:
+        if item.get_closest_marker("asyncio"):
+            raise pytest.UsageError(
+                f"{item.nodeid}: Use @pytest.mark.anyio instead of @pytest.mark.asyncio"
+            )
+
+    if not config.getoption("--runtrio") and not config.getoption("--runslow"):
+        skip_trio = pytest.mark.skip(reason="need --runtrio option to run")
+        for item in items:
+            if "[trio]" in item.nodeid:
+                item.add_marker(skip_trio)
+
     if not config.getoption("--runslow"):
         skip_slow = pytest.mark.skip(reason="need --runslow option to run")
         for item in items:
@@ -113,6 +153,18 @@ def mock_s3():
             del os.environ[key]
         else:
             os.environ[key] = value
+
+
+@pytest.fixture(autouse=True)
+def _reset_concurrency_registry():
+    """Reset the global concurrency semaphore registry between tests.
+
+    anyio.Semaphore objects are backend-specific (asyncio vs trio), so cached
+    semaphores from one backend cannot be reused in another.
+    """
+    from inspect_ai.util._concurrency import init_concurrency
+
+    init_concurrency()
 
 
 def pytest_sessionfinish(session, exitstatus):

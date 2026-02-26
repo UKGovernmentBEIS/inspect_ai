@@ -325,6 +325,8 @@ def openrouter_reasoning_details_to_reasoning(
             case "reasoning.text":
                 reasoning = detail.text
             case "reasoning.encrypted":
+                if reasoning is not None:
+                    summary = reasoning
                 reasoning = detail.data
                 redacted = True
 

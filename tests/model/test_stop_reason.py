@@ -33,35 +33,30 @@ async def check_stop_reason(model_name, **model_args: Any):
     assert response.choices[0].stop_reason == "max_tokens"
 
 
-@pytest.mark.asyncio
 @skip_if_no_groq
 @skip_if_trio
 async def test_groq_stop_reason() -> None:
     await check_stop_reason("groq/openai/gpt-oss-20b")
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 @skip_if_trio
 async def test_openai_stop_reason() -> None:
     await check_stop_reason("openai/gpt-3.5-turbo")
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 @skip_if_trio
 async def test_openai_responses_stop_reason() -> None:
     await check_stop_reason("openai/gpt-4o-mini", responses_api=True)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 @skip_if_trio
 async def test_anthropic_stop_reason() -> None:
     await check_stop_reason("anthropic/claude-3-haiku-20240307")
 
 
-@pytest.mark.asyncio
 @pytest.mark.flaky
 @skip_if_no_grok
 @skip_if_trio
@@ -69,7 +64,6 @@ async def test_grok_stop_reason() -> None:
     await check_stop_reason("grok/grok-3-mini")
 
 
-@pytest.mark.asyncio
 @skip_if_no_together
 @skip_if_trio
 async def test_together_stop_reason() -> None:
