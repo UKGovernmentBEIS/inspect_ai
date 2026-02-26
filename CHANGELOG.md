@@ -6,6 +6,7 @@
 - OpenAI: Pass through `phase` for gpt-5.3-codex models.
 - OpenAI Compatible: Re-create closed httpx client after disconnect.
 - vLLM: Support for LoRA (Low-Rank Adaptation) via `--enable-lora` server option and LoRA-tuned server startup logic.
+- OpenRouter: Improved capture of reasoning summaries for Gemini models.
 - Agent Bridge: Only require `openai` package when bridging the openai completions or reaponses API.
 - Sandbox Tools: Increase server startup timeout from 20 seconds to 120 seconds.
 - Timelines: Improve agent detection logic in `timeline_build()`.
