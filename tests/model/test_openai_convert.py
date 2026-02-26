@@ -414,7 +414,6 @@ async def test_model_output_from_openai_length_stop_reason() -> None:
     assert result.choices[0].stop_reason == "max_tokens"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_cache_token_normalization() -> None:
     """Test that input_tokens excludes cached tokens for OpenAI Chat Completions."""
     completion = ChatCompletion(
@@ -451,7 +450,6 @@ async def test_model_output_from_openai_cache_token_normalization() -> None:
     assert result.usage.total_tokens == 1050
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_no_cache_tokens() -> None:
     """Test that input_tokens is unchanged when there are no cached tokens."""
     completion = ChatCompletion(
@@ -486,7 +484,6 @@ async def test_model_output_from_openai_no_cache_tokens() -> None:
     assert result.usage.total_tokens == 550
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_cache_normalization() -> None:
     """Test that input_tokens excludes cached tokens for OpenAI Responses API."""
     response = Response(
