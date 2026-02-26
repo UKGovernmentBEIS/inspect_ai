@@ -47,7 +47,7 @@ from inspect_ai.model import (
     Model,
     ModelName,
 )
-from inspect_ai.model._model import model_usage
+from inspect_ai.model._model import model_usage, role_usage
 from inspect_ai.model._model_config import (
     model_args_for_log,
     model_roles_to_model_roles_config,
@@ -375,6 +375,7 @@ def collect_eval_data(stats: EvalStats) -> None:
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
+    stats.role_usage = role_usage()
 
 
 def resolve_eval_metrics(

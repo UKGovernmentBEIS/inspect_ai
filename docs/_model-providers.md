@@ -2,7 +2,7 @@
 |  |  |
 |------------------------------------|------------------------------------|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek), [Perplexity](providers.qmd#perplexity) |
-| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock) and [Azure AI](providers.qmd#azure-ai) |
+| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [AWS SageMaker](providers.qmd#aws-sagemaker), and [Azure AI](providers.qmd#azure-ai) |
 | Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Fireworks AI](providers.qmd#fireworks-ai), [Cloudflare](providers.qmd#cloudflare), [HF Inference Providers](providers.qmd#hf-inference-providers), [SambaNova](providers.qmd#sambanova) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), [TransformerLens](providers.qmd#transformer-lens), [nnterp](providers.qmd#nnterp) |
 

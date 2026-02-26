@@ -241,7 +241,6 @@ def test_mcp_connection_refcount():
     assert log.samples
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 @skip_if_no_mcp_package
 async def test_mcp_sampling_fn():

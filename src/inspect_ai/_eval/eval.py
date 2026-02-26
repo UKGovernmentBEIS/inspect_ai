@@ -27,6 +27,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
+from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     DEFAULT_LOG_FORMAT,
@@ -59,6 +60,7 @@ from inspect_ai.model._model import (
     init_active_model,
     init_model_roles,
     init_model_usage,
+    init_role_usage,
     resolve_models,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
@@ -286,7 +288,7 @@ def eval(
             else:
                 raise
 
-    return task_display().run_task_app(run_task_app)
+    return task_display().run_task_app(with_async_fs(run_task_app))
 
 
 # single call to eval_async at a time
@@ -892,7 +894,7 @@ def eval_retry(
             max_connections=max_connections,
         )
 
-    return task_display().run_task_app(run_task_app)
+    return task_display().run_task_app(with_async_fs(run_task_app))
 
 
 async def eval_retry_async(
@@ -1124,6 +1126,14 @@ async def eval_retry_async(
         )
         if initial_model_usage:
             init_model_usage(initial_model_usage)
+
+        initial_role_usage = (
+            copy.deepcopy(eval_log.stats.role_usage)
+            if eval_log.stats.role_usage
+            else None
+        )
+        if initial_role_usage:
+            init_role_usage(initial_role_usage)
 
         # run the eval
         log = (

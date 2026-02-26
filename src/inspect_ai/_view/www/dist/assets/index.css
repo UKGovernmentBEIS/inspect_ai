@@ -19077,25 +19077,16 @@ span.ap-marker-container:hover span.ap-marker {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
-._wrapper_14r3b_1 {
-  padding-top: 0;
-  padding-bottom: 1em;
-  margin-left: 0.5em;
+._cardsContainer_d0qjo_1 {
   display: flex;
   flex-wrap: wrap;
   gap: 1em;
+  width: 100%;
 }
 
-._col1_14r3b_10 {
-  flex: 0 1 auto;
-  min-width: 200px;
-  width: fit-content;
-}
-
-._col2_14r3b_16 {
-  flex: 1 1 auto;
+._cardsContainer_d0qjo_1 > * {
+  flex: 1 1 300px;
   min-width: 300px;
-  width: fit-content;
 }
 ._label_jbrqc_1 {
   align-self: center;

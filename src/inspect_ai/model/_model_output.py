@@ -15,7 +15,12 @@ class ModelUsage(BaseModel):
     """Token usage for completion."""
 
     input_tokens: int = Field(default=0)
-    """Total input tokens used."""
+    """Input tokens charged at full rate (excludes cached tokens).
+
+    This count excludes tokens reported in input_tokens_cache_read and
+    input_tokens_cache_write. The true total input token count is:
+    input_tokens + (input_tokens_cache_read or 0) + (input_tokens_cache_write or 0).
+    """
 
     output_tokens: int = Field(default=0)
     """Total output tokens used."""

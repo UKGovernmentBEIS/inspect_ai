@@ -68,7 +68,6 @@ def test_anthropic_should_retry():
     model.api.should_retry(ex)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_single_tool_call() -> None:
     """Test counting tokens for a single assistant message with one tool call."""
@@ -91,7 +90,6 @@ async def test_anthropic_count_tokens_single_tool_call() -> None:
     assert token_count > 0
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_multiple_tool_calls() -> None:
     """Test counting tokens for a single assistant message with multiple tool calls."""
@@ -124,7 +122,6 @@ async def test_anthropic_count_tokens_multiple_tool_calls() -> None:
     assert token_count > 0
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_single_tool_result() -> None:
     """Test counting tokens for a single tool result message (no preceding tool use)."""

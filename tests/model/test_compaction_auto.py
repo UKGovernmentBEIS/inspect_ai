@@ -1,6 +1,5 @@
 """Tests for the CompactionAuto strategy."""
 
-import pytest
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai.model import (
@@ -25,7 +24,6 @@ def _sample_messages() -> list[ChatMessage]:
     ]
 
 
-@pytest.mark.asyncio
 async def test_auto_uses_fallback_on_unsupported_provider() -> None:
     """CompactionAuto falls back to summary on unsupported providers."""
     strategy = CompactionAuto()
@@ -43,7 +41,6 @@ async def test_auto_uses_fallback_on_unsupported_provider() -> None:
     assert strategy._use_fallback is True
 
 
-@pytest.mark.asyncio
 async def test_auto_fallback_is_sticky() -> None:
     """After the first fallback, _use_fallback is True and subsequent calls use fallback directly."""
     strategy = CompactionAuto()
@@ -61,7 +58,6 @@ async def test_auto_fallback_is_sticky() -> None:
     assert strategy._use_fallback is True
 
 
-@pytest.mark.asyncio
 async def test_auto_parameter_forwarding() -> None:
     """CompactionAuto forwards parameters to internal strategies."""
     threshold = 0.8
@@ -84,7 +80,6 @@ async def test_auto_parameter_forwarding() -> None:
     assert strategy._summary.memory == memory
 
 
-@pytest.mark.asyncio
 async def test_auto_memory_auto_default() -> None:
     """CompactionAuto defaults memory to 'auto' with dynamic behavior."""
     strategy = CompactionAuto()
@@ -99,7 +94,6 @@ async def test_auto_memory_auto_default() -> None:
     assert strategy.memory is False
 
 
-@pytest.mark.asyncio
 async def test_auto_memory_auto_after_fallback() -> None:
     """CompactionAuto memory property returns True after falling back to summary."""
     strategy = CompactionAuto()
@@ -117,7 +111,6 @@ async def test_auto_memory_auto_after_fallback() -> None:
     assert strategy.memory is True
 
 
-@pytest.mark.asyncio
 async def test_auto_memory_explicit_true() -> None:
     """CompactionAuto with memory=True enables memory for both strategies."""
     strategy = CompactionAuto(memory=True)
@@ -128,7 +121,6 @@ async def test_auto_memory_explicit_true() -> None:
     assert strategy.memory is True
 
 
-@pytest.mark.asyncio
 async def test_auto_memory_explicit_false() -> None:
     """CompactionAuto with memory=False disables memory for both strategies."""
     strategy = CompactionAuto(memory=False)
@@ -140,7 +132,6 @@ async def test_auto_memory_explicit_false() -> None:
 
 
 @skip_if_no_openai
-@pytest.mark.asyncio
 async def test_auto_uses_native_when_supported() -> None:
     """CompactionAuto uses native compaction when the provider supports it."""
     strategy = CompactionAuto()
@@ -161,7 +152,6 @@ async def test_auto_uses_native_when_supported() -> None:
 
 
 @skip_if_no_anthropic
-@pytest.mark.asyncio
 async def test_auto_fallback_on_unsupported_anthropic_model() -> None:
     """CompactionAuto falls back on unsupported Anthropic models."""
     strategy = CompactionAuto()

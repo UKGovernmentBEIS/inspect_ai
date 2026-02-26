@@ -4,7 +4,6 @@ from datetime import date, time, timezone
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, TypedDict, Union
 
-import pytest
 from pydantic import BaseModel
 
 from inspect_ai.model._call_tools import execute_tools
@@ -145,9 +144,6 @@ def complex_tool():
 
 
 # --- Positive tests -------------------------------------------------------
-
-
-@pytest.mark.asyncio
 async def test_incr_simple_positive():
     """Calling incr(0) should return 1."""
     tool_def = ToolDef(incr())
@@ -161,7 +157,6 @@ async def test_incr_simple_positive():
     assert messages[-1].content == "1"
 
 
-@pytest.mark.asyncio
 async def test_complex_tool_all_params():
     """Exercise every parameter type in one call."""
     args = {

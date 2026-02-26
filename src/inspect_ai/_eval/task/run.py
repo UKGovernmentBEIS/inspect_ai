@@ -23,6 +23,8 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -84,7 +86,12 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
-from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
+from inspect_ai.model._model import (
+    init_sample_model_usage,
+    init_sample_role_usage,
+    sample_model_usage,
+    sample_role_usage,
+)
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -683,6 +690,7 @@ async def task_run_sample(
 
     # initialise subtask and scoring context
     init_sample_model_usage()
+    init_sample_role_usage()
     set_sample_state(state)
     sample_transcript = Transcript()
     init_transcript(sample_transcript)
@@ -1001,6 +1009,8 @@ async def task_run_sample(
                                                         target=sample.target,
                                                         model_usage=sample_model_usage()
                                                         or None,
+                                                        role_usage=sample_role_usage()
+                                                        or None,
                                                     )
                                                 )
 
@@ -1020,6 +1030,7 @@ async def task_run_sample(
                                         score=score,
                                         target=sample.target,
                                         model_usage=sample_model_usage() or None,
+                                        role_usage=sample_role_usage() or None,
                                     )
                                 )
                                 results[name] = SampleScore(
@@ -1199,8 +1210,10 @@ def create_eval_sample(
         store=dict(state.store.items()),
         uuid=state.uuid,
         events=list(transcript().events),
+        timelines=list(transcript().timelines) or None,
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
+        role_usage=sample_role_usage(),
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,
@@ -1273,7 +1286,9 @@ async def resolve_dataset(
 #   - The datasets have not been shuffled OR the samples in the dataset have unique ids
 #   - The datasets have the exact same length
 def eval_log_sample_source(
-    eval_log: EvalLog | None, eval_log_info: EvalLogInfo | None, dataset: Dataset
+    eval_log: EvalLog | None,
+    eval_log_info: EvalLogInfo | None,
+    dataset: Dataset,
 ) -> EvalSampleSource:
     # return dummy function for no sample source
     async def no_sample_source(id: int | str, epoch: int) -> None:
@@ -1305,17 +1320,27 @@ def eval_log_sample_source(
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
         return no_sample_source
+    elif eval_log_info:
+        reader: AsyncZipReader | None = None
+
+        async def read_from_file(id: int | str, epoch: int) -> EvalSample | None:
+            nonlocal reader
+            if not reader:
+                reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
+            try:
+                sample = await read_eval_log_sample_async(
+                    eval_log_info, id, epoch, reader=reader
+                )
+                if sample.error is not None or sample.invalidation is not None:
+                    return None
+                return sample
+            except IndexError:
+                return None
+
+        return read_from_file
     else:
 
-        async def previous(id: int | str, epoch: int) -> EvalSample | None:
-            if eval_log_info:
-                try:
-                    sample = await read_eval_log_sample_async(eval_log_info, id, epoch)
-                    if sample.error is not None or sample.invalidation is not None:
-                        return None
-                    return sample
-                except IndexError:
-                    return None
+        async def read_from_memory(id: int | str, epoch: int) -> EvalSample | None:
             return next(
                 (
                     sample
@@ -1328,7 +1353,7 @@ def eval_log_sample_source(
                 None,
             )
 
-        return previous
+        return read_from_memory
 
 
 # semaphore to limit concurrency. default max_samples to

@@ -1,6 +1,5 @@
 """Tests for Anthropic model API conversion functions."""
 
-import pytest
 from anthropic.types import (
     Message,
     TextBlock,
@@ -17,7 +16,6 @@ from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._model_output import ModelOutput
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_anthropic_basic() -> None:
     """Test basic Message conversion to ModelOutput."""
     message = Message(
@@ -54,7 +52,6 @@ async def test_model_output_from_anthropic_basic() -> None:
     assert message_obj.content[0].text == "Hello! How can I help you today?"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_anthropic_with_tool_use() -> None:
     """Test Message with tool use conversion."""
     message = Message(
@@ -101,7 +98,6 @@ async def test_model_output_from_anthropic_with_tool_use() -> None:
     assert message_obj.tool_calls[0].arguments == {"location": "San Francisco"}
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_anthropic_with_thinking() -> None:
     """Test Message with thinking blocks (reasoning) conversion."""
     message = Message(
@@ -142,7 +138,6 @@ async def test_model_output_from_anthropic_with_thinking() -> None:
     assert message_obj.content[1].text == "The answer is 42."
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_anthropic_dict_input() -> None:
     """Test conversion from dict representation of Message."""
     message_dict = {
@@ -170,7 +165,6 @@ async def test_model_output_from_anthropic_dict_input() -> None:
     assert message_obj.content[0].text == "Dict test response"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_anthropic_max_tokens_stop_reason() -> None:
     """Test Message with max_tokens stop reason."""
     message = Message(
@@ -195,7 +189,6 @@ async def test_model_output_from_anthropic_max_tokens_stop_reason() -> None:
     assert result.choices[0].stop_reason == "max_tokens"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_anthropic_stop_sequence() -> None:
     """Test Message with stop_sequence stop reason."""
     message = Message(
@@ -218,7 +211,6 @@ async def test_model_output_from_anthropic_stop_sequence() -> None:
     assert result.choices[0].stop_reason == "stop"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_anthropic_multiple_thinking_blocks() -> None:
     """Test Message with multiple thinking blocks."""
     message = Message(
@@ -266,7 +258,6 @@ async def test_model_output_from_anthropic_multiple_thinking_blocks() -> None:
     assert message_obj.content[2].text == "Final answer based on reasoning."
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_anthropic_mixed_content() -> None:
     """Test Message with mixed content types."""
     message = Message(

@@ -2,7 +2,7 @@ from contextvars import ContextVar
 from copy import copy
 
 from inspect_ai.model._conversation import ModelConversation
-from inspect_ai.model._model import sample_model_usage
+from inspect_ai.model._model import sample_model_usage, sample_role_usage
 from inspect_ai.solver._task_state import TaskState, sample_state
 
 from ._metric import Score
@@ -65,6 +65,7 @@ async def score(conversation: ModelConversation) -> list[Score]:
                     target=target.target,
                     intermediate=True,
                     model_usage=sample_model_usage() or None,
+                    role_usage=sample_role_usage() or None,
                 )
             )
 
