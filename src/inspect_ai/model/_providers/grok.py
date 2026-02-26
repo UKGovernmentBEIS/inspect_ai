@@ -397,7 +397,7 @@ class GrokAPI(ModelAPI):
         if config.response_schema is not None:
             # Keep schema enforcement aligned across non-batch and batch requests.
             schema_model = json_schema_to_base_model(config.response_schema.json_schema)
-            # Use protobuf ResponseFormat so batch can round-trip full schema (not just "json_object").
+            # Use protobuf ResponseFormat so batch can round-trip full schema
             gconfig["response_format"] = chat_pb2.ResponseFormat(
                 format_type=chat_pb2.FormatType.FORMAT_TYPE_JSON_SCHEMA,
                 schema=json.dumps(schema_model.model_json_schema()),
