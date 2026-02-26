@@ -52,6 +52,25 @@ def is_ijson_nan_inf_error(
     )
 
 
+def _get_ijson_backend() -> Any:
+    """Return an ijson module compatible with the current async backend.
+
+    The default yajl2_c C backend uses asyncio-specific yields, so we
+    fall back to the pure-Python backend when running under trio.
+    """
+    import ijson  # type: ignore[import-untyped]
+    import sniffio
+
+    try:
+        if sniffio.current_async_library() == "trio":
+            import ijson.backends.python as ijson_py  # type: ignore[import-untyped]
+
+            return ijson_py
+    except sniffio.AsyncLibraryNotFoundError:
+        pass
+    return ijson
+
+
 async def aload_json_exclude(
     async_reader: "AsyncBytesReader",
     exclude_fields: set[str],
@@ -73,13 +92,13 @@ async def aload_json_exclude(
             full member content for the NaN/Inf fallback path.  If ``None``
             the NaN/Inf error is re-raised.
     """
-    import ijson  # type: ignore
-    from ijson import IncompleteJSONError
+    from ijson import IncompleteJSONError  # type: ignore[import-untyped]
     from ijson.backends.python import (  # type: ignore[import-untyped]
         UnexpectedSymbol,
     )
 
     try:
+        ijson = _get_ijson_backend()
         parser = ijson.parse_async(async_reader, use_float=True)
         events = parser.__aiter__()
         _, event, _ = await events.__anext__()

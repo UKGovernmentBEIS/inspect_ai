@@ -3,11 +3,11 @@ import json
 import math
 
 import pytest
-from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.json import (
     _abuild_json_value,
     _askip_json_value,
+    _get_ijson_backend,
     aload_json_exclude,
     json_changes,
     to_json_str_safe,
@@ -386,10 +386,8 @@ class _AsyncBytesIO:
     ],
 )
 @pytest.mark.anyio
-@skip_if_trio
 async def test_build_json_value(json_str: str, expected: object) -> None:
-    import ijson  # type: ignore
-
+    ijson = _get_ijson_backend()
     events = ijson.parse_async(_AsyncBytesIO(json_str.encode()), use_float=True)
     it = events.__aiter__()
     _, event, value = await it.__anext__()
@@ -398,10 +396,8 @@ async def test_build_json_value(json_str: str, expected: object) -> None:
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_skip_json_value() -> None:
-    import ijson
-
+    ijson = _get_ijson_backend()
     data = b'{"skip": {"nested": [1,2,3]}, "keep": 42}'
     events = ijson.parse_async(_AsyncBytesIO(data), use_float=True)
     it = events.__aiter__()
@@ -433,7 +429,6 @@ async def test_skip_json_value() -> None:
     ],
 )
 @pytest.mark.anyio
-@skip_if_trio
 async def test_load_json_exclude(
     json_bytes: bytes, exclude: set[str], expected: dict[str, object]
 ) -> None:
@@ -442,7 +437,6 @@ async def test_load_json_exclude(
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_load_json_exclude_nan_inf_fallback():
     data = b'{"a": NaN, "b": 2, "skip": [1, 2, 3]}'
 
@@ -456,7 +450,6 @@ async def test_load_json_exclude_nan_inf_fallback():
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_load_json_exclude_non_object_root():
     data = b"[1, 2, 3]"
     with pytest.raises(ValueError, match="Expected start_map"):
