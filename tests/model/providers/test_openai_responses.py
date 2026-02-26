@@ -6,6 +6,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai_responses import (
+    MESSAGE_ID,
+    MESSAGE_PHASE,
     _openai_input_items_from_chat_message_assistant,
 )
 from inspect_ai.model._providers.openai_compatible import ModelInfo
@@ -409,3 +411,83 @@ def test_chat_messages_from_compact_response_mixed_items():
     assert result[1].text == "Recent response"
     assert result[1].model == "codex-mini"
     assert result[1].source == "generate"
+
+
+def test_phase_round_trip():
+    """Test that the phase field from Codex models is preserved through round-trip."""
+    # Create a message with phase stored in ContentText.internal
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="Working on it...",
+                internal={MESSAGE_ID: "msg_1", MESSAGE_PHASE: "commentary"},
+            ),
+            ContentText(
+                text="Here is the answer.",
+                internal={MESSAGE_ID: "msg_2", MESSAGE_PHASE: "final_answer"},
+            ),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+
+    # Should produce two message items (different message IDs)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 2
+
+    # First message should have phase="commentary"
+    assert message_items[0]["phase"] == "commentary"
+    assert message_items[0]["content"][0]["text"] == "Working on it..."
+
+    # Second message should have phase="final_answer"
+    assert message_items[1]["phase"] == "final_answer"
+    assert message_items[1]["content"][0]["text"] == "Here is the answer."
+
+
+def test_phase_round_trip_no_phase():
+    """Test that messages without phase don't get a phase field."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="Hello",
+                internal={MESSAGE_ID: "msg_1"},
+            ),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 1
+    assert "phase" not in message_items[0]
+
+
+def test_phase_round_trip_mixed():
+    """Test messages where some have phase and some don't."""
+    message = ChatMessageAssistant(
+        content=[
+            ContentText(
+                text="No phase here",
+                internal={MESSAGE_ID: "msg_1"},
+            ),
+            ContentText(
+                text="Has phase",
+                internal={MESSAGE_ID: "msg_2", MESSAGE_PHASE: "commentary"},
+            ),
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(message)
+    message_items = [item for item in items if item.get("type") == "message"]
+    assert len(message_items) == 2
+
+    # First message: no phase
+    assert "phase" not in message_items[0]
+
+    # Second message: has phase
+    assert message_items[1]["phase"] == "commentary"

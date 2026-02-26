@@ -822,6 +822,8 @@ def _process_children(
                     if isinstance(node, TimelineSpan) and not node.content:
                         continue
                     branch_content.append(node)
+            if not branch_content:
+                continue
             branch_input = _get_branch_input(branch_content)
             forked_at = (
                 _find_forked_at(parent_content, branch_input)
@@ -1067,10 +1069,11 @@ def _detect_auto_branches(agent: TimelineSpan) -> None:
 
     for start, end, shared_input in branch_ranges:
         branch_content = list(agent.content[start:end])
-        forked_at = _find_forked_at(agent.content, shared_input)
-        agent.branches.append(
-            TimelineBranch(forked_at=forked_at, content=branch_content)
-        )
+        if branch_content:
+            forked_at = _find_forked_at(agent.content, shared_input)
+            agent.branches.append(
+                TimelineBranch(forked_at=forked_at, content=branch_content)
+            )
         del agent.content[start:end]
 
     # Reverse branches so they're in original order
