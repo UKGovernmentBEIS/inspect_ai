@@ -86,7 +86,12 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
-from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
+from inspect_ai.model._model import (
+    init_sample_model_usage,
+    init_sample_role_usage,
+    sample_model_usage,
+    sample_role_usage,
+)
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -685,6 +690,7 @@ async def task_run_sample(
 
     # initialise subtask and scoring context
     init_sample_model_usage()
+    init_sample_role_usage()
     set_sample_state(state)
     sample_transcript = Transcript()
     init_transcript(sample_transcript)
@@ -1003,6 +1009,8 @@ async def task_run_sample(
                                                         target=sample.target,
                                                         model_usage=sample_model_usage()
                                                         or None,
+                                                        role_usage=sample_role_usage()
+                                                        or None,
                                                     )
                                                 )
 
@@ -1022,6 +1030,7 @@ async def task_run_sample(
                                         score=score,
                                         target=sample.target,
                                         model_usage=sample_model_usage() or None,
+                                        role_usage=sample_role_usage() or None,
                                     )
                                 )
                                 results[name] = SampleScore(
@@ -1204,6 +1213,7 @@ def create_eval_sample(
         timelines=list(transcript().timelines) or None,
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
+        role_usage=sample_role_usage(),
         started_at=started_at.isoformat() if started_at is not None else None,
         completed_at=datetime.now(timezone.utc).isoformat(),
         total_time=round(total_time, 3) if total_time is not None else None,

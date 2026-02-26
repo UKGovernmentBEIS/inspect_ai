@@ -1,5 +1,4 @@
-import asyncio
-
+import anyio
 import pytest
 
 from inspect_ai._eval.eval import eval
@@ -139,7 +138,7 @@ async def test_apply_limits_handles_time_limit() -> None:
     # context manager, meaning the LimitExceededError is only raised when exiting the
     # limit context manager (as a result of a CancelledError).
     with apply_limits([time_limit(0.1)], catch_errors=True) as limit_scope:
-        await asyncio.sleep(0.5)
+        await anyio.sleep(0.5)
 
     assert limit_scope.limit_error is not None
 

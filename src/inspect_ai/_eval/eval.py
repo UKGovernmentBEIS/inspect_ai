@@ -60,6 +60,7 @@ from inspect_ai.model._model import (
     init_active_model,
     init_model_roles,
     init_model_usage,
+    init_role_usage,
     resolve_models,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
@@ -1125,6 +1126,14 @@ async def eval_retry_async(
         )
         if initial_model_usage:
             init_model_usage(initial_model_usage)
+
+        initial_role_usage = (
+            copy.deepcopy(eval_log.stats.role_usage)
+            if eval_log.stats.role_usage
+            else None
+        )
+        if initial_role_usage:
+            init_role_usage(initial_role_usage)
 
         # run the eval
         log = (

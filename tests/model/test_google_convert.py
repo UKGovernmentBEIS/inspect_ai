@@ -1,6 +1,5 @@
 """Tests for Google GenAI model API conversion functions."""
 
-import pytest
 from google.genai.types import (
     Candidate,
     Content,
@@ -27,7 +26,6 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model_output import ModelOutput
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_basic() -> None:
     """Test basic Content list conversion to ChatMessage list."""
     contents = [
@@ -56,7 +54,6 @@ async def test_messages_from_google_basic() -> None:
     assert result[1].content[0].text == "I'm doing well, thank you!"
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_system_instruction() -> None:
     """Test conversion with system instruction."""
     contents = [
@@ -76,7 +73,6 @@ async def test_messages_from_google_with_system_instruction() -> None:
     assert isinstance(result[1], ChatMessageUser)
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_tool_calls() -> None:
     """Test Content with function calls conversion."""
     contents = [
@@ -108,7 +104,6 @@ async def test_messages_from_google_with_tool_calls() -> None:
     assert message.tool_calls[0].arguments == {"location": "San Francisco"}
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_tool_response() -> None:
     """Test Content with function response conversion (tool message)."""
     contents = [
@@ -134,7 +129,6 @@ async def test_messages_from_google_with_tool_response() -> None:
     assert "Sunny" in message.content
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_reasoning() -> None:
     """Test Content with thought parts (reasoning) conversion."""
     contents = [
@@ -165,7 +159,6 @@ async def test_messages_from_google_with_reasoning() -> None:
     assert message.content[1].text == "The answer is 42."
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_dict_input() -> None:
     """Test conversion from dict representation of Content."""
     contents: list[ContentDict] = [
@@ -185,7 +178,6 @@ async def test_messages_from_google_dict_input() -> None:
     assert result[0].content[0].text == "Hello from dict"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_basic() -> None:
     """Test basic GenerateContentResponse conversion to ModelOutput."""
     response = GenerateContentResponse(
@@ -220,7 +212,6 @@ async def test_model_output_from_google_basic() -> None:
     assert result.usage.total_tokens == 30
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_with_tool_calls() -> None:
     """Test GenerateContentResponse with tool calls conversion."""
     response = GenerateContentResponse(
@@ -259,7 +250,6 @@ async def test_model_output_from_google_with_tool_calls() -> None:
     assert message.tool_calls[0].function == "search"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_with_reasoning() -> None:
     """Test GenerateContentResponse with reasoning (thought parts) conversion."""
     response = GenerateContentResponse(
@@ -298,7 +288,6 @@ async def test_model_output_from_google_with_reasoning() -> None:
     assert has_text
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_dict_input() -> None:
     """Test conversion from dict representation of GenerateContentResponse."""
     response_dict = {
@@ -330,7 +319,6 @@ async def test_model_output_from_google_dict_input() -> None:
     assert isinstance(message.content[0], ContentText)
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_max_tokens_stop_reason() -> None:
     """Test GenerateContentResponse with max_tokens finish reason."""
     response = GenerateContentResponse(
@@ -358,7 +346,6 @@ async def test_model_output_from_google_max_tokens_stop_reason() -> None:
     assert result.choices[0].stop_reason == "max_tokens"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_google_model_override() -> None:
     """Test model name override parameter."""
     response = GenerateContentResponse(
@@ -386,7 +373,6 @@ async def test_model_output_from_google_model_override() -> None:
     assert result.model == "custom-model-name"
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_model_tag() -> None:
     """Test that model parameter is passed to assistant messages."""
     contents = [
@@ -404,7 +390,6 @@ async def test_messages_from_google_with_model_tag() -> None:
     assert message.model == "gemini-2.0-flash-exp"
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_mixed_content() -> None:
     """Test Content with mixed content types."""
     contents = [
@@ -443,7 +428,6 @@ async def test_messages_from_google_mixed_content() -> None:
     assert message.tool_calls[0].function == "tool1"
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_with_role_tool() -> None:
     """Test Content with role='tool' (official SDK pattern for function responses)."""
     contents = [
@@ -469,7 +453,6 @@ async def test_messages_from_google_with_role_tool() -> None:
     assert "Sunny" in message.content
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_mixed_user_content() -> None:
     """Test user Content with BOTH text and function response (mixed parts)."""
     contents = [
@@ -513,7 +496,6 @@ async def test_messages_from_google_mixed_user_content() -> None:
     assert "follow-up" in result[2].content[0].text
 
 
-@pytest.mark.asyncio
 async def test_messages_from_google_multiple_tool_responses_in_user() -> None:
     """Test user Content with multiple function responses interleaved with text."""
     contents = [

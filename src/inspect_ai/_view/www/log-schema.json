@@ -2800,6 +2800,13 @@
           "title": "Model Usage",
           "type": "object"
         },
+        "role_usage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelUsage"
+          },
+          "title": "Role Usage",
+          "type": "object"
+        },
         "started_at": {
           "anyOf": [
             {
@@ -2933,6 +2940,7 @@
         "events",
         "timelines",
         "model_usage",
+        "role_usage",
         "started_at",
         "completed_at",
         "total_time",
@@ -3674,6 +3682,13 @@
           },
           "title": "Model Usage",
           "type": "object"
+        },
+        "role_usage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelUsage"
+          },
+          "title": "Role Usage",
+          "type": "object"
         }
       },
       "title": "EvalStats",
@@ -3681,7 +3696,8 @@
       "required": [
         "started_at",
         "completed_at",
-        "model_usage"
+        "model_usage",
+        "role_usage"
       ],
       "additionalProperties": false
     },
@@ -6438,6 +6454,21 @@
           ],
           "default": null,
           "title": "Model Usage"
+        },
+        "role_usage": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/ModelUsage"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role Usage"
         }
       },
       "required": [
@@ -6451,7 +6482,8 @@
         "score",
         "target",
         "intermediate",
-        "model_usage"
+        "model_usage",
+        "role_usage"
       ],
       "title": "ScoreEvent",
       "type": "object",

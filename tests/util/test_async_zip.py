@@ -34,7 +34,6 @@ def test_zip_file(tmp_path: Path) -> Path:
     return zip_path
 
 
-@pytest.mark.asyncio
 async def test_read_local_zip_member(test_zip_file: Path) -> None:
     """Test reading a member from a local ZIP file."""
     zip_path = str(test_zip_file)
@@ -54,7 +53,6 @@ async def test_read_local_zip_member(test_zip_file: Path) -> None:
         assert parsed["message"] == "hello world"
 
 
-@pytest.mark.asyncio
 async def test_read_nested_member(test_zip_file: Path) -> None:
     """Test reading a nested member from a local ZIP file."""
     zip_path = str(test_zip_file)
@@ -72,7 +70,6 @@ async def test_read_nested_member(test_zip_file: Path) -> None:
         assert data == b"This is nested data"
 
 
-@pytest.mark.asyncio
 async def test_open_member_reiteration(test_zip_file: Path) -> None:
     """Test that a member can be iterated multiple times within same context."""
     zip_path = str(test_zip_file)
@@ -88,7 +85,6 @@ async def test_open_member_reiteration(test_zip_file: Path) -> None:
         assert json.loads(data1.decode("utf-8"))["message"] == "hello world"
 
 
-@pytest.mark.asyncio
 async def test_concurrent_iteration(tmp_path: Path) -> None:
     """Test that multiple concurrent iterators work correctly."""
     # Create zip with large incompressible file to force multiple chunks
@@ -124,7 +120,6 @@ async def test_concurrent_iteration(tmp_path: Path) -> None:
             assert data2 == large_data
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("filename", ["", None])
 async def test_rejects_falsy_filename(filename: str | None) -> None:
     """Test that AsyncZipReader rejects falsy filenames."""
@@ -133,7 +128,6 @@ async def test_rejects_falsy_filename(filename: str | None) -> None:
             AsyncZipReader(fs, filename)  # type: ignore[arg-type]
 
 
-@pytest.mark.asyncio
 async def test_member_not_found(test_zip_file: Path) -> None:
     """Test that KeyError is raised for non-existent member."""
     zip_path = str(test_zip_file)
@@ -147,7 +141,6 @@ async def test_member_not_found(test_zip_file: Path) -> None:
                     pass
 
 
-@pytest.mark.asyncio
 @pytest.mark.slow
 async def test_read_s3_zip_member() -> None:
     """Test reading a specific member from a ZIP file stored in S3 (public bucket)."""
@@ -182,7 +175,6 @@ def zstd_zip_file(tmp_path: Path) -> Path:
     return zip_path
 
 
-@pytest.mark.asyncio
 async def test_read_zstd_compressed_member(zstd_zip_file: Path) -> None:
     """Test reading a zstd-compressed member from a ZIP file."""
     zip_path = str(zstd_zip_file)
@@ -206,7 +198,6 @@ async def test_read_zstd_compressed_member(zstd_zip_file: Path) -> None:
         assert parsed["message"] == "hello zstd"
 
 
-@pytest.mark.asyncio
 async def test_read_member_fully_deflated(test_zip_file: Path) -> None:
     """Test read_member_fully with deflate-compressed members."""
     zip_path = str(test_zip_file)
@@ -222,7 +213,6 @@ async def test_read_member_fully_deflated(test_zip_file: Path) -> None:
         assert data == b"This is nested data"
 
 
-@pytest.mark.asyncio
 async def test_read_member_fully_stored(tmp_path: Path) -> None:
     """Test read_member_fully with uncompressed (STORED) members."""
     zip_path = tmp_path / "stored.zip"
@@ -237,7 +227,6 @@ async def test_read_member_fully_stored(tmp_path: Path) -> None:
         assert data == content
 
 
-@pytest.mark.asyncio
 async def test_read_member_fully_zstd(zstd_zip_file: Path) -> None:
     """Test read_member_fully with zstd-compressed members."""
     async with AsyncFilesystem() as fs:
@@ -247,7 +236,6 @@ async def test_read_member_fully_zstd(zstd_zip_file: Path) -> None:
         assert parsed["message"] == "hello zstd"
 
 
-@pytest.mark.asyncio
 async def test_read_member_fully_not_found(test_zip_file: Path) -> None:
     """Test that read_member_fully raises KeyError for non-existent member."""
     async with AsyncFilesystem() as fs:
@@ -256,7 +244,6 @@ async def test_read_member_fully_not_found(test_zip_file: Path) -> None:
             await reader.read_member_fully("nonexistent.txt")
 
 
-@pytest.mark.asyncio
 async def test_read_member_fully_by_entry(test_zip_file: Path) -> None:
     """Test read_member_fully when passing a ZipEntry instead of a string."""
     async with AsyncFilesystem() as fs:
@@ -267,7 +254,6 @@ async def test_read_member_fully_by_entry(test_zip_file: Path) -> None:
         assert parsed["message"] == "hello world"
 
 
-@pytest.mark.asyncio
 async def test_read_member_fully_matches_open_member(tmp_path: Path) -> None:
     """Test that read_member_fully returns the same data as open_member."""
     zip_path = tmp_path / "compare.zip"
@@ -292,7 +278,6 @@ async def test_read_member_fully_matches_open_member(tmp_path: Path) -> None:
         assert full_data == streamed_data == large_data
 
 
-@pytest.mark.asyncio
 async def test_read_member_fully_large_extra_field(tmp_path: Path) -> None:
     """Test read_member_fully when the local header extra field exceeds the estimate.
 
@@ -360,7 +345,6 @@ async def test_read_member_fully_large_extra_field(tmp_path: Path) -> None:
         assert data == content
 
 
-@pytest.mark.asyncio
 async def test_false_zip64_locator_in_compressed_data(tmp_path: Path) -> None:
     """Test that a false ZIP64 locator signature in compressed data is ignored."""
     zip_path = tmp_path / "false_locator.zip"
@@ -389,7 +373,6 @@ async def test_false_zip64_locator_in_compressed_data(tmp_path: Path) -> None:
         assert len(cd.entries) > 0
 
 
-@pytest.mark.asyncio
 async def test_deflate_compress_stream() -> None:
     """Test that _DeflateCompressStream correctly deflate-compresses data."""
     original_data = b"The quick brown fox jumps over the lazy dog. " * 100
@@ -420,7 +403,6 @@ async def test_deflate_compress_stream() -> None:
     assert decompressed == original_data
 
 
-@pytest.mark.asyncio
 async def test_ijson_kvitems_async_with_zip_member(tmp_path: Path) -> None:
     """Test that ijson.kvitems_async works with _ZipMemberBytes from open_member().
 

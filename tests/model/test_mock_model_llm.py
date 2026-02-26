@@ -13,7 +13,6 @@ from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_default() -> None:
     model = get_model("mockllm/model")
@@ -22,7 +21,6 @@ async def test_mock_generate_default() -> None:
     assert response.completion == MockLLM.default_output
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_custom_valid() -> None:
     custom_content_str = "custom #content"
@@ -37,7 +35,6 @@ async def test_mock_generate_custom_valid() -> None:
     assert response.completion == custom_content_str
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_custom_invalid() -> None:
     model = get_model(
@@ -49,7 +46,6 @@ async def test_mock_generate_custom_invalid() -> None:
     assert "must be an instance of ModelOutput" in str(e_info.value)
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_custom_invalid_iterable_string() -> None:
     model = get_model(
@@ -61,7 +57,6 @@ async def test_mock_generate_custom_invalid_iterable_string() -> None:
     assert "must be an instance of ModelOutput" in str(e_info.value)
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_custom_invalid_iterable_number() -> None:
     with pytest.raises(ValueError) as e_info:
@@ -72,7 +67,6 @@ async def test_mock_generate_custom_invalid_iterable_number() -> None:
     assert "must be an Iterable, Generator, or Callable" in str(e_info.value)
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_not_enough() -> None:
     model = get_model(
@@ -90,7 +84,6 @@ async def test_mock_generate_not_enough() -> None:
         assert "custom_outputs ran out of values" in str(e_info.value)
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_custom_callable() -> None:
     def custom_output_generator(
@@ -109,7 +102,6 @@ async def test_mock_generate_custom_callable() -> None:
     assert response.completion == "response from callable"
 
 
-@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_custom_callable_with_params() -> None:
     def custom_output_generator(

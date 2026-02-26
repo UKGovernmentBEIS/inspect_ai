@@ -767,7 +767,7 @@ class Model:
 
             # Record and check usage
             if usage:
-                record_and_check_model_usage(f"{self}", usage)
+                record_and_check_model_usage(f"{self}", usage, role=self.role)
 
             return compacted_messages, usage
 
@@ -992,7 +992,7 @@ class Model:
 
             # record usage
             if output.usage:
-                record_and_check_model_usage(f"{self}", output.usage)
+                record_and_check_model_usage(f"{self}", output.usage, role=self.role)
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -1879,7 +1879,20 @@ def init_sample_model_usage() -> None:
     sample_model_usage_context_var.set({})
 
 
-def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
+def init_role_usage(initial_usage: dict[str, ModelUsage] | None = None) -> None:
+    if initial_usage is not None:
+        role_usage_context_var.set(initial_usage)
+    elif len(role_usage_context_var.get()) == 0:
+        role_usage_context_var.set({})
+
+
+def init_sample_role_usage() -> None:
+    sample_role_usage_context_var.set({})
+
+
+def record_and_check_model_usage(
+    model: str, usage: ModelUsage, role: str | None = None
+) -> None:
     from inspect_ai.log._samples import (
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
@@ -1898,6 +1911,12 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
+
+    # record usage by role name (if role is set)
+    if role is not None:
+        set_model_usage(role, usage, sample_role_usage_context_var.get(None))
+        set_model_usage(role, usage, role_usage_context_var.get(None))
+
     record_model_usage(usage)
 
     # compute total tokens and update active sample
@@ -1934,6 +1953,14 @@ def sample_model_usage() -> dict[str, ModelUsage]:
     return sample_model_usage_context_var.get()
 
 
+def role_usage() -> dict[str, ModelUsage]:
+    return role_usage_context_var.get()
+
+
+def sample_role_usage() -> dict[str, ModelUsage]:
+    return sample_role_usage_context_var.get()
+
+
 def sample_total_tokens() -> int:
     total_tokens = [usage.total_tokens for usage in iter(sample_model_usage().values())]
     return sum(total_tokens)
@@ -1941,6 +1968,16 @@ def sample_total_tokens() -> int:
 
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
+)
+
+
+role_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "role_usage", default={}
+)
+
+
+sample_role_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "sample_role_usage", default={}
 )
 
 

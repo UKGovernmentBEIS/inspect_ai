@@ -1,14 +1,18 @@
 ## Unreleased
 
 - Model API: Add SageMaker provider for invoking models hosted on AWS SageMaker endpoints.
+- Model API: Normalize handling of cached tokens in `ModelUsage` (input tokens now excludes cached tokens whereas previously it included them for some providers).
+- Model API: Track model usage by model role in addition to globally.
 - OpenAI: Warn user when reasoning options are passed to non-reasoning model.
 - OpenAI: Pass through `phase` for gpt-5.3-codex models.
 - OpenAI Compatible: Re-create closed httpx client after disconnect.
 - vLLM: Support for LoRA (Low-Rank Adaptation) via `--enable-lora` server option and LoRA-tuned server startup logic.
+- OpenRouter: Improved capture of reasoning summaries for Gemini models.
 - Agent Bridge: Only require `openai` package when bridging the openai completions or reaponses API.
 - Sandbox Tools: Increase server startup timeout from 20 seconds to 120 seconds.
 - Timelines: Improve agent detection logic in `timeline_build()`.
 - Performance: Share a single `AsyncFilesystem` via ContextVar within each async context, eliminating redundant S3 client creation and connection pool fragmentation.
+- Testing: Migrate async tests from pytest-asyncio to anyio, enabling dual-backend (asyncio/trio) test execution via `--runtrio` flag.
 - Bugfix: Strip surrounding quotes from S3 ETag in `.eval` header-only reads so it is consistent with full reads.
 - Eval Logs: Extract reusable `aload_json_exclude()` async streaming JSON utility for efficient partial log reads.
 
