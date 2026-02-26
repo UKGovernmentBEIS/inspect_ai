@@ -7,7 +7,7 @@ from openai.types.chat import (
 )
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message_function_tool_call import Function
-from openai.types.completion_usage import CompletionUsage
+from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from openai.types.responses import (
     Response,
     ResponseOutputMessage,
@@ -421,3 +421,120 @@ async def test_model_output_from_openai_length_stop_reason() -> None:
 
     assert isinstance(result, ModelOutput)
     assert result.choices[0].stop_reason == "max_tokens"
+
+
+@pytest.mark.asyncio
+async def test_model_output_from_openai_cache_token_normalization() -> None:
+    """Test that input_tokens excludes cached tokens for OpenAI Chat Completions."""
+    completion = ChatCompletion(
+        id="chatcmpl-cache",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="Hello!",
+                ),
+                finish_reason="stop",
+                logprobs=None,
+            )
+        ],
+        usage=CompletionUsage(
+            prompt_tokens=1000,
+            completion_tokens=50,
+            total_tokens=1050,
+            prompt_tokens_details=PromptTokensDetails(cached_tokens=600),
+        ),
+    )
+
+    result = await model_output_from_openai(completion)
+
+    assert result.usage is not None
+    # input_tokens should exclude cached tokens: 1000 - 600 = 400
+    assert result.usage.input_tokens == 400
+    assert result.usage.input_tokens_cache_read == 600
+    assert result.usage.output_tokens == 50
+    assert result.usage.total_tokens == 1050
+
+
+@pytest.mark.asyncio
+async def test_model_output_from_openai_no_cache_tokens() -> None:
+    """Test that input_tokens is unchanged when there are no cached tokens."""
+    completion = ChatCompletion(
+        id="chatcmpl-nocache",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="Hello!",
+                ),
+                finish_reason="stop",
+                logprobs=None,
+            )
+        ],
+        usage=CompletionUsage(
+            prompt_tokens=500,
+            completion_tokens=50,
+            total_tokens=550,
+        ),
+    )
+
+    result = await model_output_from_openai(completion)
+
+    assert result.usage is not None
+    # No cache, input_tokens should equal prompt_tokens
+    assert result.usage.input_tokens == 500
+    assert result.usage.input_tokens_cache_read is None
+    assert result.usage.total_tokens == 550
+
+
+@pytest.mark.asyncio
+async def test_model_output_from_openai_responses_cache_normalization() -> None:
+    """Test that input_tokens excludes cached tokens for OpenAI Responses API."""
+    response = Response(
+        id="resp-cache",
+        created_at=1234567890,
+        model="gpt-4o-mini",
+        object="response",
+        output=[
+            ResponseOutputMessage(
+                id="msg-1",
+                type="message",
+                role="assistant",
+                status="completed",
+                content=[
+                    ResponseOutputText(
+                        type="output_text",
+                        text="Hello!",
+                        annotations=[],
+                    )
+                ],
+            )
+        ],
+        tool_choice="auto",
+        tools=[],
+        parallel_tool_calls=False,
+        usage=ResponseUsage(
+            input_tokens=1000,
+            output_tokens=50,
+            total_tokens=1050,
+            input_tokens_details=InputTokensDetails(cached_tokens=600),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = await model_output_from_openai_responses(response)
+
+    assert result.usage is not None
+    # input_tokens should exclude cached tokens: 1000 - 600 = 400
+    assert result.usage.input_tokens == 400
+    assert result.usage.input_tokens_cache_read == 600
+    assert result.usage.output_tokens == 50
+    assert result.usage.total_tokens == 1050
