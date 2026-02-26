@@ -186,18 +186,22 @@ async def generate_responses(
 
 
 def model_usage_from_response(model_response: Response) -> ModelUsage | None:
-    return (
-        ModelUsage(
-            input_tokens=model_response.usage.input_tokens,
-            output_tokens=model_response.usage.output_tokens,
-            input_tokens_cache_read=(
-                model_response.usage.input_tokens_details.cached_tokens
-            ),
-            reasoning_tokens=model_response.usage.output_tokens_details.reasoning_tokens,
-            total_tokens=model_response.usage.total_tokens,
-        )
-        if model_response.usage
-        else None
+    if model_response.usage is None:
+        return None
+    cached_tokens = (
+        model_response.usage.input_tokens_details.cached_tokens
+        if model_response.usage.input_tokens_details is not None
+        and model_response.usage.input_tokens_details.cached_tokens is not None
+        else 0
+    )
+    return ModelUsage(
+        input_tokens=model_response.usage.input_tokens - cached_tokens,
+        output_tokens=model_response.usage.output_tokens,
+        input_tokens_cache_read=cached_tokens if cached_tokens > 0 else None,
+        reasoning_tokens=model_response.usage.output_tokens_details.reasoning_tokens
+        if model_response.usage.output_tokens_details is not None
+        else None,
+        total_tokens=model_response.usage.total_tokens,
     )
 
 
@@ -343,14 +347,19 @@ def completion_params_responses(
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
-    if model_info.has_reasoning_options():
-        reasoning: dict[str, str] = {}
-        if config.reasoning_effort is not None:
-            reasoning["effort"] = config.reasoning_effort
-        if config.reasoning_summary != "none":
-            reasoning["summary"] = config.reasoning_summary or "auto"
-        if len(reasoning) > 0:
+    reasoning: dict[str, str] = {}
+    if config.reasoning_effort is not None:
+        reasoning["effort"] = config.reasoning_effort
+    if config.reasoning_summary != "none":
+        reasoning["summary"] = config.reasoning_summary or "auto"
+    if len(reasoning) > 0:
+        if model_info.has_reasoning_options():
             params["reasoning"] = reasoning
+        else:
+            warn_once(
+                logger,
+                f"reasoning options ignored for non-reasoning model {model_name}",
+            )
     if config.response_schema is not None:
         params["text"] = dict(
             format=ResponseFormatTextJSONSchemaConfigParam(
