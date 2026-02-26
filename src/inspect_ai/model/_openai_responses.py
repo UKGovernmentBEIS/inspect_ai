@@ -1027,7 +1027,7 @@ def _openai_input_items_from_chat_message_assistant(
                 status="completed",
             )
             if pending_response_phase is not None:
-                msg_param["phase"] = pending_response_phase  # type: ignore[typeddict-unknown-key]
+                msg_param["phase"] = pending_response_phase  # type: ignore[typeddict-item]
             items.append(msg_param)
         pending_response_output_id = None
         pending_response_phase = None

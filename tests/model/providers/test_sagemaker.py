@@ -217,25 +217,25 @@ class TestBuildRequestBody:
 
 
 class TestToolChoice:
-    def test_tool_choice_auto(self):
+    def test_tool_choice_auto(self) -> None:
         api = _make_api()
         body: dict[str, Any] = {}
         api._add_tool_choice(body, "auto")
         assert body["tool_choice"] == "auto"
 
-    def test_tool_choice_none(self):
+    def test_tool_choice_none(self) -> None:
         api = _make_api()
         body: dict[str, Any] = {}
         api._add_tool_choice(body, "none")
         assert body["tool_choice"] == "none"
 
-    def test_tool_choice_any(self):
+    def test_tool_choice_any(self) -> None:
         api = _make_api()
         body: dict[str, Any] = {}
         api._add_tool_choice(body, "any")
         assert body["tool_choice"] == "required"
 
-    def test_tool_choice_specific_function(self):
+    def test_tool_choice_specific_function(self) -> None:
         api = _make_api()
         body: dict[str, Any] = {}
         api._add_tool_choice(body, ToolFunction(name="my_tool"))
