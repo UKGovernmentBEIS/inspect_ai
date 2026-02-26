@@ -152,6 +152,9 @@ export type Dirty = boolean | null;
 export type Metadata = {
   [k: string]: unknown;
 } | null;
+export type Environment = {
+  [k: string]: string;
+} | null;
 export type Scorers = EvalScorer[] | null;
 export type Name3 = string;
 export type Options = {
@@ -934,6 +937,7 @@ export interface EvalSpec {
   revision: EvalRevision | null;
   packages: Packages;
   metadata: Metadata;
+  environment: Environment;
   scorers: Scorers;
   metrics: Metrics1;
 }
