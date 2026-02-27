@@ -58,7 +58,8 @@ def test_grok_batch_submission_smoke() -> None:
                 dataset=[Sample(input="What is 2+2?", target="4")],
                 scorer=includes(),
             ),
-            model="grok/grok-3-mini",
+            # grok-3-mini currently rejects this batch endpoint for some keys.
+            model="grok/grok-4-1-fast-non-reasoning",
             batch=BatchConfig(size=1, send_delay=0, tick=0.1),
             fail_on_error=True,
         )
@@ -75,6 +76,7 @@ def _make_grok_batcher_and_batch(
     num_success: int,
     num_error: int,
     num_cancelled: int,
+    num_requests: int,
 ) -> tuple[GrokBatcher, Batch[object]]:
     """Create a mocked batcher and single-request batch for status tests."""
     client = MagicMock()
@@ -85,6 +87,7 @@ def _make_grok_batcher_and_batch(
                 num_success=num_success,
                 num_error=num_error,
                 num_cancelled=num_cancelled,
+                num_requests=num_requests,
             ),
             create_time=SimpleNamespace(seconds=1234),
         )
@@ -109,11 +112,13 @@ def _make_grok_batcher_and_batch(
 
 
 @pytest.mark.parametrize(
-    "num_pending,num_success,num_error,num_cancelled,expect_completed,expect_failed,expect_completion",
+    "num_pending,num_success,num_error,num_cancelled,num_requests,expect_completed,expect_failed,expect_completion",
     [
-        pytest.param(2, 0, 0, 0, 0, 0, False, id="pending"),
-        pytest.param(0, 2, 0, 0, 2, 0, True, id="all-success"),
-        pytest.param(0, 1, 2, 3, 1, 5, True, id="terminal-mixed"),
+        pytest.param(2, 0, 0, 0, 2, 0, 0, False, id="pending"),
+        pytest.param(0, 2, 0, 0, 2, 2, 0, True, id="all-success"),
+        pytest.param(0, 1, 2, 3, 6, 1, 5, True, id="terminal-mixed"),
+        pytest.param(0, 1, 0, 0, 2, 1, 0, False, id="counts-not-terminal"),
+        pytest.param(0, 0, 0, 0, 0, 0, 0, False, id="empty-not-terminal"),
     ],
 )
 async def test_grok_check_batch_terminal_states(
@@ -121,6 +126,7 @@ async def test_grok_check_batch_terminal_states(
     num_success: int,
     num_error: int,
     num_cancelled: int,
+    num_requests: int,
     expect_completed: int,
     expect_failed: int,
     expect_completion: bool,
@@ -131,6 +137,7 @@ async def test_grok_check_batch_terminal_states(
         num_success=num_success,
         num_error=num_error,
         num_cancelled=num_cancelled,
+        num_requests=num_requests,
     )
 
     result = await batcher._check_batch(batch)
@@ -217,3 +224,45 @@ async def test_grok_create_batch_parses_json_schema_response_format() -> None:
     response_format = create_kwargs["response_format"]
     assert not isinstance(response_format, dict)
     assert response_format.schema == schema
+
+
+@pytest.mark.anyio
+async def test_grok_create_batch_chunks_add_calls() -> None:
+    """Add each request in its own add call to avoid oversized gRPC payloads."""
+    client = MagicMock()
+    client.chat.create = MagicMock(return_value=MagicMock())
+    client.batch.create = AsyncMock(return_value=SimpleNamespace(batch_id="batch-123"))
+    client.batch.add = AsyncMock()
+
+    batcher = GrokBatcher(
+        client=client,
+        config=BatchConfig(),
+        retry_config=model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+    )
+
+    batch_requests: list[BatchRequest[object]] = [
+        BatchRequest(
+            request={"model": "grok-3-mini", "messages": [], "tools": []},
+            result_stream=MagicMock(),
+            custom_id="req-1",
+        ),
+        BatchRequest(
+            request={"model": "grok-3-mini", "messages": [], "tools": []},
+            result_stream=MagicMock(),
+            custom_id="req-2",
+        ),
+        BatchRequest(
+            request={"model": "grok-3-mini", "messages": [], "tools": []},
+            result_stream=MagicMock(),
+            custom_id="req-3",
+        ),
+    ]
+
+    await batcher._create_batch(batch_requests)
+
+    assert client.batch.add.await_count == len(batch_requests)
+    for call in client.batch.add.await_args_list:
+        assert call.kwargs["batch_id"] == "batch-123"
+        assert len(call.kwargs["batch_requests"]) == 1
