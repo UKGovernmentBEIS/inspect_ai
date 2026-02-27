@@ -74,14 +74,13 @@ export default defineConfig(({ mode }) => {
         },
         cssCodeSplit: false,
         sourcemap: true,
-        minify: false,
+        minify: true,
       },
     };
   } else {
     // App build configuration
     return {
       ...baseConfig,
-      mode: "development",
       base: "",
       server: {
         proxy: {
@@ -92,12 +91,23 @@ export default defineConfig(({ mode }) => {
         }
       },
       build: {
-        minify: false,
+        minify: true,
         rollupOptions: {
           output: {
             entryFileNames: `assets/index.js`,
             chunkFileNames: `assets/[name].js`,
             assetFileNames: `assets/[name].[ext]`,
+            manualChunks(id) {
+              if (id.includes('mathjax') || id.includes('markdown-it-mathjax3')) {
+                return 'vendor-mathjax';
+              }
+              if (id.includes('@codemirror') || id.includes('@lezer')) {
+                return 'vendor-codemirror';
+              }
+              if (id.includes('ag-grid')) {
+                return 'vendor-ag-grid';
+              }
+            },
           },
         },
         sourcemap: true,
