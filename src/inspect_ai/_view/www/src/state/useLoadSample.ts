@@ -81,8 +81,19 @@ export function useLoadSample() {
           // Stop any existing polling when loading a completed sample
           getSamplePolling().stopPolling();
 
+          sampleActions.setDownloadProgress(undefined);
+          const onProgress = (bytesLoaded: number, bytesTotal: number) => {
+            sampleActions.setDownloadProgress({ bytesLoaded, bytesTotal });
+          };
+
           // Fetch the sample from the API
-          const sample = await api?.get_log_sample(logFile, id, epoch);
+          const sample = await api?.get_log_sample(
+            logFile,
+            id,
+            epoch,
+            onProgress,
+          );
+          sampleActions.setDownloadProgress(undefined);
           log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
 
           if (sample) {
@@ -111,6 +122,7 @@ export function useLoadSample() {
           getSamplePolling().stopPolling();
         }
       } catch (e) {
+        sampleActions.setDownloadProgress(undefined);
         sampleActions.setSampleError(e as Error);
         sampleActions.setSampleStatus("error");
       }

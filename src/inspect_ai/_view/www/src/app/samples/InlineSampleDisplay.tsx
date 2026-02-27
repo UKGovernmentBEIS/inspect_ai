@@ -36,6 +36,14 @@ export const InlineSampleComponent: FC<InlineSampleDisplayProps> = ({
 }) => {
   const sampleData = useSampleData();
 
+  const sampleProgress =
+    sampleData.status === "loading" &&
+    sampleData.downloadProgress &&
+    sampleData.downloadProgress.bytesTotal > 0
+      ? sampleData.downloadProgress.bytesLoaded /
+        sampleData.downloadProgress.bytesTotal
+      : undefined;
+
   // Scroll ref
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
@@ -45,6 +53,7 @@ export const InlineSampleComponent: FC<InlineSampleDisplayProps> = ({
           animating={
             sampleData.status === "loading" || sampleData.status === "streaming"
           }
+          progress={sampleProgress}
         />
       )}
       <div className={clsx(styles.scroller)} ref={scrollRef}>

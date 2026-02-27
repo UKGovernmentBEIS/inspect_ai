@@ -36,6 +36,10 @@ import {
   ToolEvent,
   Version,
 } from "../../@types/log";
+export type ProgressCallback = (
+  bytesLoaded: number,
+  bytesTotal: number,
+) => void;
 
 export interface LogDetails {
   version?: Version;
@@ -144,6 +148,11 @@ export interface Capabilities {
   streamSampleData: boolean;
 }
 
+export interface LogInfo {
+  size: number;
+  direct_url?: string;
+}
+
 export interface LogViewAPI {
   client_events: () => Promise<any[]>;
   get_eval_set: (dir?: string) => Promise<EvalSet | undefined>;
@@ -161,7 +170,7 @@ export interface LogViewAPI {
     headerOnly?: number,
     capabilities?: Capabilities,
   ) => Promise<LogContents>;
-  get_log_size: (log_file: string) => Promise<number>;
+  get_log_info: (log_file: string) => Promise<LogInfo>;
   get_log_bytes: (
     log_file: string,
     start: number,
@@ -219,6 +228,7 @@ export interface ClientAPI {
     log_file: string,
     id: string | number,
     epoch: number,
+    onProgress?: ProgressCallback,
   ) => Promise<EvalSample | undefined>;
   get_log_pending_samples?: (
     log_file: string,

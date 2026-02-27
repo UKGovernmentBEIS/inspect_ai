@@ -155,6 +155,39 @@ async def get_log_size(log_file: str) -> int:
     return info.size
 
 
+async def get_log_info(
+    log_file: str,
+    generate_direct_url: bool = False,
+) -> dict[str, Any]:
+    """Return file size and optionally a direct URL for the log file.
+
+    Args:
+        log_file: Path to the log file.
+        generate_direct_url: If True and the file is on S3, include a
+            presigned URL in the response.
+
+    Returns:
+        Dict with "size" (int) and optionally "direct_url" (str).
+    """
+    size = await get_log_size(log_file)
+    result: dict[str, Any] = {"size": size}
+
+    if generate_direct_url:
+        fs = filesystem(log_file)
+        if fs.is_s3():
+            try:
+                connection = async_connection(log_file)
+                url: str = await connection._url(log_file, expires=3600)
+                result["direct_url"] = url
+            except Exception:
+                logger.warning(
+                    f"Failed to generate presigned URL for {log_file}",
+                    exc_info=True,
+                )
+
+    return result
+
+
 async def delete_log(log_file: str) -> None:
     fs = filesystem(log_file)
     fs.rm(log_file)

@@ -33,6 +33,7 @@ from inspect_ai._view.common import (
     get_log_dir,
     get_log_file,
     get_log_files,
+    get_log_info,
     get_log_size,
     get_logs,
     normalize_uri,
@@ -79,6 +80,7 @@ def view_server_app(
     default_dir: str = "",
     recursive: bool = True,
     fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
 ) -> "FastAPI":
     app = FastAPI()
 
@@ -118,12 +120,15 @@ def view_server_app(
         body = await get_log_file(await _map_file(request, file), header_only)
         return Response(content=body, media_type="application/json")
 
-    @app.get("/log-size/{log:path}")
-    async def api_log_size(request: Request, log: str) -> Response:
+    @app.get("/log-info/{log:path}")
+    async def api_log_info(request: Request, log: str) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        size = await get_log_size(await _map_file(request, file))
-        return InspectJsonResponse(content=size)
+        info = await get_log_info(
+            await _map_file(request, file),
+            generate_direct_url=generate_direct_urls,
+        )
+        return InspectJsonResponse(content=info)
 
     @app.get("/log-delete/{log:path}")
     async def api_log_delete(request: Request, log: str) -> Response:
