@@ -343,10 +343,22 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
 <ul>
 <li>Model API: Add SageMaker provider for invoking models hosted on AWS SageMaker endpoints.</li>
+<li>Model API: Normalize handling of cached tokens in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modelusage">ModelUsage</a></span> (input tokens now excludes cached tokens whereas previously it included them for some providers).</li>
+<li>Model API: Track model usage by model role in addition to globally.</li>
+<li>OpenAI: Capture system and user messages in compaction responses.</li>
+<li>OpenAI: Warn user when reasoning options are passed to non-reasoning model.</li>
+<li>OpenAI: Pass through <code>phase</code> for gpt-5.3-codex models.</li>
 <li>OpenAI Compatible: Re-create closed httpx client after disconnect.</li>
+<li>Anthropic: Support ANTHROPIC_AUTH_TOKEN for OAuth Bearer authentication.</li>
 <li>vLLM: Support for LoRA (Low-Rank Adaptation) via <code>--enable-lora</code> server option and LoRA-tuned server startup logic.</li>
+<li>OpenRouter: Improved capture of reasoning summaries for Gemini models.</li>
+<li>Scoring: Add <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#math">math()</a></span> scorer which handles comparing mathematical expresions.</li>
+<li>Agent Bridge: Only require <code>openai</code> package when bridging the openai completions or reaponses API.</li>
 <li>Sandbox Tools: Increase server startup timeout from 20 seconds to 120 seconds.</li>
 <li>Timelines: Improve agent detection logic in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#timeline_build">timeline_build()</a></span>.</li>
+<li>Performance: Share a single <code>AsyncFilesystem</code> via ContextVar within each async context, eliminating redundant S3 client creation and connection pool fragmentation.</li>
+<li>Inspect View: Improve virtualized find in transcript by matching event titles as well as contents.</li>
+<li>Testing: Migrate async tests from pytest-asyncio to anyio, enabling dual-backend (asyncio/trio) test execution via <code>--runtrio</code> flag.</li>
 <li>Bugfix: Strip surrounding quotes from S3 ETag in <code>.eval</code> header-only reads so it is consistent with full reads.</li>
 </ul>
 </section>
@@ -364,6 +376,7 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li>AzureAI: Pass <code>max_completion_tokens</code> to gpt-5 and o-series models.</li>
 <li>Events: Add timeline functions for providing additional structure for event viewing and traversal.</li>
+<li>Bugfix: Fix Inspect View showing stale sample data when rapidly switching between samples.</li>
 </ul>
 </section>
 <section id="february-2026-2" class="level2">

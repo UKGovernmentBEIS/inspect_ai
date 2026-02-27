@@ -911,9 +911,14 @@ taken from the GPT 5.1 system prompt for Codex. Pass a custom
 ## Memory
 
 The memory tool enables models to store and retrieve information into a
-`/memories` file directory. Models can create, read, update, and delete
-files, enabling them to preserve knowledge over time without keeping
-everything in the context window.
+virtual `/memories` file directory. Models can create, read, update, and
+delete files, enabling them to preserve knowledge over time without
+keeping everything in the context window.
+
+Note that the `memory()` tool does not require a [Sandbox
+Environment](sandboxing.qmd)—despite using file-like paths
+(e.g. `/memories/notes.md`), it stores all data in-memory using
+Inspect’s sample store.
 
 ### Task Setup
 
@@ -923,7 +928,7 @@ A task configured to use the memory tool might look like this:
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.agent import react
-from inspect_ai.tool import bash, memory
+from inspect_ai.tool import memory
 
 @task
 def intercode_ctf():
@@ -931,10 +936,9 @@ def intercode_ctf():
         dataset=read_dataset(),
         solver=[
             system_message("system.txt"),
-            react(tools=[bash(timeout=180), memory()]),
+            react(tools=[memory()]),
         ],
         scorer=includes(),
-        sandbox=("docker", "compose.yaml")
     )
 ```
 

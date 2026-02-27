@@ -1351,14 +1351,15 @@ Sandbox Dependencies
 </section>
 <section id="sec-memory" class="level2">
 <h2 class="anchored" data-anchor-id="sec-memory">Memory</h2>
-<p>The memory tool enables models to store and retrieve information into a <code>/memories</code> file directory. Models can create, read, update, and delete files, enabling them to preserve knowledge over time without keeping everything in the context window.</p>
+<p>The memory tool enables models to store and retrieve information into a virtual <code>/memories</code> file directory. Models can create, read, update, and delete files, enabling them to preserve knowledge over time without keeping everything in the context window.</p>
+<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool does not require a <a href="./sandboxing.html">Sandbox Environment</a>—despite using file-like paths (e.g.&nbsp;<code>/memories/notes.md</code>), it stores all data in-memory using Inspect’s sample store.</p>
 <section id="task-setup-5" class="level3">
 <h3 class="anchored" data-anchor-id="task-setup-5">Task Setup</h3>
 <p>A task configured to use the memory tool might look like this:</p>
 <div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
 <span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, memory</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> memory</span>
 <span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> intercode_ctf():</span>
@@ -1366,11 +1367,10 @@ Sandbox Dependencies
 <span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
 <span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
 <span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>            system_message(<span class="st">"system.txt"</span>),</span>
-<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>            react(tools<span class="op">=</span>[bash(timeout<span class="op">=</span><span class="dv">180</span>), memory()]),</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>            react(tools<span class="op">=</span>[memory()]),</span>
 <span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>        ],</span>
 <span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
-<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span>(<span class="st">"docker"</span>, <span class="st">"compose.yaml"</span>)</span>
-<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="seeding-memories" class="level3">
 <h3 class="anchored" data-anchor-id="seeding-memories">Seeding Memories</h3>
