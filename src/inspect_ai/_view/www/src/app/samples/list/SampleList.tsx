@@ -60,6 +60,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
 
   const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   useEffect(() => {
+    void selectedLogFile;
     listHandle.current?.api?.ensureIndexVisible(0, "top");
   }, [listHandle, selectedLogFile]);
 
@@ -134,6 +135,12 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           mouseEvent?.ctrlKey ||
           mouseEvent?.shiftKey ||
           mouseEvent?.button === 1;
+
+        const isCurrentSelection =
+          selectedSampleHandle !== undefined &&
+          selectedSampleHandle.epoch === e.data.data.epoch &&
+          String(selectedSampleHandle.id) === String(e.data.data.id);
+
         if (openInNewWindow) {
           const url = sampleNavigation.getSampleUrl(
             e.data.data.id,
@@ -141,11 +148,14 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           );
           if (url) window.open(url, "_blank");
         } else {
+          if (isCurrentSelection) {
+            return;
+          }
           sampleNavigation.showSample(e.data.data.id, e.data.data.epoch);
         }
       }
     },
-    [sampleNavigation, listHandle],
+    [sampleNavigation, listHandle, selectedSampleHandle],
   );
 
   const handleOpenRow = useCallback(
@@ -215,7 +225,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
 
   useEffect(() => {
     selectCurrentSample();
-  }, [selectedSampleHandle, selectCurrentSample]);
+  }, [selectCurrentSample]);
 
   const selectedScores = useSelectedScores();
   const scores = useScores();
@@ -255,14 +265,16 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   const sampleCount = items.length;
 
   const warnings = useMemo(() => {
-    const errorCount = items.reduce(
-      (prev, item) => (item.data.error ? prev + 1 : prev),
-      0,
-    );
-    const limitCount = items.reduce(
-      (prev, item) => (item.data.limit ? prev + 1 : prev),
-      0,
-    );
+    let errorCount = 0;
+    let limitCount = 0;
+    for (const item of items) {
+      if (item.data.error) {
+        errorCount += 1;
+      }
+      if (item.data.limit) {
+        limitCount += 1;
+      }
+    }
     const percentError = sampleCount > 0 ? (errorCount / sampleCount) * 100 : 0;
     const percentLimit = sampleCount > 0 ? (limitCount / sampleCount) * 100 : 0;
 
@@ -290,12 +302,12 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
 
   return (
     <div className={styles.mainLayout}>
-      {warnings.map((warning, index) => (
+      {warnings.map((warning) => (
         <MessageBand
-          id={`sample-warning-message-${index}`}
+          id={`sample-warning-message-${warning.type}-${warning.msg}`}
           message={warning.msg}
           type={warning.type as "info" | "warning" | "error"}
-          key={`sample-warning-message-${index}`}
+          key={`sample-warning-message-${warning.type}-${warning.msg}`}
         />
       ))}
       <div
@@ -307,7 +319,6 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           display: "flex",
           flexDirection: "column",
         }}
-        tabIndex={0}
       >
         <AgGridReact<SampleListItem>
           ref={listHandle}
