@@ -1,6 +1,5 @@
 import clsx from "clsx";
 import MarkdownIt from "markdown-it";
-import markdownitMathjax3 from "markdown-it-mathjax3";
 import {
   CSSProperties,
   forwardRef,
@@ -10,6 +9,22 @@ import {
   useState,
 } from "react";
 import "./MarkdownDiv.css";
+
+// Lazy-load mathjax plugin only when math content is detected
+let mathjaxPluginPromise: Promise<any> | null = null;
+const getMathjaxPlugin = (): Promise<any> => {
+  if (!mathjaxPluginPromise) {
+    mathjaxPluginPromise = import("markdown-it-mathjax3").then(
+      (m) => m.default,
+    );
+  }
+  return mathjaxPluginPromise;
+};
+
+// Quick check for math patterns in content
+const hasMathContent = (text: string): boolean => {
+  return text.includes("$") || text.includes("\\(") || text.includes("\\[");
+};
 
 interface MarkdownDivProps {
   markdown: string;
@@ -46,73 +61,65 @@ const MarkdownDivComponent = forwardRef<HTMLDivElement, MarkdownDivProps>(
         return;
       }
 
-      // Reset to raw markdown text when markdown changes (keep this synchronous for immediate feedback)
+      // Reset to raw markdown text when markdown changes
       setRenderedHtml(markdown.replace(/\n/g, "<br/>"));
 
-      // Process markdown asynchronously using the queue
-      const { promise, cancel } = renderQueue.enqueue(async () => {
-        // Protect backslashes in LaTeX expressions
-        const protectedContent = protectBackslashesInLatex(markdown);
+      // Process markdown asynchronously using the coordinator.
+      // The coordinator batches completions from multiple MarkdownDiv
+      // instances into a single startTransition → one React commit.
+      const { cancel } = renderCoordinator.enqueue(
+        cacheKey,
+        async () => {
+          // Full markdown preprocessing pipeline
+          const protectedContent = protectBackslashesInLatex(markdown);
+          const escaped = escapeHtmlCharacters(protectedContent);
+          const preRendered = preRenderText(escaped);
+          const protectedText = protectMarkdown(preRendered);
+          const preparedForMarkdown = restoreBackslashesForLatex(protectedText);
 
-        // Escape all tags
-        const escaped = escapeHtmlCharacters(protectedContent);
+          let html = preparedForMarkdown;
+          try {
+            const contentHasMath = hasMathContent(markdown);
+            const md = await getMarkdownInstance(
+              omitMedia,
+              omitMath,
+              contentHasMath,
+            );
+            html = md.render(preparedForMarkdown);
+          } catch (ex) {
+            console.log("Unable to markdown render content");
+            console.error(ex);
+          }
 
-        // Pre-render any text that isn't handled by markdown
-        const preRendered = preRenderText(escaped);
+          const unescaped = unprotectMarkdown(html);
+          const withCode = unescapeCodeHtmlEntities(unescaped);
+          const withSup = unescapeSupHtmlEntities(withCode);
 
-        const protectedText = protectMarkdown(preRendered);
-
-        // Restore backslashes for LaTeX processing
-        const preparedForMarkdown = restoreBackslashesForLatex(protectedText);
-
-        let html = preparedForMarkdown;
-        try {
-          // Get appropriate markdown-it instance based on options
-          const md = getMarkdownInstance(omitMedia, omitMath);
-          html = md.render(preparedForMarkdown);
-        } catch (ex) {
-          console.log("Unable to markdown render content");
-          console.error(ex);
-        }
-
-        const unescaped = unprotectMarkdown(html);
-
-        // For `code` tags, reverse the escaping if we can
-        const withCode = unescapeCodeHtmlEntities(unescaped);
-
-        // For `sup` tags, reverse the escaping if we can
-        const withSup = unescapeSupHtmlEntities(withCode);
-
-        return withSup;
-      });
-
-      // Update state when rendering completes
-      promise
-        .then((result) => {
-          // Update cache (with simple size limit)
+          return withSup;
+        },
+        (result) => {
+          // This callback is called INSIDE the coordinator's startTransition,
+          // batched with other MarkdownDiv completions → ONE React commit.
           if (renderCache.size >= MAX_CACHE_SIZE) {
-            // Remove oldest entry (first key)
             const firstKey = renderCache.keys().next().value;
             if (firstKey) {
               renderCache.delete(firstKey);
             }
           }
           renderCache.set(cacheKey, result);
-
-          // Use startTransition to mark this as a non-urgent update
-          startTransition(() => {
-            setRenderedHtml(result);
-          });
-        })
-        .catch((error) => {
-          console.error("Markdown rendering error:", error);
-        });
+          setRenderedHtml(result);
+        },
+      );
 
       return () => {
-        // Cancel rendering if component unmounts
         cancel();
       };
-    }, [markdown, omitMedia, omitMath, cachedHtml, renderedHtml, cacheKey]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- renderedHtml
+      // intentionally excluded: including it causes wasteful re-runs when the
+      // async render completes and updates state (30-50 extra effect evaluations
+      // per sample load). The effect only needs to re-run when the SOURCE data
+      // changes (markdown, options, cacheKey), not when the output updates.
+    }, [markdown, omitMedia, omitMath, cachedHtml, cacheKey]);
 
     return (
       <div
@@ -138,16 +145,20 @@ const mdInstanceCache: Record<string, MarkdownIt> = {};
 const getOptionsKey = (omitMedia?: boolean, omitMath?: boolean): string =>
   `${omitMedia ? "1" : "0"}:${omitMath ? "1" : "0"}`;
 
-const getMarkdownInstance = (
+const getMarkdownInstance = async (
   omitMedia?: boolean,
   omitMath?: boolean,
-): MarkdownIt => {
-  const key = getOptionsKey(omitMedia, omitMath);
+  contentHasMath?: boolean,
+): Promise<MarkdownIt> => {
+  // If math should be rendered and content has math patterns, load mathjax
+  const useMath = !omitMath && contentHasMath;
+  const key = `${getOptionsKey(omitMedia, omitMath)}:${useMath ? "1" : "0"}`;
 
   if (!mdInstanceCache[key]) {
     const md = new MarkdownIt({ breaks: true, html: true });
-    if (!omitMath) {
-      md.use(markdownitMathjax3);
+    if (useMath) {
+      const mathjaxPlugin = await getMathjaxPlugin();
+      md.use(mathjaxPlugin);
     }
     if (omitMedia) {
       md.disable(["image"]);
@@ -249,8 +260,85 @@ class MarkdownRenderQueue {
   }
 }
 
-// Shared rendering queue
-const renderQueue = new MarkdownRenderQueue(10);
+/**
+ * Coordinates markdown render results to batch React state updates.
+ *
+ * Problem: When 10-15 MarkdownDiv instances complete async rendering,
+ * each fires startTransition(() => setRenderedHtml(result)) from a
+ * separate Promise microtask. React 18 does NOT batch across microtasks,
+ * causing 10-15 separate React commits (30-40ms each = 300-600ms total).
+ *
+ * Solution: Collect completed results and deliver them ALL in a single
+ * startTransition callback via queueMicrotask. React batches all setState
+ * calls within one startTransition into ONE commit.
+ */
+class MarkdownRenderCoordinator {
+  private completedResults: Map<string, string> = new Map();
+  private pendingCallbacks: Map<string, (html: string) => void> = new Map();
+  private flushScheduled = false;
+  private queue: MarkdownRenderQueue;
+
+  constructor(maxConcurrent: number = 10) {
+    this.queue = new MarkdownRenderQueue(maxConcurrent);
+  }
+
+  enqueue(
+    cacheKey: string,
+    task: () => Promise<string>,
+    onComplete: (html: string) => void,
+  ): { cancel: () => void } {
+    this.pendingCallbacks.set(cacheKey, onComplete);
+
+    const { promise, cancel } = this.queue.enqueue(task);
+
+    promise
+      .then((result) => {
+        this.completedResults.set(cacheKey, result);
+        this.scheduleFlush();
+      })
+      .catch((error) => {
+        this.pendingCallbacks.delete(cacheKey);
+        console.error("Markdown rendering error:", error);
+      });
+
+    return {
+      cancel: () => {
+        cancel();
+        this.pendingCallbacks.delete(cacheKey);
+        this.completedResults.delete(cacheKey);
+      },
+    };
+  }
+
+  private scheduleFlush() {
+    if (!this.flushScheduled) {
+      this.flushScheduled = true;
+      queueMicrotask(() => this.flush());
+    }
+  }
+
+  private flush() {
+    this.flushScheduled = false;
+    const batch = new Map(this.completedResults);
+    this.completedResults.clear();
+
+    if (batch.size === 0) return;
+
+    startTransition(() => {
+      for (const [key, html] of batch) {
+        const callback = this.pendingCallbacks.get(key);
+        if (callback) {
+          callback(html);
+          this.pendingCallbacks.delete(key);
+        }
+      }
+    });
+  }
+}
+
+// Shared rendering coordinator — batches markdown render completions
+// into single React commits to avoid cascading re-renders
+const renderCoordinator = new MarkdownRenderCoordinator(10);
 
 const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
 const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
