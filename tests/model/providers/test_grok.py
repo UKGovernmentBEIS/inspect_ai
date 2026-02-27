@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import grpc
+import pytest
 from test_helpers.utils import skip_if_no_grok
 
 from inspect_ai import Task, eval
