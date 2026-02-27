@@ -482,15 +482,21 @@ class WWWResource(web.StaticResource):
         # call super
         response = await super()._handle(request)
 
-        # disable caching as this is only ever served locally
-        # and w/ caching sometimes we get stale assets
-        response.headers.update(
-            {
-                "Expires": "Fri, 01 Jan 1990 00:00:00 GMT",
-                "Pragma": "no-cache",
-                "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
-            }
-        )
+        # Cache policy: hashed assets are immutable, index.html always revalidates
+        if filename and "/assets/" in request.path:
+            response.headers.update(
+                {
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                }
+            )
+        else:
+            response.headers.update(
+                {
+                    "Expires": "Fri, 01 Jan 1990 00:00:00 GMT",
+                    "Pragma": "no-cache",
+                    "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+                }
+            )
 
         # return response
         return response
