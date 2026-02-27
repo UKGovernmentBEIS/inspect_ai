@@ -10,7 +10,7 @@ import { FC, useMemo } from "react";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { ChatView } from "../chat/ChatView";
 import { EventNodeContext } from "./TranscriptVirtualList";
-import { formatTiming, formatTitle } from "./event/utils";
+import { eventTitle, formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 import { EventNode, EventType } from "./types";
 
@@ -59,12 +59,11 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
     };
   }, [children]);
 
-  const title = `Tool: ${event.view?.title || event.function}`;
   return (
     <EventPanel
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
-      title={formatTitle(title, undefined, event.working_time)}
+      title={formatTitle(eventTitle(event), undefined, event.working_time)}
       className={className}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}

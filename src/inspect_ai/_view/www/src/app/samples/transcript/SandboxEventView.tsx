@@ -9,7 +9,7 @@ import clsx from "clsx";
 import { FC } from "react";
 import { RenderedContent } from "../../content/RenderedContent";
 import styles from "./SandboxEventView.module.css";
-import { formatTiming, formatTitle } from "./event/utils";
+import { eventTitle, formatTiming, formatTitle } from "./event/utils";
 import { EventNode } from "./types";
 
 interface SandboxEventViewProps {
@@ -30,11 +30,7 @@ export const SandboxEventView: FC<SandboxEventViewProps> = ({
       eventNodeId={eventNode.id}
       depth={eventNode.depth}
       className={className}
-      title={formatTitle(
-        `Sandbox: ${event.action}`,
-        undefined,
-        event.working_start,
-      )}
+      title={formatTitle(eventTitle(event), undefined, event.working_start)}
       icon={ApplicationIcons.sandbox}
       subTitle={formatTiming(event.timestamp, event.working_start)}
     >

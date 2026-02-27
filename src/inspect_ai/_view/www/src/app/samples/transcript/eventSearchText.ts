@@ -1,18 +1,5 @@
-import {
-  CompactionEvent,
-  Content,
-  ContentReasoning,
-  ContentText,
-  ContentToolUse,
-  ErrorEvent,
-  InfoEvent,
-  LoggerEvent,
-  ModelEvent,
-  SpanBeginEvent,
-  StepEvent,
-  SubtaskEvent,
-  ToolEvent,
-} from "../../../@types/log";
+import { Content } from "../../../@types/log";
+import { eventTitle } from "./event/utils";
 import { EventNode } from "./types";
 
 /**
@@ -22,22 +9,20 @@ export const eventSearchText = (node: EventNode): string[] => {
   const texts: string[] = [];
   const event = node.event;
 
+  const title = eventTitle(event);
+  if (title) {
+    texts.push(title);
+  }
+
   switch (event.event) {
     case "model": {
-      const modelEvent = event as ModelEvent;
-      // Model name (displayed in title)
-      if (modelEvent.model) {
-        texts.push(modelEvent.model);
-      }
-      // Extract text from model output
-      if (modelEvent.output?.choices) {
-        for (const choice of modelEvent.output.choices) {
+      if (event.output?.choices) {
+        for (const choice of event.output.choices) {
           texts.push(...extractContentText(choice.message.content));
         }
       }
-      // Extract text from user/system input messages shown in the view
-      if (modelEvent.input) {
-        for (const msg of modelEvent.input) {
+      if (event.input) {
+        for (const msg of event.input) {
           if (msg.role === "user" || msg.role === "system") {
             texts.push(...extractContentText(msg.content));
           }
@@ -47,122 +32,158 @@ export const eventSearchText = (node: EventNode): string[] => {
     }
 
     case "tool": {
-      const toolEvent = event as ToolEvent;
-      // Custom tool title (displayed instead of function name)
-      if (toolEvent.view?.title) {
-        texts.push(toolEvent.view.title);
+      if (event.function) {
+        texts.push(event.function);
       }
-      // Tool function name
-      if (toolEvent.function) {
-        texts.push(toolEvent.function);
+      if (event.arguments) {
+        texts.push(JSON.stringify(event.arguments));
       }
-      // Tool arguments
-      if (toolEvent.arguments) {
-        texts.push(JSON.stringify(toolEvent.arguments));
-      }
-      // Tool result
-      if (toolEvent.result) {
-        if (typeof toolEvent.result === "string") {
-          texts.push(toolEvent.result);
+      if (event.result) {
+        if (typeof event.result === "string") {
+          texts.push(event.result);
         } else {
-          texts.push(JSON.stringify(toolEvent.result));
+          texts.push(JSON.stringify(event.result));
         }
       }
-      // Tool error
-      if (toolEvent.error?.message) {
-        texts.push(toolEvent.error.message);
+      if (event.error?.message) {
+        texts.push(event.error.message);
       }
       break;
     }
 
     case "error": {
-      const errorEvent = event as ErrorEvent;
-      if (errorEvent.error?.message) {
-        texts.push(errorEvent.error.message);
+      if (event.error?.message) {
+        texts.push(event.error.message);
       }
-      if (errorEvent.error?.traceback) {
-        texts.push(errorEvent.error.traceback);
+      if (event.error?.traceback) {
+        texts.push(event.error.traceback);
       }
       break;
     }
 
     case "logger": {
-      const loggerEvent = event as LoggerEvent;
-      if (loggerEvent.message?.message) {
-        texts.push(loggerEvent.message.message);
+      if (event.message?.message) {
+        texts.push(event.message.message);
       }
-      // Filename shown in the view
-      if (loggerEvent.message?.filename) {
-        texts.push(loggerEvent.message.filename);
+      if (event.message?.filename) {
+        texts.push(event.message.filename);
       }
       break;
     }
 
     case "info": {
-      const infoEvent = event as InfoEvent;
-      // Source shown in title
-      if (infoEvent.source) {
-        texts.push(infoEvent.source);
-      }
-      if (infoEvent.data) {
-        if (typeof infoEvent.data === "string") {
-          texts.push(infoEvent.data);
+      if (event.data) {
+        if (typeof event.data === "string") {
+          texts.push(event.data);
         } else {
-          texts.push(JSON.stringify(infoEvent.data));
+          texts.push(JSON.stringify(event.data));
         }
       }
       break;
     }
 
     case "compaction": {
-      const compactionEvent = event as CompactionEvent;
-      // Source shown in title
-      if (compactionEvent.source) {
-        texts.push(compactionEvent.source);
+      if (event.source) {
+        texts.push(event.source);
       }
-      texts.push(JSON.stringify(compactionEvent));
-      break;
-    }
-
-    case "step": {
-      const stepEvent = event as StepEvent;
-      if (stepEvent.name) {
-        texts.push(stepEvent.name);
-      }
-      // Type shown in title (e.g., "solver: name")
-      if (stepEvent.type) {
-        texts.push(stepEvent.type);
-      }
+      texts.push(JSON.stringify(event));
       break;
     }
 
     case "subtask": {
-      const subtaskEvent = event as SubtaskEvent;
-      if (subtaskEvent.name) {
-        texts.push(subtaskEvent.name);
+      if (event.input) {
+        texts.push(JSON.stringify(event.input));
       }
-      // Type shown in title
-      if (subtaskEvent.type) {
-        texts.push(subtaskEvent.type);
-      }
-      // Input/result shown in summary
-      if (subtaskEvent.input) {
-        texts.push(JSON.stringify(subtaskEvent.input));
-      }
-      if (subtaskEvent.result) {
-        texts.push(JSON.stringify(subtaskEvent.result));
+      if (event.result) {
+        texts.push(JSON.stringify(event.result));
       }
       break;
     }
 
-    case "span_begin": {
-      const spanEvent = event as SpanBeginEvent;
-      if (spanEvent.name) {
-        texts.push(spanEvent.name);
+    case "score": {
+      if (event.score.answer) {
+        texts.push(event.score.answer);
       }
-      // Type shown in title
-      if (spanEvent.type) {
-        texts.push(spanEvent.type);
+      if (event.score.explanation) {
+        texts.push(event.score.explanation);
+      }
+      if (event.target) {
+        const target = Array.isArray(event.target)
+          ? event.target.join("\n")
+          : event.target;
+        texts.push(target);
+      }
+      if (event.score.value != null) {
+        texts.push(
+          typeof event.score.value === "object"
+            ? JSON.stringify(event.score.value)
+            : String(event.score.value),
+        );
+      }
+      break;
+    }
+
+    case "score_edit": {
+      if (event.edit.answer) {
+        texts.push(event.edit.answer);
+      }
+      if (event.edit.explanation) {
+        texts.push(event.edit.explanation);
+      }
+      if (event.edit.provenance) {
+        if (event.edit.provenance.author) {
+          texts.push(event.edit.provenance.author);
+        }
+        if (event.edit.provenance.reason) {
+          texts.push(event.edit.provenance.reason);
+        }
+      }
+      break;
+    }
+
+    case "sample_init": {
+      if (event.sample.target) {
+        const target = Array.isArray(event.sample.target)
+          ? event.sample.target.join("\n")
+          : event.sample.target;
+        texts.push(target);
+      }
+      break;
+    }
+
+    case "sample_limit": {
+      if (event.message) {
+        texts.push(event.message);
+      }
+      break;
+    }
+
+    case "input": {
+      if (event.input_ansi) {
+        texts.push(event.input_ansi);
+      }
+      break;
+    }
+
+    case "approval": {
+      if (event.explanation) {
+        texts.push(event.explanation);
+      }
+      break;
+    }
+
+    case "sandbox": {
+      if (event.cmd) {
+        texts.push(event.cmd);
+      }
+      if (event.file) {
+        texts.push(event.file);
+      }
+      if (event.input) {
+        texts.push(event.input);
+      }
+      if (event.output) {
+        texts.push(event.output);
       }
       break;
     }
@@ -183,24 +204,22 @@ const extractContentText = (content: Content): string[] => {
   for (const item of content) {
     switch (item.type) {
       case "text":
-        texts.push((item as ContentText).text);
+        texts.push(item.text);
         break;
       case "reasoning": {
-        const reasoning = item as ContentReasoning;
-        if (reasoning.reasoning) {
-          texts.push(reasoning.reasoning);
-        } else if (reasoning.summary) {
-          texts.push(reasoning.summary);
+        if (item.reasoning) {
+          texts.push(item.reasoning);
+        } else if (item.summary) {
+          texts.push(item.summary);
         }
         break;
       }
       case "tool_use": {
-        const toolUse = item as ContentToolUse;
-        if (toolUse.name) {
-          texts.push(toolUse.name);
+        if (item.name) {
+          texts.push(item.name);
         }
-        if (toolUse.arguments) {
-          texts.push(JSON.stringify(toolUse.arguments));
+        if (item.arguments) {
+          texts.push(JSON.stringify(item.arguments));
         }
         break;
       }
