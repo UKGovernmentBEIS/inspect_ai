@@ -4,6 +4,7 @@ import {
   RefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -272,18 +273,25 @@ export const LiveVirtualList = <T,>({
     ],
   );
 
+  // Pre-compute lowercased search text for all items — avoids re-extracting
+  // and re-lowercasing on every keystroke in the FindBand.
+  const precomputedSearchTexts = useMemo(() => {
+    const getSearchText = itemSearchText ?? defaultItemSearchText;
+    return data.map((item) => {
+      const texts = getSearchText(item);
+      const textArray = Array.isArray(texts) ? texts : [texts];
+      return textArray.map((t) => t.toLowerCase());
+    });
+  }, [data, itemSearchText, defaultItemSearchText]);
+
   const countMatchesInData: ExtendedCountFn = useCallback(
     (term: string): number => {
-      if (!term || !data.length) return 0;
+      if (!term || !precomputedSearchTexts.length) return 0;
       const lower = term.toLowerCase();
       let total = 0;
-      const getSearchText = itemSearchText ?? defaultItemSearchText;
 
-      for (const item of data) {
-        const texts = getSearchText(item);
-        const textArray = Array.isArray(texts) ? texts : [texts];
-        for (const text of textArray) {
-          const lowerText = text.toLowerCase();
+      for (const textsForItem of precomputedSearchTexts) {
+        for (const lowerText of textsForItem) {
           let pos = 0;
           while ((pos = lowerText.indexOf(lower, pos)) !== -1) {
             total++;
@@ -293,7 +301,7 @@ export const LiveVirtualList = <T,>({
       }
       return total;
     },
-    [data, itemSearchText, defaultItemSearchText],
+    [precomputedSearchTexts],
   );
 
   useEffect(() => {

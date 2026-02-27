@@ -1,6 +1,6 @@
 import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../../@types/log";
 import { clearLargeEventsArray } from "../../utils/clear-events-preprocessor";
-import { asyncJsonParse } from "../../utils/json-worker";
+import { asyncJsonParseBytes } from "../../utils/json-worker";
 import { AsyncQueue } from "../../utils/queue";
 import {
   EvalHeader,
@@ -112,18 +112,9 @@ export const openRemoteLogFile = async (
         data = preprocessor.preprocess(data);
       }
 
-      const textDecoder = new TextDecoder("utf-8");
-      const jsonString = textDecoder.decode(data);
-
-      // Check if decoding failed (resulted in empty string)
-      if (data.length > 0 && jsonString.length === 0) {
-        throw new Error(
-          `Failed to decode ${file} (${(data.length / 1024 / 1024).toFixed(0)}MB). ` +
-            `The file may be corrupted or contain invalid UTF-8 sequences.`,
-        );
-      }
-
-      return asyncJsonParse(jsonString);
+      // Parse JSON directly from bytes — skip main-thread UTF-8 decode.
+      // The worker pool handles decoding + parsing in one step.
+      return asyncJsonParseBytes<Object>(data);
     } catch (error) {
       if (error instanceof FileSizeLimitError) {
         throw error;
