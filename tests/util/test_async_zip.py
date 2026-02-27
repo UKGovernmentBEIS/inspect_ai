@@ -9,6 +9,7 @@ from pathlib import Path
 
 import ijson  # type: ignore
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
@@ -403,6 +404,7 @@ async def test_deflate_compress_stream() -> None:
     assert decompressed == original_data
 
 
+@skip_if_trio
 async def test_ijson_kvitems_async_with_zip_member(tmp_path: Path) -> None:
     """Test that ijson.kvitems_async works with _ZipMemberBytes from open_member().
 

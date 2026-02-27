@@ -134,6 +134,7 @@ def eval_set(
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
     log_images: bool | None = None,
+    log_model_api: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
     bundle_dir: str | None = None,
@@ -224,6 +225,7 @@ def eval_set(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
+        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
@@ -293,6 +295,7 @@ def eval_set(
             log_samples=log_samples,
             log_realtime=log_realtime,
             log_images=log_images,
+            log_model_api=log_model_api,
             log_buffer=log_buffer,
             log_shared=log_shared,
             log_header_only=True,

@@ -2089,6 +2089,18 @@
           "default": null,
           "title": "Log Images"
         },
+        "log_model_api": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Model Api"
+        },
         "log_buffer": {
           "anyOf": [
             {
@@ -2151,6 +2163,7 @@
         "log_samples",
         "log_realtime",
         "log_images",
+        "log_model_api",
         "log_buffer",
         "log_shared",
         "score_display"
@@ -4848,6 +4861,18 @@
           "default": null,
           "title": "Response"
         },
+        "error": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
         "time": {
           "anyOf": [
             {
@@ -4864,6 +4889,7 @@
       "required": [
         "request",
         "response",
+        "error",
         "time"
       ],
       "title": "ModelCall",

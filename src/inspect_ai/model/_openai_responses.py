@@ -1546,6 +1546,16 @@ def _outputs_to_result(outputs: list[OutputLogs | OutputImage] | None) -> str:
         return ""
 
 
+def _output_message_role(item: ResponseOutputMessage) -> str:
+    """Get the role of a ResponseOutputMessage as a string.
+
+    The SDK types restrict role to Literal["assistant"], but the compact
+    endpoint returns messages with role="developer" and role="user".
+    Using getattr avoids mypy's non-overlapping comparison check.
+    """
+    return str(getattr(item, "role", "assistant"))
+
+
 def chat_messages_from_compact_response(
     response: CompactedResponse,
     model: str | None = None,
@@ -1559,7 +1569,9 @@ def chat_messages_from_compact_response(
 
     The order of items is preserved. Items are processed in order:
     - ResponseCompactionItem becomes a ChatMessageUser with compaction metadata
-    - Consecutive non-compaction items are grouped into ChatMessageAssistant messages
+    - ResponseOutputMessage with role="developer" is stripped (orchestrator handles system messages)
+    - ResponseOutputMessage with role="user" becomes a ChatMessageUser
+    - Other items (role="assistant", reasoning, tool calls) are grouped into ChatMessageAssistant
 
     The compaction metadata is stored in a ContentData object within a ChatMessageUser.
     When replayed, _extract_compaction_from_content_data() will extract this metadata
@@ -1602,7 +1614,7 @@ def chat_messages_from_compact_response(
     # Process items in order
     for item in response.output:
         if isinstance(item, ResponseCompactionItem):
-            # Flush any pending non-compaction items first
+            # Flush any pending assistant items first
             flush_pending_items()
 
             found_compaction = True
@@ -1623,8 +1635,34 @@ def chat_messages_from_compact_response(
                     source="generate",
                 )
             )
+        elif (
+            isinstance(item, ResponseOutputMessage)
+            and _output_message_role(item) == "developer"
+        ):
+            # Skip developer messages - the orchestrator's prefix handling
+            # is the authoritative source for system messages
+            pass
+        elif (
+            isinstance(item, ResponseOutputMessage)
+            and _output_message_role(item) == "user"
+        ):
+            # Flush any pending assistant items first
+            flush_pending_items()
+            # Convert user message content to ChatMessageUser
+            # Content items are ResponseOutputText or ResponseOutputRefusal
+            user_content: list[Content] = [
+                ContentText(text=c.text)
+                if isinstance(c, ResponseOutputText)
+                else ContentText(text=c.refusal, refusal=True)
+                for c in item.content
+            ]
+            if user_content:
+                messages.append(
+                    ChatMessageUser(content=user_content, source="generate")
+                )
         else:
-            # Accumulate non-compaction items
+            # Accumulate assistant items (ResponseOutputMessage with role="assistant",
+            # ResponseReasoningItem, ResponseFunctionToolCall, etc.)
             pending_items.append(item)
 
     # Flush any remaining pending items

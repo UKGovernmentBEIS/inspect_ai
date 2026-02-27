@@ -55,6 +55,7 @@ class EvalConfigDefaults(TypedDict):
     log_samples: bool
     log_realtime: bool
     log_images: bool
+    log_model_api: bool
     score_display: bool
 
 
@@ -68,6 +69,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "log_samples": True,
         "log_realtime": True,
         "log_images": True,
+        "log_model_api": False,
         "score_display": True,
     }
 
@@ -152,6 +154,9 @@ class EvalConfig(BaseModel):
 
     log_images: bool | None = Field(default=None)
     """Log base64 encoded versions of images."""
+
+    log_model_api: bool | None = Field(default=None)
+    """Log raw model api requests and responses."""
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""

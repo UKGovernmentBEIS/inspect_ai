@@ -113,6 +113,15 @@ inspect eval images.py --log-format=json --no-log-images
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
 
+## Model API Logging
+
+If you are debugging a model API issue at the provider level, you can add the `--log-model-api` flag to log the full request and response payload for each generation (the model api data will be attached to the `ModelEvent`). For example:
+
+``` bash
+inspect eval ctf.py --log-model-api
+```
+
+Note that model api requests that result in an error are always logged.
 
 ## Log File API {#sec-log-file-api}
 

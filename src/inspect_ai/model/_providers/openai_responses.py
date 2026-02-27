@@ -176,7 +176,7 @@ async def generate_responses(
             usage=model_usage_from_response(model_response),
         ), model_call
     except BadRequestError as e:
-        model_call.set_response(
+        model_call.set_error(
             as_error_response(e.body), http_hooks.end_request(request_id)
         )
         if handle_bad_request:

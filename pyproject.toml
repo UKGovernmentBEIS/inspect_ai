@@ -182,7 +182,7 @@ dev = [
   "pytest-mock",
   "pytest-watcher",
   "pytest-xdist",
-  "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
+  "ruff==0.9.6",            # match version specified in .pre-commit-config.yaml
   "together>=2.0.0",
   "textual-dev>=0.86.2",
   "trio",
@@ -191,6 +191,7 @@ dev = [
   "types-grpcio",
   "types-Markdown",
   "types-PyYAML",
+  "types-regex",
   "types-beautifulsoup4",
   "types-aioboto3",
   "types-boto3",

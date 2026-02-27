@@ -58,7 +58,7 @@ async def generate_o1(
         completion: ChatCompletion = await client.chat.completions.create(**request)
         model_call.set_response(completion.model_dump())
     except BadRequestError as ex:
-        model_call.set_response(as_error_response(ex.body))
+        model_call.set_error(as_error_response(ex.body))
         return handle_bad_request(model, ex), model_call
 
     # return model output

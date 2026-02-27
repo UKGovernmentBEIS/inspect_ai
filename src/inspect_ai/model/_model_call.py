@@ -39,6 +39,9 @@ class ModelCall(BaseModel):
     response: dict[str, JsonValue] | None = Field(default=None)
     """Raw response data from model (None if call is still pending)."""
 
+    error: bool | None = Field(default=None)
+    """Did this model call result in an error."""
+
     time: float | None = Field(default=None)
     """Time taken for underlying model call."""
 
@@ -91,6 +94,10 @@ class ModelCall(BaseModel):
             )
         self.response = response_dict
         self.time = time
+
+    def set_error(self, response: Any, time: float | None = None) -> None:
+        self.error = True
+        self.set_response(response, time)
 
 
 def _walk_json_value(

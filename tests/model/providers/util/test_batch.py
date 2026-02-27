@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import sys
 import time
 
@@ -8,6 +7,8 @@ import anyio
 import pytest
 from tenacity import RetryError
 from typing_extensions import TypedDict
+
+from inspect_ai._util._async import tg_collect
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -73,7 +74,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         self._next_batch_id += 1
 
         # Simulate some creation delay
-        await asyncio.sleep(0.001)
+        await anyio.sleep(0.001)
 
         # Store batch info for later completion simulation
         self._created_batches[batch_id] = [req.custom_id for req in batch_requests]
@@ -86,7 +87,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
         batch_id = batch.id
 
         # Simulate check delay
-        await asyncio.sleep(0.001)
+        await anyio.sleep(0.001)
 
         # Check if batch should fail
         if batch_id in self._fail_batch_ids:
@@ -122,7 +123,7 @@ class FakeBatcher(Batcher[str, FakeCompletionInfo]):
             raise self._handle_batch_error
 
         # Simulate processing delay
-        await asyncio.sleep(0.001)
+        await anyio.sleep(0.001)
 
         results: dict[str, str | Exception] = {}
         for request_id in self._created_batches[batch.id]:
@@ -171,11 +172,12 @@ class TestBatcher:
             )
 
             # Make multiple requests concurrently
-            tasks = [
-                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(5)
-            ]
-
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"test-{i}"})
+                    for i in range(5)
+                ]
+            )
 
             # All requests should succeed
             assert len(results) == 5
@@ -219,17 +221,24 @@ class TestBatcher:
             # Create batcher that fails batch checks initially
             batcher = FakeBatcher(fail_batch_ids={"batch-0"})
 
-            # Start a request
-            task = asyncio.create_task(batcher.generate_for_request({"prompt": "test"}))
+            result: str | None = None
 
-            # Let it fail a few times
-            await asyncio.sleep(0.01)
+            async with anyio.create_task_group() as tg:
 
-            # Remove the failure condition
-            batcher._fail_batch_ids.clear()
+                async def run_request() -> None:
+                    nonlocal result
+                    result = await batcher.generate_for_request({"prompt": "test"})
+
+                tg.start_soon(run_request)
+
+                # Let it fail a few times
+                await anyio.sleep(0.01)
+
+                # Remove the failure condition
+                batcher._fail_batch_ids.clear()
 
             # Request should eventually succeed
-            result = await task
+            assert result is not None
             assert result.startswith("result-for-")
 
         await self._run_with_task_group(test_logic)
@@ -258,12 +267,14 @@ class TestBatcher:
             )
 
             # Send exactly 3 requests - should trigger batch send due to minimum size being reached
-            tasks = [
-                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(3)
-            ]
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"test-{i}"})
+                    for i in range(3)
+                ]
+            )
 
             # All should complete successfully
-            results = await asyncio.gather(*tasks)
             assert len(results) == 3
 
             # Should have created exactly one batch with all 3 requests
@@ -284,12 +295,14 @@ class TestBatcher:
             )
 
             # Send fewer requests than batch size
-            tasks = [
-                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(3)
-            ]
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"test-{i}"})
+                    for i in range(3)
+                ]
+            )
 
             # Should complete due to timeout, not batch size
-            results = await asyncio.gather(*tasks)
             assert len(results) == 3
             assert len(batcher._created_batches) == 1
 
@@ -308,11 +321,12 @@ class TestBatcher:
 
             # Send many requests to force multiple concurrent batches
             # With max_size=2, 8 requests will require at least 4 batches
-            tasks = [
-                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(8)
-            ]
-
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"test-{i}"})
+                    for i in range(8)
+                ]
+            )
             assert len(results) == 8
 
             # Should have created multiple batches due to max_size=2 limit
@@ -337,14 +351,17 @@ class TestBatcher:
 
             # Create many concurrent requests
             num_requests = 20
-            tasks = [
-                batcher.generate_for_request({"prompt": f"stress-test-{i}"})
-                for i in range(num_requests)
-            ]
 
             # All should complete successfully
             start_time = time.time()
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"prompt": f"stress-test-{i}"}
+                    )
+                    for i in range(num_requests)
+                ]
+            )
             elapsed = time.time() - start_time
 
             assert len(results) == num_requests
@@ -379,12 +396,14 @@ class TestBatcher:
             )
 
             # Make requests that should succeed
-            tasks = [
-                batcher.generate_for_request({"prompt": f"test-success-{i}"})
-                for i in range(3)
-            ]
-
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"prompt": f"test-success-{i}"}
+                    )
+                    for i in range(3)
+                ]
+            )
 
             # All requests should get successful results
             assert len(results) == 3
@@ -424,28 +443,32 @@ class TestBatcher:
                 send_streams.append(send_stream)
                 receive_streams.append(receive_stream)
 
-            # Start the batch worker
-            worker_task = asyncio.create_task(batcher_mixed._batch_worker())
+            # Start the batch worker and collect results concurrently
+            collected_results: list[str] = []
 
-            # Collect results
-            results = []
-            for receive_stream in receive_streams:
-                try:
-                    result = await receive_stream.receive()
-                    if isinstance(result, Exception):
-                        results.append(f"ERROR: {result}")
-                    else:
-                        results.append(result)
-                except Exception as e:
-                    results.append(f"EXCEPTION: {e}")
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(batcher_mixed._batch_worker)
 
-            await worker_task
+                # Collect results
+                for receive_stream in receive_streams:
+                    try:
+                        result = await receive_stream.receive()
+                        if isinstance(result, Exception):
+                            collected_results.append(f"ERROR: {result}")
+                        else:
+                            collected_results.append(result)
+                    except Exception as e:
+                        collected_results.append(f"EXCEPTION: {e}")
+
+                tg.cancel_scope.cancel()
 
             # Verify that the right request failed and others succeeded
-            assert len(results) == 3
-            assert results[0].startswith("result-for-success-1")  # Success
-            assert "ERROR:" in results[1] and "fail-me" in results[1]  # Failed
-            assert results[2].startswith("result-for-success-2")  # Success
+            assert len(collected_results) == 3
+            assert collected_results[0].startswith("result-for-success-1")  # Success
+            assert (
+                "ERROR:" in collected_results[1] and "fail-me" in collected_results[1]
+            )  # Failed
+            assert collected_results[2].startswith("result-for-success-2")  # Success
 
         await self._run_with_task_group(test_logic)
 
@@ -459,12 +482,14 @@ class TestBatcher:
             )
 
             # Send more requests than the maximum batch size
-            tasks = [
-                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(5)
-            ]
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"test-{i}"})
+                    for i in range(5)
+                ]
+            )
 
             # All should complete successfully
-            results = await asyncio.gather(*tasks)
             assert len(results) == 5
 
             # Should have created multiple batches due to max_size limit
@@ -489,12 +514,14 @@ class TestBatcher:
             )
 
             # Send fewer requests than minimum batch size
-            tasks = [
-                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(2)
-            ]
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"test-{i}"})
+                    for i in range(2)
+                ]
+            )
 
             # Should complete due to timeout, not minimum size
-            results = await asyncio.gather(*tasks)
             assert len(results) == 2
 
             # Should have created exactly one batch with only 2 requests (below minimum)
@@ -515,12 +542,14 @@ class TestBatcher:
             )
 
             # Send 4 requests (between min and max)
-            tasks = [
-                batcher.generate_for_request({"prompt": f"test-{i}"}) for i in range(4)
-            ]
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"test-{i}"})
+                    for i in range(4)
+                ]
+            )
 
             # Should complete immediately (since 4 >= 3 min_size)
-            results = await asyncio.gather(*tasks)
             assert len(results) == 4
 
             # Should have created exactly one batch with all 4 requests
@@ -533,12 +562,12 @@ class TestBatcher:
                 config=BatchConfig(size=2, max_size=5, send_delay=0.02, tick=0.001)
             )
 
-            tasks2 = [
-                batcher2.generate_for_request({"prompt": f"test2-{i}"})
-                for i in range(6)
-            ]
-
-            results2 = await asyncio.gather(*tasks2)
+            results2 = await tg_collect(
+                [
+                    lambda i=i: batcher2.generate_for_request({"prompt": f"test2-{i}"})
+                    for i in range(6)
+                ]
+            )
             assert len(results2) == 6
 
             # Should have created at least 2 batches (6 requests can't fit in max_size=5)
@@ -566,11 +595,22 @@ class TestBatcher:
             )
 
             # Start a request that will be in the failing batch
-            task = asyncio.create_task(batcher.generate_for_request({"prompt": "test"}))
+            exc_raised: Exception | None = None
+
+            async with anyio.create_task_group() as tg:
+
+                async def run_request() -> None:
+                    nonlocal exc_raised
+                    try:
+                        await batcher.generate_for_request({"prompt": "test"})
+                    except Exception as e:
+                        exc_raised = e
+
+                tg.start_soon(run_request)
 
             # Wait for the batch to fail after the configured number of failures
-            with pytest.raises(Exception, match="Simulated batch failure for batch-0"):
-                await task
+            assert exc_raised is not None
+            assert "Simulated batch failure for batch-0" in str(exc_raised)
 
             # Verify the batch was indeed removed from inflight batches
             assert len(batcher._inflight_batches) == 0
@@ -625,21 +665,28 @@ class TestBatcher:
                 fail_batch_ids={"batch-0"},
             )
 
-            # Start a request
-            task = asyncio.create_task(batcher.generate_for_request({"prompt": "test"}))
+            result: str | None = None
 
-            # Let it fail a few times
-            await asyncio.sleep(0.01)
+            async with anyio.create_task_group() as tg:
 
-            # Get the batch and verify it has some failures
-            batch = next(iter(batcher._inflight_batches.values()))
-            assert batch.consecutive_check_failure_count > 0
+                async def run_request() -> None:
+                    nonlocal result
+                    result = await batcher.generate_for_request({"prompt": "test"})
 
-            # Remove the failure condition to allow success
-            batcher._fail_batch_ids.clear()
+                tg.start_soon(run_request)
+
+                # Let it fail a few times
+                await anyio.sleep(0.01)
+
+                # Get the batch and verify it has some failures
+                batch = next(iter(batcher._inflight_batches.values()))
+                assert batch.consecutive_check_failure_count > 0
+
+                # Remove the failure condition to allow success
+                batcher._fail_batch_ids.clear()
 
             # The request should eventually succeed
-            result = await task
+            assert result is not None
             assert result.startswith("result-for-")
 
         await self._run_with_task_group(test_logic)
@@ -679,12 +726,14 @@ class TestBatcher:
             )
 
             # Send more requests than the effective limit
-            tasks = [
-                batcher.generate_for_request({"prompt": f"constrained-{i}"})
-                for i in range(8)
-            ]
-
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"prompt": f"constrained-{i}"}
+                    )
+                    for i in range(8)
+                ]
+            )
             assert len(results) == 8
 
             # Should have created batches with at most 3 requests each
@@ -708,12 +757,14 @@ class TestBatcher:
             )
 
             # Should still work - implementation should handle this gracefully
-            tasks = [
-                batcher.generate_for_request({"prompt": f"invalid-config-{i}"})
-                for i in range(4)
-            ]
-
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"prompt": f"invalid-config-{i}"}
+                    )
+                    for i in range(4)
+                ]
+            )
             assert len(results) == 4
 
             # Should respect the smaller max_size limit
@@ -739,14 +790,14 @@ class TestBatcher:
             batcher._max_batch_size_bytes = 200
 
             # Create requests that will hit byte limit before count limit
-            tasks = [
-                batcher.generate_for_request(
-                    {"data": f"medium-sized-request-{i:03d}-{'x' * 20}"}
-                )
-                for i in range(8)
-            ]
-
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"data": f"medium-sized-request-{i:03d}-{'x' * 20}"}
+                    )
+                    for i in range(8)
+                ]
+            )
             assert len(results) == 8
 
             # Should have created multiple batches due to byte limit, not count limit
@@ -771,13 +822,15 @@ class TestBatcher:
             )
 
             # Send fewer requests than minimum size
-            tasks = [
-                batcher.generate_for_request({"prompt": f"fast-tick-{i}"})
-                for i in range(3)
-            ]
-
             start_time = time.time()
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"prompt": f"fast-tick-{i}"}
+                    )
+                    for i in range(3)
+                ]
+            )
             elapsed = time.time() - start_time
 
             assert len(results) == 3
@@ -802,13 +855,15 @@ class TestBatcher:
             )
 
             # Send requests that should complete between ticks
-            tasks = [
-                batcher.generate_for_request({"prompt": f"slow-tick-{i}"})
-                for i in range(3)
-            ]
-
             start_time = time.time()
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"prompt": f"slow-tick-{i}"}
+                    )
+                    for i in range(3)
+                ]
+            )
             elapsed = time.time() - start_time
 
             assert len(results) == 3
@@ -835,12 +890,12 @@ class TestBatcher:
             )
 
             # Send many requests that would normally create more batches
-            tasks = [
-                batcher.generate_for_request({"prompt": f"limited-{i}"})
-                for i in range(10)
-            ]
-
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"limited-{i}"})
+                    for i in range(10)
+                ]
+            )
             assert len(results) == 10
 
             # Should have created more batches than max_batches due to queuing
@@ -865,12 +920,14 @@ class TestBatcher:
             )
 
             # Send multiple requests
-            tasks = [
-                batcher.generate_for_request({"prompt": f"zero-config-{i}"})
-                for i in range(3)
-            ]
-
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"prompt": f"zero-config-{i}"}
+                    )
+                    for i in range(3)
+                ]
+            )
             assert len(results) == 3
 
             # Should handle zero values gracefully
@@ -893,14 +950,14 @@ class TestBatcher:
             )
 
             # Send a moderate number of requests
-            tasks = [
-                batcher.generate_for_request({"prompt": f"extreme-{i}"})
-                for i in range(5)
-            ]
-
             # Should complete quickly despite long send_delay due to reaching minimum size
             start_time = time.time()
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request({"prompt": f"extreme-{i}"})
+                    for i in range(5)
+                ]
+            )
             elapsed = time.time() - start_time
 
             assert len(results) == 5
@@ -923,13 +980,15 @@ class TestBatcher:
             )
 
             # Send fewer requests than minimum size
-            tasks = [
-                batcher.generate_for_request({"prompt": f"precision-{i}"})
-                for i in range(3)
-            ]
-
             start_time = time.time()
-            results = await asyncio.gather(*tasks)
+            results = await tg_collect(
+                [
+                    lambda i=i: batcher.generate_for_request(
+                        {"prompt": f"precision-{i}"}
+                    )
+                    for i in range(3)
+                ]
+            )
             elapsed = time.time() - start_time
 
             assert len(results) == 3
@@ -954,15 +1013,24 @@ class TestBatcher:
             )
 
             # Start a request that will fail
-            task = asyncio.create_task(
-                batcher.generate_for_request({"prompt": "timing-failure"})
-            )
+            exc_raised: Exception | None = None
 
-            # Should fail after 2 failures * ~20ms tick = ~40ms + some overhead
             start_time = time.time()
-            with pytest.raises(Exception):
-                await task
+            async with anyio.create_task_group() as tg:
+
+                async def run_request() -> None:
+                    nonlocal exc_raised
+                    try:
+                        await batcher.generate_for_request({"prompt": "timing-failure"})
+                    except Exception as e:
+                        exc_raised = e
+
+                tg.start_soon(run_request)
+
             elapsed = time.time() - start_time
+
+            # Should fail after configured number of failures
+            assert exc_raised is not None
 
             # Should fail relatively quickly based on tick timing
             assert elapsed < 0.5  # Should fail within reasonable time
