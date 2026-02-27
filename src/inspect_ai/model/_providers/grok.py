@@ -200,9 +200,16 @@ class GrokAPI(ModelAPI):
             else grok_tool_choice,
             **grok_params,
         )
-        response_format = request.get("response_format")
-        if isinstance(response_format, chat_pb2.ResponseFormat):
-            request["response_format"] = MessageToDict(response_format)
+        if self._batcher and config.response_schema is not None:
+            schema_model = json_schema_to_base_model(config.response_schema.json_schema)
+            # Batch queue payloads are dict-shaped; encode full schema here so the
+            # batcher can rehydrate protobuf ResponseFormat before submission.
+            request["response_format"] = MessageToDict(
+                chat_pb2.ResponseFormat(
+                    format_type=chat_pb2.FormatType.FORMAT_TYPE_JSON_SCHEMA,
+                    schema=json.dumps(schema_model.model_json_schema()),
+                )
+            )
 
         model_call = set_active_model_event_call(
             request=request,
@@ -395,13 +402,8 @@ class GrokAPI(ModelAPI):
             gconfig["parallel_tool_calls"] = config.parallel_tool_calls
 
         if config.response_schema is not None:
-            # Keep schema enforcement aligned across non-batch and batch requests.
-            schema_model = json_schema_to_base_model(config.response_schema.json_schema)
-            # Use protobuf ResponseFormat so batch can round-trip full schema
-            gconfig["response_format"] = chat_pb2.ResponseFormat(
-                format_type=chat_pb2.FormatType.FORMAT_TYPE_JSON_SCHEMA,
-                schema=json.dumps(schema_model.model_json_schema()),
-            )
+            # we'll call chat.parse() above w/ the schema
+            gconfig["response_format"] = "json_object"
 
         # note that grok-3-mini is the only model which supports a reasoning effort parameter
         if config.reasoning_effort is not None and self.is_grok_3_mini():

@@ -1,6 +1,6 @@
 import json
 import time
-from typing import Any, cast
+from typing import cast
 
 import grpc
 from google.protobuf.json_format import ParseDict
@@ -64,11 +64,10 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
             request = dict(batch_request.request)
             request["messages"] = [
                 ParseDict(message, chat_pb2.Message())
-                for message in cast(list[dict[str, Any]], request.get("messages", []))
+                for message in request.get("messages", [])
             ]
             request["tools"] = [
-                ParseDict(tool, chat_pb2.Tool())
-                for tool in cast(list[dict[str, Any]], request.get("tools", []))
+                ParseDict(tool, chat_pb2.Tool()) for tool in request.get("tools", [])
             ]
 
             tool_choice = request.get("tool_choice")
@@ -88,7 +87,12 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
         batch = await self._client.batch.create(
             batch_name=f"inspect_batch_{int(time.time())}"
         )
-        await self._client.batch.add(batch_id=batch.batch_id, batch_requests=requests)
+        # Add requests one-by-one to avoid large gRPC payloads in a single add call.
+        for request in requests:
+            await self._client.batch.add(
+                batch_id=batch.batch_id,
+                batch_requests=[request],
+            )
         return cast(str, batch.batch_id)
 
     @override
@@ -100,12 +104,20 @@ class GrokBatcher(Batcher[Response, CompletedBatchInfo]):
         created_at = (
             int(info.create_time.seconds) if info.create_time else int(time.time())
         )
+        completed_count = state.num_success
+        failed_count = state.num_error + state.num_cancelled
+        terminal_count = completed_count + failed_count
+        is_terminal = (
+            state.num_pending == 0
+            and state.num_requests > 0
+            and terminal_count == state.num_requests
+        )
 
         return BatchCheckResult(
-            completed_count=state.num_success,
-            failed_count=state.num_error + state.num_cancelled,
+            completed_count=completed_count,
+            failed_count=failed_count,
             created_at=created_at,
-            completion_info=True if state.num_pending == 0 else None,
+            completion_info=True if is_terminal else None,
         )
 
     @override
