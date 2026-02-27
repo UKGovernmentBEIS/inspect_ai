@@ -1,13 +1,5 @@
 import clsx from "clsx";
-import {
-  CSSProperties,
-  FC,
-  RefObject,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import { CSSProperties, FC, RefObject, useCallback, useMemo } from "react";
 import { RenderedEventNode } from "./TranscriptVirtualList";
 import { EventNode } from "./types";
 
@@ -30,7 +22,8 @@ interface TranscriptVirtualListComponentProps {
 }
 
 /**
- * Renders the Transcript component.
+ * Renders the Transcript component using virtualization (react-virtuoso).
+ * Search is handled by FindBand via LiveVirtualList's data-level search.
  */
 export const TranscriptVirtualListComponent: FC<
   TranscriptVirtualListComponentProps
@@ -45,11 +38,9 @@ export const TranscriptVirtualListComponent: FC<
   className,
   turnMap,
 }) => {
-  const useVirtualization = running || eventNodes.length > 100;
+  // FindBand handles search — disable native browser find
   const setNativeFind = useStore((state) => state.appActions.setNativeFind);
-  useEffect(() => {
-    setNativeFind(!useVirtualization);
-  }, [setNativeFind, useVirtualization]);
+  useMemo(() => setNativeFind(false), [setNativeFind]);
 
   const initialEventIndex = useMemo(() => {
     if (initialEventId === null || initialEventId === undefined) {
@@ -61,33 +52,34 @@ export const TranscriptVirtualListComponent: FC<
     return result === -1 ? undefined : result;
   }, [initialEventId, eventNodes]);
 
-  const hasToolEventsAtCurrentDepth = useCallback(
-    (startIndex: number) => {
-      // Walk backwards from this index to see if we see any tool events
-      // at this depth, prior to this event
-      for (let i = startIndex; i >= 0; i--) {
-        const node = eventNodes[i];
-        if (node.event.event === "tool") {
-          return true;
-        }
-        if (node.depth < eventNodes[startIndex].depth) {
-          return false;
-        }
-      }
-      return false;
-    },
-    [eventNodes],
-  );
+  // Pre-compute hasToolEvents in O(n) instead of O(n²).
+  // For each node, we check if any tool event exists at the same depth
+  // between the previous shallower node and this node.
+  const toolAtDepthLookup = useMemo(() => {
+    const result = new Array<boolean>(eventNodes.length);
+    // Track whether we've seen a tool event at the current depth group.
+    // A "depth group" resets when we encounter a node shallower than the group.
+    let seenToolInGroup = false;
+    let groupDepth = -1;
 
-  const nonVirtualGridRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!useVirtualization && initialEventId) {
-      const row = nonVirtualGridRef.current?.querySelector(
-        `[id="${initialEventId}"]`,
-      );
-      row?.scrollIntoView({ block: "start" });
+    for (let i = 0; i < eventNodes.length; i++) {
+      const node = eventNodes[i];
+      if (node.depth < groupDepth || groupDepth === -1) {
+        // New group — depth decreased or first node
+        seenToolInGroup = false;
+        groupDepth = node.depth;
+      } else if (node.depth > groupDepth) {
+        // Nested deeper — new group
+        seenToolInGroup = false;
+        groupDepth = node.depth;
+      }
+      if (node.event.event === "tool") {
+        seenToolInGroup = true;
+      }
+      result[i] = seenToolInGroup;
     }
-  }, [initialEventId, useVirtualization]);
+    return result;
+  }, [eventNodes]);
 
   // Pre-compute context objects for all event nodes to maintain stable references
   const contextMap = useMemo(() => {
@@ -100,12 +92,12 @@ export const TranscriptVirtualListComponent: FC<
     >();
     for (let i = 0; i < eventNodes.length; i++) {
       const node = eventNodes[i];
-      const hasToolEvents = hasToolEventsAtCurrentDepth(i);
+      const hasToolEvents = toolAtDepthLookup[i];
       const turnInfo = turnMap?.get(node.id);
       map.set(node.id, { hasToolEvents, turnInfo });
     }
     return map;
-  }, [eventNodes, hasToolEventsAtCurrentDepth, turnMap]);
+  }, [eventNodes, toolAtDepthLookup, turnMap]);
 
   const renderRow = useCallback(
     (index: number, item: EventNode, style?: CSSProperties) => {
@@ -156,31 +148,18 @@ export const TranscriptVirtualListComponent: FC<
     [eventNodes, contextMap],
   );
 
-  if (useVirtualization) {
-    return (
-      <LiveVirtualList<EventNode>
-        listHandle={listHandle}
-        className={className}
-        id={id}
-        scrollRef={scrollRef}
-        data={eventNodes}
-        initialTopMostItemIndex={initialEventIndex}
-        offsetTop={offsetTop}
-        renderRow={renderRow}
-        live={running}
-        itemSearchText={eventSearchText}
-      />
-    );
-  } else {
-    return (
-      <div ref={nonVirtualGridRef}>
-        {eventNodes.map((node, index) => {
-          const row = renderRow(index, node, {
-            scrollMarginTop: offsetTop,
-          });
-          return row;
-        })}
-      </div>
-    );
-  }
+  return (
+    <LiveVirtualList<EventNode>
+      listHandle={listHandle}
+      className={className}
+      id={id}
+      scrollRef={scrollRef}
+      data={eventNodes}
+      initialTopMostItemIndex={initialEventIndex}
+      offsetTop={offsetTop}
+      renderRow={renderRow}
+      live={running}
+      itemSearchText={eventSearchText}
+    />
+  );
 };
