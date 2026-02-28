@@ -153,6 +153,10 @@ export const FindBand: FC<FindBandProps> = () => {
           }
           scrollTimeoutRef.current = window.setTimeout(() => {
             scrollRangeToCenter(range);
+            // Clear selection so CSS Custom Highlight (yellow ::highlight) is visible.
+            // The selection (blue ::selection) visually overrides ::highlight when both
+            // exist on the same range. We only needed it for scrollRangeToCenter.
+            window.getSelection()?.removeAllRanges();
           }, 100);
         }
       }
