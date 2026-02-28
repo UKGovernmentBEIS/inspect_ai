@@ -87,16 +87,6 @@ Definition** command in your source editor.
 
 - `math()`
 
-  > [!NOTE]
-  >
-  > The math scorer described below is available only in the development
-  > version of Inspect SWE. Install the development version from GitHub
-  > with:
-  >
-  > ``` python
-  > pip install git+https://github.com/meridianlabs-ai/inspect_swe
-  > ```
-
   Scorer for evaluating mathematical expressions and answers. Extracts
   answers from model output (supporting both `\boxed{}` LaTeX notation
   and plain text), normalizes mathematical expressions, and uses SymPy

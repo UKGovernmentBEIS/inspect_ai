@@ -658,7 +658,7 @@ backend for), set your credentials, and specify a model using the
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.5
 ```
 
 For the `together` provider, you can enable [Tool
