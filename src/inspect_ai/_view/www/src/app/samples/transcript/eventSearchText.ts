@@ -29,6 +29,17 @@ export const eventSearchText = (node: EventNode): string[] => {
           }
         }
       }
+      // Model event error details (API errors, tracebacks)
+      if (event.error) {
+        if (typeof event.error === "string") {
+          texts.push(event.error);
+        } else if (event.error.message) {
+          texts.push(event.error.message);
+        }
+      }
+      if (event.traceback) {
+        texts.push(event.traceback);
+      }
       break;
     }
 
@@ -36,15 +47,11 @@ export const eventSearchText = (node: EventNode): string[] => {
       if (event.function) {
         texts.push(event.function);
       }
-      if (event.arguments) {
-        texts.push(JSON.stringify(event.arguments));
+      if (event.arguments && typeof event.arguments === "string") {
+        texts.push(event.arguments);
       }
-      if (event.result) {
-        if (typeof event.result === "string") {
-          texts.push(event.result);
-        } else {
-          texts.push(JSON.stringify(event.result));
-        }
+      if (event.result && typeof event.result === "string") {
+        texts.push(event.result);
       }
       if (event.error?.message) {
         texts.push(event.error.message);
@@ -80,12 +87,8 @@ export const eventSearchText = (node: EventNode): string[] => {
     }
 
     case "info": {
-      if (event.data) {
-        if (typeof event.data === "string") {
-          texts.push(event.data);
-        } else {
-          texts.push(JSON.stringify(event.data));
-        }
+      if (event.data && typeof event.data === "string") {
+        texts.push(event.data);
       }
       break;
     }
@@ -94,16 +97,15 @@ export const eventSearchText = (node: EventNode): string[] => {
       if (event.source) {
         texts.push(event.source);
       }
-      texts.push(JSON.stringify(event));
       break;
     }
 
     case "subtask": {
-      if (event.input) {
-        texts.push(JSON.stringify(event.input));
+      if (event.input && typeof event.input === "string") {
+        texts.push(event.input);
       }
-      if (event.result) {
-        texts.push(JSON.stringify(event.result));
+      if (event.result && typeof event.result === "string") {
+        texts.push(event.result);
       }
       break;
     }
@@ -226,8 +228,8 @@ const extractContentText = (content: Content): string[] => {
         if (item.name) {
           texts.push(item.name);
         }
-        if (item.arguments) {
-          texts.push(JSON.stringify(item.arguments));
+        if (item.arguments && typeof item.arguments === "string") {
+          texts.push(item.arguments);
         }
         break;
       }
