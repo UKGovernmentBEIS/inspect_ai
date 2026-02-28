@@ -11,6 +11,7 @@
 - OpenAI Compatible: Re-create closed httpx client after disconnect.
 - Anthropic: Support ANTHROPIC_AUTH_TOKEN for OAuth Bearer authentication.
 - Anthropic: Enable `computer_20251124` tool version (with zoom) for Claude Sonnet 4.6.
+- Anthropic: Use `text_editor_20250728` for all Claude 4.x models per Anthropic docs.
 - vLLM: Support for LoRA (Low-Rank Adaptation) via `--enable-lora` server option and LoRA-tuned server startup logic.
 - Tools: Enable parameter placeholders in tool views.
 - OpenRouter: Improved capture of reasoning summaries for Gemini models.
