@@ -11,13 +11,58 @@ import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { usePrevious, useProperty } from "../state/hooks";
 import { useRafThrottle, useVirtuosoState } from "../state/scrolling";
 import {
-  ExtendedFindFn,
   ExtendedCountFn,
+  GoToMatchFn,
   useExtendedFind,
 } from "./ExtendedFindContext";
 import { PulsingDots } from "./PulsingDots";
+import {
+  buildSearchableText,
+  countMatches,
+  createMatchRange,
+  findNthMatch,
+} from "./searchUtils";
 
 import styles from "./LiveVirtualList.module.css";
+
+function highlightNthOccurrenceInPanel(
+  panelId: string,
+  term: string,
+  occurrence: number,
+): boolean {
+  const panelEl = document.getElementById(panelId);
+  if (!panelEl) return false;
+
+  const { text, nodes, offsets } = buildSearchableText(panelEl);
+  const match = findNthMatch(text, term, occurrence);
+  if (!match) return false;
+
+  const result = createMatchRange(nodes, offsets, match);
+  if (!result) return false;
+
+  const { range, staticRange } = result;
+
+  // CSS Custom Highlight — visible regardless of input focus
+  if (typeof Highlight !== "undefined" && CSS?.highlights) {
+    CSS.highlights.set("find-match", new Highlight(staticRange));
+  }
+
+  const sel = window.getSelection();
+  if (sel) {
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  return true;
+}
+
+// Count the number of searchable DOM occurrences of `term` in a rendered panel.
+function countMatchesInPanel(panelId: string, term: string): number {
+  const panelEl = document.getElementById(panelId);
+  if (!panelEl) return 0;
+  const { text } = buildSearchableText(panelEl);
+  return countMatches(text, term);
+}
 
 interface LiveVirtualListProps<T> {
   id: string;
@@ -75,9 +120,20 @@ export const LiveVirtualList = <T,>({
   const { getRestoreState, isScrolling, visibleRange, setVisibleRange } =
     useVirtuosoState(listHandle, `live-virtual-list-${id}`);
 
-  const { registerVirtualList, registerMatchCounter } = useExtendedFind();
-  const pendingSearchCallback = useRef<(() => void) | null>(null);
-  const [isCurrentlyScrolling, setIsCurrentlyScrolling] = useState(false);
+  const {
+    registerMatchCounter,
+    registerGoToMatch,
+  } = useExtendedFind();
+  const pendingTargetRef = useRef<{
+    index: number;
+    resolve: () => void;
+  } | null>(null);
+  const visibleRangeRef = useRef(visibleRange);
+  const currentHighlightRef = useRef<{
+    panelId: string;
+    term: string;
+    occurrence: number;
+  } | null>(null);
 
   // Track whether we're following output
   const [followOutput, setFollowOutput] = useProperty<boolean | null>(
@@ -96,6 +152,10 @@ export const LiveVirtualList = <T,>({
       setFollowOutput(!!live);
     }
   }, [followOutput, live, setFollowOutput]);
+
+  useEffect(() => {
+    visibleRangeRef.current = visibleRange;
+  }, [visibleRange]);
 
   // Track whether we were previously running so we can
   // decide whether to pop up to the top
@@ -212,64 +272,30 @@ export const LiveVirtualList = <T,>({
   );
 
   const scrollToMatch = useCallback(
-    (index: number, onContentReady: () => void) => {
-      pendingSearchCallback.current = onContentReady;
-
-      listHandle.current?.scrollToIndex({
-        index,
-        behavior: "auto",
-        align: "center",
-      });
-
-      setTimeout(() => {
-        if (pendingSearchCallback.current === onContentReady) {
-          pendingSearchCallback.current = null;
-          onContentReady();
+    (index: number): Promise<void> => {
+      return new Promise((resolve) => {
+        const currentRange = visibleRangeRef.current;
+        if (index >= currentRange.startIndex && index <= currentRange.endIndex) {
+          requestAnimationFrame(() => resolve());
+          return;
         }
-      }, 200);
+
+        pendingTargetRef.current = { index, resolve };
+        listHandle.current?.scrollToIndex({
+          index,
+          behavior: "auto",
+          align: "center",
+        });
+
+        setTimeout(() => {
+          if (pendingTargetRef.current?.index === index) {
+            pendingTargetRef.current = null;
+            resolve();
+          }
+        }, 2000);
+      });
     },
     [listHandle],
-  );
-
-  const searchInData: ExtendedFindFn = useCallback(
-    async (
-      term: string,
-      direction: "forward" | "backward",
-      onContentReady: () => void,
-    ) => {
-      if (!data.length || !term) return false;
-
-      const isForward = direction === "forward";
-      const currentIndex = isForward
-        ? visibleRange.endIndex
-        : visibleRange.startIndex;
-
-      // Search from current position to end, then wrap from beginning to current position
-      const len = data.length;
-      for (let offset = 1; offset < len; offset++) {
-        const i = isForward
-          ? (currentIndex + offset) % len
-          : (currentIndex - offset + len) % len;
-
-        // Skip items already in the visible range (window.find already checked them)
-        if (i >= visibleRange.startIndex && i <= visibleRange.endIndex)
-          continue;
-
-        if (searchInItem(data[i], term)) {
-          scrollToMatch(i, onContentReady);
-          return true;
-        }
-      }
-
-      return false;
-    },
-    [
-      data,
-      searchInItem,
-      visibleRange.endIndex,
-      visibleRange.startIndex,
-      scrollToMatch,
-    ],
   );
 
   const countMatchesInData: ExtendedCountFn = useCallback(
@@ -285,9 +311,12 @@ export const LiveVirtualList = <T,>({
         for (const text of textArray) {
           const lowerText = text.toLowerCase();
           let pos = 0;
-          while ((pos = lowerText.indexOf(lower, pos)) !== -1) {
+          let nextPos = lowerText.indexOf(lower, pos);
+          while (nextPos !== -1) {
+            pos = nextPos;
             total++;
             pos += lower.length;
+            nextPos = lowerText.indexOf(lower, pos);
           }
         }
       }
@@ -296,19 +325,105 @@ export const LiveVirtualList = <T,>({
     [data, itemSearchText, defaultItemSearchText],
   );
 
+
+  // Navigate to the nth match (1-based). Uses data-level counts to locate
+  // the target item WITHOUT scrolling, then scrolls to ONLY that item and
+  // highlights using DOM-level TreeWalker. If the DOM has fewer matches
+  // than the data (common for JSON fields rendered as expandable views),
+  // we continue to the next matching item.
+  const goToMatchImpl: GoToMatchFn = useCallback(
+    async (term: string, absoluteIndex: number): Promise<boolean> => {
+      if (!data.length || !term || absoluteIndex < 1) return false;
+
+      const getSearchText = itemSearchText ?? defaultItemSearchText;
+      const lower = term.toLowerCase();
+
+      // Phase 1: Walk all data items to find which item the target falls in.
+      //          NO scrolling — just data-level counting.
+      let cumulative = 0;
+      let targetIdx = -1;
+      let occurrenceInItem = 0;
+
+      for (let i = 0; i < data.length; i++) {
+        if (!searchInItem(data[i], term)) continue;
+
+        const texts = getSearchText(data[i]);
+        const textArray = Array.isArray(texts) ? texts : [texts];
+        let matchesInItem = 0;
+        for (const text of textArray) {
+          const lt = text.toLowerCase();
+          let pos = 0;
+          let nextPos = lt.indexOf(lower, pos);
+          while (nextPos !== -1) {
+            pos = nextPos;
+            matchesInItem++;
+            pos += lower.length;
+            nextPos = lt.indexOf(lower, pos);
+          }
+        }
+
+        if (cumulative + matchesInItem >= absoluteIndex) {
+          targetIdx = i;
+          occurrenceInItem = absoluteIndex - cumulative;
+          break;
+        }
+        cumulative += matchesInItem;
+      }
+
+      if (targetIdx === -1) return false;
+
+      // Phase 2: Scroll to the target item (and possibly subsequent items
+      //          if DOM has fewer matches than data predicted).
+      for (let i = targetIdx; i < data.length; i++) {
+        if (i !== targetIdx && !searchInItem(data[i], term)) continue;
+
+        const nodeId = (data[i] as { id?: string }).id;
+        if (!nodeId) continue;
+        const panelId = "event-panel-" + nodeId;
+
+        await scrollToMatch(i);
+
+        const domMatches = countMatchesInPanel(panelId, term);
+
+        if (occurrenceInItem <= domMatches) {
+          if (highlightNthOccurrenceInPanel(panelId, term, occurrenceInItem)) {
+            currentHighlightRef.current = {
+              panelId,
+              term,
+              occurrence: occurrenceInItem,
+            };
+            return true;
+          }
+        }
+
+        // DOM has fewer matches than data predicted — skip ahead.
+        occurrenceInItem -= domMatches;
+      }
+
+      return false;
+    },
+    [
+      data,
+      itemSearchText,
+      defaultItemSearchText,
+      searchInItem,
+      scrollToMatch,
+    ],
+  );
+
   useEffect(() => {
-    const unregisterSearch = registerVirtualList(id, searchInData);
     const unregisterCount = registerMatchCounter(id, countMatchesInData);
+    const unregisterGoTo = registerGoToMatch(id, goToMatchImpl);
     return () => {
-      unregisterSearch();
       unregisterCount();
+      unregisterGoTo();
     };
   }, [
     id,
-    registerVirtualList,
     registerMatchCounter,
-    searchInData,
+    registerGoToMatch,
     countMatchesInData,
+    goToMatchImpl,
   ]);
 
   const Footer = () => {
@@ -346,28 +461,6 @@ export const LiveVirtualList = <T,>({
     }
   }, [initialTopMostItemIndex, listHandle, offsetTop]);
 
-  // Watch for scrolling to stop and trigger pending search callback
-  useEffect(() => {
-    if (!isCurrentlyScrolling && pendingSearchCallback.current) {
-      // Add a delay to ensure DOM is fully updated after scrolling stops
-      setTimeout(() => {
-        const callback = pendingSearchCallback.current;
-        pendingSearchCallback.current = null;
-        callback?.();
-      }, 100);
-    }
-  }, [isCurrentlyScrolling]);
-
-  // Custom scrolling state callback
-  const handleScrollingChange = useCallback(
-    (scrolling: boolean) => {
-      setIsCurrentlyScrolling(scrolling);
-      // Also call the original isScrolling callback from useVirtuosoState
-      isScrolling(scrolling);
-    },
-    [isScrolling],
-  );
-
   return (
     <Virtuoso
       ref={listHandle}
@@ -379,9 +472,31 @@ export const LiveVirtualList = <T,>({
       increaseViewportBy={{ top: 1000, bottom: 1000 }}
       overscan={{ main: 5, reverse: 5 }}
       className={clsx("transcript", className)}
-      isScrolling={handleScrollingChange}
+      isScrolling={isScrolling}
       rangeChanged={(range) => {
         setVisibleRange(range);
+
+        const pending = pendingTargetRef.current;
+        if (
+          pending &&
+          pending.index >= range.startIndex &&
+          pending.index <= range.endIndex
+        ) {
+          pendingTargetRef.current = null;
+          requestAnimationFrame(() => pending.resolve());
+        }
+
+        const highlight = currentHighlightRef.current;
+        if (highlight) {
+          const panelEl = document.getElementById(highlight.panelId);
+          if (panelEl && panelEl.isConnected) {
+            highlightNthOccurrenceInPanel(
+              highlight.panelId,
+              highlight.term,
+              highlight.occurrence,
+            );
+          }
+        }
       }}
       skipAnimationFrameInResizeObserver={true}
       restoreStateFrom={getRestoreState()}
