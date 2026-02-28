@@ -93,10 +93,11 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
   }, [sampleData]);
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
 
-  // Check if the loaded sample matches the requested sample from URL params
-  // This prevents showing old sample data while a new sample is loading
+  // Returns true when sample is undefined (no stale data to worry about —
+  // this is normal for running samples where data comes via runningEvents).
   const sampleMatchesRequest = useMemo(() => {
-    if (!sample || !sampleId || !epoch) return false;
+    if (!sampleId || !epoch) return false;
+    if (!sample) return true;
     return (
       String(sample.id) === sampleId && sample.epoch === parseInt(epoch, 10)
     );
@@ -226,7 +227,7 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
           </div>
         </ApplicationNavbar>
 
-        {sampleStatus !== "loading" && sample && sampleMatchesRequest && (
+        {sampleStatus !== "loading" && sampleMatchesRequest && (
           <InlineSampleComponent
             showActivity={false}
             className={styles.panel}
