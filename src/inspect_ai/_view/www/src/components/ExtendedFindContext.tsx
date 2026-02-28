@@ -12,26 +12,23 @@ import {
 // search is requested and no matches are found. In this case, they can 'look ahead'
 // and scroll an item into view if it is likely/certain to contain the search term.
 
-// Find will call this when an extended find is requested
-export type ExtendedFindFn = (
-  term: string,
-  direction: "forward" | "backward",
-  onContentReady: () => void,
-) => Promise<boolean>;
-
 // Count total matches across all data items
 export type ExtendedCountFn = (term: string) => number;
+
+// Given a search term and a 1-based absolute match index,
+// scroll to and highlight that match in the DOM.
+export type GoToMatchFn = (
+  term: string,
+  absoluteIndex: number,
+) => Promise<boolean>;
 
 // The context provides an extended search function and a way for the active
 // virtual lists to register themselves.
 interface ExtendedFindContextType {
-  extendedFindTerm: (
-    term: string,
-    direction: "forward" | "backward",
-  ) => Promise<boolean>;
-  registerVirtualList: (id: string, searchFn: ExtendedFindFn) => () => void;
   countAllMatches: (term: string) => number;
   registerMatchCounter: (id: string, countFn: ExtendedCountFn) => () => void;
+  goToMatch: (term: string, absoluteIndex: number) => Promise<boolean>;
+  registerGoToMatch: (id: string, fn: GoToMatchFn) => () => void;
 }
 
 const ExtendedFindContext = createContext<ExtendedFindContextType | null>(null);
@@ -43,58 +40,8 @@ interface ExtendedFindProviderProps {
 export const ExtendedFindProvider = ({
   children,
 }: ExtendedFindProviderProps) => {
-  const virtualLists = useRef<Map<string, ExtendedFindFn>>(new Map());
   const matchCounters = useRef<Map<string, ExtendedCountFn>>(new Map());
-
-  const extendedFindTerm = useCallback(
-    async (
-      term: string,
-      direction: "forward" | "backward",
-    ): Promise<boolean> => {
-      for (const [, searchFn] of virtualLists.current) {
-        const found = await new Promise<boolean>((resolve) => {
-          let callbackFired = false;
-
-          const onContentReady = () => {
-            if (!callbackFired) {
-              callbackFired = true;
-              resolve(true);
-            }
-          };
-
-          searchFn(term, direction, onContentReady)
-            .then((found) => {
-              if (!found && !callbackFired) {
-                callbackFired = true;
-                resolve(false);
-              }
-            })
-            .catch(() => {
-              if (!callbackFired) {
-                callbackFired = true;
-                resolve(false);
-              }
-            });
-        });
-
-        if (found) {
-          return true;
-        }
-      }
-      return false;
-    },
-    [],
-  );
-
-  const registerVirtualList = useCallback(
-    (id: string, searchFn: ExtendedFindFn): (() => void) => {
-      virtualLists.current.set(id, searchFn);
-      return () => {
-        virtualLists.current.delete(id);
-      };
-    },
-    [],
-  );
+  const goToMatchFns = useRef<Map<string, GoToMatchFn>>(new Map());
 
   const countAllMatches = useCallback((term: string): number => {
     let total = 0;
@@ -114,11 +61,32 @@ export const ExtendedFindProvider = ({
     [],
   );
 
+  const goToMatch = useCallback(
+    async (term: string, absoluteIndex: number): Promise<boolean> => {
+      for (const [, fn] of goToMatchFns.current) {
+        const result = await fn(term, absoluteIndex);
+        if (result) return true;
+      }
+      return false;
+    },
+    [],
+  );
+
+  const registerGoToMatch = useCallback(
+    (id: string, fn: GoToMatchFn): (() => void) => {
+      goToMatchFns.current.set(id, fn);
+      return () => {
+        goToMatchFns.current.delete(id);
+      };
+    },
+    [],
+  );
+
   const contextValue: ExtendedFindContextType = {
-    extendedFindTerm,
-    registerVirtualList,
     countAllMatches,
     registerMatchCounter,
+    goToMatch,
+    registerGoToMatch,
   };
 
   return (
