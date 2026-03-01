@@ -3,18 +3,22 @@ import inspect
 from contextvars import ContextVar
 from logging import getLogger
 from typing import AsyncIterator
-from uuid import uuid4
+
+from shortuuid import uuid as shortuuid
 
 logger = getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
-async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
+async def span(
+    name: str, *, type: str | None = None, id: str | None = None
+) -> AsyncIterator[None]:
     """Context manager for establishing a transcript span.
 
     Args:
         name (str): Step name.
         type (str | None): Optional span type.
+        id (str | None): Optional span ID. Generated if not provided.
     """
     from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
     from inspect_ai.log._transcript import (
@@ -23,7 +27,7 @@ async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
     )
 
     # span id
-    id = uuid4().hex
+    id = id or shortuuid()
 
     # capture parent id
     parent_id = _current_span_id.get()
