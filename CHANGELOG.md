@@ -1,3 +1,7 @@
+## Unreleased
+
+- Task view: Extract and print `<summary>` from `<details>` tags in tool views.
+
 ## 0.3.185 (01 March 2026)
 
 - Anthropic: Use `text_editor_20250728` for all Claude 4.x models per Anthropic docs.
