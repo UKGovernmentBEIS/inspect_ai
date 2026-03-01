@@ -616,6 +616,7 @@ export type Events1 = unknown[];
 export type Completed2 = string | null;
 export type WorkingTime1 = number | null;
 export type Agent = string | null;
+export type AgentSpanId = string | null;
 export type Failed = boolean | null;
 export type MessageId = string | null;
 export type Uuid7 = string | null;
@@ -1822,6 +1823,7 @@ export interface ToolEvent {
   completed: Completed2;
   working_time: WorkingTime1;
   agent: Agent;
+  agent_span_id: AgentSpanId;
   failed: Failed;
   message_id: MessageId;
 }

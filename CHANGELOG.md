@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Anthropic: Use `text_editor_20250728` for all Claude 4.x models per Anthropic docs.
+- Events: Add `agent_span_id` property to tool events for associating them with their associated agent.
 
 ## 0.3.184 (28 February 2026)
 

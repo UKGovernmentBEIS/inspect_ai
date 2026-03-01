@@ -7765,6 +7765,18 @@
           "default": null,
           "title": "Agent"
         },
+        "agent_span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Span Id"
+        },
         "failed": {
           "anyOf": [
             {
@@ -7810,6 +7822,7 @@
         "completed",
         "working_time",
         "agent",
+        "agent_span_id",
         "failed",
         "message_id"
       ],
