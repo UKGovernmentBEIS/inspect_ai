@@ -22,23 +22,11 @@ export const eventSearchText = (node: EventNode): string[] => {
           texts.push(...extractContentText(choice.message.content));
         }
       }
-      if (event.input) {
-        for (const msg of event.input) {
-          if (msg.role === "user" || msg.role === "system") {
-            texts.push(...extractContentText(msg.content));
-          }
-        }
-      }
       // Model event error details (API errors, tracebacks)
       if (event.error) {
         if (typeof event.error === "string") {
           texts.push(event.error);
-        } else if (event.error.message) {
-          texts.push(event.error.message);
         }
-      }
-      if (event.traceback) {
-        texts.push(event.traceback);
       }
       break;
     }
@@ -49,9 +37,13 @@ export const eventSearchText = (node: EventNode): string[] => {
       }
       if (event.arguments && typeof event.arguments === "string") {
         texts.push(event.arguments);
+      } else if (event.arguments && typeof event.arguments === "object") {
+        texts.push(JSON.stringify(event.arguments));
       }
       if (event.result && typeof event.result === "string") {
         texts.push(event.result);
+      } else if (event.result != null) {
+        texts.push(...extractToolResultText(event.result));
       }
       if (event.error?.message) {
         texts.push(event.error.message);
@@ -69,9 +61,6 @@ export const eventSearchText = (node: EventNode): string[] => {
     case "error": {
       if (event.error?.message) {
         texts.push(event.error.message);
-      }
-      if (event.error?.traceback) {
-        texts.push(event.error.traceback);
       }
       break;
     }
@@ -236,4 +225,54 @@ const extractContentText = (content: Content): string[] => {
     }
   }
   return texts;
+};
+
+const extractToolResultText = (value: unknown): string[] => {
+  if (value == null) {
+    return [];
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return [String(value)];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractToolResultText(item));
+  }
+
+  if (typeof value !== "object") {
+    return [];
+  }
+
+  const item = value as Record<string, unknown>;
+  const type = item.type;
+
+  if (type === "text" && typeof item.text === "string") {
+    return [item.text];
+  }
+
+  if (type === "reasoning") {
+    const out: string[] = [];
+    if (typeof item.reasoning === "string") {
+      out.push(item.reasoning);
+    }
+    if (typeof item.summary === "string") {
+      out.push(item.summary);
+    }
+    return out;
+  }
+
+  if (type === "tool" && Array.isArray(item.content)) {
+    return item.content.flatMap((c) => extractToolResultText(c));
+  }
+
+  if (type === "image" && typeof item.image === "string") {
+    return item.image.startsWith("data:") ? [] : [item.image];
+  }
+
+  return [JSON.stringify(value)];
 };
