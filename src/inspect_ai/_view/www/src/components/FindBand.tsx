@@ -8,21 +8,17 @@ import {
   useState,
 } from "react";
 import { useStore } from "../state/store";
-import { scrollRangeToCenter } from "../utils/dom";
 import { debounce } from "../utils/sync";
 import { useExtendedFind } from "./ExtendedFindContext";
 import { FindBandUI } from "./FindBandUI";
 
-interface FindBandProps {}
-
-export const FindBand: FC<FindBandProps> = () => {
+export const FindBand: FC = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
   const storeHideFind = useStore((state) => state.appActions.hideFind);
   const { countAllMatches, goToMatch } = useExtendedFind();
   const currentSearchTerm = useRef<string>("");
   const matchIndexRef = useRef(0);
   const needsCursorRestoreRef = useRef<boolean>(false);
-  const scrollTimeoutRef = useRef<number | null>(null);
   const focusTimeoutRef = useRef<number | null>(null);
   const searchIdRef = useRef(0);
   const cachedCount = useRef<{ term: string; count: number }>({
@@ -44,23 +40,6 @@ export const FindBand: FC<FindBandProps> = () => {
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
 
-  const getParentExpandablePanel = useCallback(
-    (selection: Selection): HTMLElement | undefined => {
-      let node = selection.anchorNode;
-      while (node) {
-        if (
-          node instanceof HTMLElement &&
-          node.hasAttribute("data-expandable-panel")
-        ) {
-          return node;
-        }
-        node = node.parentElement;
-      }
-      return undefined;
-    },
-    [],
-  );
-
   const handleSearch = useCallback(
     async (back = false) => {
       const thisSearchId = ++searchIdRef.current;
@@ -69,7 +48,8 @@ export const FindBand: FC<FindBandProps> = () => {
       if (!searchTerm) {
         // Clear CSS highlight when search term is emptied
         if (CSS?.highlights) {
-          CSS.highlights.delete("find-match");
+          CSS.highlights.delete("find-match-all");
+          CSS.highlights.delete("find-match-current");
         }
         setMatchCount(null);
         setCurrentMatchIndex(0);
@@ -91,7 +71,8 @@ export const FindBand: FC<FindBandProps> = () => {
       if (total === 0) {
         // Clear CSS highlight when search returns 0 results
         if (CSS?.highlights) {
-          CSS.highlights.delete("find-match");
+          CSS.highlights.delete("find-match-all");
+          CSS.highlights.delete("find-match-current");
         }
         setCurrentMatchIndex(0);
         matchIndexRef.current = 0;
@@ -122,48 +103,13 @@ export const FindBand: FC<FindBandProps> = () => {
       const focusedElement = document.activeElement as HTMLElement;
 
       // Navigate to the target match (scroll + highlight)
-      const found = await goToMatch(searchTerm, newIndex);
+      await goToMatch(searchTerm, newIndex);
 
       if (searchIdRef.current !== thisSearchId) return;
 
-      if (found) {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-
-          // Expand collapsed panels containing the match
-          const parentPanel = getParentExpandablePanel(selection);
-          if (parentPanel) {
-            if (!mutatedPanelsRef.current.has(parentPanel)) {
-              mutatedPanelsRef.current.set(parentPanel, {
-                display: parentPanel.style.display,
-                maxHeight: parentPanel.style.maxHeight,
-                webkitLineClamp: parentPanel.style.webkitLineClamp,
-                webkitBoxOrient: parentPanel.style.webkitBoxOrient,
-              });
-            }
-            parentPanel.style.display = "block";
-            parentPanel.style.maxHeight = "none";
-            parentPanel.style.webkitLineClamp = "";
-            parentPanel.style.webkitBoxOrient = "";
-          }
-
-          if (scrollTimeoutRef.current !== null) {
-            window.clearTimeout(scrollTimeoutRef.current);
-          }
-          scrollTimeoutRef.current = window.setTimeout(() => {
-            scrollRangeToCenter(range);
-            // Clear selection so CSS Custom Highlight (yellow ::highlight) is visible.
-            // The selection (blue ::selection) visually overrides ::highlight when both
-            // exist on the same range. We only needed it for scrollRangeToCenter.
-            window.getSelection()?.removeAllRanges();
-          }, 100);
-        }
-      }
-
       focusedElement?.focus();
     },
-    [getParentExpandablePanel, countAllMatches, goToMatch],
+    [countAllMatches, goToMatch],
   );
 
   useEffect(() => {
@@ -173,13 +119,9 @@ export const FindBand: FC<FindBandProps> = () => {
     }, 10);
 
     const mutatedPanels = mutatedPanelsRef.current;
-    const scrollTimeout = scrollTimeoutRef.current;
     const focusTimeout = focusTimeoutRef.current;
 
     return () => {
-      if (scrollTimeout !== null) {
-        window.clearTimeout(scrollTimeout);
-      }
       if (focusTimeout !== null) {
         window.clearTimeout(focusTimeout);
       }
@@ -193,7 +135,8 @@ export const FindBand: FC<FindBandProps> = () => {
       mutatedPanels.clear();
       // Clear the CSS Custom Highlight
       if (CSS?.highlights) {
-        CSS.highlights.delete("find-match");
+        CSS.highlights.delete("find-match-all");
+        CSS.highlights.delete("find-match-current");
       }
     };
   }, []);

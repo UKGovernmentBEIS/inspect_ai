@@ -232,3 +232,35 @@ export function createMatchRange(
 
   return { range, staticRange };
 }
+
+/**
+ * Get all StaticRanges for every occurrence of a search term in a panel element.
+ * Used for the "find-match-all" CSS Custom Highlight (yellow background on all visible matches).
+ *
+ * @param panelId The DOM element id of the panel to search
+ * @param term The search term (case-insensitive)
+ * @param excludeOccurrence 1-based occurrence number to exclude (the current match, highlighted separately)
+ * @returns Array of StaticRanges for all matches (except the excluded one)
+ */
+export function getAllMatchRangesInPanel(
+  panelId: string,
+  term: string,
+  excludeOccurrence?: number,
+): StaticRange[] {
+  const panelEl = document.getElementById(panelId);
+  if (!panelEl) return [];
+  const { text, nodes, offsets } = buildSearchableText(panelEl);
+  const lowerTerm = term.toLowerCase();
+  const ranges: StaticRange[] = [];
+  let n = 1;
+  while (true) {
+    const match = findNthMatch(text, lowerTerm, n);
+    if (!match) break;
+    if (n !== excludeOccurrence) {
+      const result = createMatchRange(nodes, offsets, match);
+      if (result) ranges.push(result.staticRange);
+    }
+    n++;
+  }
+  return ranges;
+}
