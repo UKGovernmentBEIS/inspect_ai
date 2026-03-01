@@ -105,6 +105,7 @@ def scenario_simple_agent() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="simple_agent",
         dataset=DATASET,
         solver=react(tools=[addition()]),
         scorer=includes(),
@@ -122,6 +123,7 @@ def scenario_multi_turn_agent() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="multi_turn_agent",
         dataset=DATASET,
         solver=react(tools=[addition(), string_reverse()]),
         scorer=includes(),
@@ -153,6 +155,7 @@ def scenario_nested_sub_agent() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="nested_sub_agent",
         dataset=DATASET,
         solver=react(tools=[calc_tool]),
         scorer=includes(),
@@ -194,6 +197,7 @@ def scenario_auto_branching() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="auto_branching",
         dataset=DATASET,
         solver=react(
             tools=[addition()],
@@ -228,6 +232,7 @@ def scenario_utility_agent() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="utility_agent",
         dataset=DATASET,
         solver=react(
             prompt=AgentPrompt(instructions="You are a math assistant."),
@@ -283,6 +288,7 @@ def scenario_sequential_run() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="sequential_run",
         dataset=DATASET,
         solver=researcher(),
         scorer=includes(),
@@ -353,6 +359,7 @@ def scenario_parallel_collect() -> tuple[str, Task, Any]:
     # Dummy model for eval (not called directly)
     model = get_model(MODEL, custom_outputs=[])
     task = Task(
+        name="parallel_collect",
         dataset=DATASET,
         solver=coordinator(),
         scorer=includes(),
@@ -389,6 +396,7 @@ def scenario_deep_nesting() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="deep_nesting",
         dataset=DATASET,
         solver=react(tools=[analyst_tool]),
         scorer=includes(),
@@ -420,6 +428,7 @@ def scenario_multiple_rerolls() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="multiple_rerolls",
         dataset=DATASET,
         solver=react(
             tools=[addition()],
@@ -526,6 +535,7 @@ def scenario_parallel_with_nesting() -> tuple[str, Task, Any]:
     # Dummy model for eval (not called directly)
     model = get_model(MODEL, custom_outputs=[])
     task = Task(
+        name="parallel_with_nesting",
         dataset=DATASET,
         solver=manager(),
         scorer=includes(),
@@ -598,6 +608,7 @@ def scenario_sequential_and_parallel() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="sequential_and_parallel",
         dataset=DATASET,
         solver=expedition(),
         scorer=includes(),
@@ -641,6 +652,7 @@ def scenario_deep_utility() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="deep_utility",
         dataset=DATASET,
         solver=react(
             prompt=AgentPrompt(instructions="You are a math assistant."),
@@ -711,6 +723,7 @@ def scenario_parallel_heterogeneous() -> tuple[str, Task, Any]:
     # Dummy model for eval (not called directly)
     model = get_model(MODEL, custom_outputs=[])
     task = Task(
+        name="parallel_heterogeneous",
         dataset=DATASET,
         solver=orchestrator(),
         scorer=includes(),
@@ -790,6 +803,7 @@ def scenario_handoff_and_as_tool() -> tuple[str, Task, Any]:
     ]
     model = get_model(MODEL, custom_outputs=outputs)
     task = Task(
+        name="handoff_and_as_tool",
         dataset=DATASET,
         solver=react(tools=[analyst_handoff, calc_tool]),
         scorer=includes(),
