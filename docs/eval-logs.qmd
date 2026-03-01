@@ -34,6 +34,8 @@ This article will focus primarily on configuring Inspect's logging behavior (loc
 
 3. [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) --- Data visualization framework built to work with Inspect logs.
 
+4. [CJE](https://github.com/cimo-labs/cje) --- Calibrate model-graded scorer accuracy against oracle labels using causal inference.
+
 ## Log Location
 
 By default, logs are written to the `./logs` sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:

@@ -52,6 +52,12 @@
   author: "[Arcadia](https://www.arcadiaimpact.org/)"
   categories: ["Analysis"]
 
+- name: "[CJE](https://github.com/cimo-labs/cje)"
+  description: |
+    Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
+  author: "[CIMO Labs](https://cimolabs.com)"
+  categories: ["Analysis"]
+
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
     Workflow orchestration for reprocibly running evals at scale.
