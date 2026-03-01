@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: Use `text_editor_20250728` for all Claude 4.x models per Anthropic docs.
+
 ## 0.3.184 (28 February 2026)
 
 - Model API: By default, only log raw model api request/response when an error occurs. Override to log all model api calls with `--log-model-api`.

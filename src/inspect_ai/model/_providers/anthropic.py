@@ -1200,10 +1200,6 @@ class AnthropicAPI(ModelAPI):
                 BetaToolTextEditor20250728Param(
                     type="text_editor_20250728", name="str_replace_based_edit_tool"
                 )
-                if (self.is_claude_4_5() or self.is_claude_4_6())
-                else BetaToolTextEditor20250429Param(
-                    type="text_editor_20250429", name="str_replace_based_edit_tool"
-                )
                 if self.is_claude_4()
                 else BetaToolTextEditor20241022Param(
                     type="text_editor_20241022", name="str_replace_editor"
