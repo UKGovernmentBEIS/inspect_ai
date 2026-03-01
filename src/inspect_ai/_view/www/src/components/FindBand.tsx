@@ -10,7 +10,8 @@ import {
 import { useStore } from "../state/store";
 import { debounce } from "../utils/sync";
 import { useExtendedFind } from "./ExtendedFindContext";
-import { FindBandUI } from "./FindBandUI";
+import clsx from "clsx";
+import { ApplicationIcons } from "../app/appearance/icons";
 
 export const FindBand: FC = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
@@ -245,7 +246,11 @@ export const FindBand: FC = () => {
     };
   }, [handleSearch, restoreCursor]);
 
-  const hasHighlightAPI = !!(typeof CSS !== "undefined" && CSS?.highlights && typeof Highlight !== "undefined");
+  const hasHighlightAPI = !!(
+    typeof CSS !== "undefined" &&
+    CSS?.highlights &&
+    typeof Highlight !== "undefined"
+  );
 
   const matchCountLabel = useMemo(() => {
     if (matchCount === null) return null;
