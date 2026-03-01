@@ -37,17 +37,18 @@ def _make_lfs_pointer(path: Path, content: bytes = b"real file content") -> str:
 def _configure_lfs_mocks(
     mock_fetch: MagicMock,
     mock_download: MagicMock,
-    content: bytes,
-    oid: str,
+    items: list[tuple[bytes, str]],
 ) -> None:
-    """Wire up fetch_download_urls and download_lfs_object mocks for one object."""
+    """Wire up fetch_download_urls and download_lfs_object mocks."""
+    content_by_oid = {oid: content for content, oid in items}
     mock_fetch.return_value = [
-        LFSDownloadInfo(oid=oid, size=len(content), href="https://fake/download")
+        LFSDownloadInfo(oid=oid, size=len(content), href=f"https://fake/{oid[:8]}")
+        for content, oid in items
     ]
 
-    def _download(_info: LFSDownloadInfo, dest_path: Path) -> None:
+    def _download(info: LFSDownloadInfo, dest_path: Path) -> None:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        dest_path.write_bytes(content)
+        dest_path.write_bytes(content_by_oid[info.oid])
 
     mock_download.side_effect = _download
 
@@ -77,7 +78,7 @@ def test_lfs_pointers_populates_cache(
     cache = tmp_path / "cache"
     content = b"the real index content"
     oid = _make_lfs_pointer(source / "index.html", content)
-    _configure_lfs_mocks(mock_fetch, mock_download, content, oid)
+    _configure_lfs_mocks(mock_fetch, mock_download, [(content, oid)])
 
     result = resolve_lfs_directory(source, cache, FAKE_REPO_URL)
 
@@ -90,31 +91,24 @@ def test_lfs_pointers_populates_cache(
 def test_subdirectories_resolved_recursively(
     mock_fetch: MagicMock, mock_download: MagicMock, tmp_path: Path
 ) -> None:
-    """Pointer in a subdirectory is detected and cached with structure preserved."""
+    """Pointers in subdirectories are detected and cached with structure preserved."""
     source = tmp_path / "source"
     cache = tmp_path / "cache"
-    content = b"nested asset content"
-    _write_real_file(source / "index.html")
-    oid = _make_lfs_pointer(source / "assets" / "logo.png", content)
-    _configure_lfs_mocks(mock_fetch, mock_download, content, oid)
+    index_content = b"<html>index</html>"
+    logo_content = b"nested asset content"
+    index_oid = _make_lfs_pointer(source / "index.html", index_content)
+    logo_oid = _make_lfs_pointer(source / "assets" / "logo.png", logo_content)
+    _configure_lfs_mocks(
+        mock_fetch,
+        mock_download,
+        [(index_content, index_oid), (logo_content, logo_oid)],
+    )
 
     result = resolve_lfs_directory(source, cache, FAKE_REPO_URL)
 
     assert result == cache
-    assert (cache / "assets" / "logo.png").read_bytes() == content
-    assert (cache / "index.html").exists()
-
-
-def test_force_cache_copies_real_files(tmp_path: Path) -> None:
-    """force_cache=True populates cache even when no pointers exist."""
-    source = tmp_path / "source"
-    cache = tmp_path / "cache"
-    _write_real_file(source / "index.html", "real content")
-
-    result = resolve_lfs_directory(source, cache, FAKE_REPO_URL, force_cache=True)
-
-    assert result == cache
-    assert (cache / "index.html").read_text() == "real content"
+    assert (cache / "assets" / "logo.png").read_bytes() == logo_content
+    assert (cache / "index.html").read_bytes() == index_content
 
 
 def test_missing_directory_raises(tmp_path: Path) -> None:
@@ -127,7 +121,7 @@ def test_missing_directory_raises(tmp_path: Path) -> None:
 
 @_PATCH_FETCH
 def test_download_failure_raises(mock_fetch: MagicMock, tmp_path: Path) -> None:
-    """Network failure in ensure_cached is wrapped in LFSResolverError."""
+    """Network failure in download_lfs_objects is wrapped in LFSResolverError."""
     source = tmp_path / "source"
     cache = tmp_path / "cache"
     _make_lfs_pointer(source / "file.txt")
@@ -137,18 +131,33 @@ def test_download_failure_raises(mock_fetch: MagicMock, tmp_path: Path) -> None:
         resolve_lfs_directory(source, cache, FAKE_REPO_URL)
 
 
-def test_pruning_removes_orphaned_cache_entries(tmp_path: Path) -> None:
+@_PATCH_DOWNLOAD
+@_PATCH_FETCH
+def test_pruning_removes_orphaned_cache_entries(
+    mock_fetch: MagicMock, mock_download: MagicMock, tmp_path: Path
+) -> None:
     """Files removed from source are pruned from cache on next resolve."""
     source = tmp_path / "source"
     cache = tmp_path / "cache"
 
-    _write_real_file(source / "keep.html", "keep")
-    _write_real_file(source / "remove.html", "remove")
-    resolve_lfs_directory(source, cache, FAKE_REPO_URL, force_cache=True)
+    keep_content = b"keep"
+    remove_content = b"remove"
+    keep_oid = _make_lfs_pointer(source / "keep.html", keep_content)
+    remove_oid = _make_lfs_pointer(source / "remove.html", remove_content)
+    _configure_lfs_mocks(
+        mock_fetch,
+        mock_download,
+        [(keep_content, keep_oid), (remove_content, remove_oid)],
+    )
+
+    resolve_lfs_directory(source, cache, FAKE_REPO_URL)
     assert (cache / "remove.html").exists()
 
+    # Remove source file, re-configure mocks for second call (only keep.html).
     (source / "remove.html").unlink()
-    resolve_lfs_directory(source, cache, FAKE_REPO_URL, force_cache=True)
+    _configure_lfs_mocks(mock_fetch, mock_download, [(keep_content, keep_oid)])
+
+    resolve_lfs_directory(source, cache, FAKE_REPO_URL)
 
     assert (cache / "keep.html").exists()
     assert not (cache / "remove.html").exists()

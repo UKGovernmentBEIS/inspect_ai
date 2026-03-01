@@ -27,15 +27,24 @@ class LFSDownloadInfo:
     href: str
 
 
+_BATCH_CHUNK_SIZE = 50
+"""Max objects per batch API request to avoid 413 responses from GitHub."""
+
+
 def fetch_download_urls(
     objects: list[tuple[str, int]],
     repo_url: str,
+    oid_labels: dict[str, str] | None = None,
 ) -> list[LFSDownloadInfo]:
     """Get download URLs for LFS objects via the batch API.
+
+    Chunks requests to avoid exceeding GitHub's payload size limit.
 
     Args:
         objects: List of (oid, size) tuples to request.
         repo_url: HTTPS URL of the git repository.
+        oid_labels: Optional mapping from OID to a human-readable label
+            (e.g. relative file path) included in warning messages.
 
     Returns:
         List of download info for each object that has a download URL.
@@ -46,6 +55,19 @@ def fetch_download_urls(
     if not objects:
         return []
 
+    results: list[LFSDownloadInfo] = []
+    for i in range(0, len(objects), _BATCH_CHUNK_SIZE):
+        chunk = objects[i : i + _BATCH_CHUNK_SIZE]
+        results.extend(_fetch_batch_chunk(chunk, repo_url, oid_labels or {}))
+    return results
+
+
+def _fetch_batch_chunk(
+    objects: list[tuple[str, int]],
+    repo_url: str,
+    oid_labels: dict[str, str],
+) -> list[LFSDownloadInfo]:
+    """Fetch download URLs for a single batch chunk."""
     batch_endpoint = f"{repo_url}/info/lfs/objects/batch"
     payload = {
         "operation": "download",
@@ -81,18 +103,20 @@ def fetch_download_urls(
         download = actions.get("download", {})
         href = download.get("href", "")
 
+        label = oid_labels.get(oid, oid[:12])
+
         if obj.get("error"):
             err = obj["error"]
             logger.warning(
-                "LFS object %s: server error %s — %s",
-                oid[:12],
+                "%s: server error %s — %s",
+                label,
                 err.get("code", "?"),
                 err.get("message", "unknown"),
             )
             continue
 
         if not href:
-            logger.warning("LFS object %s: no download URL in response", oid[:12])
+            logger.warning("%s: no download URL in response", label)
             continue
 
         results.append(LFSDownloadInfo(oid=oid, size=size, href=href))
