@@ -332,8 +332,7 @@ class SampleBufferDatabase(SampleBuffer):
         except FileNotFoundError:
             return None
 
-    @override
-    def get_sample_data(
+    def _get_sample_data_sync(
         self,
         id: str | int,
         epoch: int,
@@ -372,6 +371,25 @@ class SampleBufferDatabase(SampleBuffer):
                 )
         except FileNotFoundError:
             return None
+
+    @override
+    async def get_sample_data(
+        self,
+        id: str | int,
+        epoch: int,
+        after_event_id: int | None = None,
+        after_attachment_id: int | None = None,
+        after_message_pool_id: int | None = None,
+        after_call_pool_id: int | None = None,
+    ) -> SampleData | None:
+        return self._get_sample_data_sync(
+            id,
+            epoch,
+            after_event_id,
+            after_attachment_id,
+            after_message_pool_id,
+            after_call_pool_id,
+        )
 
     @contextmanager
     def _get_connection(self, *, write: bool = False) -> Iterator[Connection]:
@@ -841,7 +859,7 @@ def sync_to_filestore(
             after_message_pool_id, after_call_pool_id = (0, 0)
 
         # get sample data
-        sample_data = db.get_sample_data(
+        sample_data = db._get_sample_data_sync(
             id=manifest_sample.summary.id,
             epoch=manifest_sample.summary.epoch,
             after_event_id=after_event_id,

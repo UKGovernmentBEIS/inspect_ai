@@ -3,7 +3,9 @@
 import json
 import os
 import tempfile
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
+from typing import TypeVar
 from zipfile import ZipFile
 
 from pydantic_core import to_jsonable_python
@@ -26,6 +28,13 @@ from inspect_ai.log._recover import (
 )
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer._metric import Score
+
+T = TypeVar("T")
+
+
+async def _async_iter(items: list[T]) -> AsyncIterator[T]:
+    for item in items:
+        yield item
 
 
 def _to_json(obj: object) -> str:
@@ -98,7 +107,7 @@ async def test_write_recovered_eval_log_basic() -> None:
             buffer = [_make_sample(3)]
             crashed = _make_crashed_log(temp_dir, samples=flushed)
 
-            log = await write_recovered_eval_log(crashed, iter(buffer), output)
+            log = await write_recovered_eval_log(crashed, _async_iter(buffer), output)
 
             assert log.status == "error"
             assert log.error is not None
@@ -118,7 +127,7 @@ async def test_write_recovered_eval_log_stats() -> None:
             samples = [_make_sample(1), _make_sample(2)]
             crashed = _make_crashed_log(temp_dir, samples=samples)
 
-            log = await write_recovered_eval_log(crashed, iter([]), output)
+            log = await write_recovered_eval_log(crashed, _async_iter([]), output)
 
             assert log.stats is not None
             assert log.stats.started_at != ""
@@ -139,7 +148,7 @@ async def test_write_recovered_eval_log_mixed_scored() -> None:
 
             # Buffer has unscored sample
             unscored = [_make_sample(2, scored=False)]
-            await write_recovered_eval_log(crashed, iter(unscored), output)
+            await write_recovered_eval_log(crashed, _async_iter(unscored), output)
 
             read_log = read_eval_log(output)
             assert read_log.samples is not None
@@ -162,7 +171,7 @@ async def test_write_recovered_eval_log_empty() -> None:
             output = os.path.join(temp_dir, "recovered.eval")
             crashed = _make_crashed_log(temp_dir)
 
-            log = await write_recovered_eval_log(crashed, iter([]), output)
+            log = await write_recovered_eval_log(crashed, _async_iter([]), output)
 
             assert log.status == "error"
             read_log = read_eval_log(output)

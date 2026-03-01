@@ -426,7 +426,7 @@ def test_version_increments_on_write_operations(db: SampleBufferDatabase):
     assert after_write.version == task_data.version + 1
 
 
-def test_version_unchanged_on_read_operations(
+async def test_version_unchanged_on_read_operations(
     db: SampleBufferDatabase, sample: EvalSampleSummary
 ):
     """Test that read operations don't change the version."""
@@ -438,7 +438,7 @@ def test_version_unchanged_on_read_operations(
 
     # Perform read operations
     get_samples(db)
-    db.get_sample_data(str(sample.id), sample.epoch)
+    await db.get_sample_data(str(sample.id), sample.epoch)
 
     with db._get_connection() as conn:
         after_reads = db._get_task_data(conn)

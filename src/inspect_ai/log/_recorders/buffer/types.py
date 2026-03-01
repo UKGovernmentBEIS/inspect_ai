@@ -80,7 +80,7 @@ class SampleBuffer(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_sample_data(
+    async def get_sample_data(
         self,
         id: str | int,
         epoch: int,

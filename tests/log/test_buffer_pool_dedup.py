@@ -48,7 +48,7 @@ def _make_model_event(
     return event
 
 
-def test_buffer_pool_dedup_reduces_event_size(db: SampleBufferDatabase) -> None:
+async def test_buffer_pool_dedup_reduces_event_size(db: SampleBufferDatabase) -> None:
     """Recording N turns through the buffer DB produces pool entries, not copies."""
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
@@ -69,7 +69,7 @@ def test_buffer_pool_dedup_reduces_event_size(db: SampleBufferDatabase) -> None:
     )
 
     # Read back via get_sample_data
-    data = db.get_sample_data("s1", 1)
+    data = await db.get_sample_data("s1", 1)
     assert data is not None
 
     # Should have 3 message pool entries (a, b, c)
@@ -89,7 +89,7 @@ def test_buffer_pool_dedup_reduces_event_size(db: SampleBufferDatabase) -> None:
     assert pool_msgs[2]["content"] == "How are you?"
 
 
-def test_buffer_pool_incremental_delivery(db: SampleBufferDatabase) -> None:
+async def test_buffer_pool_incremental_delivery(db: SampleBufferDatabase) -> None:
     """Pool entries are delivered incrementally via after_message_pool_id."""
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
@@ -105,7 +105,7 @@ def test_buffer_pool_incremental_delivery(db: SampleBufferDatabase) -> None:
     )
 
     # First fetch: no cursor -> all pool entries
-    data1 = db.get_sample_data("s1", 1)
+    data1 = await db.get_sample_data("s1", 1)
     assert data1 is not None
     assert len(data1.message_pool) == 2
 
@@ -118,13 +118,13 @@ def test_buffer_pool_incremental_delivery(db: SampleBufferDatabase) -> None:
     )
 
     # Second fetch: with cursor -> only the new entry
-    data2 = db.get_sample_data("s1", 1, after_message_pool_id=last_pool_id)
+    data2 = await db.get_sample_data("s1", 1, after_message_pool_id=last_pool_id)
     assert data2 is not None
     assert len(data2.message_pool) == 1
     assert json.loads(data2.message_pool[0].data)["content"] == "Bye"
 
 
-def test_buffer_call_pool_dedup(db: SampleBufferDatabase) -> None:
+async def test_buffer_call_pool_dedup(db: SampleBufferDatabase) -> None:
     """Call pool entries are deduped across multiple turns and events have call_refs."""
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
@@ -167,7 +167,7 @@ def test_buffer_call_pool_dedup(db: SampleBufferDatabase) -> None:
         ]
     )
 
-    data = db.get_sample_data("s1", 1)
+    data = await db.get_sample_data("s1", 1)
     assert data is not None
 
     # 5 total call message references across 2 events, but only 3 unique in pool
@@ -182,7 +182,7 @@ def test_buffer_call_pool_dedup(db: SampleBufferDatabase) -> None:
         assert call_dict.get("call_refs") is not None
 
 
-def test_buffer_call_pool_incremental_delivery(db: SampleBufferDatabase) -> None:
+async def test_buffer_call_pool_incremental_delivery(db: SampleBufferDatabase) -> None:
     """Call pool entries are delivered incrementally via after_call_pool_id."""
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
@@ -207,7 +207,7 @@ def test_buffer_call_pool_incremental_delivery(db: SampleBufferDatabase) -> None
     )
 
     # First fetch: no cursor -> all pool entries
-    data1 = db.get_sample_data("s1", 1)
+    data1 = await db.get_sample_data("s1", 1)
     assert data1 is not None
     assert len(data1.call_pool) == 1
 
@@ -227,13 +227,13 @@ def test_buffer_call_pool_incremental_delivery(db: SampleBufferDatabase) -> None
     )
 
     # Second fetch: with cursor -> only the new entry
-    data2 = db.get_sample_data("s1", 1, after_call_pool_id=last_call_pool_id)
+    data2 = await db.get_sample_data("s1", 1, after_call_pool_id=last_call_pool_id)
     assert data2 is not None
     assert len(data2.call_pool) == 1
     assert json.loads(data2.call_pool[0].data)["content"] == "Hi"
 
 
-def test_buffer_pool_cleanup_on_remove(db: SampleBufferDatabase) -> None:
+async def test_buffer_pool_cleanup_on_remove(db: SampleBufferDatabase) -> None:
     """Pool data is no longer returned after a sample is removed."""
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
@@ -252,7 +252,7 @@ def test_buffer_pool_cleanup_on_remove(db: SampleBufferDatabase) -> None:
     )
 
     # Verify pools exist before removal
-    data = db.get_sample_data("s1", 1)
+    data = await db.get_sample_data("s1", 1)
     assert data is not None
     assert len(data.message_pool) == 1
     assert len(data.call_pool) == 1
@@ -261,7 +261,7 @@ def test_buffer_pool_cleanup_on_remove(db: SampleBufferDatabase) -> None:
     db.remove_samples([("s1", 1)])
 
     # Verify pool data is no longer returned
-    data_after = db.get_sample_data("s1", 1)
+    data_after = await db.get_sample_data("s1", 1)
     assert data_after is None or (
         len(data_after.message_pool) == 0 and len(data_after.call_pool) == 0
     )
