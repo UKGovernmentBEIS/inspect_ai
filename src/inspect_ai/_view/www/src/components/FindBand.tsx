@@ -102,7 +102,6 @@ export const FindBand: FC = () => {
 
       const focusedElement = document.activeElement as HTMLElement;
 
-      // Navigate to the target match (scroll + highlight)
       await goToMatch(searchTerm, newIndex);
 
       if (searchIdRef.current !== thisSearchId) return;
