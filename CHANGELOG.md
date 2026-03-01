@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Log Viewer: Read sample buffer segments concurrently for faster loading of in-progress samples.
 - Anthropic: Use `text_editor_20250728` for all Claude 4.x models per Anthropic docs.
 
 ## 0.3.184 (28 February 2026)

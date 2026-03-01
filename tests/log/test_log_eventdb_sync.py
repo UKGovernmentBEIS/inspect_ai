@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 
@@ -9,7 +10,10 @@ from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
     sync_to_filestore,
 )
-from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
+from inspect_ai.log._recorders.buffer.filestore import (
+    SampleBufferFilestore,
+    segment_name,
+)
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
 
@@ -56,7 +60,7 @@ def test_sync_no_data(
     assert len(manifest.segments) == 0, "No segments created"
 
 
-def test_sync_one_sample(
+async def test_sync_one_sample(
     db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
 ) -> None:
     """Create one sample with some events, sync, and verify that exactly one segment is created in the filestore, containing the new data."""
@@ -94,14 +98,14 @@ def test_sync_one_sample(
     assert fs_samples.samples[0].id == "s1"
 
     # 6) Check that get_sample_data returns the events
-    sample_data = filestore.get_sample_data("s1", 1)
+    sample_data = await filestore.get_sample_data("s1", 1)
     assert sample_data is not None
     assert len(sample_data.events) == 2
     msgs = [ev.event["data"] for ev in sample_data.events]
     assert msgs == ["first event", "second event"]
 
 
-def test_sync_multiple_samples(
+async def test_sync_multiple_samples(
     db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
 ) -> None:
     """Create multiple samples, each with events, sync once, and verify that they share a single new segment."""
@@ -132,8 +136,8 @@ def test_sync_multiple_samples(
         assert seg_id in sm.segments
 
     # Filestore get_sample_data => each sample has its event
-    data_a = filestore.get_sample_data("A", 1)
-    data_b = filestore.get_sample_data("B", 1)
+    data_a = await filestore.get_sample_data("A", 1)
+    data_b = await filestore.get_sample_data("B", 1)
     assert data_a and data_b
     assert len(data_a.events) == 1
     assert len(data_b.events) == 1
@@ -174,7 +178,7 @@ def test_sync_removed_sample(
     assert m2.samples[0].summary.id == "keep"
 
 
-def test_sync_incremental(
+async def test_sync_incremental(
     db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
 ) -> None:
     """Demonstrate incremental sync. First, create a sample and log events; sync. Then log more events and sync again, ensuring a second segment is created containing only the new events."""
@@ -215,5 +219,34 @@ def test_sync_incremental(
     assert seg2.last_event_id >= 4
 
     # Confirm filestore returns all 4 events
-    sample_data = filestore.get_sample_data("inc", 1)
+    sample_data = await filestore.get_sample_data("inc", 1)
     assert sample_data is not None
+
+
+async def test_get_sample_data_missing_segment(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    """If a segment file is deleted mid-read, get_sample_data returns None.
+
+    Simulates a sample completing and its buffer being cleaned up while
+    the view server is reading segments concurrently.
+    """
+    db, filestore = db_and_filestore
+
+    s1 = EvalSampleSummary(id="s", epoch=1, input="x", target="y")
+    db.start_sample(s1)
+
+    # Create two segments via two sync rounds
+    for i in range(2):
+        db.log_events([SampleEvent(id="s", epoch=1, event=InfoEvent(data=str(i)))])
+        sync_to_filestore(db, filestore)
+
+    manifest = filestore.read_manifest()
+    assert manifest and len(manifest.segments) == 2
+
+    # Delete one segment file to simulate buffer cleanup during read
+    seg_file = os.path.join(filestore._dir, segment_name(manifest.segments[1].id))
+    os.unlink(seg_file)
+
+    result = await filestore.get_sample_data("s", 1)
+    assert result is None
