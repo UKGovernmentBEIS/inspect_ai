@@ -16751,10 +16751,16 @@ button._segment_mhb7y_9 {
 }
 
 /* CSS Custom Highlight for find-in-page matches.
-   This is visible regardless of which element has focus,
-   unlike a regular Selection highlight. */
-::highlight(find-match) {
+   Two-tier: all visible matches (yellow) + current match (orange).
+   find-match-current declared after find-match-all so it wins when ranges overlap. */
+::highlight(find-match-all) {
   background-color: #ffff00;
+  color: #000;
+}
+
+/* Current (navigation target) match — orange, higher priority */
+::highlight(find-match-current) {
+  background-color: #f97316;
   color: #000;
 }
 ._footer_14uod_1 {

@@ -21,7 +21,9 @@ import {
   countMatches,
   createMatchRange,
   findNthMatch,
+  getAllMatchRangesInPanel,
 } from "./searchUtils";
+import { scrollRangeToCenter } from "../utils/dom";
 
 import styles from "./LiveVirtualList.module.css";
 
@@ -44,7 +46,7 @@ function highlightNthOccurrenceInPanel(
 
   // CSS Custom Highlight — visible regardless of input focus
   if (typeof Highlight !== "undefined" && CSS?.highlights) {
-    CSS.highlights.set("find-match", new Highlight(staticRange));
+    CSS.highlights.set("find-match-current", new Highlight(staticRange));
   }
 
   const sel = window.getSelection();
@@ -134,6 +136,8 @@ export const LiveVirtualList = <T,>({
     term: string;
     occurrence: number;
   } | null>(null);
+  const navTokenRef = useRef(0);
+  const activeSearchTermRef = useRef<string>("");
 
   // Track whether we're following output
   const [followOutput, setFollowOutput] = useProperty<boolean | null>(
@@ -325,6 +329,29 @@ export const LiveVirtualList = <T,>({
     [data, itemSearchText, defaultItemSearchText],
   );
 
+  const rebuildVisibleHighlights = useCallback(
+    (term: string, currentOccurrence?: number, currentPanelId?: string) => {
+      if (!term || typeof Highlight === "undefined" || !CSS?.highlights) return;
+      const allRanges: StaticRange[] = [];
+      const range = visibleRangeRef.current;
+      for (let i = range.startIndex; i <= range.endIndex && i < data.length; i++) {
+        const nodeId = (data[i] as { id?: string }).id;
+        if (!nodeId) continue;
+        const panelId = "event-panel-" + nodeId;
+        const excludeOcc =
+          panelId === currentPanelId ? currentOccurrence : undefined;
+        allRanges.push(...getAllMatchRangesInPanel(panelId, term, excludeOcc));
+        if (allRanges.length > 500) break;
+      }
+      if (allRanges.length > 0) {
+        CSS.highlights.set("find-match-all", new Highlight(...allRanges));
+      } else {
+        CSS.highlights.delete("find-match-all");
+      }
+    },
+    [data],
+  );
+
 
   // Navigate to the nth match (1-based). Uses data-level counts to locate
   // the target item WITHOUT scrolling, then scrolls to ONLY that item and
@@ -334,6 +361,9 @@ export const LiveVirtualList = <T,>({
   const goToMatchImpl: GoToMatchFn = useCallback(
     async (term: string, absoluteIndex: number): Promise<boolean> => {
       if (!data.length || !term || absoluteIndex < 1) return false;
+
+      const thisNav = ++navTokenRef.current;
+      activeSearchTermRef.current = term;
 
       const getSearchText = itemSearchText ?? defaultItemSearchText;
       const lower = term.toLowerCase();
@@ -383,15 +413,28 @@ export const LiveVirtualList = <T,>({
 
         await scrollToMatch(i);
 
+        if (navTokenRef.current !== thisNav) return false;
+
         const domMatches = countMatchesInPanel(panelId, term);
 
         if (occurrenceInItem <= domMatches) {
           if (highlightNthOccurrenceInPanel(panelId, term, occurrenceInItem)) {
+            if (navTokenRef.current !== thisNav) return false;
+
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+              scrollRangeToCenter(sel.getRangeAt(0));
+              sel.removeAllRanges();
+            }
+
             currentHighlightRef.current = {
               panelId,
               term,
               occurrence: occurrenceInItem,
             };
+
+            rebuildVisibleHighlights(term, occurrenceInItem, panelId);
+
             return true;
           }
         }
@@ -408,6 +451,7 @@ export const LiveVirtualList = <T,>({
       defaultItemSearchText,
       searchInItem,
       scrollToMatch,
+      rebuildVisibleHighlights,
     ],
   );
 
@@ -475,6 +519,7 @@ export const LiveVirtualList = <T,>({
       isScrolling={isScrolling}
       rangeChanged={(range) => {
         setVisibleRange(range);
+        visibleRangeRef.current = range;
 
         const pending = pendingTargetRef.current;
         if (
@@ -486,16 +531,23 @@ export const LiveVirtualList = <T,>({
           requestAnimationFrame(() => pending.resolve());
         }
 
+        const term = activeSearchTermRef.current;
         const highlight = currentHighlightRef.current;
-        if (highlight) {
-          const panelEl = document.getElementById(highlight.panelId);
-          if (panelEl && panelEl.isConnected) {
-            highlightNthOccurrenceInPanel(
-              highlight.panelId,
-              highlight.term,
-              highlight.occurrence,
-            );
-          }
+        if (term) {
+          requestAnimationFrame(() => {
+            if (highlight) {
+              const panelEl = document.getElementById(highlight.panelId);
+              if (panelEl && panelEl.isConnected) {
+                highlightNthOccurrenceInPanel(
+                  highlight.panelId,
+                  highlight.term,
+                  highlight.occurrence,
+                );
+                window.getSelection()?.removeAllRanges();
+              }
+            }
+            rebuildVisibleHighlights(term, highlight?.occurrence, highlight?.panelId);
+          });
         }
       }}
       skipAnimationFrameInResizeObserver={true}
