@@ -44,6 +44,11 @@ function highlightNthOccurrenceInPanel(
 
   const { range, staticRange } = result;
 
+  const rect = range.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return false;
+  }
+
   // CSS Custom Highlight — visible regardless of input focus
   if (typeof Highlight !== "undefined" && CSS?.highlights) {
     CSS.highlights.set("find-match-current", new Highlight(staticRange));
@@ -64,6 +69,20 @@ function countMatchesInPanel(panelId: string, term: string): number {
   if (!panelEl) return 0;
   const { text } = buildSearchableText(panelEl);
   return countMatches(text, term);
+}
+
+function expandParentExpandablePanel(selection: Selection): void {
+  let node = selection.anchorNode;
+  while (node) {
+    if (node instanceof HTMLElement && node.hasAttribute("data-expandable-panel")) {
+      node.style.display = "block";
+      node.style.maxHeight = "none";
+      node.style.webkitLineClamp = "";
+      node.style.webkitBoxOrient = "";
+      return;
+    }
+    node = node.parentElement;
+  }
 }
 
 interface LiveVirtualListProps<T> {
@@ -423,6 +442,7 @@ export const LiveVirtualList = <T,>({
 
             const sel = window.getSelection();
             if (sel && sel.rangeCount > 0) {
+              expandParentExpandablePanel(sel);
               scrollRangeToCenter(sel.getRangeAt(0));
               sel.removeAllRanges();
             }
@@ -532,9 +552,14 @@ export const LiveVirtualList = <T,>({
         }
 
         const term = activeSearchTermRef.current;
-        const highlight = currentHighlightRef.current;
+        const scheduledNavToken = navTokenRef.current;
         if (term) {
           requestAnimationFrame(() => {
+            if (navTokenRef.current !== scheduledNavToken) {
+              return;
+            }
+
+            const highlight = currentHighlightRef.current;
             if (highlight) {
               const panelEl = document.getElementById(highlight.panelId);
               if (panelEl && panelEl.isConnected) {
