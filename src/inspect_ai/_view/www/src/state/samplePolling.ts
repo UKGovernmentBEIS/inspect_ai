@@ -352,6 +352,13 @@ function processEvents(
     // Resolve pool refs for model events
     resolvedEvent = resolvePoolRefs(resolvedEvent, pollingState);
 
+    // Resolve attachments again after pool expansion, since pool entries
+    // may contain attachment:// URIs that weren't visible before expansion.
+    resolvedEvent = resolveAttachments<Event>(
+      resolvedEvent,
+      pollingState.attachments,
+    );
+
     if (existingIndex !== undefined) {
       // There is an existing event in the stream, replace it
       log.debug(`Replace event ${existingIndex}`);
