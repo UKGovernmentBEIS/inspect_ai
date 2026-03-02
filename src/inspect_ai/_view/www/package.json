@@ -20,7 +20,7 @@
   "scripts": {
     "build": "vite build",
     "build:lib": "vite build --mode library",
-    "build:app": "vite build --mode development",
+    "build:app": "vite build",
     "watch": "vite build --watch",
     "dev-watch": "NODE_ENV=development vite build --mode development --watch",
     "dev-watch-log": "cross-env DEV_LOGGING=true NODE_ENV=development vite build --mode development --watch",
@@ -99,8 +99,8 @@
     "dexie": "^4.3.0",
     "fast-json-patch": "^3.1.1",
     "fflate": "^0.8.2",
-    "fzstd": "^0.1.1",
     "filtrex": "^3.1.0",
+    "fzstd": "^0.1.1",
     "immer": "^10.2.0",
     "json5": "^2.2.3",
     "jsondiffpatch": "^0.7.2",

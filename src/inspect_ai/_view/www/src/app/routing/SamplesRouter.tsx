@@ -1,8 +1,19 @@
-import { FC } from "react";
-import { FlowPanel } from "../flow/FlowPanel";
-import { SamplesPanel } from "../samples-panel/SamplesPanel";
-import { SampleDetailView } from "../samples-panel/SampleDetailView";
+import { FC, lazy } from "react";
 import { useSamplesRouteParams } from "./url";
+
+const FlowPanel = lazy(() =>
+  import("../flow/FlowPanel").then((m) => ({ default: m.FlowPanel })),
+);
+const SamplesPanel = lazy(() =>
+  import("../samples-panel/SamplesPanel").then((m) => ({
+    default: m.SamplesPanel,
+  })),
+);
+const SampleDetailView = lazy(() =>
+  import("../samples-panel/SampleDetailView").then((m) => ({
+    default: m.SampleDetailView,
+  })),
+);
 
 /**
  * Router component that determines whether to show the flow panel, samples grid, or sample detail view

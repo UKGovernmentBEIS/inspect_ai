@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   createHashRouter,
   Navigate,
@@ -7,9 +7,6 @@ import {
 } from "react-router-dom";
 import { storeImplementation, useStore } from "../../state/store";
 import { AppErrorBoundary } from "../AppErrorBoundary";
-import { LogsPanel } from "../log-list/LogsPanel";
-import { LogSampleDetailView } from "../log-view/LogSampleDetailView";
-import { LogViewContainer } from "../log-view/LogViewContainer";
 import { RouteDispatcher } from "./RouteDispatcher";
 import { SamplesRouter } from "./SamplesRouter";
 import {
@@ -17,6 +14,20 @@ import {
   kLogsRoutUrlPattern as kLogsRouteUrlPattern,
   useLogRouteParams,
 } from "./url";
+
+const LogsPanel = lazy(() =>
+  import("../log-list/LogsPanel").then((m) => ({ default: m.LogsPanel })),
+);
+const LogViewContainer = lazy(() =>
+  import("../log-view/LogViewContainer").then((m) => ({
+    default: m.LogViewContainer,
+  })),
+);
+const LogSampleDetailView = lazy(() =>
+  import("../log-view/LogSampleDetailView").then((m) => ({
+    default: m.LogSampleDetailView,
+  })),
+);
 
 // Create a layout component that includes the RouteTracker
 const AppLayout = () => {
@@ -44,14 +55,18 @@ const AppLayout = () => {
 
     return (
       <AppErrorBoundary>
-        {isSampleDetail ? <LogSampleDetailView /> : <LogViewContainer />}
+        <Suspense fallback={null}>
+          {isSampleDetail ? <LogSampleDetailView /> : <LogViewContainer />}
+        </Suspense>
       </AppErrorBoundary>
     );
   }
 
   return (
     <AppErrorBoundary>
-      <Outlet />
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
     </AppErrorBoundary>
   );
 };

@@ -469,11 +469,13 @@ async def log_headers_response(files: list[str]) -> web.Response:
 
 class WWWResource(web.StaticResource):
     def __init__(self) -> None:
-        super().__init__(
-            "", os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
-        )
+        from ._dist import resolve_dist_directory
+
+        super().__init__("", os.path.abspath(resolve_dist_directory().as_posix()))
 
     async def _handle(self, request: web.Request) -> web.StreamResponse:
+        from ._dist import IMMUTABLE_CACHE
+
         # serve /index.html for /
         filename = request.match_info["filename"]
         if not filename:
@@ -482,15 +484,10 @@ class WWWResource(web.StaticResource):
         # call super
         response = await super()._handle(request)
 
-        # disable caching as this is only ever served locally
-        # and w/ caching sometimes we get stale assets
-        response.headers.update(
-            {
-                "Expires": "Fri, 01 Jan 1990 00:00:00 GMT",
-                "Pragma": "no-cache",
-                "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
-            }
-        )
+        if filename.startswith("assets/"):
+            response.headers["Cache-Control"] = IMMUTABLE_CACHE
+        else:
+            response.headers["Cache-Control"] = "no-cache"
 
         # return response
         return response

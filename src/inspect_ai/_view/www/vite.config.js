@@ -4,9 +4,26 @@ import { resolve } from "path";
 import dts from "vite-plugin-dts";
 import getVersionInfo from "./scripts/get-version.js";
 
+/** Emit version.json to dist at build time (not baked into JS chunks). */
+function versionJsonPlugin() {
+  const versionInfo = getVersionInfo();
+  return {
+    name: "emit-version-json",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify({
+          version: versionInfo.version,
+          commit: versionInfo.commitHash,
+        }),
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const isLibrary = mode === "library";
-  const versionInfo = getVersionInfo();
 
   const baseConfig = {
     plugins: [
@@ -32,8 +49,6 @@ export default defineConfig(({ mode }) => {
       __VIEW_SERVER_API_URL__: JSON.stringify(
         process.env.VIEW_SERVER_API_URL || "/api",
       ),
-      __VIEWER_VERSION__: JSON.stringify(versionInfo.version),
-      __VIEWER_COMMIT__: JSON.stringify(versionInfo.commitHash),
     },
   };
 
@@ -81,7 +96,7 @@ export default defineConfig(({ mode }) => {
     // App build configuration
     return {
       ...baseConfig,
-      mode: "development",
+      plugins: [...baseConfig.plugins, versionJsonPlugin()],
       base: "",
       server: {
         proxy: {
@@ -92,12 +107,20 @@ export default defineConfig(({ mode }) => {
         }
       },
       build: {
-        minify: false,
+        emptyOutDir: true,
         rollupOptions: {
           output: {
-            entryFileNames: `assets/index.js`,
-            chunkFileNames: `assets/[name].js`,
-            assetFileNames: `assets/[name].[ext]`,
+            entryFileNames: `assets/[name]-[hash].js`,
+            chunkFileNames: `assets/[name]-[hash].js`,
+            assetFileNames: `assets/[name]-[hash].[ext]`,
+            manualChunks(id) {
+              if (!id.includes("node_modules")) return;
+              if (/ag-grid/.test(id)) return "vendor-grid";
+              if (/asciinema/.test(id)) return "vendor-asciinema";
+              if (/prismjs/.test(id)) return "vendor-prism";
+              if (/codemirror|@codemirror|@lezer/.test(id))
+                return "vendor-codemirror";
+            },
           },
         },
         sourcemap: true,
