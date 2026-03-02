@@ -236,25 +236,34 @@ class TimelineSpan(BaseModel):
         self.name = self.name.lower()
         return self
 
+    def _content_and_branches(
+        self,
+    ) -> list[TimelineEvent | "TimelineSpan | TimelineBranch"]:
+        items: list[TimelineEvent | TimelineSpan | TimelineBranch] = list(self.content)
+        items.extend(self.branches)
+        return items
+
     @property
     def start_time(self) -> datetime:
-        """Earliest start time among content."""
-        return _min_start_time(self.content)
+        """Earliest start time among content and branches."""
+        return _min_start_time(self._content_and_branches())
 
     @property
     def end_time(self) -> datetime:
-        """Latest end time among content."""
-        return _max_end_time(self.content)
+        """Latest end time among content and branches."""
+        return _max_end_time(self._content_and_branches())
 
     @property
     def total_tokens(self) -> int:
-        """Sum of tokens from all content."""
-        return _sum_tokens(self.content)
+        """Sum of tokens from all content and branches."""
+        return _sum_tokens(self._content_and_branches())
 
     @property
     def idle_time(self) -> float:
         """Seconds of idle time within this span."""
-        return _compute_idle_time(self.content, self.start_time, self.end_time)
+        return _compute_idle_time(
+            self._content_and_branches(), self.start_time, self.end_time
+        )
 
 
 class TimelineBranch(BaseModel):

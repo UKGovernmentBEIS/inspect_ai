@@ -230,6 +230,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
     sandbox_cleanup = config.sandbox_cleanup is not False
     log_images = config.log_images is not False
+    log_model_api = config.log_model_api is True
     log_samples = config.log_samples is not False
 
     # resolve dataset
@@ -401,6 +402,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         progress=progress,
                         logger=logger if log_samples else None,
                         log_images=log_images,
+                        log_model_api=log_model_api,
                         sample_source=sample_source,
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
@@ -625,6 +627,7 @@ async def task_run_sample(
     progress: Callable[[int], None],
     logger: TaskLogger | None,
     log_images: bool,
+    log_model_api: bool,
     sample_source: EvalSampleSource | None,
     sample_error: SampleErrorHandler,
     sample_complete: Callable[
@@ -692,7 +695,7 @@ async def task_run_sample(
     init_sample_model_usage()
     init_sample_role_usage()
     set_sample_state(state)
-    sample_transcript = Transcript()
+    sample_transcript = Transcript(log_model_api=log_model_api)
     init_transcript(sample_transcript)
     init_subtask_store(state.store)
     if logger:
@@ -1135,6 +1138,7 @@ async def task_run_sample(
             progress=progress,
             logger=logger,
             log_images=log_images,
+            log_model_api=log_model_api,
             sample_source=sample_source,
             sample_error=sample_error,
             sample_complete=sample_complete,

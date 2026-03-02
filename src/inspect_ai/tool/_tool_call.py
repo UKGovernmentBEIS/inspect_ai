@@ -1,7 +1,8 @@
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal, TypedDict
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, JsonValue, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from inspect_ai._util.content import Content
@@ -89,6 +90,31 @@ class ToolCallError:
 
 ToolCallViewer = Callable[[ToolCall], ToolCallView]
 """Custom view renderer for tool calls."""
+
+
+def substitute_tool_call_content(
+    content: ToolCallContent, arguments: dict[str, JsonValue]
+) -> ToolCallContent:
+    """Substitute ``{{param_name}}`` placeholders in *content* from *arguments*.
+
+    Placeholders whose ``param_name`` does not appear in *arguments* are left
+    as-is.  Returns a **new** ``ToolCallContent`` – the original is not mutated.
+    """
+
+    def _replace(text: str) -> str:
+        def _sub(m: re.Match[str]) -> str:
+            key = m.group(1)
+            if key in arguments:
+                return str(arguments[key])
+            return m.group(0)
+
+        return re.sub(r"\{\{(\w+)\}\}", _sub, text)
+
+    return ToolCallContent(
+        title=_replace(content.title) if content.title else content.title,
+        format=content.format,
+        content=_replace(content.content),
+    )
 
 
 class ToolCallModelInputHints(TypedDict):

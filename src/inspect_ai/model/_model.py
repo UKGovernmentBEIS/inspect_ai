@@ -976,9 +976,17 @@ class Model:
                 complete(output, call)
 
                 # Wrap the error in a runtime error which will show the
-                # request which caused the error
+                # request which caused the error (truncated to last
+                # 200 lines if larger to avoid overflowing terminal)
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
+                max_lines = 200
+                request_lines = request.splitlines()
+                if len(request_lines) > max_lines:
+                    request = "\n".join(
+                        [f"... ({len(request_lines) - max_lines} lines truncated) ..."]
+                        + request_lines[-max_lines:]
+                    )
                 error_message = f"\nRequest:\n{request}\n\n{error}"
                 raise RuntimeError(error_message)
 
@@ -1197,6 +1205,7 @@ class Model:
             ):
                 # We try to set these in the individual providers' error handling, but we make a last
                 # ditch effort here to set them if we don't have a response.
+                event.call.error = True
                 if hasattr(result, "body"):
                     event.call.response = as_error_response(result.body)
                 elif hasattr(result, "response"):

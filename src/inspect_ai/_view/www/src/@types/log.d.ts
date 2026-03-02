@@ -142,6 +142,7 @@ export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogRealtime = boolean | null;
 export type LogImages = boolean | null;
+export type LogModelApi = boolean | null;
 export type LogBuffer = number | null;
 export type LogShared = number | null;
 export type ScoreDisplay = boolean | null;
@@ -585,6 +586,7 @@ export type Cache1 = ("read" | "write") | null;
 export type Response = {
   [k: string]: JsonValue;
 } | null;
+export type Error3 = boolean | null;
 export type Time1 = number | null;
 export type Completed1 = string | null;
 export type WorkingTime = number | null;
@@ -614,6 +616,7 @@ export type Events1 = unknown[];
 export type Completed2 = string | null;
 export type WorkingTime1 = number | null;
 export type Agent = string | null;
+export type AgentSpanId = string | null;
 export type Failed = boolean | null;
 export type MessageId = string | null;
 export type Uuid7 = string | null;
@@ -1094,6 +1097,7 @@ export interface EvalConfig {
   log_samples: LogSamples;
   log_realtime: LogRealtime;
   log_images: LogImages;
+  log_model_api: LogModelApi;
   log_buffer: LogBuffer;
   log_shared: LogShared;
   score_display: ScoreDisplay;
@@ -1790,6 +1794,7 @@ export interface ToolFunction {
 export interface ModelCall {
   request: Request;
   response: Response;
+  error: Error3;
   time: Time1;
 }
 export interface Request {
@@ -1818,6 +1823,7 @@ export interface ToolEvent {
   completed: Completed2;
   working_time: WorkingTime1;
   agent: Agent;
+  agent_span_id: AgentSpanId;
   failed: Failed;
   message_id: MessageId;
 }

@@ -7,6 +7,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 
 
@@ -73,10 +74,18 @@ class MockLLM(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+        # Build request dict for model call recording
+        request = {
+            "model": self.model_name,
+            "messages": [m.model_dump() for m in input],
+        }
+
         # If we have a custom function, call it with the generate arguments each time
         if callable(self.outputs):
-            return self.outputs(input, tools, tool_choice, config)
+            output = self.outputs(input, tools, tool_choice, config)
+            model_call = ModelCall.create(request, {"content": output.completion})
+            return output, model_call
 
         try:
             output = next(self.outputs)
@@ -115,4 +124,5 @@ class MockLLM(ModelAPI):
                 output_tokens=content_length,
                 total_tokens=input_tokens + content_length,
             )
-        return output
+        model_call = ModelCall.create(request, {"content": output.completion})
+        return output, model_call

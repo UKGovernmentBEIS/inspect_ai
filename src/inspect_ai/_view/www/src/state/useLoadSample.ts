@@ -10,6 +10,9 @@ const SAMPLE_LIST_KEYS = ["transcript-tree"];
 
 const log = createLogger("useSampleLoader");
 
+// Generation counter to invalidate stale sample load responses
+let loadGeneration = 0;
+
 /**
  * Hook that handles loading samples based on the current log selection.
  * Contains the full sample loading logic that was previously in sampleSlice.loadSample.
@@ -63,6 +66,9 @@ export function useLoadSample() {
         return;
       }
 
+      // Invalidate any in-flight responses from previous loads
+      const thisGeneration = ++loadGeneration;
+
       // Clear scroll positions for sample-related virtuoso lists
       // This ensures the new sample starts at the top instead of restoring
       // the previous sample's scroll position
@@ -70,10 +76,8 @@ export function useLoadSample() {
         clearListPosition(key);
       }
 
-      // Set the identifier first
-      sampleActions.setSampleIdentifier(logFile, id, epoch);
-      sampleActions.setSampleError(undefined);
-      sampleActions.setSampleStatus("loading");
+      // Clear old sample data and prepare for new load in a single state update
+      sampleActions.prepareForSampleLoad(logFile, id, epoch);
 
       try {
         if (completed !== false) {
@@ -85,13 +89,18 @@ export function useLoadSample() {
           const sample = await api?.get_log_sample(logFile, id, epoch);
           log.debug(`LOADED COMPLETED SAMPLE: ${id}-${epoch}`);
 
+          // Discard if a newer load has started while we were waiting
+          if (thisGeneration !== loadGeneration) {
+            log.debug(`Discarding stale sample response: ${id}-${epoch}`);
+            return;
+          }
+
           if (sample) {
-            // Clear collapsed events if the sample changed
-            if (
-              currentId?.id !== sample.id ||
-              currentId?.epoch !== sample.epoch ||
-              currentId?.logFile !== logFile
-            ) {
+            const isNewSample =
+              currentId?.id !== id ||
+              currentId?.epoch !== epoch ||
+              currentId?.logFile !== logFile;
+            if (isNewSample) {
               sampleActions.clearCollapsedEvents();
             }
             const migratedSample = resolveSample(sample);

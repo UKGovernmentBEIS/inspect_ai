@@ -57,14 +57,11 @@ async def test_google_logprobs() -> None:
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_logprobs() -> None:
-    response = await generate_with_logprobs(
-        "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"
-    )
-    assert (
-        response.choices[0].logprobs is not None
-        and response.choices[0].logprobs.content[0].top_logprobs
-        is None  # together only ever returns top-1, so top_logprobs should always be None
-    )
+    response = await generate_with_logprobs("together/MiniMaxAI/MiniMax-M2.5")
+    assert response.choices[0].logprobs is not None
+    top_logprobs = response.choices[0].logprobs.content[0].top_logprobs
+    assert top_logprobs is not None
+    assert len(top_logprobs) == 1
 
 
 @skip_if_no_together

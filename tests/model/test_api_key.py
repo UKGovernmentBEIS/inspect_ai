@@ -63,6 +63,4 @@ async def test_mistral_api_key():
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_api_key():
-    await check_explicit_api_key(
-        "together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "TOGETHER_API_KEY"
-    )
+    await check_explicit_api_key("together/MiniMaxAI/MiniMax-M2.5", "TOGETHER_API_KEY")

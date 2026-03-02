@@ -232,7 +232,7 @@ class MistralAPI(ModelAPI):
                     completion.model_dump(), http_hooks.end_request(request_id)
                 )
             except SDKError as ex:
-                model_call.set_response(
+                model_call.set_error(
                     as_error_response(ex.body), http_hooks.end_request(request_id)
                 )
                 if ex.status_code == 400:
