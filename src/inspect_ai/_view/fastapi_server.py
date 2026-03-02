@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import urllib.parse
 from io import BytesIO
 from logging import getLogger
@@ -20,6 +21,7 @@ from starlette.status import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
 )
+from starlette.types import Scope
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
@@ -482,8 +484,14 @@ def view_server(
     app = FastAPI()
     app.mount("/api", api)
 
-    dist = Path(__file__).parent / "www" / "dist"
-    app.mount("/", StaticFiles(directory=dist.as_posix(), html=True), name="static")
+    from ._dist import resolve_dist_directory
+
+    dist = resolve_dist_directory()
+    app.mount(
+        "/",
+        _HashedStaticFiles(directory=dist.as_posix(), html=True),
+        name="static",
+    )
 
     if authorization:
         app.add_middleware(authorization_middleware(authorization))
@@ -518,3 +526,24 @@ def view_server(
             await server.serve()
 
     anyio.run(run_server)
+
+
+class _HashedStaticFiles(StaticFiles):
+    """StaticFiles with immutable cache headers for hashed assets."""
+
+    @override
+    def file_response(
+        self,
+        full_path: str | os.PathLike[str],
+        stat_result: os.stat_result,
+        scope: Scope,
+        status_code: int = 200,
+    ) -> Response:
+        from ._dist import IMMUTABLE_CACHE
+
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        if "/assets/" in str(full_path):
+            response.headers["cache-control"] = IMMUTABLE_CACHE
+        else:
+            response.headers["cache-control"] = "no-cache"
+        return response
