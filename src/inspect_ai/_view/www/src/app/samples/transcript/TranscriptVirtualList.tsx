@@ -93,7 +93,9 @@ export interface EventNodeContext {
 
 interface RenderedEventNodeProps {
   node: EventNode;
+  prev?: EventNode;
   next?: EventNode;
+  precedingBrowserAction?: Record<string, unknown>;
   className?: string | string[];
   context?: EventNodeContext;
 }
@@ -101,7 +103,7 @@ interface RenderedEventNodeProps {
  * Renders the event based on its type.
  */
 export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
-  ({ node, next, className, context }) => {
+  ({ node, next, precedingBrowserAction, className, context }) => {
     switch (node.event.event) {
       case "sample_init":
         return (
@@ -219,6 +221,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
             className={className}
             children={node.children}
             context={context}
+            precedingBrowserAction={precedingBrowserAction}
           />
         );
 

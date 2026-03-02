@@ -14,6 +14,7 @@ import ExpandablePanel from "../../../../components/ExpandablePanel";
 import { MessageContent } from "../MessageContent";
 import { defaultContext } from "../MessageContents";
 import styles from "./ToolCallView.module.css";
+import { AnnotatedToolOutput, ToolAnnotation } from "./AnnotatedToolOutput";
 import { ToolInput } from "./ToolInput";
 import { ToolTitle } from "./ToolTitle";
 
@@ -21,6 +22,7 @@ interface ToolCallViewProps {
   id: string;
   functionCall: string;
   input?: unknown;
+  precedingBrowserAction?: Record<string, unknown>;
   description?: string;
   contentType?: string;
   view?: ToolCallContent;
@@ -55,6 +57,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
   id,
   functionCall,
   input,
+  precedingBrowserAction,
   description,
   contentType,
   view,
@@ -115,6 +118,30 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
 
   const contents = mode !== "compact" ? input : input || functionCall;
   const context = defaultContext("tool");
+
+  const annotation = useMemo<ToolAnnotation | undefined>(() => {
+    // For screenshot tool calls, use the preceding browser action's arguments
+    // to determine what annotation to show. The pattern is:
+    //   browser(left_click, coord=[x,y]) → text response
+    //   browser(screenshot) → image response ← annotate THIS with click info
+    if (precedingBrowserAction) {
+      const action = precedingBrowserAction.action as string | undefined;
+      if (action) {
+        return {
+          action,
+          coordinate: precedingBrowserAction.coordinate as
+            | [number, number]
+            | undefined,
+          text: precedingBrowserAction.text as string | undefined,
+          scrollDirection: precedingBrowserAction.scroll_direction as
+            | string
+            | undefined,
+        };
+      }
+    }
+    return undefined;
+  }, [precedingBrowserAction]);
+
   return (
     <div className={clsx(styles.toolCallView)}>
       <div>
@@ -140,10 +167,14 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           lines={15}
           className={clsx("text-size-small")}
         >
-          <MessageContent contents={normalizedContent} context={context} />
+          <AnnotatedToolOutput annotation={annotation}>
+            <MessageContent contents={normalizedContent} context={context} />
+          </AnnotatedToolOutput>
         </ExpandablePanel>
       ) : (
-        <MessageContent contents={normalizedContent} context={context} />
+        <AnnotatedToolOutput annotation={annotation}>
+          <MessageContent contents={normalizedContent} context={context} />
+        </AnnotatedToolOutput>
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { ToolEvent } from "../../../@types/log";
 import { RenderedEventNode } from "./TranscriptVirtualList";
 import { EventNode } from "./types";
 
@@ -133,6 +134,54 @@ export const TranscriptVirtualListComponent: FC<
 
       const context = contextMap.get(item.id);
 
+      // For browser(screenshot) tool events, walk FORWARD through the flat
+      // event list to find the NEXT visual browser action (click/scroll/type).
+      // The annotation shows what is ABOUT TO happen on this screen —
+      // the click/scroll coordinates refer to what's visible in THIS screenshot,
+      // not what's visible after the action executes.
+      // The list interleaves model and tool events: model → tool → model → tool.
+      // We skip model events AND non-visual tool events (get_page_text, etc.)
+      // that don't have coordinates, stopping at the next screenshot or visual action.
+      const visualActions = new Set([
+        "left_click",
+        "right_click",
+        "middle_click",
+        "double_click",
+        "triple_click",
+        "scroll",
+        "type",
+        "key",
+      ]);
+      let precedingBrowserAction: Record<string, unknown> | undefined;
+      if (item.event.event === "tool") {
+        const toolEvent = item.event as ToolEvent;
+        const args = toolEvent.arguments as Record<string, unknown>;
+        if (toolEvent.function === "browser" && args?.action === "screenshot") {
+          // Walk forward through the flat event list. The list includes
+          // span_begin, sandbox, model events between tool events.
+          // With 7 sandbox events per tool span, we need ~20 steps to
+          // reach the next visual tool event after a non-visual one.
+          for (
+            let i = index + 1;
+            i < eventNodes.length && i <= index + 30;
+            i++
+          ) {
+            const candidate = eventNodes[i];
+            if (candidate.event.event !== "tool") continue; // skip model/span/sandbox events
+            const candEvent = candidate.event as ToolEvent;
+            if (candEvent.function !== "browser") break; // stop at non-browser tools
+            const candArgs = candEvent.arguments as Record<string, unknown>;
+            const candAction = candArgs?.action as string | undefined;
+            if (candAction === "screenshot" || candAction === "navigate") break;
+            if (candAction && visualActions.has(candAction)) {
+              precedingBrowserAction = candArgs;
+              break; // found our visual action
+            }
+            // non-visual browser action (get_page_text, etc.) — keep searching
+          }
+        }
+      }
+
       return (
         <div
           id={item.id}
@@ -146,7 +195,9 @@ export const TranscriptVirtualListComponent: FC<
         >
           <RenderedEventNode
             node={item}
+            prev={previous}
             next={next}
+            precedingBrowserAction={precedingBrowserAction}
             className={clsx(attachedParentClass, attachedChildClass)}
             context={context}
           />

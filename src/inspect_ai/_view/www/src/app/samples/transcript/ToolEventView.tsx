@@ -22,6 +22,7 @@ interface ToolEventViewProps {
   children: EventNode<EventType>[];
   className?: string | string[];
   context?: EventNodeContext;
+  precedingBrowserAction?: Record<string, unknown>;
 }
 
 /**
@@ -32,6 +33,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
   children,
   className,
   context,
+  precedingBrowserAction,
 }) => {
   const event = eventNode.event;
 
@@ -79,6 +81,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
           id={`${eventNode.id}-tool-call`}
           functionCall={functionCall}
           input={input}
+          precedingBrowserAction={precedingBrowserAction}
           description={description}
           contentType={contentType}
           output={event.error?.message || event.result}

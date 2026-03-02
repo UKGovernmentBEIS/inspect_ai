@@ -54,7 +54,8 @@ export const MessageContents: FC<MessageContentsProps> = ({
     message.tool_calls.length
   ) {
     // Render the tool calls made by this message
-    const toolCalls = message.tool_calls.map((tool_call, idx) => {
+    const allToolCalls = message.tool_calls;
+    const toolCalls = allToolCalls.map((tool_call, idx) => {
       // Extract tool input
       const { input, description, functionCall, contentType } =
         resolveToolInput(tool_call.function, tool_call.arguments);
@@ -70,6 +71,41 @@ export const MessageContents: FC<MessageContentsProps> = ({
 
       // Resolve the tool output
       const resolvedToolOutput = resolveToolMessage(toolMessage);
+
+      // For screenshot tool calls, look FORWARD to find the next visual
+      // browser action (click/scroll/type). The annotation shows what is
+      // ABOUT TO happen on this screen. Skip non-visual actions like
+      // get_page_text that don't have coordinates.
+      const visualActions = new Set([
+        "left_click",
+        "right_click",
+        "middle_click",
+        "double_click",
+        "triple_click",
+        "scroll",
+        "type",
+        "key",
+      ]);
+      let precedingAction: Record<string, unknown> | undefined;
+      if (
+        tool_call.function === "browser" &&
+        (tool_call.arguments as Record<string, unknown>)?.action ===
+          "screenshot"
+      ) {
+        for (let j = idx + 1; j < allToolCalls.length; j++) {
+          const nextCall = allToolCalls[j];
+          if (nextCall.function !== "browser") break;
+          const nextArgs = nextCall.arguments as Record<string, unknown>;
+          const nextAction = nextArgs?.action as string | undefined;
+          if (nextAction === "screenshot" || nextAction === "navigate") break;
+          if (nextAction && visualActions.has(nextAction)) {
+            precedingAction = nextArgs;
+            break;
+          }
+          // non-visual (get_page_text, etc.) — keep searching
+        }
+      }
+
       if (toolCallStyle === "compact") {
         return (
           <div key={`tool-call-${idx}`}>
@@ -87,6 +123,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
             key={`tool-call-${idx}`}
             functionCall={functionCall}
             input={input}
+            precedingBrowserAction={precedingAction}
             description={description}
             contentType={contentType}
             output={resolvedToolOutput}
