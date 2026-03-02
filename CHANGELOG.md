@@ -19,6 +19,7 @@
 - Inspect View: Add support for find in log list.
 - Inspect View: Fix regression displaying running samples when switching samples.
 - Testing: Fix "Event loop is closed" error in bridge compaction tests by properly closing AsyncOpenAI client.
+- Eval logs: Deduplicate repeated model event inputs and call messages into shared pools, reducing `.eval` file sizes.
 
 ## 0.3.185 (01 March 2026)
 

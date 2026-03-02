@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 PKG_AUTHOR = "UK AI Security Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
@@ -34,7 +34,7 @@ DEFAULT_LOG_FORMAT: Literal["eval", "json"] = "eval"
 JSON_LOG_FORMAT = "json"
 EVAL_LOG_FORMAT = "eval"
 DEFAULT_DISPLAY = "full"
-LOG_SCHEMA_VERSION = 2
+LOG_SCHEMA_VERSION = 3
 SCORED_SUFFIX = "-scored"
 CONSOLE_DISPLAY_WIDTH = 120
 BASE_64_DATA_REMOVED = "<base64-data-removed>"
@@ -45,8 +45,4 @@ DEFAULT_BATCH_SIZE = 100
 DEFAULT_CACHE_DAYS = 7
 
 DESERIALIZING = "deserializing"
-MESSAGE_CACHE = "message_cache"
-
-
-def get_deserializing_context() -> dict[str, Any]:
-    return {DESERIALIZING: True, MESSAGE_CACHE: {}}
+DESERIALIZING_CONTEXT = {DESERIALIZING: True}

@@ -40,6 +40,14 @@ from ..event._store import StoreEvent
 from ..event._subtask import SubtaskEvent
 from ..event._tool import ToolEvent
 from ._log import EvalSample
+from ._pool import (
+    _build_call_index,
+    _build_msg_index,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
 
 logger = getLogger(__name__)
 
@@ -71,18 +79,34 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     Returns:
        EvalSample: Eval sample in condensed form.
     """
-    # de-duplicate large content fields as 'attachments'
     attachments: dict[str, str] = dict(sample.attachments)
     events_fn = events_attachment_fn(attachments, log_images)
     messages_fn = messages_attachment_fn(attachments, log_images)
-
     context = WalkContext(message_cache={}, only_core=False)
+
+    condensed_events = walk_events(sample.events, events_fn, context)
+
+    # Carry forward existing pool entries for idempotent re-condensation
+    message_pool: list[ChatMessage] = list(sample.message_pool)
+    msg_index = _build_msg_index(message_pool)
+    condensed_events = condense_model_event_inputs(
+        condensed_events, message_pool, msg_index
+    )
+
+    call_pool: list[JsonValue] = list(sample.call_pool)
+    call_index = _build_call_index(call_pool)
+    condensed_events = condense_model_event_calls(
+        condensed_events, call_pool, call_index
+    )
+
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, messages_fn, context),
             "messages": walk_chat_messages(sample.messages, messages_fn, context),
-            "events": walk_events(sample.events, events_fn, context),
+            "events": condensed_events,
             "attachments": attachments,
+            "message_pool": message_pool,
+            "call_pool": call_pool,
         }
     )
 
@@ -169,7 +193,6 @@ def resolve_sample_attachments(
         CONTENT_PROTOCOL = "tc://"
         if text.startswith(CONTENT_PROTOCOL):
             text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
-        # resolve attachment
         if text.startswith(ATTACHMENT_PROTOCOL):
             return sample.attachments.get(
                 text.replace(ATTACHMENT_PROTOCOL, "", 1), text
@@ -181,12 +204,27 @@ def resolve_sample_attachments(
         message_cache={},
         only_core=resolve_attachments == "core",
     )
+
+    # Resolve pools before events — pool messages may contain attachment:// refs
+    resolved_pool: list[ChatMessage] = [
+        walk_chat_message(v, content_fn, context) for v in sample.message_pool
+    ]
+    resolved_call_pool: list[JsonValue] = [
+        walk_json_value(v, content_fn, context) for v in sample.call_pool
+    ]
+
+    resolved_events = walk_events(sample.events, content_fn, context)
+    resolved_events = resolve_model_event_inputs(resolved_events, resolved_pool)
+    resolved_events = resolve_model_event_calls(resolved_events, resolved_call_pool)
+
     return sample.model_copy(
         update={
             "input": walk_input(sample.input, content_fn, context),
             "messages": walk_chat_messages(sample.messages, content_fn, context),
-            "events": walk_events(sample.events, content_fn, context),
+            "events": resolved_events,
             "attachments": {},
+            "message_pool": [],
+            "call_pool": [],
         }
     )
 
@@ -324,13 +362,13 @@ def walk_model_call(
     if context.get("only_core") is True:
         return call
     if call:
-        return ModelCall(
-            request=walk_json_dict(call.request, content_fn, context),
-            response=walk_json_dict(call.response, content_fn, context)
-            if call.response
-            else None,
-            error=call.error,
-            time=call.time,
+        return call.model_copy(
+            update={
+                "request": walk_json_dict(call.request, content_fn, context),
+                "response": walk_json_dict(call.response, content_fn, context)
+                if call.response
+                else None,
+            }
         )
     else:
         return None
