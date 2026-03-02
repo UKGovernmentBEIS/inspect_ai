@@ -154,6 +154,8 @@ async function eval_log_sample_data(
   epoch: number,
   last_event?: number,
   last_attachment?: number,
+  last_message_pool?: number,
+  last_call_pool?: number,
 ): Promise<SampleDataResponse | undefined> {
   const response = await vscodeClient(kMethodSampleData, [
     log_file,
@@ -161,6 +163,8 @@ async function eval_log_sample_data(
     epoch,
     last_event,
     last_attachment,
+    last_message_pool,
+    last_call_pool,
   ]);
   if (response) {
     if (response === kNotModifiedSignal) {
