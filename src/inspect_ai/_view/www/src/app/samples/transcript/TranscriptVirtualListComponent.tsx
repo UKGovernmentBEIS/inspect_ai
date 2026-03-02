@@ -8,8 +8,21 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { RenderedEventNode } from "./TranscriptVirtualList";
+import {
+  ContentAudio,
+  ContentImage,
+  ContentText,
+  ContentVideo,
+  ToolEvent,
+} from "../../../@types/log";
+import { EventNodeContext, RenderedEventNode } from "./TranscriptVirtualList";
 import { EventNode } from "./types";
+import {
+  BROWSER_TOOL_FUNCTIONS,
+  buildSelfAnnotation,
+  isBrowserScreenshot,
+  isVisualBrowserAction,
+} from "../chat/tools/browserActionUtils";
 
 import { VirtuosoHandle } from "react-virtuoso";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
@@ -91,18 +104,24 @@ export const TranscriptVirtualListComponent: FC<
 
   // Pre-compute context objects for all event nodes to maintain stable references
   const contextMap = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        hasToolEvents: boolean;
-        turnInfo?: { turnNumber: number; totalTurns: number };
-      }
-    >();
+    const map = new Map<string, EventNodeContext>();
     for (let i = 0; i < eventNodes.length; i++) {
       const node = eventNodes[i];
       const hasToolEvents = hasToolEventsAtCurrentDepth(i);
       const turnInfo = turnMap?.get(node.id);
-      map.set(node.id, { hasToolEvents, turnInfo });
+      const { inputScreenshot, selfAnnotation } = computeVisualActionContext(
+        eventNodes,
+        i,
+      );
+      const nextEvent = eventNodes[i + 1];
+      const showToolCalls = nextEvent ? nextEvent.event.event !== "tool" : true;
+      map.set(node.id, {
+        hasToolEvents,
+        turnInfo,
+        inputScreenshot,
+        selfAnnotation,
+        showToolCalls,
+      });
     }
     return map;
   }, [eventNodes, hasToolEventsAtCurrentDepth, turnMap]);
@@ -110,26 +129,8 @@ export const TranscriptVirtualListComponent: FC<
   const renderRow = useCallback(
     (index: number, item: EventNode, style?: CSSProperties) => {
       const paddingClass = index === 0 ? styles.first : undefined;
-
-      const previousIndex = index - 1;
-      const nextIndex = index + 1;
-      const previous =
-        previousIndex > 0 && previousIndex <= eventNodes.length
-          ? eventNodes[previousIndex]
-          : undefined;
-      const next =
-        nextIndex < eventNodes.length ? eventNodes[nextIndex] : undefined;
-      const attached =
-        item.event.event === "tool" &&
-        (previous?.event.event === "tool" || previous?.event.event === "model");
-
-      const attachedParent =
-        item.event.event === "model" && next?.event.event === "tool";
-      const attachedClass = attached ? styles.attached : undefined;
-      const attachedChildClass = attached ? styles.attachedChild : undefined;
-      const attachedParentClass = attachedParent
-        ? styles.attachedParent
-        : undefined;
+      const { attachedClass, attachedChildClass, attachedParentClass } =
+        computeAttachedClasses(eventNodes, index);
 
       const context = contextMap.get(item.id);
 
@@ -146,7 +147,6 @@ export const TranscriptVirtualListComponent: FC<
         >
           <RenderedEventNode
             node={item}
-            next={next}
             className={clsx(attachedParentClass, attachedChildClass)}
             context={context}
           />
@@ -184,3 +184,100 @@ export const TranscriptVirtualListComponent: FC<
     );
   }
 };
+
+/**
+ * For a visual browser action tool event (click/scroll/type) at the given
+ * index, walk backward through the flat event list to find the preceding
+ * screenshot and return its result as normalized content.  Also build the
+ * self-annotation from the action's own arguments.
+ *
+ * Returns { inputScreenshot, selfAnnotation } — both undefined if the event
+ * is not a visual browser action or no preceding screenshot is found.
+ */
+function computeVisualActionContext(
+  eventNodes: EventNode[],
+  index: number,
+): {
+  inputScreenshot?: (
+    | ContentText
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+  )[];
+  selfAnnotation?: import("../chat/tools/AnnotatedToolOutput").ToolAnnotation;
+} {
+  const node = eventNodes[index];
+  if (node.event.event !== "tool") return {};
+
+  const toolEvent = node.event as ToolEvent;
+  const args = toolEvent.arguments as Record<string, unknown>;
+  if (!isVisualBrowserAction(toolEvent.function, args)) return {};
+
+  const selfAnnotation = buildSelfAnnotation(toolEvent.function, args);
+
+  // Walk backward to find the preceding screenshot.
+  // The list interleaves model, span_begin, sandbox events between tools.
+  for (let i = index - 1; i >= 0 && i >= index - 30; i--) {
+    const candidate = eventNodes[i];
+    if (candidate.event.event !== "tool") continue;
+    const candEvent = candidate.event as ToolEvent;
+    if (!BROWSER_TOOL_FUNCTIONS.has(candEvent.function)) break;
+    const candArgs = candEvent.arguments as Record<string, unknown>;
+    if (isBrowserScreenshot(candEvent.function, candArgs)) {
+      const result = candEvent.result;
+      const inputScreenshot = normalizeScreenshotResult(result);
+      return { inputScreenshot, selfAnnotation };
+    }
+  }
+
+  // No preceding screenshot found — still return the annotation so the
+  // tool call renders normally (just without the Input tab).
+  return { selfAnnotation: undefined };
+}
+
+/**
+ * Normalize a ToolEvent.result into a flat content array suitable for
+ * MessageContent rendering.
+ */
+function normalizeScreenshotResult(
+  result:
+    | string
+    | number
+    | boolean
+    | ContentText
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+    | (ContentText | ContentImage | ContentAudio | ContentVideo)[],
+): (ContentText | ContentImage | ContentAudio | ContentVideo)[] | undefined {
+  if (Array.isArray(result)) return result;
+  if (result && typeof result === "object" && "type" in result) {
+    return [result as ContentText | ContentImage | ContentAudio | ContentVideo];
+  }
+  // String/number/boolean results don't contain images — skip.
+  return undefined;
+}
+
+/**
+ * Determine attached/parent CSS classes for a row based on its neighbours.
+ * Tool events following a model or another tool are "attached" (visually
+ * grouped); model events preceding a tool are "attached parents".
+ */
+function computeAttachedClasses(eventNodes: EventNode[], index: number) {
+  const item = eventNodes[index];
+  const previous = index > 0 ? eventNodes[index - 1] : undefined;
+  const next =
+    index + 1 < eventNodes.length ? eventNodes[index + 1] : undefined;
+
+  const attached =
+    item.event.event === "tool" &&
+    (previous?.event.event === "tool" || previous?.event.event === "model");
+  const attachedParent =
+    item.event.event === "model" && next?.event.event === "tool";
+
+  return {
+    attachedClass: attached ? styles.attached : undefined,
+    attachedChildClass: attached ? styles.attachedChild : undefined,
+    attachedParentClass: attachedParent ? styles.attachedParent : undefined,
+  };
+}
