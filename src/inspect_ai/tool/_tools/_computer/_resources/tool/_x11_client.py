@@ -223,6 +223,26 @@ class X11Client:
     async def screenshot(self) -> ToolResult:
         return await self._screenshot()
 
+    async def open_web_browser(self) -> ToolResult:
+        """Open the web browser (Firefox) in full screen view."""
+        await run(f"{self._display_prefix}firefox-esr --new-window >/dev/null 2>&1 &")
+        await asyncio.sleep(2)
+        # Press F11 to go full screen
+        await run(f"{self.xdotool} key F11")
+        await asyncio.sleep(1)
+        return await self.screenshot()
+
+    async def navigate(self, url: str) -> ToolResult:
+        """Navigate to a URL in the browser."""
+        # Focus the address bar
+        await run(f"{self.xdotool} key ctrl+l")
+        await asyncio.sleep(0.5)
+        # Type the URL and press Enter
+        await self.type(url)
+        await run(f"{self.xdotool} key Return")
+        await asyncio.sleep(1)
+        return await self.screenshot()
+
     async def zoom(self, region: list[int]) -> ToolResult:
         """Take a zoomed screenshot of a specified region at native resolution."""
         if (
