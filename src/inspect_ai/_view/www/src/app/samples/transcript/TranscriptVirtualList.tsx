@@ -2,6 +2,10 @@ import { FC, memo, RefObject } from "react";
 import {
   ApprovalEvent,
   CompactionEvent,
+  ContentAudio,
+  ContentImage,
+  ContentText,
+  ContentVideo,
   ErrorEvent,
   InfoEvent,
   InputEvent,
@@ -19,6 +23,7 @@ import {
   SubtaskEvent,
   ToolEvent,
 } from "../../../@types/log";
+import { ToolAnnotation } from "../chat/tools/AnnotatedToolOutput";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
 import { InfoEventView } from "./InfoEventView";
@@ -89,11 +94,20 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
 export interface EventNodeContext {
   hasToolEvents?: boolean;
   turnInfo?: { turnNumber: number; totalTurns: number };
+  /** Normalized content from the preceding screenshot (for Input tab on visual actions). */
+  inputScreenshot?: (
+    | ContentText
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+  )[];
+  /** Annotation derived from this visual action's own arguments. */
+  selfAnnotation?: ToolAnnotation;
+  showToolCalls?: boolean;
 }
 
 interface RenderedEventNodeProps {
   node: EventNode;
-  next?: EventNode;
   className?: string | string[];
   context?: EventNodeContext;
 }
@@ -101,7 +115,7 @@ interface RenderedEventNodeProps {
  * Renders the event based on its type.
  */
 export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
-  ({ node, next, className, context }) => {
+  ({ node, className, context }) => {
     switch (node.event.event) {
       case "sample_init":
         return (
@@ -147,7 +161,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
         return (
           <ModelEventView
             eventNode={node as EventNode<ModelEvent>}
-            showToolCalls={next?.event.event !== "tool"}
+            showToolCalls={context?.showToolCalls ?? true}
             className={className}
             context={context}
           />
