@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Task view: Extract and print `<summary>` from `<details>` tags in tool views.
+- Log Viewer: Read sample buffer segments concurrently for faster loading of in-progress samples.
 
 ## 0.3.185 (01 March 2026)
 

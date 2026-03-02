@@ -363,7 +363,7 @@ def view_server(
 
         # get samples and responsd
         buffer = sample_buffer(file)
-        sample_data = buffer.get_sample_data(
+        sample_data = await buffer.get_sample_data(
             id=id,
             epoch=epoch,
             after_event_id=after_event_id,

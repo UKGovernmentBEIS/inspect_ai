@@ -394,7 +394,7 @@ def view_server_app(
         await _validate_read(request, file)
 
         buffer = sample_buffer(await _map_file(request, file))
-        sample_data = buffer.get_sample_data(
+        sample_data = await buffer.get_sample_data(
             id=id,
             epoch=epoch,
             after_event_id=last_event_id,
