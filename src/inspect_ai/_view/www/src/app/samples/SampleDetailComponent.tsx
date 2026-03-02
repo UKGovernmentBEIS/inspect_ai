@@ -95,8 +95,11 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
 
   // Check if the loaded sample matches the requested sample from URL params
   // This prevents showing old sample data while a new sample is loading
+  // When sample is null but we have sampleId/epoch, it's a running sample —
+  // allow rendering so the downstream SampleDisplay can show runningEvents
   const sampleMatchesRequest = useMemo(() => {
-    if (!sample || !sampleId || !epoch) return false;
+    if (!sampleId || !epoch) return false;
+    if (!sample) return true; // running sample: render via runningEvents path
     return (
       String(sample.id) === sampleId && sample.epoch === parseInt(epoch, 10)
     );
@@ -226,7 +229,7 @@ export const SampleDetailComponent: FC<SampleDetailComponentProps> = ({
           </div>
         </ApplicationNavbar>
 
-        {sampleStatus !== "loading" && sample && sampleMatchesRequest && (
+        {sampleStatus !== "loading" && sampleMatchesRequest && (
           <InlineSampleComponent
             showActivity={false}
             className={styles.panel}

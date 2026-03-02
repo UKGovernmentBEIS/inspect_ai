@@ -117,6 +117,7 @@ export function useLoadSample() {
           // Clear the previous sample so component uses runningEvents instead
           // of old sample.events. Polling will be started by useSamplePolling.
           sampleActions.clearSampleForPolling(logFile, id, epoch);
+          sampleActions.setSampleStatus("streaming");
           getSamplePolling().stopPolling();
         }
       } catch (e) {
