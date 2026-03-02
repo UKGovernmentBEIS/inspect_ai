@@ -20,7 +20,7 @@
   "scripts": {
     "build": "vite build",
     "build:lib": "vite build --mode library",
-    "build:app": "vite build --mode development",
+    "build:app": "vite build",
     "watch": "vite build --watch",
     "dev-watch": "NODE_ENV=development vite build --mode development --watch",
     "dev-watch-log": "cross-env DEV_LOGGING=true NODE_ENV=development vite build --mode development --watch",

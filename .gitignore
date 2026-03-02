@@ -12,6 +12,7 @@ build/
 develop-eggs/
 dist/
 !src/inspect_ai/_view/www/dist
+/src/inspect_ai/_view/www/dist/assets/*.js.map
 downloads/
 eggs/
 .eggs/
