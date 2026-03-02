@@ -296,6 +296,8 @@ export function viewServerApi(
     epoch: number,
     last_event?: number,
     last_attachment?: number,
+    last_message_pool?: number,
+    last_call_pool?: number,
   ): Promise<SampleDataResponse | undefined> => {
     const params = new URLSearchParams();
     params.append("log", log_file);
@@ -307,6 +309,14 @@ export function viewServerApi(
 
     if (last_attachment !== undefined) {
       params.append("after-attachment-id", String(last_attachment));
+    }
+
+    if (last_message_pool !== undefined) {
+      params.append("after-message-pool-id", String(last_message_pool));
+    }
+
+    if (last_call_pool !== undefined) {
+      params.append("after-call-pool-id", String(last_call_pool));
     }
 
     const request: Request<SampleDataResponse> = {
