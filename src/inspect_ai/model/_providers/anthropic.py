@@ -600,7 +600,9 @@ class AnthropicAPI(ModelAPI):
         elif isinstance(output, BadRequestError):
             # Check if model doesn't support compaction
             error_msg = str(output)
-            if "does not support context management" in error_msg:
+            if "does not support context management" in error_msg or (
+                "does not support" in error_msg and "compact" in error_msg
+            ):
                 raise NotImplementedError(
                     f"Model {self.model_name} does not support native compaction: {error_msg}"
                 ) from output
