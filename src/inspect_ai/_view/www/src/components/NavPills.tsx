@@ -62,7 +62,7 @@ export const NavPills: FC<NavPillsProps> = ({ id, children }) => {
       >
         {navPills}
       </ul>
-      {navBodies}
+      <div className={styles.tabContainer}>{navBodies}</div>
     </div>
   );
 };

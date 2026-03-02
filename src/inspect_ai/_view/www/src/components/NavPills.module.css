@@ -1,13 +1,23 @@
+.tabContainer {
+  position: relative;
+}
+
 .visible {
   display: block;
 }
 
 .hidden {
-  display: none;
+  visibility: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
 }
 
 .pills {
   margin-right: 0;
+  margin-bottom: 0.5rem;
 }
 
 .pill {

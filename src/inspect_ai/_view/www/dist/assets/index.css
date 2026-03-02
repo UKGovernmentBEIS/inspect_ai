@@ -15804,19 +15804,29 @@ so disabling selection can break that functionality */
 .language-javascript {
   background: transparent !important;
 }
-._visible_tm52u_1 {
+._tabContainer_18wl0_1 {
+  position: relative;
+}
+
+._visible_18wl0_5 {
   display: block;
 }
 
-._hidden_tm52u_5 {
-  display: none;
+._hidden_18wl0_9 {
+  visibility: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
 }
 
-._pills_tm52u_9 {
+._pills_18wl0_18 {
   margin-right: 0;
+  margin-bottom: 0.5rem;
 }
 
-._pill_tm52u_9 {
+._pill_18wl0_18 {
   min-width: 4rem;
   font-size: var(--inspect-font-size-small);
   padding: 0.1rem 0.6rem;
