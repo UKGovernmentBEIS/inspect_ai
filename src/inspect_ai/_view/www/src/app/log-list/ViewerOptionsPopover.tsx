@@ -1,14 +1,11 @@
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import { DB_VERSION } from "../../client/database/schema";
 import { PopOver } from "../../components/PopOver";
 import { useStore } from "../../state/store";
+import { getVersionInfo } from "../../version-info";
 
 import clsx from "clsx";
 import styles from "./ViewerOptionsPopover.module.css";
-
-// Version info injected at build time
-declare const __VIEWER_VERSION__: string;
-declare const __VIEWER_COMMIT__: string;
 
 export interface ViewerOptionsPopoverProps {
   showing: boolean;
@@ -23,10 +20,17 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
 }) => {
   const [isClearing, setIsClearing] = useState(false);
   const [clearMessage, setClearMessage] = useState<string | null>(null);
+  const [version, setVersion] = useState("");
   const replicationService = useStore((state) => state.replicationService);
   const dbStats = useStore((state) => state.logs.dbStats);
 
   const logDir = useStore((state) => state.logs.logDir);
+
+  useEffect(() => {
+    if (showing) {
+      getVersionInfo().then((info) => setVersion(info.version));
+    }
+  }, [showing]);
 
   const handleClearDatabase = async () => {
     if (!replicationService) {
@@ -81,7 +85,7 @@ export const ViewerOptionsPopover: FC<ViewerOptionsPopoverProps> = ({
         <div className={clsx("text-style-label", "text-style-secondary")}>
           Version
         </div>
-        <div className={clsx()}>{__VIEWER_VERSION__}</div>
+        <div className={clsx()}>{version}</div>
 
         <div className={clsx("text-style-label", "text-style-secondary")}>
           Schema
